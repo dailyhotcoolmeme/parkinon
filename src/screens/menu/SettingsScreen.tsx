@@ -492,7 +492,8 @@ export function SettingsScreen() {
                   style={styles.cancelLink}
                   onPress={closePicker}
                 >
-                  <Text style={styles.cancelLinkText}>취소</Text>
+                  <Ionicons name="close-outline" size={22} color={Colors.textSub} />
+                  <Text style={styles.cancelLinkText}>닫기</Text>
                 </TouchableOpacity>
               </>
             ) : (
@@ -622,7 +623,8 @@ export function SettingsScreen() {
                   style={styles.cancelLink}
                   onPress={closePicker}
                 >
-                  <Text style={styles.cancelLinkText}>취소</Text>
+                  <Ionicons name="close-outline" size={22} color={Colors.textSub} />
+                  <Text style={styles.cancelLinkText}>닫기</Text>
                 </TouchableOpacity>
               </>
             )}
@@ -806,12 +808,22 @@ const styles = StyleSheet.create({
     color: Colors.white,
   },
   cancelLink: {
+    flexDirection: 'row',
     alignItems: 'center',
-    paddingVertical: 14,
+    justifyContent: 'center',
+    gap: 8,
+    marginHorizontal: 20,
+    marginTop: 10,
+    paddingVertical: 18,
+    borderRadius: 14,
+    borderWidth: 1.5,
+    borderColor: Colors.border,
+    backgroundColor: Colors.background,
   },
   cancelLinkText: {
-    fontSize: 17,
+    fontSize: 18,
     color: Colors.textSub,
+    fontWeight: '700',
   },
 
   // ── Med time option grid ──
