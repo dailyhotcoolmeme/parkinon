@@ -26,10 +26,12 @@ interface MedNotif {
   enabled: boolean;
 }
 
-interface ExerciseTime {
+interface ExerciseNotif {
+  id: string;
   ampm: '오전' | '오후';
   hour: number;
   minute: number;
+  enabled: boolean;
 }
 
 function minutesToLabel(m: number): string {
@@ -54,20 +56,18 @@ export function SettingsScreen() {
     { id: '3', minutes: 120, enabled: true },
   ]);
 
-  // Exercise notification
-  const [exerciseEnabled, setExerciseEnabled] = useState(true);
-  const [exerciseTime, setExerciseTime] = useState<ExerciseTime>({
-    ampm: '오후',
-    hour: 2,
-    minute: 0,
-  });
+  // Exercise notifications (multiple times)
+  const [exerciseNotifs, setExerciseNotifs] = useState<ExerciseNotif[]>([
+    { id: '1', ampm: '오후', hour: 2, minute: 0, enabled: true },
+  ]);
 
   // Modal / picker state
   const [pickerVisible, setPickerVisible] = useState(false);
   const [pickerType, setPickerType] = useState<'med' | 'exercise'>('med');
   const [editingMedId, setEditingMedId] = useState<string | null>(null);
   const [selectedMinutes, setSelectedMinutes] = useState(0);
-  const [pickerExTime, setPickerExTime] = useState<ExerciseTime>({
+  const [editingExerciseId, setEditingExerciseId] = useState<string | null>(null);
+  const [pickerExTime, setPickerExTime] = useState<{ ampm: '오전' | '오후'; hour: number; minute: number }>({
     ampm: '오후',
     hour: 2,
     minute: 0,
@@ -99,7 +99,16 @@ export function SettingsScreen() {
         setSelectedMinutes(30);
       }
     } else {
-      setPickerExTime({ ...exerciseTime });
+      const exId = medId ?? null;
+      setEditingExerciseId(exId);
+      if (exId) {
+        const existing = exerciseNotifs.find((n) => n.id === exId);
+        setPickerExTime(existing
+          ? { ampm: existing.ampm, hour: existing.hour, minute: existing.minute }
+          : { ampm: '오전', hour: 8, minute: 0 });
+      } else {
+        setPickerExTime({ ampm: '오전', hour: 8, minute: 0 });
+      }
     }
 
     setPickerVisible(true);
@@ -176,8 +185,37 @@ export function SettingsScreen() {
     closePicker();
   };
 
+  const toggleExercise = (id: string) => {
+    setExerciseNotifs((prev) =>
+      prev.map((n) => (n.id === id ? { ...n, enabled: !n.enabled } : n))
+    );
+  };
+
+  const deleteExercise = (id: string) => {
+    Alert.alert('알림 삭제', '이 알림을 삭제하시겠어요?', [
+      { text: '취소', style: 'cancel' },
+      {
+        text: '삭제',
+        style: 'destructive',
+        onPress: () =>
+          setExerciseNotifs((prev) => prev.filter((n) => n.id !== id)),
+      },
+    ]);
+  };
+
   const saveExerciseTime = () => {
-    setExerciseTime({ ...pickerExTime });
+    if (editingExerciseId) {
+      setExerciseNotifs((prev) =>
+        prev.map((n) =>
+          n.id === editingExerciseId ? { ...n, ...pickerExTime } : n
+        )
+      );
+    } else {
+      setExerciseNotifs((prev) => [
+        ...prev,
+        { id: Date.now().toString(), ...pickerExTime, enabled: true },
+      ]);
+    }
     closePicker();
   };
 
@@ -188,8 +226,8 @@ export function SettingsScreen() {
   };
 
   // ─── Helpers ────────────────────────────────────────────────────────────────
-  const formatExerciseTime = (t: ExerciseTime) =>
-    `${t.ampm} ${t.hour}:${String(t.minute).padStart(2, '0')}`;
+  const formatExerciseNotif = (n: ExerciseNotif) =>
+    `${n.ampm} ${n.hour}:${String(n.minute).padStart(2, '0')}`;
 
   const optionButtonWidth = (SCREEN_WIDTH - 72) / 2;
   const hourButtonWidth = (SCREEN_WIDTH - 88) / 4;
@@ -299,38 +337,53 @@ export function SettingsScreen() {
             </View>
           </View>
 
-          <View style={styles.exerciseToggleRow}>
-            <View style={styles.notifLeft}>
-              <Text style={styles.notifTitle}>운동 알림</Text>
-              <Text style={styles.notifSub}>
-                설정한 시간에 알림을 보내드려요
-              </Text>
+          {exerciseNotifs.map((notif) => (
+            <View key={notif.id} style={styles.notifRow}>
+              <View style={styles.notifLeft}>
+                <Text style={styles.notifTitle}>{formatExerciseNotif(notif)}</Text>
+                <Text style={styles.notifSub}>
+                  {notif.enabled ? '알림이 켜져 있어요' : '알림이 꺼져 있어요'}
+                </Text>
+              </View>
+              <View style={styles.notifRight}>
+                <Switch
+                  value={notif.enabled}
+                  onValueChange={() => toggleExercise(notif.id)}
+                  trackColor={{ false: Colors.border, true: Colors.primary }}
+                  thumbColor={Colors.white}
+                />
+                <TouchableOpacity
+                  activeOpacity={0.7}
+                  hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+                  style={styles.iconBtn}
+                  onPress={() => openPicker('exercise', notif.id)}
+                >
+                  <Ionicons name="create-outline" size={22} color={Colors.textSub} />
+                </TouchableOpacity>
+                <TouchableOpacity
+                  activeOpacity={0.7}
+                  hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+                  style={[styles.iconBtn, styles.iconBtnDelete]}
+                  onPress={() => deleteExercise(notif.id)}
+                >
+                  <Ionicons name="trash-outline" size={22} color={Colors.danger} />
+                </TouchableOpacity>
+              </View>
             </View>
-            <Switch
-              value={exerciseEnabled}
-              onValueChange={setExerciseEnabled}
-              trackColor={{ false: Colors.border, true: Colors.primary }}
-              thumbColor={Colors.white}
-            />
-          </View>
+          ))}
 
           <TouchableOpacity
             activeOpacity={0.7}
-            style={styles.exerciseTimeRow}
-            onPress={() => openPicker('exercise')}
+            style={styles.addRow}
+            onPress={() => openPicker('exercise', null)}
           >
-            <Text style={[styles.notifTitle, { flex: 1 }]}>알림 시간</Text>
-            <View style={styles.exerciseTimeRight}>
-              <Text style={styles.exerciseTimeValue}>
-                {formatExerciseTime(exerciseTime)}
-              </Text>
-              <Ionicons
-                name="chevron-forward"
-                size={22}
-                color={Colors.textHint}
-                style={{ marginLeft: 4 }}
-              />
-            </View>
+            <Ionicons
+              name="add-circle-outline"
+              size={22}
+              color={Colors.accent}
+              style={{ marginRight: 8 }}
+            />
+            <Text style={styles.addLabel}>알림 추가하기</Text>
           </TouchableOpacity>
         </View>
 
