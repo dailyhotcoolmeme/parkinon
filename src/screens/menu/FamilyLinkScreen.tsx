@@ -13,7 +13,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { TopBar } from '../../components/common/TopBar';
 import { Colors } from '../../constants/colors';
 
-const INVITE_CODE = 'AB1234';
+const INVITE_CODE = '820314';
 
 interface FamilyMember {
   id: string;
@@ -50,16 +50,16 @@ export function FamilyLinkScreen() {
   };
 
   const handleConnect = () => {
-    const trimmed = inputCode.trim().toUpperCase();
+    const trimmed = inputCode.trim();
     if (trimmed.length < 6) {
-      Alert.alert('입력 오류', '6자리 코드를 입력해주세요.');
+      Alert.alert('입력 오류', '6자리 숫자를 입력해주세요.');
       return;
     }
-    Alert.alert('연결 완료', `코드 ${trimmed}로 가족 연결을 요청했어요.`);
+    Alert.alert('연결 완료', `번호 ${trimmed}로 가족 연결을 요청했어요.`);
     setInputCode('');
   };
 
-  const formattedCode = `${INVITE_CODE.slice(0, 2)}  ${INVITE_CODE.slice(2)}`;
+  const formattedCode = `${INVITE_CODE.slice(0, 3)}  ${INVITE_CODE.slice(3)}`;
 
   return (
     <SafeAreaView style={styles.safeArea} edges={['top']}>
@@ -147,7 +147,7 @@ export function FamilyLinkScreen() {
           </View>
 
           <Text style={styles.connectDesc}>
-            가족의 가족 연결 번호를 입력해주세요
+            가족의 6자리 숫자 번호를 입력해주세요
           </Text>
 
           <TextInput
@@ -156,14 +156,13 @@ export function FamilyLinkScreen() {
               inputFocused && styles.codeInputFocused,
             ]}
             value={inputCode}
-            onChangeText={text => setInputCode(text.toUpperCase())}
+            onChangeText={text => setInputCode(text.replace(/[^0-9]/g, '').slice(0, 6))}
             onFocus={() => setInputFocused(true)}
             onBlur={() => setInputFocused(false)}
-            placeholder="000000"
+            placeholder="6자리 숫자"
             placeholderTextColor={Colors.textHint}
-            maxLength={8}
-            autoCapitalize="characters"
-            keyboardType="default"
+            maxLength={6}
+            keyboardType="number-pad"
           />
 
           <TouchableOpacity
