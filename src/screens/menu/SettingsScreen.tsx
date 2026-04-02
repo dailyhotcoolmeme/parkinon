@@ -9,24 +9,29 @@ import {
   Alert,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
+import { Ionicons } from '@expo/vector-icons';
 import { Colors } from '../../constants/colors';
 import { TopBar } from '../../components/common/TopBar';
 
 interface NotificationItem {
   id: string;
   label: string;
+  sub: string;
   enabled: boolean;
   time?: string;
 }
 
 export function SettingsScreen() {
   const [medicationNotifs, setMedicationNotifs] = useState<NotificationItem[]>([
-    { id: 'immediate', label: '복용 직후', enabled: true },
-    { id: 'after30', label: '30분 후', enabled: true },
-    { id: 'after2h', label: '2시간 후', enabled: true },
+    { id: 'immediate', label: '복용 직후', sub: '약을 드신 직후 알림', enabled: true },
+    { id: 'after30', label: '30분 후', sub: '복용 30분 뒤 알림', enabled: true },
+    { id: 'after2h', label: '2시간 후', sub: '복용 2시간 뒤 알림', enabled: true },
   ]);
 
-  const [exerciseNotif, setExerciseNotif] = useState({ enabled: true, time: '오후 2:00' });
+  const [exerciseNotif, setExerciseNotif] = useState({
+    enabled: true,
+    time: '오후 2:00',
+  });
 
   // 보호자 역할인 경우 true (더미)
   const isCaregiver = false;
@@ -68,81 +73,108 @@ export function SettingsScreen() {
   };
 
   return (
-    <SafeAreaView style={styles.safeArea}>
-      <TopBar title="설정" showBack />
+    <SafeAreaView style={styles.safeArea} edges={['top']}>
+      <TopBar title="알림 설정" showBack />
 
       <ScrollView style={styles.scroll} contentContainerStyle={styles.scrollContent}>
-        {/* 약효 추적 알림 */}
-        <Text style={styles.sectionTitle}>약효 추적 알림</Text>
+        {/* Section 1: 약효 추적 알림 */}
         <View style={styles.card}>
-          {medicationNotifs.map((notif, i) => (
-            <View
-              key={notif.id}
-              style={[styles.row, i < medicationNotifs.length - 1 && styles.rowBorder]}
-            >
-              <Text style={styles.rowLabel}>{notif.label}</Text>
+          {/* Card header */}
+          <View style={styles.cardHeader}>
+            <View style={styles.cardHeaderLeft}>
+              <Ionicons name="notifications-outline" size={24} color={Colors.primary} />
+              <View style={styles.cardHeaderTexts}>
+                <Text style={styles.cardHeaderTitle}>약효 추적 알림</Text>
+                <Text style={styles.cardHeaderDesc}>약 복용 후 컨디션을 기록해요</Text>
+              </View>
+            </View>
+          </View>
+
+          {/* Notification items */}
+          {medicationNotifs.map(notif => (
+            <View key={notif.id} style={styles.notifRow}>
+              <View style={styles.notifTexts}>
+                <Text style={styles.notifLabel}>{notif.label}</Text>
+                <Text style={styles.notifSub}>{notif.sub}</Text>
+              </View>
               <Switch
                 value={notif.enabled}
                 onValueChange={() => toggleMedNotif(notif.id)}
-                trackColor={{ false: '#CCCCCC', true: Colors.primary }}
+                trackColor={{ false: '#D0D0D0', true: Colors.primary }}
                 thumbColor={Colors.white}
               />
             </View>
           ))}
-          <TouchableOpacity style={styles.addBtn} onPress={addMedNotif} activeOpacity={0.7}>
-            <Text style={styles.addBtnText}>+ 추가하기</Text>
+
+          {/* Add button */}
+          <TouchableOpacity style={styles.addRow} onPress={addMedNotif} activeOpacity={0.7}>
+            <Ionicons name="add-circle-outline" size={22} color={Colors.accent} />
+            <Text style={styles.addRowText}>알림 시간 추가하기</Text>
           </TouchableOpacity>
         </View>
 
-        {/* 운동 알림 */}
-        <Text style={styles.sectionTitle}>운동 알림</Text>
+        {/* Section 2: 운동 알림 */}
         <View style={styles.card}>
-          <View style={[styles.row, styles.rowBorder]}>
-            <Text style={styles.rowLabel}>운동 알림</Text>
+          {/* Card header */}
+          <View style={styles.cardHeader}>
+            <View style={styles.cardHeaderLeft}>
+              <Ionicons name="fitness-outline" size={24} color={Colors.primary} />
+              <View style={styles.cardHeaderTexts}>
+                <Text style={styles.cardHeaderTitle}>운동 알림</Text>
+                <Text style={styles.cardHeaderDesc}>매일 운동을 권장해드려요</Text>
+              </View>
+            </View>
+          </View>
+
+          {/* 운동 알림 토글 */}
+          <View style={styles.notifRow}>
+            <View style={styles.notifTexts}>
+              <Text style={styles.notifLabel}>운동 알림</Text>
+              <Text style={styles.notifSub}>설정한 시간에 알림을 보내드려요</Text>
+            </View>
             <Switch
               value={exerciseNotif.enabled}
               onValueChange={v => setExerciseNotif(prev => ({ ...prev, enabled: v }))}
-              trackColor={{ false: '#CCCCCC', true: Colors.primary }}
+              trackColor={{ false: '#D0D0D0', true: Colors.primary }}
               thumbColor={Colors.white}
             />
           </View>
-          <TouchableOpacity
-            style={styles.row}
-            onPress={changeExerciseTime}
-            activeOpacity={0.7}
-          >
-            <Text style={styles.rowLabel}>시간</Text>
-            <View style={styles.timeRow}>
+
+          {/* 알림 시간 */}
+          <TouchableOpacity style={styles.notifRow} onPress={changeExerciseTime} activeOpacity={0.7}>
+            <Text style={[styles.notifLabel, { flex: 1 }]}>알림 시간</Text>
+            <View style={styles.timeChevronRow}>
               <Text style={styles.timeText}>{exerciseNotif.time}</Text>
-              <Text style={styles.chevron}>›</Text>
+              <Ionicons name="chevron-forward" size={22} color={Colors.textHint} />
             </View>
           </TouchableOpacity>
         </View>
 
-        {/* 보호자 알림 (보호자에게만 표시) */}
+        {/* Section 3: 보호자 알림 (보호자에게만 표시) */}
         {isCaregiver && (
-          <>
-            <Text style={styles.sectionTitle}>보호자 알림</Text>
-            <View style={styles.card}>
-              {caregiverNotifs.map((notif, i) => (
-                <View
-                  key={notif.id}
-                  style={[
-                    styles.row,
-                    i < caregiverNotifs.length - 1 && styles.rowBorder,
-                  ]}
-                >
-                  <Text style={styles.rowLabel}>{notif.label}</Text>
-                  <Switch
-                    value={notif.enabled}
-                    onValueChange={() => toggleCaregiverNotif(notif.id)}
-                    trackColor={{ false: '#CCCCCC', true: Colors.primary }}
-                    thumbColor={Colors.white}
-                  />
+          <View style={styles.card}>
+            <View style={styles.cardHeader}>
+              <View style={styles.cardHeaderLeft}>
+                <Ionicons name="people-outline" size={24} color={Colors.primary} />
+                <View style={styles.cardHeaderTexts}>
+                  <Text style={styles.cardHeaderTitle}>보호자 알림</Text>
+                  <Text style={styles.cardHeaderDesc}>환자 활동을 알려드려요</Text>
                 </View>
-              ))}
+              </View>
             </View>
-          </>
+
+            {caregiverNotifs.map(notif => (
+              <View key={notif.id} style={styles.notifRow}>
+                <Text style={[styles.notifLabel, { flex: 1 }]}>{notif.label}</Text>
+                <Switch
+                  value={notif.enabled}
+                  onValueChange={() => toggleCaregiverNotif(notif.id)}
+                  trackColor={{ false: '#D0D0D0', true: Colors.primary }}
+                  thumbColor={Colors.white}
+                />
+              </View>
+            ))}
+          </View>
         )}
       </ScrollView>
     </SafeAreaView>
@@ -152,21 +184,17 @@ export function SettingsScreen() {
 const styles = StyleSheet.create({
   safeArea: { flex: 1, backgroundColor: Colors.background },
   scroll: { flex: 1 },
-  scrollContent: { padding: 16, paddingBottom: 40 },
-
-  sectionTitle: {
-    fontSize: 18,
-    fontWeight: '700',
-    color: Colors.text,
-    marginBottom: 10,
-    marginTop: 20,
+  scrollContent: {
+    padding: 20,
+    paddingBottom: 60,
   },
 
+  // Card container
   card: {
     backgroundColor: Colors.white,
     borderRadius: 16,
     overflow: 'hidden',
-    marginBottom: 24,
+    marginBottom: 20,
     shadowColor: '#000',
     shadowOffset: { width: 0, height: 1 },
     shadowOpacity: 0.06,
@@ -174,25 +202,80 @@ const styles = StyleSheet.create({
     elevation: 2,
   },
 
-  row: {
+  // Card header (light background strip)
+  cardHeader: {
+    paddingHorizontal: 20,
+    paddingVertical: 16,
+    backgroundColor: Colors.light,
+  },
+  cardHeaderLeft: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+  },
+  cardHeaderTexts: {
+    flex: 1,
+  },
+  cardHeaderTitle: {
+    fontSize: 20,
+    fontWeight: '700',
+    color: Colors.text,
+    marginBottom: 2,
+  },
+  cardHeaderDesc: {
+    fontSize: 15,
+    color: Colors.textSub,
+  },
+
+  // Notification row
+  notifRow: {
     flexDirection: 'row',
     alignItems: 'center',
     paddingHorizontal: 20,
-    paddingVertical: 20,
-    minHeight: 64,
+    minHeight: 72,
+    borderTopWidth: 1,
+    borderTopColor: Colors.border,
   },
-  rowBorder: { borderBottomWidth: 1, borderBottomColor: Colors.border },
-  rowLabel: { flex: 1, fontSize: 20, color: Colors.text, fontWeight: '500' },
+  notifTexts: {
+    flex: 1,
+    paddingVertical: 14,
+  },
+  notifLabel: {
+    fontSize: 20,
+    color: Colors.text,
+    fontWeight: '500',
+    marginBottom: 3,
+  },
+  notifSub: {
+    fontSize: 15,
+    color: Colors.textSub,
+  },
 
-  timeRow: { flexDirection: 'row', alignItems: 'center', gap: 8 },
-  timeText: { fontSize: 18, color: Colors.primary, fontWeight: '600' },
-  chevron: { fontSize: 20, color: Colors.textHint },
-
-  addBtn: {
+  // Add button row at bottom of card
+  addRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
     paddingHorizontal: 20,
     paddingVertical: 16,
     borderTopWidth: 1,
     borderTopColor: Colors.border,
   },
-  addBtnText: { fontSize: 18, color: Colors.primary, fontWeight: '600' },
+  addRowText: {
+    fontSize: 18,
+    color: Colors.accent,
+    fontWeight: '600',
+  },
+
+  // Exercise time row
+  timeChevronRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+  },
+  timeText: {
+    fontSize: 20,
+    color: Colors.primary,
+    fontWeight: '600',
+  },
 });

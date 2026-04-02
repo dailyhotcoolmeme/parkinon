@@ -7,12 +7,13 @@ import { Colors } from '../../constants/colors';
 interface Props {
   title: string;
   showBack?: boolean;
+  showClose?: boolean;
   showMenu?: boolean;
   rightIcon?: React.ReactNode;
   onMenuPress?: () => void;
 }
 
-export function TopBar({ title, showBack, showMenu, rightIcon, onMenuPress }: Props) {
+export function TopBar({ title, showBack, showClose, showMenu, rightIcon, onMenuPress }: Props) {
   const navigation = useNavigation();
 
   return (
@@ -27,6 +28,15 @@ export function TopBar({ title, showBack, showMenu, rightIcon, onMenuPress }: Pr
             >
               <Ionicons name="arrow-back" size={24} color={Colors.textSub} />
               <Text style={styles.backText}>뒤로</Text>
+            </TouchableOpacity>
+          )}
+          {showClose && (
+            <TouchableOpacity
+              onPress={() => navigation.goBack()}
+              style={styles.closeBtn}
+              hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+            >
+              <Ionicons name="close" size={28} color={Colors.textSub} />
             </TouchableOpacity>
           )}
           {showMenu && (
@@ -62,8 +72,16 @@ const styles = StyleSheet.create({
   iconBtn: { padding: 8 },
   iconText: { fontSize: 30, color: Colors.text },
   backBtn: {
-    flexDirection: 'row', alignItems: 'center', gap: 4,
-    paddingVertical: 8, paddingHorizontal: 4,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    paddingVertical: 8,
+    paddingHorizontal: 4,
   },
   backText: { fontSize: 18, color: Colors.textSub, fontWeight: '600' },
+  closeBtn: {
+    padding: 8,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
 });

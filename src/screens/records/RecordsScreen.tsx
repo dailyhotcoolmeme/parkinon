@@ -115,7 +115,7 @@ export function RecordsScreen() {
   };
 
   return (
-    <SafeAreaView style={styles.safeArea}>
+    <SafeAreaView style={styles.safeArea} edges={['top']}>
       <TopBar title="기록 보기" showBack />
 
       {/* 기간 탭 */}

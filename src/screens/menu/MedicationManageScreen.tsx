@@ -8,6 +8,7 @@ import {
   Alert,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
+import { Ionicons } from '@expo/vector-icons';
 import { Colors } from '../../constants/colors';
 import { TopBar } from '../../components/common/TopBar';
 
@@ -16,26 +17,25 @@ interface Medication {
   name: string;
   dosage: string;
   schedule: string;
-  imageUri?: string;
 }
 
 const DUMMY_MEDICATIONS: Medication[] = [
   {
     id: '1',
     name: '레보도파 250mg',
-    dosage: '250mg',
+    dosage: '250mg · 1정',
     schedule: '아침, 점심, 저녁',
   },
   {
     id: '2',
     name: '미라펙스 0.5mg',
-    dosage: '0.5mg',
+    dosage: '0.5mg · 1정',
     schedule: '아침, 저녁',
   },
   {
     id: '3',
     name: '콤탄 200mg',
-    dosage: '200mg',
+    dosage: '200mg · 1정',
     schedule: '아침, 점심, 저녁, 취침',
   },
 ];
@@ -60,7 +60,8 @@ export function MedicationManageScreen() {
         {
           text: '삭제',
           style: 'destructive',
-          onPress: () => setMedications(prev => prev.filter(m => m.id !== med.id)),
+          onPress: () =>
+            setMedications(prev => prev.filter(m => m.id !== med.id)),
         },
       ],
     );
@@ -71,70 +72,89 @@ export function MedicationManageScreen() {
   };
 
   return (
-    <SafeAreaView style={styles.safeArea}>
+    <SafeAreaView style={styles.safeArea} edges={['top']}>
       <TopBar title="약 관리" showBack />
-
-      <ScrollView style={styles.scroll} contentContainerStyle={styles.scrollContent}>
-        {/* 처방전으로 등록 버튼 */}
+      <ScrollView
+        style={styles.scroll}
+        contentContainerStyle={styles.scrollContent}
+        showsVerticalScrollIndicator={false}
+      >
+        {/* ── 처방전으로 등록하기 ── */}
         <TouchableOpacity
           style={styles.prescriptionBtn}
           onPress={handlePrescriptionRegister}
           activeOpacity={0.8}
         >
-          <Text style={styles.prescriptionBtnIcon}>📷</Text>
-          <Text style={styles.prescriptionBtnText}>처방전으로 등록하기</Text>
-          <Text style={styles.prescriptionBtnChevron}>›</Text>
+          <View style={styles.prescriptionIconCircle}>
+            <Text style={styles.prescriptionIconEmoji}>📷</Text>
+          </View>
+          <View style={styles.prescriptionTextGroup}>
+            <Text style={styles.prescriptionTitle}>처방전으로 등록하기</Text>
+            <Text style={styles.prescriptionSub}>처방전 사진을 찍으면 자동으로 입력돼요</Text>
+          </View>
+          <Ionicons name="chevron-forward" size={24} color={Colors.primary} />
         </TouchableOpacity>
 
-        {/* 등록된 약 목록 */}
-        <Text style={styles.sectionTitle}>등록된 약</Text>
+        {/* ── Section header ── */}
+        <Text style={styles.sectionHeader}>
+          {'💊 등록된 약 '}
+          <Text style={styles.sectionHeaderCount}>({medications.length})</Text>
+        </Text>
 
+        {/* ── Empty state ── */}
         {medications.length === 0 && (
-          <View style={styles.emptyBox}>
-            <Text style={styles.emptyText}>등록된 약이 없어요.</Text>
-            <Text style={styles.emptySubText}>아래 버튼으로 약을 추가해보세요.</Text>
+          <View style={styles.emptyCard}>
+            <Ionicons name="medkit-outline" size={56} color={Colors.textHint} />
+            <Text style={styles.emptyTitle}>등록된 약이 없어요</Text>
+            <Text style={styles.emptyDesc}>
+              {'처방전 등록 또는 아래 버튼으로\n약을 추가해보세요'}
+            </Text>
           </View>
         )}
 
+        {/* ── Medication cards ── */}
         {medications.map(med => (
           <View key={med.id} style={styles.medCard}>
-            {/* 약 이미지 */}
-            <View style={styles.medImageBox}>
-              <Text style={styles.medImagePlaceholder}>💊</Text>
+            {/* Top row */}
+            <View style={styles.medTopRow}>
+              <View style={styles.medIconCircle}>
+                <Text style={styles.medIconEmoji}>💊</Text>
+              </View>
+              <View style={styles.medInfoGroup}>
+                <Text style={styles.medName}>{med.name}</Text>
+                <Text style={styles.medSchedule}>{med.schedule}</Text>
+                <Text style={styles.medDosage}>{med.dosage}</Text>
+              </View>
             </View>
 
-            {/* 약 정보 */}
-            <View style={styles.medInfo}>
-              <Text style={styles.medName}>{med.name}</Text>
-              <Text style={styles.medSchedule}>{med.schedule}</Text>
-
-              <View style={styles.medBtnRow}>
-                <TouchableOpacity
-                  style={styles.editBtn}
-                  onPress={() => handleEdit(med)}
-                  activeOpacity={0.7}
-                >
-                  <Text style={styles.editBtnText}>수정</Text>
-                </TouchableOpacity>
-                <TouchableOpacity
-                  style={styles.deleteBtn}
-                  onPress={() => handleDelete(med)}
-                  activeOpacity={0.7}
-                >
-                  <Text style={styles.deleteBtnText}>삭제</Text>
-                </TouchableOpacity>
-              </View>
+            {/* Bottom row: action buttons */}
+            <View style={styles.medBtnRow}>
+              <TouchableOpacity
+                style={styles.editBtn}
+                onPress={() => handleEdit(med)}
+                activeOpacity={0.7}
+              >
+                <Text style={styles.editBtnText}>수정</Text>
+              </TouchableOpacity>
+              <TouchableOpacity
+                style={styles.deleteBtn}
+                onPress={() => handleDelete(med)}
+                activeOpacity={0.7}
+              >
+                <Text style={styles.deleteBtnText}>삭제</Text>
+              </TouchableOpacity>
             </View>
           </View>
         ))}
 
-        {/* 직접 추가 버튼 */}
+        {/* ── Add manual button ── */}
         <TouchableOpacity
           style={styles.addBtn}
           onPress={handleAddManual}
           activeOpacity={0.8}
         >
-          <Text style={styles.addBtnText}>+ 약 직접 추가하기</Text>
+          <Ionicons name="add-circle-outline" size={24} color={Colors.textSub} />
+          <Text style={styles.addBtnText}>약 직접 추가하기</Text>
         </TouchableOpacity>
       </ScrollView>
     </SafeAreaView>
@@ -142,105 +162,194 @@ export function MedicationManageScreen() {
 }
 
 const styles = StyleSheet.create({
-  safeArea: { flex: 1, backgroundColor: Colors.background },
-  scroll: { flex: 1 },
-  scrollContent: { padding: 16, paddingBottom: 40 },
+  safeArea: {
+    flex: 1,
+    backgroundColor: Colors.white,
+  },
+  scroll: {
+    flex: 1,
+    backgroundColor: Colors.background,
+  },
+  scrollContent: {
+    padding: 20,
+    paddingBottom: 60,
+  },
 
+  // ── Prescription button ──
   prescriptionBtn: {
     flexDirection: 'row',
     alignItems: 'center',
     backgroundColor: Colors.white,
     borderRadius: 16,
-    padding: 20,
-    marginBottom: 24,
+    elevation: 2,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.08,
+    shadowRadius: 4,
     borderWidth: 2,
     borderColor: Colors.primary,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 1 },
-    shadowOpacity: 0.06,
-    shadowRadius: 4,
-    elevation: 2,
+    paddingHorizontal: 20,
+    paddingVertical: 20,
+    marginBottom: 20,
   },
-  prescriptionBtnIcon: { fontSize: 24, marginRight: 12 },
-  prescriptionBtnText: {
-    flex: 1,
-    fontSize: 18,
-    fontWeight: '600',
-    color: Colors.primary,
-  },
-  prescriptionBtnChevron: { fontSize: 22, color: Colors.primary },
-
-  sectionTitle: {
-    fontSize: 18,
-    fontWeight: '700',
-    color: Colors.textSub,
-    marginBottom: 14,
-  },
-
-  emptyBox: {
-    backgroundColor: Colors.white,
-    borderRadius: 16,
-    padding: 32,
-    alignItems: 'center',
-    marginBottom: 16,
-  },
-  emptyText: { fontSize: 20, fontWeight: '600', color: Colors.textSub, marginBottom: 8 },
-  emptySubText: { fontSize: 17, color: Colors.textHint },
-
-  medCard: {
-    flexDirection: 'row',
-    backgroundColor: Colors.white,
-    borderRadius: 16,
-    padding: 20,
-    marginBottom: 12,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 1 },
-    shadowOpacity: 0.06,
-    shadowRadius: 4,
-    elevation: 2,
-  },
-  medImageBox: {
-    width: 72,
-    height: 72,
-    borderRadius: 14,
-    backgroundColor: Colors.light,
+  prescriptionIconCircle: {
+    width: 64,
+    height: 64,
+    borderRadius: 32,
+    backgroundColor: '#E8F5E9',
     alignItems: 'center',
     justifyContent: 'center',
-    marginRight: 16,
   },
-  medImagePlaceholder: { fontSize: 36 },
-  medInfo: { flex: 1 },
-  medName: { fontSize: 20, fontWeight: '700', color: Colors.text, marginBottom: 4 },
-  medSchedule: { fontSize: 17, color: Colors.textSub, marginBottom: 12 },
+  prescriptionIconEmoji: {
+    fontSize: 28,
+  },
+  prescriptionTextGroup: {
+    flex: 1,
+    marginHorizontal: 16,
+  },
+  prescriptionTitle: {
+    fontSize: 20,
+    fontWeight: '700',
+    color: Colors.primary,
+  },
+  prescriptionSub: {
+    fontSize: 15,
+    color: Colors.textSub,
+    marginTop: 4,
+  },
 
-  medBtnRow: { flexDirection: 'row', gap: 8 },
+  // ── Section header ──
+  sectionHeader: {
+    fontSize: 20,
+    fontWeight: '700',
+    color: Colors.text,
+    marginBottom: 14,
+    marginTop: 8,
+  },
+  sectionHeaderCount: {
+    fontSize: 20,
+    fontWeight: '700',
+    color: Colors.text,
+  },
+
+  // ── Empty card ──
+  emptyCard: {
+    backgroundColor: Colors.white,
+    borderRadius: 16,
+    alignItems: 'center',
+    paddingVertical: 48,
+    paddingHorizontal: 20,
+  },
+  emptyTitle: {
+    fontSize: 20,
+    color: Colors.textSub,
+    marginTop: 16,
+    fontWeight: '600',
+  },
+  emptyDesc: {
+    fontSize: 16,
+    color: Colors.textHint,
+    textAlign: 'center',
+    marginTop: 8,
+    lineHeight: 24,
+  },
+
+  // ── Medication card ──
+  medCard: {
+    backgroundColor: Colors.white,
+    borderRadius: 16,
+    elevation: 2,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.08,
+    shadowRadius: 4,
+    padding: 20,
+    marginBottom: 12,
+  },
+  medTopRow: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+  },
+  medIconCircle: {
+    width: 56,
+    height: 56,
+    borderRadius: 28,
+    backgroundColor: '#E8F5E9',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  medIconEmoji: {
+    fontSize: 26,
+  },
+  medInfoGroup: {
+    flex: 1,
+    marginLeft: 16,
+  },
+  medName: {
+    fontSize: 22,
+    fontWeight: '700',
+    color: Colors.text,
+  },
+  medSchedule: {
+    fontSize: 17,
+    color: Colors.textSub,
+    marginTop: 4,
+  },
+  medDosage: {
+    fontSize: 15,
+    color: Colors.textHint,
+    marginTop: 2,
+  },
+  medBtnRow: {
+    flexDirection: 'row',
+    marginTop: 16,
+    gap: 10,
+  },
   editBtn: {
     flex: 1,
-    paddingVertical: 14,
-    borderRadius: 10,
+    height: 52,
+    borderRadius: 12,
     borderWidth: 1.5,
     borderColor: Colors.primary,
     alignItems: 'center',
+    justifyContent: 'center',
   },
-  editBtnText: { fontSize: 18, fontWeight: '600', color: Colors.primary },
+  editBtnText: {
+    fontSize: 18,
+    fontWeight: '700',
+    color: Colors.primary,
+  },
   deleteBtn: {
     flex: 1,
-    paddingVertical: 14,
-    borderRadius: 10,
+    height: 52,
+    borderRadius: 12,
     borderWidth: 1.5,
     borderColor: Colors.danger,
     alignItems: 'center',
+    justifyContent: 'center',
   },
-  deleteBtnText: { fontSize: 18, fontWeight: '600', color: Colors.danger },
+  deleteBtnText: {
+    fontSize: 18,
+    fontWeight: '700',
+    color: Colors.danger,
+  },
 
+  // ── Add manual button ──
   addBtn: {
-    marginTop: 8,
-    paddingVertical: 18,
-    borderRadius: 12,
+    backgroundColor: Colors.white,
+    borderRadius: 16,
     borderWidth: 1.5,
     borderColor: Colors.border,
-    backgroundColor: Colors.white,
+    height: 64,
+    flexDirection: 'row',
     alignItems: 'center',
+    justifyContent: 'center',
+    marginTop: 8,
+    gap: 8,
   },
-  addBtnText: { fontSize: 20, fontWeight: '600', color: Colors.textSub },
+  addBtnText: {
+    fontSize: 20,
+    fontWeight: '600',
+    color: Colors.textSub,
+  },
 });

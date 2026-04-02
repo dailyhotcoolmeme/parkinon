@@ -2,15 +2,18 @@ import React, { useState } from 'react';
 import {
   View,
   Text,
-  TouchableOpacity,
   ScrollView,
-  TextInput,
   StyleSheet,
+  TouchableOpacity,
+  TextInput,
   Alert,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { Colors } from '../../constants/colors';
+import { Ionicons } from '@expo/vector-icons';
 import { TopBar } from '../../components/common/TopBar';
+import { Colors } from '../../constants/colors';
+
+const INVITE_CODE = 'AB1234';
 
 interface FamilyMember {
   id: string;
@@ -19,128 +22,170 @@ interface FamilyMember {
   cohabiting: boolean;
 }
 
-const DUMMY_FAMILY: FamilyMember[] = [
-  { id: '1', name: '김보호', relation: '배우자', cohabiting: true },
-];
-
-const INVITE_CODE = 'AB1234';
+const DUMMY_FAMILY: FamilyMember[] = [];
 
 export function FamilyLinkScreen() {
   const [family, setFamily] = useState<FamilyMember[]>(DUMMY_FAMILY);
   const [inputCode, setInputCode] = useState('');
+  const [inputFocused, setInputFocused] = useState(false);
 
   const handleDisconnect = (member: FamilyMember) => {
     Alert.alert(
       '연결 해제',
-      `${member.name}님과의 연결을 해제할까요?`,
+      `${member.name}님과의 연결을 해제하시겠어요?`,
       [
         { text: '취소', style: 'cancel' },
         {
           text: '해제',
           style: 'destructive',
-          onPress: () => setFamily(prev => prev.filter(m => m.id !== member.id)),
+          onPress: () =>
+            setFamily(prev => prev.filter(m => m.id !== member.id)),
         },
       ],
     );
   };
 
   const handleShareKakao = () => {
-    Alert.alert('카카오톡 공유', '카카오톡 공유 기능은 준비 중이에요.');
+    Alert.alert('카카오톡 공유', `연결 번호 ${INVITE_CODE}를 카카오톡으로 공유합니다.`);
   };
 
   const handleConnect = () => {
-    if (inputCode.trim().length < 6) {
-      Alert.alert('코드 확인', '6자리 코드를 입력해주세요.');
+    const trimmed = inputCode.trim().toUpperCase();
+    if (trimmed.length < 6) {
+      Alert.alert('입력 오류', '6자리 코드를 입력해주세요.');
       return;
     }
-    Alert.alert('가족 연결', `코드 "${inputCode}"로 연결 기능은 준비 중이에요.`);
+    Alert.alert('연결 완료', `코드 ${trimmed}로 가족 연결을 요청했어요.`);
+    setInputCode('');
   };
 
+  const formattedCode = `${INVITE_CODE.slice(0, 2)}  ${INVITE_CODE.slice(2)}`;
+
   return (
-    <SafeAreaView style={styles.safeArea}>
+    <SafeAreaView style={styles.safeArea} edges={['top']}>
       <TopBar title="가족 연동" showBack />
-
-      <ScrollView style={styles.scroll} contentContainerStyle={styles.scrollContent}>
-        {/* 연결된 가족 */}
-        <Text style={styles.sectionTitle}>연결된 가족</Text>
-
-        {family.length === 0 && (
-          <View style={styles.emptyBox}>
-            <Text style={styles.emptyText}>연결된 가족이 없어요.</Text>
-            <Text style={styles.emptySubText}>아래에서 코드를 공유하거나 입력해보세요.</Text>
+      <ScrollView
+        style={styles.scroll}
+        contentContainerStyle={styles.scrollContent}
+        showsVerticalScrollIndicator={false}
+      >
+        {/* ── Section 1: 연결된 가족 ── */}
+        <View style={styles.card}>
+          <View style={styles.sectionHeader}>
+            <Ionicons name="people" size={24} color={Colors.primary} />
+            <Text style={styles.sectionTitle}>연결된 가족</Text>
           </View>
-        )}
 
-        {family.map(member => (
-          <View key={member.id} style={styles.familyCard}>
-            <View style={styles.familyAvatarBox}>
-              <Text style={styles.familyAvatar}>👤</Text>
-            </View>
-            <View style={styles.familyInfo}>
-              <Text style={styles.familyName}>{member.name} / {member.relation}</Text>
-              <Text style={styles.familyStatus}>
-                {member.cohabiting ? '함께 거주중' : '따로 거주중'}
+          {family.length === 0 ? (
+            <View style={styles.emptyState}>
+              <Ionicons name="people-outline" size={52} color={Colors.textHint} />
+              <Text style={styles.emptyTitle}>아직 연결된 가족이 없어요</Text>
+              <Text style={styles.emptyDesc}>
+                {'아래에서 코드를 공유하거나\n입력해보세요'}
               </Text>
             </View>
-            <TouchableOpacity
-              style={styles.disconnectBtn}
-              onPress={() => handleDisconnect(member)}
-              activeOpacity={0.7}
-            >
-              <Text style={styles.disconnectBtnText}>연결 해제</Text>
-            </TouchableOpacity>
-          </View>
-        ))}
-
-        {/* 나의 초대 코드 */}
-        <Text style={styles.sectionTitle}>나의 초대 코드</Text>
-        <View style={styles.codeCard}>
-          <View style={styles.codeBox}>
-            {INVITE_CODE.split('').map((char, i) => (
-              <View key={i} style={styles.codeChar}>
-                <Text style={styles.codeCharText}>{char}</Text>
+          ) : (
+            family.map((member, index) => (
+              <View
+                key={member.id}
+                style={[
+                  styles.memberRow,
+                  index !== 0 && styles.memberRowBorder,
+                ]}
+              >
+                <View style={styles.memberAvatar}>
+                  <Text style={styles.memberAvatarEmoji}>👤</Text>
+                </View>
+                <View style={styles.memberInfo}>
+                  <Text style={styles.memberName}>{member.name}</Text>
+                  <Text style={styles.memberSub}>
+                    {member.relation}
+                    {member.cohabiting ? ' · 함께 거주' : ' · 따로 거주'}
+                  </Text>
+                </View>
+                <TouchableOpacity
+                  style={styles.disconnectBtn}
+                  onPress={() => handleDisconnect(member)}
+                  activeOpacity={0.7}
+                >
+                  <Text style={styles.disconnectBtnText}>연결 해제</Text>
+                </TouchableOpacity>
               </View>
-            ))}
+            ))
+          )}
+        </View>
+
+        {/* ── Section 2: 가족 연결 번호 ── */}
+        <View style={[styles.card, styles.cardMarginTop]}>
+          <View style={styles.sectionHeader}>
+            <Ionicons name="key-outline" size={24} color={Colors.primary} />
+            <View style={styles.sectionTitleGroup}>
+              <Text style={styles.sectionTitle}>가족 연결 번호</Text>
+              <Text style={styles.sectionDesc}>24시간 동안 유효해요</Text>
+            </View>
           </View>
-          <Text style={styles.codeNote}>24시간 동안 유효해요</Text>
+
+          <View style={styles.codeBlock}>
+            <Text style={styles.codeText}>{formattedCode}</Text>
+            <Text style={styles.codeSubText}>이 번호는 내 가족만 사용할 수 있어요</Text>
+          </View>
+
           <TouchableOpacity
             style={styles.kakaoBtn}
             onPress={handleShareKakao}
-            activeOpacity={0.8}
+            activeOpacity={0.85}
           >
             <Text style={styles.kakaoBtnText}>💬 카카오톡으로 공유하기</Text>
           </TouchableOpacity>
         </View>
 
-        {/* 코드로 연결하기 */}
-        <Text style={styles.sectionTitle}>코드로 가족 연결하기</Text>
-        <View style={styles.connectCard}>
+        {/* ── Section 3: 코드로 연결하기 ── */}
+        <View style={[styles.card, styles.cardMarginTop]}>
+          <View style={styles.sectionHeader}>
+            <Ionicons name="link-outline" size={24} color={Colors.primary} />
+            <Text style={styles.sectionTitle}>코드로 연결하기</Text>
+          </View>
+
+          <Text style={styles.connectDesc}>
+            가족의 가족 연결 번호를 입력해주세요
+          </Text>
+
           <TextInput
-            style={styles.codeInput}
-            placeholder="코드 6자리 입력"
-            placeholderTextColor={Colors.textHint}
+            style={[
+              styles.codeInput,
+              inputFocused && styles.codeInputFocused,
+            ]}
             value={inputCode}
-            onChangeText={v => setInputCode(v.toUpperCase().slice(0, 6))}
-            maxLength={6}
+            onChangeText={text => setInputCode(text.toUpperCase())}
+            onFocus={() => setInputFocused(true)}
+            onBlur={() => setInputFocused(false)}
+            placeholder="000000"
+            placeholderTextColor={Colors.textHint}
+            maxLength={8}
             autoCapitalize="characters"
+            keyboardType="default"
           />
+
           <TouchableOpacity
             style={[
               styles.connectBtn,
               inputCode.trim().length < 6 && styles.connectBtnDisabled,
             ]}
             onPress={handleConnect}
-            activeOpacity={0.8}
+            activeOpacity={0.85}
+            disabled={inputCode.trim().length < 6}
           >
-            <Text
-              style={[
-                styles.connectBtnText,
-                inputCode.trim().length < 6 && styles.connectBtnTextDisabled,
-              ]}
-            >
-              연결하기
-            </Text>
+            <Text style={styles.connectBtnText}>연결하기</Text>
           </TouchableOpacity>
+
+          <View style={styles.infoRow}>
+            <Ionicons
+              name="information-circle-outline"
+              size={18}
+              color={Colors.textHint}
+            />
+            <Text style={styles.infoText}>가족도 파킨온 앱을 설치해야 해요</Text>
+          </View>
         </View>
       </ScrollView>
     </SafeAreaView>
@@ -148,128 +193,215 @@ export function FamilyLinkScreen() {
 }
 
 const styles = StyleSheet.create({
-  safeArea: { flex: 1, backgroundColor: Colors.background },
-  scroll: { flex: 1 },
-  scrollContent: { padding: 16, paddingBottom: 40 },
-
-  sectionTitle: {
-    fontSize: 18,
-    fontWeight: '700',
-    color: Colors.textSub,
-    marginBottom: 14,
-    marginTop: 8,
-  },
-
-  emptyBox: {
+  safeArea: {
+    flex: 1,
     backgroundColor: Colors.white,
-    borderRadius: 16,
-    padding: 32,
-    alignItems: 'center',
-    marginBottom: 24,
   },
-  emptyText: { fontSize: 20, fontWeight: '600', color: Colors.textSub, marginBottom: 8 },
-  emptySubText: { fontSize: 17, color: Colors.textHint, textAlign: 'center' },
-
-  familyCard: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: Colors.white,
-    borderRadius: 16,
+  scroll: {
+    flex: 1,
+    backgroundColor: Colors.background,
+  },
+  scrollContent: {
     padding: 20,
-    marginBottom: 12,
+    paddingBottom: 60,
+  },
+
+  // ── Card ──
+  card: {
+    backgroundColor: Colors.white,
+    borderRadius: 16,
+    elevation: 2,
     shadowColor: '#000',
     shadowOffset: { width: 0, height: 1 },
-    shadowOpacity: 0.06,
+    shadowOpacity: 0.08,
     shadowRadius: 4,
-    elevation: 2,
+    overflow: 'hidden',
   },
-  familyAvatarBox: {
-    width: 52,
-    height: 52,
-    borderRadius: 26,
+  cardMarginTop: {
+    marginTop: 16,
+  },
+
+  // ── Section header ──
+  sectionHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingHorizontal: 20,
+    paddingTop: 20,
+    paddingBottom: 12,
+    gap: 10,
+  },
+  sectionTitleGroup: {
+    flex: 1,
+  },
+  sectionTitle: {
+    fontSize: 20,
+    fontWeight: '700',
+    color: Colors.text,
+  },
+  sectionDesc: {
+    fontSize: 15,
+    color: Colors.textSub,
+    marginTop: 2,
+  },
+
+  // ── Empty state ──
+  emptyState: {
+    alignItems: 'center',
+    paddingVertical: 32,
+    paddingHorizontal: 20,
+  },
+  emptyTitle: {
+    fontSize: 18,
+    color: Colors.textSub,
+    marginTop: 12,
+    fontWeight: '600',
+  },
+  emptyDesc: {
+    fontSize: 16,
+    color: Colors.textHint,
+    textAlign: 'center',
+    marginTop: 8,
+    lineHeight: 24,
+  },
+
+  // ── Family member row ──
+  memberRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingHorizontal: 20,
+    paddingVertical: 16,
+  },
+  memberRowBorder: {
+    borderTopWidth: 1,
+    borderTopColor: Colors.border,
+  },
+  memberAvatar: {
+    width: 56,
+    height: 56,
+    borderRadius: 28,
     backgroundColor: Colors.light,
     alignItems: 'center',
     justifyContent: 'center',
-    marginRight: 14,
   },
-  familyAvatar: { fontSize: 26 },
-  familyInfo: { flex: 1 },
-  familyName: { fontSize: 20, fontWeight: '700', color: Colors.text, marginBottom: 4 },
-  familyStatus: { fontSize: 17, color: Colors.textSub },
-
+  memberAvatarEmoji: {
+    fontSize: 26,
+  },
+  memberInfo: {
+    flex: 1,
+    marginHorizontal: 14,
+  },
+  memberName: {
+    fontSize: 20,
+    fontWeight: '700',
+    color: Colors.text,
+  },
+  memberSub: {
+    fontSize: 16,
+    color: Colors.textSub,
+    marginTop: 3,
+  },
   disconnectBtn: {
-    paddingHorizontal: 18,
-    paddingVertical: 14,
-    borderRadius: 10,
+    paddingHorizontal: 16,
+    paddingVertical: 10,
+    borderRadius: 8,
     borderWidth: 1.5,
     borderColor: Colors.danger,
   },
-  disconnectBtnText: { fontSize: 18, fontWeight: '600', color: Colors.danger },
-
-  codeCard: {
-    backgroundColor: Colors.white,
-    borderRadius: 16,
-    padding: 24,
-    alignItems: 'center',
-    marginBottom: 24,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 1 },
-    shadowOpacity: 0.06,
-    shadowRadius: 4,
-    elevation: 2,
+  disconnectBtnText: {
+    fontSize: 16,
+    fontWeight: '700',
+    color: Colors.danger,
   },
-  codeBox: { flexDirection: 'row', gap: 8, marginBottom: 12 },
-  codeChar: {
-    width: 50,
-    height: 62,
-    borderRadius: 10,
-    backgroundColor: Colors.light,
+
+  // ── Invite code block ──
+  codeBlock: {
+    marginHorizontal: 20,
+    marginTop: 16,
+    backgroundColor: Colors.background,
+    borderRadius: 16,
+    paddingVertical: 20,
     alignItems: 'center',
-    justifyContent: 'center',
     borderWidth: 2,
     borderColor: Colors.primary,
   },
-  codeCharText: { fontSize: 24, fontWeight: '700', color: Colors.dark },
-  codeNote: { fontSize: 16, color: Colors.textHint, marginBottom: 16 },
-  kakaoBtn: {
-    width: '100%',
-    backgroundColor: '#FEE500',
-    borderRadius: 12,
-    paddingVertical: 16,
-    alignItems: 'center',
+  codeText: {
+    fontSize: 36,
+    fontWeight: '800',
+    color: Colors.dark,
+    letterSpacing: 8,
   },
-  kakaoBtnText: { fontSize: 20, fontWeight: '700', color: '#3C1E1E' },
+  codeSubText: {
+    fontSize: 15,
+    color: Colors.textSub,
+    marginTop: 10,
+  },
 
-  connectCard: {
-    backgroundColor: Colors.white,
-    borderRadius: 16,
-    padding: 20,
-    gap: 12,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 1 },
-    shadowOpacity: 0.06,
-    shadowRadius: 4,
-    elevation: 2,
+  // ── Kakao button ──
+  kakaoBtn: {
+    margin: 20,
+    marginTop: 16,
+    backgroundColor: '#FEE500',
+    borderRadius: 14,
+    paddingVertical: 18,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  kakaoBtnText: {
+    fontSize: 20,
+    fontWeight: '700',
+    color: '#3C1E1E',
+  },
+
+  // ── Connect section ──
+  connectDesc: {
+    fontSize: 16,
+    color: Colors.textSub,
+    marginTop: 8,
+    marginBottom: 16,
+    paddingHorizontal: 20,
   },
   codeInput: {
-    borderWidth: 1.5,
+    marginHorizontal: 20,
+    height: 64,
+    borderWidth: 2,
     borderColor: Colors.border,
-    borderRadius: 10,
-    paddingHorizontal: 16,
-    paddingVertical: 14,
-    fontSize: 20,
-    color: Colors.text,
+    borderRadius: 14,
+    fontSize: 26,
     fontWeight: '700',
-    letterSpacing: 4,
+    letterSpacing: 6,
     textAlign: 'center',
+    color: Colors.text,
+  },
+  codeInputFocused: {
+    borderColor: Colors.primary,
   },
   connectBtn: {
+    marginHorizontal: 20,
+    marginTop: 12,
+    height: 64,
+    borderRadius: 14,
     backgroundColor: Colors.primary,
-    borderRadius: 12,
-    paddingVertical: 16,
     alignItems: 'center',
+    justifyContent: 'center',
   },
-  connectBtnDisabled: { backgroundColor: Colors.border },
-  connectBtnText: { fontSize: 18, fontWeight: '700', color: Colors.white },
-  connectBtnTextDisabled: { color: Colors.textHint },
+  connectBtnDisabled: {
+    backgroundColor: Colors.border,
+  },
+  connectBtnText: {
+    fontSize: 20,
+    fontWeight: '700',
+    color: Colors.white,
+  },
+  infoRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    paddingHorizontal: 20,
+    paddingTop: 14,
+    paddingBottom: 20,
+  },
+  infoText: {
+    fontSize: 16,
+    color: Colors.textHint,
+  },
 });
