@@ -151,9 +151,6 @@ export function BodyStatePopupFlow({
             컨디션이 좋을 때 가볍게 운동하면{'\n'}파킨슨 증상 완화에 도움이 돼요.
           </Text>
           <PrimaryButton title="운동하러 가기" onPress={handleExerciseSave} />
-          <TouchableOpacity style={styles.skipBtn} onPress={handleExerciseSave}>
-            <Text style={styles.skipText}>다음에 할게요</Text>
-          </TouchableOpacity>
         </View>
       );
     }
@@ -214,7 +211,7 @@ export function BodyStatePopupFlow({
     <Modal visible={visible} transparent animationType="none" onRequestClose={handleClose}>
       <Animated.View style={[styles.backdrop, { opacity: fadeAnim }]}>
         <Animated.View style={[styles.sheet, { transform: [{ translateY: slideAnim }] }]}>
-          {/* 헤더 */}
+          {/* 헤더 (진행 점 표시만) */}
           <View style={styles.header}>
             {step !== 'exercise_suggest' && (
               <View style={styles.dotRow}>
@@ -223,13 +220,15 @@ export function BodyStatePopupFlow({
                 ))}
               </View>
             )}
-            <TouchableOpacity style={styles.closeBtn} onPress={handleClose}>
-              <Ionicons name="close" size={20} color={Colors.textSub} />
-              <Text style={styles.closeBtnText}>닫기</Text>
-            </TouchableOpacity>
           </View>
 
           {renderContent()}
+
+          {/* 닫기 버튼 - 항상 맨 아래 고정 */}
+          <TouchableOpacity style={styles.closeBtn} onPress={handleClose} activeOpacity={0.75}>
+            <Ionicons name="close-outline" size={22} color={Colors.textSub} />
+            <Text style={styles.closeBtnText}>닫기</Text>
+          </TouchableOpacity>
         </Animated.View>
       </Animated.View>
     </Modal>
@@ -247,7 +246,7 @@ const styles = StyleSheet.create({
     borderTopLeftRadius: 28,
     borderTopRightRadius: 28,
     maxHeight: SCREEN_HEIGHT * 0.92,
-    paddingBottom: 40,
+    paddingBottom: 24,
   },
   header: {
     flexDirection: 'row',
@@ -263,13 +262,13 @@ const styles = StyleSheet.create({
   dot: { width: 8, height: 8, borderRadius: 4, backgroundColor: Colors.border },
   dotActive: { backgroundColor: Colors.primary, width: 24 },
   closeBtn: {
-    position: 'absolute', right: 16, top: 12,
-    flexDirection: 'row', alignItems: 'center', gap: 4,
-    paddingVertical: 8, paddingHorizontal: 14,
+    flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8,
+    marginHorizontal: 20, marginTop: 12,
+    paddingVertical: 18,
+    borderRadius: 14, borderWidth: 1.5, borderColor: Colors.border,
     backgroundColor: Colors.background,
-    borderRadius: 20, borderWidth: 1.5, borderColor: Colors.border,
   },
-  closeBtnText: { fontSize: 15, color: Colors.textSub, fontWeight: '700' },
+  closeBtnText: { fontSize: 18, color: Colors.textSub, fontWeight: '700' },
 
   contentWrap: { paddingHorizontal: 20, paddingTop: 4 },
   stepTitle: {
@@ -304,6 +303,4 @@ const styles = StyleSheet.create({
     fontSize: 18, color: Colors.textSub, textAlign: 'center',
     lineHeight: 28, marginBottom: 32,
   },
-  skipBtn: { marginTop: 14, paddingVertical: 14, paddingHorizontal: 24 },
-  skipText: { fontSize: 18, color: Colors.textHint, fontWeight: '600', textAlign: 'center' },
 });
