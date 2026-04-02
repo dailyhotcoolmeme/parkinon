@@ -1,7 +1,7 @@
 import React from 'react';
 import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
 import { createStackNavigator } from '@react-navigation/stack';
-import { Text, StyleSheet } from 'react-native';
+import { View, Text, StyleSheet } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { Colors } from '../constants/colors';
@@ -37,54 +37,56 @@ function BodyStateNavigator() {
   );
 }
 
-const TAB_ITEMS: { name: keyof MainTabParamList; icon: IoniconName; iconFocused: IoniconName; label: string }[] = [
-  { name: 'Medication', icon: 'medkit-outline', iconFocused: 'medkit', label: '약복용' },
-  { name: 'BodyStateTab', icon: 'happy-outline', iconFocused: 'happy', label: '몸상태' },
-  { name: 'Exercise', icon: 'fitness-outline', iconFocused: 'fitness', label: '운동' },
-  { name: 'Feed', icon: 'newspaper-outline', iconFocused: 'newspaper', label: '정보·나눔' },
+const TAB_ITEMS: { name: keyof MainTabParamList; icon: IoniconName; iconFocused: IoniconName; label: string; emoji: string }[] = [
+  { name: 'Medication',   icon: 'medkit-outline',    iconFocused: 'medkit',    label: '약복용',   emoji: '💊' },
+  { name: 'BodyStateTab', icon: 'happy-outline',     iconFocused: 'happy',     label: '몸상태',   emoji: '😊' },
+  { name: 'Exercise',     icon: 'fitness-outline',   iconFocused: 'fitness',   label: '운동',     emoji: '🏃' },
+  { name: 'Feed',         icon: 'newspaper-outline', iconFocused: 'newspaper', label: '정보·나눔', emoji: '📰' },
 ];
 
 export function MainNavigator() {
   const insets = useSafeAreaInsets();
-  const TAB_HEIGHT = 68;
 
   return (
     <Tab.Navigator
-      screenOptions={({ route }) => ({
-        headerShown: false,
-        tabBarStyle: {
-          height: TAB_HEIGHT + insets.bottom,
-          paddingBottom: insets.bottom,
-          backgroundColor: Colors.white,
-          borderTopWidth: 1,
-          borderTopColor: Colors.border,
-        },
-        tabBarIcon: ({ focused }) => {
-          const item = TAB_ITEMS.find(t => t.name === route.name);
-          if (!item) return null;
-          return (
-            <Ionicons
-              name={focused ? item.iconFocused : item.icon}
-              size={26}
-              color={focused ? Colors.primary : Colors.textHint}
-            />
-          );
-        },
-        tabBarLabel: ({ focused }) => {
-          const item = TAB_ITEMS.find(t => t.name === route.name);
-          return (
-            <Text style={[
-              styles.tabLabel,
-              focused ? styles.tabLabelActive : styles.tabLabelInactive,
-            ]}>
-              {item?.label}
+      screenOptions={({ route }) => {
+        const item = TAB_ITEMS.find(t => t.name === route.name)!;
+        return {
+          headerShown: false,
+          tabBarStyle: {
+            height: 80 + insets.bottom,
+            paddingBottom: insets.bottom,
+            backgroundColor: Colors.white,
+            borderTopWidth: 1,
+            borderTopColor: Colors.border,
+            elevation: 8,
+            shadowColor: '#000',
+            shadowOffset: { width: 0, height: -2 },
+            shadowOpacity: 0.06,
+            shadowRadius: 6,
+          },
+          tabBarItemStyle: {
+            paddingTop: 8,
+            paddingBottom: 4,
+          },
+          tabBarIcon: ({ focused }) => (
+            <View style={[styles.iconWrap, focused && styles.iconWrapActive]}>
+              <Ionicons
+                name={focused ? item.iconFocused : item.icon}
+                size={28}
+                color={focused ? Colors.primary : Colors.textHint}
+              />
+            </View>
+          ),
+          tabBarLabel: ({ focused }) => (
+            <Text style={[styles.tabLabel, focused ? styles.tabLabelActive : styles.tabLabelInactive]}>
+              {item.label}
             </Text>
-          );
-        },
-        tabBarActiveTintColor: Colors.primary,
-        tabBarInactiveTintColor: Colors.textHint,
-        tabBarItemStyle: { paddingTop: 6 },
-      })}
+          ),
+          tabBarActiveTintColor: Colors.primary,
+          tabBarInactiveTintColor: Colors.textHint,
+        };
+      }}
     >
       <Tab.Screen name="Medication" component={MedicationScreen} />
       <Tab.Screen name="BodyStateTab" component={BodyStateNavigator} />
@@ -95,9 +97,20 @@ export function MainNavigator() {
 }
 
 const styles = StyleSheet.create({
+  iconWrap: {
+    width: 56,
+    height: 36,
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderRadius: 18,
+  },
+  iconWrapActive: {
+    backgroundColor: Colors.light,
+  },
   tabLabel: {
-    fontSize: 14,
+    fontSize: 13,
     marginTop: 2,
+    fontWeight: '600',
   },
   tabLabelActive: {
     color: Colors.primary,
@@ -105,6 +118,5 @@ const styles = StyleSheet.create({
   },
   tabLabelInactive: {
     color: Colors.textHint,
-    fontWeight: '400',
   },
 });

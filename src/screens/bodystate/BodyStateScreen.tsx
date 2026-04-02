@@ -52,21 +52,9 @@ function getTodayLabel(): string {
   return `${month}월 ${date}일 ${dayNames[now.getDay()]}`;
 }
 
-function ScoreDots({ score, max = 5 }: { score: number; max?: number }) {
-  return (
-    <View style={dotStyles.row}>
-      {Array.from({ length: max }).map((_, i) => (
-        <View key={i} style={[dotStyles.dot, i < score ? dotStyles.dotFilled : dotStyles.dotEmpty]} />
-      ))}
-    </View>
-  );
-}
-const dotStyles = StyleSheet.create({
-  row: { flexDirection: 'row', gap: 3, alignItems: 'center' },
-  dot: { width: 10, height: 10, borderRadius: 5 },
-  dotFilled: { backgroundColor: Colors.primary },
-  dotEmpty: { backgroundColor: Colors.border },
-});
+const PERIOD_EMOJI: Record<string, string> = {
+  '아침': '🌅', '점심': '☀️', '저녁': '🌙', '취침': '😴'
+};
 
 export function BodyStateScreen() {
   const [records, setRecords] = useState<BodyRecord[]>(MOCK_RECORDS);
@@ -151,7 +139,7 @@ export function BodyStateScreen() {
             if (periodRecords.length === 0) return null;
             return (
               <View key={period} style={styles.periodGroup}>
-                <Text style={styles.periodTitle}>{period} 약 복용 후</Text>
+                <Text style={styles.periodTitle}>{PERIOD_EMOJI[period] ?? ''} {period} 약 복용 후</Text>
                 {periodRecords.map(record => (
                   <BodyRecordCard key={record.id} record={record} />
                 ))}
@@ -178,55 +166,72 @@ export function BodyStateScreen() {
   );
 }
 
+function getScoreEmoji(score: number): string {
+  if (score >= 5) return '😄';
+  if (score >= 4) return '🙂';
+  if (score >= 3) return '😐';
+  if (score >= 2) return '😞';
+  return '😣';
+}
+
+function getScoreColor(score: number): string {
+  if (score >= 4) return Colors.primary;
+  if (score >= 3) return Colors.accent;
+  return '#F44336';
+}
+
 function BodyRecordCard({ record }: { record: BodyRecord }) {
   return (
     <View style={cardStyles.card}>
+      {/* 시간 + 트리거 */}
       <View style={cardStyles.header}>
-        <View style={cardStyles.headerLeft}>
-          <Text style={cardStyles.time}>{record.time}</Text>
-        </View>
+        <Text style={cardStyles.time}>{record.time}</Text>
         <View style={cardStyles.triggerBadge}>
           <Text style={cardStyles.triggerText}>{record.trigger}</Text>
         </View>
       </View>
-      <View style={cardStyles.row}>
-        <View style={cardStyles.scoreItem}>
-          <View style={cardStyles.labelRow}>
-            <Text style={cardStyles.scoreLabel}>몸상태</Text>
-            {record.prevBodyScore !== undefined && (
-              <Text style={cardStyles.prevScoreText}>(이전 {record.prevBodyScore}점)</Text>
-            )}
-          </View>
-          <View style={cardStyles.scoreRight}>
-            <ScoreDots score={record.bodyScore} />
-            <Text style={cardStyles.scoreNum}>{record.bodyScore}점</Text>
+
+      {/* 몸상태 + 기분 점수 */}
+      <View style={cardStyles.scoreRow}>
+        <View style={cardStyles.scoreBox}>
+          <Text style={cardStyles.scoreLabel}>몸상태</Text>
+          <View style={cardStyles.scoreValueRow}>
+            <Text style={cardStyles.scoreEmoji}>{getScoreEmoji(record.bodyScore)}</Text>
+            <Text style={[cardStyles.scoreNum, { color: getScoreColor(record.bodyScore) }]}>
+              {record.bodyScore}점
+            </Text>
           </View>
         </View>
         <View style={cardStyles.scoreDivider} />
-        <View style={cardStyles.scoreItem}>
-          <View style={cardStyles.labelRow}>
-            <Text style={cardStyles.scoreLabel}>기분</Text>
-            {record.prevMoodScore !== undefined && (
-              <Text style={cardStyles.prevScoreText}>(이전 {record.prevMoodScore}점)</Text>
-            )}
-          </View>
-          <View style={cardStyles.scoreRight}>
-            <ScoreDots score={record.moodScore} />
-            <Text style={cardStyles.scoreNum}>{record.moodScore}점</Text>
+        <View style={cardStyles.scoreBox}>
+          <Text style={cardStyles.scoreLabel}>기분</Text>
+          <View style={cardStyles.scoreValueRow}>
+            <Text style={cardStyles.scoreEmoji}>{getScoreEmoji(record.moodScore)}</Text>
+            <Text style={[cardStyles.scoreNum, { color: getScoreColor(record.moodScore) }]}>
+              {record.moodScore}점
+            </Text>
           </View>
         </View>
       </View>
+
+      {/* 수면 (선택) */}
       {record.sleepScore !== undefined && (
         <View style={cardStyles.extraRow}>
           <Text style={cardStyles.extraLabel}>수면</Text>
-          <ScoreDots score={record.sleepScore} />
-          <Text style={cardStyles.scoreNum}>{record.sleepScore}점</Text>
+          <Text style={cardStyles.scoreEmoji}>{getScoreEmoji(record.sleepScore)}</Text>
+          <Text style={[cardStyles.extraValue, { color: getScoreColor(record.sleepScore) }]}>
+            {record.sleepScore}점
+          </Text>
         </View>
       )}
+
+      {/* 변비 (선택) */}
       {record.constipation !== undefined && (
         <View style={cardStyles.extraRow}>
           <Text style={cardStyles.extraLabel}>변비</Text>
-          <Text style={cardStyles.constipationText}>{record.constipation ? '있었어요' : '없었어요'}</Text>
+          <Text style={cardStyles.extraValue}>
+            {record.constipation ? '😖 있었어요' : '😊 없었어요'}
+          </Text>
         </View>
       )}
     </View>
@@ -234,23 +239,58 @@ function BodyRecordCard({ record }: { record: BodyRecord }) {
 }
 
 const cardStyles = StyleSheet.create({
-  card: { backgroundColor: Colors.white, borderRadius: 16, padding: 20, marginBottom: 12, elevation: 2, shadowColor: '#000', shadowOffset: { width: 0, height: 1 }, shadowOpacity: 0.08, shadowRadius: 4 },
-  header: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 14 },
-  headerLeft: { flexDirection: 'row', alignItems: 'center', gap: 8 },
+  card: {
+    backgroundColor: Colors.white,
+    borderRadius: 16,
+    padding: 20,
+    marginBottom: 10,
+    elevation: 2,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.07,
+    shadowRadius: 4,
+  },
+  header: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    marginBottom: 16,
+  },
   time: { fontSize: 18, fontWeight: '700', color: Colors.text },
-  triggerBadge: { backgroundColor: Colors.border, borderRadius: 8, paddingHorizontal: 12, paddingVertical: 5 },
+  triggerBadge: {
+    backgroundColor: Colors.light,
+    borderRadius: 10,
+    paddingHorizontal: 12,
+    paddingVertical: 5,
+  },
   triggerText: { fontSize: 15, fontWeight: '600', color: Colors.dark },
-  row: { flexDirection: 'row', alignItems: 'center' },
-  scoreItem: { flex: 1 },
-  scoreDivider: { width: 1, height: 40, backgroundColor: Colors.border, marginHorizontal: 12 },
-  labelRow: { flexDirection: 'row', alignItems: 'center', gap: 6, marginBottom: 6 },
-  scoreLabel: { fontSize: 16, color: Colors.textSub },
-  prevScoreText: { fontSize: 14, color: Colors.textHint, fontWeight: '500' },
-  scoreRight: { flexDirection: 'row', alignItems: 'center', gap: 8 },
-  scoreNum: { fontSize: 16, fontWeight: '600', color: Colors.text },
-  extraRow: { flexDirection: 'row', alignItems: 'center', gap: 8, marginTop: 14, paddingTop: 14, borderTopWidth: 1, borderTopColor: Colors.border },
-  extraLabel: { fontSize: 16, color: Colors.textSub, width: 36 },
-  constipationText: { fontSize: 16, fontWeight: '600', color: Colors.text },
+
+  scoreRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: Colors.background,
+    borderRadius: 12,
+    paddingVertical: 14,
+    paddingHorizontal: 8,
+  },
+  scoreBox: { flex: 1, alignItems: 'center' },
+  scoreDivider: { width: 1, height: 44, backgroundColor: Colors.border },
+  scoreLabel: { fontSize: 15, color: Colors.textSub, marginBottom: 6, fontWeight: '600' },
+  scoreValueRow: { flexDirection: 'row', alignItems: 'center', gap: 6 },
+  scoreEmoji: { fontSize: 26 },
+  scoreNum: { fontSize: 22, fontWeight: '800' },
+
+  extraRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    marginTop: 12,
+    paddingTop: 12,
+    borderTopWidth: 1,
+    borderTopColor: Colors.border,
+  },
+  extraLabel: { fontSize: 16, color: Colors.textSub, fontWeight: '600', width: 36 },
+  extraValue: { fontSize: 18, fontWeight: '600', color: Colors.text },
 });
 
 const styles = StyleSheet.create({
@@ -317,5 +357,5 @@ const styles = StyleSheet.create({
   divider: { flex: 1, height: 1, backgroundColor: Colors.border },
   sectionTitle: { fontSize: 17, fontWeight: '600', color: Colors.textSub, paddingHorizontal: 4 },
   periodGroup: { marginBottom: 8 },
-  periodTitle: { fontSize: 18, fontWeight: '700', color: Colors.text, marginBottom: 12, marginLeft: 4 },
+  periodTitle: { fontSize: 16, fontWeight: '700', color: Colors.textSub, marginBottom: 10, marginLeft: 2, letterSpacing: 0.3 },
 });

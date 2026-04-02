@@ -136,22 +136,24 @@ export function MedicationScreen() {
           {displayList.map(item => (
             <View key={item.id} style={[styles.card, !item.taken && styles.cardIncomplete]}>
               <View style={[styles.sideBar, item.taken ? styles.sideBarDone : styles.sideBarPending]} />
-              <Ionicons
-                name={item.taken ? 'checkmark-circle' : 'time-outline'}
-                size={28}
-                color={item.taken ? Colors.primary : Colors.accent}
-                style={styles.cardIcon}
-              />
-              <View style={styles.cardBody}>
-                <Text style={styles.cardLabel}>{item.label} 약</Text>
-                <Text style={styles.cardTime}>
-                  {item.taken ? `${item.takenAt} 복용 완료` : `${item.time} 예정`}
-                </Text>
-              </View>
-              <View style={[styles.cardBadge, !item.taken && styles.cardBadgeIncomplete]}>
-                <Text style={[styles.cardBadgeText, !item.taken && styles.cardBadgeTextIncomplete]}>
-                  {item.taken ? '완료' : '미완료'}
-                </Text>
+              <View style={styles.cardContent}>
+                <Ionicons
+                  name={item.taken ? 'checkmark-circle' : 'time-outline'}
+                  size={28}
+                  color={item.taken ? Colors.primary : Colors.accent}
+                  style={styles.cardIcon}
+                />
+                <View style={styles.cardBody}>
+                  <Text style={styles.cardLabel}>{item.label} 약</Text>
+                  <Text style={styles.cardTime}>
+                    {item.taken ? `${item.takenAt} 복용 완료` : `${item.time} 예정`}
+                  </Text>
+                </View>
+                <View style={[styles.cardBadge, !item.taken && styles.cardBadgeIncomplete]}>
+                  <Text style={[styles.cardBadgeText, !item.taken && styles.cardBadgeTextIncomplete]}>
+                    {item.taken ? '완료' : '미완료'}
+                  </Text>
+                </View>
               </View>
             </View>
           ))}
@@ -240,7 +242,6 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     borderRadius: 16,
-    overflow: 'hidden',
     minHeight: 96,
     marginBottom: 10,
     backgroundColor: '#F1F8E9',
@@ -260,11 +261,12 @@ const styles = StyleSheet.create({
   sideBar: { width: 6, alignSelf: 'stretch' },
   sideBarDone: { backgroundColor: Colors.primary },
   sideBarPending: { backgroundColor: Colors.accent },
-  cardIcon: { marginLeft: 14, marginRight: 14 },
+  cardContent: { flex: 1, flexDirection: 'row', alignItems: 'center', paddingHorizontal: 16, paddingVertical: 20 },
+  cardIcon: { marginRight: 14 },
   cardBody: { flex: 1 },
   cardLabel: { fontSize: 20, fontWeight: '600', color: Colors.text, marginBottom: 3 },
   cardTime: { fontSize: 17, color: Colors.textSub },
-  cardBadge: { backgroundColor: Colors.primary, borderRadius: 8, paddingHorizontal: 14, paddingVertical: 6 },
+  cardBadge: { flexShrink: 0, backgroundColor: Colors.primary, borderRadius: 8, paddingHorizontal: 14, paddingVertical: 6 },
   cardBadgeIncomplete: { backgroundColor: 'transparent', borderWidth: 1, borderColor: Colors.border },
   cardBadgeText: { fontSize: 16, fontWeight: '700', color: Colors.white },
   cardBadgeTextIncomplete: { color: Colors.textSub },
