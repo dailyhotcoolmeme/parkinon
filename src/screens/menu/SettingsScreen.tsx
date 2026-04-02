@@ -157,9 +157,9 @@ const styles = StyleSheet.create({
   sectionTitle: {
     fontSize: 18,
     fontWeight: '700',
-    color: Colors.textSub,
+    color: Colors.text,
     marginBottom: 10,
-    marginTop: 16,
+    marginTop: 20,
   },
 
   card: {

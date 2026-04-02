@@ -9,6 +9,6 @@ export const Colors = {
   white: '#FFFFFF',
   text: '#111111',
   textSub: '#666666',
-  textHint: '#AAAAAA',
+  textHint: '#888888',
   border: '#EEEEEE',
 } as const;

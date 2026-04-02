@@ -135,10 +135,11 @@ export function MedicationScreen() {
           </View>
           {displayList.map(item => (
             <View key={item.id} style={[styles.card, !item.taken && styles.cardIncomplete]}>
+              <View style={[styles.sideBar, item.taken ? styles.sideBarDone : styles.sideBarPending]} />
               <Ionicons
                 name={item.taken ? 'checkmark-circle' : 'time-outline'}
-                size={26}
-                color={item.taken ? Colors.primary : Colors.textSub}
+                size={28}
+                color={item.taken ? Colors.primary : Colors.accent}
                 style={styles.cardIcon}
               />
               <View style={styles.cardBody}>
@@ -239,9 +240,10 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     borderRadius: 16,
-    padding: 20,
+    overflow: 'hidden',
+    minHeight: 96,
     marginBottom: 10,
-    backgroundColor: Colors.white,
+    backgroundColor: '#F1F8E9',
     elevation: 2,
     shadowColor: '#000',
     shadowOffset: { width: 0, height: 1 },
@@ -249,11 +251,16 @@ const styles = StyleSheet.create({
     shadowRadius: 3,
   },
   cardIncomplete: {
-    backgroundColor: Colors.light,
-    elevation: 0,
-    shadowOpacity: 0,
+    backgroundColor: Colors.white,
+    borderWidth: 1.5,
+    borderColor: Colors.border,
+    elevation: 1,
+    shadowOpacity: 0.04,
   },
-  cardIcon: { marginRight: 14 },
+  sideBar: { width: 6, alignSelf: 'stretch' },
+  sideBarDone: { backgroundColor: Colors.primary },
+  sideBarPending: { backgroundColor: Colors.accent },
+  cardIcon: { marginLeft: 14, marginRight: 14 },
   cardBody: { flex: 1 },
   cardLabel: { fontSize: 20, fontWeight: '600', color: Colors.text, marginBottom: 3 },
   cardTime: { fontSize: 17, color: Colors.textSub },
