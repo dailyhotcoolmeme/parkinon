@@ -1,0 +1,202 @@
+/**
+ * useBodyState.ts
+ * 몸 상태(ON/OFF) 기록 관련 훅
+ *
+ * - on_off_logs 오늘 기록 조회
+ * - saveBodyState(data, triggeredBy) - 기록 저장
+ * - getBodyStateLogs(date) - 날짜별 기록 조회
+ * - isFirstLogToday() - 오늘 첫 번째 기록 여부 (수면 질문 표시용)
+ */
+import { useState, useCallback } from 'react';
+import { supabase } from '../lib/supabase';
+import { useAuth } from '../context/AuthContext';
+import type { Database } from '../types/database';
+
+type OnOffLogRow = Database['public']['Tables']['on_off_logs']['Row'];
+type TriggeredBy = Database['public']['Tables']['on_off_logs']['Row']['triggered_by'];
+
+export interface BodyStateInput {
+  body_state?: number;    // 1~5
+  mood?: number;          // 1~5
+  sleep_quality?: number; // 1~5
+  constipation?: boolean;
+  trigger_time_label?: string; // 'after_medication' | '30min_after' | '2hour_after'
+}
+
+export interface UseBodyStateReturn {
+  todayLogs: OnOffLogRow[];
+  loading: boolean;
+  error: string | null;
+  saveBodyState: (data: BodyStateInput, triggeredBy: TriggeredBy) => Promise<boolean>;
+  getBodyStateLogs: (date: string) => Promise<OnOffLogRow[]>;
+  isFirstLogToday: () => Promise<boolean>;
+  refresh: () => Promise<void>;
+}
+
+export function useBodyState(): UseBodyStateReturn {
+  const { user } = useAuth();
+  const [todayLogs, setTodayLogs] = useState<OnOffLogRow[]>([]);
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  // 환자 ID 결정
+  const getPatientId = useCallback(async (): Promise<string | null> => {
+    if (!user) return null;
+    if (user.role === 'patient') return user.id;
+
+    if (!user.patient_group_id) return null;
+
+    const { data } = await supabase
+      .from('patient_group_members')
+      .select('user_id, role')
+      .eq('group_id', user.patient_group_id)
+      .eq('role', 'patient')
+      .single();
+
+    return data?.user_id ?? null;
+  }, [user]);
+
+  // 오늘 기록 조회
+  const fetchTodayLogs = useCallback(async () => {
+    if (!user) return;
+    setLoading(true);
+    setError(null);
+
+    try {
+      const patientId = await getPatientId();
+      if (!patientId) {
+        setLoading(false);
+        return;
+      }
+
+      const today = new Date().toISOString().split('T')[0];
+
+      const { data, error: queryError } = await supabase
+        .from('on_off_logs')
+        .select('*')
+        .eq('patient_id', patientId)
+        .gte('logged_at', `${today}T00:00:00.000Z`)
+        .lte('logged_at', `${today}T23:59:59.999Z`)
+        .order('logged_at', { ascending: false });
+
+      if (queryError) throw queryError;
+      setTodayLogs(data ?? []);
+    } catch (err: any) {
+      console.error('[useBodyState] fetchTodayLogs 오류:', err);
+      setError(err.message ?? '기록을 불러오지 못했어요.');
+    } finally {
+      setLoading(false);
+    }
+  }, [user, getPatientId]);
+
+  // 몸상태 기록 저장
+  const saveBodyState = useCallback(async (
+    data: BodyStateInput,
+    triggeredBy: TriggeredBy
+  ): Promise<boolean> => {
+    if (!user) return false;
+
+    setLoading(true);
+    setError(null);
+
+    try {
+      const patientId = await getPatientId();
+      if (!patientId) {
+        setError('연동된 환자 정보를 찾을 수 없어요.');
+        return false;
+      }
+
+      const insertData: any = {
+        patient_id: patientId,
+        logged_by: user.id,
+        triggered_by: triggeredBy,
+        logged_at: new Date().toISOString(),
+      };
+
+      if (data.body_state !== undefined) insertData.body_state = data.body_state;
+      if (data.mood !== undefined) insertData.mood = data.mood;
+      if (data.sleep_quality !== undefined) insertData.sleep_quality = data.sleep_quality;
+      if (data.constipation !== undefined) insertData.constipation = data.constipation;
+      if (data.trigger_time_label !== undefined) insertData.trigger_time_label = data.trigger_time_label;
+
+      const { error: insertError } = await supabase
+        .from('on_off_logs')
+        .insert(insertData);
+
+      if (insertError) throw insertError;
+
+      // 오늘 기록 갱신
+      await fetchTodayLogs();
+      return true;
+    } catch (err: any) {
+      console.error('[useBodyState] saveBodyState 오류:', err);
+      setError(err.message ?? '기록 저장에 실패했어요.');
+      return false;
+    } finally {
+      setLoading(false);
+    }
+  }, [user, getPatientId, fetchTodayLogs]);
+
+  // 날짜별 기록 조회
+  const getBodyStateLogs = useCallback(async (date: string): Promise<OnOffLogRow[]> => {
+    if (!user) return [];
+
+    try {
+      const patientId = await getPatientId();
+      if (!patientId) return [];
+
+      const { data, error: queryError } = await supabase
+        .from('on_off_logs')
+        .select('*')
+        .eq('patient_id', patientId)
+        .gte('logged_at', `${date}T00:00:00.000Z`)
+        .lte('logged_at', `${date}T23:59:59.999Z`)
+        .order('logged_at', { ascending: true });
+
+      if (queryError) throw queryError;
+      return data ?? [];
+    } catch (err: any) {
+      console.error('[useBodyState] getBodyStateLogs 오류:', err);
+      return [];
+    }
+  }, [user, getPatientId]);
+
+  // 오늘 첫 번째 기록 여부 확인 (수면 질문 표시용)
+  const isFirstLogToday = useCallback(async (): Promise<boolean> => {
+    if (!user) return true;
+
+    try {
+      const patientId = await getPatientId();
+      if (!patientId) return true;
+
+      const today = new Date().toISOString().split('T')[0];
+
+      const { count, error: queryError } = await supabase
+        .from('on_off_logs')
+        .select('*', { count: 'exact', head: true })
+        .eq('patient_id', patientId)
+        .gte('logged_at', `${today}T00:00:00.000Z`);
+
+      if (queryError) throw queryError;
+      return (count ?? 0) === 0;
+    } catch (err: any) {
+      console.error('[useBodyState] isFirstLogToday 오류:', err);
+      return true;
+    }
+  }, [user, getPatientId]);
+
+  // 새로고침
+  const refresh = useCallback(async () => {
+    await fetchTodayLogs();
+  }, [fetchTodayLogs]);
+
+  return {
+    todayLogs,
+    loading,
+    error,
+    saveBodyState,
+    getBodyStateLogs,
+    isFirstLogToday,
+    refresh,
+  };
+}

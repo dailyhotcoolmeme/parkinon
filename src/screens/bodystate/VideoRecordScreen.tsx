@@ -1,0 +1,318 @@
+import React, { useState } from 'react';
+import {
+  View,
+  Text,
+  TouchableOpacity,
+  StyleSheet,
+  Alert,
+} from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
+import * as ImagePicker from 'expo-image-picker';
+import { useNavigation } from '@react-navigation/native';
+import { Ionicons } from '@expo/vector-icons';
+import { Colors } from '../../constants/colors';
+import { TopBar } from '../../components/common/TopBar';
+import { PrimaryButton } from '../../components/common/PrimaryButton';
+
+const MAX_DURATION_SEC = 120; // 2분
+
+interface SelectedVideo {
+  uri: string;
+  duration?: number; // 초
+  width?: number;
+  height?: number;
+}
+
+export function VideoRecordScreen() {
+  const navigation = useNavigation();
+  const [selectedVideo, setSelectedVideo] = useState<SelectedVideo | null>(null);
+  const [loading, setLoading] = useState(false);
+
+  const handlePickFromGallery = async () => {
+    try {
+      const permResult = await ImagePicker.requestMediaLibraryPermissionsAsync();
+      if (!permResult.granted) {
+        Alert.alert('권한 필요', '갤러리 접근 권한이 필요해요.');
+        return;
+      }
+
+      const result = await ImagePicker.launchImageLibraryAsync({
+        mediaTypes: ImagePicker.MediaTypeOptions.Videos,
+        allowsEditing: false,
+        quality: 0.7,
+        videoMaxDuration: MAX_DURATION_SEC,
+      });
+
+      if (!result.canceled && result.assets.length > 0) {
+        const asset = result.assets[0];
+        const durationSec = asset.duration ? asset.duration / 1000 : 0;
+
+        if (durationSec > MAX_DURATION_SEC) {
+          Alert.alert(
+            '영상이 너무 길어요',
+            '2분 이하의 영상만 선택할 수 있어요.\n더 짧은 영상을 선택해주세요.',
+            [{ text: '확인' }],
+          );
+          return;
+        }
+
+        setSelectedVideo({
+          uri: asset.uri,
+          duration: durationSec,
+          width: asset.width,
+          height: asset.height,
+        });
+      }
+    } catch (e) {
+      Alert.alert('오류', '영상을 불러오는 중 문제가 생겼어요. 다시 시도해주세요.');
+    }
+  };
+
+  const handleRecordVideo = async () => {
+    try {
+      const camPerm = await ImagePicker.requestCameraPermissionsAsync();
+      if (!camPerm.granted) {
+        Alert.alert('권한 필요', '카메라 접근 권한이 필요해요.');
+        return;
+      }
+
+      const result = await ImagePicker.launchCameraAsync({
+        mediaTypes: ImagePicker.MediaTypeOptions.Videos,
+        videoMaxDuration: MAX_DURATION_SEC,
+        quality: 0.7,
+      });
+
+      if (!result.canceled && result.assets.length > 0) {
+        const asset = result.assets[0];
+        const durationSec = asset.duration ? asset.duration / 1000 : 0;
+
+        if (durationSec > MAX_DURATION_SEC) {
+          Alert.alert(
+            '영상이 너무 길어요',
+            '2분 이하의 영상만 선택할 수 있어요.',
+            [{ text: '확인' }],
+          );
+          return;
+        }
+
+        setSelectedVideo({
+          uri: asset.uri,
+          duration: durationSec,
+          width: asset.width,
+          height: asset.height,
+        });
+      }
+    } catch (e) {
+      Alert.alert('오류', '카메라를 열 수 없어요. 다시 시도해주세요.');
+    }
+  };
+
+  const handleSave = async () => {
+    if (!selectedVideo) return;
+    setLoading(true);
+    try {
+      // TODO: Cloudflare R2 업로드 연동 (현재는 로컬 URI 저장)
+      await new Promise(res => setTimeout(res, 800)); // 임시 딜레이
+      Alert.alert(
+        '저장 완료',
+        '영상이 저장되었어요.',
+        [{ text: '확인', onPress: () => navigation.goBack() }],
+      );
+    } catch (e) {
+      Alert.alert('오류', '저장 중 문제가 생겼어요. 다시 시도해주세요.');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const formatDuration = (sec: number): string => {
+    const m = Math.floor(sec / 60);
+    const s = Math.floor(sec % 60);
+    return `${m}분 ${s}초`;
+  };
+
+  return (
+    <SafeAreaView style={styles.safeArea}>
+      <TopBar title="영상 기록하기" showBack />
+
+      <View style={styles.container}>
+        {/* 영상 미리보기 또는 안내 영역 */}
+        {selectedVideo ? (
+          <View style={styles.previewArea}>
+            <View style={styles.videoPreview}>
+              <Ionicons name="film-outline" size={64} color={Colors.primary} />
+              <Text style={styles.videoSelectedText}>영상이 선택되었어요</Text>
+              {selectedVideo.duration !== undefined && selectedVideo.duration > 0 && (
+                <Text style={styles.videoDuration}>
+                  길이: {formatDuration(selectedVideo.duration)}
+                </Text>
+              )}
+            </View>
+            <TouchableOpacity
+              style={styles.reSelectBtn}
+              onPress={() => setSelectedVideo(null)}
+            >
+              <Text style={styles.reSelectText}>다시 선택하기</Text>
+            </TouchableOpacity>
+          </View>
+        ) : (
+          <View style={styles.emptyArea}>
+            <Ionicons name="videocam-outline" size={64} color={Colors.textHint} />
+            <Text style={styles.emptyTitle}>영상을 선택해주세요</Text>
+            <Text style={styles.emptyDesc}>최대 2분까지 기록할 수 있어요</Text>
+          </View>
+        )}
+
+        {/* 버튼 영역 */}
+        <View style={styles.buttonArea}>
+          {!selectedVideo ? (
+            <>
+              <TouchableOpacity
+                style={styles.actionBtn}
+                onPress={handleRecordVideo}
+                activeOpacity={0.8}
+              >
+                <Ionicons name="camera-outline" size={36} color={Colors.primary} />
+                <View>
+                  <Text style={styles.actionBtnLabel}>지금 촬영하기</Text>
+                  <Text style={styles.actionBtnSub}>카메라로 바로 촬영해요</Text>
+                </View>
+              </TouchableOpacity>
+
+              <TouchableOpacity
+                style={styles.actionBtn}
+                onPress={handlePickFromGallery}
+                activeOpacity={0.8}
+              >
+                <Ionicons name="images-outline" size={36} color={Colors.primary} />
+                <View>
+                  <Text style={styles.actionBtnLabel}>갤러리에서 선택하기</Text>
+                  <Text style={styles.actionBtnSub}>저장된 영상을 불러와요</Text>
+                </View>
+              </TouchableOpacity>
+
+              <View style={styles.notice}>
+                <Text style={styles.noticeText}>
+                  최대 2분까지 기록할 수 있어요
+                </Text>
+              </View>
+            </>
+          ) : (
+            <PrimaryButton
+              title="저장하기"
+              onPress={handleSave}
+              loading={loading}
+            />
+          )}
+        </View>
+      </View>
+    </SafeAreaView>
+  );
+}
+
+const styles = StyleSheet.create({
+  safeArea: {
+    flex: 1,
+    backgroundColor: Colors.background,
+  },
+  container: {
+    flex: 1,
+    padding: 20,
+    justifyContent: 'space-between',
+  },
+
+  // 미리보기 없을 때
+  emptyArea: {
+    flex: 1,
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: Colors.white,
+    borderRadius: 20,
+    marginBottom: 24,
+    borderWidth: 2,
+    borderColor: Colors.border,
+    borderStyle: 'dashed',
+    gap: 16,
+  },
+  emptyTitle: {
+    fontSize: 20,
+    fontWeight: '700',
+    color: Colors.text,
+  },
+  emptyDesc: {
+    fontSize: 15,
+    color: Colors.textSub,
+  },
+
+  // 미리보기 있을 때
+  previewArea: {
+    flex: 1,
+    marginBottom: 24,
+  },
+  videoPreview: {
+    flex: 1,
+    backgroundColor: Colors.white,
+    borderRadius: 20,
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderWidth: 2,
+    borderColor: Colors.primary,
+    gap: 12,
+  },
+  videoSelectedText: {
+    fontSize: 18,
+    fontWeight: '700',
+    color: Colors.text,
+  },
+  videoDuration: {
+    fontSize: 15,
+    color: Colors.textSub,
+  },
+  reSelectBtn: {
+    marginTop: 12,
+    paddingVertical: 12,
+    alignItems: 'center',
+  },
+  reSelectText: {
+    fontSize: 16,
+    color: Colors.textSub,
+    fontWeight: '600',
+    textDecorationLine: 'underline',
+  },
+
+  // 액션 버튼
+  buttonArea: {
+    gap: 12,
+  },
+  actionBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: Colors.white,
+    borderRadius: 16,
+    padding: 20,
+    gap: 16,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.06,
+    shadowRadius: 4,
+    elevation: 2,
+  },
+  actionBtnLabel: {
+    fontSize: 18,
+    fontWeight: '700',
+    color: Colors.text,
+    marginBottom: 2,
+  },
+  actionBtnSub: {
+    fontSize: 13,
+    color: Colors.textSub,
+  },
+  notice: {
+    alignItems: 'center',
+    paddingVertical: 8,
+  },
+  noticeText: {
+    fontSize: 14,
+    color: Colors.textHint,
+  },
+});
