@@ -33,6 +33,41 @@ type Step = 'body' | 'mood' | 'sleep' | 'constipation' | 'exercise_suggest';
 
 const { height: SCREEN_HEIGHT } = Dimensions.get('window');
 
+type StepKey = Exclude<Step, 'exercise_suggest' | 'constipation'>;
+
+const STEP_CONFIG: Record<StepKey, {
+  title: string; desc: string; type: 'body' | 'mood' | 'sleep';
+  emoji: string; accentColor: string; bgColor: string; stepLabel: string;
+}> = {
+  body: {
+    title: '지금 몸 상태는 어떠세요?',
+    desc: '현재 몸 컨디션을 알려주세요',
+    type: 'body',
+    emoji: '🏃',
+    accentColor: Colors.primary,
+    bgColor: '#E8F5E9',
+    stepLabel: '몸 상태',
+  },
+  mood: {
+    title: '지금 기분은 어떠세요?',
+    desc: '마음 상태를 알려주세요',
+    type: 'mood',
+    emoji: '😊',
+    accentColor: '#7C4DFF',
+    bgColor: '#F3E8FF',
+    stepLabel: '기분 상태',
+  },
+  sleep: {
+    title: '어젯밤 수면은 어떠셨어요?',
+    desc: '잠자리가 어떠셨는지 알려주세요',
+    type: 'sleep',
+    emoji: '🌙',
+    accentColor: '#1565C0',
+    bgColor: '#E3F2FD',
+    stepLabel: '수면',
+  },
+};
+
 export function BodyStatePopupFlow({
   visible,
   onClose,
@@ -46,14 +81,18 @@ export function BodyStatePopupFlow({
   const [sleepScore, setSleepScore] = useState<number | null>(null);
   const [constipation, setConstipation] = useState<boolean | null>(null);
 
-  // useRef로 stale closure 문제 없이 항상 최신값 참조
   const bsRef = useRef<number | null>(null);
   const msRef = useRef<number | null>(null);
   const ssRef = useRef<number | null>(null);
   const cRef = useRef<boolean | null>(null);
 
+  // 시트 진입 애니메이션
   const fadeAnim = useRef(new Animated.Value(0)).current;
   const slideAnim = useRef(new Animated.Value(80)).current;
+
+  // 스텝 전환 애니메이션
+  const contentSlide = useRef(new Animated.Value(0)).current;
+  const contentOpacity = useRef(new Animated.Value(1)).current;
 
   useEffect(() => {
     if (visible) {
@@ -63,6 +102,8 @@ export function BodyStatePopupFlow({
       setSleepScore(null); ssRef.current = null;
       setConstipation(null); cRef.current = null;
       slideAnim.setValue(80);
+      contentSlide.setValue(0);
+      contentOpacity.setValue(1);
       Animated.parallel([
         Animated.timing(fadeAnim, { toValue: 1, duration: 220, useNativeDriver: true }),
         Animated.spring(slideAnim, { toValue: 0, tension: 70, friction: 12, useNativeDriver: true }),
@@ -72,14 +113,23 @@ export function BodyStatePopupFlow({
     }
   }, [visible]);
 
+  const animateStepIn = () => {
+    contentSlide.setValue(32);
+    contentOpacity.setValue(0);
+    Animated.parallel([
+      Animated.spring(contentSlide, { toValue: 0, tension: 140, friction: 16, useNativeDriver: true }),
+      Animated.timing(contentOpacity, { toValue: 1, duration: 230, useNativeDriver: true }),
+    ]).start();
+  };
+
   const tryFinalize = (currentStep: Step) => {
     const bs = bsRef.current ?? 0;
     const ms = msRef.current ?? 0;
     const ss = ssRef.current ?? undefined;
     const c = cRef.current ?? undefined;
-    const highScore = bs >= 4 || ms >= 4;
-    if (highScore) {
+    if (bs >= 4 || ms >= 4) {
       setStep('exercise_suggest');
+      setTimeout(animateStepIn, 0);
     } else {
       onSave({ bodyScore: bs, moodScore: ms, sleepScore: ss, constipation: c });
     }
@@ -87,13 +137,13 @@ export function BodyStatePopupFlow({
 
   const advanceFrom = (currentStep: Step) => {
     if (currentStep === 'body') {
-      setStep('mood');
+      setStep('mood'); setTimeout(animateStepIn, 0);
     } else if (currentStep === 'mood') {
-      if (showSleep) setStep('sleep');
-      else if (showConstipation) setStep('constipation');
+      if (showSleep) { setStep('sleep'); setTimeout(animateStepIn, 0); }
+      else if (showConstipation) { setStep('constipation'); setTimeout(animateStepIn, 0); }
       else tryFinalize(currentStep);
     } else if (currentStep === 'sleep') {
-      if (showConstipation) setStep('constipation');
+      if (showConstipation) { setStep('constipation'); setTimeout(animateStepIn, 0); }
       else tryFinalize(currentStep);
     } else if (currentStep === 'constipation') {
       tryFinalize(currentStep);
@@ -133,12 +183,6 @@ export function BodyStatePopupFlow({
     return null;
   };
 
-  const STEP_CONFIG: Record<Exclude<Step, 'exercise_suggest' | 'constipation'>, { title: string; desc: string; type: 'body' | 'mood' | 'sleep' }> = {
-    body: { title: '지금 몸 상태는\n어떠세요?', desc: '현재 몸 컨디션을 알려주세요', type: 'body' },
-    mood: { title: '지금 기분은\n어떠세요?', desc: '마음 상태를 알려주세요', type: 'mood' },
-    sleep: { title: '어젯밤 수면은\n어떠셨어요?', desc: '잠자리가 어떠셨는지 알려주세요', type: 'sleep' },
-  };
-
   const renderContent = () => {
     if (step === 'exercise_suggest') {
       return (
@@ -158,7 +202,15 @@ export function BodyStatePopupFlow({
     if (step === 'constipation') {
       return (
         <View style={styles.contentWrap}>
-          <Text style={styles.stepTitle}>{'오늘 변비 증상이\n있으셨나요?'}</Text>
+          <View style={[styles.stepBanner, { backgroundColor: '#FFF8E1' }]}>
+            <Text style={styles.stepBannerEmoji}>🚽</Text>
+            <View style={styles.stepBannerText}>
+              <Text style={[styles.stepBannerLabel, { color: '#F57F17' }]}>
+                변비  {currentIndex + 1}/{orderedSteps.length}단계
+              </Text>
+              <Text style={styles.stepTitle}>오늘 변비 증상이 있으셨나요?</Text>
+            </View>
+          </View>
           <Text style={styles.stepDesc}>솔직하게 알려주세요</Text>
           <View style={styles.constipationCol}>
             <TouchableOpacity
@@ -186,18 +238,29 @@ export function BodyStatePopupFlow({
       );
     }
 
-    const cfg = STEP_CONFIG[step as Exclude<Step, 'exercise_suggest' | 'constipation'>];
+    const cfg = STEP_CONFIG[step as StepKey];
     return (
-      <View style={styles.contentWrap}>
-        <Text style={styles.stepTitle}>{cfg.title}</Text>
-        <Text style={styles.stepDesc}>{cfg.desc}</Text>
-        <ScrollView showsVerticalScrollIndicator={false} style={styles.scoreScroll}>
-          <ScoreSelector
-            value={scoreForStep()}
-            onChange={(v) => handleScoreSelect(v, step)}
-            type={cfg.type}
-          />
-        </ScrollView>
+      <View>
+        {/* 스텝별 컬러 배너 */}
+        <View style={[styles.stepBanner, { backgroundColor: cfg.bgColor }]}>
+          <Text style={styles.stepBannerEmoji}>{cfg.emoji}</Text>
+          <View style={styles.stepBannerText}>
+            <Text style={[styles.stepBannerLabel, { color: cfg.accentColor }]}>
+              {cfg.stepLabel}  {currentIndex + 1}/{orderedSteps.length}단계
+            </Text>
+            <Text style={styles.stepTitle}>{cfg.title}</Text>
+          </View>
+        </View>
+        <View style={styles.contentWrap}>
+          <Text style={styles.stepDesc}>{cfg.desc}</Text>
+          <ScrollView showsVerticalScrollIndicator={false} style={styles.scoreScroll}>
+            <ScoreSelector
+              value={scoreForStep()}
+              onChange={(v) => handleScoreSelect(v, step)}
+              type={cfg.type}
+            />
+          </ScrollView>
+        </View>
       </View>
     );
   };
@@ -211,20 +274,37 @@ export function BodyStatePopupFlow({
     <Modal visible={visible} transparent animationType="none" onRequestClose={handleClose}>
       <Animated.View style={[styles.backdrop, { opacity: fadeAnim }]}>
         <Animated.View style={[styles.sheet, { transform: [{ translateY: slideAnim }] }]}>
-          {/* 헤더 (진행 점 표시만) */}
-          <View style={styles.header}>
-            {step !== 'exercise_suggest' && (
+          {/* 진행 도트 */}
+          {step !== 'exercise_suggest' && (
+            <View style={styles.header}>
               <View style={styles.dotRow}>
                 {orderedSteps.map((s, i) => (
-                  <View key={s} style={[styles.dot, i === currentIndex && styles.dotActive]} />
+                  <View
+                    key={s}
+                    style={[
+                      styles.dot,
+                      i === currentIndex && {
+                        backgroundColor: step in STEP_CONFIG
+                          ? STEP_CONFIG[step as StepKey].accentColor
+                          : Colors.primary,
+                        width: 24,
+                      },
+                    ]}
+                  />
                 ))}
               </View>
-            )}
-          </View>
+            </View>
+          )}
 
-          {renderContent()}
+          {/* 스텝 콘텐츠 (전환 애니메이션) */}
+          <Animated.View style={{
+            transform: [{ translateY: contentSlide }],
+            opacity: contentOpacity,
+          }}>
+            {renderContent()}
+          </Animated.View>
 
-          {/* 닫기 버튼 - 항상 맨 아래 고정 */}
+          {/* 닫기 버튼 - 항상 맨 아래 */}
           <TouchableOpacity style={styles.closeBtn} onPress={handleClose} activeOpacity={0.75}>
             <Ionicons name="close-outline" size={22} color={Colors.textSub} />
             <Text style={styles.closeBtnText}>닫기</Text>
@@ -247,36 +327,32 @@ const styles = StyleSheet.create({
     borderTopRightRadius: 28,
     maxHeight: SCREEN_HEIGHT * 0.92,
     paddingBottom: 24,
+    overflow: 'hidden',
   },
   header: {
-    flexDirection: 'row',
     alignItems: 'center',
-    justifyContent: 'center',
     paddingTop: 20,
-    paddingHorizontal: 20,
-    paddingBottom: 8,
-    position: 'relative',
-    minHeight: 56,
+    paddingBottom: 4,
   },
   dotRow: { flexDirection: 'row', gap: 8, alignItems: 'center' },
   dot: { width: 8, height: 8, borderRadius: 4, backgroundColor: Colors.border },
-  dotActive: { backgroundColor: Colors.primary, width: 24 },
-  closeBtn: {
-    flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8,
-    marginHorizontal: 20, marginTop: 12,
-    paddingVertical: 18,
-    borderRadius: 14, borderWidth: 1.5, borderColor: Colors.border,
-    backgroundColor: Colors.background,
-  },
-  closeBtnText: { fontSize: 18, color: Colors.textSub, fontWeight: '700' },
 
-  contentWrap: { paddingHorizontal: 20, paddingTop: 4 },
-  stepTitle: {
-    fontSize: 28, fontWeight: '800', color: Colors.text,
-    lineHeight: 40, marginBottom: 6,
+  // 스텝 배너
+  stepBanner: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingHorizontal: 24,
+    paddingVertical: 20,
+    gap: 16,
   },
-  stepDesc: { fontSize: 17, color: Colors.textSub, marginBottom: 20, lineHeight: 24 },
-  scoreScroll: { maxHeight: SCREEN_HEIGHT * 0.58 },
+  stepBannerEmoji: { fontSize: 48 },
+  stepBannerText: { flex: 1 },
+  stepBannerLabel: { fontSize: 14, fontWeight: '700', marginBottom: 4, letterSpacing: 0.3 },
+  stepTitle: { fontSize: 22, fontWeight: '800', color: Colors.text, lineHeight: 30 },
+
+  contentWrap: { paddingHorizontal: 20, paddingTop: 12 },
+  stepDesc: { fontSize: 17, color: Colors.textSub, marginBottom: 16, lineHeight: 24 },
+  scoreScroll: { maxHeight: SCREEN_HEIGHT * 0.46 },
 
   constipationCol: { gap: 14, marginTop: 4, paddingBottom: 8 },
   constipationBtn: {
@@ -289,7 +365,7 @@ const styles = StyleSheet.create({
   constipationLabel: { fontSize: 22, fontWeight: '700', color: Colors.text },
   constipationLabelActive: { color: Colors.dark },
 
-  exerciseWrap: { paddingHorizontal: 24, paddingTop: 12, alignItems: 'center' },
+  exerciseWrap: { paddingHorizontal: 24, paddingTop: 16, alignItems: 'center' },
   exerciseIconCircle: {
     width: 100, height: 100, borderRadius: 50,
     backgroundColor: Colors.light, alignItems: 'center', justifyContent: 'center',
@@ -303,4 +379,13 @@ const styles = StyleSheet.create({
     fontSize: 18, color: Colors.textSub, textAlign: 'center',
     lineHeight: 28, marginBottom: 32,
   },
+
+  closeBtn: {
+    flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8,
+    marginHorizontal: 20, marginTop: 12,
+    paddingVertical: 18,
+    borderRadius: 14, borderWidth: 1.5, borderColor: Colors.border,
+    backgroundColor: Colors.background,
+  },
+  closeBtnText: { fontSize: 18, color: Colors.textSub, fontWeight: '700' },
 });
