@@ -139,15 +139,31 @@ export function FamilyLinkScreen() {
           </TouchableOpacity>
         </View>
 
-        {/* ── Section 3: 코드로 연결하기 ── */}
-        <View style={[styles.card, styles.cardMarginTop]}>
+        {/* ── OR divider ── */}
+        <View style={styles.orDivider}>
+          <View style={styles.orLine} />
+          <View style={styles.orBadge}>
+            <Text style={styles.orText}>또는</Text>
+          </View>
+          <View style={styles.orLine} />
+        </View>
+
+        {/* ── Section 3: 가족이 보내준 번호 입력 ── */}
+        <View style={styles.card}>
           <View style={styles.sectionHeader}>
             <Ionicons name="link-outline" size={24} color={Colors.primary} />
-            <Text style={styles.sectionTitle}>코드로 연결하기</Text>
+            <Text style={styles.sectionTitle}>가족이 보내준 번호 입력</Text>
+          </View>
+
+          <View style={styles.infoBox}>
+            <Ionicons name="information-circle" size={18} color="#F57F17" />
+            <Text style={styles.infoBoxText}>
+              가족의 파킨온 앱에서 번호를 확인한 후 여기에 입력하세요
+            </Text>
           </View>
 
           <Text style={styles.connectDesc}>
-            가족의 6자리 숫자 번호를 입력해주세요
+            가족의 6자리 번호를 입력해주세요
           </Text>
 
           <TextInput
@@ -349,6 +365,47 @@ const styles = StyleSheet.create({
     fontSize: 20,
     fontWeight: '700',
     color: '#3C1E1E',
+  },
+
+  // ── OR divider ──
+  orDivider: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginVertical: 8,
+  },
+  orLine: {
+    flex: 1,
+    height: 1,
+    backgroundColor: Colors.border,
+  },
+  orBadge: {
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    borderRadius: 20,
+    borderWidth: 1,
+    borderColor: Colors.border,
+  },
+  orText: {
+    fontSize: 16,
+    color: Colors.textSub,
+  },
+
+  // ── Info box (section 3) ──
+  infoBox: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    backgroundColor: '#FFF8E1',
+    borderRadius: 10,
+    padding: 12,
+    marginTop: 4,
+    marginHorizontal: 20,
+    marginBottom: 4,
+  },
+  infoBoxText: {
+    flex: 1,
+    fontSize: 15,
+    color: '#795548',
   },
 
   // ── Connect section ──

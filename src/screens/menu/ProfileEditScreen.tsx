@@ -21,7 +21,14 @@ const BIRTH_YEARS = Array.from({ length: 60 }, (_, i) => 1930 + i);
 const DIAGNOSIS_YEARS = Array.from({ length: 40 }, (_, i) => 1985 + i);
 const RELATIONS = ['배우자', '자녀', '형제/자매', '기타'];
 
-const IS_PATIENT = true;
+const IS_PATIENT = false;
+
+const DUMMY_PATIENT = {
+  name: '홍길동',
+  birthYear: 1955,
+  gender: 'male' as Gender,
+  diagnosisYear: 2019,
+};
 
 export function ProfileEditScreen() {
   const navigation = useNavigation();
@@ -36,6 +43,13 @@ export function ProfileEditScreen() {
   const [showBirthPicker, setShowBirthPicker] = useState(false);
   const [showDiagnosisPicker, setShowDiagnosisPicker] = useState(false);
   const [showRelationPicker, setShowRelationPicker] = useState(false);
+
+  const [patientName, setPatientName] = useState(DUMMY_PATIENT.name);
+  const [patientBirthYear, setPatientBirthYear] = useState(DUMMY_PATIENT.birthYear);
+  const [patientGender, setPatientGender] = useState<Gender>(DUMMY_PATIENT.gender);
+  const [patientDiagnosisYear, setPatientDiagnosisYear] = useState(DUMMY_PATIENT.diagnosisYear);
+  const [showPatientBirthPicker, setShowPatientBirthPicker] = useState(false);
+  const [showPatientDiagnosisPicker, setShowPatientDiagnosisPicker] = useState(false);
 
   const handleSave = () => {
     if (!name.trim()) {
@@ -286,6 +300,135 @@ export function ProfileEditScreen() {
                   </Text>
                 </TouchableOpacity>
               </View>
+            </View>
+
+            {/* 담당 환자 정보 카드 */}
+            <View style={styles.card}>
+              <View style={styles.sectionHeader}>
+                <Ionicons name="person-outline" size={22} color={Colors.primary} />
+                <View style={{ flex: 1 }}>
+                  <Text style={styles.sectionTitle}>담당 환자 정보</Text>
+                  <Text style={[styles.label, { marginTop: 2, marginBottom: 0 }]}>
+                    가족 연동된 환자의 정보를 수정해요
+                  </Text>
+                </View>
+              </View>
+
+              {/* 환자 이름 */}
+              <Text style={styles.label}>환자 이름</Text>
+              <TextInput
+                style={styles.input}
+                value={patientName}
+                onChangeText={setPatientName}
+                placeholder="환자 이름을 입력해주세요"
+                placeholderTextColor={Colors.textHint}
+                returnKeyType="done"
+              />
+
+              {/* 환자 출생연도 */}
+              <Text style={[styles.label, { marginTop: 20 }]}>환자 출생연도</Text>
+              <TouchableOpacity
+                style={styles.pickerRow}
+                onPress={() => {
+                  setShowPatientBirthPicker(!showPatientBirthPicker);
+                  setShowPatientDiagnosisPicker(false);
+                }}
+                activeOpacity={0.8}
+              >
+                <Text style={styles.pickerText}>{patientBirthYear}년</Text>
+                <Ionicons
+                  name={showPatientBirthPicker ? 'chevron-up' : 'chevron-down'}
+                  size={22}
+                  color={Colors.textSub}
+                />
+              </TouchableOpacity>
+              {showPatientBirthPicker && (
+                <ScrollView style={styles.pickerList} nestedScrollEnabled>
+                  {BIRTH_YEARS.map(y => (
+                    <TouchableOpacity
+                      key={y}
+                      style={[styles.pickerItem, patientBirthYear === y && styles.pickerItemActive]}
+                      onPress={() => {
+                        setPatientBirthYear(y);
+                        setShowPatientBirthPicker(false);
+                      }}
+                    >
+                      <Text
+                        style={[
+                          styles.pickerItemText,
+                          patientBirthYear === y && styles.pickerItemTextActive,
+                        ]}
+                      >
+                        {y}년
+                      </Text>
+                    </TouchableOpacity>
+                  ))}
+                </ScrollView>
+              )}
+
+              {/* 환자 성별 */}
+              <Text style={[styles.label, { marginTop: 20 }]}>환자 성별</Text>
+              <View style={styles.segRow}>
+                <TouchableOpacity
+                  style={[styles.segBtn, patientGender === 'male' && styles.segBtnActive]}
+                  onPress={() => setPatientGender('male')}
+                  activeOpacity={0.8}
+                >
+                  <Text style={[styles.segBtnText, patientGender === 'male' && styles.segBtnTextActive]}>
+                    남자
+                  </Text>
+                </TouchableOpacity>
+                <TouchableOpacity
+                  style={[styles.segBtn, patientGender === 'female' && styles.segBtnActive]}
+                  onPress={() => setPatientGender('female')}
+                  activeOpacity={0.8}
+                >
+                  <Text style={[styles.segBtnText, patientGender === 'female' && styles.segBtnTextActive]}>
+                    여자
+                  </Text>
+                </TouchableOpacity>
+              </View>
+
+              {/* 진단 연도 */}
+              <Text style={[styles.label, { marginTop: 20 }]}>진단 연도</Text>
+              <TouchableOpacity
+                style={styles.pickerRow}
+                onPress={() => {
+                  setShowPatientDiagnosisPicker(!showPatientDiagnosisPicker);
+                  setShowPatientBirthPicker(false);
+                }}
+                activeOpacity={0.8}
+              >
+                <Text style={styles.pickerText}>{patientDiagnosisYear}년</Text>
+                <Ionicons
+                  name={showPatientDiagnosisPicker ? 'chevron-up' : 'chevron-down'}
+                  size={22}
+                  color={Colors.textSub}
+                />
+              </TouchableOpacity>
+              {showPatientDiagnosisPicker && (
+                <ScrollView style={styles.pickerList} nestedScrollEnabled>
+                  {DIAGNOSIS_YEARS.map(y => (
+                    <TouchableOpacity
+                      key={y}
+                      style={[styles.pickerItem, patientDiagnosisYear === y && styles.pickerItemActive]}
+                      onPress={() => {
+                        setPatientDiagnosisYear(y);
+                        setShowPatientDiagnosisPicker(false);
+                      }}
+                    >
+                      <Text
+                        style={[
+                          styles.pickerItemText,
+                          patientDiagnosisYear === y && styles.pickerItemTextActive,
+                        ]}
+                      >
+                        {y}년
+                      </Text>
+                    </TouchableOpacity>
+                  ))}
+                </ScrollView>
+              )}
             </View>
           </>
         )}

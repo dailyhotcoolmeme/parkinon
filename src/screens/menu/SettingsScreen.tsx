@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useRef } from 'react';
 import {
   View,
   Text,
@@ -7,33 +7,73 @@ import {
   ScrollView,
   StyleSheet,
   Alert,
+  Modal,
+  Animated,
+  Dimensions,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { Colors } from '../../constants/colors';
 import { TopBar } from '../../components/common/TopBar';
 
-interface NotificationItem {
+const { width: SCREEN_WIDTH } = Dimensions.get('window');
+
+// ─── Data model ───────────────────────────────────────────────────────────────
+
+interface MedNotif {
   id: string;
-  label: string;
-  sub: string;
+  minutes: number;
   enabled: boolean;
-  time?: string;
 }
 
+interface ExerciseTime {
+  ampm: '오전' | '오후';
+  hour: number;
+  minute: number;
+}
+
+function minutesToLabel(m: number): string {
+  if (m === 0) return '복용 직후';
+  if (m < 60) return `${m}분 후`;
+  const h = Math.floor(m / 60);
+  const rem = m % 60;
+  return rem === 0 ? `${h}시간 후` : `${h}시간 ${rem}분 후`;
+}
+
+const MED_TIME_OPTIONS = [0, 10, 30, 60, 90, 120, 180, 240];
+const EXERCISE_HOURS = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12];
+const EXERCISE_MINUTES = [0, 10, 20, 30, 40, 50];
+
+// ─── Component ────────────────────────────────────────────────────────────────
+
 export function SettingsScreen() {
-  const [medicationNotifs, setMedicationNotifs] = useState<NotificationItem[]>([
-    { id: 'immediate', label: '복용 직후', sub: '약을 드신 직후 알림', enabled: true },
-    { id: 'after30', label: '30분 후', sub: '복용 30분 뒤 알림', enabled: true },
-    { id: 'after2h', label: '2시간 후', sub: '복용 2시간 뒤 알림', enabled: true },
+  // Med notifications
+  const [medNotifs, setMedNotifs] = useState<MedNotif[]>([
+    { id: '1', minutes: 0, enabled: true },
+    { id: '2', minutes: 30, enabled: true },
+    { id: '3', minutes: 120, enabled: true },
   ]);
 
-  const [exerciseNotif, setExerciseNotif] = useState({
-    enabled: true,
-    time: '오후 2:00',
+  // Exercise notification
+  const [exerciseEnabled, setExerciseEnabled] = useState(true);
+  const [exerciseTime, setExerciseTime] = useState<ExerciseTime>({
+    ampm: '오후',
+    hour: 2,
+    minute: 0,
   });
 
-  // 보호자 역할인 경우 true (더미)
+  // Modal / picker state
+  const [pickerVisible, setPickerVisible] = useState(false);
+  const [pickerType, setPickerType] = useState<'med' | 'exercise'>('med');
+  const [editingMedId, setEditingMedId] = useState<string | null>(null);
+  const [selectedMinutes, setSelectedMinutes] = useState(0);
+  const [pickerExTime, setPickerExTime] = useState<ExerciseTime>({
+    ampm: '오후',
+    hour: 2,
+    minute: 0,
+  });
+
+  // Caregiver (kept for data completeness)
   const isCaregiver = false;
   const [caregiverNotifs, setCaregiverNotifs] = useState([
     { id: 'taken', label: '약 복용 시', enabled: true },
@@ -41,135 +81,285 @@ export function SettingsScreen() {
     { id: 'exercise', label: '운동 완료 시', enabled: true },
   ]);
 
-  const toggleMedNotif = (id: string) => {
-    setMedicationNotifs(prev =>
-      prev.map(n => (n.id === id ? { ...n, enabled: !n.enabled } : n)),
+  // ─── Animation refs ─────────────────────────────────────────────────────────
+  const fadeAnim = useRef(new Animated.Value(0)).current;
+  const slideAnim = useRef(new Animated.Value(300)).current;
+
+  // ─── Picker open/close ──────────────────────────────────────────────────────
+  const openPicker = (type: 'med' | 'exercise', medId?: string | null) => {
+    setPickerType(type);
+
+    if (type === 'med') {
+      const id = medId ?? null;
+      setEditingMedId(id);
+      if (id) {
+        const existing = medNotifs.find((n) => n.id === id);
+        setSelectedMinutes(existing ? existing.minutes : 30);
+      } else {
+        setSelectedMinutes(30);
+      }
+    } else {
+      setPickerExTime({ ...exerciseTime });
+    }
+
+    setPickerVisible(true);
+    fadeAnim.setValue(0);
+    slideAnim.setValue(300);
+
+    Animated.parallel([
+      Animated.timing(fadeAnim, {
+        toValue: 1,
+        duration: 220,
+        useNativeDriver: true,
+      }),
+      Animated.spring(slideAnim, {
+        toValue: 0,
+        useNativeDriver: true,
+        bounciness: 6,
+      }),
+    ]).start();
+  };
+
+  const closePicker = () => {
+    Animated.parallel([
+      Animated.timing(fadeAnim, {
+        toValue: 0,
+        duration: 200,
+        useNativeDriver: true,
+      }),
+      Animated.timing(slideAnim, {
+        toValue: 300,
+        duration: 200,
+        useNativeDriver: true,
+      }),
+    ]).start(() => {
+      setPickerVisible(false);
+    });
+  };
+
+  // ─── Handlers ───────────────────────────────────────────────────────────────
+  const toggleMed = (id: string) => {
+    setMedNotifs((prev) =>
+      prev.map((n) => (n.id === id ? { ...n, enabled: !n.enabled } : n))
     );
   };
 
-  const removeMedNotif = (id: string) => {
-    Alert.alert('알림 삭제', '이 알림을 삭제할까요?', [
+  const deleteMed = (id: string) => {
+    Alert.alert('알림 삭제', '이 알림을 삭제하시겠어요?', [
       { text: '취소', style: 'cancel' },
       {
         text: '삭제',
         style: 'destructive',
-        onPress: () => setMedicationNotifs(prev => prev.filter(n => n.id !== id)),
+        onPress: () =>
+          setMedNotifs((prev) => prev.filter((n) => n.id !== id)),
       },
     ]);
   };
 
-  const addMedNotif = () => {
-    Alert.alert('알림 추가', '새 알림 시간 추가 기능은 준비 중이에요.');
+  const saveMedTime = () => {
+    if (editingMedId) {
+      setMedNotifs((prev) =>
+        prev.map((n) =>
+          n.id === editingMedId ? { ...n, minutes: selectedMinutes } : n
+        )
+      );
+    } else {
+      setMedNotifs((prev) => [
+        ...prev,
+        {
+          id: Date.now().toString(),
+          minutes: selectedMinutes,
+          enabled: true,
+        },
+      ]);
+    }
+    closePicker();
   };
 
-  const changeExerciseTime = () => {
-    Alert.alert('운동 알림 시간', '시간 변경 기능은 준비 중이에요.');
+  const saveExerciseTime = () => {
+    setExerciseTime({ ...pickerExTime });
+    closePicker();
   };
 
   const toggleCaregiverNotif = (id: string) => {
-    setCaregiverNotifs(prev =>
-      prev.map(n => (n.id === id ? { ...n, enabled: !n.enabled } : n)),
+    setCaregiverNotifs((prev) =>
+      prev.map((n) => (n.id === id ? { ...n, enabled: !n.enabled } : n))
     );
   };
 
+  // ─── Helpers ────────────────────────────────────────────────────────────────
+  const formatExerciseTime = (t: ExerciseTime) =>
+    `${t.ampm} ${t.hour}:${String(t.minute).padStart(2, '0')}`;
+
+  const optionButtonWidth = (SCREEN_WIDTH - 72) / 2;
+  const hourButtonWidth = (SCREEN_WIDTH - 88) / 4;
+
+  // ─── Render ─────────────────────────────────────────────────────────────────
   return (
-    <SafeAreaView style={styles.safeArea} edges={['top']}>
+    <SafeAreaView edges={['top']} style={styles.safe}>
       <TopBar title="알림 설정" showBack />
 
-      <ScrollView style={styles.scroll} contentContainerStyle={styles.scrollContent}>
-        {/* Section 1: 약효 추적 알림 */}
+      <ScrollView
+        style={styles.scroll}
+        contentContainerStyle={styles.scrollContent}
+        showsVerticalScrollIndicator={false}
+      >
+        {/* ── Card 1: 약효 추적 알림 ── */}
         <View style={styles.card}>
-          {/* Card header */}
           <View style={styles.cardHeader}>
-            <View style={styles.cardHeaderLeft}>
-              <Ionicons name="notifications-outline" size={24} color={Colors.primary} />
-              <View style={styles.cardHeaderTexts}>
-                <Text style={styles.cardHeaderTitle}>약효 추적 알림</Text>
-                <Text style={styles.cardHeaderDesc}>약 복용 후 컨디션을 기록해요</Text>
-              </View>
+            <Ionicons
+              name="notifications-outline"
+              size={24}
+              color={Colors.primary}
+              style={styles.cardHeaderIcon}
+            />
+            <View style={styles.cardHeaderText}>
+              <Text style={styles.cardHeaderTitle}>약효 추적 알림</Text>
+              <Text style={styles.cardHeaderSub}>
+                약 복용 후 컨디션을 기록해요
+              </Text>
             </View>
           </View>
 
-          {/* Notification items */}
-          {medicationNotifs.map(notif => (
+          {medNotifs.map((notif) => (
             <View key={notif.id} style={styles.notifRow}>
-              <View style={styles.notifTexts}>
-                <Text style={styles.notifLabel}>{notif.label}</Text>
-                <Text style={styles.notifSub}>{notif.sub}</Text>
+              <View style={styles.notifLeft}>
+                <Text style={styles.notifTitle}>
+                  {minutesToLabel(notif.minutes)}
+                </Text>
+                <Text style={styles.notifSub}>
+                  {notif.enabled ? '알림이 켜져 있어요' : '알림이 꺼져 있어요'}
+                </Text>
               </View>
-              <Switch
-                value={notif.enabled}
-                onValueChange={() => toggleMedNotif(notif.id)}
-                trackColor={{ false: '#D0D0D0', true: Colors.primary }}
-                thumbColor={Colors.white}
-              />
+              <View style={styles.notifRight}>
+                <Switch
+                  value={notif.enabled}
+                  onValueChange={() => toggleMed(notif.id)}
+                  trackColor={{
+                    false: Colors.border,
+                    true: Colors.primary,
+                  }}
+                  thumbColor={Colors.white}
+                />
+                <TouchableOpacity
+                  activeOpacity={0.7}
+                  hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+                  style={styles.iconBtn}
+                  onPress={() => openPicker('med', notif.id)}
+                >
+                  <Ionicons
+                    name="create-outline"
+                    size={22}
+                    color={Colors.textSub}
+                  />
+                </TouchableOpacity>
+                <TouchableOpacity
+                  activeOpacity={0.7}
+                  hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+                  style={[styles.iconBtn, styles.iconBtnDelete]}
+                  onPress={() => deleteMed(notif.id)}
+                >
+                  <Ionicons
+                    name="trash-outline"
+                    size={22}
+                    color={Colors.danger}
+                  />
+                </TouchableOpacity>
+              </View>
             </View>
           ))}
 
-          {/* Add button */}
-          <TouchableOpacity style={styles.addRow} onPress={addMedNotif} activeOpacity={0.7}>
-            <Ionicons name="add-circle-outline" size={22} color={Colors.accent} />
-            <Text style={styles.addRowText}>알림 시간 추가하기</Text>
+          <TouchableOpacity
+            activeOpacity={0.7}
+            style={styles.addRow}
+            onPress={() => openPicker('med', null)}
+          >
+            <Ionicons
+              name="add-circle-outline"
+              size={22}
+              color={Colors.accent}
+              style={{ marginRight: 8 }}
+            />
+            <Text style={styles.addLabel}>알림 추가하기</Text>
           </TouchableOpacity>
         </View>
 
-        {/* Section 2: 운동 알림 */}
-        <View style={styles.card}>
-          {/* Card header */}
+        {/* ── Card 2: 운동 알림 ── */}
+        <View style={[styles.card, styles.cardMarginTop]}>
           <View style={styles.cardHeader}>
-            <View style={styles.cardHeaderLeft}>
-              <Ionicons name="fitness-outline" size={24} color={Colors.primary} />
-              <View style={styles.cardHeaderTexts}>
-                <Text style={styles.cardHeaderTitle}>운동 알림</Text>
-                <Text style={styles.cardHeaderDesc}>매일 운동을 권장해드려요</Text>
-              </View>
+            <Ionicons
+              name="fitness-outline"
+              size={24}
+              color={Colors.primary}
+              style={styles.cardHeaderIcon}
+            />
+            <View style={styles.cardHeaderText}>
+              <Text style={styles.cardHeaderTitle}>운동 알림</Text>
+              <Text style={styles.cardHeaderSub}>매일 운동을 권장해드려요</Text>
             </View>
           </View>
 
-          {/* 운동 알림 토글 */}
-          <View style={styles.notifRow}>
-            <View style={styles.notifTexts}>
-              <Text style={styles.notifLabel}>운동 알림</Text>
-              <Text style={styles.notifSub}>설정한 시간에 알림을 보내드려요</Text>
+          <View style={styles.exerciseToggleRow}>
+            <View style={styles.notifLeft}>
+              <Text style={styles.notifTitle}>운동 알림</Text>
+              <Text style={styles.notifSub}>
+                설정한 시간에 알림을 보내드려요
+              </Text>
             </View>
             <Switch
-              value={exerciseNotif.enabled}
-              onValueChange={v => setExerciseNotif(prev => ({ ...prev, enabled: v }))}
-              trackColor={{ false: '#D0D0D0', true: Colors.primary }}
+              value={exerciseEnabled}
+              onValueChange={setExerciseEnabled}
+              trackColor={{ false: Colors.border, true: Colors.primary }}
               thumbColor={Colors.white}
             />
           </View>
 
-          {/* 알림 시간 */}
-          <TouchableOpacity style={styles.notifRow} onPress={changeExerciseTime} activeOpacity={0.7}>
-            <Text style={[styles.notifLabel, { flex: 1 }]}>알림 시간</Text>
-            <View style={styles.timeChevronRow}>
-              <Text style={styles.timeText}>{exerciseNotif.time}</Text>
-              <Ionicons name="chevron-forward" size={22} color={Colors.textHint} />
+          <TouchableOpacity
+            activeOpacity={0.7}
+            style={styles.exerciseTimeRow}
+            onPress={() => openPicker('exercise')}
+          >
+            <Text style={[styles.notifTitle, { flex: 1 }]}>알림 시간</Text>
+            <View style={styles.exerciseTimeRight}>
+              <Text style={styles.exerciseTimeValue}>
+                {formatExerciseTime(exerciseTime)}
+              </Text>
+              <Ionicons
+                name="chevron-forward"
+                size={22}
+                color={Colors.textHint}
+                style={{ marginLeft: 4 }}
+              />
             </View>
           </TouchableOpacity>
         </View>
 
-        {/* Section 3: 보호자 알림 (보호자에게만 표시) */}
+        {/* ── Card 3: 보호자 알림 (보호자에게만 표시) ── */}
         {isCaregiver && (
-          <View style={styles.card}>
+          <View style={[styles.card, styles.cardMarginTop]}>
             <View style={styles.cardHeader}>
-              <View style={styles.cardHeaderLeft}>
-                <Ionicons name="people-outline" size={24} color={Colors.primary} />
-                <View style={styles.cardHeaderTexts}>
-                  <Text style={styles.cardHeaderTitle}>보호자 알림</Text>
-                  <Text style={styles.cardHeaderDesc}>환자 활동을 알려드려요</Text>
-                </View>
+              <Ionicons
+                name="people-outline"
+                size={24}
+                color={Colors.primary}
+                style={styles.cardHeaderIcon}
+              />
+              <View style={styles.cardHeaderText}>
+                <Text style={styles.cardHeaderTitle}>보호자 알림</Text>
+                <Text style={styles.cardHeaderSub}>
+                  환자 활동을 알려드려요
+                </Text>
               </View>
             </View>
-
-            {caregiverNotifs.map(notif => (
+            {caregiverNotifs.map((notif) => (
               <View key={notif.id} style={styles.notifRow}>
-                <Text style={[styles.notifLabel, { flex: 1 }]}>{notif.label}</Text>
+                <Text style={[styles.notifTitle, { flex: 1 }]}>
+                  {notif.label}
+                </Text>
                 <Switch
                   value={notif.enabled}
                   onValueChange={() => toggleCaregiverNotif(notif.id)}
-                  trackColor={{ false: '#D0D0D0', true: Colors.primary }}
+                  trackColor={{ false: Colors.border, true: Colors.primary }}
                   thumbColor={Colors.white}
                 />
               </View>
@@ -177,105 +367,518 @@ export function SettingsScreen() {
           </View>
         )}
       </ScrollView>
+
+      {/* ── Bottom Sheet Modal ── */}
+      <Modal
+        visible={pickerVisible}
+        transparent
+        animationType="none"
+        onRequestClose={closePicker}
+      >
+        <Animated.View style={[styles.backdrop, { opacity: fadeAnim }]}>
+          <TouchableOpacity
+            style={StyleSheet.absoluteFill}
+            activeOpacity={1}
+            onPress={closePicker}
+          />
+          <Animated.View
+            style={[
+              styles.sheet,
+              { transform: [{ translateY: slideAnim }] },
+            ]}
+          >
+            {/* Handle bar */}
+            <View style={styles.handle} />
+
+            {pickerType === 'med' ? (
+              /* ── Med time picker ── */
+              <>
+                <Text style={styles.pickerTitle}>알림 시간 선택</Text>
+
+                <View style={styles.optionGrid}>
+                  {MED_TIME_OPTIONS.map((opt) => {
+                    const active = selectedMinutes === opt;
+                    return (
+                      <TouchableOpacity
+                        key={opt}
+                        activeOpacity={0.7}
+                        onPress={() => setSelectedMinutes(opt)}
+                        style={[
+                          styles.optionBtn,
+                          { width: optionButtonWidth },
+                          active
+                            ? styles.optionBtnActive
+                            : styles.optionBtnInactive,
+                        ]}
+                      >
+                        <Text
+                          style={[
+                            styles.optionBtnText,
+                            active
+                              ? styles.optionBtnTextActive
+                              : styles.optionBtnTextInactive,
+                          ]}
+                        >
+                          {minutesToLabel(opt)}
+                        </Text>
+                      </TouchableOpacity>
+                    );
+                  })}
+                </View>
+
+                <TouchableOpacity
+                  activeOpacity={0.8}
+                  style={styles.saveBtn}
+                  onPress={saveMedTime}
+                >
+                  <Text style={styles.saveBtnText}>저장하기</Text>
+                </TouchableOpacity>
+
+                <TouchableOpacity
+                  activeOpacity={0.7}
+                  style={styles.cancelLink}
+                  onPress={closePicker}
+                >
+                  <Text style={styles.cancelLinkText}>취소</Text>
+                </TouchableOpacity>
+              </>
+            ) : (
+              /* ── Exercise time picker ── */
+              <>
+                <Text style={styles.pickerTitle}>운동 알림 시간</Text>
+
+                {/* AM/PM row */}
+                <View style={styles.ampmRow}>
+                  {(['오전', '오후'] as const).map((ap) => {
+                    const active = pickerExTime.ampm === ap;
+                    return (
+                      <TouchableOpacity
+                        key={ap}
+                        activeOpacity={0.7}
+                        onPress={() =>
+                          setPickerExTime((prev) => ({ ...prev, ampm: ap }))
+                        }
+                        style={[
+                          styles.ampmBtn,
+                          active
+                            ? styles.ampmBtnActive
+                            : styles.ampmBtnInactive,
+                        ]}
+                      >
+                        <Text
+                          style={[
+                            styles.ampmBtnText,
+                            active
+                              ? styles.ampmBtnTextActive
+                              : styles.ampmBtnTextInactive,
+                          ]}
+                        >
+                          {ap}
+                        </Text>
+                      </TouchableOpacity>
+                    );
+                  })}
+                </View>
+
+                {/* Hour label */}
+                <Text style={styles.unitLabel}>시</Text>
+
+                {/* Hour grid */}
+                <View style={styles.hourGrid}>
+                  {EXERCISE_HOURS.map((h) => {
+                    const active = pickerExTime.hour === h;
+                    return (
+                      <TouchableOpacity
+                        key={h}
+                        activeOpacity={0.7}
+                        onPress={() =>
+                          setPickerExTime((prev) => ({ ...prev, hour: h }))
+                        }
+                        style={[
+                          styles.hourBtn,
+                          { width: hourButtonWidth },
+                          active
+                            ? styles.gridBtnActive
+                            : styles.gridBtnInactive,
+                        ]}
+                      >
+                        <Text
+                          style={[
+                            styles.gridBtnText,
+                            active
+                              ? styles.gridBtnTextActive
+                              : styles.gridBtnTextInactive,
+                          ]}
+                        >
+                          {h}
+                        </Text>
+                      </TouchableOpacity>
+                    );
+                  })}
+                </View>
+
+                {/* Minute label */}
+                <Text style={[styles.unitLabel, { marginTop: 16 }]}>분</Text>
+
+                {/* Minute grid */}
+                <View style={styles.minuteGrid}>
+                  {EXERCISE_MINUTES.map((min) => {
+                    const active = pickerExTime.minute === min;
+                    return (
+                      <TouchableOpacity
+                        key={min}
+                        activeOpacity={0.7}
+                        onPress={() =>
+                          setPickerExTime((prev) => ({
+                            ...prev,
+                            minute: min,
+                          }))
+                        }
+                        style={[
+                          styles.minuteBtn,
+                          active
+                            ? styles.gridBtnActive
+                            : styles.gridBtnInactive,
+                        ]}
+                      >
+                        <Text
+                          style={[
+                            styles.gridBtnText,
+                            active
+                              ? styles.gridBtnTextActive
+                              : styles.gridBtnTextInactive,
+                          ]}
+                        >
+                          {String(min).padStart(2, '0')}
+                        </Text>
+                      </TouchableOpacity>
+                    );
+                  })}
+                </View>
+
+                <TouchableOpacity
+                  activeOpacity={0.8}
+                  style={styles.saveBtn}
+                  onPress={saveExerciseTime}
+                >
+                  <Text style={styles.saveBtnText}>저장하기</Text>
+                </TouchableOpacity>
+
+                <TouchableOpacity
+                  activeOpacity={0.7}
+                  style={styles.cancelLink}
+                  onPress={closePicker}
+                >
+                  <Text style={styles.cancelLinkText}>취소</Text>
+                </TouchableOpacity>
+              </>
+            )}
+          </Animated.View>
+        </Animated.View>
+      </Modal>
     </SafeAreaView>
   );
 }
 
+// ─── Styles ───────────────────────────────────────────────────────────────────
+
 const styles = StyleSheet.create({
-  safeArea: { flex: 1, backgroundColor: Colors.background },
-  scroll: { flex: 1 },
+  safe: {
+    flex: 1,
+    backgroundColor: Colors.background,
+  },
+  scroll: {
+    flex: 1,
+  },
   scrollContent: {
     padding: 20,
-    paddingBottom: 60,
+    paddingBottom: 80,
   },
 
-  // Card container
+  // ── Card ──
   card: {
     backgroundColor: Colors.white,
     borderRadius: 16,
     overflow: 'hidden',
-    marginBottom: 20,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 1 },
-    shadowOpacity: 0.06,
-    shadowRadius: 4,
-    elevation: 2,
   },
-
-  // Card header (light background strip)
+  cardMarginTop: {
+    marginTop: 16,
+  },
   cardHeader: {
-    paddingHorizontal: 20,
-    paddingVertical: 16,
-    backgroundColor: Colors.light,
-  },
-  cardHeaderLeft: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 12,
+    backgroundColor: Colors.light,
+    paddingHorizontal: 20,
+    paddingVertical: 16,
   },
-  cardHeaderTexts: {
+  cardHeaderIcon: {
+    marginRight: 12,
+  },
+  cardHeaderText: {
     flex: 1,
   },
   cardHeaderTitle: {
     fontSize: 20,
-    fontWeight: '700',
+    fontWeight: 'bold',
     color: Colors.text,
-    marginBottom: 2,
   },
-  cardHeaderDesc: {
+  cardHeaderSub: {
     fontSize: 15,
     color: Colors.textSub,
+    marginTop: 2,
   },
 
-  // Notification row
+  // ── Notif row ──
   notifRow: {
     flexDirection: 'row',
     alignItems: 'center',
-    paddingHorizontal: 20,
-    minHeight: 72,
+    minHeight: 76,
     borderTopWidth: 1,
     borderTopColor: Colors.border,
+    paddingHorizontal: 20,
   },
-  notifTexts: {
+  notifLeft: {
     flex: 1,
     paddingVertical: 14,
   },
-  notifLabel: {
+  notifTitle: {
     fontSize: 20,
+    fontWeight: 'bold',
     color: Colors.text,
-    fontWeight: '500',
-    marginBottom: 3,
   },
   notifSub: {
     fontSize: 15,
     color: Colors.textSub,
+    marginTop: 3,
+  },
+  notifRight: {
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
+  iconBtn: {
+    marginLeft: 12,
+    padding: 4,
+  },
+  iconBtnDelete: {
+    marginLeft: 8,
   },
 
-  // Add button row at bottom of card
+  // ── Add row ──
   addRow: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 8,
-    paddingHorizontal: 20,
-    paddingVertical: 16,
     borderTopWidth: 1,
     borderTopColor: Colors.border,
+    paddingHorizontal: 20,
+    paddingVertical: 16,
   },
-  addRowText: {
+  addLabel: {
     fontSize: 18,
+    fontWeight: 'bold',
     color: Colors.accent,
-    fontWeight: '600',
   },
 
-  // Exercise time row
-  timeChevronRow: {
+  // ── Exercise rows ──
+  exerciseToggleRow: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 4,
+    minHeight: 72,
+    borderTopWidth: 1,
+    borderTopColor: Colors.border,
+    paddingHorizontal: 20,
   },
-  timeText: {
+  exerciseTimeRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    minHeight: 72,
+    borderTopWidth: 1,
+    borderTopColor: Colors.border,
+    paddingHorizontal: 20,
+  },
+  exerciseTimeRight: {
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
+  exerciseTimeValue: {
     fontSize: 20,
+    fontWeight: 'bold',
     color: Colors.primary,
-    fontWeight: '600',
+  },
+
+  // ── Backdrop ──
+  backdrop: {
+    flex: 1,
+    backgroundColor: 'rgba(0,0,0,0.5)',
+    justifyContent: 'flex-end',
+  },
+
+  // ── Sheet ──
+  sheet: {
+    backgroundColor: Colors.white,
+    borderTopLeftRadius: 28,
+    borderTopRightRadius: 28,
+    paddingBottom: 32,
+  },
+  handle: {
+    width: 40,
+    height: 4,
+    borderRadius: 2,
+    backgroundColor: Colors.border,
+    alignSelf: 'center',
+    marginTop: 14,
+    marginBottom: 8,
+  },
+
+  // ── Picker shared ──
+  pickerTitle: {
+    fontSize: 22,
+    fontWeight: 'bold',
+    color: Colors.text,
+    textAlign: 'center',
+    paddingHorizontal: 20,
+    marginBottom: 16,
+  },
+  saveBtn: {
+    marginHorizontal: 20,
+    marginTop: 20,
+    height: 60,
+    borderRadius: 16,
+    backgroundColor: Colors.accent,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  saveBtnText: {
+    fontSize: 20,
+    fontWeight: 'bold',
+    color: Colors.white,
+  },
+  cancelLink: {
+    alignItems: 'center',
+    paddingVertical: 14,
+  },
+  cancelLinkText: {
+    fontSize: 17,
+    color: Colors.textSub,
+  },
+
+  // ── Med time option grid ──
+  optionGrid: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    paddingHorizontal: 16,
+    gap: 10,
+  },
+  optionBtn: {
+    height: 64,
+    borderRadius: 14,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  optionBtnActive: {
+    backgroundColor: Colors.primary,
+  },
+  optionBtnInactive: {
+    backgroundColor: Colors.white,
+    borderWidth: 1.5,
+    borderColor: Colors.border,
+  },
+  optionBtnText: {
+    fontSize: 18,
+    fontWeight: 'bold',
+  },
+  optionBtnTextActive: {
+    color: Colors.white,
+  },
+  optionBtnTextInactive: {
+    color: Colors.text,
+  },
+
+  // ── AM/PM ──
+  ampmRow: {
+    flexDirection: 'row',
+    marginHorizontal: 20,
+    marginBottom: 20,
+    gap: 12,
+  },
+  ampmBtn: {
+    flex: 1,
+    height: 60,
+    borderRadius: 14,
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderWidth: 1.5,
+  },
+  ampmBtnActive: {
+    backgroundColor: Colors.primary,
+    borderColor: Colors.primary,
+  },
+  ampmBtnInactive: {
+    backgroundColor: Colors.white,
+    borderColor: Colors.border,
+  },
+  ampmBtnText: {
+    fontSize: 20,
+    fontWeight: 'bold',
+  },
+  ampmBtnTextActive: {
+    color: Colors.white,
+  },
+  ampmBtnTextInactive: {
+    color: Colors.textSub,
+  },
+
+  // ── Unit labels ──
+  unitLabel: {
+    fontSize: 16,
+    color: Colors.textSub,
+    marginLeft: 24,
+    marginBottom: 8,
+  },
+
+  // ── Hour grid ──
+  hourGrid: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    paddingHorizontal: 20,
+    gap: 8,
+  },
+  hourBtn: {
+    height: 56,
+    borderRadius: 12,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+
+  // ── Minute grid ──
+  minuteGrid: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    paddingHorizontal: 20,
+    gap: 8,
+  },
+  minuteBtn: {
+    flex: 1,
+    height: 56,
+    borderRadius: 12,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+
+  // ── Shared grid button states ──
+  gridBtnActive: {
+    backgroundColor: Colors.primary,
+  },
+  gridBtnInactive: {
+    backgroundColor: Colors.background,
+  },
+  gridBtnText: {
+    fontSize: 18,
+    fontWeight: 'bold',
+  },
+  gridBtnTextActive: {
+    color: Colors.white,
+  },
+  gridBtnTextInactive: {
+    color: Colors.text,
   },
 });

@@ -95,6 +95,16 @@ export function MedicationManageScreen() {
           <Ionicons name="chevron-forward" size={24} color={Colors.primary} />
         </TouchableOpacity>
 
+        {/* ── Add manual button ── */}
+        <TouchableOpacity
+          style={styles.addBtn}
+          onPress={handleAddManual}
+          activeOpacity={0.8}
+        >
+          <Ionicons name="add-circle-outline" size={24} color={Colors.primary} />
+          <Text style={styles.addBtnText}>약 직접 추가하기</Text>
+        </TouchableOpacity>
+
         {/* ── Section header ── */}
         <Text style={styles.sectionHeader}>
           {'💊 등록된 약 '}
@@ -146,16 +156,6 @@ export function MedicationManageScreen() {
             </View>
           </View>
         ))}
-
-        {/* ── Add manual button ── */}
-        <TouchableOpacity
-          style={styles.addBtn}
-          onPress={handleAddManual}
-          activeOpacity={0.8}
-        >
-          <Ionicons name="add-circle-outline" size={24} color={Colors.textSub} />
-          <Text style={styles.addBtnText}>약 직접 추가하기</Text>
-        </TouchableOpacity>
       </ScrollView>
     </SafeAreaView>
   );
@@ -339,17 +339,18 @@ const styles = StyleSheet.create({
     backgroundColor: Colors.white,
     borderRadius: 16,
     borderWidth: 1.5,
-    borderColor: Colors.border,
+    borderColor: Colors.primary,
     height: 64,
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
     marginTop: 8,
     gap: 8,
+    marginBottom: 20,
   },
   addBtnText: {
     fontSize: 20,
     fontWeight: '600',
-    color: Colors.textSub,
+    color: Colors.primary,
   },
 });
