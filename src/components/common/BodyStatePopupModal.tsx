@@ -6,6 +6,7 @@ import {
   StyleSheet,
   Modal,
 } from 'react-native';
+import { Ionicons } from '@expo/vector-icons';
 import { Colors } from '../../constants/colors';
 import { ScoreSelector } from './ScoreSelector';
 
@@ -46,7 +47,8 @@ export function BodyStatePopupModal({ visible, onClose, onSave, prevBodyScore }:
             <ScoreSelector value={score} onChange={handleScoreSelect} />
           </View>
 
-          <TouchableOpacity style={styles.laterBtn} onPress={onClose}>
+          <TouchableOpacity style={styles.laterBtn} onPress={onClose} activeOpacity={0.75}>
+            <Ionicons name="close-outline" size={20} color={Colors.textSub} />
             <Text style={styles.laterText}>닫기</Text>
           </TouchableOpacity>
         </View>
@@ -97,12 +99,19 @@ const styles = StyleSheet.create({
     marginBottom: 24,
   },
   laterBtn: {
-    paddingVertical: 12,
+    flexDirection: 'row',
     alignItems: 'center',
+    justifyContent: 'center',
+    gap: 8,
+    paddingVertical: 16,
+    borderRadius: 14,
+    backgroundColor: Colors.background,
+    borderWidth: 1.5,
+    borderColor: Colors.border,
   },
   laterText: {
-    fontSize: 16,
-    color: Colors.textHint,
-    fontWeight: '600',
+    fontSize: 18,
+    color: Colors.textSub,
+    fontWeight: '700',
   },
 });

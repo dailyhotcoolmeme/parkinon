@@ -224,7 +224,8 @@ export function BodyStatePopupFlow({
               </View>
             )}
             <TouchableOpacity style={styles.closeBtn} onPress={handleClose}>
-              <Ionicons name="close" size={26} color={Colors.textSub} />
+              <Ionicons name="close" size={20} color={Colors.textSub} />
+              <Text style={styles.closeBtnText}>닫기</Text>
             </TouchableOpacity>
           </View>
 
@@ -261,7 +262,14 @@ const styles = StyleSheet.create({
   dotRow: { flexDirection: 'row', gap: 8, alignItems: 'center' },
   dot: { width: 8, height: 8, borderRadius: 4, backgroundColor: Colors.border },
   dotActive: { backgroundColor: Colors.primary, width: 24 },
-  closeBtn: { position: 'absolute', right: 20, top: 16, padding: 6 },
+  closeBtn: {
+    position: 'absolute', right: 16, top: 12,
+    flexDirection: 'row', alignItems: 'center', gap: 4,
+    paddingVertical: 8, paddingHorizontal: 14,
+    backgroundColor: Colors.background,
+    borderRadius: 20, borderWidth: 1.5, borderColor: Colors.border,
+  },
+  closeBtnText: { fontSize: 15, color: Colors.textSub, fontWeight: '700' },
 
   contentWrap: { paddingHorizontal: 20, paddingTop: 4 },
   stepTitle: {

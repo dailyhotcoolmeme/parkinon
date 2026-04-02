@@ -73,7 +73,8 @@ export function MealTimeModal({ visible, onSelect, onClose }: Props) {
             ))}
           </View>
 
-          <TouchableOpacity style={styles.closeBtn} onPress={onClose} activeOpacity={0.7}>
+          <TouchableOpacity style={styles.closeBtn} onPress={onClose} activeOpacity={0.75}>
+            <Ionicons name="close-outline" size={22} color={Colors.textSub} />
             <Text style={styles.closeText}>닫기</Text>
           </TouchableOpacity>
         </Animated.View>
@@ -143,6 +144,18 @@ const styles = StyleSheet.create({
   optionText: { flex: 1 },
   optionLabel: { fontSize: 22, fontWeight: '700', color: Colors.text, marginBottom: 3 },
   optionTime: { fontSize: 17, color: Colors.textSub },
-  closeBtn: { paddingVertical: 14, marginHorizontal: 20, alignItems: 'center' },
-  closeText: { fontSize: 18, color: Colors.textHint, fontWeight: '600' },
+  closeBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 8,
+    marginHorizontal: 20,
+    marginBottom: 4,
+    paddingVertical: 16,
+    borderRadius: 14,
+    backgroundColor: Colors.background,
+    borderWidth: 1.5,
+    borderColor: Colors.border,
+  },
+  closeText: { fontSize: 18, color: Colors.textSub, fontWeight: '700' },
 });
