@@ -9,6 +9,7 @@ import {
 } from 'react-native';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useNavigation } from '@react-navigation/native';
+import { useFocusEffect } from '@react-navigation/native';
 import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import type { StackNavigationProp } from '@react-navigation/stack';
 import { Ionicons } from '@expo/vector-icons';
@@ -64,10 +65,17 @@ function getDateLabel(date: Date): string {
 export function ExerciseScreen() {
   const navigation = useNavigation<Nav>();
   const rootNavigation = useNavigation<StackNavigationProp<RootStackParamList>>();
-  const { todayLogs, getTodayTotalMinutes } = useExercise();
+  const { todayLogs, getTodayTotalMinutes, refresh } = useExercise();
   const insets = useSafeAreaInsets();
   const [selectedDate, setSelectedDate] = useState(new Date());
   const [showDatePicker, setShowDatePicker] = useState(false);
+
+  // 화면 복귀 시마다 운동 기록 재조회 (저장 후 리스트 갱신)
+  useFocusEffect(
+    React.useCallback(() => {
+      refresh();
+    }, [refresh])
+  );
 
   const displayLogs = todayLogs;
   const totalMinutes = getTodayTotalMinutes();
