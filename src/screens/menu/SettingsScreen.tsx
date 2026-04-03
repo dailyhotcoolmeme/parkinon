@@ -15,32 +15,12 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { Colors } from '../../constants/colors';
 import { TopBar } from '../../components/common/TopBar';
+import { useSettings, MedNotif, ExerciseNotif } from '../../context/SettingsContext';
+import { minutesToLabel } from '../../utils/medUtils';
 
 const { width: SCREEN_WIDTH } = Dimensions.get('window');
 
 // ─── Data model ───────────────────────────────────────────────────────────────
-
-interface MedNotif {
-  id: string;
-  minutes: number;
-  enabled: boolean;
-}
-
-interface ExerciseNotif {
-  id: string;
-  ampm: '오전' | '오후';
-  hour: number;
-  minute: number;
-  enabled: boolean;
-}
-
-function minutesToLabel(m: number): string {
-  if (m === 0) return '복용 직후';
-  if (m < 60) return `${m}분 후`;
-  const h = Math.floor(m / 60);
-  const rem = m % 60;
-  return rem === 0 ? `${h}시간 후` : `${h}시간 ${rem}분 후`;
-}
 
 const MED_TIME_OPTIONS = [0, 10, 30, 60, 90, 120, 180, 240];
 const EXERCISE_HOURS = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12];
@@ -49,17 +29,12 @@ const EXERCISE_MINUTES = [0, 10, 20, 30, 40, 50];
 // ─── Component ────────────────────────────────────────────────────────────────
 
 export function SettingsScreen() {
-  // Med notifications
-  const [medNotifs, setMedNotifs] = useState<MedNotif[]>([
-    { id: '1', minutes: 0, enabled: true },
-    { id: '2', minutes: 30, enabled: true },
-    { id: '3', minutes: 120, enabled: true },
-  ]);
-
-  // Exercise notifications (multiple times)
-  const [exerciseNotifs, setExerciseNotifs] = useState<ExerciseNotif[]>([
-    { id: '1', ampm: '오후', hour: 2, minute: 0, enabled: true },
-  ]);
+  // Settings context (shared with Records screens)
+  const {
+    medNotifs, setMedNotifs,
+    exerciseNotifs, setExerciseNotifs,
+    notificationEnabled, setNotificationEnabled,
+  } = useSettings();
 
   // Modal / picker state
   const [pickerVisible, setPickerVisible] = useState(false);
@@ -242,8 +217,32 @@ export function SettingsScreen() {
         contentContainerStyle={styles.scrollContent}
         showsVerticalScrollIndicator={false}
       >
-        {/* ── Card 1: 약효 추적 알림 ── */}
+        {/* ── Card 0: 전체 알림 ON/OFF ── */}
         <View style={styles.card}>
+          <View style={styles.cardHeader}>
+            <Ionicons
+              name="notifications-circle-outline"
+              size={24}
+              color={Colors.primary}
+              style={styles.cardHeaderIcon}
+            />
+            <View style={styles.cardHeaderText}>
+              <Text style={styles.cardHeaderTitle}>전체 알림</Text>
+              <Text style={styles.cardHeaderSub}>
+                모든 알림을 켜거나 끌 수 있어요
+              </Text>
+            </View>
+            <Switch
+              value={notificationEnabled}
+              onValueChange={(v) => setNotificationEnabled(v)}
+              trackColor={{ false: Colors.border, true: Colors.primary }}
+              thumbColor={Colors.white}
+            />
+          </View>
+        </View>
+
+        {/* ── Card 1: 약효 추적 알림 ── */}
+        <View style={[styles.card, styles.cardMarginTop]}>
           <View style={styles.cardHeader}>
             <Ionicons
               name="notifications-outline"

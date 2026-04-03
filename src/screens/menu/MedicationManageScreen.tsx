@@ -20,6 +20,7 @@ import { Colors } from '../../constants/colors';
 import { TopBar } from '../../components/common/TopBar';
 import { supabase } from '../../lib/supabase';
 import { useAuth } from '../../context/AuthContext';
+import { useFamilyLink } from '../../hooks/useFamilyLink';
 
 // ─── 타입 ────────────────────────────────────────────────────────────────────
 
@@ -239,10 +240,13 @@ const modalStyles = StyleSheet.create({
 
 export function MedicationManageScreen() {
   const { user } = useAuth();
+  const { getPatientForCaregiver } = useFamilyLink();
   const [medications, setMedications] = useState<Medication[]>([]);
   const [isOcrLoading, setIsOcrLoading] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
   const [selectedDrug, setSelectedDrug] = useState<Medication | null>(null);
+  // 보호자인 경우 연동된 환자 id, 환자인 경우 본인 id
+  const [targetPatientId, setTargetPatientId] = useState<string | null>(null);
 
   // 직접 추가 폼
   const [showAddForm, setShowAddForm] = useState(false);
@@ -254,16 +258,29 @@ export function MedicationManageScreen() {
   const [editName, setEditName] = useState('');
   const [editTimes, setEditTimes] = useState<TimeSlot[]>([]);
 
+  // 대상 환자 id 결정 (보호자는 연동된 환자, 환자는 본인)
+  useEffect(() => {
+    if (!user) return;
+    if (user.role === 'caregiver') {
+      getPatientForCaregiver().then(patient => {
+        setTargetPatientId(patient?.id ?? null);
+      });
+    } else {
+      setTargetPatientId(user.id);
+    }
+  }, [user, getPatientForCaregiver]);
+
   // ── DB 로드 ────────────────────────────────────────────────────────────
 
   const loadMedications = useCallback(async () => {
-    if (!user) return;
+    const pid = targetPatientId;
+    if (!user || !pid) return;
     setIsLoading(true);
     try {
       const { data, error } = await supabase
         .from('medications')
         .select('*')
-        .eq('patient_id', user.id)
+        .eq('patient_id', pid)
         .eq('is_active', true)
         .order('created_at', { ascending: true });
       if (error) throw error;
@@ -281,11 +298,11 @@ export function MedicationManageScreen() {
     } finally {
       setIsLoading(false);
     }
-  }, [user]);
+  }, [user, targetPatientId]);
 
   useEffect(() => {
-    loadMedications();
-  }, [loadMedications]);
+    if (targetPatientId) loadMedications();
+  }, [loadMedications, targetPatientId]);
 
   // ── OCR ────────────────────────────────────────────────────────────────
 
@@ -329,13 +346,13 @@ export function MedicationManageScreen() {
       );
 
       // DB에 저장
-      if (enriched.length > 0 && user) {
+      if (enriched.length > 0 && user && targetPatientId) {
         try {
           const { data: inserted, error: insertError } = await supabase
             .from('medications')
             .insert(
               enriched.map(med => ({
-                patient_id: user.id,
+                patient_id: targetPatientId,
                 name: med.name,
                 dosage: null,
                 meal_times: med.times as any,
@@ -395,14 +412,14 @@ export function MedicationManageScreen() {
     const trimmed = addName.trim();
     if (!trimmed) { Alert.alert('', '약 이름을 입력해주세요.'); return; }
     if (addTimes.length === 0) { Alert.alert('', '복용 시간대를 하나 이상 선택해주세요.'); return; }
-    if (!user) return;
+    if (!user || !targetPatientId) return;
 
     const drugInfo = await searchMfdsInfo(trimmed);
     try {
       const { data, error } = await supabase
         .from('medications')
         .insert({
-          patient_id: user.id,
+          patient_id: targetPatientId,
           name: trimmed,
           dosage: null,
           meal_times: addTimes as any,

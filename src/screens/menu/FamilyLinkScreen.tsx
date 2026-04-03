@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   View,
   Text,
@@ -7,59 +7,86 @@ import {
   TouchableOpacity,
   TextInput,
   Alert,
+  ActivityIndicator,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { TopBar } from '../../components/common/TopBar';
 import { Colors } from '../../constants/colors';
-
-const INVITE_CODE = '820314';
-
-interface FamilyMember {
-  id: string;
-  name: string;
-  relation: string;
-  cohabiting: boolean;
-}
-
-const DUMMY_FAMILY: FamilyMember[] = [];
+import { useFamilyLink } from '../../hooks/useFamilyLink';
+import { useAuth } from '../../context/AuthContext';
 
 export function FamilyLinkScreen() {
-  const [family, setFamily] = useState<FamilyMember[]>(DUMMY_FAMILY);
+  const { user } = useAuth();
+  const { generateInviteCode, joinByCode, getGroupMembers, leaveGroup, loading } = useFamilyLink();
+
+  const [members, setMembers] = useState<import('../../hooks/useFamilyLink').GroupMember[]>([]);
+  const [inviteCode, setInviteCode] = useState('');
+  const [loadingCode, setLoadingCode] = useState(false);
   const [inputCode, setInputCode] = useState('');
   const [inputFocused, setInputFocused] = useState(false);
 
-  const handleDisconnect = (member: FamilyMember) => {
+  useEffect(() => {
+    loadData();
+  }, []);
+
+  const loadData = async () => {
+    // 그룹 멤버 로드
+    const memberList = await getGroupMembers();
+    setMembers(memberList);
+
+    // 초대 코드 생성/갱신
+    setLoadingCode(true);
+    const code = await generateInviteCode();
+    if (code) setInviteCode(code);
+    setLoadingCode(false);
+  };
+
+  const handleDisconnect = (member: import('../../hooks/useFamilyLink').GroupMember) => {
     Alert.alert(
       '연결 해제',
-      `${member.name}님과의 연결을 해제하시겠어요?`,
+      `${member.user?.name ?? '가족'}님과의 연결을 해제하시겠어요?`,
       [
         { text: '취소', style: 'cancel' },
         {
           text: '해제',
           style: 'destructive',
-          onPress: () =>
-            setFamily(prev => prev.filter(m => m.id !== member.id)),
+          onPress: async () => {
+            const ok = await leaveGroup();
+            if (ok) {
+              setMembers([]);
+              setInviteCode('');
+              loadData();
+            } else {
+              Alert.alert('오류', '연결 해제 중 문제가 생겼어요.');
+            }
+          },
         },
       ],
     );
   };
 
   const handleShareKakao = () => {
-    Alert.alert('카카오톡 공유', `연결 번호 ${INVITE_CODE}를 카카오톡으로 공유합니다.`);
+    Alert.alert('카카오톡 공유', `연결 번호 ${inviteCode}를 카카오톡으로 공유합니다.`);
   };
 
-  const handleConnect = () => {
-    const trimmed = inputCode.trim();
+  const handleConnect = async () => {
+    const trimmed = inputCode.trim().toUpperCase();
     if (trimmed.length < 6) {
-      Alert.alert('입력 오류', '6자리 숫자를 입력해주세요.');
+      Alert.alert('입력 오류', '6자리 코드를 입력해주세요.');
       return;
     }
-    Alert.alert('연결 완료', `번호 ${trimmed}로 가족 연결을 요청했어요.`);
-    setInputCode('');
+    const result = await joinByCode(trimmed);
+    Alert.alert(result.success ? '연결 완료' : '연결 실패', result.message);
+    if (result.success) {
+      setInputCode('');
+      loadData();
+    }
   };
 
-  const formattedCode = `${INVITE_CODE.slice(0, 3)}  ${INVITE_CODE.slice(3)}`;
+  const formattedCode = inviteCode.length === 6
+    ? `${inviteCode.slice(0, 3)}  ${inviteCode.slice(3)}`
+    : '- - - - - -';
 
   return (
     <SafeAreaView style={styles.safeArea} edges={['top']}>
@@ -76,7 +103,7 @@ export function FamilyLinkScreen() {
             <Text style={styles.sectionTitle}>연결된 가족</Text>
           </View>
 
-          {family.length === 0 ? (
+          {members.length === 0 ? (
             <View style={styles.emptyState}>
               <Ionicons name="people-outline" size={52} color={Colors.textHint} />
               <Text style={styles.emptyTitle}>아직 연결된 가족이 없어요</Text>
@@ -85,9 +112,9 @@ export function FamilyLinkScreen() {
               </Text>
             </View>
           ) : (
-            family.map((member, index) => (
+            members.map((member, index) => (
               <View
-                key={member.id}
+                key={member.user_id}
                 style={[
                   styles.memberRow,
                   index !== 0 && styles.memberRowBorder,
@@ -97,10 +124,10 @@ export function FamilyLinkScreen() {
                   <Text style={styles.memberAvatarEmoji}>👤</Text>
                 </View>
                 <View style={styles.memberInfo}>
-                  <Text style={styles.memberName}>{member.name}</Text>
+                  <Text style={styles.memberName}>{member.user?.name ?? '이름 없음'}</Text>
                   <Text style={styles.memberSub}>
-                    {member.relation}
-                    {member.cohabiting ? ' · 함께 거주' : ' · 따로 거주'}
+                    {member.role === 'patient' ? '환자' : (member.user?.caregiver_relation ?? '보호자')}
+                    {member.user?.residence_type === 'together' ? ' · 함께 거주' : ' · 따로 거주'}
                   </Text>
                 </View>
                 <TouchableOpacity
@@ -126,7 +153,11 @@ export function FamilyLinkScreen() {
           </View>
 
           <View style={styles.codeBlock}>
-            <Text style={styles.codeText}>{formattedCode}</Text>
+            {loadingCode ? (
+              <ActivityIndicator size="large" color={Colors.primary} />
+            ) : (
+              <Text style={styles.codeText}>{formattedCode}</Text>
+            )}
             <Text style={styles.codeSubText}>이 번호는 내 가족만 사용할 수 있어요</Text>
           </View>
 
@@ -172,23 +203,24 @@ export function FamilyLinkScreen() {
               inputFocused && styles.codeInputFocused,
             ]}
             value={inputCode}
-            onChangeText={text => setInputCode(text.replace(/[^0-9]/g, '').slice(0, 6))}
+            onChangeText={text => setInputCode(text.replace(/[^A-Za-z0-9]/g, '').toUpperCase().slice(0, 6))}
             onFocus={() => setInputFocused(true)}
             onBlur={() => setInputFocused(false)}
-            placeholder="6자리 숫자"
+            placeholder="6자리 코드"
             placeholderTextColor={Colors.textHint}
             maxLength={6}
-            keyboardType="number-pad"
+            autoCapitalize="characters"
+            keyboardType="default"
           />
 
           <TouchableOpacity
             style={[
               styles.connectBtn,
-              inputCode.trim().length < 6 && styles.connectBtnDisabled,
+              inputCode.length < 6 && styles.connectBtnDisabled,
             ]}
             onPress={handleConnect}
             activeOpacity={0.85}
-            disabled={inputCode.trim().length < 6}
+            disabled={inputCode.length < 6}
           >
             <Text style={styles.connectBtnText}>연결하기</Text>
           </TouchableOpacity>
