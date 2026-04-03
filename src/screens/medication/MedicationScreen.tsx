@@ -1,4 +1,4 @@
-import React, { useState, useCallback } from 'react';
+import React, { useState, useCallback, useEffect } from 'react';
 import {
   View,
   Text,
@@ -22,7 +22,6 @@ import { useMedication } from '../../hooks/useMedication';
 import { useAuth } from '../../context/AuthContext';
 import { DatePickerModal } from '../../components/common/DatePickerModal';
 
-const DUMMY_PATIENT_NAME = '홍길동';
 const WINDOW_HEIGHT = Dimensions.get('window').height;
 const TOP_BAR_H = 56;
 const DATE_HEADER_H = 56;
@@ -61,24 +60,72 @@ function getDateLabel(date: Date): string {
   return `${month}월 ${day}일 ${dayNames[date.getDay()]}`;
 }
 
+function toLocalDateString(date: Date): string {
+  const y = date.getFullYear();
+  const m = String(date.getMonth() + 1).padStart(2, '0');
+  const d = String(date.getDate()).padStart(2, '0');
+  return `${y}-${m}-${d}`;
+}
+
 export function MedicationScreen() {
   const navigation = useNavigation<StackNavigationProp<RootStackParamList>>();
   const { user } = useAuth();
-  const { todayStatus, takeMedication, error: medError, refresh } = useMedication();
+  const { todayStatus, takeMedication, getMedLogs, error: medError, refresh } = useMedication();
   const insets = useSafeAreaInsets();
-
-  // 탭/화면 포커스 시 복용 현황 재조회
-  useFocusEffect(
-    useCallback(() => {
-      refresh();
-    }, [refresh])
-  );
 
   const [showCaregiverConfirm, setShowCaregiverConfirm] = useState(false);
   const [showMealTimeModal, setShowMealTimeModal] = useState(false);
   const [showBodyStatePopup, setShowBodyStatePopup] = useState(false);
   const [selectedDate, setSelectedDate] = useState(new Date());
   const [showDatePicker, setShowDatePicker] = useState(false);
+
+  // 날짜별 복용 현황 (날짜 선택 시 사용)
+  const [dateLogStatus, setDateLogStatus] = useState<Record<string, any> | null>(null);
+  const [dateLogsLoading, setDateLogsLoading] = useState(false);
+
+  const isToday = toLocalDateString(selectedDate) === toLocalDateString(new Date());
+
+  // 탭/화면 포커스 시 복용 현황 재조회 (오늘 날짜인 경우)
+  useFocusEffect(
+    useCallback(() => {
+      if (isToday) {
+        refresh();
+        setDateLogStatus(null);
+      }
+    }, [refresh, isToday])
+  );
+
+  // 날짜 변경 시 해당 날짜 로그 조회
+  useEffect(() => {
+    if (isToday) {
+      setDateLogStatus(null);
+      return;
+    }
+    const dateStr = toLocalDateString(selectedDate);
+    setDateLogsLoading(true);
+    getMedLogs(dateStr).then((logs) => {
+      const status: Record<string, any> = {
+        morning: null,
+        lunch: null,
+        dinner: null,
+        bedtime: null,
+      };
+      logs.forEach((log) => {
+        const slot = log.meal_time as keyof typeof status;
+        if (slot && !status[slot]) {
+          status[slot] = log;
+        }
+      });
+      setDateLogStatus(status);
+      setDateLogsLoading(false);
+    });
+  }, [selectedDate, isToday, getMedLogs]);
+
+  // 표시할 현황: 오늘이면 todayStatus, 과거 날짜면 dateLogStatus
+  const activeStatus = isToday ? todayStatus : (dateLogStatus ?? { morning: null, lunch: null, dinner: null, bedtime: null });
+
+  // 환자명: 실제 user.name 사용, 없으면 '환자'
+  const patientName = user?.name ?? '환자';
 
   const userRole = (user?.role === 'caregiver' ? 'caregiver_same' : 'patient') as
     'patient' | 'caregiver_same' | 'caregiver_separate';
@@ -93,9 +140,9 @@ export function MedicationScreen() {
     setShowBodyStatePopup(true);
   };
 
-  // todayStatus → MedicationStatus[] 변환
+  // activeStatus → MedicationStatus[] 변환
   const displayList: MedicationStatus[] = (Object.keys(MEAL_TIME_LABELS) as MealTime[]).map((mt) => {
-    const log = todayStatus[mt];
+    const log = (activeStatus as any)[mt];
     return log
       ? { id: mt, label: MEAL_TIME_LABELS[mt].label, time: MEAL_TIME_LABELS[mt].time, taken: true, takenAt: formatTakenAt(log.taken_at) }
       : { id: mt, label: MEAL_TIME_LABELS[mt].label, time: MEAL_TIME_LABELS[mt].time, taken: false };
@@ -123,10 +170,10 @@ export function MedicationScreen() {
           <TouchableOpacity
             style={[
               styles.mainButton,
-              userRole === 'caregiver_separate' && styles.mainButtonDisabled,
+              (userRole === 'caregiver_separate' || !isToday) && styles.mainButtonDisabled,
             ]}
             onPress={() => {
-              if (userRole === 'caregiver_separate') return;
+              if (userRole === 'caregiver_separate' || !isToday) return;
               if (userRole === 'caregiver_same') {
                 setShowCaregiverConfirm(true);
               } else {
@@ -144,13 +191,16 @@ export function MedicationScreen() {
           {userRole === 'caregiver_separate' && (
             <Text style={styles.caregiverNotice}>같이 계신 경우에만 대신 입력할 수 있어요</Text>
           )}
+          {!isToday && userRole !== 'caregiver_separate' && (
+            <Text style={styles.caregiverNotice}>오늘 날짜에서만 복용 기록을 입력할 수 있어요</Text>
+          )}
         </View>
 
         {/* 오늘 복용 현황 */}
         <View style={styles.records}>
           <View style={styles.sectionHeader}>
             <View style={styles.divider} />
-            <Text style={styles.sectionTitle}>오늘 복용 현황</Text>
+            <Text style={styles.sectionTitle}>{isToday ? '오늘 복용 현황' : '복용 현황'}</Text>
             <View style={styles.divider} />
           </View>
           {displayList.map(item => (
@@ -187,13 +237,12 @@ export function MedicationScreen() {
       />
       <CaregiverConfirmModal
         visible={showCaregiverConfirm}
-        patientName={DUMMY_PATIENT_NAME}
+        patientName={patientName}
         onConfirm={() => { setShowCaregiverConfirm(false); setShowMealTimeModal(true); }}
         onCancel={() => setShowCaregiverConfirm(false)}
       />
       <BodyStatePopupModal
         visible={showBodyStatePopup}
-        prevBodyScore={3}
         onClose={() => setShowBodyStatePopup(false)}
         onSave={() => setShowBodyStatePopup(false)}
       />

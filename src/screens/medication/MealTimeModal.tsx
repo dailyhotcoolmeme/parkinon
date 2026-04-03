@@ -1,4 +1,4 @@
-import React, { useRef, useEffect } from 'react';
+import React, { useRef, useEffect, useMemo } from 'react';
 import {
   View,
   Text,
@@ -11,6 +11,15 @@ import { Ionicons } from '@expo/vector-icons';
 import { Colors } from '../../constants/colors';
 
 type MealTime = 'morning' | 'lunch' | 'dinner' | 'bedtime';
+
+/** 현재 시각 기준으로 기본 추천 시간대를 반환 */
+function getDefaultMealTime(): MealTime {
+  const h = new Date().getHours();
+  if (h < 11) return 'morning';
+  if (h < 15) return 'lunch';
+  if (h < 20) return 'dinner';
+  return 'bedtime';
+}
 type IoniconName = React.ComponentProps<typeof Ionicons>['name'];
 
 interface Props {
@@ -29,6 +38,9 @@ const MEAL_OPTIONS: { id: MealTime; label: string; icon: IoniconName; time: stri
 export function MealTimeModal({ visible, onSelect, onClose }: Props) {
   const fadeAnim = useRef(new Animated.Value(0)).current;
   const slideAnim = useRef(new Animated.Value(80)).current;
+
+  // 현재 시간 기준 추천 시간대 (모달 열릴 때마다 계산)
+  const suggestedMealTime = useMemo(() => getDefaultMealTime(), [visible]);
 
   useEffect(() => {
     if (visible) {
@@ -54,23 +66,36 @@ export function MealTimeModal({ visible, onSelect, onClose }: Props) {
           <Text style={styles.subtitle}>복용한 시간대를 선택해주세요</Text>
 
           <View style={styles.optionList}>
-            {MEAL_OPTIONS.map((opt, i) => (
-              <TouchableOpacity
-                key={opt.id}
-                style={[styles.optionRow, i < MEAL_OPTIONS.length - 1 && styles.optionRowBorder]}
-                onPress={() => onSelect(opt.id)}
-                activeOpacity={0.75}
-              >
-                <View style={[styles.iconCircle, { backgroundColor: opt.color + '22' }]}>
-                  <Ionicons name={opt.icon} size={30} color={opt.color} />
-                </View>
-                <View style={styles.optionText}>
-                  <Text style={styles.optionLabel}>{opt.label}</Text>
-                  <Text style={styles.optionTime}>{opt.time}</Text>
-                </View>
-                <Ionicons name="chevron-forward" size={22} color={Colors.textHint} />
-              </TouchableOpacity>
-            ))}
+            {MEAL_OPTIONS.map((opt, i) => {
+              const isSuggested = opt.id === suggestedMealTime;
+              return (
+                <TouchableOpacity
+                  key={opt.id}
+                  style={[
+                    styles.optionRow,
+                    i < MEAL_OPTIONS.length - 1 && styles.optionRowBorder,
+                    isSuggested && styles.optionRowSuggested,
+                  ]}
+                  onPress={() => onSelect(opt.id)}
+                  activeOpacity={0.75}
+                >
+                  <View style={[styles.iconCircle, { backgroundColor: opt.color + '22' }]}>
+                    <Ionicons name={opt.icon} size={30} color={opt.color} />
+                  </View>
+                  <View style={styles.optionText}>
+                    <Text style={styles.optionLabel}>{opt.label}</Text>
+                    <Text style={styles.optionTime}>{opt.time}</Text>
+                  </View>
+                  {isSuggested ? (
+                    <View style={styles.suggestedBadge}>
+                      <Text style={styles.suggestedBadgeText}>추천</Text>
+                    </View>
+                  ) : (
+                    <Ionicons name="chevron-forward" size={22} color={Colors.textHint} />
+                  )}
+                </TouchableOpacity>
+              );
+            })}
           </View>
 
           <TouchableOpacity style={styles.closeBtn} onPress={onClose} activeOpacity={0.75}>
@@ -134,6 +159,14 @@ const styles = StyleSheet.create({
     gap: 16,
   },
   optionRowBorder: { borderBottomWidth: 1, borderBottomColor: Colors.border },
+  optionRowSuggested: { backgroundColor: Colors.primary + '0D' },
+  suggestedBadge: {
+    backgroundColor: Colors.primary,
+    borderRadius: 10,
+    paddingHorizontal: 12,
+    paddingVertical: 4,
+  },
+  suggestedBadgeText: { fontSize: 15, fontWeight: '700', color: Colors.white },
   iconCircle: {
     width: 58,
     height: 58,

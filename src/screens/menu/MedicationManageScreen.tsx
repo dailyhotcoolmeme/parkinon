@@ -14,6 +14,7 @@ import {
   Platform,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
+import { useFocusEffect } from '@react-navigation/native';
 import { Ionicons } from '@expo/vector-icons';
 import * as ImagePicker from 'expo-image-picker';
 import { Colors } from '../../constants/colors';
@@ -303,6 +304,13 @@ export function MedicationManageScreen() {
   useEffect(() => {
     if (targetPatientId) loadMedications();
   }, [loadMedications, targetPatientId]);
+
+  // 화면 포커스 시 목록 재조회 (다른 화면에서 돌아왔을 때도 최신 상태 유지)
+  useFocusEffect(
+    useCallback(() => {
+      if (targetPatientId) loadMedications();
+    }, [loadMedications, targetPatientId])
+  );
 
   // ── OCR ────────────────────────────────────────────────────────────────
 
