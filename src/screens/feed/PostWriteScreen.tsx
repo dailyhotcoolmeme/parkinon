@@ -15,7 +15,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { useNavigation } from '@react-navigation/native';
 import { Ionicons } from '@expo/vector-icons';
 import * as ImagePicker from 'expo-image-picker';
-import * as FileSystem from 'expo-file-system';
+import { uploadPhoto } from '../../lib/r2Upload';
 import { Colors } from '../../constants/colors';
 import { TopBar } from '../../components/common/TopBar';
 import { supabase } from '../../lib/supabase';
@@ -101,35 +101,11 @@ export function PostWriteScreen() {
       if (photos.length > 0 && post) {
         for (const [idx, uri] of photos.entries()) {
           try {
-            // Supabase Storage에 업로드 (R2 인프라 설정 전 대체)
-            const fileName = `${user.id}/${post.id}/${idx}_${Date.now()}.jpg`;
-            const base64 = await FileSystem.readAsStringAsync(uri, {
-              encoding: FileSystem.EncodingType.Base64,
-            });
-            const buffer = Uint8Array.from(atob(base64), c => c.charCodeAt(0));
-
-            const { error: storageError } = await supabase.storage
-              .from('post-images')
-              .upload(fileName, buffer, {
-                contentType: 'image/jpeg',
-                upsert: false,
-              });
-
-            if (storageError) {
-              console.error('스토리지 업로드 실패:', storageError);
-              continue;
-            }
-
-            const { data: publicUrlData } = supabase.storage
-              .from('post-images')
-              .getPublicUrl(fileName);
-
-            const publicUrl = publicUrlData?.publicUrl ?? '';
-
+            const result = await uploadPhoto(uri, user.id);
             await supabase.from('post_media').insert({
               post_id: post.id,
-              r2_url: publicUrl,
-              r2_key: fileName,
+              r2_url: result.url,
+              r2_key: result.key,
               media_type: 'image' as const,
               sort_order: idx,
             });
