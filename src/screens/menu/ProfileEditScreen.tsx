@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect, useRef, useCallback } from 'react';
 import {
   View,
   Text,
@@ -10,9 +10,13 @@ import {
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useNavigation } from '@react-navigation/native';
+import { useFocusEffect } from '@react-navigation/native';
 import { Ionicons } from '@expo/vector-icons';
 import { Colors } from '../../constants/colors';
 import { TopBar } from '../../components/common/TopBar';
+import { useAuth } from '../../context/AuthContext';
+import { useFamilyLink } from '../../hooks/useFamilyLink';
+import { supabase } from '../../lib/supabase';
 
 type Gender = 'male' | 'female';
 type Cohabiting = 'together' | 'apart';
@@ -21,20 +25,14 @@ const BIRTH_YEARS = Array.from({ length: 60 }, (_, i) => 1930 + i);
 const DIAGNOSIS_YEARS = Array.from({ length: 40 }, (_, i) => 1985 + i);
 const RELATIONS = ['배우자', '자녀', '형제/자매', '기타'];
 
-const IS_PATIENT = false;
-
-const DUMMY_PATIENT = {
-  name: '홍길동',
-  birthYear: 1955,
-  gender: 'male' as Gender,
-  diagnosisYear: 2019,
-};
-
 export function ProfileEditScreen() {
   const navigation = useNavigation();
+  const { user, refreshUser } = useAuth();
+  const { getPatientForCaregiver } = useFamilyLink();
+  const isPatient = user?.role === 'patient';
 
-  const [name, setName] = useState('홍길동');
-  const [birthYear, setBirthYear] = useState(1955);
+  const [name, setName] = useState('');
+  const [birthYear, setBirthYear] = useState(1960);
   const [gender, setGender] = useState<Gender>('male');
   const [diagnosisYear, setDiagnosisYear] = useState(2020);
   const [relation, setRelation] = useState('배우자');
@@ -44,21 +42,144 @@ export function ProfileEditScreen() {
   const [showDiagnosisPicker, setShowDiagnosisPicker] = useState(false);
   const [showRelationPicker, setShowRelationPicker] = useState(false);
 
-  const [patientName, setPatientName] = useState(DUMMY_PATIENT.name);
-  const [patientBirthYear, setPatientBirthYear] = useState(DUMMY_PATIENT.birthYear);
-  const [patientGender, setPatientGender] = useState<Gender>(DUMMY_PATIENT.gender);
-  const [patientDiagnosisYear, setPatientDiagnosisYear] = useState(DUMMY_PATIENT.diagnosisYear);
+  const [patientName, setPatientName] = useState('');
+  const [patientBirthYear, setPatientBirthYear] = useState(1955);
+  const [patientGender, setPatientGender] = useState<Gender>('male');
+  const [patientDiagnosisYear, setPatientDiagnosisYear] = useState(2020);
   const [showPatientBirthPicker, setShowPatientBirthPicker] = useState(false);
   const [showPatientDiagnosisPicker, setShowPatientDiagnosisPicker] = useState(false);
 
-  const handleSave = () => {
+  const [saving, setSaving] = useState(false);
+  const [patientId, setPatientId] = useState<string | null>(null);
+
+  const relEngToKor: Record<string, string> = {
+    spouse: '배우자', child: '자녀', sibling: '형제/자매', other: '기타',
+  };
+  const relKorToEng: Record<string, string> = {
+    '배우자': 'spouse', '자녀': 'child', '형제/자매': 'sibling', '기타': 'other',
+  };
+
+  // 화면 진입 시마다 DB에서 직접 최신 데이터를 불러와 폼 초기화
+  // useEffect([user]) 대신 useFocusEffect를 사용해
+  // 저장 후 refreshUser()가 user를 갱신해도 폼이 리셋되지 않도록 함
+  const loadedRef = useRef(false);
+
+  const loadFormData = useCallback(async () => {
+    if (!user) return;
+
+    // DB에서 직접 최신 사용자 데이터 조회
+    const { data: freshUser, error } = await supabase
+      .from('users')
+      .select('*')
+      .eq('id', user.id)
+      .single();
+
+    if (error || !freshUser) {
+      // DB 조회 실패 시 AuthContext user 값으로 폴백
+      setName(user.name ?? '');
+      setBirthYear(user.birth_year ?? 1960);
+      setGender((user.gender as Gender) ?? 'male');
+      setDiagnosisYear(user.diagnosis_year ?? 2020);
+      setRelation(relEngToKor[user.caregiver_relation ?? ''] ?? '배우자');
+      setCohabiting(user.residence_type === 'separate' ? 'apart' : 'together');
+    } else {
+      setName(freshUser.name ?? '');
+      setBirthYear(freshUser.birth_year ?? 1960);
+      setGender((freshUser.gender as Gender) ?? 'male');
+      setDiagnosisYear(freshUser.diagnosis_year ?? 2020);
+      setRelation(relEngToKor[freshUser.caregiver_relation ?? ''] ?? '배우자');
+      setCohabiting(freshUser.residence_type === 'separate' ? 'apart' : 'together');
+    }
+
+    if (user.role === 'caregiver') {
+      getPatientForCaregiver().then(patient => {
+        if (patient) {
+          setPatientId(patient.id);
+          setPatientName(patient.name ?? '');
+          setPatientBirthYear(patient.birth_year ?? 1955);
+          setPatientGender((patient.gender as Gender) ?? 'male');
+          setPatientDiagnosisYear(patient.diagnosis_year ?? 2020);
+        }
+      });
+    }
+  }, [user, getPatientForCaregiver]);
+
+  // 화면에 포커스될 때마다 최신 데이터로 폼 초기화
+  useFocusEffect(
+    useCallback(() => {
+      loadedRef.current = false;
+      loadFormData();
+      return () => {
+        loadedRef.current = false;
+      };
+    }, [loadFormData])
+  );
+
+  // user가 null에서 실제 값으로 바뀌는 최초 로드 시에만 초기화 (useFocusEffect 보완)
+  useEffect(() => {
+    if (user && !loadedRef.current) {
+      loadedRef.current = true;
+      loadFormData();
+    }
+  }, [user, loadFormData]);
+
+  const handleSave = async () => {
     if (!name.trim()) {
       Alert.alert('이름 확인', '이름을 입력해주세요.');
       return;
     }
-    Alert.alert('저장 완료', '프로필이 저장됐어요.', [
-      { text: '확인', onPress: () => navigation.goBack() },
-    ]);
+    if (!user) return;
+
+    setSaving(true);
+    try {
+      const { error } = await supabase
+        .from('users')
+        .update({
+          name: name.trim(),
+          birth_year: birthYear,
+          gender: gender,
+          ...(isPatient
+            ? { diagnosis_year: diagnosisYear }
+            : {
+                caregiver_relation: (relKorToEng[relation] ?? 'other') as 'spouse' | 'child' | 'sibling' | 'other',
+                residence_type: cohabiting === 'together' ? 'together' : 'separate',
+              }),
+        })
+        .eq('id', user.id);
+
+      if (error) throw error;
+
+      // 보호자이고 환자 정보도 수정한 경우
+      if (!isPatient && patientId) {
+        const { error: patientError } = await supabase
+          .from('users')
+          .update({
+            name: patientName.trim(),
+            birth_year: patientBirthYear,
+            gender: patientGender,
+            diagnosis_year: patientDiagnosisYear,
+          })
+          .eq('id', patientId);
+
+        if (patientError) throw patientError;
+      }
+
+      // refreshUser는 Alert 확인 후 goBack 전에 호출하지 않고
+      // goBack 직전에 호출해 user 변경이 현재 화면에 영향을 주지 않도록 함
+      Alert.alert('저장 완료', '프로필이 저장됐어요.', [
+        {
+          text: '확인',
+          onPress: async () => {
+            await refreshUser();
+            navigation.goBack();
+          },
+        },
+      ]);
+    } catch (e: any) {
+      Alert.alert('오류', e.message ?? '저장 중 문제가 생겼어요. 다시 시도해주세요.');
+    } finally {
+      setSaving(false);
+    }
   };
 
   return (
@@ -161,7 +282,7 @@ export function ProfileEditScreen() {
         </View>
 
         {/* Section 3: 진단 정보 (환자만) */}
-        {IS_PATIENT && (
+        {isPatient && (
           <View style={styles.card}>
             <View style={styles.sectionHeader}>
               <Ionicons name="medical-outline" size={22} color={Colors.primary} />
@@ -212,7 +333,7 @@ export function ProfileEditScreen() {
         )}
 
         {/* 보호자 전용: 관계 + 거주 */}
-        {!IS_PATIENT && (
+        {!isPatient && (
           <>
             {/* 관계 카드 */}
             <View style={styles.card}>
@@ -434,8 +555,8 @@ export function ProfileEditScreen() {
         )}
 
         {/* 저장 버튼 */}
-        <TouchableOpacity style={styles.saveBtn} onPress={handleSave} activeOpacity={0.85}>
-          <Text style={styles.saveBtnText}>저장하기</Text>
+        <TouchableOpacity style={styles.saveBtn} onPress={handleSave} activeOpacity={0.85} disabled={saving}>
+          <Text style={styles.saveBtnText}>{saving ? '저장 중...' : '저장하기'}</Text>
         </TouchableOpacity>
       </ScrollView>
     </SafeAreaView>

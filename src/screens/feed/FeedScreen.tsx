@@ -9,6 +9,7 @@ import {
   NativeSyntheticEvent,
   NativeScrollEvent,
   ActivityIndicator,
+  Image,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useNavigation, useFocusEffect } from '@react-navigation/native';
@@ -84,6 +85,9 @@ export function FeedScreen() {
     views: p.view_count ?? 0,
     title: p.title ?? '',
     preview: p.content ?? p.description ?? '',
+    thumbnail: p.post_media
+      ?.filter((m: any) => m.media_type === 'image')
+      ?.sort((a: any, b: any) => a.sort_order - b.sort_order)?.[0]?.r2_url ?? undefined,
     commentCount: p.comment_count ?? 0,
     likeCount: p.like_count ?? 0,
   });
@@ -99,10 +103,10 @@ export function FeedScreen() {
       const from = pageRef.current * PAGE_SIZE;
       const to = from + PAGE_SIZE - 1;
 
-      // posts 테이블
+      // posts 테이블 (post_media 첫 번째 사진 포함)
       const { data: postsData, error: postsError } = await supabase
         .from('posts')
-        .select('*, author:users(name)')
+        .select('*, author:users(name), post_media(r2_url, sort_order, media_type)')
         .order('created_at', { ascending: false })
         .range(from, to);
 
@@ -206,6 +210,9 @@ export function FeedScreen() {
           <Text style={styles.cardTitle} numberOfLines={2}>{item.title}</Text>
           <Text style={styles.cardPreview} numberOfLines={2}>{item.preview}</Text>
         </View>
+        {item.thumbnail ? (
+          <Image source={{ uri: item.thumbnail }} style={styles.cardThumbnail} resizeMode="cover" />
+        ) : null}
       </View>
 
       <View style={styles.cardBottom}>
@@ -315,9 +322,19 @@ const styles = StyleSheet.create({
   categoryBadgeText: { fontSize: 15, fontWeight: '700', color: Colors.dark },
   dateText: { fontSize: 15, color: Colors.textHint, fontWeight: '500' },
   cardBody: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    gap: 12,
     marginBottom: 16,
   },
   cardContent: { flex: 1 },
+  cardThumbnail: {
+    width: 80,
+    height: 80,
+    borderRadius: 10,
+    backgroundColor: '#E0E0E0',
+    flexShrink: 0,
+  },
   cardTitle: { fontSize: 20, fontWeight: '700', color: Colors.text, marginBottom: 6, lineHeight: 28 },
   cardPreview: { fontSize: 16, color: Colors.textSub, lineHeight: 24 },
   cardBottom: {

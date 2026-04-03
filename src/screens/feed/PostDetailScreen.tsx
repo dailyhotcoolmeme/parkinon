@@ -10,7 +10,11 @@ import {
   Platform,
   Alert,
   ActivityIndicator,
+  Image,
+  Dimensions,
 } from 'react-native';
+
+const SCREEN_WIDTH = Dimensions.get('window').width;
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useRoute } from '@react-navigation/native';
 import type { NativeStackScreenProps } from '@react-navigation/native-stack';
@@ -97,6 +101,22 @@ export function PostDetailScreen() {
   const [commentsLoading, setCommentsLoading] = useState(true);
   const [replyingTo, setReplyingTo] = useState<string | null>(null);
   const [submittingComment, setSubmittingComment] = useState(false);
+  const [mediaUrls, setMediaUrls] = useState<string[]>([]);
+
+  // 첨부 사진 목록 조회
+  useEffect(() => {
+    supabase
+      .from('post_media')
+      .select('r2_url, sort_order')
+      .eq('post_id', post.id)
+      .eq('media_type', 'image')
+      .order('sort_order', { ascending: true })
+      .then(({ data }) => {
+        if (data && data.length > 0) {
+          setMediaUrls(data.map((m) => m.r2_url));
+        }
+      });
+  }, [post.id]);
 
   // 조회수 increment (RPC 실패 시 직접 update 폴백)
   useEffect(() => {
@@ -293,6 +313,20 @@ export function PostDetailScreen() {
           {/* 내용 */}
           <Text style={styles.postContent}>{post.preview}</Text>
 
+          {/* 첨부 사진 */}
+          {mediaUrls.length > 0 && (
+            <View style={styles.mediaSection}>
+              {mediaUrls.map((url, idx) => (
+                <Image
+                  key={idx}
+                  source={{ uri: url }}
+                  style={styles.mediaImage}
+                  resizeMode="cover"
+                />
+              ))}
+            </View>
+          )}
+
           {/* 조회/좋아요 */}
           <View style={styles.statsRow}>
             <Text style={styles.statText}>조회 {post.views}</Text>
@@ -470,6 +504,18 @@ const styles = StyleSheet.create({
     paddingHorizontal: 20,
     paddingBottom: 16,
     lineHeight: 26,
+  },
+  mediaSection: {
+    backgroundColor: Colors.white,
+    paddingHorizontal: 20,
+    paddingBottom: 16,
+    gap: 10,
+  },
+  mediaImage: {
+    width: SCREEN_WIDTH - 40,
+    height: SCREEN_WIDTH - 40,
+    borderRadius: 12,
+    backgroundColor: Colors.background,
   },
   statsRow: {
     backgroundColor: Colors.white,

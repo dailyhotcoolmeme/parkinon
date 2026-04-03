@@ -18,7 +18,6 @@ import * as ImagePicker from 'expo-image-picker';
 import { Colors } from '../../constants/colors';
 import { TopBar } from '../../components/common/TopBar';
 import { supabase } from '../../lib/supabase';
-import { uploadPhoto } from '../../lib/r2Upload';
 import { useAuth } from '../../context/AuthContext';
 import type { Database } from '../../types/database';
 
@@ -101,11 +100,33 @@ export function PostWriteScreen() {
       if (photos.length > 0 && post) {
         for (const [idx, uri] of photos.entries()) {
           try {
-            const uploadResult = await uploadPhoto(uri, user.id);
+            // Supabase Storage에 업로드 (R2 인프라 설정 전 대체)
+            const fileName = `${user.id}/${post.id}/${idx}_${Date.now()}.jpg`;
+            const response = await fetch(uri);
+            const blob = await response.blob();
+
+            const { error: storageError } = await supabase.storage
+              .from('post-images')
+              .upload(fileName, blob, {
+                contentType: 'image/jpeg',
+                upsert: false,
+              });
+
+            if (storageError) {
+              console.error('스토리지 업로드 실패:', storageError);
+              continue;
+            }
+
+            const { data: publicUrlData } = supabase.storage
+              .from('post-images')
+              .getPublicUrl(fileName);
+
+            const publicUrl = publicUrlData?.publicUrl ?? '';
+
             await supabase.from('post_media').insert({
               post_id: post.id,
-              r2_url: uploadResult.url,
-              r2_key: uploadResult.key,
+              r2_url: publicUrl,
+              r2_key: fileName,
               media_type: 'image' as const,
               sort_order: idx,
             });
