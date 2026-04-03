@@ -25,6 +25,7 @@ interface Props {
   visible: boolean;
   onClose: () => void;
   onSave: (data: SaveData) => void;
+  onGoExercise?: () => void;
   showSleep?: boolean;
   showConstipation?: boolean;
 }
@@ -72,6 +73,7 @@ export function BodyStatePopupFlow({
   visible,
   onClose,
   onSave,
+  onGoExercise,
   showSleep = false,
   showConstipation = false,
 }: Props) {
@@ -169,6 +171,9 @@ export function BodyStatePopupFlow({
       sleepScore: ssRef.current ?? undefined,
       constipation: cRef.current ?? undefined,
     });
+    if (onGoExercise) {
+      onGoExercise();
+    }
   };
 
   const orderedSteps: Step[] = ['body', 'mood'];

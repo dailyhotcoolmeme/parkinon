@@ -18,6 +18,7 @@ import { CaregiverConfirmModal } from '../../components/common/CaregiverConfirmM
 import { DatePickerModal } from '../../components/common/DatePickerModal';
 import { useAuth } from '../../context/AuthContext';
 import { useBodyState } from '../../hooks/useBodyState';
+import { navigateTo } from '../../navigation/navigationRef';
 
 const WINDOW_HEIGHT = Dimensions.get('window').height;
 const TOP_BAR_H = 56;
@@ -199,6 +200,7 @@ export function BodyStateScreen() {
         visible={showFlow}
         onClose={() => setShowFlow(false)}
         onSave={handleSaveRecord}
+        onGoExercise={() => navigateTo('Exercise')}
         showSleep={records.length === 0}
         showConstipation={false}
       />
