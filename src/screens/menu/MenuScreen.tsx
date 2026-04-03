@@ -9,12 +9,14 @@ import {
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useNavigation } from '@react-navigation/native';
+import { useFocusEffect } from '@react-navigation/native';
 import { StackNavigationProp } from '@react-navigation/stack';
 import { Ionicons } from '@expo/vector-icons';
 import { Colors } from '../../constants/colors';
 import { MenuStackParamList } from '../../navigation/MenuNavigator';
 import { TopBar } from '../../components/common/TopBar';
 import { useAuth } from '../../context/AuthContext';
+import { supabase } from '../../lib/supabase';
 
 type NavigationProp = StackNavigationProp<MenuStackParamList, 'MenuHome'>;
 type IoniconName = React.ComponentProps<typeof Ionicons>['name'];
@@ -67,7 +69,14 @@ const MENU_ITEMS: MenuItem[] = [
 
 export function MenuScreen() {
   const navigation = useNavigation<NavigationProp>();
-  const { user, signOut } = useAuth();
+  const { user, signOut, refreshUser } = useAuth();
+
+  // 화면 포커스 시 사용자 정보 갱신 (ProfileEdit 후 이름 즉시 반영)
+  useFocusEffect(
+    React.useCallback(() => {
+      refreshUser();
+    }, [refreshUser])
+  );
 
   const roleName = user?.role === 'caregiver' ? '보호자' : '환자';
 
@@ -80,8 +89,10 @@ export function MenuScreen() {
       navigation.navigate('MedicationManage');
     } else if (key === 'FamilyLink') {
       navigation.navigate('FamilyLink');
-    } else if (key === 'Terms' || key === 'Privacy') {
-      Alert.alert('준비 중', '해당 화면은 준비 중이에요.');
+    } else if (key === 'Terms') {
+      navigation.navigate('Terms');
+    } else if (key === 'Privacy') {
+      navigation.navigate('Privacy');
     }
   };
 
@@ -109,8 +120,27 @@ export function MenuScreen() {
         {
           text: '탈퇴하기',
           style: 'destructive',
-          onPress: () => {
-            // TODO: 회원탈퇴 처리
+          onPress: async () => {
+            try {
+              if (user?.patient_group_id) {
+                // 그룹 멤버에서 제거
+                await supabase
+                  .from('patient_group_members')
+                  .delete()
+                  .eq('user_id', user.id);
+                // 환자인 경우 그룹 자체도 삭제
+                if (user.role === 'patient') {
+                  await supabase
+                    .from('patient_groups')
+                    .delete()
+                    .eq('id', user.patient_group_id);
+                }
+              }
+              await supabase.from('users').delete().eq('id', user!.id);
+              await signOut();
+            } catch (e: any) {
+              Alert.alert('오류', '탈퇴 처리 중 문제가 생겼어요. 다시 시도해주세요.');
+            }
           },
         },
       ],

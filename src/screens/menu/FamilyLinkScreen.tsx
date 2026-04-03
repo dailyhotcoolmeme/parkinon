@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import {
   View,
   Text,
@@ -10,11 +10,13 @@ import {
   ActivityIndicator,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
+import { useFocusEffect } from '@react-navigation/native';
 import { Ionicons } from '@expo/vector-icons';
 import { TopBar } from '../../components/common/TopBar';
 import { Colors } from '../../constants/colors';
 import { useFamilyLink } from '../../hooks/useFamilyLink';
 import { useAuth } from '../../context/AuthContext';
+import { supabase } from '../../lib/supabase';
 
 export function FamilyLinkScreen() {
   const { user } = useAuth();
@@ -26,21 +28,56 @@ export function FamilyLinkScreen() {
   const [inputCode, setInputCode] = useState('');
   const [inputFocused, setInputFocused] = useState(false);
 
-  useEffect(() => {
-    loadData();
-  }, []);
-
-  const loadData = async () => {
+  const loadData = useCallback(async () => {
     // 그룹 멤버 로드
     const memberList = await getGroupMembers();
     setMembers(memberList);
 
-    // 초대 코드 생성/갱신
+    // 기존 유효한 초대 코드 먼저 표시, 없으면 새로 생성
     setLoadingCode(true);
-    const code = await generateInviteCode();
-    if (code) setInviteCode(code);
-    setLoadingCode(false);
-  };
+    try {
+      if (user?.patient_group_id) {
+        const { data: groupRow } = await supabase
+          .from('patient_groups')
+          .select('invite_code, invite_code_expires_at')
+          .eq('id', user.patient_group_id)
+          .single();
+
+        const now = new Date().toISOString();
+        if (
+          groupRow?.invite_code &&
+          groupRow.invite_code_expires_at &&
+          groupRow.invite_code_expires_at > now
+        ) {
+          // 기존 유효 코드 재사용
+          setInviteCode(groupRow.invite_code);
+          setLoadingCode(false);
+          return;
+        }
+      }
+      // 유효 코드 없으면 신규 생성
+      const code = await generateInviteCode();
+      if (code) setInviteCode(code);
+    } catch (e) {
+      console.warn('[FamilyLinkScreen] 초대 코드 로드 오류:', e);
+      const code = await generateInviteCode();
+      if (code) setInviteCode(code);
+    } finally {
+      setLoadingCode(false);
+    }
+  }, [user, getGroupMembers, generateInviteCode]);
+
+  // 마운트 시 최초 로드
+  useEffect(() => {
+    loadData();
+  }, []);
+
+  // 화면 포커스 시 재로드 (다른 화면에서 연동 완료 후 복귀 시 갱신)
+  useFocusEffect(
+    useCallback(() => {
+      loadData();
+    }, [loadData])
+  );
 
   const handleDisconnect = (member: import('../../hooks/useFamilyLink').GroupMember) => {
     Alert.alert(
@@ -56,6 +93,7 @@ export function FamilyLinkScreen() {
             if (ok) {
               setMembers([]);
               setInviteCode('');
+              // 연결 해제 후 데이터 재로드 (새 초대 코드 생성 포함)
               loadData();
             } else {
               Alert.alert('오류', '연결 해제 중 문제가 생겼어요.');

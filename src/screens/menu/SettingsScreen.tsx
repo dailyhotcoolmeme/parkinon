@@ -12,11 +12,13 @@ import {
   Dimensions,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
+import { useFocusEffect } from '@react-navigation/native';
 import { Ionicons } from '@expo/vector-icons';
 import { Colors } from '../../constants/colors';
 import { TopBar } from '../../components/common/TopBar';
 import { useSettings, MedNotif, ExerciseNotif } from '../../context/SettingsContext';
 import { minutesToLabel } from '../../utils/medUtils';
+import { supabase } from '../../lib/supabase';
 
 const { width: SCREEN_WIDTH } = Dimensions.get('window');
 
@@ -47,6 +49,28 @@ export function SettingsScreen() {
     hour: 2,
     minute: 0,
   });
+
+  // 화면 포커스 시 DB에서 notification_enabled 재로드
+  useFocusEffect(
+    React.useCallback(() => {
+      (async () => {
+        try {
+          const { data: { session } } = await supabase.auth.getSession();
+          if (!session?.user) return;
+          const { data: userRow } = await supabase
+            .from('users')
+            .select('notification_enabled')
+            .eq('id', session.user.id)
+            .single();
+          if (userRow != null) {
+            setNotificationEnabled(userRow.notification_enabled ?? true);
+          }
+        } catch (e) {
+          console.warn('[SettingsScreen] notification_enabled 로드 오류:', e);
+        }
+      })();
+    }, [setNotificationEnabled])
+  );
 
   // Caregiver (kept for data completeness)
   const isCaregiver = false;
