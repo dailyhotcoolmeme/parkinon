@@ -35,7 +35,7 @@ const RELATIONS = [
 
 const LIVING = [
   { key: 'together', emoji: '🏠', label: '함께 살고 있어요' },
-  { key: 'apart', emoji: '📍', label: '따로 살고 있어요' },
+  { key: 'separate', emoji: '📍', label: '따로 살고 있어요' },
 ] as const;
 
 type RelationKey = typeof RELATIONS[number]['key'];

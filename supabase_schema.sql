@@ -21,6 +21,7 @@ create table users (
   patient_group_id uuid,
   onboarding_done boolean default false,
   notification_enabled boolean default true,
+  push_token text,
   created_at timestamptz default now(),
   updated_at timestamptz default now()
 );

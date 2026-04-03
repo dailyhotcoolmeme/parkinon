@@ -76,6 +76,8 @@ export function FamilyInviteScreen() {
         diagYearStr,
         medicationsJson,
         notificationsJson,
+        caregiverRelation,
+        caregiverLiving,
       ] = await AsyncStorage.multiGet([
         'onboarding_name',
         'onboarding_role',
@@ -84,6 +86,8 @@ export function FamilyInviteScreen() {
         'onboarding_diag_year',
         'onboarding_medications',
         'onboarding_notifications',
+        'onboarding_relation',
+        'onboarding_living',
       ]).then((pairs) => pairs.map(([, v]) => v));
 
       // 세션에서 userId 획득
@@ -95,18 +99,23 @@ export function FamilyInviteScreen() {
         return;
       }
 
-      // users 테이블 업데이트
+      // users 테이블 업데이트 (보호자이면 caregiver_relation, residence_type 포함)
+      const userUpdateData: Record<string, any> = {
+        name: name || undefined,
+        role: role || undefined,
+        birth_year: birthYearStr ? parseInt(birthYearStr, 10) : undefined,
+        gender: gender || undefined,
+        diagnosis_year: diagYearStr ? parseInt(diagYearStr, 10) : undefined,
+        onboarding_done: true,
+        notification_enabled: true,
+      };
+      if (role === 'caregiver') {
+        if (caregiverRelation) userUpdateData.caregiver_relation = caregiverRelation;
+        if (caregiverLiving) userUpdateData.residence_type = caregiverLiving;
+      }
       await supabase
         .from('users')
-        .update({
-          name: name || undefined,
-          role: role || undefined,
-          birth_year: birthYearStr ? parseInt(birthYearStr, 10) : undefined,
-          gender: gender || undefined,
-          diagnosis_year: diagYearStr ? parseInt(diagYearStr, 10) : undefined,
-          onboarding_done: true,
-          notification_enabled: true,
-        })
+        .update(userUpdateData)
         .eq('id', userId);
 
       // medications 저장
@@ -122,7 +131,10 @@ export function FamilyInviteScreen() {
             meds.map((med) => ({
               patient_id: userId,
               name: med.name,
-              meal_times: med.times,
+              dosage: null,
+              meal_times: med.times as any,
+              scheduled_times: [] as string[],
+              drug_code: null,
               drug_image_url: med.drugInfo?.itemImage || null,
               is_active: true,
             }))
@@ -143,6 +155,9 @@ export function FamilyInviteScreen() {
         'onboarding_medications',
         'onboarding_notifications',
         'onboarding_invite_code_generated',
+        'onboarding_relation',
+        'onboarding_living',
+        'onboarding_invite_code',
       ]);
     } catch (e) {
       console.error('[FamilyInviteScreen] handleFinish 오류:', e);

@@ -25,12 +25,12 @@ import * as ImagePicker from 'expo-image-picker';
 
 type Nav = StackNavigationProp<OnboardingStackParamList, 'MedicationRegister'>;
 
-type TimeSlot = 'morning' | 'noon' | 'evening' | 'bedtime';
+type TimeSlot = 'morning' | 'lunch' | 'dinner' | 'bedtime';
 
 const TIME_SLOTS: { key: TimeSlot; emoji: string; label: string }[] = [
   { key: 'morning', emoji: '🌅', label: '아침' },
-  { key: 'noon', emoji: '☀️', label: '점심' },
-  { key: 'evening', emoji: '🌇', label: '저녁' },
+  { key: 'lunch', emoji: '☀️', label: '점심' },
+  { key: 'dinner', emoji: '🌇', label: '저녁' },
   { key: 'bedtime', emoji: '🌙', label: '취침' },
 ];
 
@@ -97,8 +97,8 @@ async function callClaudeOCR(base64Image: string, mediaType: string): Promise<{ 
 - 복용 시간대가 명확히 표시된 경우만 포함하세요. 불명확하면 빈 배열로 두세요.
 
 반드시 아래 JSON 형식으로만 응답하세요 (다른 텍스트 없이):
-{"medications":[{"name":"약 이름","times":["morning","noon","evening","bedtime"]}]}
-복용 시간대: morning(아침)/noon(점심)/evening(저녁)/bedtime(취침)
+{"medications":[{"name":"약 이름","times":["morning","lunch","dinner","bedtime"]}]}
+복용 시간대: morning(아침)/lunch(점심)/dinner(저녁)/bedtime(취침)
 개인정보(이름, 주민번호 등)는 무시하세요.
 약이 보이지 않거나 읽기 어려우면 {"medications":[]} 를 반환하세요.`,
             },
@@ -461,7 +461,7 @@ export function MedicationRegisterScreen() {
 
       const parsed = await callClaudeOCR(asset.base64, mediaType);
 
-      const validTimeSlots: TimeSlot[] = ['morning', 'noon', 'evening', 'bedtime'];
+      const validTimeSlots: TimeSlot[] = ['morning', 'lunch', 'dinner', 'bedtime'];
       const newMedications: Medication[] = parsed.medications.map((med, index) => ({
         id: (Date.now() + index).toString(),
         name: med.name,
