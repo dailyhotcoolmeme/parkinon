@@ -131,6 +131,7 @@ function VideoPreview({ uri, isPlaying, onPreviewPress }: VideoPreviewProps) {
           contentFit="cover"
           allowsFullscreen={false}
           allowsPictureInPicture={false}
+          surfaceType="textureView"
         />
         <View style={thumbStyles.overlay}>
           <Ionicons
@@ -455,6 +456,7 @@ export function VideoListScreen() {
           keyExtractor={item => item.id}
           contentContainerStyle={styles.listContent}
           showsVerticalScrollIndicator={false}
+          removeClippedSubviews={false}
           renderSectionHeader={({ section }) => (
             <View style={styles.sectionHeader}>
               <Text style={styles.sectionHeaderText}>{section.title}</Text>
