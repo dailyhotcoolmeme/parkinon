@@ -6,6 +6,7 @@ import {
   TouchableOpacity,
   StyleSheet,
   Dimensions,
+  Alert,
 } from 'react-native';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useNavigation } from '@react-navigation/native';
@@ -19,6 +20,7 @@ import { CaregiverConfirmModal } from '../../components/common/CaregiverConfirmM
 import type { RootStackParamList } from '../../navigation/RootNavigator';
 import { useMedication } from '../../hooks/useMedication';
 import { useAuth } from '../../context/AuthContext';
+import { DatePickerModal } from '../../components/common/DatePickerModal';
 
 const DUMMY_PATIENT_NAME = '홍길동';
 const WINDOW_HEIGHT = Dimensions.get('window').height;
@@ -43,43 +45,54 @@ const MEAL_TIME_LABELS: Record<MealTime, { label: string; time: string }> = {
   bedtime: { label: '취침', time: '오후 10:00' },
 };
 
-// 목업 복용 기록
-const MOCK_TAKEN_LIST: MedicationStatus[] = [
-  { id: 'morning', label: '아침', time: '오전 8:00', taken: true, takenAt: '오전 8:12' },
-  { id: 'lunch', label: '점심', time: '오후 12:00', taken: true, takenAt: '오후 12:05' },
-  { id: 'dinner', label: '저녁', time: '오후 6:00', taken: false },
-  { id: 'bedtime', label: '취침', time: '오후 10:00', taken: false },
-];
+function formatTakenAt(isoString: string): string {
+  const d = new Date(isoString);
+  const h = d.getHours();
+  const m = d.getMinutes();
+  const ampm = h < 12 ? '오전' : '오후';
+  const hour = h % 12 === 0 ? 12 : h % 12;
+  return `${ampm} ${hour}:${m.toString().padStart(2, '0')}`;
+}
 
-function getTodayLabel(): string {
-  const now = new Date();
-  const month = now.getMonth() + 1;
-  const date = now.getDate();
+function getDateLabel(date: Date): string {
+  const month = date.getMonth() + 1;
+  const day = date.getDate();
   const dayNames = ['일요일', '월요일', '화요일', '수요일', '목요일', '금요일', '토요일'];
-  return `${month}월 ${date}일 ${dayNames[now.getDay()]}`;
+  return `${month}월 ${day}일 ${dayNames[date.getDay()]}`;
 }
 
 export function MedicationScreen() {
   const navigation = useNavigation<StackNavigationProp<RootStackParamList>>();
   const { user } = useAuth();
-  const { todayStatus, takeMedication } = useMedication();
+  const { todayStatus, takeMedication, error: medError } = useMedication();
   const insets = useSafeAreaInsets();
 
   const [showCaregiverConfirm, setShowCaregiverConfirm] = useState(false);
   const [showMealTimeModal, setShowMealTimeModal] = useState(false);
   const [showBodyStatePopup, setShowBodyStatePopup] = useState(false);
+  const [selectedDate, setSelectedDate] = useState(new Date());
+  const [showDatePicker, setShowDatePicker] = useState(false);
 
   const userRole = (user?.role === 'caregiver' ? 'caregiver_same' : 'patient') as
     'patient' | 'caregiver_same' | 'caregiver_separate';
 
   const handleMealTimeSelect = async (mealTime: MealTime) => {
     setShowMealTimeModal(false);
-    await takeMedication(mealTime);
+    const success = await takeMedication(mealTime);
+    if (!success) {
+      Alert.alert('저장 실패', medError ?? '복용 기록 저장에 실패했어요. 다시 시도해 주세요.');
+      return;
+    }
     setShowBodyStatePopup(true);
   };
 
-  // 표시용 목업 데이터 (실제 연동 전)
-  const displayList = MOCK_TAKEN_LIST;
+  // todayStatus → MedicationStatus[] 변환
+  const displayList: MedicationStatus[] = (Object.keys(MEAL_TIME_LABELS) as MealTime[]).map((mt) => {
+    const log = todayStatus[mt];
+    return log
+      ? { id: mt, label: MEAL_TIME_LABELS[mt].label, time: MEAL_TIME_LABELS[mt].time, taken: true, takenAt: formatTakenAt(log.taken_at) }
+      : { id: mt, label: MEAL_TIME_LABELS[mt].label, time: MEAL_TIME_LABELS[mt].time, taken: false };
+  });
 
   return (
     <SafeAreaView style={styles.safeArea} edges={['top']}>
@@ -91,8 +104,8 @@ export function MedicationScreen() {
 
       {/* 날짜 헤더 */}
       <View style={styles.dateHeader}>
-        <Text style={styles.dateText}>{getTodayLabel()}</Text>
-        <TouchableOpacity style={styles.calBtn}>
+        <Text style={styles.dateText}>{getDateLabel(selectedDate)}</Text>
+        <TouchableOpacity style={styles.calBtn} onPress={() => setShowDatePicker(true)}>
           <Ionicons name="calendar-outline" size={24} color={Colors.text} />
         </TouchableOpacity>
       </View>
@@ -177,6 +190,12 @@ export function MedicationScreen() {
         onClose={() => setShowBodyStatePopup(false)}
         onSave={() => setShowBodyStatePopup(false)}
       />
+      <DatePickerModal
+        visible={showDatePicker}
+        selectedDate={selectedDate}
+        onSelect={setSelectedDate}
+        onClose={() => setShowDatePicker(false)}
+      />
     </SafeAreaView>
   );
 }
@@ -205,8 +224,8 @@ const styles = StyleSheet.create({
     justifyContent: 'flex-start',
     alignItems: 'center',
     paddingHorizontal: 24,
-    paddingTop: 40,
-    paddingBottom: 40,
+    paddingTop: 20,
+    paddingBottom: 32,
   },
 
   mainButton: {

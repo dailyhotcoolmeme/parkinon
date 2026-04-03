@@ -10,6 +10,8 @@
 import { useState, useEffect, useCallback } from 'react';
 import { supabase } from '../lib/supabase';
 import { useAuth } from '../context/AuthContext';
+import { cancelMedicationReminder, scheduleEffectTrackingNotifications, sendCaregiverPush } from '../utils/notifications';
+import { useSettings } from '../context/SettingsContext';
 import type { Database } from '../types/database';
 
 type MealTime = Database['public']['Tables']['med_logs']['Row']['meal_time'];
@@ -33,8 +35,16 @@ export interface UseMedicationReturn {
   refresh: () => Promise<void>;
 }
 
+const MEAL_TIME_LABELS: Record<string, string> = {
+  morning: '아침',
+  lunch: '점심',
+  dinner: '저녁',
+  bedtime: '취침',
+};
+
 export function useMedication(): UseMedicationReturn {
   const { user } = useAuth();
+  const { medNotifs } = useSettings();
   const [medications, setMedications] = useState<MedicationRow[]>([]);
   const [todayStatus, setTodayStatus] = useState<TodayMedStatus>({
     morning: null,
@@ -51,14 +61,23 @@ export function useMedication(): UseMedicationReturn {
     if (user.role === 'patient') return user.id;
 
     // 보호자인 경우 그룹에서 환자 ID 조회
-    if (!user.patient_group_id) return null;
+    if (!user.patient_group_id) {
+      // 가족 미연동 상태: 보호자 본인 ID로 fallback
+      // (온보딩 시 약을 직접 등록한 경우 medications.patient_id = 보호자 ID)
+      console.warn('[useMedication] 보호자 patient_group_id=null → 본인 ID fallback:', user.id);
+      return user.id;
+    }
 
-    const { data } = await supabase
+    const { data, error } = await supabase
       .from('patient_group_members')
       .select('user_id, role')
       .eq('group_id', user.patient_group_id)
       .eq('role', 'patient')
       .single();
+
+    if (error) {
+      console.error('[useMedication] getPatientId 그룹 조회 오류:', error);
+    }
 
     return data?.user_id ?? null;
   }, [user]);
@@ -155,7 +174,9 @@ export function useMedication(): UseMedicationReturn {
     try {
       const patientId = await getPatientId();
       if (!patientId) {
-        setError('연동된 환자 정보를 찾을 수 없어요.');
+        const msg = '복용 기록을 저장할 환자 정보를 찾을 수 없어요. 가족 연동 후 다시 시도해 주세요.';
+        console.error('[useMedication] takeMedication: patientId null → insert 중단');
+        setError(msg);
         return false;
       }
 
@@ -175,6 +196,46 @@ export function useMedication(): UseMedicationReturn {
         .insert(insertData);
 
       if (insertError) throw insertError;
+
+      // DB INSERT 성공 후 알림 처리 (실패해도 전체 함수에 영향 없음)
+      try {
+        // 해당 시간대 복용 예정 알림 취소
+        await cancelMedicationReminder(mealTime);
+
+        // 약효 추적 알림 스케줄
+        await scheduleEffectTrackingNotifications(medNotifs);
+
+        // 보호자에게 푸시 알림 (같은 그룹의 보호자 push_token 조회 후 전송)
+        if (user.patient_group_id) {
+          const { data: caregivers } = await supabase
+            .from('patient_group_members')
+            .select('user_id')
+            .eq('group_id', user.patient_group_id)
+            .eq('role', 'caregiver');
+
+          if (caregivers && caregivers.length > 0) {
+            const caregiverIds = caregivers.map((c: any) => c.user_id);
+            const { data: caregiverUsers } = await supabase
+              .from('users')
+              .select('push_token')
+              .in('id', caregiverIds)
+              .not('push_token', 'is', null);
+
+            for (const cu of caregiverUsers ?? []) {
+              if (cu.push_token) {
+                await sendCaregiverPush(
+                  cu.push_token,
+                  '💊 약을 드셨어요',
+                  `환자분이 ${MEAL_TIME_LABELS[mealTime]} 약을 드셨어요.`,
+                  { type: 'caregiver_medication' },
+                );
+              }
+            }
+          }
+        }
+      } catch (notifErr) {
+        console.error('[useMedication] 알림 처리 실패 (복용 기록은 저장됨):', notifErr);
+      }
 
       // 오늘 현황 갱신
       await fetchTodayStatus();
