@@ -170,6 +170,9 @@ export function useRecordsData(period: Period): UseRecordsDataReturn {
           .lte('taken_at', prev.end),
       ]);
 
+      if (medCurrRes.error) throw medCurrRes.error;
+      if (medPrevRes.error) throw medPrevRes.error;
+
       const medCurrCount = medCurrRes.count ?? 0;
       const medPrevCount = medPrevRes.count ?? 0;
 
@@ -195,6 +198,9 @@ export function useRecordsData(period: Period): UseRecordsDataReturn {
           .gte('logged_at', prev.start)
           .lte('logged_at', prev.end),
       ]);
+
+      if (onOffCurrRes.error) throw onOffCurrRes.error;
+      if (onOffPrevRes.error) throw onOffPrevRes.error;
 
       const currLogs = onOffCurrRes.data ?? [];
       const prevLogs = onOffPrevRes.data ?? [];
@@ -292,6 +298,9 @@ export function useRecordsData(period: Period): UseRecordsDataReturn {
           .gte('logged_at', prev.start)
           .lte('logged_at', prev.end),
       ]);
+
+      if (exCurrRes.error) throw exCurrRes.error;
+      if (exPrevRes.error) throw exPrevRes.error;
 
       const exCurrData = exCurrRes.data ?? [];
       const exPrevData = exPrevRes.data ?? [];

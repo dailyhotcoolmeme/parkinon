@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useCallback } from 'react';
 import {
   View,
   Text,
@@ -9,7 +9,7 @@ import {
   Alert,
 } from 'react-native';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
-import { useNavigation } from '@react-navigation/native';
+import { useNavigation, useFocusEffect } from '@react-navigation/native';
 import type { StackNavigationProp } from '@react-navigation/stack';
 import { Ionicons } from '@expo/vector-icons';
 import { Colors } from '../../constants/colors';
@@ -64,8 +64,15 @@ function getDateLabel(date: Date): string {
 export function MedicationScreen() {
   const navigation = useNavigation<StackNavigationProp<RootStackParamList>>();
   const { user } = useAuth();
-  const { todayStatus, takeMedication, error: medError } = useMedication();
+  const { todayStatus, takeMedication, error: medError, refresh } = useMedication();
   const insets = useSafeAreaInsets();
+
+  // 탭/화면 포커스 시 복용 현황 재조회
+  useFocusEffect(
+    useCallback(() => {
+      refresh();
+    }, [refresh])
+  );
 
   const [showCaregiverConfirm, setShowCaregiverConfirm] = useState(false);
   const [showMealTimeModal, setShowMealTimeModal] = useState(false);

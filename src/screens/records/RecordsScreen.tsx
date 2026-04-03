@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useCallback } from 'react';
 import {
   View,
   Text,
@@ -8,7 +8,7 @@ import {
   ActivityIndicator,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { useNavigation } from '@react-navigation/native';
+import { useNavigation, useFocusEffect } from '@react-navigation/native';
 import { StackNavigationProp } from '@react-navigation/stack';
 import { Ionicons } from '@expo/vector-icons';
 import { Colors } from '../../constants/colors';
@@ -61,7 +61,14 @@ export function RecordsScreen() {
   const [period, setPeriod] = useState<Period>('이번 주');
 
   // Supabase 실제 데이터
-  const { summary, loading, error } = useRecordsData(period);
+  const { summary, loading, error, refresh } = useRecordsData(period);
+
+  // 화면 포커스 시 데이터 재조회
+  useFocusEffect(
+    useCallback(() => {
+      refresh();
+    }, [refresh])
+  );
 
   const handleItemPress = (key: ItemKey) => {
     navigation.navigate('RecordDetail', { type: key, period });
@@ -211,7 +218,14 @@ export function RecordsScreen() {
         </View>
       )}
 
-      {!loading && !error && (
+      {!loading && !error && !summary && (
+        <View style={styles.stateBox}>
+          <Ionicons name="bar-chart-outline" size={40} color={Colors.textHint} />
+          <Text style={styles.stateText}>아직 기록된 데이터가 없어요.{'\n'}약 복용 및 몸 상태를 기록해보세요.</Text>
+        </View>
+      )}
+
+      {!loading && !error && !!summary && (
         <ScrollView
           style={styles.scroll}
           contentContainerStyle={styles.scrollContent}

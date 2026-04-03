@@ -113,10 +113,11 @@ export function FamilyInviteScreen() {
         if (caregiverRelation) userUpdateData.caregiver_relation = caregiverRelation;
         if (caregiverLiving) userUpdateData.residence_type = caregiverLiving;
       }
-      await supabase
+      const { error: updateError } = await supabase
         .from('users')
         .update(userUpdateData)
         .eq('id', userId);
+      if (updateError) throw updateError;
 
       // medications 저장
       if (medicationsJson) {
@@ -159,12 +160,13 @@ export function FamilyInviteScreen() {
         'onboarding_living',
         'onboarding_invite_code',
       ]);
-    } catch (e) {
+    } catch (e: any) {
       console.error('[FamilyInviteScreen] handleFinish 오류:', e);
-      // 오류가 발생해도 refreshUser를 호출해 진행 가능하게 처리
-      try {
-        await refreshUser();
-      } catch {}
+      Alert.alert(
+        '저장 오류',
+        '정보 저장 중 문제가 발생했어요. 다시 시도해 주세요.\n\n' + (e?.message ?? ''),
+        [{ text: '확인' }]
+      );
     } finally {
       setIsSaving(false);
     }
