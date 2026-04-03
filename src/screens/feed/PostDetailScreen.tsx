@@ -16,8 +16,8 @@ import {
 
 const SCREEN_WIDTH = Dimensions.get('window').width;
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { useRoute } from '@react-navigation/native';
-import type { NativeStackScreenProps } from '@react-navigation/native-stack';
+import { useRoute, useNavigation } from '@react-navigation/native';
+import type { NativeStackScreenProps, NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { Ionicons } from '@expo/vector-icons';
 import { Colors } from '../../constants/colors';
 import { TopBar } from '../../components/common/TopBar';
@@ -26,6 +26,7 @@ import { supabase } from '../../lib/supabase';
 import { useAuth } from '../../context/AuthContext';
 
 type RouteProps = NativeStackScreenProps<FeedStackParamList, 'PostDetail'>['route'];
+type NavProp = NativeStackNavigationProp<FeedStackParamList>;
 
 interface CommentRow {
   id: string;
@@ -91,8 +92,11 @@ function buildCommentTree(rows: CommentRow[]): CommentDisplay[] {
 
 export function PostDetailScreen() {
   const route = useRoute<RouteProps>();
+  const navigation = useNavigation<NavProp>();
   const { post } = route.params;
   const { user } = useAuth();
+
+  const isOwner = !!(user && post.authorId && user.id === post.authorId);
 
   const [liked, setLiked] = useState(false);
   const [likeCount, setLikeCount] = useState(post.likeCount);
@@ -102,6 +106,60 @@ export function PostDetailScreen() {
   const [replyingTo, setReplyingTo] = useState<string | null>(null);
   const [submittingComment, setSubmittingComment] = useState(false);
   const [mediaUrls, setMediaUrls] = useState<string[]>([]);
+
+  // 수정하기
+  const handleEdit = () => {
+    navigation.navigate('PostWrite', {
+      postId: post.id,
+      initialTitle: post.title,
+      initialContent: post.preview,
+      initialCategory: post.categoryId ?? post.category,
+      initialPhotos: mediaUrls,
+    });
+  };
+
+  // 삭제하기
+  const handleDelete = () => {
+    Alert.alert(
+      '게시글 삭제',
+      '이 게시글을 삭제할까요?\n삭제된 글은 복구할 수 없어요.',
+      [
+        { text: '취소', style: 'cancel' },
+        {
+          text: '삭제하기',
+          style: 'destructive',
+          onPress: async () => {
+            try {
+              const { error } = await supabase
+                .from('posts')
+                .delete()
+                .eq('id', post.id);
+              if (error) throw error;
+              Alert.alert('삭제 완료', '게시글이 삭제되었어요.', [
+                { text: '확인', onPress: () => navigation.goBack() },
+              ]);
+            } catch (e: any) {
+              Alert.alert('오류', e.message ?? '삭제 중 문제가 생겼어요. 다시 시도해주세요.');
+              console.error('[PostDetail] handleDelete 오류:', e);
+            }
+          },
+        },
+      ]
+    );
+  };
+
+  // 더보기 메뉴
+  const handleMore = () => {
+    Alert.alert(
+      '게시글 관리',
+      '',
+      [
+        { text: '수정하기', onPress: handleEdit },
+        { text: '삭제하기', style: 'destructive', onPress: handleDelete },
+        { text: '취소', style: 'cancel' },
+      ]
+    );
+  };
 
   // 첨부 사진 목록 조회
   useEffect(() => {
@@ -281,7 +339,21 @@ export function PostDetailScreen() {
 
   return (
     <SafeAreaView style={styles.safe} edges={['top']}>
-      <TopBar title="글 보기" showBack />
+      <TopBar
+        title="글 보기"
+        showBack
+        rightIcon={
+          isOwner ? (
+            <TouchableOpacity
+              onPress={handleMore}
+              hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+              style={styles.moreBtn}
+            >
+              <Ionicons name="ellipsis-horizontal" size={26} color={Colors.textSub} />
+            </TouchableOpacity>
+          ) : undefined
+        }
+      />
       <KeyboardAvoidingView
         style={styles.flex}
         behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
@@ -613,4 +685,9 @@ const styles = StyleSheet.create({
   },
   commentSubmitDisabled: { backgroundColor: Colors.border },
   commentSubmitText: { fontSize: 14, fontWeight: '700', color: Colors.white },
+  moreBtn: {
+    padding: 6,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
 });

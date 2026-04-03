@@ -6,7 +6,13 @@ import { PostDetailScreen } from '../screens/feed/PostDetailScreen';
 
 export type FeedStackParamList = {
   FeedMain: undefined;
-  PostWrite: undefined;
+  PostWrite: {
+    postId?: string;
+    initialTitle?: string;
+    initialContent?: string;
+    initialCategory?: string;
+    initialPhotos?: string[];
+  } | undefined;
   PostDetail: { post: PostItem };
 };
 

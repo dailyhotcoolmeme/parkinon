@@ -29,8 +29,10 @@ export interface PostItem {
   id: string;
   isNews: boolean;
   category: string;
+  categoryId?: string;
   categoryIcon: IoniconName;
   author: string;
+  authorId?: string;
   date: string;
   views: number;
   title: string;
@@ -76,8 +78,10 @@ const scrollY = useRef(new Animated.Value(0)).current;
     id: p.id,
     isNews: p.is_news ?? false,
     category: POST_TYPE_LABEL[p.post_type] ?? p.post_type ?? '기타',
+    categoryId: p.post_type ?? undefined,
     categoryIcon: POST_TYPE_ICON[p.post_type] ?? 'chatbubble-outline',
     author: p.author?.name ?? '알 수 없음',
+    authorId: p.author_id ?? undefined,
     date: formatDate(p.created_at),
     views: p.view_count ?? 0,
     title: p.title ?? '',

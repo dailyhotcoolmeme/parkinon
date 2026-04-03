@@ -12,7 +12,8 @@ import {
   Image,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { useNavigation } from '@react-navigation/native';
+import { useNavigation, useRoute } from '@react-navigation/native';
+import type { NativeStackScreenProps } from '@react-navigation/native-stack';
 import { Ionicons } from '@expo/vector-icons';
 import * as ImagePicker from 'expo-image-picker';
 import { uploadPhoto } from '../../lib/r2Upload';
@@ -21,10 +22,12 @@ import { TopBar } from '../../components/common/TopBar';
 import { supabase } from '../../lib/supabase';
 import { useAuth } from '../../context/AuthContext';
 import type { Database } from '../../types/database';
+import type { FeedStackParamList } from '../../navigation/FeedNavigator';
 
 type PostType = Database['public']['Tables']['posts']['Row']['post_type'];
 
 type IoniconName = React.ComponentProps<typeof Ionicons>['name'];
+type RouteProps = NativeStackScreenProps<FeedStackParamList, 'PostWrite'>['route'];
 
 const CATEGORIES: { id: string; icon: IoniconName; label: string }[] = [
   { id: 'chat', icon: 'chatbubble-outline', label: '자유수다' },
@@ -34,17 +37,37 @@ const CATEGORIES: { id: string; icon: IoniconName; label: string }[] = [
   { id: 'cheer', icon: 'heart-circle-outline', label: '응원해요' },
 ];
 
+// 기존 사진(r2_url)과 새 사진(local uri)을 구분
+interface PhotoEntry {
+  uri: string;       // local URI (새 사진) 또는 r2_url (기존 사진)
+  isExisting: boolean;
+}
+
 export function PostWriteScreen() {
   const navigation = useNavigation();
+  const route = useRoute<RouteProps>();
   const { user } = useAuth();
-  const [selectedCategory, setSelectedCategory] = useState<string>('chat');
-  const [title, setTitle] = useState('');
-  const [content, setContent] = useState('');
-  const [photos, setPhotos] = useState<string[]>([]);
+
+  const params = route.params;
+  const isEditMode = !!(params?.postId);
+  const postId = params?.postId;
+
+  const [selectedCategory, setSelectedCategory] = useState<string>(
+    params?.initialCategory ?? 'chat'
+  );
+  const [title, setTitle] = useState(params?.initialTitle ?? '');
+  const [content, setContent] = useState(params?.initialContent ?? '');
+  // 기존 사진은 isExisting=true, 새로 추가한 사진은 isExisting=false
+  const [photoEntries, setPhotoEntries] = useState<PhotoEntry[]>(
+    (params?.initialPhotos ?? []).map((url) => ({ uri: url, isExisting: true }))
+  );
   const [submitting, setSubmitting] = useState(false);
 
+  // 삭제 대상 기존 사진 r2_url 목록
+  const [deletedExistingUrls, setDeletedExistingUrls] = useState<string[]>([]);
+
   const handlePhotoAdd = async () => {
-    if (photos.length >= 5) {
+    if (photoEntries.length >= 5) {
       Alert.alert('사진 제한', '사진은 최대 5장까지 추가할 수 있어요.');
       return;
     }
@@ -56,12 +79,21 @@ export function PostWriteScreen() {
     const result = await ImagePicker.launchImageLibraryAsync({
       mediaTypes: ImagePicker.MediaTypeOptions.Images,
       allowsMultipleSelection: true,
-      selectionLimit: 5 - photos.length,
+      selectionLimit: 5 - photoEntries.length,
       quality: 0.7,
     });
     if (!result.canceled && result.assets.length > 0) {
-      setPhotos(prev => [...prev, ...result.assets.map(a => a.uri)].slice(0, 5));
+      const newEntries: PhotoEntry[] = result.assets.map(a => ({ uri: a.uri, isExisting: false }));
+      setPhotoEntries(prev => [...prev, ...newEntries].slice(0, 5));
     }
+  };
+
+  const handleRemovePhoto = (idx: number) => {
+    const entry = photoEntries[idx];
+    if (entry.isExisting) {
+      setDeletedExistingUrls(prev => [...prev, entry.uri]);
+    }
+    setPhotoEntries(prev => prev.filter((_, i) => i !== idx));
   };
 
   const handleSubmit = async () => {
@@ -81,45 +113,114 @@ export function PostWriteScreen() {
 
     setSubmitting(true);
     try {
-      const { data: post, error: postError } = await supabase
-        .from('posts')
-        .insert({
-          author_id: user.id,
-          post_type: selectedCategory as PostType,
-          title: title.trim(),
-          content: content.trim(),
-          is_news: false,
-          news_url: null,
-          youtube_url: null,
-          youtube_thumbnail: null,
-        })
-        .select()
-        .single();
+      if (isEditMode && postId) {
+        // ── 수정 모드 ──
+        const { error: updateError } = await supabase
+          .from('posts')
+          .update({
+            post_type: selectedCategory as PostType,
+            title: title.trim(),
+            content: content.trim(),
+          })
+          .eq('id', postId);
+        if (updateError) throw updateError;
 
-      if (postError) throw postError;
+        // 삭제된 기존 사진 제거
+        if (deletedExistingUrls.length > 0) {
+          await supabase
+            .from('post_media')
+            .delete()
+            .eq('post_id', postId)
+            .in('r2_url', deletedExistingUrls);
+        }
 
-      if (photos.length > 0 && post) {
-        for (const [idx, uri] of photos.entries()) {
-          try {
-            const result = await uploadPhoto(uri, user.id);
-            await supabase.from('post_media').insert({
-              post_id: post.id,
-              r2_url: result.url,
-              r2_key: result.key,
-              media_type: 'image' as const,
-              sort_order: idx,
-            });
-          } catch (photoErr) {
-            console.error('사진 업로드 실패:', photoErr);
+        // 새로 추가된 사진 업로드
+        const newPhotos = photoEntries.filter(e => !e.isExisting);
+        if (newPhotos.length > 0) {
+          // 기존 사진 중 남아 있는 것들의 최대 sort_order 확인
+          const existingCount = photoEntries.filter(e => e.isExisting).length;
+          let uploadFailCount = 0;
+          for (const [idx, entry] of newPhotos.entries()) {
+            try {
+              const result = await uploadPhoto(entry.uri, user.id);
+              await supabase.from('post_media').insert({
+                post_id: postId,
+                r2_url: result.url,
+                r2_key: result.key,
+                media_type: 'image' as const,
+                sort_order: existingCount + idx,
+              });
+            } catch (photoErr: any) {
+              console.error('사진 업로드 실패:', photoErr);
+              uploadFailCount += 1;
+            }
+          }
+          if (uploadFailCount > 0) {
+            Alert.alert(
+              '사진 업로드 일부 실패',
+              `${uploadFailCount}장의 사진이 업로드되지 않았어요. 수정 내용은 저장되었습니다.`,
+              [{ text: '확인', onPress: () => navigation.goBack() }]
+            );
+            return;
           }
         }
-      }
 
-      Alert.alert('등록 완료', '글이 등록되었어요.', [
-        { text: '확인', onPress: () => navigation.goBack() },
-      ]);
+        Alert.alert('수정 완료', '글이 수정되었어요.', [
+          { text: '확인', onPress: () => navigation.goBack() },
+        ]);
+      } else {
+        // ── 등록 모드 ──
+        const { data: post, error: postError } = await supabase
+          .from('posts')
+          .insert({
+            author_id: user.id,
+            post_type: selectedCategory as PostType,
+            title: title.trim(),
+            content: content.trim(),
+            is_news: false,
+            news_url: null,
+            youtube_url: null,
+            youtube_thumbnail: null,
+          })
+          .select()
+          .single();
+
+        if (postError) throw postError;
+
+        const newPhotos = photoEntries.filter(e => !e.isExisting);
+        if (newPhotos.length > 0 && post) {
+          let uploadFailCount = 0;
+          for (const [idx, entry] of newPhotos.entries()) {
+            try {
+              const result = await uploadPhoto(entry.uri, user.id);
+              await supabase.from('post_media').insert({
+                post_id: post.id,
+                r2_url: result.url,
+                r2_key: result.key,
+                media_type: 'image' as const,
+                sort_order: idx,
+              });
+            } catch (photoErr: any) {
+              console.error('사진 업로드 실패:', photoErr);
+              uploadFailCount += 1;
+            }
+          }
+          if (uploadFailCount > 0) {
+            Alert.alert(
+              '사진 업로드 일부 실패',
+              `${uploadFailCount}장의 사진이 업로드되지 않았어요. 글은 정상 등록되었습니다.`,
+              [{ text: '확인', onPress: () => navigation.goBack() }]
+            );
+            return;
+          }
+        }
+
+        Alert.alert('등록 완료', '글이 등록되었어요.', [
+          { text: '확인', onPress: () => navigation.goBack() },
+        ]);
+      }
     } catch (e: any) {
-      Alert.alert('오류', e.message ?? '등록 중 문제가 생겼어요. 다시 시도해주세요.');
+      Alert.alert('오류', e.message ?? (isEditMode ? '수정 중 문제가 생겼어요. 다시 시도해주세요.' : '등록 중 문제가 생겼어요. 다시 시도해주세요.'));
     } finally {
       setSubmitting(false);
     }
@@ -128,7 +229,7 @@ export function PostWriteScreen() {
   return (
     <SafeAreaView style={styles.safe} edges={['top']}>
       <TopBar
-        title="글쓰기"
+        title={isEditMode ? '글 수정' : '글쓰기'}
         showBack
       />
       <KeyboardAvoidingView
@@ -203,18 +304,23 @@ export function PostWriteScreen() {
           >
             <Ionicons name="camera-outline" size={22} color={Colors.textSub} />
             <Text style={styles.photoText}>사진 추가</Text>
-            <Text style={styles.photoHint}>{photos.length}/5</Text>
+            <Text style={styles.photoHint}>{photoEntries.length}/5</Text>
           </TouchableOpacity>
 
           {/* 선택된 사진 미리보기 */}
-          {photos.length > 0 && (
+          {photoEntries.length > 0 && (
             <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.photoRow}>
-              {photos.map((uri, idx) => (
+              {photoEntries.map((entry, idx) => (
                 <View key={idx} style={styles.photoThumb}>
-                  <Image source={{ uri }} style={styles.photoThumbImg} />
+                  <Image source={{ uri: entry.uri }} style={styles.photoThumbImg} />
+                  {entry.isExisting && (
+                    <View style={styles.existingBadge}>
+                      <Text style={styles.existingBadgeText}>기존</Text>
+                    </View>
+                  )}
                   <TouchableOpacity
                     style={styles.photoRemoveBtn}
-                    onPress={() => setPhotos(prev => prev.filter((_, i) => i !== idx))}
+                    onPress={() => handleRemovePhoto(idx)}
                   >
                     <Ionicons name="close-circle" size={22} color={Colors.danger} />
                   </TouchableOpacity>
@@ -226,7 +332,11 @@ export function PostWriteScreen() {
 
         <View style={styles.bottomActions}>
           <TouchableOpacity style={styles.bottomMainBtn} onPress={handleSubmit} activeOpacity={0.85} disabled={submitting}>
-            <Text style={styles.bottomMainBtnText}>{submitting ? '등록 중...' : '등록하기'}</Text>
+            <Text style={styles.bottomMainBtnText}>
+              {submitting
+                ? (isEditMode ? '수정 중...' : '등록 중...')
+                : (isEditMode ? '수정하기' : '등록하기')}
+            </Text>
           </TouchableOpacity>
         </View>
       </KeyboardAvoidingView>
@@ -300,6 +410,16 @@ const styles = StyleSheet.create({
   photoThumb: { position: 'relative', marginRight: 8 },
   photoThumbImg: { width: 80, height: 80, borderRadius: 8 },
   photoRemoveBtn: { position: 'absolute', top: -8, right: -8 },
+  existingBadge: {
+    position: 'absolute',
+    bottom: 4,
+    left: 4,
+    backgroundColor: 'rgba(0,0,0,0.55)',
+    borderRadius: 4,
+    paddingHorizontal: 5,
+    paddingVertical: 2,
+  },
+  existingBadgeText: { fontSize: 10, color: '#fff', fontWeight: '700' },
   bottomActions: {
     paddingHorizontal: 20,
     paddingTop: 12,
