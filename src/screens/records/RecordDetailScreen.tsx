@@ -229,7 +229,16 @@ export function RecordDetailScreen() {
         </View>
       )}
 
-      {!loading && !error && (
+      {!loading && !error && !summarySlot && (
+        <View style={styles.stateBox}>
+          <Ionicons name="bar-chart-outline" size={40} color={Colors.textHint} />
+          <Text style={styles.stateText}>
+            이 기간에 기록된 데이터가 없어요.{'\n'}기록을 먼저 입력해보세요.
+          </Text>
+        </View>
+      )}
+
+      {!loading && !error && !!summarySlot && (
         <ScrollView style={styles.scroll} contentContainerStyle={styles.scrollContent}>
 
           {/* 일반 항목 현황 카드 */}

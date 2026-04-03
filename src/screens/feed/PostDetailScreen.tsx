@@ -98,11 +98,26 @@ export function PostDetailScreen() {
   const [replyingTo, setReplyingTo] = useState<string | null>(null);
   const [submittingComment, setSubmittingComment] = useState(false);
 
-  // 조회수 increment
+  // 조회수 increment (RPC 실패 시 직접 update 폴백)
   useEffect(() => {
-    supabase.rpc('increment_view_count', { post_id: post.id }).then(({ error }) => {
-      if (error) console.warn('[PostDetail] 조회수 increment 실패:', error.message);
-    });
+    const incrementView = async () => {
+      const { error: rpcError } = await supabase.rpc('increment_view_count', { post_id: post.id });
+      if (rpcError) {
+        // RPC 없으면 직접 view_count + 1
+        const { data: current } = await supabase
+          .from('posts')
+          .select('view_count')
+          .eq('id', post.id)
+          .single();
+        if (current) {
+          await supabase
+            .from('posts')
+            .update({ view_count: (current.view_count ?? 0) + 1 })
+            .eq('id', post.id);
+        }
+      }
+    };
+    incrementView();
   }, [post.id]);
 
   // 좋아요 상태 초기 조회
@@ -149,7 +164,8 @@ export function PostDetailScreen() {
     const nextLiked = !liked;
     // 낙관적 업데이트
     setLiked(nextLiked);
-    setLikeCount((prev) => (nextLiked ? prev + 1 : prev - 1));
+    const nextCount = nextLiked ? likeCount + 1 : likeCount - 1;
+    setLikeCount(nextCount);
 
     try {
       if (nextLiked) {
@@ -165,10 +181,15 @@ export function PostDetailScreen() {
           .eq('user_id', user.id);
         if (error) throw error;
       }
+      // posts 테이블 like_count 동기화
+      await supabase
+        .from('posts')
+        .update({ like_count: nextCount })
+        .eq('id', post.id);
     } catch (e: any) {
       // 롤백
       setLiked(!nextLiked);
-      setLikeCount((prev) => (nextLiked ? prev - 1 : prev + 1));
+      setLikeCount(likeCount);
       Alert.alert('오류', '좋아요 처리 중 문제가 생겼어요. 다시 시도해주세요.');
       console.error('[PostDetail] handleLike 오류:', e);
     }
@@ -188,7 +209,19 @@ export function PostDetailScreen() {
       if (error) throw error;
       setCommentText('');
       setReplyingTo(null);
+      // 댓글 목록 갱신
       await fetchComments();
+      // posts 테이블 comment_count 동기화
+      const { count: totalComments } = await supabase
+        .from('comments')
+        .select('id', { count: 'exact', head: true })
+        .eq('post_id', post.id);
+      if (totalComments != null) {
+        await supabase
+          .from('posts')
+          .update({ comment_count: totalComments })
+          .eq('id', post.id);
+      }
     } catch (e: any) {
       Alert.alert('오류', e.message ?? '댓글 등록 중 문제가 생겼어요. 다시 시도해주세요.');
       console.error('[PostDetail] handleCommentSubmit 오류:', e);

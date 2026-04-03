@@ -1,4 +1,4 @@
-import React, { useRef, useState, useEffect, useCallback } from 'react';
+import React, { useRef, useState, useCallback } from 'react';
 import {
   View,
   Text,
@@ -11,7 +11,7 @@ import {
   ActivityIndicator,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { useNavigation } from '@react-navigation/native';
+import { useNavigation, useFocusEffect } from '@react-navigation/native';
 import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import type { StackNavigationProp } from '@react-navigation/stack';
 import { Ionicons } from '@expo/vector-icons';
@@ -23,6 +23,8 @@ import { supabase } from '../../lib/supabase';
 
 type Nav = NativeStackNavigationProp<FeedStackParamList, 'FeedMain'>;
 type IoniconName = React.ComponentProps<typeof Ionicons>['name'];
+
+const PAGE_SIZE = 20;
 
 export interface PostItem {
   id: string;
@@ -68,43 +70,105 @@ export function FeedScreen() {
   const [fabExpanded, setFabExpanded] = useState(true);
   const [posts, setPosts] = useState<PostItem[]>([]);
   const [loading, setLoading] = useState(true);
+  const [loadingMore, setLoadingMore] = useState(false);
+  const [hasMore, setHasMore] = useState(true);
+  const pageRef = useRef(0);
 
-  const fetchPosts = useCallback(async () => {
-    setLoading(true);
+  const mapPost = (p: any): PostItem => ({
+    id: p.id,
+    isNews: p.is_news ?? false,
+    category: POST_TYPE_LABEL[p.post_type] ?? p.post_type ?? '기타',
+    categoryIcon: POST_TYPE_ICON[p.post_type] ?? 'chatbubble-outline',
+    author: p.author?.name ?? '알 수 없음',
+    date: formatDate(p.created_at),
+    views: p.view_count ?? 0,
+    title: p.title ?? '',
+    preview: p.content ?? p.description ?? '',
+    commentCount: p.comment_count ?? 0,
+    likeCount: p.like_count ?? 0,
+  });
+
+  const fetchPosts = useCallback(async (reset = true) => {
+    if (reset) {
+      setLoading(true);
+      pageRef.current = 0;
+    } else {
+      setLoadingMore(true);
+    }
     try {
-      const { data, error } = await supabase
+      const from = pageRef.current * PAGE_SIZE;
+      const to = from + PAGE_SIZE - 1;
+
+      // posts 테이블
+      const { data: postsData, error: postsError } = await supabase
         .from('posts')
         .select('*, author:users(name)')
         .order('created_at', { ascending: false })
-        .limit(50);
+        .range(from, to);
 
-      if (error) throw error;
+      if (postsError) throw postsError;
 
-      const mapped: PostItem[] = (data ?? []).map((p: any) => ({
-        id: p.id,
-        isNews: p.is_news ?? false,
-        category: POST_TYPE_LABEL[p.post_type] ?? p.post_type,
-        categoryIcon: POST_TYPE_ICON[p.post_type] ?? 'chatbubble-outline',
-        author: p.author?.name ?? '알 수 없음',
-        date: formatDate(p.created_at),
-        views: p.view_count ?? 0,
-        title: p.title,
-        preview: p.content,
-        commentCount: p.comment_count ?? 0,
-        likeCount: p.like_count ?? 0,
-      }));
+      // news_feed 테이블 (첫 페이지 리셋 시에만 최신 5개 혼합)
+      let newsFeedItems: PostItem[] = [];
+      if (reset) {
+        const { data: newsData } = await supabase
+          .from('news_feed')
+          .select('id, title, description, published_at, source_name, url')
+          .order('published_at', { ascending: false })
+          .limit(5);
 
-      setPosts(mapped);
+        newsFeedItems = (newsData ?? []).map((n: any) => ({
+          id: 'news_' + n.id,
+          isNews: true,
+          category: '뉴스',
+          categoryIcon: 'newspaper-outline' as IoniconName,
+          author: n.source_name ?? '파킨온 뉴스',
+          date: formatDate(n.published_at ?? new Date().toISOString()),
+          views: 0,
+          title: n.title ?? '',
+          preview: n.description ?? '',
+          commentCount: 0,
+          likeCount: 0,
+        }));
+      }
+
+      const mappedPosts = (postsData ?? []).map(mapPost);
+
+      if (reset) {
+        // 첫 페이지: 게시글과 뉴스 번갈아 배치
+        const interleaved: PostItem[] = [];
+        let ni = 0, pi = 0;
+        while (ni < newsFeedItems.length || pi < mappedPosts.length) {
+          if (pi < mappedPosts.length) interleaved.push(mappedPosts[pi++]);
+          if (ni < newsFeedItems.length) interleaved.push(newsFeedItems[ni++]);
+        }
+        setPosts(interleaved);
+      } else {
+        setPosts(prev => [...prev, ...mappedPosts]);
+      }
+
+      setHasMore((postsData ?? []).length === PAGE_SIZE);
+      pageRef.current += 1;
     } catch (e) {
       console.error('[FeedScreen] fetchPosts 오류:', e);
     } finally {
       setLoading(false);
+      setLoadingMore(false);
     }
   }, []);
 
-  useEffect(() => {
-    fetchPosts();
-  }, [fetchPosts]);
+  // 화면 포커스 시 목록 갱신 (PostWrite 후 복귀 포함)
+  useFocusEffect(
+    useCallback(() => {
+      fetchPosts(true);
+    }, [fetchPosts])
+  );
+
+  const handleLoadMore = useCallback(() => {
+    if (!loadingMore && hasMore && !loading) {
+      fetchPosts(false);
+    }
+  }, [loadingMore, hasMore, loading, fetchPosts]);
 
   const handleScroll = (event: NativeSyntheticEvent<NativeScrollEvent>) => {
     const currentY = event.nativeEvent.contentOffset.y;
@@ -177,8 +241,15 @@ export function FeedScreen() {
             showsVerticalScrollIndicator={false}
             onScroll={handleScroll}
             scrollEventThrottle={16}
-            onRefresh={fetchPosts}
+            onRefresh={() => fetchPosts(true)}
             refreshing={loading}
+            onEndReached={handleLoadMore}
+            onEndReachedThreshold={0.3}
+            ListFooterComponent={
+              loadingMore ? (
+                <ActivityIndicator size="small" color={Colors.primary} style={{ marginVertical: 16 }} />
+              ) : null
+            }
             ListEmptyComponent={
               <Text style={styles.emptyText}>아직 게시글이 없어요.{'\n'}첫 글을 작성해보세요!</Text>
             }
