@@ -17,7 +17,8 @@ import { TopBar } from '../../components/common/TopBar';
 import { PrimaryButton } from '../../components/common/PrimaryButton';
 import { useAuth } from '../../context/AuthContext';
 import { useBodyState } from '../../hooks/useBodyState';
-import { uploadVideo, saveMediaLog } from '../../lib/r2Upload';
+import { saveMediaLog } from '../../lib/r2Upload';
+import { supabase } from '../../lib/supabase';
 
 const { height: SCREEN_HEIGHT } = Dimensions.get('window');
 
@@ -140,41 +141,30 @@ export function VideoRecordScreen() {
         return;
       }
 
-      // R2 업로드 시도 (실패해도 media_logs 저장은 진행)
-      let uploadResult = { url: '', key: '', expires_at: '' };
-      let uploadFailed = false;
-      try {
-        uploadResult = await uploadVideo(selectedVideo.uri, patientId, 'body_state');
-      } catch (uploadErr: any) {
-        uploadFailed = true;
-        console.warn('R2 업로드 실패 (media_logs 저장은 계속):', uploadErr);
-      }
+      // Supabase Storage 업로드
+      const now = new Date();
+      const yearMonth = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`;
+      const uuid = Math.random().toString(36).slice(2);
+      const storagePath = `${patientId}/${yearMonth}/${uuid}.mp4`;
 
-      // media_logs에 저장 (업로드 실패 시 빈 url/key로 저장)
+      const response = await fetch(selectedVideo.uri);
+      const blob = await response.blob();
+
+      const { error: uploadError } = await supabase.storage
+        .from('body-videos')
+        .upload(storagePath, blob, { contentType: 'video/mp4', upsert: false });
+
+      if (uploadError) throw new Error(`영상 업로드 실패: ${uploadError.message}`);
+
+      const { data: publicData } = supabase.storage.from('body-videos').getPublicUrl(storagePath);
+      const videoUrl = publicData.publicUrl;
+
       const expiresAt = new Date(Date.now() + 6 * 30 * 24 * 60 * 60 * 1000).toISOString();
-      await saveMediaLog(
-        patientId,
-        user.id,
-        uploadResult.url,
-        uploadResult.key,
-        uploadResult.expires_at || expiresAt,
-        'video',
-        'body_state'
-      );
+      await saveMediaLog(patientId, user.id, videoUrl, storagePath, expiresAt, 'video', 'body_state');
 
-      if (uploadFailed) {
-        Alert.alert(
-          '저장 완료',
-          '기록은 저장되었어요.\n\n영상 업로드 서버 설정이 필요해요. 관리자에게 문의하세요.',
-          [{ text: '확인', onPress: () => navigation.goBack() }],
-        );
-      } else {
-        Alert.alert(
-          '저장 완료',
-          '영상이 저장되었어요.',
-          [{ text: '확인', onPress: () => navigation.goBack() }],
-        );
-      }
+      Alert.alert('저장 완료', '영상이 저장되었어요.', [
+        { text: '확인', onPress: () => navigation.goBack() },
+      ]);
     } catch (e: any) {
       Alert.alert('오류', e.message ?? '저장 중 문제가 생겼어요. 다시 시도해주세요.');
     } finally {
