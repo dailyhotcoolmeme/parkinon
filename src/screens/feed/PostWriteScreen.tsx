@@ -15,6 +15,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { useNavigation } from '@react-navigation/native';
 import { Ionicons } from '@expo/vector-icons';
 import * as ImagePicker from 'expo-image-picker';
+import * as FileSystem from 'expo-file-system';
 import { Colors } from '../../constants/colors';
 import { TopBar } from '../../components/common/TopBar';
 import { supabase } from '../../lib/supabase';
@@ -102,12 +103,14 @@ export function PostWriteScreen() {
           try {
             // Supabase Storage에 업로드 (R2 인프라 설정 전 대체)
             const fileName = `${user.id}/${post.id}/${idx}_${Date.now()}.jpg`;
-            const response = await fetch(uri);
-            const blob = await response.blob();
+            const base64 = await FileSystem.readAsStringAsync(uri, {
+              encoding: FileSystem.EncodingType.Base64,
+            });
+            const buffer = Uint8Array.from(atob(base64), c => c.charCodeAt(0));
 
             const { error: storageError } = await supabase.storage
               .from('post-images')
-              .upload(fileName, blob, {
+              .upload(fileName, buffer, {
                 contentType: 'image/jpeg',
                 upsert: false,
               });

@@ -19,6 +19,7 @@ import { useAuth } from '../../context/AuthContext';
 import { useBodyState } from '../../hooks/useBodyState';
 import { saveMediaLog } from '../../lib/r2Upload';
 import { supabase } from '../../lib/supabase';
+import * as FileSystem from 'expo-file-system';
 
 const { height: SCREEN_HEIGHT } = Dimensions.get('window');
 
@@ -147,12 +148,14 @@ export function VideoRecordScreen() {
       const uuid = Math.random().toString(36).slice(2);
       const storagePath = `${patientId}/${yearMonth}/${uuid}.mp4`;
 
-      const response = await fetch(selectedVideo.uri);
-      const blob = await response.blob();
+      const base64 = await FileSystem.readAsStringAsync(selectedVideo.uri, {
+        encoding: FileSystem.EncodingType.Base64,
+      });
+      const buffer = Uint8Array.from(atob(base64), c => c.charCodeAt(0));
 
       const { error: uploadError } = await supabase.storage
         .from('body-videos')
-        .upload(storagePath, blob, { contentType: 'video/mp4', upsert: false });
+        .upload(storagePath, buffer, { contentType: 'video/mp4', upsert: false });
 
       if (uploadError) throw new Error(`영상 업로드 실패: ${uploadError.message}`);
 
