@@ -189,14 +189,14 @@ export function useRecordDetailData(type: ItemKey, period: Period): UseRecordDet
   const getPatientId = useCallback(async (): Promise<string | null> => {
     if (!user) return null;
     if (user.role === 'patient') return user.id;
-    if (!user.patient_group_id) return null;
+    if (!user.patient_group_id) return user.id;
     const { data } = await supabase
       .from('patient_group_members')
       .select('user_id, role')
       .eq('group_id', user.patient_group_id)
       .eq('role', 'patient')
       .single();
-    return data?.user_id ?? null;
+    return data?.user_id ?? user.id;
   }, [user]);
 
   const fetchData = useCallback(async () => {

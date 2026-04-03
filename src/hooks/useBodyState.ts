@@ -45,7 +45,8 @@ export function useBodyState(): UseBodyStateReturn {
     if (!user) return null;
     if (user.role === 'patient') return user.id;
 
-    if (!user.patient_group_id) return null;
+    // 가족 미연동 보호자: 본인 id fallback
+    if (!user.patient_group_id) return user.id;
 
     const { data } = await supabase
       .from('patient_group_members')
@@ -54,7 +55,7 @@ export function useBodyState(): UseBodyStateReturn {
       .eq('role', 'patient')
       .single();
 
-    return data?.user_id ?? null;
+    return data?.user_id ?? user.id;
   }, [user]);
 
   // 오늘 기록 조회

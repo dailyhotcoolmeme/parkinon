@@ -34,7 +34,7 @@ export function useExercise(): UseExerciseReturn {
     if (!user) return null;
     if (user.role === 'patient') return user.id;
 
-    if (!user.patient_group_id) return null;
+    if (!user.patient_group_id) return user.id;
 
     const { data } = await supabase
       .from('patient_group_members')
@@ -43,7 +43,7 @@ export function useExercise(): UseExerciseReturn {
       .eq('role', 'patient')
       .single();
 
-    return data?.user_id ?? null;
+    return data?.user_id ?? user.id;
   }, [user]);
 
   // 오늘 운동 기록 조회
