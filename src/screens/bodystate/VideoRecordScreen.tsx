@@ -1,21 +1,25 @@
-import React, { useState } from 'react';
+import React, { useState, useRef } from 'react';
 import {
   View,
   Text,
   TouchableOpacity,
   StyleSheet,
   Alert,
+  Dimensions,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import * as ImagePicker from 'expo-image-picker';
 import { useNavigation } from '@react-navigation/native';
 import { Ionicons } from '@expo/vector-icons';
+import { Video, ResizeMode } from 'expo-av';
 import { Colors } from '../../constants/colors';
 import { TopBar } from '../../components/common/TopBar';
 import { PrimaryButton } from '../../components/common/PrimaryButton';
 import { useAuth } from '../../context/AuthContext';
 import { useBodyState } from '../../hooks/useBodyState';
 import { uploadVideo, saveMediaLog } from '../../lib/r2Upload';
+
+const { height: SCREEN_HEIGHT } = Dimensions.get('window');
 
 const MAX_DURATION_SEC = 120; // 2분
 
@@ -32,6 +36,8 @@ export function VideoRecordScreen() {
   const { getPatientId } = useBodyState();
   const [selectedVideo, setSelectedVideo] = useState<SelectedVideo | null>(null);
   const [loading, setLoading] = useState(false);
+  const [isPlaying, setIsPlaying] = useState(false);
+  const videoRef = useRef<Video>(null);
 
   const handlePickFromGallery = async () => {
     try {
@@ -112,6 +118,17 @@ export function VideoRecordScreen() {
     }
   };
 
+  const handleTogglePlay = async () => {
+    if (!videoRef.current) return;
+    if (isPlaying) {
+      await videoRef.current.pauseAsync();
+      setIsPlaying(false);
+    } else {
+      await videoRef.current.playAsync();
+      setIsPlaying(true);
+    }
+  };
+
   const handleSave = async () => {
     if (!selectedVideo || !user) return;
     setLoading(true);
@@ -122,13 +139,42 @@ export function VideoRecordScreen() {
         Alert.alert('오류', '연동된 환자 정보를 찾을 수 없어요.');
         return;
       }
-      const result = await uploadVideo(selectedVideo.uri, patientId, 'body_state');
-      await saveMediaLog(patientId, user.id, result.url, result.key, result.expires_at, 'video', 'body_state');
-      Alert.alert(
-        '저장 완료',
-        '영상이 저장되었어요.',
-        [{ text: '확인', onPress: () => navigation.goBack() }],
+
+      // R2 업로드 시도 (실패해도 media_logs 저장은 진행)
+      let uploadResult = { url: '', key: '', expires_at: '' };
+      let uploadFailed = false;
+      try {
+        uploadResult = await uploadVideo(selectedVideo.uri, patientId, 'body_state');
+      } catch (uploadErr: any) {
+        uploadFailed = true;
+        console.warn('R2 업로드 실패 (media_logs 저장은 계속):', uploadErr);
+      }
+
+      // media_logs에 저장 (업로드 실패 시 빈 url/key로 저장)
+      const expiresAt = new Date(Date.now() + 6 * 30 * 24 * 60 * 60 * 1000).toISOString();
+      await saveMediaLog(
+        patientId,
+        user.id,
+        uploadResult.url,
+        uploadResult.key,
+        uploadResult.expires_at || expiresAt,
+        'video',
+        'body_state'
       );
+
+      if (uploadFailed) {
+        Alert.alert(
+          '저장 완료',
+          '기록은 저장되었어요.\n\n영상 업로드 서버 설정이 필요해요. 관리자에게 문의하세요.',
+          [{ text: '확인', onPress: () => navigation.goBack() }],
+        );
+      } else {
+        Alert.alert(
+          '저장 완료',
+          '영상이 저장되었어요.',
+          [{ text: '확인', onPress: () => navigation.goBack() }],
+        );
+      }
     } catch (e: any) {
       Alert.alert('오류', e.message ?? '저장 중 문제가 생겼어요. 다시 시도해주세요.');
     } finally {
@@ -151,27 +197,69 @@ export function VideoRecordScreen() {
         {selectedVideo ? (
           <View style={styles.previewArea}>
             <View style={styles.videoPreview}>
-              <Ionicons name="film-outline" size={64} color={Colors.primary} />
-              <Text style={styles.videoSelectedText}>영상이 선택되었어요</Text>
+              <Video
+                ref={videoRef}
+                source={{ uri: selectedVideo.uri }}
+                style={styles.videoPlayer}
+                resizeMode={ResizeMode.CONTAIN}
+                shouldPlay={false}
+                isLooping={false}
+                onPlaybackStatusUpdate={(status) => {
+                  if (status.isLoaded) {
+                    setIsPlaying(status.isPlaying);
+                  }
+                }}
+              />
+              <TouchableOpacity
+                style={styles.playBtn}
+                onPress={handleTogglePlay}
+                activeOpacity={0.8}
+              >
+                <Ionicons
+                  name={isPlaying ? 'pause-circle' : 'play-circle'}
+                  size={56}
+                  color="rgba(255,255,255,0.9)"
+                />
+              </TouchableOpacity>
               {selectedVideo.duration !== undefined && selectedVideo.duration > 0 && (
-                <Text style={styles.videoDuration}>
-                  길이: {formatDuration(selectedVideo.duration)}
-                </Text>
+                <View style={styles.durationBadge}>
+                  <Text style={styles.durationBadgeText}>
+                    {formatDuration(selectedVideo.duration)}
+                  </Text>
+                </View>
               )}
             </View>
             <TouchableOpacity
               style={styles.reSelectBtn}
-              onPress={() => setSelectedVideo(null)}
+              onPress={() => {
+                setSelectedVideo(null);
+                setIsPlaying(false);
+              }}
             >
               <Text style={styles.reSelectText}>다시 선택하기</Text>
             </TouchableOpacity>
           </View>
         ) : (
-          <View style={styles.emptyArea}>
+          <TouchableOpacity
+            style={styles.emptyArea}
+            onPress={() => {
+              Alert.alert(
+                '영상 선택',
+                '영상을 어떻게 준비할까요?',
+                [
+                  { text: '지금 촬영하기', onPress: handleRecordVideo },
+                  { text: '갤러리에서 선택', onPress: handlePickFromGallery },
+                  { text: '취소', style: 'cancel' },
+                ],
+              );
+            }}
+            activeOpacity={0.7}
+          >
             <Ionicons name="videocam-outline" size={64} color={Colors.textHint} />
             <Text style={styles.emptyTitle}>영상을 선택해주세요</Text>
-            <Text style={styles.emptyDesc}>최대 2분까지 기록할 수 있어요</Text>
-          </View>
+            <Text style={styles.emptyDesc}>여기를 탭하면 선택할 수 있어요</Text>
+            <Text style={styles.emptyDescSub}>최대 2분까지 기록할 수 있어요</Text>
+          </TouchableOpacity>
         )}
 
         {/* 버튼 영역 */}
@@ -234,7 +322,7 @@ const styles = StyleSheet.create({
 
   // 미리보기 없을 때
   emptyArea: {
-    flex: 1,
+    height: SCREEN_HEIGHT * 0.4,
     alignItems: 'center',
     justifyContent: 'center',
     backgroundColor: Colors.white,
@@ -243,7 +331,7 @@ const styles = StyleSheet.create({
     borderWidth: 2,
     borderColor: Colors.border,
     borderStyle: 'dashed',
-    gap: 16,
+    gap: 14,
   },
   emptyTitle: {
     fontSize: 20,
@@ -251,33 +339,47 @@ const styles = StyleSheet.create({
     color: Colors.text,
   },
   emptyDesc: {
-    fontSize: 15,
+    fontSize: 16,
     color: Colors.textSub,
+  },
+  emptyDescSub: {
+    fontSize: 14,
+    color: Colors.textHint,
   },
 
   // 미리보기 있을 때
   previewArea: {
-    flex: 1,
     marginBottom: 24,
   },
   videoPreview: {
-    flex: 1,
-    backgroundColor: Colors.white,
+    height: SCREEN_HEIGHT * 0.4,
+    backgroundColor: '#000',
     borderRadius: 20,
+    overflow: 'hidden',
     alignItems: 'center',
     justifyContent: 'center',
-    borderWidth: 2,
-    borderColor: Colors.primary,
-    gap: 12,
   },
-  videoSelectedText: {
-    fontSize: 18,
-    fontWeight: '700',
-    color: Colors.text,
+  videoPlayer: {
+    width: '100%',
+    height: '100%',
   },
-  videoDuration: {
-    fontSize: 15,
-    color: Colors.textSub,
+  playBtn: {
+    position: 'absolute',
+    alignSelf: 'center',
+  },
+  durationBadge: {
+    position: 'absolute',
+    bottom: 12,
+    right: 12,
+    backgroundColor: 'rgba(0,0,0,0.6)',
+    borderRadius: 8,
+    paddingHorizontal: 10,
+    paddingVertical: 4,
+  },
+  durationBadgeText: {
+    color: '#fff',
+    fontSize: 14,
+    fontWeight: '600',
   },
   reSelectBtn: {
     marginTop: 12,
