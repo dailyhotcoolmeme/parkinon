@@ -22,15 +22,32 @@ export function LoginScreen() {
   const { user, loading, signInWithKakao, devSignIn } = useAuth();
   const [signing, setSigning] = useState(false);
   const kakaoStarted = useRef(false);
+  const signingTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   // 앱이 포그라운드로 돌아올 때 카카오 인증 대기 중이면 로딩 유지
+  // 단, 포그라운드 복귀 후 60초 내에 로그인이 완료되지 않으면 자동 해제
   useEffect(() => {
     const sub = AppState.addEventListener('change', (state) => {
       if (state === 'active' && kakaoStarted.current) {
         setSigning(true);
+        // 60초 타임아웃: 카카오 취소 또는 실패 시 버튼 자동 복구
+        if (signingTimeoutRef.current) clearTimeout(signingTimeoutRef.current);
+        signingTimeoutRef.current = setTimeout(() => {
+          kakaoStarted.current = false;
+          setSigning(false);
+        }, 60000);
+      } else if (state === 'background') {
+        // 백그라운드로 가면 타임아웃 취소 (아직 카카오 브라우저 중)
+        if (signingTimeoutRef.current) {
+          clearTimeout(signingTimeoutRef.current);
+          signingTimeoutRef.current = null;
+        }
       }
     });
-    return () => sub.remove();
+    return () => {
+      sub.remove();
+      if (signingTimeoutRef.current) clearTimeout(signingTimeoutRef.current);
+    };
   }, []);
 
   // 로그인 성공 시 다음 화면으로 이동 (onboarding_done이 true이면 RootNavigator가 Main으로 자동 전환)
@@ -38,6 +55,10 @@ export function LoginScreen() {
     if (user && !loading) {
       kakaoStarted.current = false;
       setSigning(false);
+      if (signingTimeoutRef.current) {
+        clearTimeout(signingTimeoutRef.current);
+        signingTimeoutRef.current = null;
+      }
       if (!user.onboarding_done) {
         navigation.replace('RoleSelect');
       }

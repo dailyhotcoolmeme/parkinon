@@ -18,6 +18,7 @@ import type { OnboardingStackParamList } from '../../navigation/OnboardingNaviga
 import { Colors } from '../../constants/colors';
 import { PrimaryButton } from '../../components/common/PrimaryButton';
 import { useAuth } from '../../context/AuthContext';
+import { supabase } from '../../lib/supabase';
 
 type Nav = StackNavigationProp<OnboardingStackParamList, 'FamilyCheck'>;
 
@@ -65,10 +66,41 @@ export function FamilyCheckScreen() {
       return;
     }
     setLoading(true);
-    // TODO: Supabase 코드 검증 연동 예정
-    await AsyncStorage.setItem('onboarding_invite_code', fullCode);
-    setLoading(false);
-    await goToNextScreen();
+    try {
+      // Supabase patient_groups 테이블에서 초대 코드 검증
+      const now = new Date().toISOString();
+      const { data: groups, error } = await supabase
+        .from('patient_groups')
+        .select('id, invite_code_expires_at')
+        .eq('invite_code', fullCode)
+        .limit(1);
+
+      if (error) {
+        // DB 오류 시 경고 후 계속 진행 (코드만 저장)
+        console.warn('[FamilyCheck] 코드 검증 오류 (계속 진행):', error.message);
+      } else if (!groups || groups.length === 0) {
+        Alert.alert('코드 오류', '올바른 초대 코드가 아니에요. 다시 확인해주세요.');
+        setLoading(false);
+        return;
+      } else {
+        const group = groups[0];
+        // 만료 여부 확인
+        if (group.invite_code_expires_at && group.invite_code_expires_at < now) {
+          Alert.alert('코드 만료', '초대 코드가 만료됐어요. 가족에게 새 코드를 요청해주세요.');
+          setLoading(false);
+          return;
+        }
+        // 그룹 ID 저장 (온보딩 완료 시 DB 연결에 사용)
+        await AsyncStorage.setItem('onboarding_group_id', group.id);
+      }
+
+      await AsyncStorage.setItem('onboarding_invite_code', fullCode);
+      await goToNextScreen();
+    } catch (e: any) {
+      Alert.alert('오류', '코드 확인 중 문제가 생겼어요.\n' + (e?.message ?? ''));
+    } finally {
+      setLoading(false);
+    }
   };
 
   const handleClose = async () => {

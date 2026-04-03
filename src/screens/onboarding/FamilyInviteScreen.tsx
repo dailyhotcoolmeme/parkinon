@@ -78,6 +78,7 @@ export function FamilyInviteScreen() {
         notificationsJson,
         caregiverRelation,
         caregiverLiving,
+        joinGroupId,
       ] = await AsyncStorage.multiGet([
         'onboarding_name',
         'onboarding_role',
@@ -88,6 +89,7 @@ export function FamilyInviteScreen() {
         'onboarding_notifications',
         'onboarding_relation',
         'onboarding_living',
+        'onboarding_group_id',
       ]).then((pairs) => pairs.map(([, v]) => v));
 
       // 세션에서 userId 획득
@@ -113,14 +115,31 @@ export function FamilyInviteScreen() {
         if (caregiverRelation) userUpdateData.caregiver_relation = caregiverRelation;
         if (caregiverLiving) userUpdateData.residence_type = caregiverLiving;
       }
+      // 초대 코드로 가입한 경우 → patient_group_id 연결
+      if (joinGroupId) {
+        userUpdateData.patient_group_id = joinGroupId;
+      }
       const { error: updateError } = await supabase
         .from('users')
         .update(userUpdateData)
         .eq('id', userId);
       if (updateError) throw updateError;
 
-      // medications 저장
-      if (medicationsJson) {
+      // 초대 코드로 가입한 경우 → patient_group_members에도 추가
+      if (joinGroupId && role) {
+        const { error: memberError } = await supabase
+          .from('patient_group_members')
+          .upsert(
+            { group_id: joinGroupId, user_id: userId, role: role as 'patient' | 'caregiver' },
+            { onConflict: 'group_id,user_id' }
+          );
+        if (memberError) {
+          console.warn('[FamilyInviteScreen] patient_group_members 추가 오류 (계속 진행):', memberError.message);
+        }
+      }
+
+      // medications 저장 (환자 본인만 저장 — 보호자는 환자 연결 후 별도 등록)
+      if (medicationsJson && role === 'patient') {
         const meds: Array<{
           name: string;
           times: string[];
@@ -128,7 +147,7 @@ export function FamilyInviteScreen() {
         }> = JSON.parse(medicationsJson);
 
         if (meds.length > 0) {
-          await supabase.from('medications').insert(
+          const { error: medError } = await supabase.from('medications').insert(
             meds.map((med) => ({
               patient_id: userId,
               name: med.name,
@@ -140,6 +159,7 @@ export function FamilyInviteScreen() {
               is_active: true,
             }))
           );
+          if (medError) throw medError;
         }
       }
 
@@ -159,6 +179,7 @@ export function FamilyInviteScreen() {
         'onboarding_relation',
         'onboarding_living',
         'onboarding_invite_code',
+        'onboarding_group_id',
       ]);
     } catch (e: any) {
       console.error('[FamilyInviteScreen] handleFinish 오류:', e);

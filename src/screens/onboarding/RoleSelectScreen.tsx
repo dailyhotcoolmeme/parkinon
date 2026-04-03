@@ -4,6 +4,7 @@ import {
   Text,
   StyleSheet,
   TouchableOpacity,
+  Alert,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import AsyncStorage from '@react-native-async-storage/async-storage';
@@ -13,8 +14,10 @@ import type { OnboardingStackParamList } from '../../navigation/OnboardingNaviga
 import { Colors } from '../../constants/colors';
 import { PrimaryButton } from '../../components/common/PrimaryButton';
 import { useAuth } from '../../context/AuthContext';
+import { supabase } from '../../lib/supabase';
 
 type Nav = StackNavigationProp<OnboardingStackParamList, 'RoleSelect'>;
+type RoleKey = 'patient' | 'caregiver';
 
 const ROLES = [
   {
@@ -31,17 +34,37 @@ const ROLES = [
   },
 ] as const;
 
-type RoleKey = typeof ROLES[number]['key'];
-
 export function RoleSelectScreen() {
   const navigation = useNavigation<Nav>();
   const { signOut } = useAuth();
   const [selectedRole, setSelectedRole] = useState<RoleKey | null>(null);
+  const [loading, setLoading] = useState(false);
 
   const handleConfirm = async () => {
     if (!selectedRole) return;
-    await AsyncStorage.setItem('onboarding_role', selectedRole);
-    navigation.navigate('FamilyCheck');
+    setLoading(true);
+    try {
+      await AsyncStorage.setItem('onboarding_role', selectedRole);
+
+      // 세션이 있으면 DB에도 role 중간 저장
+      const { data: sessionData } = await supabase.auth.getSession();
+      const userId = sessionData?.session?.user?.id;
+      if (userId) {
+        const { error } = await supabase
+          .from('users')
+          .update({ role: selectedRole })
+          .eq('id', userId);
+        if (error) {
+          console.warn('[RoleSelect] role DB 저장 실패 (계속 진행):', error.message);
+        }
+      }
+
+      navigation.navigate('FamilyCheck');
+    } catch (e: any) {
+      Alert.alert('오류', '역할 저장 중 문제가 생겼어요. 다시 시도해주세요.\n' + (e?.message ?? ''));
+    } finally {
+      setLoading(false);
+    }
   };
 
   const handleClose = async () => {
@@ -102,6 +125,7 @@ export function RoleSelectScreen() {
           title="다음으로"
           onPress={handleConfirm}
           disabled={!selectedRole}
+          loading={loading}
         />
         <TouchableOpacity style={styles.closeBtn} onPress={handleClose} activeOpacity={0.7}>
           <Text style={styles.closeBtnText}>닫기</Text>
