@@ -18,7 +18,7 @@ export interface UseExerciseReturn {
   loading: boolean;
   error: string | null;
   saveExercise: (exerciseType: string, durationMinutes: number) => Promise<boolean>;
-  getExerciseLogs: (date: string) => Promise<ExerciseLogRow[]>;
+  getExerciseLogs: (date: string) => Promise<{ logs: ExerciseLogRow[]; error: string | null }>;
   getTodayTotalMinutes: () => number;
   refresh: () => Promise<void>;
 }
@@ -132,12 +132,12 @@ export function useExercise(): UseExerciseReturn {
   }, [user, getPatientId, fetchTodayLogs]);
 
   // 날짜별 기록 조회
-  const getExerciseLogs = useCallback(async (date: string): Promise<ExerciseLogRow[]> => {
-    if (!user) return [];
+  const getExerciseLogs = useCallback(async (date: string): Promise<{ logs: ExerciseLogRow[]; error: string | null }> => {
+    if (!user) return { logs: [], error: null };
 
     try {
       const patientId = await getPatientId();
-      if (!patientId) return [];
+      if (!patientId) return { logs: [], error: null };
 
       const { data, error: queryError } = await supabase
         .from('exercise_logs')
@@ -148,10 +148,11 @@ export function useExercise(): UseExerciseReturn {
         .order('logged_at', { ascending: true });
 
       if (queryError) throw queryError;
-      return data ?? [];
+      return { logs: data ?? [], error: null };
     } catch (err: any) {
       console.error('[useExercise] getExerciseLogs 오류:', err);
-      return [];
+      const msg = err.message ?? '운동 기록을 불러오지 못했어요.';
+      return { logs: [], error: msg };
     }
   }, [user, getPatientId]);
 

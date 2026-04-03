@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useCallback } from 'react';
 import {
   View,
   Text,
@@ -6,6 +6,8 @@ import {
   TouchableOpacity,
   StyleSheet,
   Dimensions,
+  ActivityIndicator,
+  Alert,
 } from 'react-native';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useNavigation } from '@react-navigation/native';
@@ -65,20 +67,52 @@ function getDateLabel(date: Date): string {
 export function ExerciseScreen() {
   const navigation = useNavigation<Nav>();
   const rootNavigation = useNavigation<StackNavigationProp<RootStackParamList>>();
-  const { todayLogs, getTodayTotalMinutes, refresh } = useExercise();
+  const { todayLogs, getTodayTotalMinutes, getExerciseLogs, loading, error, refresh } = useExercise();
   const insets = useSafeAreaInsets();
   const [selectedDate, setSelectedDate] = useState(new Date());
   const [showDatePicker, setShowDatePicker] = useState(false);
+  const [dateLogs, setDateLogs] = useState(todayLogs);
+  const [dateLoading, setDateLoading] = useState(false);
+
+  const isToday = (date: Date) => {
+    const today = new Date();
+    return date.toISOString().split('T')[0] === today.toISOString().split('T')[0];
+  };
+
+  // 날짜 선택 시 해당 날짜 기록 조회
+  const loadLogsForDate = useCallback(async (date: Date) => {
+    if (isToday(date)) {
+      await refresh();
+      return;
+    }
+    setDateLoading(true);
+    const dateStr = date.toISOString().split('T')[0];
+    const { logs, error: fetchError } = await getExerciseLogs(dateStr);
+    if (fetchError) {
+      Alert.alert('불러오기 실패', fetchError);
+    }
+    setDateLogs(logs);
+    setDateLoading(false);
+  }, [refresh, getExerciseLogs]);
 
   // 화면 복귀 시마다 운동 기록 재조회 (저장 후 리스트 갱신)
   useFocusEffect(
     React.useCallback(() => {
-      refresh();
-    }, [refresh])
+      loadLogsForDate(selectedDate);
+    }, [loadLogsForDate, selectedDate])
   );
 
-  const displayLogs = todayLogs;
-  const totalMinutes = getTodayTotalMinutes();
+  // error 발생 시 Alert
+  React.useEffect(() => {
+    if (error) {
+      Alert.alert('불러오기 실패', error);
+    }
+  }, [error]);
+
+  // 표시할 기록: 오늘이면 훅의 todayLogs, 다른 날이면 dateLogs
+  const displayLogs = isToday(selectedDate) ? todayLogs : dateLogs;
+  const totalMinutes = displayLogs.reduce((sum, log) => sum + log.duration_minutes, 0);
+  const isLoading = loading || dateLoading;
 
   return (
     <SafeAreaView style={styles.safe} edges={['top']}>
@@ -122,35 +156,52 @@ export function ExerciseScreen() {
           </TouchableOpacity>
         </View>
 
-        {/* 오늘 운동 기록 */}
+        {/* 운동 기록 */}
         <View style={styles.records}>
           <View style={styles.sectionHeader}>
             <View style={styles.dividerLine} />
-            <Text style={styles.sectionTitle}>오늘 운동 기록 · 총 {totalMinutes}분</Text>
+            <Text style={styles.sectionTitle}>
+              {isToday(selectedDate) ? '오늘' : getDateLabel(selectedDate).split(' ').slice(0, 2).join(' ')} 운동 기록 · 총 {totalMinutes}분
+            </Text>
             <View style={styles.dividerLine} />
           </View>
 
-          {displayLogs.map((record) => (
-            <View key={record.id} style={styles.recordCard}>
-              <View style={styles.recordIconWrap}>
-                <ExerciseTypeIcon type={record.exercise_type} size={30} color={Colors.primary} />
-              </View>
-              <View style={styles.recordInfo}>
-                <Text style={styles.recordLabel}>
-                  {record.exercise_type}  {record.duration_minutes}분
-                </Text>
-                <Text style={styles.recordTime}>
-                  {new Date(record.logged_at).toLocaleTimeString('ko-KR', { hour: '2-digit', minute: '2-digit' })}
-                </Text>
-              </View>
+          {isLoading ? (
+            <View style={styles.emptyWrap}>
+              <ActivityIndicator size="large" color={Colors.primary} />
             </View>
-          ))}
+          ) : displayLogs.length === 0 ? (
+            <View style={styles.emptyWrap}>
+              <Ionicons name="fitness-outline" size={48} color={Colors.border} />
+              <Text style={styles.emptyText}>운동 기록이 없어요</Text>
+              <Text style={styles.emptySubText}>위 버튼을 눌러 운동을 기록해 보세요!</Text>
+            </View>
+          ) : (
+            displayLogs.map((record) => (
+              <View key={record.id} style={styles.recordCard}>
+                <View style={styles.recordIconWrap}>
+                  <ExerciseTypeIcon type={record.exercise_type} size={30} color={Colors.primary} />
+                </View>
+                <View style={styles.recordInfo}>
+                  <Text style={styles.recordLabel}>
+                    {record.exercise_type}  {record.duration_minutes}분
+                  </Text>
+                  <Text style={styles.recordTime}>
+                    {new Date(record.logged_at).toLocaleTimeString('ko-KR', { hour: '2-digit', minute: '2-digit' })}
+                  </Text>
+                </View>
+              </View>
+            ))
+          )}
         </View>
       </ScrollView>
       <DatePickerModal
         visible={showDatePicker}
         selectedDate={selectedDate}
-        onSelect={setSelectedDate}
+        onSelect={(date) => {
+          setSelectedDate(date);
+          loadLogsForDate(date);
+        }}
         onClose={() => setShowDatePicker(false)}
       />
     </SafeAreaView>
@@ -237,4 +288,12 @@ const styles = StyleSheet.create({
   recordInfo: { flex: 1 },
   recordLabel: { fontSize: 20, fontWeight: '600', color: Colors.text },
   recordTime: { fontSize: 17, color: Colors.textSub, marginTop: 4 },
+
+  emptyWrap: {
+    alignItems: 'center',
+    paddingVertical: 40,
+    gap: 12,
+  },
+  emptyText: { fontSize: 20, fontWeight: '700', color: Colors.textSub },
+  emptySubText: { fontSize: 17, color: Colors.textHint, textAlign: 'center', lineHeight: 26 },
 });

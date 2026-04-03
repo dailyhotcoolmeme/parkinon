@@ -111,7 +111,7 @@ export function ExerciseVideoScreen() {
             <View style={styles.thumbnail}>
               <VideoThumbnailIcon item={item} />
               <View style={styles.playOverlay}>
-                <Ionicons name="play" size={10} color={Colors.white} />
+                <Ionicons name="play" size={14} color={Colors.white} />
               </View>
             </View>
             <View style={styles.videoInfo}>
