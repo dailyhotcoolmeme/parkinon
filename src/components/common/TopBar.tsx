@@ -3,23 +3,31 @@ import { View, Text, TouchableOpacity, StyleSheet } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { useNavigation } from '@react-navigation/native';
 import { Colors } from '../../constants/colors';
+import { navigateTo } from '../../navigation/navigationRef';
 
 interface Props {
   title: string;
   showBack?: boolean;
   showClose?: boolean;
-  showMenu?: boolean;
+  showParkinon?: boolean;
   rightIcon?: React.ReactNode;
-  onMenuPress?: () => void;
 }
 
-export function TopBar({ title, showBack, showClose, showMenu, rightIcon, onMenuPress }: Props) {
+export function TopBar({ title, showBack, showClose, showParkinon, rightIcon }: Props) {
   const navigation = useNavigation();
 
   return (
     <View style={styles.container}>
       <View style={styles.inner}>
         <View style={styles.left}>
+          {showParkinon && (
+            <TouchableOpacity
+              onPress={() => navigateTo('Medication')}
+              hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+            >
+              <Text style={styles.parkinonText}>파킨온</Text>
+            </TouchableOpacity>
+          )}
           {showBack && (
             <TouchableOpacity
               onPress={() => navigation.goBack()}
@@ -37,11 +45,6 @@ export function TopBar({ title, showBack, showClose, showMenu, rightIcon, onMenu
               hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
             >
               <Ionicons name="close" size={28} color={Colors.textSub} />
-            </TouchableOpacity>
-          )}
-          {showMenu && (
-            <TouchableOpacity onPress={onMenuPress} style={styles.iconBtn}>
-              <Text style={styles.iconText}>≡</Text>
             </TouchableOpacity>
           )}
         </View>
@@ -69,8 +72,11 @@ const styles = StyleSheet.create({
   left: { width: 76, alignItems: 'flex-start' },
   right: { width: 76, alignItems: 'flex-end' },
   title: { flex: 1, fontSize: 20, fontWeight: '700', color: Colors.text, textAlign: 'center' },
-  iconBtn: { padding: 8 },
-  iconText: { fontSize: 30, color: Colors.text },
+  parkinonText: {
+    fontSize: 20,
+    fontWeight: '800',
+    color: '#FF6B35',
+  },
   backBtn: {
     flexDirection: 'row',
     alignItems: 'center',

@@ -117,8 +117,7 @@ export function BodyStateScreen() {
     <SafeAreaView style={styles.safeArea} edges={['top']}>
       <TopBar
         title="파킨온"
-        showMenu
-        onMenuPress={() => navigation.navigate('Menu')}
+        showParkinon
       />
 
       {/* 날짜 헤더 */}

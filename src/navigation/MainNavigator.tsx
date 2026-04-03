@@ -10,12 +10,14 @@ import { BodyStateScreen } from '../screens/bodystate/BodyStateScreen';
 import { VideoRecordScreen } from '../screens/bodystate/VideoRecordScreen';
 import { ExerciseNavigator } from './ExerciseNavigator';
 import { FeedNavigator } from './FeedNavigator';
+import { MenuNavigator } from './MenuNavigator';
 
 export type MainTabParamList = {
   Medication: undefined;
   BodyStateTab: undefined;
   Exercise: undefined;
   Feed: undefined;
+  MyInfo: undefined;
 };
 
 export type BodyStateStackParamList = {
@@ -42,6 +44,7 @@ const TAB_ITEMS: { name: keyof MainTabParamList; icon: IoniconName; iconFocused:
   { name: 'BodyStateTab', icon: 'happy-outline',     iconFocused: 'happy',     label: '몸상태',   emoji: '😊' },
   { name: 'Exercise',     icon: 'fitness-outline',   iconFocused: 'fitness',   label: '운동',     emoji: '🏃' },
   { name: 'Feed',         icon: 'newspaper-outline', iconFocused: 'newspaper', label: '정보·나눔', emoji: '📰' },
+  { name: 'MyInfo',       icon: 'person-outline',    iconFocused: 'person',    label: '내 정보',  emoji: '👤' },
 ];
 
 export function MainNavigator() {
@@ -92,6 +95,7 @@ export function MainNavigator() {
       <Tab.Screen name="BodyStateTab" component={BodyStateNavigator} />
       <Tab.Screen name="Exercise" component={ExerciseNavigator} />
       <Tab.Screen name="Feed" component={FeedNavigator} />
+      <Tab.Screen name="MyInfo" component={MenuNavigator} />
     </Tab.Navigator>
   );
 }
@@ -108,7 +112,7 @@ const styles = StyleSheet.create({
     backgroundColor: Colors.light,
   },
   tabLabel: {
-    fontSize: 13,
+    fontSize: 10,
     marginTop: 2,
     fontWeight: '600',
   },

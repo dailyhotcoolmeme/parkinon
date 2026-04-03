@@ -13,13 +13,11 @@ import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context'
 import { useNavigation } from '@react-navigation/native';
 import { useFocusEffect } from '@react-navigation/native';
 import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
-import type { StackNavigationProp } from '@react-navigation/stack';
 import { Ionicons } from '@expo/vector-icons';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { Colors } from '../../constants/colors';
 import { TopBar } from '../../components/common/TopBar';
 import type { ExerciseStackParamList } from '../../navigation/ExerciseNavigator';
-import type { RootStackParamList } from '../../navigation/RootNavigator';
 import { useExercise } from '../../hooks/useExercise';
 import { DatePickerModal } from '../../components/common/DatePickerModal';
 
@@ -66,8 +64,7 @@ function getDateLabel(date: Date): string {
 
 export function ExerciseScreen() {
   const navigation = useNavigation<Nav>();
-  const rootNavigation = useNavigation<StackNavigationProp<RootStackParamList>>();
-  const { todayLogs, getTodayTotalMinutes, getExerciseLogs, loading, error, refresh } = useExercise();
+const { todayLogs, getTodayTotalMinutes, getExerciseLogs, loading, error, refresh } = useExercise();
   const insets = useSafeAreaInsets();
   const [selectedDate, setSelectedDate] = useState(new Date());
   const [showDatePicker, setShowDatePicker] = useState(false);
@@ -118,8 +115,7 @@ export function ExerciseScreen() {
     <SafeAreaView style={styles.safe} edges={['top']}>
       <TopBar
         title="파킨온"
-        showMenu
-        onMenuPress={() => rootNavigation.navigate('Menu')}
+        showParkinon
       />
 
       {/* 날짜 헤더 */}

@@ -149,7 +149,7 @@ export function MenuScreen() {
 
   return (
     <SafeAreaView style={styles.safeArea} edges={['top']}>
-      <TopBar title="메뉴" showClose />
+      <TopBar title="내 정보" />
 
       <ScrollView
         style={styles.scroll}

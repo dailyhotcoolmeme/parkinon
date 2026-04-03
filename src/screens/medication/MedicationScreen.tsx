@@ -9,15 +9,13 @@ import {
   Alert,
 } from 'react-native';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
-import { useNavigation, useFocusEffect } from '@react-navigation/native';
-import type { StackNavigationProp } from '@react-navigation/stack';
+import { useFocusEffect } from '@react-navigation/native';
 import { Ionicons } from '@expo/vector-icons';
 import { Colors } from '../../constants/colors';
 import { TopBar } from '../../components/common/TopBar';
 import { MealTimeModal } from './MealTimeModal';
 import { BodyStatePopupModal } from '../../components/common/BodyStatePopupModal';
 import { CaregiverConfirmModal } from '../../components/common/CaregiverConfirmModal';
-import type { RootStackParamList } from '../../navigation/RootNavigator';
 import { useMedication } from '../../hooks/useMedication';
 import { useAuth } from '../../context/AuthContext';
 import { DatePickerModal } from '../../components/common/DatePickerModal';
@@ -68,7 +66,6 @@ function toLocalDateString(date: Date): string {
 }
 
 export function MedicationScreen() {
-  const navigation = useNavigation<StackNavigationProp<RootStackParamList>>();
   const { user } = useAuth();
   const { todayStatus, takeMedication, getMedLogs, error: medError, refresh } = useMedication();
   const insets = useSafeAreaInsets();
@@ -152,8 +149,7 @@ export function MedicationScreen() {
     <SafeAreaView style={styles.safeArea} edges={['top']}>
       <TopBar
         title="파킨온"
-        showMenu
-        onMenuPress={() => navigation.navigate('Menu')}
+        showParkinon
       />
 
       {/* 날짜 헤더 */}

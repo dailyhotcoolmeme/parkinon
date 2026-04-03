@@ -14,12 +14,10 @@ import {
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useNavigation, useFocusEffect } from '@react-navigation/native';
 import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
-import type { StackNavigationProp } from '@react-navigation/stack';
 import { Ionicons } from '@expo/vector-icons';
 import { Colors } from '../../constants/colors';
 import { TopBar } from '../../components/common/TopBar';
 import type { FeedStackParamList } from '../../navigation/FeedNavigator';
-import type { RootStackParamList } from '../../navigation/RootNavigator';
 import { supabase } from '../../lib/supabase';
 
 type Nav = NativeStackNavigationProp<FeedStackParamList, 'FeedMain'>;
@@ -65,8 +63,7 @@ function formatDate(isoString: string): string {
 
 export function FeedScreen() {
   const navigation = useNavigation<Nav>();
-  const rootNavigation = useNavigation<StackNavigationProp<RootStackParamList>>();
-  const scrollY = useRef(new Animated.Value(0)).current;
+const scrollY = useRef(new Animated.Value(0)).current;
   const lastScrollY = useRef(0);
   const [fabExpanded, setFabExpanded] = useState(true);
   const [posts, setPosts] = useState<PostItem[]>([]);
@@ -233,7 +230,7 @@ export function FeedScreen() {
 
   return (
     <SafeAreaView style={styles.safe} edges={['top']}>
-      <TopBar title="파킨온" showMenu onMenuPress={() => rootNavigation.navigate('Menu')} />
+      <TopBar title="파킨온" showParkinon />
       <View style={styles.flex}>
         {loading ? (
           <View style={styles.loadingWrap}>
