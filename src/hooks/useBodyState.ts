@@ -7,7 +7,7 @@
  * - getBodyStateLogs(date) - 날짜별 기록 조회
  * - isFirstLogToday() - 오늘 첫 번째 기록 여부 (수면 질문 표시용)
  */
-import { useState, useCallback } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { supabase } from '../lib/supabase';
 import { useAuth } from '../context/AuthContext';
 import type { Database } from '../types/database';
@@ -30,6 +30,7 @@ export interface UseBodyStateReturn {
   saveBodyState: (data: BodyStateInput, triggeredBy: TriggeredBy) => Promise<boolean>;
   getBodyStateLogs: (date: string) => Promise<OnOffLogRow[]>;
   isFirstLogToday: () => Promise<boolean>;
+  getPatientId: () => Promise<string | null>;
   refresh: () => Promise<void>;
 }
 
@@ -185,6 +186,13 @@ export function useBodyState(): UseBodyStateReturn {
     }
   }, [user, getPatientId]);
 
+  // 초기 로드
+  useEffect(() => {
+    if (user) {
+      fetchTodayLogs();
+    }
+  }, [user, fetchTodayLogs]);
+
   // 새로고침
   const refresh = useCallback(async () => {
     await fetchTodayLogs();
@@ -197,6 +205,7 @@ export function useBodyState(): UseBodyStateReturn {
     saveBodyState,
     getBodyStateLogs,
     isFirstLogToday,
+    getPatientId,
     refresh,
   };
 }

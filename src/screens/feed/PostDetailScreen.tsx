@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import {
   View,
   Text,
@@ -9,6 +9,7 @@ import {
   KeyboardAvoidingView,
   Platform,
   Alert,
+  ActivityIndicator,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useRoute } from '@react-navigation/native';
@@ -17,104 +18,212 @@ import { Ionicons } from '@expo/vector-icons';
 import { Colors } from '../../constants/colors';
 import { TopBar } from '../../components/common/TopBar';
 import type { FeedStackParamList } from '../../navigation/FeedNavigator';
+import { supabase } from '../../lib/supabase';
+import { useAuth } from '../../context/AuthContext';
 
 type RouteProps = NativeStackScreenProps<FeedStackParamList, 'PostDetail'>['route'];
 
-interface Comment {
+interface CommentRow {
+  id: string;
+  post_id: string;
+  author_id: string;
+  parent_id: string | null;
+  content: string;
+  like_count: number;
+  created_at: string;
+  author: { name: string } | null;
+}
+
+interface CommentDisplay {
   id: string;
   author: string;
+  authorId: string;
   timeAgo: string;
   content: string;
   likeCount: number;
-  replies: Reply[];
+  replies: ReplyDisplay[];
 }
 
-interface Reply {
+interface ReplyDisplay {
   id: string;
   author: string;
+  authorId: string;
   timeAgo: string;
   content: string;
   likeCount: number;
 }
 
-const DUMMY_COMMENTS: Comment[] = [
-  {
-    id: 'c1',
-    author: '이영호',
-    timeAgo: '1시간 전',
-    content: '저도 같은 고민이 있었어요. 알람 앱을 사용하니 많이 도움이 됐어요.',
-    likeCount: 2,
-    replies: [
-      {
-        id: 'r1',
-        author: '홍길동',
-        timeAgo: '30분 전',
-        content: '어떤 앱 사용하시나요? 저도 알려주세요.',
-        likeCount: 0,
-      },
-    ],
-  },
-  {
-    id: 'c2',
-    author: '박수연',
-    timeAgo: '2시간 전',
-    content: '가족분들과 함께 관리하면 훨씬 수월해요. 파킨온 앱이 도움이 될 것 같아요!',
-    likeCount: 5,
-    replies: [],
-  },
-  {
-    id: 'c3',
-    author: '김철수',
-    timeAgo: '어제',
-    content: '힘내세요 😊 저도 처음엔 어려웠지만 익숙해지더라고요.',
-    likeCount: 3,
-    replies: [],
-  },
-];
+function formatTimeAgo(isoString: string): string {
+  const now = new Date();
+  const past = new Date(isoString);
+  const diff = Math.floor((now.getTime() - past.getTime()) / 1000);
+  if (diff < 60) return '방금 전';
+  if (diff < 3600) return `${Math.floor(diff / 60)}분 전`;
+  if (diff < 86400) return `${Math.floor(diff / 3600)}시간 전`;
+  return `${Math.floor(diff / 86400)}일 전`;
+}
+
+function buildCommentTree(rows: CommentRow[]): CommentDisplay[] {
+  const topLevel = rows.filter((r) => r.parent_id === null);
+  return topLevel.map((c) => ({
+    id: c.id,
+    author: c.author?.name ?? '알 수 없음',
+    authorId: c.author_id,
+    timeAgo: formatTimeAgo(c.created_at),
+    content: c.content,
+    likeCount: c.like_count,
+    replies: rows
+      .filter((r) => r.parent_id === c.id)
+      .map((r) => ({
+        id: r.id,
+        author: r.author?.name ?? '알 수 없음',
+        authorId: r.author_id,
+        timeAgo: formatTimeAgo(r.created_at),
+        content: r.content,
+        likeCount: r.like_count,
+      })),
+  }));
+}
 
 export function PostDetailScreen() {
   const route = useRoute<RouteProps>();
   const { post } = route.params;
+  const { user } = useAuth();
+
   const [liked, setLiked] = useState(false);
   const [likeCount, setLikeCount] = useState(post.likeCount);
   const [commentText, setCommentText] = useState('');
-  const [comments, setComments] = useState<Comment[]>(DUMMY_COMMENTS);
+  const [comments, setComments] = useState<CommentDisplay[]>([]);
+  const [commentsLoading, setCommentsLoading] = useState(true);
   const [replyingTo, setReplyingTo] = useState<string | null>(null);
+  const [submittingComment, setSubmittingComment] = useState(false);
 
-  const handleLike = () => {
-    setLiked(!liked);
-    setLikeCount((prev) => (liked ? prev - 1 : prev + 1));
+  // 조회수 increment
+  useEffect(() => {
+    supabase.rpc('increment_view_count', { post_id: post.id }).then(({ error }) => {
+      if (error) console.warn('[PostDetail] 조회수 increment 실패:', error.message);
+    });
+  }, [post.id]);
+
+  // 좋아요 상태 초기 조회
+  useEffect(() => {
+    if (!user) return;
+    supabase
+      .from('post_likes')
+      .select('id')
+      .eq('post_id', post.id)
+      .eq('user_id', user.id)
+      .maybeSingle()
+      .then(({ data }) => {
+        setLiked(!!data);
+      });
+  }, [post.id, user]);
+
+  // 댓글 불러오기
+  const fetchComments = useCallback(async () => {
+    setCommentsLoading(true);
+    try {
+      const { data, error } = await supabase
+        .from('comments')
+        .select('*, author:users(name)')
+        .eq('post_id', post.id)
+        .order('created_at', { ascending: true });
+
+      if (error) throw error;
+      setComments(buildCommentTree((data ?? []) as CommentRow[]));
+    } catch (e: any) {
+      Alert.alert('오류', '댓글을 불러오지 못했어요. 다시 시도해주세요.');
+      console.error('[PostDetail] fetchComments 오류:', e);
+    } finally {
+      setCommentsLoading(false);
+    }
+  }, [post.id]);
+
+  useEffect(() => {
+    fetchComments();
+  }, [fetchComments]);
+
+  // 좋아요 toggle
+  const handleLike = async () => {
+    if (!user) return;
+    const nextLiked = !liked;
+    // 낙관적 업데이트
+    setLiked(nextLiked);
+    setLikeCount((prev) => (nextLiked ? prev + 1 : prev - 1));
+
+    try {
+      if (nextLiked) {
+        const { error } = await supabase
+          .from('post_likes')
+          .upsert({ post_id: post.id, user_id: user.id }, { onConflict: 'post_id,user_id' });
+        if (error) throw error;
+      } else {
+        const { error } = await supabase
+          .from('post_likes')
+          .delete()
+          .eq('post_id', post.id)
+          .eq('user_id', user.id);
+        if (error) throw error;
+      }
+    } catch (e: any) {
+      // 롤백
+      setLiked(!nextLiked);
+      setLikeCount((prev) => (nextLiked ? prev - 1 : prev + 1));
+      Alert.alert('오류', '좋아요 처리 중 문제가 생겼어요. 다시 시도해주세요.');
+      console.error('[PostDetail] handleLike 오류:', e);
+    }
   };
 
-  const handleCommentSubmit = () => {
-    if (!commentText.trim()) return;
-
-    if (replyingTo) {
-      const newReply: Reply = {
-        id: `r${Date.now()}`,
-        author: '나',
-        timeAgo: '방금 전',
+  // 댓글/대댓글 등록
+  const handleCommentSubmit = async () => {
+    if (!user || !commentText.trim()) return;
+    setSubmittingComment(true);
+    try {
+      const { error } = await supabase.from('comments').insert({
+        post_id: post.id,
+        author_id: user.id,
+        parent_id: replyingTo ?? null,
         content: commentText.trim(),
-        likeCount: 0,
-      };
-      setComments((prev) =>
-        prev.map((c) =>
-          c.id === replyingTo ? { ...c, replies: [...c.replies, newReply] } : c
-        )
-      );
+      });
+      if (error) throw error;
+      setCommentText('');
       setReplyingTo(null);
-    } else {
-      const newComment: Comment = {
-        id: `c${Date.now()}`,
-        author: '나',
-        timeAgo: '방금 전',
-        content: commentText.trim(),
-        likeCount: 0,
-        replies: [],
-      };
-      setComments((prev) => [...prev, newComment]);
+      await fetchComments();
+    } catch (e: any) {
+      Alert.alert('오류', e.message ?? '댓글 등록 중 문제가 생겼어요. 다시 시도해주세요.');
+      console.error('[PostDetail] handleCommentSubmit 오류:', e);
+    } finally {
+      setSubmittingComment(false);
     }
-    setCommentText('');
+  };
+
+  // 댓글 좋아요
+  const handleCommentLike = async (commentId: string) => {
+    if (!user) return;
+    try {
+      const { data: existing } = await supabase
+        .from('comment_likes')
+        .select('id')
+        .eq('comment_id', commentId)
+        .eq('user_id', user.id)
+        .maybeSingle();
+
+      if (existing) {
+        await supabase
+          .from('comment_likes')
+          .delete()
+          .eq('comment_id', commentId)
+          .eq('user_id', user.id);
+      } else {
+        await supabase
+          .from('comment_likes')
+          .upsert({ comment_id: commentId, user_id: user.id }, { onConflict: 'comment_id,user_id' });
+      }
+      await fetchComments();
+    } catch (e: any) {
+      Alert.alert('오류', '좋아요 처리 중 문제가 생겼어요.');
+      console.error('[PostDetail] handleCommentLike 오류:', e);
+    }
   };
 
   return (
@@ -151,15 +260,6 @@ export function PostDetailScreen() {
           {/* 내용 */}
           <Text style={styles.postContent}>{post.preview}</Text>
 
-          {/* 사진 영역 (더미) */}
-          {post.thumbnail && (
-            <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.photoScroll}>
-              <View style={styles.photoItem}>
-                <Text style={styles.photoEmoji}>{post.thumbnail}</Text>
-              </View>
-            </ScrollView>
-          )}
-
           {/* 조회/좋아요 */}
           <View style={styles.statsRow}>
             <Text style={styles.statText}>조회 {post.views}</Text>
@@ -182,59 +282,66 @@ export function PostDetailScreen() {
             <Text style={styles.commentTitle}>댓글 {comments.length}개</Text>
           </View>
 
-          {comments.map((comment) => (
-            <View key={comment.id} style={styles.commentItem}>
-              {/* 댓글 */}
-              <View style={styles.commentCard}>
-                <View style={styles.commentTop}>
-                  <Text style={styles.commentAuthor}>{comment.author}</Text>
-                  <Text style={styles.commentTime}>{comment.timeAgo}</Text>
-                </View>
-                <Text style={styles.commentContent}>{comment.content}</Text>
-                <View style={styles.commentActions}>
-                  <TouchableOpacity
-                    style={styles.actionBtn}
-                    onPress={() => Alert.alert('좋아요', '좋아요를 눌렀어요.')}
-                  >
-                    <View style={styles.actionRow}>
-                      <Ionicons name="heart-outline" size={14} color={Colors.textSub} />
-                      <Text style={styles.actionText}>{comment.likeCount}</Text>
-                    </View>
-                  </TouchableOpacity>
-                  <TouchableOpacity
-                    style={styles.actionBtn}
-                    onPress={() => setReplyingTo(replyingTo === comment.id ? null : comment.id)}
-                  >
-                    <Text style={styles.actionText}>
-                      {replyingTo === comment.id ? '취소' : '답글달기'}
-                    </Text>
-                  </TouchableOpacity>
-                </View>
-              </View>
-
-              {/* 대댓글 */}
-              {comment.replies.map((reply) => (
-                <View key={reply.id} style={styles.replyCard}>
-                  <Text style={styles.replyArrow}>└</Text>
-                  <View style={styles.replyContent}>
-                    <View style={styles.commentTop}>
-                      <Text style={styles.commentAuthor}>{reply.author}</Text>
-                      <Text style={styles.commentTime}>{reply.timeAgo}</Text>
-                    </View>
-                    <Text style={styles.commentContent}>{reply.content}</Text>
-                    <View style={styles.commentActions}>
-                      <TouchableOpacity style={styles.actionBtn}>
-                        <View style={styles.actionRow}>
-                          <Ionicons name="heart-outline" size={14} color={Colors.textSub} />
-                          <Text style={styles.actionText}>{reply.likeCount}</Text>
-                        </View>
-                      </TouchableOpacity>
-                    </View>
+          {commentsLoading ? (
+            <ActivityIndicator size="small" color={Colors.primary} style={{ marginTop: 20 }} />
+          ) : (
+            comments.map((comment) => (
+              <View key={comment.id} style={styles.commentItem}>
+                {/* 댓글 */}
+                <View style={styles.commentCard}>
+                  <View style={styles.commentTop}>
+                    <Text style={styles.commentAuthor}>{comment.author}</Text>
+                    <Text style={styles.commentTime}>{comment.timeAgo}</Text>
+                  </View>
+                  <Text style={styles.commentContent}>{comment.content}</Text>
+                  <View style={styles.commentActions}>
+                    <TouchableOpacity
+                      style={styles.actionBtn}
+                      onPress={() => handleCommentLike(comment.id)}
+                    >
+                      <View style={styles.actionRow}>
+                        <Ionicons name="heart-outline" size={14} color={Colors.textSub} />
+                        <Text style={styles.actionText}>{comment.likeCount}</Text>
+                      </View>
+                    </TouchableOpacity>
+                    <TouchableOpacity
+                      style={styles.actionBtn}
+                      onPress={() => setReplyingTo(replyingTo === comment.id ? null : comment.id)}
+                    >
+                      <Text style={styles.actionText}>
+                        {replyingTo === comment.id ? '취소' : '답글달기'}
+                      </Text>
+                    </TouchableOpacity>
                   </View>
                 </View>
-              ))}
-            </View>
-          ))}
+
+                {/* 대댓글 */}
+                {comment.replies.map((reply) => (
+                  <View key={reply.id} style={styles.replyCard}>
+                    <Text style={styles.replyArrow}>└</Text>
+                    <View style={styles.replyContent}>
+                      <View style={styles.commentTop}>
+                        <Text style={styles.commentAuthor}>{reply.author}</Text>
+                        <Text style={styles.commentTime}>{reply.timeAgo}</Text>
+                      </View>
+                      <Text style={styles.commentContent}>{reply.content}</Text>
+                      <View style={styles.commentActions}>
+                        <TouchableOpacity
+                          style={styles.actionBtn}
+                          onPress={() => handleCommentLike(reply.id)}
+                        >
+                          <View style={styles.actionRow}>
+                            <Ionicons name="heart-outline" size={14} color={Colors.textSub} />
+                            <Text style={styles.actionText}>{reply.likeCount}</Text>
+                          </View>
+                        </TouchableOpacity>
+                      </View>
+                    </View>
+                  </View>
+                ))}
+              </View>
+            ))
+          )}
         </ScrollView>
 
         {/* 댓글 입력창 */}
@@ -260,11 +367,16 @@ export function PostDetailScreen() {
               maxLength={500}
             />
             <TouchableOpacity
-              style={[styles.commentSubmitBtn, !commentText.trim() && styles.commentSubmitDisabled]}
+              style={[
+                styles.commentSubmitBtn,
+                (!commentText.trim() || submittingComment) && styles.commentSubmitDisabled,
+              ]}
               onPress={handleCommentSubmit}
-              disabled={!commentText.trim()}
+              disabled={!commentText.trim() || submittingComment}
             >
-              <Text style={styles.commentSubmitText}>등록</Text>
+              <Text style={styles.commentSubmitText}>
+                {submittingComment ? '...' : '등록'}
+              </Text>
             </TouchableOpacity>
           </View>
         </View>
@@ -274,8 +386,8 @@ export function PostDetailScreen() {
 }
 
 const styles = StyleSheet.create({
-  safe: { flex: 1, backgroundColor: Colors.background },
-  flex: { flex: 1 },
+  safe: { flex: 1, backgroundColor: Colors.white },
+  flex: { flex: 1, backgroundColor: Colors.white },
   scrollContent: { paddingBottom: 20 },
   postHeader: {
     backgroundColor: Colors.white,
@@ -326,21 +438,6 @@ const styles = StyleSheet.create({
     paddingBottom: 16,
     lineHeight: 26,
   },
-  photoScroll: {
-    backgroundColor: Colors.white,
-    paddingHorizontal: 20,
-    paddingBottom: 16,
-  },
-  photoItem: {
-    width: 120,
-    height: 120,
-    backgroundColor: Colors.background,
-    borderRadius: 10,
-    alignItems: 'center',
-    justifyContent: 'center',
-    marginRight: 10,
-  },
-  photoEmoji: { fontSize: 50 },
   statsRow: {
     backgroundColor: Colors.white,
     paddingHorizontal: 20,

@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   View,
   Text,
@@ -6,6 +6,7 @@ import {
   TouchableOpacity,
   StyleSheet,
   Dimensions,
+  Alert,
 } from 'react-native';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useNavigation } from '@react-navigation/native';
@@ -14,9 +15,10 @@ import { Colors } from '../../constants/colors';
 import { TopBar } from '../../components/common/TopBar';
 import { BodyStatePopupFlow } from './BodyStatePopupFlow';
 import { CaregiverConfirmModal } from '../../components/common/CaregiverConfirmModal';
+import { DatePickerModal } from '../../components/common/DatePickerModal';
+import { useAuth } from '../../context/AuthContext';
+import { useBodyState } from '../../hooks/useBodyState';
 
-const DUMMY_USER_ROLE: 'patient' | 'caregiver_same' | 'caregiver_separate' = 'patient';
-const DUMMY_PATIENT_NAME = '홍길동';
 const WINDOW_HEIGHT = Dimensions.get('window').height;
 const TOP_BAR_H = 56;
 const DATE_HEADER_H = 56;
@@ -28,52 +30,86 @@ interface BodyRecord {
   period: string;
   trigger: string;
   bodyScore: number;
-  prevBodyScore?: number;
   moodScore: number;
-  prevMoodScore?: number;
   sleepScore?: number;
-  prevSleepScore?: number;
   constipation?: boolean;
 }
 
-const MOCK_RECORDS: BodyRecord[] = [
-  { id: '1', time: '오전 8:30', period: '아침', trigger: '복용 직후', bodyScore: 4, prevBodyScore: 3, moodScore: 4, prevMoodScore: 2, sleepScore: 3, prevSleepScore: 4 },
-  { id: '2', time: '오전 10:30', period: '아침', trigger: '2시간 후', bodyScore: 3, prevBodyScore: 4, moodScore: 3, prevMoodScore: 4 },
-  { id: '3', time: '오후 12:15', period: '점심', trigger: '복용 직후', bodyScore: 3, prevBodyScore: 3, moodScore: 4, prevMoodScore: 3 },
-  { id: '4', time: '오후 1:00', period: '점심', trigger: '30분 후', bodyScore: 4, prevBodyScore: 3, moodScore: 4, prevMoodScore: 4, constipation: false },
-  { id: '5', time: '오후 6:10', period: '저녁', trigger: '복용 직후', bodyScore: 4, prevBodyScore: 4, moodScore: 3, prevMoodScore: 3 },
-];
-
-function getTodayLabel(): string {
-  const now = new Date();
-  const month = now.getMonth() + 1;
-  const date = now.getDate();
+function getDateLabel(date: Date): string {
+  const month = date.getMonth() + 1;
+  const day = date.getDate();
   const dayNames = ['일요일', '월요일', '화요일', '수요일', '목요일', '금요일', '토요일'];
-  return `${month}월 ${date}일 ${dayNames[now.getDay()]}`;
+  return `${month}월 ${day}일 ${dayNames[date.getDay()]}`;
 }
+
+function formatTime(isoString: string): string {
+  const d = new Date(isoString);
+  const h = d.getHours();
+  const m = d.getMinutes();
+  const ampm = h < 12 ? '오전' : '오후';
+  const hour = h % 12 === 0 ? 12 : h % 12;
+  return `${ampm} ${hour}:${m.toString().padStart(2, '0')}`;
+}
+
+function getPeriod(isoString: string): string {
+  const h = new Date(isoString).getHours();
+  if (h < 11) return '아침';
+  if (h < 15) return '점심';
+  if (h < 20) return '저녁';
+  return '취침';
+}
+
+const TRIGGER_LABEL: Record<string, string> = {
+  after_medication: '복용 직후',
+  '30min_after': '30분 후',
+  '2hour_after': '2시간 후',
+};
 
 const PERIOD_EMOJI: Record<string, string> = {
   '아침': '🌅', '점심': '☀️', '저녁': '🌙', '취침': '😴'
 };
 
 export function BodyStateScreen() {
-  const [records, setRecords] = useState<BodyRecord[]>(MOCK_RECORDS);
+  const { user } = useAuth();
+  const { todayLogs, saveBodyState } = useBodyState();
   const [showFlow, setShowFlow] = useState(false);
   const [showCaregiverConfirm, setShowCaregiverConfirm] = useState(false);
+  const [selectedDate, setSelectedDate] = useState(new Date());
+  const [showDatePicker, setShowDatePicker] = useState(false);
   const navigation = useNavigation<any>();
   const insets = useSafeAreaInsets();
 
-  const handleSaveRecord = (record: Omit<BodyRecord, 'id' | 'time' | 'trigger' | 'period'>) => {
-    const now = new Date();
-    const h = now.getHours();
-    const m = now.getMinutes();
-    const ampm = h < 12 ? '오전' : '오후';
-    const hour = h % 12 === 0 ? 12 : h % 12;
-    const time = `${ampm} ${hour}:${m.toString().padStart(2, '0')}`;
-    const period = h < 11 ? '아침' : h < 15 ? '점심' : h < 20 ? '저녁' : '취침';
+  const userRole = user?.role === 'caregiver'
+    ? (user.residence_type === 'separate' ? 'caregiver_separate' : 'caregiver_same')
+    : 'patient';
 
-    setRecords(prev => [{ id: Date.now().toString(), time, period, trigger: '직접 입력', ...record }, ...prev]);
-    setShowFlow(false);
+  const patientName = '환자';
+
+  // DB 로그 → BodyRecord 변환
+  const records: BodyRecord[] = todayLogs.map((log) => ({
+    id: log.id,
+    time: formatTime(log.logged_at),
+    period: getPeriod(log.logged_at),
+    trigger: (log.trigger_time_label && TRIGGER_LABEL[log.trigger_time_label])
+      || (log.triggered_by === 'notification' ? '알림' : '직접 입력'),
+    bodyScore: log.body_state ?? 3,
+    moodScore: log.mood ?? 3,
+    sleepScore: log.sleep_quality ?? undefined,
+    constipation: log.constipation ?? undefined,
+  }));
+
+  const handleSaveRecord = async (record: { bodyScore: number; moodScore: number; sleepScore?: number; constipation?: boolean }) => {
+    const success = await saveBodyState({
+      body_state: record.bodyScore,
+      mood: record.moodScore,
+      sleep_quality: record.sleepScore,
+      constipation: record.constipation,
+    }, 'manual');
+    if (success) {
+      setShowFlow(false);
+    } else {
+      Alert.alert('저장 실패', '몸상태 기록 저장에 실패했어요. 다시 시도해주세요.');
+    }
   };
 
   return (
@@ -86,8 +122,8 @@ export function BodyStateScreen() {
 
       {/* 날짜 헤더 */}
       <View style={styles.dateHeader}>
-        <Text style={styles.dateText}>{getTodayLabel()}</Text>
-        <TouchableOpacity style={styles.calBtn}>
+        <Text style={styles.dateText}>{getDateLabel(selectedDate)}</Text>
+        <TouchableOpacity style={styles.calBtn} onPress={() => setShowDatePicker(true)}>
           <Ionicons name="calendar-outline" size={24} color={Colors.text} />
         </TouchableOpacity>
       </View>
@@ -98,11 +134,11 @@ export function BodyStateScreen() {
           <TouchableOpacity
             style={[
               styles.mainButton,
-              DUMMY_USER_ROLE === 'caregiver_separate' && styles.mainButtonDisabled,
+              userRole === 'caregiver_separate' && styles.mainButtonDisabled,
             ]}
             onPress={() => {
-              if (DUMMY_USER_ROLE === 'caregiver_separate') return;
-              if (DUMMY_USER_ROLE === 'caregiver_same') {
+              if (userRole === 'caregiver_separate') return;
+              if (userRole === 'caregiver_same') {
                 setShowCaregiverConfirm(true);
               } else {
                 setShowFlow(true);
@@ -134,24 +170,28 @@ export function BodyStateScreen() {
             <Text style={styles.sectionTitle}>오늘 몸상태 기록</Text>
             <View style={styles.divider} />
           </View>
-          {['아침', '점심', '저녁', '취침'].map(period => {
-            const periodRecords = records.filter(r => r.period === period);
-            if (periodRecords.length === 0) return null;
-            return (
-              <View key={period} style={styles.periodGroup}>
-                <Text style={styles.periodTitle}>{PERIOD_EMOJI[period] ?? ''} {period} 약 복용 후</Text>
-                {periodRecords.map(record => (
-                  <BodyRecordCard key={record.id} record={record} />
-                ))}
-              </View>
-            );
-          })}
+          {records.length === 0 ? (
+            <Text style={styles.emptyText}>오늘 기록이 없어요.</Text>
+          ) : (
+            ['아침', '점심', '저녁', '취침'].map(period => {
+              const periodRecords = records.filter(r => r.period === period);
+              if (periodRecords.length === 0) return null;
+              return (
+                <View key={period} style={styles.periodGroup}>
+                  <Text style={styles.periodTitle}>{PERIOD_EMOJI[period] ?? ''} {period} 약 복용 후</Text>
+                  {periodRecords.map(record => (
+                    <BodyRecordCard key={record.id} record={record} />
+                  ))}
+                </View>
+              );
+            })
+          )}
         </View>
       </ScrollView>
 
       <CaregiverConfirmModal
         visible={showCaregiverConfirm}
-        patientName={DUMMY_PATIENT_NAME}
+        patientName={patientName}
         onConfirm={() => { setShowCaregiverConfirm(false); setShowFlow(true); }}
         onCancel={() => setShowCaregiverConfirm(false)}
       />
@@ -161,6 +201,12 @@ export function BodyStateScreen() {
         onSave={handleSaveRecord}
         showSleep={records.length === 0}
         showConstipation={false}
+      />
+      <DatePickerModal
+        visible={showDatePicker}
+        selectedDate={selectedDate}
+        onSelect={setSelectedDate}
+        onClose={() => setShowDatePicker(false)}
       />
     </SafeAreaView>
   );
@@ -183,7 +229,6 @@ function getScoreColor(score: number): string {
 function BodyRecordCard({ record }: { record: BodyRecord }) {
   return (
     <View style={cardStyles.card}>
-      {/* 시간 + 트리거 */}
       <View style={cardStyles.header}>
         <Text style={cardStyles.time}>{record.time}</Text>
         <View style={cardStyles.triggerBadge}>
@@ -191,7 +236,6 @@ function BodyRecordCard({ record }: { record: BodyRecord }) {
         </View>
       </View>
 
-      {/* 몸상태 + 기분 점수 */}
       <View style={cardStyles.scoreRow}>
         <View style={cardStyles.scoreBox}>
           <Text style={cardStyles.scoreLabel}>몸상태</Text>
@@ -214,7 +258,6 @@ function BodyRecordCard({ record }: { record: BodyRecord }) {
         </View>
       </View>
 
-      {/* 수면 (선택) */}
       {record.sleepScore !== undefined && (
         <View style={cardStyles.extraRow}>
           <Text style={cardStyles.extraLabel}>수면</Text>
@@ -225,7 +268,6 @@ function BodyRecordCard({ record }: { record: BodyRecord }) {
         </View>
       )}
 
-      {/* 변비 (선택) */}
       {record.constipation !== undefined && (
         <View style={cardStyles.extraRow}>
           <Text style={cardStyles.extraLabel}>변비</Text>
@@ -317,8 +359,8 @@ const styles = StyleSheet.create({
     justifyContent: 'flex-start',
     alignItems: 'center',
     paddingHorizontal: 24,
-    paddingTop: 40,
-    paddingBottom: 40,
+    paddingTop: 20,
+    paddingBottom: 32,
   },
 
   mainButton: {
@@ -358,4 +400,5 @@ const styles = StyleSheet.create({
   sectionTitle: { fontSize: 17, fontWeight: '600', color: Colors.textSub, paddingHorizontal: 4 },
   periodGroup: { marginBottom: 8 },
   periodTitle: { fontSize: 16, fontWeight: '700', color: Colors.textSub, marginBottom: 10, marginLeft: 2, letterSpacing: 0.3 },
+  emptyText: { fontSize: 17, color: Colors.textHint, textAlign: 'center', marginTop: 20 },
 });

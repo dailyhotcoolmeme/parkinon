@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useState } from 'react';
 import {
   View,
   Text,
@@ -18,6 +18,7 @@ import { TopBar } from '../../components/common/TopBar';
 import type { ExerciseStackParamList } from '../../navigation/ExerciseNavigator';
 import type { RootStackParamList } from '../../navigation/RootNavigator';
 import { useExercise } from '../../hooks/useExercise';
+import { DatePickerModal } from '../../components/common/DatePickerModal';
 
 type Nav = NativeStackNavigationProp<ExerciseStackParamList, 'ExerciseMain'>;
 
@@ -26,20 +27,13 @@ const TOP_BAR_H = 56;
 const DATE_HEADER_H = 56;
 const TAB_BAR_H = 68;
 
-const MOCK_EXERCISE_LOGS = [
-  { id: '1', exercise_type: '걷기', duration_minutes: 30, logged_at: '2026-03-30T09:00:00' },
-  { id: '2', exercise_type: '스트레칭', duration_minutes: 15, logged_at: '2026-03-30T10:30:00' },
-  { id: '3', exercise_type: '근력운동', duration_minutes: 20, logged_at: '2026-03-30T14:00:00' },
-  { id: '4', exercise_type: '자전거', duration_minutes: 25, logged_at: '2026-03-30T16:30:00' },
-  { id: '5', exercise_type: '수영', duration_minutes: 40, logged_at: '2026-03-30T18:00:00' },
-];
 
 type MCIName = React.ComponentProps<typeof MaterialCommunityIcons>['name'];
 
 const MCI_ICONS: Record<string, MCIName> = {
   '걷기': 'walk',
   '스트레칭': 'yoga',
-  '근력운동': 'dumbbell',
+  '근력': 'dumbbell',       // ExerciseRecordScreen label과 일치
   '자전거': 'bike',
   '수영': 'swim',
   '댄스': 'music-note',
@@ -48,18 +42,23 @@ const MCI_ICONS: Record<string, MCIName> = {
   '조깅': 'run',
 };
 
+const IONICONS_ICONS: Record<string, React.ComponentProps<typeof Ionicons>['name']> = {
+  '균형': 'body-outline', // ExerciseRecordScreen label과 일치
+};
+
 function ExerciseTypeIcon({ type, size = 30, color = Colors.text }: { type: string; size?: number; color?: string }) {
   const mciName = MCI_ICONS[type];
   if (mciName) return <MaterialCommunityIcons name={mciName} size={size} color={color} />;
+  const ionName = IONICONS_ICONS[type];
+  if (ionName) return <Ionicons name={ionName} size={size} color={color} />;
   return <Ionicons name="fitness-outline" size={size} color={color} />;
 }
 
-function getTodayLabel(): string {
-  const now = new Date();
-  const month = now.getMonth() + 1;
-  const date = now.getDate();
+function getDateLabel(date: Date): string {
+  const month = date.getMonth() + 1;
+  const day = date.getDate();
   const dayNames = ['일요일', '월요일', '화요일', '수요일', '목요일', '금요일', '토요일'];
-  return `${month}월 ${date}일 ${dayNames[now.getDay()]}`;
+  return `${month}월 ${day}일 ${dayNames[date.getDay()]}`;
 }
 
 export function ExerciseScreen() {
@@ -67,10 +66,11 @@ export function ExerciseScreen() {
   const rootNavigation = useNavigation<StackNavigationProp<RootStackParamList>>();
   const { todayLogs, getTodayTotalMinutes } = useExercise();
   const insets = useSafeAreaInsets();
+  const [selectedDate, setSelectedDate] = useState(new Date());
+  const [showDatePicker, setShowDatePicker] = useState(false);
 
-  // 목업 데이터 사용 (실제 연동 전)
-  const displayLogs = MOCK_EXERCISE_LOGS;
-  const totalMinutes = displayLogs.reduce((sum, l) => sum + l.duration_minutes, 0);
+  const displayLogs = todayLogs;
+  const totalMinutes = getTodayTotalMinutes();
 
   return (
     <SafeAreaView style={styles.safe} edges={['top']}>
@@ -82,8 +82,8 @@ export function ExerciseScreen() {
 
       {/* 날짜 헤더 */}
       <View style={styles.dateHeader}>
-        <Text style={styles.dateText}>{getTodayLabel()}</Text>
-        <TouchableOpacity style={styles.calBtn}>
+        <Text style={styles.dateText}>{getDateLabel(selectedDate)}</Text>
+        <TouchableOpacity style={styles.calBtn} onPress={() => setShowDatePicker(true)}>
           <Ionicons name="calendar-outline" size={24} color={Colors.text} />
         </TouchableOpacity>
       </View>
@@ -139,6 +139,12 @@ export function ExerciseScreen() {
           ))}
         </View>
       </ScrollView>
+      <DatePickerModal
+        visible={showDatePicker}
+        selectedDate={selectedDate}
+        onSelect={setSelectedDate}
+        onClose={() => setShowDatePicker(false)}
+      />
     </SafeAreaView>
   );
 }
@@ -167,8 +173,8 @@ const styles = StyleSheet.create({
     justifyContent: 'flex-start',
     alignItems: 'center',
     paddingHorizontal: 24,
-    paddingTop: 40,
-    paddingBottom: 40,
+    paddingTop: 20,
+    paddingBottom: 32,
     gap: 14,
   },
 

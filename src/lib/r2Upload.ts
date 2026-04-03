@@ -178,23 +178,27 @@ export async function uploadPhoto(
  *
  * 사용 예시:
  *   const result = await uploadVideo(uri, patientId, 'body_state');
- *   await saveMediaLog(patientId, result.url, result.key, result.expires_at, 'video', 'body_state');
+ *   await saveMediaLog(patientId, loggedBy, result.url, result.key, result.expires_at, 'video', 'body_state');
+ *
+ * @param patientId  기록 대상 환자 ID
+ * @param loggedBy   실제 입력자 ID (환자 본인 또는 보호자)
  */
 export async function saveMediaLog(
   patientId: string,
+  loggedBy: string,
   url: string,
   key: string,
   expiresAt: string,
-  mediaType: 'video' | 'image',
+  mediaType: 'video' | 'photo',
   category: string
 ): Promise<void> {
   const { error } = await supabase.from('media_logs').insert({
     patient_id: patientId,
-    logged_by: patientId,
+    logged_by: loggedBy,
     r2_url: url,
     r2_key: key,
     expires_at: expiresAt,
-    media_type: mediaType as 'video' | 'photo',
+    media_type: mediaType,
     category: category as 'body_state' | 'exercise',
     logged_at: new Date().toISOString(),
   });

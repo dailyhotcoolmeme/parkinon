@@ -9,12 +9,20 @@ import {
   KeyboardAvoidingView,
   Platform,
   Alert,
+  Image,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useNavigation } from '@react-navigation/native';
 import { Ionicons } from '@expo/vector-icons';
+import * as ImagePicker from 'expo-image-picker';
 import { Colors } from '../../constants/colors';
 import { TopBar } from '../../components/common/TopBar';
+import { supabase } from '../../lib/supabase';
+import { uploadPhoto } from '../../lib/r2Upload';
+import { useAuth } from '../../context/AuthContext';
+import type { Database } from '../../types/database';
+
+type PostType = Database['public']['Tables']['posts']['Row']['post_type'];
 
 type IoniconName = React.ComponentProps<typeof Ionicons>['name'];
 
@@ -23,15 +31,41 @@ const CATEGORIES: { id: string; icon: IoniconName; label: string }[] = [
   { id: 'question', icon: 'help-circle-outline', label: '질문있어요' },
   { id: 'info', icon: 'megaphone-outline', label: '정보공유' },
   { id: 'exercise', icon: 'fitness-outline', label: '운동인증' },
+  { id: 'cheer', icon: 'heart-circle-outline', label: '응원해요' },
 ];
 
 export function PostWriteScreen() {
   const navigation = useNavigation();
+  const { user } = useAuth();
   const [selectedCategory, setSelectedCategory] = useState<string>('chat');
   const [title, setTitle] = useState('');
   const [content, setContent] = useState('');
+  const [photos, setPhotos] = useState<string[]>([]);
+  const [submitting, setSubmitting] = useState(false);
 
-  const handleSubmit = () => {
+  const handlePhotoAdd = async () => {
+    if (photos.length >= 5) {
+      Alert.alert('사진 제한', '사진은 최대 5장까지 추가할 수 있어요.');
+      return;
+    }
+    const perm = await ImagePicker.requestMediaLibraryPermissionsAsync();
+    if (!perm.granted) {
+      Alert.alert('권한 필요', '갤러리 접근 권한이 필요해요.');
+      return;
+    }
+    const result = await ImagePicker.launchImageLibraryAsync({
+      mediaTypes: ImagePicker.MediaTypeOptions.Images,
+      allowsMultipleSelection: true,
+      selectionLimit: 5 - photos.length,
+      quality: 0.7,
+    });
+    if (!result.canceled && result.assets.length > 0) {
+      setPhotos(prev => [...prev, ...result.assets.map(a => a.uri)].slice(0, 5));
+    }
+  };
+
+  const handleSubmit = async () => {
+    if (!user) return;
     if (!selectedCategory) {
       Alert.alert('글 유형 선택', '글 유형을 선택해주세요.');
       return;
@@ -44,9 +78,51 @@ export function PostWriteScreen() {
       Alert.alert('내용 입력', '내용을 입력해주세요.');
       return;
     }
-    Alert.alert('등록 완료', '글이 등록되었어요.', [
-      { text: '확인', onPress: () => navigation.goBack() },
-    ]);
+
+    setSubmitting(true);
+    try {
+      const { data: post, error: postError } = await supabase
+        .from('posts')
+        .insert({
+          author_id: user.id,
+          post_type: selectedCategory as PostType,
+          title: title.trim(),
+          content: content.trim(),
+          is_news: false,
+          news_url: null,
+          youtube_url: null,
+          youtube_thumbnail: null,
+        })
+        .select()
+        .single();
+
+      if (postError) throw postError;
+
+      if (photos.length > 0 && post) {
+        for (const [idx, uri] of photos.entries()) {
+          try {
+            const uploadResult = await uploadPhoto(uri, user.id);
+            await supabase.from('post_media').insert({
+              post_id: post.id,
+              r2_url: uploadResult.url,
+              r2_key: uploadResult.key,
+              media_type: 'image' as const,
+              sort_order: idx,
+            });
+          } catch (photoErr) {
+            console.error('사진 업로드 실패:', photoErr);
+          }
+        }
+      }
+
+      Alert.alert('등록 완료', '글이 등록되었어요.', [
+        { text: '확인', onPress: () => navigation.goBack() },
+      ]);
+    } catch (e: any) {
+      Alert.alert('오류', e.message ?? '등록 중 문제가 생겼어요. 다시 시도해주세요.');
+    } finally {
+      setSubmitting(false);
+    }
   };
 
   return (
@@ -122,18 +198,35 @@ export function PostWriteScreen() {
           {/* 사진 추가 */}
           <TouchableOpacity
             style={styles.photoBtn}
-            onPress={() => Alert.alert('사진 추가', '사진 선택 기능은 준비 중이에요.')}
+            onPress={handlePhotoAdd}
             activeOpacity={0.7}
           >
             <Ionicons name="camera-outline" size={22} color={Colors.textSub} />
             <Text style={styles.photoText}>사진 추가</Text>
-            <Text style={styles.photoHint}>최대 5장</Text>
+            <Text style={styles.photoHint}>{photos.length}/5</Text>
           </TouchableOpacity>
+
+          {/* 선택된 사진 미리보기 */}
+          {photos.length > 0 && (
+            <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.photoRow}>
+              {photos.map((uri, idx) => (
+                <View key={idx} style={styles.photoThumb}>
+                  <Image source={{ uri }} style={styles.photoThumbImg} />
+                  <TouchableOpacity
+                    style={styles.photoRemoveBtn}
+                    onPress={() => setPhotos(prev => prev.filter((_, i) => i !== idx))}
+                  >
+                    <Ionicons name="close-circle" size={22} color={Colors.danger} />
+                  </TouchableOpacity>
+                </View>
+              ))}
+            </ScrollView>
+          )}
         </ScrollView>
 
         <View style={styles.bottomActions}>
-          <TouchableOpacity style={styles.bottomMainBtn} onPress={handleSubmit} activeOpacity={0.85}>
-            <Text style={styles.bottomMainBtnText}>등록하기</Text>
+          <TouchableOpacity style={styles.bottomMainBtn} onPress={handleSubmit} activeOpacity={0.85} disabled={submitting}>
+            <Text style={styles.bottomMainBtnText}>{submitting ? '등록 중...' : '등록하기'}</Text>
           </TouchableOpacity>
         </View>
       </KeyboardAvoidingView>
@@ -203,6 +296,10 @@ const styles = StyleSheet.create({
   },
   photoText: { fontSize: 16, fontWeight: '600', color: Colors.textSub, flex: 1 },
   photoHint: { fontSize: 13, color: Colors.textHint },
+  photoRow: { marginTop: 8, marginBottom: 4 },
+  photoThumb: { position: 'relative', marginRight: 8 },
+  photoThumbImg: { width: 80, height: 80, borderRadius: 8 },
+  photoRemoveBtn: { position: 'absolute', top: -8, right: -8 },
   bottomActions: {
     paddingHorizontal: 20,
     paddingTop: 12,

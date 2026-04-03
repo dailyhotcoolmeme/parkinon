@@ -13,6 +13,9 @@ import { Ionicons } from '@expo/vector-icons';
 import { Colors } from '../../constants/colors';
 import { TopBar } from '../../components/common/TopBar';
 import { PrimaryButton } from '../../components/common/PrimaryButton';
+import { useAuth } from '../../context/AuthContext';
+import { useBodyState } from '../../hooks/useBodyState';
+import { uploadVideo, saveMediaLog } from '../../lib/r2Upload';
 
 const MAX_DURATION_SEC = 120; // 2분
 
@@ -25,6 +28,8 @@ interface SelectedVideo {
 
 export function VideoRecordScreen() {
   const navigation = useNavigation();
+  const { user } = useAuth();
+  const { getPatientId } = useBodyState();
   const [selectedVideo, setSelectedVideo] = useState<SelectedVideo | null>(null);
   const [loading, setLoading] = useState(false);
 
@@ -108,18 +113,24 @@ export function VideoRecordScreen() {
   };
 
   const handleSave = async () => {
-    if (!selectedVideo) return;
+    if (!selectedVideo || !user) return;
     setLoading(true);
     try {
-      // TODO: Cloudflare R2 업로드 연동 (현재는 로컬 URI 저장)
-      await new Promise(res => setTimeout(res, 800)); // 임시 딜레이
+      // 보호자인 경우 환자 ID를 별도로 가져옴
+      const patientId = await getPatientId();
+      if (!patientId) {
+        Alert.alert('오류', '연동된 환자 정보를 찾을 수 없어요.');
+        return;
+      }
+      const result = await uploadVideo(selectedVideo.uri, patientId, 'body_state');
+      await saveMediaLog(patientId, user.id, result.url, result.key, result.expires_at, 'video', 'body_state');
       Alert.alert(
         '저장 완료',
         '영상이 저장되었어요.',
         [{ text: '확인', onPress: () => navigation.goBack() }],
       );
-    } catch (e) {
-      Alert.alert('오류', '저장 중 문제가 생겼어요. 다시 시도해주세요.');
+    } catch (e: any) {
+      Alert.alert('오류', e.message ?? '저장 중 문제가 생겼어요. 다시 시도해주세요.');
     } finally {
       setLoading(false);
     }
