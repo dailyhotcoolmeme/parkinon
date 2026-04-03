@@ -1,22 +1,15 @@
 /**
- * Cloudflare R2 업로드 유틸
+ * Cloudflare R2 업로드 유틸 — Presigned URL 방식
  *
- * 아키텍처: 클라이언트 → Supabase Edge Function(r2-upload) → Cloudflare R2
- * 클라이언트에서 R2에 직접 접근하지 않습니다.
- *
- * TODO: Cloudflare Dashboard에서 R2 API 토큰 발급 후 Supabase Edge Function secrets에 등록:
- *   - R2_ACCESS_KEY_ID
- *   - R2_SECRET_ACCESS_KEY
- *   - R2_ENDPOINT: https://4c0f5d706177b84ade4d424a08ec46e8.r2.cloudflarestorage.com
- *   - R2_BUCKET_NAME: parkinon-media
- *   - R2_PUBLIC_URL: (버킷 퍼블릭 도메인 설정 후 입력)
+ * 아키텍처:
+ *   1. 클라이언트 → Edge Function: { key, contentType } (메타만)
+ *   2. Edge Function → 클라이언트: { presignedUrl, publicUrl }
+ *   3. 클라이언트 → R2: base64 읽기 후 fetch로 presigned URL에 직접 PUT
  */
 
-import * as FileSystem from 'expo-file-system';
+import * as FileSystem from 'expo-file-system/legacy';
 import { supabase } from './supabase';
 
-const ACCOUNT_ID = '4c0f5d706177b84ade4d424a08ec46e8';
-export const R2_ENDPOINT = `https://${ACCOUNT_ID}.r2.cloudflarestorage.com`;
 export const R2_BUCKET = 'parkinon-media';
 
 /** 6개월 후 만료일 계산 */
@@ -47,6 +40,46 @@ export interface UploadResult {
 }
 
 /**
+ * Presigned URL 방식으로 R2에 파일 직접 업로드
+ * - Edge Function에서 presigned PUT URL 발급
+ * - 순수 fetch로 로컬 파일을 blob으로 읽어 R2에 직접 PUT
+ */
+async function uploadToR2(localUri: string, mimeType: string, key: string): Promise<string> {
+  const SUPABASE_URL = process.env.EXPO_PUBLIC_SUPABASE_URL!;
+  const ANON_KEY = process.env.EXPO_PUBLIC_SUPABASE_ANON_KEY!;
+
+  // presigned URL 발급
+  const res = await fetch(`${SUPABASE_URL}/functions/v1/r2-upload`, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      'Authorization': `Bearer ${ANON_KEY}`,
+    },
+    body: JSON.stringify({ key, contentType: mimeType }),
+  });
+
+  if (!res.ok) {
+    const errText = await res.text();
+    throw new Error(`presigned URL 발급 실패 (${res.status}): ${errText}`);
+  }
+
+  const { presignedUrl, publicUrl } = await res.json();
+
+  // R2에 직접 PUT (legacy API 사용)
+  const uploadResult = await FileSystem.uploadAsync(presignedUrl, localUri, {
+    httpMethod: 'PUT',
+    uploadType: FileSystem.FileSystemUploadType.BINARY_CONTENT,
+    headers: { 'Content-Type': mimeType },
+  });
+
+  if (uploadResult.status < 200 || uploadResult.status >= 300) {
+    throw new Error(`R2 업로드 실패: HTTP ${uploadResult.status} - ${uploadResult.body}`);
+  }
+
+  return publicUrl;
+}
+
+/**
  * 영상 파일을 R2에 업로드합니다.
  *
  * @param localUri  로컬 파일 URI (expo-file-system 경로)
@@ -66,47 +99,14 @@ export async function uploadVideo(
   patientId: string,
   category: string = 'general'
 ): Promise<UploadResult> {
-  // 파일 존재 확인
-  const fileInfo = await FileSystem.getInfoAsync(localUri);
-  if (!fileInfo.exists) {
-    throw new Error(`파일을 찾을 수 없습니다: ${localUri}`);
-  }
-
   const yearMonth = getYearMonth();
   const uuid = generateUuid();
   const key = `parkinon/videos/${patientId}/${yearMonth}/${uuid}.mp4`;
   const expiresAt = calcExpiresAt();
 
-  // FormData 구성 (React Native FormData)
-  const formData = new FormData();
-  formData.append('file', {
-    uri: localUri,
-    type: 'video/mp4',
-    name: `${uuid}.mp4`,
-  } as unknown as Blob);
-  formData.append('patientId', patientId);
-  formData.append('type', 'video');
-  formData.append('key', key);
-  formData.append('category', category);
+  const url = await uploadToR2(localUri, 'video/mp4', key);
 
-  // Supabase Edge Function 호출
-  const { data, error } = await supabase.functions.invoke('r2-upload', {
-    body: formData,
-  });
-
-  if (error) {
-    throw new Error(`영상 업로드 실패: ${error.message}`);
-  }
-
-  if (!data?.url) {
-    throw new Error('업로드 응답에 URL이 없습니다.');
-  }
-
-  return {
-    url: data.url as string,
-    key,
-    expires_at: expiresAt,
-  };
+  return { url, key, expires_at: expiresAt };
 }
 
 /**
@@ -131,46 +131,14 @@ export async function uploadPhoto(
   localUri: string,
   patientId: string
 ): Promise<UploadResult> {
-  // 파일 존재 확인
-  const fileInfo = await FileSystem.getInfoAsync(localUri);
-  if (!fileInfo.exists) {
-    throw new Error(`파일을 찾을 수 없습니다: ${localUri}`);
-  }
-
   const yearMonth = getYearMonth();
   const uuid = generateUuid();
   const key = `parkinon/photos/${patientId}/${yearMonth}/${uuid}.jpg`;
   const expiresAt = calcExpiresAt();
 
-  // FormData 구성
-  const formData = new FormData();
-  formData.append('file', {
-    uri: localUri,
-    type: 'image/jpeg',
-    name: `${uuid}.jpg`,
-  } as unknown as Blob);
-  formData.append('patientId', patientId);
-  formData.append('type', 'image');
-  formData.append('key', key);
+  const url = await uploadToR2(localUri, 'image/jpeg', key);
 
-  // Supabase Edge Function 호출
-  const { data, error } = await supabase.functions.invoke('r2-upload', {
-    body: formData,
-  });
-
-  if (error) {
-    throw new Error(`사진 업로드 실패: ${error.message}`);
-  }
-
-  if (!data?.url) {
-    throw new Error('업로드 응답에 URL이 없습니다.');
-  }
-
-  return {
-    url: data.url as string,
-    key,
-    expires_at: expiresAt,
-  };
+  return { url, key, expires_at: expiresAt };
 }
 
 /**

@@ -15,7 +15,6 @@ import { Ionicons } from '@expo/vector-icons';
 import { Colors } from '../../constants/colors';
 import { TopBar } from '../../components/common/TopBar';
 import { useAuth } from '../../context/AuthContext';
-import { useFamilyLink } from '../../hooks/useFamilyLink';
 import { supabase } from '../../lib/supabase';
 
 type Gender = 'male' | 'female';
@@ -28,7 +27,6 @@ const RELATIONS = ['배우자', '자녀', '형제/자매', '기타'];
 export function ProfileEditScreen() {
   const navigation = useNavigation();
   const { user, refreshUser } = useAuth();
-  const { getPatientForCaregiver } = useFamilyLink();
   const isPatient = user?.role === 'patient';
 
   const [name, setName] = useState('');
@@ -40,7 +38,6 @@ export function ProfileEditScreen() {
 
   const [showBirthPicker, setShowBirthPicker] = useState(false);
   const [showDiagnosisPicker, setShowDiagnosisPicker] = useState(false);
-  const [showRelationPicker, setShowRelationPicker] = useState(false);
 
   const [patientName, setPatientName] = useState('');
   const [patientBirthYear, setPatientBirthYear] = useState(1955);
@@ -67,7 +64,6 @@ export function ProfileEditScreen() {
   const loadFormData = useCallback(async () => {
     if (!user) return;
 
-    // DB에서 직접 최신 사용자 데이터 조회
     const { data: freshUser, error } = await supabase
       .from('users')
       .select('*')
@@ -92,17 +88,45 @@ export function ProfileEditScreen() {
     }
 
     if (user.role === 'caregiver') {
-      getPatientForCaregiver().then(patient => {
-        if (patient) {
-          setPatientId(patient.id);
-          setPatientName(patient.name ?? '');
-          setPatientBirthYear(patient.birth_year ?? 1955);
-          setPatientGender((patient.gender as Gender) ?? 'male');
-          setPatientDiagnosisYear(patient.diagnosis_year ?? 2020);
+      // patient_group_id 우선, 없으면 patient_group_members 직접 쿼리
+      const groupId = freshUser?.patient_group_id ?? user.patient_group_id ?? null;
+      let resolvedGroupId: string | null = groupId;
+
+      if (!resolvedGroupId) {
+        const { data: myMember } = await supabase
+          .from('patient_group_members')
+          .select('group_id')
+          .eq('user_id', user.id)
+          .maybeSingle();
+        resolvedGroupId = myMember?.group_id ?? null;
+      }
+
+      if (resolvedGroupId) {
+        const { data: patientMember } = await supabase
+          .from('patient_group_members')
+          .select('user_id')
+          .eq('group_id', resolvedGroupId)
+          .eq('role', 'patient')
+          .single();
+
+        if (patientMember?.user_id && patientMember.user_id !== user.id) {
+          const { data: patient } = await supabase
+            .from('users')
+            .select('*')
+            .eq('id', patientMember.user_id)
+            .single();
+
+          if (patient) {
+            setPatientId(patient.id);
+            setPatientName(patient.name ?? '');
+            setPatientBirthYear(patient.birth_year ?? 1955);
+            setPatientGender((patient.gender as Gender) ?? 'male');
+            setPatientDiagnosisYear(patient.diagnosis_year ?? 2020);
+          }
         }
-      });
+      }
     }
-  }, [user, getPatientForCaregiver]);
+  }, [user]);
 
   // 화면에 포커스될 때마다 최신 데이터로 폼 초기화
   useFocusEffect(
@@ -162,6 +186,23 @@ export function ProfileEditScreen() {
           .eq('id', patientId);
 
         if (patientError) throw patientError;
+      } else if (!isPatient && !patientId) {
+        // 보호자인데 연동된 환자가 없으면 본인 정보는 저장됐음을 알리고 환자 미연동 안내
+        Alert.alert(
+          '저장 완료 (환자 미연동)',
+          '내 정보는 저장됐어요.\n\n담당 환자가 연동되어 있지 않아 환자 정보는 저장할 수 없어요. 가족 연동 메뉴에서 환자를 먼저 연동해주세요.',
+          [
+            {
+              text: '확인',
+              onPress: async () => {
+                await refreshUser();
+                navigation.goBack();
+              },
+            },
+          ]
+        );
+        setSaving(false);
+        return;
       }
 
       // refreshUser는 Alert 확인 후 goBack 전에 호출하지 않고
@@ -342,46 +383,20 @@ export function ProfileEditScreen() {
                 <Text style={styles.sectionTitle}>관계</Text>
               </View>
 
-              <Text style={styles.label}>관계</Text>
-              <TouchableOpacity
-                style={styles.pickerRow}
-                onPress={() => {
-                  setShowRelationPicker(!showRelationPicker);
-                  setShowBirthPicker(false);
-                  setShowDiagnosisPicker(false);
-                }}
-                activeOpacity={0.8}
-              >
-                <Text style={styles.pickerText}>{relation}</Text>
-                <Ionicons
-                  name={showRelationPicker ? 'chevron-up' : 'chevron-down'}
-                  size={22}
-                  color={Colors.textSub}
-                />
-              </TouchableOpacity>
-              {showRelationPicker && (
-                <View style={styles.pickerList}>
-                  {RELATIONS.map(r => (
-                    <TouchableOpacity
-                      key={r}
-                      style={[styles.pickerItem, relation === r && styles.pickerItemActive]}
-                      onPress={() => {
-                        setRelation(r);
-                        setShowRelationPicker(false);
-                      }}
-                    >
-                      <Text
-                        style={[
-                          styles.pickerItemText,
-                          relation === r && styles.pickerItemTextActive,
-                        ]}
-                      >
-                        {r}
-                      </Text>
-                    </TouchableOpacity>
-                  ))}
-                </View>
-              )}
+              <View style={styles.relationGrid}>
+                {RELATIONS.map(r => (
+                  <TouchableOpacity
+                    key={r}
+                    style={[styles.relBtn, relation === r && styles.relBtnActive]}
+                    onPress={() => setRelation(r)}
+                    activeOpacity={0.8}
+                  >
+                    <Text style={[styles.relBtnText, relation === r && styles.relBtnTextActive]}>
+                      {r}
+                    </Text>
+                  </TouchableOpacity>
+                ))}
+              </View>
             </View>
 
             {/* 거주 카드 */}
@@ -434,6 +449,16 @@ export function ProfileEditScreen() {
                   </Text>
                 </View>
               </View>
+
+              {/* 환자 미연동 안내 배너 */}
+              {!patientId && (
+                <View style={styles.noPatientBanner}>
+                  <Ionicons name="alert-circle-outline" size={20} color="#B45309" />
+                  <Text style={styles.noPatientBannerText}>
+                    연동된 환자가 없어요. 가족 연동 메뉴에서 환자를 먼저 연동해주세요.
+                  </Text>
+                </View>
+              )}
 
               {/* 환자 이름 */}
               <Text style={styles.label}>환자 이름</Text>
@@ -668,6 +693,46 @@ const styles = StyleSheet.create({
   },
   segBtnText: { fontSize: 20, fontWeight: '700', color: Colors.textSub },
   segBtnTextActive: { color: Colors.white },
+
+  // Relation grid
+  relationGrid: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 10,
+  },
+  relBtn: {
+    paddingHorizontal: 20,
+    paddingVertical: 14,
+    borderRadius: 12,
+    borderWidth: 2,
+    borderColor: Colors.border,
+    backgroundColor: Colors.white,
+    minWidth: 80,
+    alignItems: 'center',
+  },
+  relBtnActive: {
+    borderColor: Colors.primary,
+    backgroundColor: Colors.light,
+  },
+  relBtnText: { fontSize: 18, fontWeight: '600', color: Colors.textSub },
+  relBtnTextActive: { color: Colors.dark },
+
+  // No patient banner
+  noPatientBanner: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    gap: 8,
+    backgroundColor: '#FEF3C7',
+    borderRadius: 10,
+    padding: 12,
+    marginBottom: 16,
+  },
+  noPatientBannerText: {
+    flex: 1,
+    fontSize: 16,
+    color: '#92400E',
+    lineHeight: 22,
+  },
 
   // Save button
   saveBtn: {

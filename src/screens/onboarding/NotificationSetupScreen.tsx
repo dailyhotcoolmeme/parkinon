@@ -15,6 +15,8 @@ import type { OnboardingStackParamList } from '../../navigation/OnboardingNaviga
 import { Colors } from '../../constants/colors';
 import { PrimaryButton } from '../../components/common/PrimaryButton';
 import { useAuth } from '../../context/AuthContext';
+import { requestPermissionsAndSaveToken, scheduleMedicationReminders, scheduleExerciseReminders } from '../../utils/notifications';
+import { useSettings } from '../../context/SettingsContext';
 
 type Nav = StackNavigationProp<OnboardingStackParamList, 'NotificationSetup'>;
 
@@ -27,7 +29,8 @@ interface NotifOption {
 
 export function NotificationSetupScreen() {
   const navigation = useNavigation<Nav>();
-  const { signOut } = useAuth();
+  const { signOut, user } = useAuth();
+  const { exerciseNotifs } = useSettings();
 
   const [options, setOptions] = useState<NotifOption[]>([
     {
@@ -60,7 +63,16 @@ export function NotificationSetupScreen() {
     const settings: Record<string, boolean> = {};
     options.forEach((o) => { settings[o.key] = o.enabled; });
     await AsyncStorage.setItem('onboarding_notifications', JSON.stringify(settings));
-    // TODO: Expo Notifications 권한 요청 연동
+
+    if (user) {
+      // 권한 요청 + push token 저장
+      await requestPermissionsAndSaveToken(user.id);
+      // 약 복용 예정 알림 스케줄
+      await scheduleMedicationReminders();
+      // 운동 알림 스케줄
+      await scheduleExerciseReminders(exerciseNotifs);
+    }
+
     navigation.navigate('FamilyInvite');
   };
 

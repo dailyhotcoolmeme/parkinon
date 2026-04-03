@@ -11,9 +11,10 @@ interface Props {
   showClose?: boolean;
   showParkinon?: boolean;
   rightIcon?: React.ReactNode;
+  rightComponent?: React.ReactNode;
 }
 
-export function TopBar({ title, showBack, showClose, showParkinon, rightIcon }: Props) {
+export function TopBar({ title, showBack, showClose, showParkinon, rightIcon, rightComponent }: Props) {
   const navigation = useNavigation();
 
   return (
@@ -48,9 +49,9 @@ export function TopBar({ title, showBack, showClose, showParkinon, rightIcon }: 
             </TouchableOpacity>
           )}
         </View>
-        <Text style={styles.title}>{title}</Text>
+        {!showParkinon && <Text style={styles.title}>{title}</Text>}
         <View style={styles.right}>
-          {rightIcon}
+          {rightComponent ?? rightIcon}
         </View>
       </View>
     </View>
@@ -74,8 +75,8 @@ const styles = StyleSheet.create({
   title: { flex: 1, fontSize: 20, fontWeight: '700', color: Colors.text, textAlign: 'center' },
   parkinonText: {
     fontSize: 20,
-    fontWeight: '800',
-    color: '#FF6B35',
+    fontWeight: '900',
+    color: '#4CAF50',
   },
   backBtn: {
     flexDirection: 'row',

@@ -58,6 +58,16 @@ const POST_TYPE_LABEL: Record<string, string> = {
   cheer: '응원해요',
 };
 
+// 카테고리별 뱃지 색상
+const CATEGORY_BADGE_COLORS: Record<string, { bg: string; text: string }> = {
+  chat:     { bg: '#E8F5E9', text: '#2E7D32' }, // 연두
+  question: { bg: '#E3F2FD', text: '#1565C0' }, // 파랑
+  info:     { bg: '#FFF8E1', text: '#F57F17' }, // 노랑
+  exercise: { bg: '#FCE4EC', text: '#AD1457' }, // 분홍
+  cheer:    { bg: '#F3E5F5', text: '#6A1B9A' }, // 보라
+  default:  { bg: '#F5F5F5', text: '#555555' },
+};
+
 function formatDate(isoString: string): string {
   const d = new Date(isoString);
   return `${d.getMonth() + 1}월 ${d.getDate()}일`;
@@ -185,52 +195,57 @@ const scrollY = useRef(new Animated.Value(0)).current;
     lastScrollY.current = currentY;
   };
 
-  const renderItem = ({ item }: { item: PostItem }) => (
-    <TouchableOpacity
-      style={styles.card}
-      onPress={() => navigation.navigate('PostDetail', { post: item })}
-      activeOpacity={0.85}
-    >
-      <View style={styles.cardTop}>
-        {item.isNews ? (
-          <View style={styles.newsBadge}>
-            <Ionicons name="newspaper-outline" size={13} color={Colors.accent} />
-            <Text style={styles.newsBadgeText}>뉴스</Text>
-          </View>
-        ) : (
-          <View style={styles.categoryBadge}>
-            <Ionicons name={item.categoryIcon} size={13} color={Colors.dark} />
-            <Text style={styles.categoryBadgeText}>{item.category}</Text>
-          </View>
-        )}
-        <Text style={styles.dateText}>{item.date}</Text>
-      </View>
+  const renderItem = ({ item }: { item: PostItem }) => {
+    const badgeColors = item.isNews
+      ? { bg: '#FFF3E0', text: '#E65100' }
+      : (CATEGORY_BADGE_COLORS[item.categoryId ?? ''] ?? CATEGORY_BADGE_COLORS.default);
 
-      <View style={styles.cardBody}>
-        <View style={styles.cardContent}>
+    return (
+      <TouchableOpacity
+        style={styles.card}
+        onPress={() => navigation.navigate('PostDetail', { post: item })}
+        activeOpacity={0.82}
+      >
+        {/* 상단: 뱃지 + 날짜 */}
+        <View style={styles.cardTop}>
+          <View style={[styles.badge, { backgroundColor: badgeColors.bg }]}>
+            <Ionicons
+              name={item.isNews ? 'newspaper-outline' : item.categoryIcon}
+              size={13}
+              color={badgeColors.text}
+            />
+            <Text style={[styles.badgeText, { color: badgeColors.text }]}>
+              {item.isNews ? '📰 뉴스' : item.category}
+            </Text>
+          </View>
+          <Text style={styles.dateText}>{item.date}</Text>
+        </View>
+
+        {/* 본문: 제목 + 썸네일(뉴스/이미지 있을 때) */}
+        <View style={styles.cardBody}>
           <Text style={styles.cardTitle} numberOfLines={2}>{item.title}</Text>
-          <Text style={styles.cardPreview} numberOfLines={2}>{item.preview}</Text>
+          {item.thumbnail ? (
+            <Image
+              source={{ uri: item.thumbnail }}
+              style={styles.cardThumbnail}
+              resizeMode="cover"
+            />
+          ) : null}
         </View>
-        {item.thumbnail ? (
-          <Image source={{ uri: item.thumbnail }} style={styles.cardThumbnail} resizeMode="cover" />
-        ) : null}
-      </View>
 
-      <View style={styles.cardBottom}>
-        <Text style={styles.metaText}>{item.author}  ·  조회 {item.views}</Text>
-        <View style={styles.statsRow}>
-          <View style={styles.statItem}>
-            <Ionicons name="chatbubble-outline" size={13} color={Colors.textSub} />
-            <Text style={styles.cardStat}>댓글 {item.commentCount}</Text>
-          </View>
-          <View style={[styles.statItem, { marginLeft: 12 }]}>
-            <Ionicons name="heart-outline" size={13} color={Colors.textSub} />
-            <Text style={styles.cardStat}>좋아요 {item.likeCount}</Text>
-          </View>
+        {/* 하단: 작성자 · 댓글 · 조회 한 줄 */}
+        <View style={styles.cardBottom}>
+          <Text style={styles.metaText} numberOfLines={1}>
+            {item.author}
+            {'  ·  '}
+            <Ionicons name="chatbubble-outline" size={13} color="#888" />
+            {' 댓글 '}{item.commentCount}
+            {'  ·  조회 '}{item.views}
+          </Text>
         </View>
-      </View>
-    </TouchableOpacity>
-  );
+      </TouchableOpacity>
+    );
+  };
 
   return (
     <SafeAreaView style={styles.safe} edges={['top']}>
@@ -270,7 +285,7 @@ const scrollY = useRef(new Animated.Value(0)).current;
           onPress={() => navigation.navigate('PostWrite')}
           activeOpacity={0.85}
         >
-          <Ionicons name="create-outline" size={22} color={Colors.white} />
+          <Ionicons name="create-outline" size={24} color={Colors.white} />
           {fabExpanded && <Text style={styles.fabText}>글쓰기</Text>}
         </TouchableOpacity>
       </View>
@@ -282,102 +297,116 @@ const styles = StyleSheet.create({
   safe: { flex: 1, backgroundColor: Colors.background },
   flex: { flex: 1 },
   loadingWrap: { flex: 1, alignItems: 'center', justifyContent: 'center' },
-  listContent: { padding: 16, paddingBottom: 100 },
-  emptyText: { textAlign: 'center', color: Colors.textHint, fontSize: 17, marginTop: 60, lineHeight: 28 },
+  listContent: { paddingHorizontal: 16, paddingTop: 12, paddingBottom: 110 },
+  emptyText: {
+    textAlign: 'center',
+    color: Colors.textHint,
+    fontSize: 18,
+    marginTop: 60,
+    lineHeight: 30,
+  },
+
+  /* ── 카드 ── */
   card: {
     backgroundColor: Colors.white,
-    borderRadius: 16,
-    padding: 20,
-    marginBottom: 12,
+    borderRadius: 12,
+    padding: 16,
+    marginBottom: 10,
     elevation: 2,
     shadowColor: '#000',
     shadowOffset: { width: 0, height: 1 },
-    shadowOpacity: 0.06,
+    shadowOpacity: 0.07,
     shadowRadius: 4,
   },
+
+  /* 상단: 뱃지 + 날짜 */
   cardTop: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
-    marginBottom: 12,
+    marginBottom: 10,
   },
-  newsBadge: {
+  badge: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: 4,
-    backgroundColor: '#FFF3E0',
-    borderRadius: 6,
-    paddingHorizontal: 8,
+    borderRadius: 20,          // pill 형태
+    paddingHorizontal: 10,
     paddingVertical: 4,
   },
-  newsBadgeText: { fontSize: 15, fontWeight: '700', color: Colors.accent },
-  categoryBadge: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 4,
-    backgroundColor: Colors.light,
-    borderRadius: 6,
-    paddingHorizontal: 8,
-    paddingVertical: 4,
+  badgeText: {
+    fontSize: 13,
+    fontWeight: '700',
   },
-  categoryBadgeText: { fontSize: 15, fontWeight: '700', color: Colors.dark },
-  dateText: { fontSize: 15, color: Colors.textHint, fontWeight: '500' },
+  dateText: {
+    fontSize: 13,
+    color: Colors.textHint,
+    fontWeight: '400',
+  },
+
+  /* 본문: 제목 + 썸네일 */
   cardBody: {
     flexDirection: 'row',
     alignItems: 'flex-start',
     gap: 12,
-    marginBottom: 16,
+    marginBottom: 12,
   },
-  cardContent: { flex: 1 },
+  cardTitle: {
+    flex: 1,
+    fontSize: 20,
+    fontWeight: '700',
+    color: '#111111',
+    lineHeight: 30,
+  },
   cardThumbnail: {
-    width: 80,
-    height: 80,
-    borderRadius: 10,
+    width: 76,
+    height: 76,
+    borderRadius: 8,
     backgroundColor: '#E0E0E0',
     flexShrink: 0,
   },
-  cardTitle: { fontSize: 20, fontWeight: '700', color: Colors.text, marginBottom: 6, lineHeight: 28 },
-  cardPreview: { fontSize: 16, color: Colors.textSub, lineHeight: 24 },
+
+  /* 하단: 작성자·통계 한 줄 */
   cardBottom: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    paddingTop: 12,
+    paddingTop: 10,
     borderTopWidth: 1,
-    borderTopColor: Colors.border,
+    borderTopColor: '#EEEEEE',
   },
-  metaText: { fontSize: 15, color: Colors.textSub, fontWeight: '500' },
-  statsRow: { flexDirection: 'row', alignItems: 'center' },
-  statItem: { flexDirection: 'row', alignItems: 'center', gap: 4 },
-  cardStat: { fontSize: 15, color: Colors.textSub, fontWeight: '500' },
+  metaText: {
+    fontSize: 14,
+    color: '#888888',
+    fontWeight: '400',
+  },
+
+  /* ── FAB ── */
   fab: {
     position: 'absolute',
     right: 20,
-    bottom: 24,
+    bottom: 28,
     backgroundColor: Colors.primary,
-    borderRadius: 28,
-    paddingVertical: 14,
-    paddingHorizontal: 20,
+    borderRadius: 30,
+    paddingVertical: 15,
+    paddingHorizontal: 22,
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 6,
-    elevation: 6,
+    gap: 8,
+    elevation: 8,
     shadowColor: '#000',
-    shadowOffset: { width: 0, height: 3 },
-    shadowOpacity: 0.2,
-    shadowRadius: 6,
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.25,
+    shadowRadius: 8,
   },
   fabCircle: {
-    width: 56,
-    height: 56,
-    borderRadius: 28,
+    width: 60,
+    height: 60,
+    borderRadius: 30,
     paddingVertical: 0,
     paddingHorizontal: 0,
     alignItems: 'center',
     justifyContent: 'center',
   },
   fabText: {
-    fontSize: 16,
+    fontSize: 17,
     fontWeight: '700',
     color: Colors.white,
   },

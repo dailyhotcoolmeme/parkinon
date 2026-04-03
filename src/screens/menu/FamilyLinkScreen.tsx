@@ -49,10 +49,15 @@ export function FamilyLinkScreen() {
           groupRow.invite_code_expires_at &&
           groupRow.invite_code_expires_at > now
         ) {
-          // 기존 유효 코드 재사용
-          setInviteCode(groupRow.invite_code);
-          setLoadingCode(false);
-          return;
+          // 기존 유효 코드 재사용 — 숫자 6자리인지 확인, 아니면 새로 생성
+          const existingCode = groupRow.invite_code;
+          if (/^\d{6}$/.test(existingCode)) {
+            setInviteCode(existingCode);
+            setLoadingCode(false);
+            return;
+          }
+          // 영문 포함 코드 → 새 숫자 코드로 교체
+          console.log('[FamilyLinkScreen] 기존 코드가 숫자가 아님 → 새 코드 생성:', existingCode);
         }
       }
       // 유효 코드 없으면 신규 생성
@@ -109,7 +114,7 @@ export function FamilyLinkScreen() {
   };
 
   const handleConnect = async () => {
-    const trimmed = inputCode.trim().toUpperCase();
+    const trimmed = inputCode.trim();
     if (trimmed.length < 6) {
       Alert.alert('입력 오류', '6자리 코드를 입력해주세요.');
       return;
@@ -164,7 +169,7 @@ export function FamilyLinkScreen() {
                 <View style={styles.memberInfo}>
                   <Text style={styles.memberName}>{member.user?.name ?? '이름 없음'}</Text>
                   <Text style={styles.memberSub}>
-                    {member.role === 'patient' ? '환자' : (member.user?.caregiver_relation ?? '보호자')}
+                    {member.role === 'patient' || member.user?.role === 'patient' ? '환자' : (member.user?.caregiver_relation ?? '보호자')}
                     {member.user?.residence_type === 'together' ? ' · 함께 거주' : ' · 따로 거주'}
                   </Text>
                 </View>
@@ -204,7 +209,10 @@ export function FamilyLinkScreen() {
             onPress={handleShareKakao}
             activeOpacity={0.85}
           >
-            <Text style={styles.kakaoBtnText}>💬 카카오톡으로 공유하기</Text>
+            <View style={styles.kakaoBtnInner}>
+              <Ionicons name="chatbubble" size={22} color="#3C1E1E" />
+              <Text style={styles.kakaoBtnText}>카카오톡으로 공유하기</Text>
+            </View>
           </TouchableOpacity>
         </View>
 
@@ -241,14 +249,14 @@ export function FamilyLinkScreen() {
               inputFocused && styles.codeInputFocused,
             ]}
             value={inputCode}
-            onChangeText={text => setInputCode(text.replace(/[^A-Za-z0-9]/g, '').toUpperCase().slice(0, 6))}
+            onChangeText={text => setInputCode(text.replace(/[^0-9]/g, '').slice(0, 6))}
             onFocus={() => setInputFocused(true)}
             onBlur={() => setInputFocused(false)}
-            placeholder="6자리 코드"
+            placeholder="6자리 숫자"
             placeholderTextColor={Colors.textHint}
             maxLength={6}
-            autoCapitalize="characters"
-            keyboardType="default"
+            autoCapitalize="none"
+            keyboardType="number-pad"
           />
 
           <TouchableOpacity
@@ -430,6 +438,11 @@ const styles = StyleSheet.create({
     paddingVertical: 18,
     alignItems: 'center',
     justifyContent: 'center',
+  },
+  kakaoBtnInner: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
   },
   kakaoBtnText: {
     fontSize: 20,

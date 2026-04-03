@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import {
   View,
   Text,
@@ -9,7 +9,7 @@ import {
   Alert,
 } from 'react-native';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
-import { useNavigation } from '@react-navigation/native';
+import { useNavigation, useFocusEffect } from '@react-navigation/native';
 import { Ionicons } from '@expo/vector-icons';
 import { Colors } from '../../constants/colors';
 import { TopBar } from '../../components/common/TopBar';
@@ -72,13 +72,32 @@ const PERIOD_EMOJI: Record<string, string> = {
 
 export function BodyStateScreen() {
   const { user } = useAuth();
-  const { todayLogs, saveBodyState } = useBodyState();
+  const { todayLogs, saveBodyState, fetchVideoLogs } = useBodyState();
   const [showFlow, setShowFlow] = useState(false);
   const [showCaregiverConfirm, setShowCaregiverConfirm] = useState(false);
   const [selectedDate, setSelectedDate] = useState(new Date());
   const [showDatePicker, setShowDatePicker] = useState(false);
+  const [videoLogs, setVideoLogs] = useState<any[]>([]);
   const navigation = useNavigation<any>();
   const insets = useSafeAreaInsets();
+
+  const loadVideoLogs = useCallback(async () => {
+    const dateStr = selectedDate.toISOString().split('T')[0];
+    const logs = await fetchVideoLogs(dateStr);
+    setVideoLogs(logs);
+  }, [selectedDate, fetchVideoLogs]);
+
+  // 날짜 바뀔 때마다 영상 목록 갱신
+  useEffect(() => {
+    loadVideoLogs();
+  }, [loadVideoLogs]);
+
+  // 화면 포커스 시 영상 목록 갱신
+  useFocusEffect(
+    useCallback(() => {
+      loadVideoLogs();
+    }, [loadVideoLogs])
+  );
 
   const userRole = user?.role === 'caregiver'
     ? (user.residence_type === 'separate' ? 'caregiver_separate' : 'caregiver_same')
@@ -162,6 +181,19 @@ export function BodyStateScreen() {
               <Text style={styles.outlineButtonText}>영상 기록하기</Text>
             </View>
           </TouchableOpacity>
+
+          {videoLogs.length > 0 && (
+            <TouchableOpacity
+              style={styles.videoHistoryButton}
+              onPress={() => navigation.navigate('VideoList')}
+              activeOpacity={0.80}
+            >
+              <Ionicons name="albums-outline" size={20} color={Colors.textSub} />
+              <Text style={styles.videoHistoryText}>저장된 영상 보기</Text>
+              <Ionicons name="chevron-forward" size={18} color={Colors.textHint} />
+            </TouchableOpacity>
+          )}
+
         </View>
 
         <View style={styles.records}>
@@ -394,6 +426,26 @@ const styles = StyleSheet.create({
   },
   outlineButtonInner: { flexDirection: 'row', alignItems: 'center', gap: 10 },
   outlineButtonText: { fontSize: 18, fontWeight: '700', color: Colors.primary },
+
+  videoHistoryButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    width: '100%',
+    height: 48,
+    backgroundColor: Colors.white,
+    borderRadius: 12,
+    paddingHorizontal: 16,
+    gap: 8,
+    marginTop: 10,
+    borderWidth: 1,
+    borderColor: Colors.border,
+  },
+  videoHistoryText: {
+    flex: 1,
+    fontSize: 17,
+    fontWeight: '600',
+    color: Colors.textSub,
+  },
 
   records: { paddingHorizontal: 24, paddingBottom: 32 },
   sectionHeader: { flexDirection: 'row', alignItems: 'center', marginBottom: 20, gap: 8 },

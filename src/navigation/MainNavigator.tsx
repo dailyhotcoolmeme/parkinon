@@ -8,6 +8,7 @@ import { Colors } from '../constants/colors';
 import { MedicationScreen } from '../screens/medication/MedicationScreen';
 import { BodyStateScreen } from '../screens/bodystate/BodyStateScreen';
 import { VideoRecordScreen } from '../screens/bodystate/VideoRecordScreen';
+import { VideoListScreen } from '../screens/bodystate/VideoListScreen';
 import { ExerciseNavigator } from './ExerciseNavigator';
 import { FeedNavigator } from './FeedNavigator';
 import { MenuNavigator } from './MenuNavigator';
@@ -23,6 +24,7 @@ export type MainTabParamList = {
 export type BodyStateStackParamList = {
   BodyState: undefined;
   VideoRecord: undefined;
+  VideoList: undefined;
 };
 
 const Tab = createBottomTabNavigator<MainTabParamList>();
@@ -35,6 +37,7 @@ function BodyStateNavigator() {
     <BodyStateStack.Navigator screenOptions={{ headerShown: false }}>
       <BodyStateStack.Screen name="BodyState" component={BodyStateScreen} />
       <BodyStateStack.Screen name="VideoRecord" component={VideoRecordScreen} />
+      <BodyStateStack.Screen name="VideoList" component={VideoListScreen} />
     </BodyStateStack.Navigator>
   );
 }
@@ -91,11 +94,51 @@ export function MainNavigator() {
         };
       }}
     >
-      <Tab.Screen name="Medication" component={MedicationScreen} />
-      <Tab.Screen name="BodyStateTab" component={BodyStateNavigator} />
-      <Tab.Screen name="Exercise" component={ExerciseNavigator} />
-      <Tab.Screen name="Feed" component={FeedNavigator} />
-      <Tab.Screen name="MyInfo" component={MenuNavigator} />
+      <Tab.Screen
+        name="Medication"
+        component={MedicationScreen}
+        listeners={({ navigation }) => ({
+          tabPress: () => {
+            navigation.navigate('Medication');
+          },
+        })}
+      />
+      <Tab.Screen
+        name="BodyStateTab"
+        component={BodyStateNavigator}
+        listeners={({ navigation }) => ({
+          tabPress: () => {
+            navigation.navigate('BodyStateTab', { screen: 'BodyState' });
+          },
+        })}
+      />
+      <Tab.Screen
+        name="Exercise"
+        component={ExerciseNavigator}
+        listeners={({ navigation }) => ({
+          tabPress: () => {
+            navigation.navigate('Exercise', { screen: 'ExerciseMain' });
+          },
+        })}
+      />
+      <Tab.Screen
+        name="Feed"
+        component={FeedNavigator}
+        listeners={({ navigation }) => ({
+          tabPress: () => {
+            navigation.navigate('Feed', { screen: 'FeedMain' });
+          },
+        })}
+      />
+      <Tab.Screen
+        name="MyInfo"
+        component={MenuNavigator}
+        listeners={({ navigation }) => ({
+          tabPress: () => {
+            navigation.navigate('MyInfo', { screen: 'MenuHome' });
+          },
+        })}
+      />
     </Tab.Navigator>
   );
 }

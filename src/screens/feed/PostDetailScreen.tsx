@@ -15,6 +15,16 @@ import {
 } from 'react-native';
 
 const SCREEN_WIDTH = Dimensions.get('window').width;
+
+// 카테고리별 색상 매핑
+const CATEGORY_COLORS: Record<string, { bg: string; text: string; icon: string }> = {
+  '자유수다':   { bg: '#E8F5E9', text: '#2E7D32', icon: '#4CAF50' },
+  '질문있어요': { bg: '#E3F2FD', text: '#1565C0', icon: '#1E88E5' },
+  '정보공유':   { bg: '#FFF8E1', text: '#E65100', icon: '#FB8C00' },
+  '운동인증':   { bg: '#FCE4EC', text: '#880E4F', icon: '#E91E63' },
+  '응원해요':   { bg: '#EDE7F6', text: '#4527A0', icon: '#7B1FA2' },
+  '뉴스':       { bg: '#FFF3E0', text: '#BF360C', icon: '#FF6D00' },
+};
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useRoute, useNavigation } from '@react-navigation/native';
 import type { NativeStackScreenProps, NativeStackNavigationProp } from '@react-navigation/native-stack';
@@ -122,11 +132,11 @@ export function PostDetailScreen() {
   const handleDelete = () => {
     Alert.alert(
       '게시글 삭제',
-      '이 게시글을 삭제할까요?\n삭제된 글은 복구할 수 없어요.',
+      '정말 삭제하시겠어요?\n삭제된 글은 복구할 수 없어요.',
       [
         { text: '취소', style: 'cancel' },
         {
-          text: '삭제하기',
+          text: '삭제',
           style: 'destructive',
           onPress: async () => {
             try {
@@ -337,20 +347,42 @@ export function PostDetailScreen() {
     }
   };
 
+  // 카테고리 라벨 결정
+  const categoryLabel = post.isNews ? '뉴스' : (post.category ?? '자유수다');
+  const categoryColor = CATEGORY_COLORS[categoryLabel] ?? CATEGORY_COLORS['자유수다'];
+
   return (
     <SafeAreaView style={styles.safe} edges={['top']}>
       <TopBar
         title="글 보기"
         showBack
-        rightIcon={
+        rightComponent={
           isOwner ? (
-            <TouchableOpacity
-              onPress={handleMore}
-              hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
-              style={styles.moreBtn}
-            >
-              <Ionicons name="ellipsis-horizontal" size={26} color={Colors.textSub} />
-            </TouchableOpacity>
+            <View style={{ flexDirection: 'row' }}>
+              <TouchableOpacity
+                onPress={handleEdit}
+                style={{
+                  paddingHorizontal: 12,
+                  paddingVertical: 6,
+                  borderRadius: 8,
+                  backgroundColor: '#F0F0F0',
+                  marginRight: 4,
+                }}
+              >
+                <Text style={{ fontSize: 14, color: '#555' }}>수정</Text>
+              </TouchableOpacity>
+              <TouchableOpacity
+                onPress={handleDelete}
+                style={{
+                  paddingHorizontal: 12,
+                  paddingVertical: 6,
+                  borderRadius: 8,
+                  backgroundColor: '#FFF0F0',
+                }}
+              >
+                <Text style={{ fontSize: 14, color: '#F44336' }}>삭제</Text>
+              </TouchableOpacity>
+            </View>
           ) : undefined
         }
       />
@@ -360,63 +392,88 @@ export function PostDetailScreen() {
         keyboardVerticalOffset={60}
       >
         <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={styles.scrollContent}>
-          {/* 게시글 헤더 */}
-          <View style={styles.postHeader}>
-            <View style={styles.postMeta}>
-              <Text style={styles.postAuthor}>{post.author}</Text>
-              <Text style={styles.postDate}> · {post.date}</Text>
+
+          {/* ── 게시글 본문 카드 ── */}
+          <View style={styles.postCard}>
+
+            {/* 카테고리 뱃지 (pill) */}
+            <View style={[styles.categoryPill, { backgroundColor: categoryColor.bg }]}>
+              <Ionicons
+                name={post.isNews ? 'newspaper-outline' : post.categoryIcon}
+                size={14}
+                color={categoryColor.icon}
+              />
+              <Text style={[styles.categoryPillText, { color: categoryColor.text }]}>
+                {categoryLabel}
+              </Text>
             </View>
-            {post.isNews ? (
-              <View style={styles.newsBadge}>
-                <Ionicons name="newspaper-outline" size={13} color={Colors.accent} />
-                <Text style={styles.newsBadgeText}>뉴스</Text>
-              </View>
-            ) : (
-              <View style={styles.categoryBadge}>
-                <Ionicons name={post.categoryIcon} size={13} color={Colors.dark} />
-                <Text style={styles.categoryBadgeText}>{post.category}</Text>
-              </View>
+
+            {/* 제목 */}
+            <Text style={styles.postTitle}>{post.title}</Text>
+
+            {/* 작성자 + 날짜 */}
+            <Text style={styles.postMeta}>
+              {post.author}
+              {post.authorRole ? ` · ${post.authorRole}` : ''}
+              {'  '}
+              {post.date}
+            </Text>
+
+            {/* 구분선 */}
+            <View style={styles.metaDivider} />
+
+            {/* 본문 */}
+            <Text style={styles.postContent}>{post.preview}</Text>
+
+            {/* 첨부 사진 (가로 스크롤) */}
+            {mediaUrls.length > 0 && (
+              <ScrollView
+                horizontal
+                showsHorizontalScrollIndicator={false}
+                style={styles.mediaScroll}
+                contentContainerStyle={styles.mediaScrollContent}
+              >
+                {mediaUrls.map((url, idx) => (
+                  <Image
+                    key={idx}
+                    source={{ uri: url }}
+                    style={styles.mediaImage}
+                    resizeMode="cover"
+                  />
+                ))}
+              </ScrollView>
             )}
           </View>
 
-          {/* 제목 */}
-          <Text style={styles.postTitle}>{post.title}</Text>
-
-          {/* 내용 */}
-          <Text style={styles.postContent}>{post.preview}</Text>
-
-          {/* 첨부 사진 */}
-          {mediaUrls.length > 0 && (
-            <View style={styles.mediaSection}>
-              {mediaUrls.map((url, idx) => (
-                <Image
-                  key={idx}
-                  source={{ uri: url }}
-                  style={styles.mediaImage}
-                  resizeMode="cover"
-                />
-              ))}
-            </View>
-          )}
-
-          {/* 조회/좋아요 */}
-          <View style={styles.statsRow}>
-            <Text style={styles.statText}>조회 {post.views}</Text>
-            <TouchableOpacity style={styles.likeBtn} onPress={handleLike} activeOpacity={0.7}>
+          {/* ── 통계 바 ── */}
+          <View style={styles.statsCard}>
+            <TouchableOpacity style={styles.statItem} onPress={handleLike} activeOpacity={0.7}>
               <Ionicons
                 name={liked ? 'heart' : 'heart-outline'}
                 size={22}
-                color={liked ? Colors.danger : Colors.textSub}
+                color={liked ? Colors.danger : '#888'}
               />
-              <Text style={[styles.likeCount, liked && styles.likeCountActive]}>
-                {likeCount}
+              <Text style={[styles.statLabel, liked && { color: Colors.danger }]}>
+                좋아요 {likeCount}
               </Text>
             </TouchableOpacity>
+
+            <View style={styles.statSep} />
+
+            <View style={styles.statItem}>
+              <Ionicons name="chatbubble-outline" size={20} color="#888" />
+              <Text style={styles.statLabel}>댓글 {comments.length}</Text>
+            </View>
+
+            <View style={styles.statSep} />
+
+            <View style={styles.statItem}>
+              <Ionicons name="eye-outline" size={20} color="#888" />
+              <Text style={styles.statLabel}>조회 {post.views}</Text>
+            </View>
           </View>
 
-          <View style={styles.divider} />
-
-          {/* 댓글 섹션 */}
+          {/* ── 댓글 섹션 ── */}
           <View style={styles.commentHeader}>
             <Text style={styles.commentTitle}>댓글 {comments.length}개</Text>
           </View>
@@ -439,7 +496,7 @@ export function PostDetailScreen() {
                       onPress={() => handleCommentLike(comment.id)}
                     >
                       <View style={styles.actionRow}>
-                        <Ionicons name="heart-outline" size={14} color={Colors.textSub} />
+                        <Ionicons name="heart-outline" size={16} color={Colors.textSub} />
                         <Text style={styles.actionText}>{comment.likeCount}</Text>
                       </View>
                     </TouchableOpacity>
@@ -470,7 +527,7 @@ export function PostDetailScreen() {
                           onPress={() => handleCommentLike(reply.id)}
                         >
                           <View style={styles.actionRow}>
-                            <Ionicons name="heart-outline" size={14} color={Colors.textSub} />
+                            <Ionicons name="heart-outline" size={16} color={Colors.textSub} />
                             <Text style={styles.actionText}>{reply.likeCount}</Text>
                           </View>
                         </TouchableOpacity>
@@ -525,169 +582,194 @@ export function PostDetailScreen() {
 }
 
 const styles = StyleSheet.create({
-  safe: { flex: 1, backgroundColor: Colors.white },
-  flex: { flex: 1, backgroundColor: Colors.white },
-  scrollContent: { paddingBottom: 20 },
-  postHeader: {
-    backgroundColor: Colors.white,
-    padding: 20,
+  // ── 기반 레이아웃 ──
+  safe: { flex: 1, backgroundColor: '#FFFFFF' },
+  flex: { flex: 1, backgroundColor: '#FFFFFF' },
+  scrollContent: { paddingBottom: 24 },
+
+  // ── 본문 카드 ──
+  postCard: {
+    backgroundColor: '#FFFFFF',
+    marginHorizontal: 0,
+    marginTop: 0,
+    paddingHorizontal: 20,
+    paddingTop: 20,
+    paddingBottom: 20,
+  },
+
+  // 카테고리 pill 뱃지
+  categoryPill: {
+    alignSelf: 'flex-start',
     flexDirection: 'row',
     alignItems: 'center',
-    justifyContent: 'space-between',
-    borderBottomWidth: 1,
-    borderBottomColor: Colors.border,
+    gap: 5,
+    borderRadius: 20,
+    paddingHorizontal: 12,
+    paddingVertical: 5,
+    marginBottom: 14,
   },
-  postMeta: { flexDirection: 'row', alignItems: 'center' },
-  postAuthor: { fontSize: 16, fontWeight: '700', color: Colors.text },
-  postDate: { fontSize: 14, color: Colors.textSub },
-  newsBadge: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 4,
-    backgroundColor: '#FFF3E0',
-    borderRadius: 6,
-    paddingHorizontal: 8,
-    paddingVertical: 4,
+  categoryPillText: {
+    fontSize: 14,
+    fontWeight: '700',
   },
-  newsBadgeText: { fontSize: 13, fontWeight: '600', color: Colors.accent },
-  categoryBadge: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 4,
-    backgroundColor: Colors.light,
-    borderRadius: 6,
-    paddingHorizontal: 8,
-    paddingVertical: 4,
-  },
-  categoryBadgeText: { fontSize: 13, fontWeight: '600', color: Colors.dark },
+
+  // 제목
   postTitle: {
     fontSize: 22,
     fontWeight: '700',
-    color: Colors.text,
-    backgroundColor: Colors.white,
-    paddingHorizontal: 20,
-    paddingTop: 16,
-    paddingBottom: 12,
+    color: '#111111',
+    lineHeight: 32,
+    marginBottom: 10,
   },
+
+  // 작성자 + 날짜
+  postMeta: {
+    fontSize: 14,
+    color: '#888888',
+    marginBottom: 16,
+  },
+
+  // 제목-본문 구분선
+  metaDivider: {
+    height: 1,
+    backgroundColor: '#EEEEEE',
+    marginBottom: 18,
+  },
+
+  // 본문
   postContent: {
-    fontSize: 16,
-    color: Colors.text,
-    backgroundColor: Colors.white,
-    paddingHorizontal: 20,
-    paddingBottom: 16,
-    lineHeight: 26,
+    fontSize: 18,
+    color: '#222222',
+    lineHeight: 30,
+    marginBottom: 4,
   },
-  mediaSection: {
-    backgroundColor: Colors.white,
+
+  // 사진 가로 스크롤
+  mediaScroll: {
+    marginTop: 16,
+    marginHorizontal: -20,
+  },
+  mediaScrollContent: {
     paddingHorizontal: 20,
-    paddingBottom: 16,
     gap: 10,
   },
   mediaImage: {
-    width: SCREEN_WIDTH - 40,
-    height: SCREEN_WIDTH - 40,
+    width: SCREEN_WIDTH * 0.72,
+    height: SCREEN_WIDTH * 0.72,
     borderRadius: 12,
-    backgroundColor: Colors.background,
+    backgroundColor: '#E0E0E0',
   },
-  statsRow: {
-    backgroundColor: Colors.white,
-    paddingHorizontal: 20,
+
+  // ── 통계 바 카드 ──
+  statsCard: {
+    backgroundColor: '#FFFFFF',
+    marginTop: 8,
     paddingVertical: 14,
+    paddingHorizontal: 20,
     flexDirection: 'row',
     alignItems: 'center',
-    justifyContent: 'space-between',
+    justifyContent: 'space-around',
   },
-  statText: { fontSize: 14, color: Colors.textSub },
-  likeBtn: { flexDirection: 'row', alignItems: 'center', gap: 6 },
-  likeCount: { fontSize: 16, fontWeight: '600', color: Colors.textSub },
-  likeCountActive: { color: Colors.danger },
-  divider: {
-    height: 8,
-    backgroundColor: Colors.background,
+  statItem: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
   },
+  statLabel: {
+    fontSize: 15,
+    color: '#888888',
+    fontWeight: '500',
+  },
+  statSep: {
+    width: 1,
+    height: 18,
+    backgroundColor: '#E0E0E0',
+  },
+
+  // ── 댓글 섹션 ──
   commentHeader: {
-    backgroundColor: Colors.white,
+    backgroundColor: '#FFFFFF',
+    marginTop: 8,
     paddingHorizontal: 20,
-    paddingVertical: 14,
+    paddingVertical: 16,
     borderBottomWidth: 1,
-    borderBottomColor: Colors.border,
+    borderBottomColor: '#EEEEEE',
   },
-  commentTitle: { fontSize: 18, fontWeight: '700', color: Colors.text },
+  commentTitle: { fontSize: 18, fontWeight: '700', color: '#111111' },
+
   commentItem: {
-    backgroundColor: Colors.white,
+    backgroundColor: '#FFFFFF',
     paddingHorizontal: 20,
     paddingTop: 16,
   },
   commentCard: {
-    paddingBottom: 14,
+    paddingBottom: 16,
     borderBottomWidth: 1,
-    borderBottomColor: Colors.border,
+    borderBottomColor: '#EEEEEE',
   },
   commentTop: { flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: 6 },
-  commentAuthor: { fontSize: 15, fontWeight: '700', color: Colors.text },
-  commentTime: { fontSize: 13, color: Colors.textHint },
-  commentContent: { fontSize: 16, color: Colors.text, lineHeight: 24, marginBottom: 8 },
-  commentActions: { flexDirection: 'row', gap: 16 },
+  commentAuthor: { fontSize: 16, fontWeight: '700', color: '#111111' },
+  commentTime: { fontSize: 13, color: '#AAAAAA' },
+  commentContent: { fontSize: 17, color: '#222222', lineHeight: 27, marginBottom: 10 },
+  commentActions: { flexDirection: 'row', gap: 18 },
   actionBtn: { paddingVertical: 2 },
-  actionRow: { flexDirection: 'row', alignItems: 'center', gap: 4 },
-  actionText: { fontSize: 14, color: Colors.textSub },
+  actionRow: { flexDirection: 'row', alignItems: 'center', gap: 5 },
+  actionText: { fontSize: 15, color: Colors.textSub },
+
   replyCard: {
     flexDirection: 'row',
-    paddingTop: 12,
+    paddingTop: 14,
     paddingLeft: 8,
     paddingBottom: 14,
     borderBottomWidth: 1,
-    borderBottomColor: Colors.border,
+    borderBottomColor: '#EEEEEE',
   },
-  replyArrow: { fontSize: 18, color: Colors.textHint, marginRight: 10, marginTop: 2 },
+  replyArrow: { fontSize: 18, color: '#BBBBBB', marginRight: 10, marginTop: 2 },
   replyContent: { flex: 1 },
+
+  // ── 댓글 입력창 ──
   commentInputArea: {
     backgroundColor: Colors.white,
     borderTopWidth: 1,
-    borderTopColor: Colors.border,
+    borderTopColor: '#EEEEEE',
   },
   replyingBanner: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
     paddingHorizontal: 16,
-    paddingVertical: 8,
-    backgroundColor: Colors.light,
+    paddingVertical: 10,
+    backgroundColor: '#F0F4FF',
     borderBottomWidth: 1,
-    borderBottomColor: Colors.border,
+    borderBottomColor: '#DDEEFF',
   },
-  replyingText: { fontSize: 14, color: Colors.dark },
-  replyCancelText: { fontSize: 14, color: Colors.textSub },
+  replyingText: { fontSize: 15, color: '#444444' },
+  replyCancelText: { fontSize: 15, color: Colors.textSub },
   commentInputRow: {
     flexDirection: 'row',
     alignItems: 'center',
     paddingHorizontal: 16,
-    paddingVertical: 10,
+    paddingVertical: 12,
     gap: 10,
   },
   commentInput: {
     flex: 1,
-    fontSize: 16,
+    fontSize: 17,
     color: Colors.text,
-    backgroundColor: Colors.background,
-    borderRadius: 20,
+    backgroundColor: '#F5F5F5',
+    borderRadius: 22,
     paddingHorizontal: 16,
-    paddingVertical: 10,
-    maxHeight: 80,
+    paddingVertical: 11,
+    maxHeight: 84,
   },
   commentSubmitBtn: {
     backgroundColor: Colors.primary,
-    borderRadius: 20,
-    paddingHorizontal: 16,
-    paddingVertical: 10,
-    minWidth: 52,
+    borderRadius: 22,
+    paddingHorizontal: 18,
+    paddingVertical: 11,
+    minWidth: 56,
     alignItems: 'center',
   },
   commentSubmitDisabled: { backgroundColor: Colors.border },
-  commentSubmitText: { fontSize: 14, fontWeight: '700', color: Colors.white },
-  moreBtn: {
-    padding: 6,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
+  commentSubmitText: { fontSize: 15, fontWeight: '700', color: Colors.white },
 });

@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import {
   View,
   Text,
@@ -55,6 +55,7 @@ export function CaregiverInfoScreen() {
   const [relation, setRelation] = useState<RelationKey | null>(null);
   const [living, setLiving] = useState<LivingKey | null>(null);
   const [showBirthPicker, setShowBirthPicker] = useState(false);
+  const birthPickerRef = useRef<FlatList<string>>(null);
 
   useEffect(() => {
     loadSavedData();
@@ -238,9 +239,19 @@ export function CaregiverInfoScreen() {
               <View style={pickerStyles.handle} />
               <Text style={pickerStyles.sheetTitle}>출생연도 선택</Text>
               <FlatList
+                ref={birthPickerRef}
                 data={BIRTH_YEARS}
                 keyExtractor={(item) => item}
                 style={pickerStyles.list}
+                getItemLayout={(_, index) => ({ length: 57, offset: 57 * index, index })}
+                onLayout={() => {
+                  if (birthYear) {
+                    const idx = BIRTH_YEARS.findIndex(y => y === birthYear);
+                    if (idx >= 0) {
+                      birthPickerRef.current?.scrollToIndex({ index: idx, animated: false, viewPosition: 0.5 });
+                    }
+                  }
+                }}
                 renderItem={({ item }) => (
                   <TouchableOpacity
                     style={[pickerStyles.yearItem, item === birthYear && pickerStyles.yearItemSelected]}
@@ -271,7 +282,7 @@ const styles = StyleSheet.create({
   progressArea: { flexDirection: 'row', gap: 8, paddingHorizontal: 24, paddingTop: 8, paddingBottom: 16 },
   progressDot: { flex: 1, height: 6, borderRadius: 3, backgroundColor: Colors.border },
   progressDotActive: { backgroundColor: Colors.primary },
-  scrollContent: { flexGrow: 1, justifyContent: 'center', paddingHorizontal: 24, paddingVertical: 24 },
+  scrollContent: { flexGrow: 1, justifyContent: 'center', paddingHorizontal: 24, paddingTop: 24, paddingBottom: 60 },
   title: { fontSize: 26, fontWeight: '700', color: Colors.text, marginBottom: 12, lineHeight: 38, textAlign: 'center' },
   subtitle: { fontSize: 18, color: Colors.textSub, marginBottom: 32, lineHeight: 28, textAlign: 'center' },
   textInput: {
@@ -348,8 +359,8 @@ const pickerStyles = StyleSheet.create({
     flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between',
     paddingVertical: 16, paddingHorizontal: 8, borderBottomWidth: 1, borderBottomColor: Colors.border,
   },
-  yearItemSelected: { backgroundColor: Colors.light, borderRadius: 8 },
+  yearItemSelected: { backgroundColor: '#E8F5E9', borderRadius: 8 },
   yearText: { fontSize: 18, color: Colors.text },
-  yearTextSelected: { color: Colors.dark, fontWeight: '700' },
-  checkMark: { fontSize: 18, color: Colors.primary, fontWeight: '700' },
+  yearTextSelected: { color: '#4CAF50', fontWeight: '700' },
+  checkMark: { fontSize: 18, color: '#4CAF50', fontWeight: '700' },
 });

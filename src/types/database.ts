@@ -22,6 +22,7 @@ export interface Database {
           patient_group_id: string | null;
           onboarding_done: boolean;
           notification_enabled: boolean;
+          push_token: string | null;
           created_at: string;
           updated_at: string;
         };

@@ -200,25 +200,29 @@ export function MedicationScreen() {
             <View style={styles.divider} />
           </View>
           {displayList.map(item => (
-            <View key={item.id} style={[styles.card, !item.taken && styles.cardIncomplete]}>
-              <View style={[styles.sideBar, item.taken ? styles.sideBarDone : styles.sideBarPending]} />
-              <View style={styles.cardContent}>
-                <Ionicons
-                  name={item.taken ? 'checkmark-circle' : 'time-outline'}
-                  size={28}
-                  color={item.taken ? Colors.primary : Colors.accent}
-                  style={styles.cardIcon}
-                />
-                <View style={styles.cardBody}>
-                  <Text style={styles.cardLabel}>{item.label} 약</Text>
-                  <Text style={styles.cardTime}>
-                    {item.taken ? `${item.takenAt} 복용 완료` : `${item.time} 예정`}
-                  </Text>
-                </View>
-                <View style={[styles.cardBadge, !item.taken && styles.cardBadgeIncomplete]}>
-                  <Text style={[styles.cardBadgeText, !item.taken && styles.cardBadgeTextIncomplete]}>
-                    {item.taken ? '완료' : '미완료'}
-                  </Text>
+            /* 그림자용 outer wrapper */
+            <View key={item.id} style={styles.cardShadow}>
+              {/* overflow hidden inner wrapper */}
+              <View style={[styles.cardInner, item.taken ? styles.cardInnerDone : styles.cardInnerPending]}>
+                <View style={[styles.cardStripe, { backgroundColor: item.taken ? '#4CAF50' : '#E0E0E0' }]} />
+                <View style={[styles.cardContent, item.taken && styles.cardContentDone]}>
+                  <Ionicons
+                    name={item.taken ? 'checkmark-circle' : 'time-outline'}
+                    size={28}
+                    color={item.taken ? Colors.primary : Colors.accent}
+                    style={styles.cardIcon}
+                  />
+                  <View style={styles.cardBody}>
+                    <Text style={styles.cardLabel}>{item.label} 약</Text>
+                    <Text style={styles.cardTime}>
+                      {item.taken ? `${item.takenAt} 복용 완료` : `${item.time} 예정`}
+                    </Text>
+                  </View>
+                  <View style={[styles.cardBadge, !item.taken && styles.cardBadgeIncomplete]}>
+                    <Text style={[styles.cardBadgeText, !item.taken && styles.cardBadgeTextIncomplete]}>
+                      {item.taken ? '완료' : '미완료'}
+                    </Text>
+                  </View>
                 </View>
               </View>
             </View>
@@ -309,29 +313,29 @@ const styles = StyleSheet.create({
   divider: { flex: 1, height: 1, backgroundColor: Colors.border },
   sectionTitle: { fontSize: 17, fontWeight: '600', color: Colors.textSub, paddingHorizontal: 4 },
 
-  card: {
+  /* 그림자용 outer — overflow hidden 없음 */
+  cardShadow: {
+    borderRadius: 16,
+    marginBottom: 10,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.08,
+    shadowRadius: 6,
+    elevation: 3,
+  },
+  /* 내용 + 띠 담는 inner — overflow hidden으로 띠가 둥근 모서리 안에 잘림 */
+  cardInner: {
     flexDirection: 'row',
     alignItems: 'center',
     borderRadius: 16,
     minHeight: 96,
-    marginBottom: 10,
-    backgroundColor: '#F1F8E9',
-    elevation: 2,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 1 },
-    shadowOpacity: 0.08,
-    shadowRadius: 3,
+    overflow: 'hidden',
   },
-  cardIncomplete: {
-    backgroundColor: Colors.white,
-    borderWidth: 1.5,
-    borderColor: Colors.border,
-    elevation: 1,
-    shadowOpacity: 0.04,
-  },
-  sideBar: { width: 6, alignSelf: 'stretch' },
-  sideBarDone: { backgroundColor: Colors.primary },
-  sideBarPending: { backgroundColor: Colors.accent },
+  cardInnerDone: { backgroundColor: '#F5F5F5' },
+  cardInnerPending: { backgroundColor: Colors.white },
+  cardContentDone: { opacity: 0.5 },
+  /* 왼쪽 색상 띠 */
+  cardStripe: { width: 5, alignSelf: 'stretch' },
   cardContent: { flex: 1, flexDirection: 'row', alignItems: 'center', paddingHorizontal: 16, paddingVertical: 20 },
   cardIcon: { marginRight: 14 },
   cardBody: { flex: 1 },

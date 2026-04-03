@@ -7,6 +7,9 @@ import { FamilyLinkScreen } from '../screens/menu/FamilyLinkScreen';
 import { ProfileEditScreen } from '../screens/menu/ProfileEditScreen';
 import { RecordsScreen } from '../screens/records/RecordsScreen';
 import { RecordDetailScreen } from '../screens/records/RecordDetailScreen';
+import { TermsScreen } from '../screens/menu/TermsScreen';
+import { PrivacyScreen } from '../screens/menu/PrivacyScreen';
+import { VideoListScreen } from '../screens/bodystate/VideoListScreen';
 
 export type MenuStackParamList = {
   MenuHome: undefined;
@@ -19,6 +22,9 @@ export type MenuStackParamList = {
   MedicationManage: undefined;
   FamilyLink: undefined;
   ProfileEdit: undefined;
+  Terms: undefined;
+  Privacy: undefined;
+  VideoList: undefined;
 };
 
 const Stack = createStackNavigator<MenuStackParamList>();
@@ -33,6 +39,9 @@ export function MenuNavigator() {
       <Stack.Screen name="MedicationManage" component={MedicationManageScreen} />
       <Stack.Screen name="FamilyLink" component={FamilyLinkScreen} />
       <Stack.Screen name="ProfileEdit" component={ProfileEditScreen} />
+      <Stack.Screen name="Terms" component={TermsScreen} />
+      <Stack.Screen name="Privacy" component={PrivacyScreen} />
+      <Stack.Screen name="VideoList" component={VideoListScreen} />
     </Stack.Navigator>
   );
 }

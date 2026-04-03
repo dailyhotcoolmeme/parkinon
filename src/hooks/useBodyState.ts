@@ -14,6 +14,7 @@ import type { Database } from '../types/database';
 
 type OnOffLogRow = Database['public']['Tables']['on_off_logs']['Row'];
 type TriggeredBy = Database['public']['Tables']['on_off_logs']['Row']['triggered_by'];
+type MediaLogRow = Database['public']['Tables']['media_logs']['Row'];
 
 export interface BodyStateInput {
   body_state?: number;    // 1~5
@@ -32,6 +33,7 @@ export interface UseBodyStateReturn {
   isFirstLogToday: () => Promise<boolean>;
   getPatientId: () => Promise<string | null>;
   refresh: () => Promise<void>;
+  fetchVideoLogs: (date: string) => Promise<MediaLogRow[]>;
 }
 
 export function useBodyState(): UseBodyStateReturn {
@@ -187,6 +189,31 @@ export function useBodyState(): UseBodyStateReturn {
     }
   }, [user, getPatientId]);
 
+  // 날짜별 영상 목록 조회
+  const fetchVideoLogs = useCallback(async (date: string): Promise<MediaLogRow[]> => {
+    if (!user) return [];
+
+    try {
+      const patientId = await getPatientId();
+      if (!patientId) return [];
+
+      const { data } = await supabase
+        .from('media_logs')
+        .select('*')
+        .eq('patient_id', patientId)
+        .eq('media_type', 'video')
+        .eq('category', 'body_state')
+        .gte('logged_at', `${date}T00:00:00.000Z`)
+        .lte('logged_at', `${date}T23:59:59.999Z`)
+        .order('logged_at', { ascending: false });
+
+      return data ?? [];
+    } catch (err: any) {
+      console.error('[useBodyState] fetchVideoLogs 오류:', err);
+      return [];
+    }
+  }, [user, getPatientId]);
+
   // 초기 로드
   useEffect(() => {
     if (user) {
@@ -208,5 +235,6 @@ export function useBodyState(): UseBodyStateReturn {
     isFirstLogToday,
     getPatientId,
     refresh,
+    fetchVideoLogs,
   };
 }

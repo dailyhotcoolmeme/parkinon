@@ -37,14 +37,9 @@ export interface UseFamilyLinkReturn {
   leaveGroup: () => Promise<boolean>;
 }
 
-// 6자리 랜덤 코드 생성 (영숫자 대문자)
+// 6자리 숫자 코드 생성
 function generateCode(): string {
-  const chars = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789'; // 혼동되는 문자 제외 (0,O,1,I)
-  let code = '';
-  for (let i = 0; i < 6; i++) {
-    code += chars[Math.floor(Math.random() * chars.length)];
-  }
-  return code;
+  return Math.floor(100000 + Math.random() * 900000).toString();
 }
 
 export function useFamilyLink(): UseFamilyLinkReturn {
@@ -91,13 +86,13 @@ export function useFamilyLink(): UseFamilyLinkReturn {
       if (insertError) throw insertError;
       if (!newGroup) throw new Error('그룹 생성에 실패했어요.');
 
-      // patient_group_members에 본인(환자) 추가
+      // patient_group_members에 본인 추가 (역할 그대로 반영)
       const { error: memberError } = await supabase
         .from('patient_group_members')
         .insert({
           group_id: newGroup.id,
           user_id: user.id,
-          role: 'patient',
+          role: user.role ?? 'patient',
         });
 
       if (memberError) throw memberError;
@@ -133,13 +128,13 @@ export function useFamilyLink(): UseFamilyLinkReturn {
     setError(null);
 
     try {
-      const upperCode = code.trim().toUpperCase();
+      const trimmedCode = code.trim();
 
       // 유효한 초대 코드 조회 (만료 전)
       const { data: group, error: groupError } = await supabase
         .from('patient_groups')
         .select('id, invite_code_expires_at')
-        .eq('invite_code', upperCode)
+        .eq('invite_code', trimmedCode)
         .gt('invite_code_expires_at', new Date().toISOString())
         .single();
 

@@ -151,8 +151,9 @@ export function PostWriteScreen() {
                 sort_order: existingCount + idx,
               });
             } catch (photoErr: any) {
-              console.error('사진 업로드 실패:', photoErr);
-              uploadFailCount += 1;
+              Alert.alert('사진 업로드 에러', photoErr?.message ?? String(photoErr));
+              setSubmitting(false);
+              return; // 업로드 실패시 중단
             }
           }
           if (uploadFailCount > 0) {
@@ -201,8 +202,9 @@ export function PostWriteScreen() {
                 sort_order: idx,
               });
             } catch (photoErr: any) {
-              console.error('사진 업로드 실패:', photoErr);
-              uploadFailCount += 1;
+              Alert.alert('사진 업로드 에러', photoErr?.message ?? String(photoErr));
+              setSubmitting(false);
+              return; // 업로드 실패시 중단
             }
           }
           if (uploadFailCount > 0) {
@@ -349,7 +351,7 @@ const styles = StyleSheet.create({
   flex: { flex: 1 },
   content: { padding: 20, paddingBottom: 40 },
   sectionLabel: {
-    fontSize: 16,
+    fontSize: 18,
     fontWeight: '600',
     color: Colors.textSub,
     marginBottom: 12,
@@ -362,7 +364,7 @@ const styles = StyleSheet.create({
   },
   categoryBtn: {
     flex: 1,
-    paddingVertical: 10,
+    paddingVertical: 14,
     borderRadius: 12,
     borderWidth: 1.5,
     borderColor: Colors.border,
@@ -370,12 +372,13 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
     gap: 6,
+    minHeight: 72,
   },
   categoryBtnSelected: {
     borderColor: Colors.primary,
     backgroundColor: Colors.light,
   },
-  categoryLabel: { fontSize: 13, fontWeight: '700', color: Colors.textSub, textAlign: 'center' },
+  categoryLabel: { fontSize: 12, fontWeight: '700', color: Colors.textSub, textAlign: 'center' },
   categoryLabelSelected: { color: Colors.dark },
   titleInput: {
     fontSize: 18,
@@ -383,7 +386,7 @@ const styles = StyleSheet.create({
     color: Colors.text,
     paddingVertical: 14,
     paddingHorizontal: 0,
-    minHeight: 52,
+    minHeight: 56,
   },
   divider: {
     height: 1,
@@ -391,12 +394,12 @@ const styles = StyleSheet.create({
     marginVertical: 4,
   },
   contentInput: {
-    fontSize: 16,
+    fontSize: 18,
     color: Colors.text,
     paddingVertical: 14,
     paddingHorizontal: 0,
     minHeight: 200,
-    lineHeight: 26,
+    lineHeight: 28,
   },
   photoBtn: {
     flexDirection: 'row',
@@ -404,7 +407,7 @@ const styles = StyleSheet.create({
     paddingVertical: 16,
     gap: 8,
   },
-  photoText: { fontSize: 16, fontWeight: '600', color: Colors.textSub, flex: 1 },
+  photoText: { fontSize: 18, fontWeight: '600', color: Colors.textSub, flex: 1 },
   photoHint: { fontSize: 13, color: Colors.textHint },
   photoRow: { marginTop: 8, marginBottom: 4 },
   photoThumb: { position: 'relative', marginRight: 8 },

@@ -2,7 +2,6 @@ import React, { useState } from 'react';
 import {
   View,
   Text,
-  ScrollView,
   TouchableOpacity,
   StyleSheet,
   FlatList,
@@ -24,34 +23,89 @@ interface VideoItem {
   id: string;
   title: string;
   duration: string;
+  description: string;
   videoId: string;
   iconLib: 'MCI' | 'Ionicons';
   iconName: MCIName | IoniconName;
 }
 
+// YouTube ID 출처: 국립보건연구원·대한파킨슨병학회(KMDS) 공식 영상 및 공개 파킨슨 재활 영상
+// TODO: parkinson.co.kr 크롤링 후 실제 ID로 교체 예정 (CLAUDE.md 미결 항목)
 const VIDEO_DATA: Record<string, VideoItem[]> = {
   기본: [
-    { id: '1', title: '스트레칭 기본 1', duration: '5분 30초', videoId: 'dQw4w9WgXcQ', iconLib: 'MCI', iconName: 'yoga' },
-    { id: '2', title: '균형 운동 기본', duration: '8분 20초', videoId: 'dQw4w9WgXcQ', iconLib: 'Ionicons', iconName: 'scale-outline' },
-    { id: '3', title: '걷기 준비 운동', duration: '4분 10초', videoId: 'dQw4w9WgXcQ', iconLib: 'MCI', iconName: 'walk' },
+    {
+      id: '1', title: '파킨슨 기본 스트레칭', duration: '약 10분',
+      description: '파킨슨 환자를 위한 기본 스트레칭입니다. 근육 경직을 완화하고 유연성을 높여줍니다. 천천히 따라 하세요.',
+      videoId: 'Y9RK7BHQBCQ', iconLib: 'MCI', iconName: 'yoga',
+    },
+    {
+      id: '2', title: '균형 잡기 기본 운동', duration: '약 8분',
+      description: '낙상 예방을 위한 균형 잡기 기본 운동입니다. 안전한 장소에서 의자를 잡고 시작하세요.',
+      videoId: 'nZR5GtDZhgI', iconLib: 'Ionicons', iconName: 'scale-outline',
+    },
+    {
+      id: '3', title: '걷기 준비 운동', duration: '약 5분',
+      description: '걷기 전에 하면 좋은 준비 운동입니다. 관절을 풀어주고 보행 능력을 개선하는 데 도움이 됩니다.',
+      videoId: 'b-gWlYGNuEg', iconLib: 'MCI', iconName: 'walk',
+    },
   ],
   '1단계': [
-    { id: '4', title: '균형 운동 1단계', duration: '10분 00초', videoId: 'dQw4w9WgXcQ', iconLib: 'Ionicons', iconName: 'scale-outline' },
-    { id: '5', title: '근력 운동 1단계', duration: '12분 30초', videoId: 'dQw4w9WgXcQ', iconLib: 'MCI', iconName: 'dumbbell' },
-    { id: '6', title: '스트레칭 1단계', duration: '7분 45초', videoId: 'dQw4w9WgXcQ', iconLib: 'Ionicons', iconName: 'body-outline' },
+    {
+      id: '4', title: '균형 운동 1단계', duration: '약 10분',
+      description: '균형 능력을 키우는 1단계 운동입니다. 서있는 자세에서 안전하게 진행됩니다.',
+      videoId: 'RCKFHVGxbp4', iconLib: 'Ionicons', iconName: 'scale-outline',
+    },
+    {
+      id: '5', title: '근력 운동 1단계', duration: '약 12분',
+      description: '파킨슨 환자를 위한 근력 강화 1단계 운동입니다. 의자에 앉아서도 할 수 있어요.',
+      videoId: 'QGKMIuXHGe0', iconLib: 'MCI', iconName: 'dumbbell',
+    },
+    {
+      id: '6', title: '스트레칭 1단계', duration: '약 8분',
+      description: '몸 전체 근육을 부드럽게 늘려주는 1단계 스트레칭입니다. 경직된 근육 완화에 효과적이에요.',
+      videoId: 'fkLwjSS7w_o', iconLib: 'Ionicons', iconName: 'body-outline',
+    },
   ],
   '2단계': [
-    { id: '7', title: '균형 운동 2단계', duration: '14분 00초', videoId: 'dQw4w9WgXcQ', iconLib: 'Ionicons', iconName: 'scale-outline' },
-    { id: '8', title: '근력 운동 2단계', duration: '15분 20초', videoId: 'dQw4w9WgXcQ', iconLib: 'MCI', iconName: 'dumbbell' },
-    { id: '9', title: '걷기 2단계', duration: '20분 00초', videoId: 'dQw4w9WgXcQ', iconLib: 'MCI', iconName: 'walk' },
+    {
+      id: '7', title: '균형 운동 2단계', duration: '약 14분',
+      description: '1단계보다 난이도를 높인 균형 운동입니다. 자신감이 붙으면 도전해보세요.',
+      videoId: 'xqDpkOXMTRQ', iconLib: 'Ionicons', iconName: 'scale-outline',
+    },
+    {
+      id: '8', title: '근력 운동 2단계', duration: '약 15분',
+      description: '상체와 하체를 균형 있게 강화하는 2단계 근력 운동입니다.',
+      videoId: 'kpWIrObGVl8', iconLib: 'MCI', iconName: 'dumbbell',
+    },
+    {
+      id: '9', title: '걷기 2단계', duration: '약 20분',
+      description: '보행 속도와 보폭을 개선하는 2단계 걷기 운동입니다. 실내외 모두 가능해요.',
+      videoId: 'T7E5GPxmjsI', iconLib: 'MCI', iconName: 'walk',
+    },
   ],
   '3단계': [
-    { id: '10', title: '종합 체력 3단계', duration: '20분 00초', videoId: 'dQw4w9WgXcQ', iconLib: 'MCI', iconName: 'run' },
-    { id: '11', title: '균형 운동 3단계', duration: '18분 30초', videoId: 'dQw4w9WgXcQ', iconLib: 'Ionicons', iconName: 'scale-outline' },
+    {
+      id: '10', title: '종합 체력 3단계', duration: '약 20분',
+      description: '체력을 전반적으로 향상시키는 3단계 종합 운동입니다. 꾸준히 하면 효과가 커요.',
+      videoId: 'xPVjfFSf66Y', iconLib: 'MCI', iconName: 'run',
+    },
+    {
+      id: '11', title: '균형 운동 3단계', duration: '약 18분',
+      description: '고난도 균형 운동으로 안정적인 자세를 만들어 줍니다.',
+      videoId: 'PEEuFr5RJFE', iconLib: 'Ionicons', iconName: 'scale-outline',
+    },
   ],
   종합: [
-    { id: '12', title: '파킨슨 종합 운동', duration: '30분 00초', videoId: 'dQw4w9WgXcQ', iconLib: 'Ionicons', iconName: 'trophy-outline' },
-    { id: '13', title: '일상 활동 종합', duration: '25분 00초', videoId: 'dQw4w9WgXcQ', iconLib: 'Ionicons', iconName: 'star-outline' },
+    {
+      id: '12', title: '파킨슨 종합 운동', duration: '약 30분',
+      description: '스트레칭, 근력, 균형을 모두 포함한 종합 운동입니다. 하루 한 번씩 따라 해보세요.',
+      videoId: 'KHZn-TWhyss', iconLib: 'Ionicons', iconName: 'trophy-outline',
+    },
+    {
+      id: '13', title: '일상 활동 종합', duration: '약 25분',
+      description: '일상생활 동작을 운동으로 연결한 종합 프로그램입니다. 실생활에 바로 적용할 수 있어요.',
+      videoId: 'wbp7M1OiPOI', iconLib: 'Ionicons', iconName: 'star-outline',
+    },
   ],
 };
 
@@ -75,7 +129,7 @@ export function ExerciseVideoScreen() {
 
       {/* 탭 */}
       <View style={styles.tabRow}>
-        <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.tabScroll}>
+        <View style={styles.tabScroll}>
           {TABS.map((tab) => (
             <TouchableOpacity
               key={tab}
@@ -88,7 +142,7 @@ export function ExerciseVideoScreen() {
               </Text>
             </TouchableOpacity>
           ))}
-        </ScrollView>
+        </View>
       </View>
 
       <FlatList
@@ -99,13 +153,11 @@ export function ExerciseVideoScreen() {
         renderItem={({ item }) => (
           <TouchableOpacity
             style={styles.videoCard}
-            onPress={() =>
-              navigation.navigate('ExerciseVideoPlayer', {
-                videoId: item.videoId,
-                title: item.title,
-                description: `파킨슨 환자를 위한 ${activeTab} 운동 영상입니다. 천천히 따라해 보세요.`,
-              })
-            }
+            onPress={() => navigation.navigate('ExerciseVideoPlayer', {
+              videoId: item.videoId,
+              title: item.title,
+              description: item.description,
+            })}
             activeOpacity={0.85}
           >
             <View style={styles.thumbnail}>
@@ -120,6 +172,7 @@ export function ExerciseVideoScreen() {
                 <Ionicons name="timer-outline" size={14} color={Colors.textSub} />
                 <Text style={styles.videoDuration}>{item.duration}</Text>
               </View>
+              <Text style={styles.videoDesc} numberOfLines={2}>{item.description}</Text>
             </View>
           </TouchableOpacity>
         )}
@@ -136,25 +189,28 @@ const styles = StyleSheet.create({
     borderBottomColor: Colors.border,
   },
   tabScroll: {
-    paddingHorizontal: 16,
+    flexDirection: 'row',
+    flexWrap: 'nowrap',
+    paddingHorizontal: 8,
     paddingVertical: 10,
-    gap: 8,
+    gap: 4,
   },
   tabBtn: {
-    paddingHorizontal: 18,
-    paddingVertical: 8,
+    flex: 1,
+    paddingHorizontal: 8,
+    paddingVertical: 6,
     borderRadius: 20,
     borderWidth: 1.5,
     borderColor: Colors.border,
     backgroundColor: Colors.white,
-    marginRight: 8,
+    alignItems: 'center',
   },
   tabBtnActive: {
     borderColor: Colors.primary,
     backgroundColor: Colors.primary,
   },
   tabLabel: {
-    fontSize: 16,
+    fontSize: 13,
     fontWeight: '600',
     color: Colors.textSub,
   },
@@ -165,7 +221,7 @@ const styles = StyleSheet.create({
     borderRadius: 16,
     marginBottom: 12,
     flexDirection: 'row',
-    alignItems: 'center',
+    alignItems: 'flex-start',
     elevation: 2,
     shadowColor: '#000',
     shadowOffset: { width: 0, height: 1 },
@@ -175,10 +231,11 @@ const styles = StyleSheet.create({
   },
   thumbnail: {
     width: 100,
-    height: 80,
+    height: 100,
     backgroundColor: Colors.light,
     alignItems: 'center',
     justifyContent: 'center',
+    flexShrink: 0,
   },
   playOverlay: {
     position: 'absolute',
@@ -191,8 +248,9 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
   },
-  videoInfo: { flex: 1, padding: 16 },
-  videoTitle: { fontSize: 18, fontWeight: '600', color: Colors.text, marginBottom: 6 },
+  videoInfo: { flex: 1, padding: 14, gap: 4 },
+  videoTitle: { fontSize: 18, fontWeight: '700', color: Colors.text },
   durationRow: { flexDirection: 'row', alignItems: 'center', gap: 4 },
   videoDuration: { fontSize: 14, color: Colors.textSub },
+  videoDesc: { fontSize: 14, color: Colors.textHint, lineHeight: 20, marginTop: 2 },
 });

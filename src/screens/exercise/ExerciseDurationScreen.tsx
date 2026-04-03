@@ -14,6 +14,7 @@ import { Colors } from '../../constants/colors';
 import { TopBar } from '../../components/common/TopBar';
 import { PrimaryButton } from '../../components/common/PrimaryButton';
 import type { ExerciseStackParamList } from '../../navigation/ExerciseNavigator';
+import { useExercise } from '../../hooks/useExercise';
 
 type Nav = NativeStackNavigationProp<ExerciseStackParamList, 'ExerciseDuration'>;
 type RouteProps = NativeStackScreenProps<ExerciseStackParamList, 'ExerciseDuration'>['route'];
@@ -36,17 +37,26 @@ export function ExerciseDurationScreen() {
   const route = useRoute<RouteProps>();
   const { exerciseName } = route.params;
   const [selected, setSelected] = useState<number | null>(null);
+  const [saving, setSaving] = useState(false);
+  const { saveExercise } = useExercise();
 
-  const handleSave = () => {
+  const handleSave = async () => {
     if (!selected) {
       Alert.alert('시간 선택', '운동 시간을 선택해주세요.');
       return;
     }
-    Alert.alert(
-      '저장 완료',
-      `${exerciseName} ${formatDuration(selected)}을 기록했어요! 👏`,
-      [{ text: '확인', onPress: () => navigation.popToTop() }],
-    );
+    setSaving(true);
+    const success = await saveExercise(exerciseName, selected);
+    setSaving(false);
+    if (success) {
+      Alert.alert(
+        '저장 완료',
+        `${exerciseName} ${formatDuration(selected)}을 기록했어요! 👏`,
+        [{ text: '확인', onPress: () => navigation.popToTop() }],
+      );
+    } else {
+      Alert.alert('오류', '기록 저장에 실패했어요. 다시 시도해주세요.');
+    }
   };
 
   return (
@@ -78,7 +88,7 @@ export function ExerciseDurationScreen() {
       </ScrollView>
 
       <View style={styles.bottom}>
-        <PrimaryButton title="저장하기" onPress={handleSave} disabled={!selected} />
+        <PrimaryButton title={saving ? '저장 중...' : '저장하기'} onPress={handleSave} disabled={!selected || saving} />
       </View>
     </SafeAreaView>
   );

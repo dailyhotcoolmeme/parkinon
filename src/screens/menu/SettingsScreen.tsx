@@ -1,4 +1,4 @@
-import React, { useState, useRef } from 'react';
+import React, { useState, useRef, useEffect } from 'react';
 import {
   View,
   Text,
@@ -13,12 +13,32 @@ import {
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useFocusEffect } from '@react-navigation/native';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 import { Ionicons } from '@expo/vector-icons';
 import { Colors } from '../../constants/colors';
 import { TopBar } from '../../components/common/TopBar';
 import { useSettings, MedNotif, ExerciseNotif } from '../../context/SettingsContext';
+import { useAuth } from '../../context/AuthContext';
 import { minutesToLabel } from '../../utils/medUtils';
 import { supabase } from '../../lib/supabase';
+
+interface CaregiverNotif {
+  id: string;
+  label: string;
+  enabled: boolean;
+}
+
+const DEFAULT_CAREGIVER_NOTIFS: CaregiverNotif[] = [
+  { id: 'med_taken', label: '약 복용 기록 시', enabled: true },
+  { id: 'med_missed', label: '약 미복용 알림 (20분 후)', enabled: true },
+  { id: 'body_state', label: '몸상태 기록 시', enabled: true },
+  { id: 'mood', label: '기분 기록 시', enabled: true },
+  { id: 'exercise', label: '운동 기록 시', enabled: true },
+  { id: 'sleep', label: '수면 기록 시', enabled: false },
+  { id: 'constipation', label: '변비 기록 시', enabled: false },
+];
+
+const STORAGE_KEY_CAREGIVER = 'settings_caregiver_notifs';
 
 const { width: SCREEN_WIDTH } = Dimensions.get('window');
 
@@ -31,12 +51,32 @@ const EXERCISE_MINUTES = [0, 10, 20, 30, 40, 50];
 // ─── Component ────────────────────────────────────────────────────────────────
 
 export function SettingsScreen() {
+  const { user } = useAuth();
+  const isCaregiver = user?.role === 'caregiver';
+
   // Settings context (shared with Records screens)
   const {
     medNotifs, setMedNotifs,
     exerciseNotifs, setExerciseNotifs,
     notificationEnabled, setNotificationEnabled,
   } = useSettings();
+
+  // 보호자 알림 설정
+  const [caregiverNotifs, setCaregiverNotifs] = useState<CaregiverNotif[]>(DEFAULT_CAREGIVER_NOTIFS);
+
+  useEffect(() => {
+    AsyncStorage.getItem(STORAGE_KEY_CAREGIVER).then(raw => {
+      if (raw) setCaregiverNotifs(JSON.parse(raw));
+    }).catch(() => {});
+  }, []);
+
+  const toggleCaregiverNotif = (id: string) => {
+    setCaregiverNotifs(prev => {
+      const next = prev.map(n => n.id === id ? { ...n, enabled: !n.enabled } : n);
+      AsyncStorage.setItem(STORAGE_KEY_CAREGIVER, JSON.stringify(next)).catch(() => {});
+      return next;
+    });
+  };
 
   // Modal / picker state
   const [pickerVisible, setPickerVisible] = useState(false);
@@ -72,13 +112,6 @@ export function SettingsScreen() {
     }, [setNotificationEnabled])
   );
 
-  // Caregiver (kept for data completeness)
-  const isCaregiver = false;
-  const [caregiverNotifs, setCaregiverNotifs] = useState([
-    { id: 'taken', label: '약 복용 시', enabled: true },
-    { id: 'missed', label: '약 미복용 시', enabled: true },
-    { id: 'exercise', label: '운동 완료 시', enabled: true },
-  ]);
 
   // ─── Animation refs ─────────────────────────────────────────────────────────
   const fadeAnim = useRef(new Animated.Value(0)).current;
@@ -218,12 +251,6 @@ export function SettingsScreen() {
     closePicker();
   };
 
-  const toggleCaregiverNotif = (id: string) => {
-    setCaregiverNotifs((prev) =>
-      prev.map((n) => (n.id === id ? { ...n, enabled: !n.enabled } : n))
-    );
-  };
-
   // ─── Helpers ────────────────────────────────────────────────────────────────
   const formatExerciseNotif = (n: ExerciseNotif) =>
     `${n.ampm} ${n.hour}:${String(n.minute).padStart(2, '0')}`;
@@ -265,8 +292,8 @@ export function SettingsScreen() {
           </View>
         </View>
 
-        {/* ── Card 1: 약효 추적 알림 ── */}
-        <View style={[styles.card, styles.cardMarginTop]}>
+        {/* ── Card 1: 약효 추적 알림 (환자만) ── */}
+        {!isCaregiver && <View style={[styles.card, styles.cardMarginTop]}>
           <View style={styles.cardHeader}>
             <Ionicons
               name="notifications-outline"
@@ -343,10 +370,10 @@ export function SettingsScreen() {
             />
             <Text style={styles.addLabel}>알림 추가하기</Text>
           </TouchableOpacity>
-        </View>
+        </View>}
 
-        {/* ── Card 2: 운동 알림 ── */}
-        <View style={[styles.card, styles.cardMarginTop]}>
+        {/* ── Card 2: 운동 알림 (환자만) ── */}
+        {!isCaregiver && <View style={[styles.card, styles.cardMarginTop]}>
           <View style={styles.cardHeader}>
             <Ionicons
               name="fitness-outline"
@@ -408,9 +435,9 @@ export function SettingsScreen() {
             />
             <Text style={styles.addLabel}>알림 추가하기</Text>
           </TouchableOpacity>
-        </View>
+        </View>}
 
-        {/* ── Card 3: 보호자 알림 (보호자에게만 표시) ── */}
+        {/* ── Card 3: 보호자 알림 (보호자만) ── */}
         {isCaregiver && (
           <View style={[styles.card, styles.cardMarginTop]}>
             <View style={styles.cardHeader}>
@@ -423,15 +450,18 @@ export function SettingsScreen() {
               <View style={styles.cardHeaderText}>
                 <Text style={styles.cardHeaderTitle}>보호자 알림</Text>
                 <Text style={styles.cardHeaderSub}>
-                  환자 활동을 알려드려요
+                  환자가 기록할 때 알림을 받아요
                 </Text>
               </View>
             </View>
             {caregiverNotifs.map((notif) => (
               <View key={notif.id} style={styles.notifRow}>
-                <Text style={[styles.notifTitle, { flex: 1 }]}>
-                  {notif.label}
-                </Text>
+                <View style={styles.notifLeft}>
+                  <Text style={styles.notifTitle}>{notif.label}</Text>
+                  <Text style={styles.notifSub}>
+                    {notif.enabled ? '알림이 켜져 있어요' : '알림이 꺼져 있어요'}
+                  </Text>
+                </View>
                 <Switch
                   value={notif.enabled}
                   onValueChange={() => toggleCaregiverNotif(notif.id)}

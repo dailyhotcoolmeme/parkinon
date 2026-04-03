@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import {
   View,
   Text,
@@ -213,6 +213,17 @@ function YearPickerModal({ visible, years, selected, onSelect, onClose }: {
   onSelect: (y: string) => void;
   onClose: () => void;
 }) {
+  const flatListRef = useRef<FlatList<string>>(null);
+
+  const handleLayout = () => {
+    if (selected) {
+      const selectedIndex = years.findIndex(y => y === selected);
+      if (selectedIndex >= 0) {
+        flatListRef.current?.scrollToIndex({ index: selectedIndex, animated: false, viewPosition: 0.5 });
+      }
+    }
+  };
+
   return (
     <Modal visible={visible} transparent animationType="slide">
       <View style={pickerStyles.container}>
@@ -221,9 +232,12 @@ function YearPickerModal({ visible, years, selected, onSelect, onClose }: {
           <View style={pickerStyles.handle} />
           <Text style={pickerStyles.sheetTitle}>연도 선택</Text>
           <FlatList
+            ref={flatListRef}
             data={years}
             keyExtractor={(item) => item}
             style={pickerStyles.list}
+            onLayout={handleLayout}
+            getItemLayout={(_, index) => ({ length: 57, offset: 57 * index, index })}
             renderItem={({ item }) => (
               <TouchableOpacity
                 style={[pickerStyles.yearItem, item === selected && pickerStyles.yearItemSelected]}
@@ -304,8 +318,8 @@ const pickerStyles = StyleSheet.create({
     flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between',
     paddingVertical: 16, paddingHorizontal: 8, borderBottomWidth: 1, borderBottomColor: Colors.border,
   },
-  yearItemSelected: { backgroundColor: Colors.light, borderRadius: 8 },
+  yearItemSelected: { backgroundColor: '#E8F5E9', borderRadius: 8 },
   yearText: { fontSize: 18, color: Colors.text },
-  yearTextSelected: { color: Colors.dark, fontWeight: '700' },
-  checkMark: { fontSize: 18, color: Colors.primary, fontWeight: '700' },
+  yearTextSelected: { color: '#4CAF50', fontWeight: '700' },
+  checkMark: { fontSize: 18, color: '#4CAF50', fontWeight: '700' },
 });
