@@ -34,6 +34,7 @@ export function ProfileEditScreen() {
   const [gender, setGender] = useState<Gender>('male');
   const [diagnosisYear, setDiagnosisYear] = useState(2020);
   const [relation, setRelation] = useState('배우자');
+  const [relationOther, setRelationOther] = useState('');
   const [cohabiting, setCohabiting] = useState<Cohabiting>('together');
 
   const [showBirthPicker, setShowBirthPicker] = useState(false);
@@ -84,6 +85,7 @@ export function ProfileEditScreen() {
       setGender((freshUser.gender as Gender) ?? 'male');
       setDiagnosisYear(freshUser.diagnosis_year ?? 2020);
       setRelation(relEngToKor[freshUser.caregiver_relation ?? ''] ?? '배우자');
+      setRelationOther((freshUser as any).relation_note ?? '');
       setCohabiting(freshUser.residence_type === 'separate' ? 'apart' : 'together');
     }
 
@@ -167,6 +169,7 @@ export function ProfileEditScreen() {
             : {
                 caregiver_relation: (relKorToEng[relation] ?? 'other') as 'spouse' | 'child' | 'sibling' | 'other',
                 residence_type: cohabiting === 'together' ? 'together' : 'separate',
+                relation_note: relation === '기타' ? relationOther.trim() : null,
               }),
         })
         .eq('id', user.id);
@@ -257,7 +260,6 @@ export function ProfileEditScreen() {
             onPress={() => {
               setShowBirthPicker(!showBirthPicker);
               setShowDiagnosisPicker(false);
-              setShowRelationPicker(false);
             }}
             activeOpacity={0.8}
           >
@@ -336,7 +338,6 @@ export function ProfileEditScreen() {
               onPress={() => {
                 setShowDiagnosisPicker(!showDiagnosisPicker);
                 setShowBirthPicker(false);
-                setShowRelationPicker(false);
               }}
               activeOpacity={0.8}
             >
@@ -397,6 +398,20 @@ export function ProfileEditScreen() {
                   </TouchableOpacity>
                 ))}
               </View>
+              {relation === '기타' && (
+                <>
+                  <Text style={[styles.label, { marginTop: 16 }]}>어떤 관계인가요?</Text>
+                  <TextInput
+                    style={styles.input}
+                    value={relationOther}
+                    onChangeText={setRelationOther}
+                    placeholder="예: 친구, 간병인, 이웃 등"
+                    placeholderTextColor={Colors.textHint}
+                    returnKeyType="done"
+                    maxLength={30}
+                  />
+                </>
+              )}
             </View>
 
             {/* 거주 카드 */}

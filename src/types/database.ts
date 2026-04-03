@@ -17,6 +17,7 @@ export interface Database {
           gender: 'male' | 'female' | null;
           role: UserRole;
           caregiver_relation: CaregiverRelation | null;
+          relation_note: string | null;
           residence_type: ResidenceType | null;
           diagnosis_year: number | null;
           patient_group_id: string | null;

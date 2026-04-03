@@ -14,7 +14,7 @@ import {
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useFocusEffect } from '@react-navigation/native';
 import { Ionicons } from '@expo/vector-icons';
-import { Video, ResizeMode } from 'expo-av';
+import { VideoView, useVideoPlayer } from 'expo-video';
 import { Colors } from '../../constants/colors';
 import { TopBar } from '../../components/common/TopBar';
 import { supabase } from '../../lib/supabase';
@@ -33,7 +33,7 @@ interface VideoLog {
 }
 
 interface SectionData {
-  title: string; // "2025년 4월"
+  title: string;
   data: VideoLog[];
 }
 
@@ -77,9 +77,7 @@ function groupBySections(logs: VideoLog[]): SectionData[] {
     map.get(key)!.push(log);
   }
   const sections: SectionData[] = [];
-  map.forEach((data, title) => {
-    sections.push({ title, data });
-  });
+  map.forEach((data, title) => sections.push({ title, data }));
   return sections;
 }
 
@@ -87,17 +85,18 @@ function getFilterRange(filter: FilterType): { start: string; end: string } | nu
   const now = new Date();
   if (filter === 'all') return null;
   if (filter === 'this_month') {
-    const start = new Date(now.getFullYear(), now.getMonth(), 1).toISOString();
-    const end = new Date(now.getFullYear(), now.getMonth() + 1, 0, 23, 59, 59).toISOString();
-    return { start, end };
+    return {
+      start: new Date(now.getFullYear(), now.getMonth(), 1).toISOString(),
+      end: new Date(now.getFullYear(), now.getMonth() + 1, 0, 23, 59, 59).toISOString(),
+    };
   }
-  // last_3_months
-  const start = new Date(now.getFullYear(), now.getMonth() - 2, 1).toISOString();
-  const end = new Date(now.getFullYear(), now.getMonth() + 1, 0, 23, 59, 59).toISOString();
-  return { start, end };
+  return {
+    start: new Date(now.getFullYear(), now.getMonth() - 2, 1).toISOString(),
+    end: new Date(now.getFullYear(), now.getMonth() + 1, 0, 23, 59, 59).toISOString(),
+  };
 }
 
-// ── 인라인 영상 프리뷰 ────────────────────────────────────────────────────────
+// ── 인라인 썸네일 프리뷰 (expo-video) ────────────────────────────────────────
 
 interface VideoPreviewProps {
   uri: string;
@@ -106,34 +105,32 @@ interface VideoPreviewProps {
 }
 
 function VideoPreview({ uri, isPlaying, onPreviewPress }: VideoPreviewProps) {
-  const videoRef = useRef<Video>(null);
+  const player = useVideoPlayer({ uri }, p => {
+    p.muted = true;
+    p.loop = false;
+  });
 
   useEffect(() => {
-    (async () => {
-      if (!videoRef.current) return;
-      try {
-        if (isPlaying) {
-          await videoRef.current.setPositionAsync(0);
-          await videoRef.current.playAsync();
-        } else {
-          await videoRef.current.pauseAsync();
-        }
-      } catch (_) {}
-    })();
-  }, [isPlaying]);
+    try {
+      if (isPlaying) {
+        player.currentTime = 0;
+        player.play();
+      } else {
+        player.pause();
+      }
+    } catch (_) {}
+  }, [isPlaying, player]);
 
   return (
     <TouchableOpacity activeOpacity={0.85} onPress={onPreviewPress}>
       <View style={thumbStyles.container}>
-        <Video
-          ref={videoRef}
-          source={{ uri }}
+        <VideoView
+          player={player}
           style={{ width: THUMB_WIDTH, height: THUMB_HEIGHT, borderRadius: 8 }}
-          resizeMode={ResizeMode.COVER}
-          shouldPlay={false}
-          isLooping={false}
-          isMuted={true}
-          useNativeControls={false}
+          nativeControls={false}
+          contentFit="cover"
+          allowsFullscreen={false}
+          allowsPictureInPicture={false}
         />
         <View style={thumbStyles.overlay}>
           <Ionicons
@@ -147,29 +144,16 @@ function VideoPreview({ uri, isPlaying, onPreviewPress }: VideoPreviewProps) {
   );
 }
 
-function VideoThumbnailPlaceholder() {
-  return (
-    <View style={[thumbStyles.container, thumbStyles.placeholder]}>
-      <Ionicons name="play-circle" size={36} color="rgba(255,255,255,0.85)" />
-    </View>
-  );
-}
-
 const thumbStyles = StyleSheet.create({
   container: {
     width: THUMB_WIDTH,
     height: THUMB_HEIGHT,
     borderRadius: 8,
-  },
-  placeholder: {
     backgroundColor: '#1A1A1A',
-    alignItems: 'center',
-    justifyContent: 'center',
   },
   overlay: {
     position: 'absolute',
-    top: 0,
-    left: 0,
+    top: 0, left: 0,
     width: THUMB_WIDTH,
     height: THUMB_HEIGHT,
     borderRadius: 8,
@@ -190,24 +174,19 @@ interface VideoCardProps {
 
 function VideoCard({ item, onPress, onDelete, previewingId, onPreviewPress }: VideoCardProps) {
   const durationText = formatDuration(item.duration_seconds);
-  const hasVideo = item.r2_url !== '';
 
   return (
     <TouchableOpacity
-      style={[cardStyles.card, !hasVideo && cardStyles.cardDisabled]}
-      onPress={() => hasVideo && onPress(item)}
-      activeOpacity={hasVideo ? 0.78 : 1}
+      style={cardStyles.card}
+      onPress={() => item.r2_url && onPress(item)}
+      activeOpacity={0.78}
     >
       <View style={cardStyles.thumb}>
-        {hasVideo ? (
-          <VideoPreview
-            uri={item.r2_url}
-            isPlaying={previewingId === item.id}
-            onPreviewPress={() => onPreviewPress(item)}
-          />
-        ) : (
-          <VideoThumbnailPlaceholder />
-        )}
+        <VideoPreview
+          uri={item.r2_url}
+          isPlaying={previewingId === item.id}
+          onPreviewPress={() => onPreviewPress(item)}
+        />
         {durationText !== '' && (
           <View style={cardStyles.durationBadge}>
             <Text style={cardStyles.durationText}>{durationText}</Text>
@@ -217,11 +196,9 @@ function VideoCard({ item, onPress, onDelete, previewingId, onPreviewPress }: Vi
       <View style={cardStyles.info}>
         <Text style={cardStyles.dateText}>{formatDateLabel(item.logged_at)}</Text>
         <Text style={cardStyles.timeText}>{formatTime(item.logged_at)}</Text>
-        {!hasVideo ? (
-          <Text style={cardStyles.noVideoText}>영상 없음</Text>
-        ) : durationText !== '' ? (
+        {durationText !== '' && (
           <Text style={cardStyles.durationInfo}>{durationText}</Text>
-        ) : null}
+        )}
       </View>
       <TouchableOpacity
         style={cardStyles.deleteBtn}
@@ -250,9 +227,7 @@ const cardStyles = StyleSheet.create({
     shadowRadius: 4,
     elevation: 2,
   },
-  thumb: {
-    position: 'relative',
-  },
+  thumb: { position: 'relative' },
   durationBadge: {
     position: 'absolute',
     bottom: 5,
@@ -262,44 +237,15 @@ const cardStyles = StyleSheet.create({
     paddingHorizontal: 5,
     paddingVertical: 2,
   },
-  durationText: {
-    color: Colors.white,
-    fontSize: 12,
-    fontWeight: '600',
-  },
-  info: {
-    flex: 1,
-    gap: 4,
-  },
-  dateText: {
-    fontSize: 20,
-    fontWeight: '700',
-    color: Colors.text,
-  },
-  timeText: {
-    fontSize: 18,
-    color: Colors.textSub,
-    fontWeight: '500',
-  },
-  durationInfo: {
-    fontSize: 16,
-    color: Colors.textHint,
-    fontWeight: '500',
-  },
-  cardDisabled: {
-    opacity: 0.55,
-  },
-  noVideoText: {
-    fontSize: 16,
-    color: Colors.textHint,
-    fontWeight: '500',
-  },
-  deleteBtn: {
-    padding: 8,
-  },
+  durationText: { color: Colors.white, fontSize: 12, fontWeight: '600' },
+  info: { flex: 1, gap: 4 },
+  dateText: { fontSize: 20, fontWeight: '700', color: Colors.text },
+  timeText: { fontSize: 18, color: Colors.textSub, fontWeight: '500' },
+  durationInfo: { fontSize: 16, color: Colors.textHint, fontWeight: '500' },
+  deleteBtn: { padding: 8 },
 });
 
-// ── 풀스크린 비디오 모달 ──────────────────────────────────────────────────────
+// ── 풀스크린 플레이어 (expo-video) ───────────────────────────────────────────
 
 interface VideoPlayerModalProps {
   url: string | null;
@@ -307,8 +253,13 @@ interface VideoPlayerModalProps {
 }
 
 function VideoPlayerModal({ url, onClose }: VideoPlayerModalProps) {
-  const videoRef = useRef<Video>(null);
-  const [status, setStatus] = useState<any>({});
+  const player = useVideoPlayer(url ? { uri: url } : null, p => {
+    if (url) {
+      p.muted = false;
+      p.loop = false;
+      p.play();
+    }
+  });
 
   return (
     <Modal
@@ -320,14 +271,12 @@ function VideoPlayerModal({ url, onClose }: VideoPlayerModalProps) {
       <StatusBar backgroundColor="#000" barStyle="light-content" />
       <View style={playerStyles.container}>
         {url && (
-          <Video
-            ref={videoRef}
-            source={{ uri: url }}
+          <VideoView
+            player={player}
             style={playerStyles.video}
-            useNativeControls
-            resizeMode={ResizeMode.CONTAIN}
-            shouldPlay
-            onPlaybackStatusUpdate={s => setStatus(s)}
+            nativeControls
+            contentFit="contain"
+            allowsFullscreen
           />
         )}
         <TouchableOpacity style={playerStyles.closeBtn} onPress={onClose} activeOpacity={0.8}>
@@ -371,7 +320,7 @@ export function VideoListScreen() {
   const [loading, setLoading] = useState(false);
   const [playingUrl, setPlayingUrl] = useState<string | null>(null);
   const [previewingId, setPreviewingId] = useState<string | null>(null);
-  const previewTimerRef = useRef<NodeJS.Timeout | null>(null);
+  const previewTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const fetchVideos = useCallback(async (f: FilterType) => {
     setLoading(true);
@@ -379,16 +328,14 @@ export function VideoListScreen() {
       const { data: { user } } = await supabase.auth.getUser();
       if (!user) return;
 
-      // users 테이블에서 role과 patient_group_id 확인
       const { data: userData } = await supabase
         .from('users')
         .select('role, patient_group_id')
         .eq('id', user.id)
         .single();
 
-      let patientId = user.id; // 기본값: 본인
+      let patientId = user.id;
 
-      // 보호자이고 그룹이 있는 경우 환자 ID 조회
       if (userData?.role === 'caregiver' && userData?.patient_group_id) {
         const { data: member } = await supabase
           .from('patient_group_members')
@@ -409,13 +356,11 @@ export function VideoListScreen() {
 
       const range = getFilterRange(f);
       if (range) {
-        query = query
-          .gte('logged_at', range.start)
-          .lte('logged_at', range.end);
+        query = query.gte('logged_at', range.start).lte('logged_at', range.end);
       }
 
       const { data, error: queryError } = await query;
-      console.log('[VideoListScreen] media_logs 조회 결과:', data?.length, '건, error:', queryError);
+      if (queryError) console.error('[VideoListScreen] 조회 오류:', queryError);
       setSections(groupBySections((data as VideoLog[]) ?? []));
     } catch (e) {
       console.error('[VideoListScreen] fetchVideos 오류:', e);
@@ -437,6 +382,8 @@ export function VideoListScreen() {
 
   const handleCardPress = (item: VideoLog) => {
     if (!item.r2_url) return;
+    setPreviewingId(null);
+    if (previewTimerRef.current) clearTimeout(previewTimerRef.current);
     setPlayingUrl(item.r2_url);
   };
 
@@ -461,10 +408,7 @@ export function VideoListScreen() {
           style: 'destructive',
           onPress: async () => {
             try {
-              const { error } = await supabase
-                .from('media_logs')
-                .delete()
-                .eq('id', item.id);
+              const { error } = await supabase.from('media_logs').delete().eq('id', item.id);
               if (error) throw error;
               fetchVideos(filter);
             } catch (e) {
@@ -480,7 +424,6 @@ export function VideoListScreen() {
     <SafeAreaView style={styles.safeArea} edges={['top']}>
       <TopBar title="영상 기록" showBack />
 
-      {/* 필터 pill 탭 */}
       <View style={styles.filterRow}>
         {FILTERS.map(f => (
           <TouchableOpacity
@@ -531,19 +474,13 @@ export function VideoListScreen() {
         />
       )}
 
-      <VideoPlayerModal
-        url={playingUrl}
-        onClose={() => setPlayingUrl(null)}
-      />
+      <VideoPlayerModal url={playingUrl} onClose={() => setPlayingUrl(null)} />
     </SafeAreaView>
   );
 }
 
 const styles = StyleSheet.create({
-  safeArea: {
-    flex: 1,
-    backgroundColor: Colors.background,
-  },
+  safeArea: { flex: 1, backgroundColor: Colors.background },
   filterRow: {
     flexDirection: 'row',
     gap: 10,
@@ -561,23 +498,10 @@ const styles = StyleSheet.create({
     borderWidth: 1.5,
     borderColor: Colors.border,
   },
-  filterPillActive: {
-    backgroundColor: Colors.primary,
-    borderColor: Colors.primary,
-  },
-  filterText: {
-    fontSize: 16,
-    fontWeight: '600',
-    color: Colors.textSub,
-  },
-  filterTextActive: {
-    color: Colors.white,
-  },
-  listContent: {
-    paddingHorizontal: 20,
-    paddingTop: 8,
-    paddingBottom: 32,
-  },
+  filterPillActive: { backgroundColor: Colors.primary, borderColor: Colors.primary },
+  filterText: { fontSize: 16, fontWeight: '600', color: Colors.textSub },
+  filterTextActive: { color: Colors.white },
+  listContent: { paddingHorizontal: 20, paddingTop: 8, paddingBottom: 32 },
   sectionHeader: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -585,36 +509,13 @@ const styles = StyleSheet.create({
     marginTop: 20,
     marginBottom: 12,
   },
-  sectionHeaderText: {
-    fontSize: 18,
-    fontWeight: '700',
-    color: '#555555',
-    flexShrink: 0,
-  },
-  sectionDivider: {
-    flex: 1,
-    height: 1,
-    backgroundColor: Colors.border,
-  },
-  loadingBox: {
-    flex: 1,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
+  sectionHeaderText: { fontSize: 18, fontWeight: '700', color: '#555555', flexShrink: 0 },
+  sectionDivider: { flex: 1, height: 1, backgroundColor: Colors.border },
+  loadingBox: { flex: 1, alignItems: 'center', justifyContent: 'center' },
   emptyBox: {
-    flex: 1,
-    alignItems: 'center',
-    justifyContent: 'center',
-    gap: 12,
-    paddingBottom: 60,
+    flex: 1, alignItems: 'center', justifyContent: 'center',
+    gap: 12, paddingBottom: 60,
   },
-  emptyTitle: {
-    fontSize: 20,
-    fontWeight: '700',
-    color: Colors.textSub,
-  },
-  emptyDesc: {
-    fontSize: 17,
-    color: Colors.textHint,
-  },
+  emptyTitle: { fontSize: 20, fontWeight: '700', color: Colors.textSub },
+  emptyDesc: { fontSize: 17, color: Colors.textHint },
 });

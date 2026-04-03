@@ -72,8 +72,8 @@ export function MainNavigator() {
             shadowRadius: 6,
           },
           tabBarItemStyle: {
-            paddingTop: 8,
-            paddingBottom: 4,
+            paddingTop: 6,
+            paddingBottom: 6,
           },
           tabBarIcon: ({ focused }) => (
             <View style={[styles.iconWrap, focused && styles.iconWrapActive]}>

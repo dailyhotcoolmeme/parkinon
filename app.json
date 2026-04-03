@@ -63,7 +63,8 @@
           "photosPermission": "사진 및 영상을 선택하기 위해 갤러리 접근이 필요해요.",
           "cameraPermission": "처방전 촬영 및 영상 기록을 위해 카메라 접근이 필요해요."
         }
-      ]
+      ],
+      "expo-video"
     ],
     "extra": {
       "eas": {
