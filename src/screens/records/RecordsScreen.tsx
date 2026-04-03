@@ -5,6 +5,7 @@ import {
   ScrollView,
   TouchableOpacity,
   StyleSheet,
+  ActivityIndicator,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useNavigation } from '@react-navigation/native';
@@ -13,11 +14,12 @@ import { Ionicons } from '@expo/vector-icons';
 import { Colors } from '../../constants/colors';
 import { TopBar } from '../../components/common/TopBar';
 import { MenuStackParamList } from '../../navigation/MenuNavigator';
+import { useRecordsData } from '../../hooks/useRecordsData';
 
 type NavigationProp = StackNavigationProp<MenuStackParamList, 'Records'>;
 type IoniconName = React.ComponentProps<typeof Ionicons>['name'];
-
 type Period = '이번 주' | '이번 달' | '최근 3개월';
+type ItemKey = 'medication' | 'bodyState' | 'mood' | 'sleep' | 'constipation' | 'exercise';
 
 const PERIODS: Period[] = ['이번 주', '이번 달', '최근 3개월'];
 
@@ -27,92 +29,153 @@ const prevLabels: Record<Period, string> = {
   '최근 3개월': '지난 3개월',
 };
 
-const timeColors: Record<string, string> = {
-  '복용 직후': '#F44336',
-  '30분 후': '#4CAF50',
-  '2시간 후': '#2196F3',
-};
-
-const summaryData = {
-  '이번 주': {
-    medication: { current: 90, prev: 88, unit: '%' },
-    bodyState: {
-      '복용 직후': { current: 2.1, prev: 2.0 },
-      '30분 후': { current: 3.8, prev: 3.5 },
-      '2시간 후': { current: 3.2, prev: 3.0 },
-    },
-    mood: {
-      '복용 직후': { current: 2.3, prev: 2.1 },
-      '30분 후': { current: 3.5, prev: 3.2 },
-      '2시간 후': { current: 3.0, prev: 2.9 },
-    },
-    sleep: { current: 3.6, prev: 3.2, unit: '점' },
-    constipation: { current: '4일', prev: '3일', unit: '' },
-    exercise: { current: '4회 / 95분', prev: '2회 / 60분', unit: '' },
-  },
-  '이번 달': {
-    medication: { current: 88, prev: 85, unit: '%' },
-    bodyState: {
-      '복용 직후': { current: 2.0, prev: 1.9 },
-      '30분 후': { current: 3.5, prev: 3.2 },
-      '2시간 후': { current: 3.0, prev: 2.8 },
-    },
-    mood: {
-      '복용 직후': { current: 2.2, prev: 2.0 },
-      '30분 후': { current: 3.3, prev: 3.0 },
-      '2시간 후': { current: 2.9, prev: 2.7 },
-    },
-    sleep: { current: 3.4, prev: 3.0, unit: '점' },
-    constipation: { current: '18일', prev: '15일', unit: '' },
-    exercise: { current: '14회 / 380분', prev: '10회 / 280분', unit: '' },
-  },
-  '최근 3개월': {
-    medication: { current: 87, prev: 83, unit: '%' },
-    bodyState: {
-      '복용 직후': { current: 2.0, prev: 1.8 },
-      '30분 후': { current: 3.4, prev: 3.1 },
-      '2시간 후': { current: 2.9, prev: 2.7 },
-    },
-    mood: {
-      '복용 직후': { current: 2.1, prev: 1.9 },
-      '30분 후': { current: 3.2, prev: 2.9 },
-      '2시간 후': { current: 2.8, prev: 2.6 },
-    },
-    sleep: { current: 3.3, prev: 2.9, unit: '점' },
-    constipation: { current: '54일', prev: '44일', unit: '' },
-    exercise: { current: '42회 / 1140분', prev: '30회 / 820분', unit: '' },
-  },
-};
-
-const ITEMS: { key: string; icon: IoniconName; label: string }[] = [
-  { key: 'medication', icon: 'medkit-outline', label: '약 복용' },
-  { key: 'bodyState', icon: 'happy-outline', label: '몸 상태' },
-  { key: 'mood', icon: 'happy', label: '기분 상태' },
-  { key: 'sleep', icon: 'moon-outline', label: '수면' },
-  { key: 'constipation', icon: 'water-outline', label: '변비' },
-  { key: 'exercise', icon: 'fitness-outline', label: '운동' },
+const ITEMS: { key: ItemKey; icon: IoniconName; label: string; accentColor: string }[] = [
+  { key: 'medication', icon: 'medkit-outline', label: '약 복용', accentColor: Colors.primary },
+  { key: 'bodyState', icon: 'happy-outline', label: '몸 상태', accentColor: '#E65100' },
+  { key: 'mood', icon: 'happy', label: '기분 상태', accentColor: '#FF8F00' },
+  { key: 'sleep', icon: 'moon-outline', label: '수면', accentColor: '#7B1FA2' },
+  { key: 'constipation', icon: 'water-outline', label: '변비', accentColor: '#0277BD' },
+  { key: 'exercise', icon: 'fitness-outline', label: '운동', accentColor: '#BF360C' },
 ];
 
-type ItemKey = 'medication' | 'bodyState' | 'mood' | 'sleep' | 'constipation' | 'exercise';
+// trigger_time_label → minutesToLabel 역방향 변환 (표시용)
+const TRIGGER_LABEL_TO_DISPLAY: Record<string, string> = {
+  after_medication: '복용 직후',
+  '30min_after': '30분 후',
+  '2hour_after': '2시간 후',
+};
 
-function ArrowBadge({ curr, prev, size = 18 }: { curr: number | string; prev: number | string; size?: number }) {
-  const d = parseFloat(String(curr)) - parseFloat(String(prev));
-  if (isNaN(d)) return null;
-  if (d > 0) return <Text style={{ color: '#4CAF50', fontSize: size, fontWeight: '700' }}>↑</Text>;
-  if (d < 0) return <Text style={{ color: '#F44336', fontSize: size, fontWeight: '700' }}>↓</Text>;
-  return <Text style={{ color: Colors.textHint, fontSize: size }}>→</Text>;
+function triggerLabelToDisplay(label: string): string {
+  return TRIGGER_LABEL_TO_DISPLAY[label] ?? label;
 }
+
+// Build rows of 2 from flat ITEMS list
+const ITEM_ROWS: ItemKey[][] = ITEMS.reduce<ItemKey[][]>((rows, item, i) => {
+  if (i % 2 === 0) rows.push([item.key]);
+  else rows[rows.length - 1].push(item.key);
+  return rows;
+}, []);
 
 export function RecordsScreen() {
   const navigation = useNavigation<NavigationProp>();
   const [period, setPeriod] = useState<Period>('이번 주');
 
-  const summary = summaryData[period];
-  const prevLabel = prevLabels[period];
+  // Supabase 실제 데이터
+  const { summary, loading, error } = useRecordsData(period);
 
   const handleItemPress = (key: ItemKey) => {
     navigation.navigate('RecordDetail', { type: key, period });
   };
+
+  // ── 표시값 계산 (실제 데이터 기반) ─────────────────────────────────────────
+  function getDisplayValue(key: ItemKey): { value: string; subLabel?: string } {
+    if (!summary) return { value: '-' };
+
+    if (key === 'medication') {
+      return { value: `${summary.medication.current}%` };
+    }
+    if (key === 'bodyState') {
+      const entries = Object.values(summary.bodyState);
+      if (entries.length === 0) return { value: '-' };
+      const midIdx = Math.floor(entries.length / 2);
+      const midData = entries[midIdx] ?? entries[0];
+      const midLabel = Object.keys(summary.bodyState)[midIdx] ?? '';
+      return {
+        value: midData.current > 0 ? midData.current.toFixed(1) + '점' : '-',
+        subLabel: midLabel ? triggerLabelToDisplay(midLabel) + ' 기준' : undefined,
+      };
+    }
+    if (key === 'mood') {
+      const entries = Object.values(summary.mood);
+      if (entries.length === 0) return { value: '-' };
+      const midIdx = Math.floor(entries.length / 2);
+      const midData = entries[midIdx] ?? entries[0];
+      const midLabel = Object.keys(summary.mood)[midIdx] ?? '';
+      return {
+        value: midData.current > 0 ? midData.current.toFixed(1) + '점' : '-',
+        subLabel: midLabel ? triggerLabelToDisplay(midLabel) + ' 기준' : undefined,
+      };
+    }
+    if (key === 'sleep') {
+      return {
+        value: summary.sleep.current > 0 ? summary.sleep.current.toFixed(1) + '점' : '-',
+      };
+    }
+    if (key === 'constipation') {
+      return { value: `${summary.constipation.currentDays}일` };
+    }
+    if (key === 'exercise') {
+      return {
+        value: `${summary.exercise.currentCount}회 / ${summary.exercise.currentMinutes}분`,
+      };
+    }
+    return { value: '-' };
+  }
+
+  // ── 변화 정보 계산 (실제 데이터 기반) ──────────────────────────────────────
+  function getChangeInfo(key: ItemKey): { text: string; positive: boolean | null } {
+    if (!summary) return { text: '', positive: null };
+    const prevLabel = prevLabels[period];
+
+    if (key === 'medication') {
+      const diff = summary.medication.current - summary.medication.prev;
+      if (diff === 0) return { text: `${prevLabel}과 같아요`, positive: null };
+      return diff > 0
+        ? { text: `${prevLabel}보다 ${diff}%p 올랐어요`, positive: true }
+        : { text: `${prevLabel}보다 ${Math.abs(diff)}%p 낮아요`, positive: false };
+    }
+    if (key === 'bodyState') {
+      const entries = Object.values(summary.bodyState);
+      if (entries.length === 0) return { text: '', positive: null };
+      const midIdx = Math.floor(entries.length / 2);
+      const midData = entries[midIdx] ?? entries[0];
+      const diff = midData.current - midData.prev;
+      if (midData.current === 0 && midData.prev === 0) return { text: '', positive: null };
+      if (Math.abs(diff) < 0.01) return { text: `${prevLabel}과 같아요`, positive: null };
+      return diff > 0
+        ? { text: `${prevLabel}보다 ${diff.toFixed(1)}점 좋아졌어요`, positive: true }
+        : { text: `${prevLabel}보다 ${Math.abs(diff).toFixed(1)}점 낮아요`, positive: false };
+    }
+    if (key === 'mood') {
+      const entries = Object.values(summary.mood);
+      if (entries.length === 0) return { text: '', positive: null };
+      const midIdx = Math.floor(entries.length / 2);
+      const midData = entries[midIdx] ?? entries[0];
+      const diff = midData.current - midData.prev;
+      if (midData.current === 0 && midData.prev === 0) return { text: '', positive: null };
+      if (Math.abs(diff) < 0.01) return { text: `${prevLabel}과 같아요`, positive: null };
+      return diff > 0
+        ? { text: `${prevLabel}보다 ${diff.toFixed(1)}점 좋아졌어요`, positive: true }
+        : { text: `${prevLabel}보다 ${Math.abs(diff).toFixed(1)}점 낮아요`, positive: false };
+    }
+    if (key === 'sleep') {
+      const diff = summary.sleep.current - summary.sleep.prev;
+      if (summary.sleep.current === 0 && summary.sleep.prev === 0) return { text: '', positive: null };
+      if (Math.abs(diff) < 0.01) return { text: `${prevLabel}과 같아요`, positive: null };
+      return diff > 0
+        ? { text: `${prevLabel}보다 ${diff.toFixed(1)}점 좋아졌어요`, positive: true }
+        : { text: `${prevLabel}보다 ${Math.abs(diff).toFixed(1)}점 나빠요`, positive: false };
+    }
+    if (key === 'constipation') {
+      const diff = summary.constipation.currentDays - summary.constipation.prevDays;
+      if (diff === 0) return { text: `${prevLabel}과 같아요`, positive: null };
+      return diff > 0
+        ? { text: `${prevLabel}보다 ${diff}일 늘었어요`, positive: true }
+        : { text: `${prevLabel}보다 ${Math.abs(diff)}일 줄었어요`, positive: false };
+    }
+    if (key === 'exercise') {
+      const diff = summary.exercise.currentCount - summary.exercise.prevCount;
+      if (diff === 0) return { text: `${prevLabel}과 같아요`, positive: null };
+      return diff > 0
+        ? { text: `${prevLabel}보다 ${diff}회 더 했어요`, positive: true }
+        : { text: `${prevLabel}보다 ${Math.abs(diff)}회 줄었어요`, positive: false };
+    }
+    return { text: '', positive: null };
+  }
+
+  // 요약 배너 약 복용률
+  const medCurrent = summary?.medication.current ?? 0;
+  const medDiff = summary ? summary.medication.current - summary.medication.prev : 0;
 
   return (
     <SafeAreaView style={styles.safeArea} edges={['top']}>
@@ -134,81 +197,122 @@ export function RecordsScreen() {
         ))}
       </View>
 
-      <ScrollView style={styles.scroll} contentContainerStyle={styles.scrollContent}>
-        <Text style={styles.sectionLabel}>{period} 요약</Text>
-
-        <View style={styles.listCard}>
-          {ITEMS.map((item, i) => {
-            const s = summary[item.key as ItemKey];
-            const isTimeItem = item.key === 'bodyState' || item.key === 'mood';
-
-            return (
-              <TouchableOpacity
-                key={item.key}
-                style={[styles.row, i < ITEMS.length - 1 && styles.rowBorder]}
-                onPress={() => handleItemPress(item.key as ItemKey)}
-                activeOpacity={0.7}
-              >
-                {/* 헤더 행 */}
-                <View style={styles.rowHeader}>
-                  <Ionicons name={item.icon} size={24} color={Colors.primary} style={styles.rowIcon} />
-                  <Text style={styles.rowLabel}>{item.label}</Text>
-
-                  {!isTimeItem && (
-                    <View style={styles.rowValueArea}>
-                      <Text style={styles.rowValue}>
-                        {(s as any).current}{(s as any).unit}
-                      </Text>
-                      <Text style={styles.rowPrev}>
-                        {prevLabel} {(s as any).prev}{(s as any).unit}
-                      </Text>
-                    </View>
-                  )}
-                  {!isTimeItem && (
-                    <ArrowBadge curr={(s as any).current} prev={(s as any).prev} size={18} />
-                  )}
-                  <Ionicons name="chevron-forward" size={20} color={Colors.textHint} style={{ marginLeft: 4 }} />
-                </View>
-
-                {/* 시간대별 미니 카드 */}
-                {isTimeItem && (
-                  <View style={styles.timeCards}>
-                    {Object.entries(s as Record<string, { current: number; prev: number }>).map(
-                      ([time, vals]) => (
-                        <View
-                          key={time}
-                          style={[styles.timeCard, { borderTopColor: timeColors[time] }]}
-                        >
-                          <Text style={styles.timeCardLabel}>{time}</Text>
-                          <View style={styles.timeCardRow}>
-                            <Text style={[styles.timeCardValue, { color: timeColors[time] }]}>
-                              {vals.current.toFixed(1)}
-                            </Text>
-                            <ArrowBadge curr={vals.current} prev={vals.prev} size={14} />
-                          </View>
-                          <Text style={styles.timeCardPrev}>
-                            {prevLabel} {vals.prev.toFixed(1)}
-                          </Text>
-                        </View>
-                      ),
-                    )}
-                  </View>
-                )}
-              </TouchableOpacity>
-            );
-          })}
+      {/* 로딩 / 에러 상태 */}
+      {loading && (
+        <View style={styles.stateBox}>
+          <ActivityIndicator size="large" color={Colors.primary} />
+          <Text style={styles.stateText}>데이터를 불러오는 중이에요...</Text>
         </View>
-      </ScrollView>
+      )}
+      {!loading && !!error && (
+        <View style={styles.stateBox}>
+          <Ionicons name="alert-circle-outline" size={40} color={Colors.textHint} />
+          <Text style={styles.stateText}>{error}</Text>
+        </View>
+      )}
+
+      {!loading && !error && (
+        <ScrollView
+          style={styles.scroll}
+          contentContainerStyle={styles.scrollContent}
+          showsVerticalScrollIndicator={false}
+        >
+          {/* 요약 배너 */}
+          <View style={styles.banner}>
+            <Ionicons name="medkit" size={24} color={Colors.primary} />
+            <Text style={styles.bannerText}>
+              {period} 약 복용률 <Text style={styles.bannerHighlight}>{medCurrent}%</Text>
+              {summary && medDiff !== 0
+                ? ` · ${prevLabels[period]}보다 ${Math.abs(medDiff)}%p ${medDiff >= 0 ? '올랐어요 ↑' : '낮아요 ↓'}`
+                : ''}
+            </Text>
+          </View>
+
+          {/* 2열 그리드 */}
+          <View style={styles.grid}>
+            {ITEM_ROWS.map((rowKeys, ri) => (
+              <View key={ri} style={styles.gridRow}>
+                {rowKeys.map(key => {
+                  const item = ITEMS.find(it => it.key === key)!;
+                  const display = getDisplayValue(key);
+                  const change = getChangeInfo(key);
+                  return (
+                    <TouchableOpacity
+                      key={key}
+                      style={styles.gridCard}
+                      onPress={() => handleItemPress(key)}
+                      activeOpacity={0.7}
+                    >
+                      {/* 헤더 */}
+                      <View style={styles.cardHeader}>
+                        <View
+                          style={[
+                            styles.cardIconBg,
+                            { backgroundColor: item.accentColor + '20' },
+                          ]}
+                        >
+                          <Ionicons name={item.icon} size={20} color={item.accentColor} />
+                        </View>
+                        <Text style={styles.cardLabel} numberOfLines={1}>
+                          {item.label}
+                        </Text>
+                        <Ionicons
+                          name="chevron-forward"
+                          size={18}
+                          color={Colors.textHint}
+                        />
+                      </View>
+
+                      {/* 값 */}
+                      <Text
+                        style={[styles.cardValue, { color: item.accentColor }]}
+                        numberOfLines={1}
+                        adjustsFontSizeToFit
+                      >
+                        {display.value}
+                      </Text>
+                      {display.subLabel ? (
+                        <Text style={styles.cardSubLabel}>{display.subLabel}</Text>
+                      ) : null}
+
+                      {/* 변화 설명 */}
+                      {!!change.text && (
+                        <Text
+                          style={[
+                            styles.cardChange,
+                            change.positive === true
+                              ? styles.changePos
+                              : change.positive === false
+                              ? styles.changeNeg
+                              : styles.changeNeutral,
+                          ]}
+                          numberOfLines={2}
+                        >
+                          {change.text}
+                        </Text>
+                      )}
+                    </TouchableOpacity>
+                  );
+                })}
+                {/* 홀수 마지막 행 빈 칸 */}
+                {rowKeys.length === 1 && <View style={styles.gridCardPlaceholder} />}
+              </View>
+            ))}
+          </View>
+        </ScrollView>
+      )}
     </SafeAreaView>
   );
 }
 
 const styles = StyleSheet.create({
   safeArea: { flex: 1, backgroundColor: Colors.background },
+
+  // ── 기간 탭 ──
   tabRow: {
     flexDirection: 'row',
     paddingHorizontal: 16,
-    paddingVertical: 12,
+    paddingVertical: 10,
     backgroundColor: Colors.white,
     borderBottomWidth: 1,
     borderBottomColor: Colors.border,
@@ -216,58 +320,117 @@ const styles = StyleSheet.create({
   },
   tabBtn: {
     flex: 1,
-    paddingVertical: 12,
-    borderRadius: 20,
+    height: 52,
+    borderRadius: 26,
     backgroundColor: Colors.border,
     alignItems: 'center',
+    justifyContent: 'center',
   },
   tabBtnActive: { backgroundColor: Colors.primary },
-  tabBtnText: { fontSize: 17, fontWeight: '600', color: Colors.textSub },
+  tabBtnText: { fontSize: 18, fontWeight: '600', color: Colors.textSub },
   tabBtnTextActive: { color: Colors.white },
 
   scroll: { flex: 1 },
-  scrollContent: { padding: 16, paddingBottom: 40 },
+  scrollContent: { padding: 16, paddingBottom: 48 },
 
-  sectionLabel: {
-    fontSize: 17,
-    fontWeight: '600',
-    color: Colors.textSub,
-    marginBottom: 14,
-  },
-
-  listCard: {
+  // ── 요약 배너 ──
+  banner: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
     backgroundColor: Colors.white,
     borderRadius: 16,
-    overflow: 'hidden',
+    paddingHorizontal: 18,
+    paddingVertical: 18,
+    marginBottom: 16,
     shadowColor: '#000',
     shadowOffset: { width: 0, height: 1 },
     shadowOpacity: 0.06,
     shadowRadius: 4,
     elevation: 2,
   },
-
-  row: { padding: 20 },
-  rowBorder: { borderBottomWidth: 1, borderBottomColor: '#f0f0f0' },
-
-  rowHeader: { flexDirection: 'row', alignItems: 'center' },
-  rowIcon: { marginRight: 12 },
-  rowLabel: { fontSize: 20, fontWeight: '600', color: Colors.text, flex: 1 },
-
-  rowValueArea: { alignItems: 'flex-end', marginRight: 6 },
-  rowValue: { fontSize: 20, fontWeight: '700', color: Colors.text },
-  rowPrev: { fontSize: 15, color: Colors.textHint },
-
-  timeCards: { flexDirection: 'row', gap: 8, paddingLeft: 36, marginTop: 14 },
-  timeCard: {
+  bannerText: {
     flex: 1,
-    backgroundColor: '#f9f9f9',
-    borderRadius: 10,
-    padding: 10,
-    alignItems: 'center',
-    borderTopWidth: 3,
+    fontSize: 18,
+    fontWeight: '600',
+    color: Colors.text,
+    lineHeight: 26,
   },
-  timeCardLabel: { fontSize: 15, color: Colors.textSub, marginBottom: 4 },
-  timeCardRow: { flexDirection: 'row', alignItems: 'center', gap: 4 },
-  timeCardValue: { fontSize: 20, fontWeight: '700' },
-  timeCardPrev: { fontSize: 14, color: Colors.textHint, marginTop: 2 },
+  bannerHighlight: {
+    color: Colors.primary,
+    fontWeight: '800',
+  },
+
+  // ── 그리드 ──
+  grid: { gap: 12 },
+  gridRow: { flexDirection: 'row', gap: 12 },
+
+  gridCard: {
+    flex: 1,
+    backgroundColor: Colors.white,
+    borderRadius: 16,
+    padding: 16,
+    minHeight: 150,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.06,
+    shadowRadius: 4,
+    elevation: 2,
+  },
+  gridCardPlaceholder: { flex: 1 },
+
+  cardHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    marginBottom: 12,
+  },
+  cardIconBg: {
+    width: 38,
+    height: 38,
+    borderRadius: 19,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  cardLabel: {
+    flex: 1,
+    fontSize: 18,
+    fontWeight: '700',
+    color: Colors.text,
+  },
+
+  cardValue: {
+    fontSize: 30,
+    fontWeight: '800',
+    marginBottom: 2,
+  },
+  cardSubLabel: {
+    fontSize: 16,
+    color: Colors.textHint,
+    marginBottom: 6,
+  },
+  cardChange: {
+    fontSize: 16,
+    fontWeight: '500',
+    lineHeight: 22,
+    marginTop: 6,
+  },
+  changePos: { color: '#388E3C' },
+  changeNeg: { color: '#C62828' },
+  changeNeutral: { color: Colors.textHint },
+
+  // ── 로딩 / 에러 ──
+  stateBox: {
+    flex: 1,
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 16,
+    paddingHorizontal: 32,
+  },
+  stateText: {
+    fontSize: 18,
+    color: Colors.textSub,
+    textAlign: 'center',
+    lineHeight: 26,
+  },
 });
