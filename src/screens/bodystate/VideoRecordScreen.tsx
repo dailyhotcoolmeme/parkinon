@@ -37,6 +37,8 @@ export function VideoRecordScreen() {
   const [selectedVideo, setSelectedVideo] = useState<SelectedVideo | null>(null);
   const [loading, setLoading] = useState(false);
   const [isPlaying, setIsPlaying] = useState(false);
+  const [currentTime, setCurrentTime] = useState(0);
+  const [duration, setDuration] = useState(0);
   const videoRef = useRef<Video>(null);
 
   const handlePickFromGallery = async () => {
@@ -73,6 +75,8 @@ export function VideoRecordScreen() {
           width: asset.width,
           height: asset.height,
         });
+        setCurrentTime(0);
+        setDuration(0);
       }
     } catch (e) {
       Alert.alert('오류', '영상을 불러오는 중 문제가 생겼어요. 다시 시도해주세요.');
@@ -112,6 +116,8 @@ export function VideoRecordScreen() {
           width: asset.width,
           height: asset.height,
         });
+        setCurrentTime(0);
+        setDuration(0);
       }
     } catch (e) {
       Alert.alert('오류', '카메라를 열 수 없어요. 다시 시도해주세요.');
@@ -179,6 +185,8 @@ export function VideoRecordScreen() {
                 onPlaybackStatusUpdate={(status) => {
                   if (status.isLoaded) {
                     setIsPlaying(status.isPlaying);
+                    setCurrentTime(status.positionMillis || 0);
+                    setDuration(status.durationMillis || 0);
                   }
                 }}
               />
@@ -201,11 +209,32 @@ export function VideoRecordScreen() {
                 </View>
               )}
             </View>
+            {/* 진행바 */}
+            <View style={styles.progressContainer}>
+              <View style={styles.progressBar}>
+                <View
+                  style={[
+                    styles.progressFill,
+                    { width: duration > 0 ? `${(currentTime / duration) * 100}%` : '0%' },
+                  ]}
+                />
+              </View>
+              <View style={styles.timeContainer}>
+                <Text style={styles.timeText}>
+                  {formatDuration(currentTime / 1000)}
+                </Text>
+                <Text style={styles.timeText}>
+                  {formatDuration(selectedVideo.duration || 0)}
+                </Text>
+              </View>
+            </View>
             <TouchableOpacity
               style={styles.reSelectBtn}
               onPress={() => {
                 setSelectedVideo(null);
                 setIsPlaying(false);
+                setCurrentTime(0);
+                setDuration(0);
               }}
             >
               <Text style={styles.reSelectText}>다시 선택하기</Text>
@@ -363,6 +392,31 @@ const styles = StyleSheet.create({
     color: Colors.textSub,
     fontWeight: '600',
     textDecorationLine: 'underline',
+  },
+
+  // 진행바
+  progressContainer: {
+    marginTop: 12,
+    gap: 8,
+  },
+  progressBar: {
+    height: 6,
+    backgroundColor: 'rgba(255,255,255,0.2)',
+    borderRadius: 3,
+    overflow: 'hidden',
+  },
+  progressFill: {
+    height: '100%',
+    backgroundColor: Colors.primary,
+  },
+  timeContainer: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+  },
+  timeText: {
+    fontSize: 12,
+    color: Colors.textSub,
+    fontWeight: '500',
   },
 
   // 액션 버튼
