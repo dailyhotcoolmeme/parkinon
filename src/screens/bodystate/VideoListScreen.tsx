@@ -105,21 +105,36 @@ interface VideoPreviewProps {
 }
 
 function VideoPreview({ uri, isPlaying, onPreviewPress }: VideoPreviewProps) {
+  const playerRef = useRef<any>(null);
   const player = useVideoPlayer({ uri }, p => {
+    playerRef.current = p;
     p.muted = true;
     p.loop = false;
   });
 
   useEffect(() => {
-    try {
-      if (isPlaying) {
-        player.currentTime = 0;
-        player.play();
-      } else {
-        player.pause();
+    if (!isPlaying) {
+      try {
+        if (playerRef.current) {
+          playerRef.current.pause();
+        }
+      } catch (_) {}
+      return;
+    }
+
+    const timer = setTimeout(() => {
+      try {
+        if (playerRef.current) {
+          playerRef.current.currentTime = 0;
+          playerRef.current.play();
+        }
+      } catch (err) {
+        console.log('[VideoPreview] play error:', err);
       }
-    } catch (_) {}
-  }, [isPlaying, player]);
+    }, 500);
+
+    return () => clearTimeout(timer);
+  }, [isPlaying]);
 
   return (
     <TouchableOpacity activeOpacity={0.85} onPress={onPreviewPress}>

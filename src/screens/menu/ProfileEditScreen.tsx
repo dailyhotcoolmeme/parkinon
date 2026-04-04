@@ -7,6 +7,8 @@ import {
   TextInput,
   StyleSheet,
   Alert,
+  Modal,
+  FlatList,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useNavigation } from '@react-navigation/native';
@@ -37,15 +39,14 @@ export function ProfileEditScreen() {
   const [relationOther, setRelationOther] = useState('');
   const [cohabiting, setCohabiting] = useState<Cohabiting>('together');
 
-  const [showBirthPicker, setShowBirthPicker] = useState(false);
-  const [showDiagnosisPicker, setShowDiagnosisPicker] = useState(false);
+  type ActivePicker = 'myBirth' | 'myDiagnosis' | 'patientBirth' | 'patientDiagnosis' | null;
+  const [activePicker, setActivePicker] = useState<ActivePicker>(null);
+  const flatListRef = useRef<FlatList>(null);
 
   const [patientName, setPatientName] = useState('');
   const [patientBirthYear, setPatientBirthYear] = useState(1955);
   const [patientGender, setPatientGender] = useState<Gender>('male');
   const [patientDiagnosisYear, setPatientDiagnosisYear] = useState(2020);
-  const [showPatientBirthPicker, setShowPatientBirthPicker] = useState(false);
-  const [showPatientDiagnosisPicker, setShowPatientDiagnosisPicker] = useState(false);
 
   const [saving, setSaving] = useState(false);
   const [patientId, setPatientId] = useState<string | null>(null);
@@ -148,6 +149,28 @@ export function ProfileEditScreen() {
       loadFormData();
     }
   }, [user, loadFormData]);
+
+  const activePickerYears =
+    activePicker === 'myBirth' || activePicker === 'patientBirth' ? BIRTH_YEARS : DIAGNOSIS_YEARS;
+
+  const activePickerValue =
+    activePicker === 'myBirth' ? birthYear
+    : activePicker === 'myDiagnosis' ? diagnosisYear
+    : activePicker === 'patientBirth' ? patientBirthYear
+    : patientDiagnosisYear;
+
+  const setActivePickerValue = (y: number) => {
+    if (activePicker === 'myBirth') setBirthYear(y);
+    else if (activePicker === 'myDiagnosis') setDiagnosisYear(y);
+    else if (activePicker === 'patientBirth') setPatientBirthYear(y);
+    else if (activePicker === 'patientDiagnosis') setPatientDiagnosisYear(y);
+  };
+
+  const activePickerTitle =
+    activePicker === 'myBirth' ? '출생연도'
+    : activePicker === 'myDiagnosis' ? '진단연도'
+    : activePicker === 'patientBirth' ? '환자 출생연도'
+    : '진단 연도';
 
   const handleSave = async () => {
     if (!name.trim()) {
@@ -257,42 +280,12 @@ export function ProfileEditScreen() {
           <Text style={[styles.label, { marginTop: 20 }]}>출생연도</Text>
           <TouchableOpacity
             style={styles.pickerRow}
-            onPress={() => {
-              setShowBirthPicker(!showBirthPicker);
-              setShowDiagnosisPicker(false);
-            }}
+            onPress={() => setActivePicker('myBirth')}
             activeOpacity={0.8}
           >
             <Text style={styles.pickerText}>{birthYear}년</Text>
-            <Ionicons
-              name={showBirthPicker ? 'chevron-up' : 'chevron-down'}
-              size={22}
-              color={Colors.textSub}
-            />
+            <Ionicons name="chevron-down" size={22} color={Colors.textSub} />
           </TouchableOpacity>
-          {showBirthPicker && (
-            <ScrollView style={styles.pickerList} nestedScrollEnabled>
-              {BIRTH_YEARS.map(y => (
-                <TouchableOpacity
-                  key={y}
-                  style={[styles.pickerItem, birthYear === y && styles.pickerItemActive]}
-                  onPress={() => {
-                    setBirthYear(y);
-                    setShowBirthPicker(false);
-                  }}
-                >
-                  <Text
-                    style={[
-                      styles.pickerItemText,
-                      birthYear === y && styles.pickerItemTextActive,
-                    ]}
-                  >
-                    {y}년
-                  </Text>
-                </TouchableOpacity>
-              ))}
-            </ScrollView>
-          )}
         </View>
 
         {/* Section 2: 성별 */}
@@ -335,42 +328,12 @@ export function ProfileEditScreen() {
             <Text style={styles.label}>진단연도</Text>
             <TouchableOpacity
               style={styles.pickerRow}
-              onPress={() => {
-                setShowDiagnosisPicker(!showDiagnosisPicker);
-                setShowBirthPicker(false);
-              }}
+              onPress={() => setActivePicker('myDiagnosis')}
               activeOpacity={0.8}
             >
               <Text style={styles.pickerText}>{diagnosisYear}년</Text>
-              <Ionicons
-                name={showDiagnosisPicker ? 'chevron-up' : 'chevron-down'}
-                size={22}
-                color={Colors.textSub}
-              />
+              <Ionicons name="chevron-down" size={22} color={Colors.textSub} />
             </TouchableOpacity>
-            {showDiagnosisPicker && (
-              <ScrollView style={styles.pickerList} nestedScrollEnabled>
-                {DIAGNOSIS_YEARS.map(y => (
-                  <TouchableOpacity
-                    key={y}
-                    style={[styles.pickerItem, diagnosisYear === y && styles.pickerItemActive]}
-                    onPress={() => {
-                      setDiagnosisYear(y);
-                      setShowDiagnosisPicker(false);
-                    }}
-                  >
-                    <Text
-                      style={[
-                        styles.pickerItemText,
-                        diagnosisYear === y && styles.pickerItemTextActive,
-                      ]}
-                    >
-                      {y}년
-                    </Text>
-                  </TouchableOpacity>
-                ))}
-              </ScrollView>
-            )}
           </View>
         )}
 
@@ -490,42 +453,12 @@ export function ProfileEditScreen() {
               <Text style={[styles.label, { marginTop: 20 }]}>환자 출생연도</Text>
               <TouchableOpacity
                 style={styles.pickerRow}
-                onPress={() => {
-                  setShowPatientBirthPicker(!showPatientBirthPicker);
-                  setShowPatientDiagnosisPicker(false);
-                }}
+                onPress={() => setActivePicker('patientBirth')}
                 activeOpacity={0.8}
               >
                 <Text style={styles.pickerText}>{patientBirthYear}년</Text>
-                <Ionicons
-                  name={showPatientBirthPicker ? 'chevron-up' : 'chevron-down'}
-                  size={22}
-                  color={Colors.textSub}
-                />
+                <Ionicons name="chevron-down" size={22} color={Colors.textSub} />
               </TouchableOpacity>
-              {showPatientBirthPicker && (
-                <ScrollView style={styles.pickerList} nestedScrollEnabled>
-                  {BIRTH_YEARS.map(y => (
-                    <TouchableOpacity
-                      key={y}
-                      style={[styles.pickerItem, patientBirthYear === y && styles.pickerItemActive]}
-                      onPress={() => {
-                        setPatientBirthYear(y);
-                        setShowPatientBirthPicker(false);
-                      }}
-                    >
-                      <Text
-                        style={[
-                          styles.pickerItemText,
-                          patientBirthYear === y && styles.pickerItemTextActive,
-                        ]}
-                      >
-                        {y}년
-                      </Text>
-                    </TouchableOpacity>
-                  ))}
-                </ScrollView>
-              )}
 
               {/* 환자 성별 */}
               <Text style={[styles.label, { marginTop: 20 }]}>환자 성별</Text>
@@ -554,45 +487,64 @@ export function ProfileEditScreen() {
               <Text style={[styles.label, { marginTop: 20 }]}>진단 연도</Text>
               <TouchableOpacity
                 style={styles.pickerRow}
-                onPress={() => {
-                  setShowPatientDiagnosisPicker(!showPatientDiagnosisPicker);
-                  setShowPatientBirthPicker(false);
-                }}
+                onPress={() => setActivePicker('patientDiagnosis')}
                 activeOpacity={0.8}
               >
                 <Text style={styles.pickerText}>{patientDiagnosisYear}년</Text>
-                <Ionicons
-                  name={showPatientDiagnosisPicker ? 'chevron-up' : 'chevron-down'}
-                  size={22}
-                  color={Colors.textSub}
-                />
+                <Ionicons name="chevron-down" size={22} color={Colors.textSub} />
               </TouchableOpacity>
-              {showPatientDiagnosisPicker && (
-                <ScrollView style={styles.pickerList} nestedScrollEnabled>
-                  {DIAGNOSIS_YEARS.map(y => (
-                    <TouchableOpacity
-                      key={y}
-                      style={[styles.pickerItem, patientDiagnosisYear === y && styles.pickerItemActive]}
-                      onPress={() => {
-                        setPatientDiagnosisYear(y);
-                        setShowPatientDiagnosisPicker(false);
-                      }}
-                    >
-                      <Text
-                        style={[
-                          styles.pickerItemText,
-                          patientDiagnosisYear === y && styles.pickerItemTextActive,
-                        ]}
-                      >
-                        {y}년
-                      </Text>
-                    </TouchableOpacity>
-                  ))}
-                </ScrollView>
-              )}
             </View>
           </>
         )}
+
+        {/* 공용 연도 선택 Modal */}
+        <Modal
+          visible={activePicker !== null}
+          transparent
+          animationType="fade"
+          onRequestClose={() => setActivePicker(null)}
+        >
+          <TouchableOpacity
+            style={styles.modalOverlay}
+            activeOpacity={1}
+            onPress={() => setActivePicker(null)}
+          >
+            <View style={styles.modalSheet}>
+              <Text style={styles.modalTitle}>{activePickerTitle}</Text>
+              <FlatList
+                ref={flatListRef}
+                data={activePickerYears}
+                keyExtractor={y => String(y)}
+                initialScrollIndex={Math.max(0, activePickerYears.indexOf(activePickerValue))}
+                renderItem={({ item: y }) => (
+                  <TouchableOpacity
+                    style={[styles.pickerItem, activePickerValue === y && styles.pickerItemActive]}
+                    onPress={() => {
+                      setActivePickerValue(y);
+                      setActivePicker(null);
+                    }}
+                  >
+                    <Text style={[styles.pickerItemText, activePickerValue === y && styles.pickerItemTextActive]}>
+                      {y}년
+                    </Text>
+                  </TouchableOpacity>
+                )}
+                onLayout={() => {
+                  setTimeout(() => {
+                    const idx = activePickerYears.indexOf(activePickerValue);
+                    if (idx >= 0) {
+                      const viewPos = (activePicker === 'patientBirth' || activePicker === 'patientDiagnosis') ? -0.1 : -0.5;
+                      flatListRef.current?.scrollToIndex({ index: idx, animated: false, viewPosition: viewPos });
+                    }
+                  }, 50);
+                }}
+                getItemLayout={(_, index) => ({ length: 56, offset: 56 * index, index })}
+                onScrollToIndexFailed={() => {}}
+                scrollEventThrottle={16}
+              />
+            </View>
+          </TouchableOpacity>
+        </Modal>
 
         {/* 저장 버튼 */}
         <TouchableOpacity style={styles.saveBtn} onPress={handleSave} activeOpacity={0.85} disabled={saving}>
@@ -671,15 +623,29 @@ const styles = StyleSheet.create({
   },
   pickerText: { flex: 1, fontSize: 22, color: Colors.text },
 
-  // Picker dropdown list
-  pickerList: {
-    maxHeight: 200,
-    backgroundColor: Colors.white,
-    borderWidth: 1,
-    borderColor: Colors.border,
-    borderRadius: 12,
-    marginTop: 4,
+  // Modal overlay & sheet
+  modalOverlay: {
+    flex: 1,
+    backgroundColor: 'rgba(0,0,0,0.4)',
+    justifyContent: 'center',
+    alignItems: 'center',
   },
+  modalSheet: {
+    width: '80%',
+    maxHeight: 320,
+    backgroundColor: Colors.white,
+    borderRadius: 16,
+    overflow: 'hidden',
+  },
+  modalTitle: {
+    fontSize: 18,
+    fontWeight: '700',
+    color: Colors.textSub,
+    padding: 16,
+    borderBottomWidth: 1,
+    borderBottomColor: Colors.border,
+  },
+
   pickerItem: {
     paddingHorizontal: 16,
     paddingVertical: 16,
