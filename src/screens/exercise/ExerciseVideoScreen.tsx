@@ -5,17 +5,20 @@ import {
   TouchableOpacity,
   StyleSheet,
   FlatList,
+  Linking,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { useNavigation } from '@react-navigation/native';
-import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { Ionicons } from '@expo/vector-icons';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { Colors } from '../../constants/colors';
 import { TopBar } from '../../components/common/TopBar';
-import type { ExerciseStackParamList } from '../../navigation/ExerciseNavigator';
 
-type Nav = NativeStackNavigationProp<ExerciseStackParamList, 'ExerciseVideo'>;
+const openVideo = async (videoId: string) => {
+  const youtubeApp = `youtube://watch?v=${videoId}`;
+  const youtubeWeb = `https://www.youtube.com/watch?v=${videoId}`;
+  const canOpen = await Linking.canOpenURL(youtubeApp);
+  await Linking.openURL(canOpen ? youtubeApp : youtubeWeb);
+};
 type IoniconName = React.ComponentProps<typeof Ionicons>['name'];
 type MCIName = React.ComponentProps<typeof MaterialCommunityIcons>['name'];
 
@@ -119,7 +122,6 @@ function VideoThumbnailIcon({ item }: { item: VideoItem }) {
 }
 
 export function ExerciseVideoScreen() {
-  const navigation = useNavigation<Nav>();
   const [activeTab, setActiveTab] = useState('기본');
   const videos = VIDEO_DATA[activeTab] ?? [];
 
@@ -153,17 +155,13 @@ export function ExerciseVideoScreen() {
         renderItem={({ item }) => (
           <TouchableOpacity
             style={styles.videoCard}
-            onPress={() => navigation.navigate('ExerciseVideoPlayer', {
-              videoId: item.videoId,
-              title: item.title,
-              description: item.description,
-            })}
+            onPress={() => openVideo(item.videoId)}
             activeOpacity={0.85}
           >
             <View style={styles.thumbnail}>
               <VideoThumbnailIcon item={item} />
               <View style={styles.playOverlay}>
-                <Ionicons name="play" size={14} color={Colors.white} />
+                <Ionicons name="play" size={20} color={Colors.white} />
               </View>
             </View>
             <View style={styles.videoInfo}>
@@ -172,7 +170,7 @@ export function ExerciseVideoScreen() {
                 <Ionicons name="timer-outline" size={14} color={Colors.textSub} />
                 <Text style={styles.videoDuration}>{item.duration}</Text>
               </View>
-              <Text style={styles.videoDesc} numberOfLines={2}>{item.description}</Text>
+              <Text style={styles.videoDesc} numberOfLines={3}>{item.description}</Text>
             </View>
           </TouchableOpacity>
         )}
@@ -192,26 +190,27 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     flexWrap: 'nowrap',
     paddingHorizontal: 8,
-    paddingVertical: 10,
+    paddingVertical: 12,
     gap: 4,
   },
   tabBtn: {
     flex: 1,
-    paddingHorizontal: 8,
-    paddingVertical: 6,
+    paddingHorizontal: 20,
+    paddingVertical: 14,
     borderRadius: 20,
     borderWidth: 1.5,
     borderColor: Colors.border,
     backgroundColor: Colors.white,
     alignItems: 'center',
+    justifyContent: 'center',
   },
   tabBtnActive: {
     borderColor: Colors.primary,
     backgroundColor: Colors.primary,
   },
   tabLabel: {
-    fontSize: 13,
-    fontWeight: '600',
+    fontSize: 18,
+    fontWeight: '700',
     color: Colors.textSub,
   },
   tabLabelActive: { color: Colors.white },
@@ -221,7 +220,8 @@ const styles = StyleSheet.create({
     borderRadius: 16,
     marginBottom: 12,
     flexDirection: 'row',
-    alignItems: 'flex-start',
+    alignItems: 'stretch',
+    minHeight: 100,
     elevation: 2,
     shadowColor: '#000',
     shadowOffset: { width: 0, height: 1 },
@@ -230,27 +230,28 @@ const styles = StyleSheet.create({
     overflow: 'hidden',
   },
   thumbnail: {
-    width: 100,
-    height: 100,
+    width: 120,
+    height: 90,
     backgroundColor: Colors.light,
     alignItems: 'center',
     justifyContent: 'center',
     flexShrink: 0,
+    alignSelf: 'center',
   },
   playOverlay: {
     position: 'absolute',
     bottom: 6,
     right: 6,
     backgroundColor: 'rgba(0,0,0,0.4)',
-    borderRadius: 12,
-    width: 24,
-    height: 24,
+    borderRadius: 18,
+    width: 36,
+    height: 36,
     alignItems: 'center',
     justifyContent: 'center',
   },
-  videoInfo: { flex: 1, padding: 14, gap: 4 },
+  videoInfo: { flex: 1, paddingVertical: 12, paddingHorizontal: 14, gap: 4 },
   videoTitle: { fontSize: 18, fontWeight: '700', color: Colors.text },
   durationRow: { flexDirection: 'row', alignItems: 'center', gap: 4 },
-  videoDuration: { fontSize: 14, color: Colors.textSub },
-  videoDesc: { fontSize: 14, color: Colors.textHint, lineHeight: 20, marginTop: 2 },
+  videoDuration: { fontSize: 16, color: Colors.textSub },
+  videoDesc: { fontSize: 16, color: '#666666', lineHeight: 22, marginTop: 2 },
 });
