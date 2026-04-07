@@ -27,12 +27,14 @@ import { useFamilyLink } from '../../hooks/useFamilyLink';
 
 type TimeSlot = 'morning' | 'lunch' | 'dinner' | 'bedtime';
 
-const TIME_SLOTS: { key: TimeSlot; emoji: string; label: string }[] = [
-  { key: 'morning', emoji: '🌅', label: '아침' },
-  { key: 'lunch', emoji: '☀️', label: '점심' },
-  { key: 'dinner', emoji: '🌇', label: '저녁' },
-  { key: 'bedtime', emoji: '🌙', label: '취침' },
+const TIME_SLOTS: { key: TimeSlot; emoji: string; label: string; defaultTime: string }[] = [
+  { key: 'morning', emoji: '🌅', label: '아침', defaultTime: '08:00' },
+  { key: 'lunch', emoji: '☀️', label: '점심', defaultTime: '12:00' },
+  { key: 'dinner', emoji: '🌇', label: '저녁', defaultTime: '18:00' },
+  { key: 'bedtime', emoji: '🌙', label: '취침', defaultTime: '22:00' },
 ];
+
+type MealSchedules = Partial<Record<TimeSlot, string>>;
 
 interface DrugInfo {
   itemName: string;
@@ -50,7 +52,9 @@ interface DrugInfo {
 interface Medication {
   id: string;
   name: string;
+  dosage?: string | null;
   times: TimeSlot[];
+  schedules?: MealSchedules;
   drugInfo?: DrugInfo | null;
 }
 
@@ -150,6 +154,245 @@ async function searchMfdsInfo(drugName: string): Promise<DrugInfo | null> {
     return null;
   }
 }
+
+// ─── 시간 선택 모달 ────────────────────────────────────────────────────────────
+
+function TimePickerModal({
+  visible,
+  initialTime,
+  slotLabel,
+  onConfirm,
+  onClose,
+}: {
+  visible: boolean;
+  initialTime: string;
+  slotLabel: string;
+  onConfirm: (time: string) => void;
+  onClose: () => void;
+}) {
+  const parseTime = (t: string) => {
+    const [h, m] = t.split(':').map(Number);
+    return { hour: isNaN(h) ? 8 : h, minute: isNaN(m) ? 0 : Math.floor(m / 10) * 10 };
+  };
+
+  const [hour, setHour] = useState(() => parseTime(initialTime).hour);
+  const [minute, setMinute] = useState(() => parseTime(initialTime).minute);
+
+  useEffect(() => {
+    if (visible) {
+      const parsed = parseTime(initialTime);
+      setHour(parsed.hour);
+      setMinute(parsed.minute);
+    }
+  }, [visible, initialTime]);
+
+  const hours = Array.from({ length: 24 }, (_, i) => i);
+  const minutes = [0, 10, 20, 30, 40, 50];
+
+  return (
+    <Modal visible={visible} transparent animationType="fade" onRequestClose={onClose}>
+      <TouchableOpacity style={tpStyles.overlay} activeOpacity={1} onPress={onClose}>
+        <TouchableOpacity style={tpStyles.sheet} activeOpacity={1} onPress={() => {}}>
+          <Text style={tpStyles.title}>{slotLabel} 시간 선택</Text>
+          <View style={tpStyles.pickerRow}>
+            {/* 시 선택 */}
+            <View style={tpStyles.pickerCol}>
+              <Text style={tpStyles.colLabel}>시</Text>
+              <ScrollView style={tpStyles.scroll} showsVerticalScrollIndicator={false}>
+                {hours.map(h => (
+                  <TouchableOpacity
+                    key={h}
+                    style={[tpStyles.timeOption, h === hour && tpStyles.timeOptionSelected]}
+                    onPress={() => setHour(h)}
+                    activeOpacity={0.7}
+                  >
+                    <Text style={[tpStyles.timeOptionText, h === hour && tpStyles.timeOptionTextSelected]}>
+                      {String(h).padStart(2, '0')}
+                    </Text>
+                  </TouchableOpacity>
+                ))}
+              </ScrollView>
+            </View>
+            <Text style={tpStyles.colon}>:</Text>
+            {/* 분 선택 */}
+            <View style={tpStyles.pickerCol}>
+              <Text style={tpStyles.colLabel}>분</Text>
+              <ScrollView style={tpStyles.scroll} showsVerticalScrollIndicator={false}>
+                {minutes.map(m => (
+                  <TouchableOpacity
+                    key={m}
+                    style={[tpStyles.timeOption, m === minute && tpStyles.timeOptionSelected]}
+                    onPress={() => setMinute(m)}
+                    activeOpacity={0.7}
+                  >
+                    <Text style={[tpStyles.timeOptionText, m === minute && tpStyles.timeOptionTextSelected]}>
+                      {String(m).padStart(2, '0')}
+                    </Text>
+                  </TouchableOpacity>
+                ))}
+              </ScrollView>
+            </View>
+          </View>
+          <View style={tpStyles.btnRow}>
+            <TouchableOpacity style={tpStyles.cancelBtn} onPress={onClose} activeOpacity={0.8}>
+              <Text style={tpStyles.cancelBtnText}>취소</Text>
+            </TouchableOpacity>
+            <TouchableOpacity
+              style={tpStyles.confirmBtn}
+              onPress={() => {
+                onConfirm(`${String(hour).padStart(2, '0')}:${String(minute).padStart(2, '0')}`);
+                onClose();
+              }}
+              activeOpacity={0.8}
+            >
+              <Text style={tpStyles.confirmBtnText}>확인</Text>
+            </TouchableOpacity>
+          </View>
+        </TouchableOpacity>
+      </TouchableOpacity>
+    </Modal>
+  );
+}
+
+const tpStyles = StyleSheet.create({
+  overlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.5)', alignItems: 'center', justifyContent: 'center' },
+  sheet: {
+    backgroundColor: Colors.white,
+    borderRadius: 20,
+    padding: 24,
+    width: 280,
+    elevation: 8,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.15,
+    shadowRadius: 8,
+  },
+  title: { fontSize: 20, fontWeight: '700', color: Colors.text, textAlign: 'center', marginBottom: 16 },
+  pickerRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8, marginBottom: 20 },
+  pickerCol: { width: 80, alignItems: 'center' },
+  colLabel: { fontSize: 18, fontWeight: '600', color: Colors.textSub, marginBottom: 8 },
+  scroll: { height: 200, width: 72 },
+  colon: { fontSize: 28, fontWeight: '700', color: Colors.text, marginTop: 28 },
+  timeOption: {
+    height: 56,
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderRadius: 10,
+    marginBottom: 4,
+  },
+  timeOptionSelected: { backgroundColor: Colors.primary },
+  timeOptionText: { fontSize: 20, fontWeight: '600', color: Colors.textSub },
+  timeOptionTextSelected: { color: Colors.white, fontWeight: '700' },
+  btnRow: { flexDirection: 'row', gap: 10 },
+  cancelBtn: {
+    flex: 1,
+    height: 56,
+    borderRadius: 12,
+    borderWidth: 1.5,
+    borderColor: Colors.border,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  cancelBtnText: { fontSize: 18, fontWeight: '600', color: Colors.textSub },
+  confirmBtn: {
+    flex: 1,
+    height: 56,
+    borderRadius: 12,
+    backgroundColor: Colors.primary,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  confirmBtnText: { fontSize: 18, fontWeight: '700', color: Colors.white },
+});
+
+// ─── 시간대 + 시간 선택 행 컴포넌트 ───────────────────────────────────────────
+
+function TimeSlotsWithTime({
+  selectedTimes,
+  schedules,
+  onToggle,
+  onTimeChange,
+}: {
+  selectedTimes: TimeSlot[];
+  schedules: MealSchedules;
+  onToggle: (slot: TimeSlot) => void;
+  onTimeChange: (slot: TimeSlot, time: string) => void;
+}) {
+  const [pickerSlot, setPickerSlot] = useState<TimeSlot | null>(null);
+
+  const openSlot = TIME_SLOTS.find(s => s.key === pickerSlot);
+
+  return (
+    <>
+      <View style={tsStyles.container}>
+        {TIME_SLOTS.map(t => {
+          const sel = selectedTimes.includes(t.key);
+          const time = schedules[t.key] ?? t.defaultTime;
+          return (
+            <View key={t.key} style={tsStyles.slotWrapper}>
+              <TouchableOpacity
+                style={[tsStyles.slotBtn, sel && tsStyles.slotBtnSelected]}
+                onPress={() => onToggle(t.key)}
+                activeOpacity={0.85}
+              >
+                <Text style={tsStyles.slotEmoji}>{t.emoji}</Text>
+                <Text style={[tsStyles.slotLabel, sel && tsStyles.slotLabelSelected]}>{t.label}</Text>
+              </TouchableOpacity>
+              {sel && (
+                <TouchableOpacity
+                  style={tsStyles.timeChip}
+                  onPress={() => setPickerSlot(t.key)}
+                  activeOpacity={0.8}
+                >
+                  <Text style={tsStyles.timeChipText}>{time}</Text>
+                  <Ionicons name="pencil-outline" size={13} color={Colors.primary} />
+                </TouchableOpacity>
+              )}
+            </View>
+          );
+        })}
+      </View>
+
+      <TimePickerModal
+        visible={pickerSlot !== null}
+        initialTime={pickerSlot ? (schedules[pickerSlot] ?? (TIME_SLOTS.find(s => s.key === pickerSlot)?.defaultTime ?? '08:00')) : '08:00'}
+        slotLabel={openSlot?.label ?? ''}
+        onConfirm={(time) => {
+          if (pickerSlot) onTimeChange(pickerSlot, time);
+        }}
+        onClose={() => setPickerSlot(null)}
+      />
+    </>
+  );
+}
+
+const tsStyles = StyleSheet.create({
+  container: { flexDirection: 'row', gap: 8, marginBottom: 16, flexWrap: 'wrap' },
+  slotWrapper: { flex: 1, minWidth: 72, alignItems: 'center', gap: 6 },
+  slotBtn: {
+    width: '100%',
+    paddingVertical: 12,
+    borderRadius: 12,
+    borderWidth: 1.5,
+    borderColor: Colors.border,
+    alignItems: 'center',
+    backgroundColor: Colors.white,
+  },
+  slotBtnSelected: { backgroundColor: Colors.primary, borderColor: Colors.primary },
+  slotEmoji: { fontSize: 20 },
+  slotLabel: { fontSize: 18, fontWeight: '600', color: Colors.textSub, marginTop: 4 },
+  slotLabelSelected: { color: Colors.white },
+  timeChip: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    backgroundColor: '#E8F5E9',
+    borderRadius: 8,
+    paddingHorizontal: 8,
+    paddingVertical: 5,
+  },
+  timeChipText: { fontSize: 18, fontWeight: '700', color: Colors.primary },
+});
 
 // ─── DrugInfoModal ─────────────────────────────────────────────────────────────
 
@@ -252,12 +495,20 @@ export function MedicationManageScreen() {
   // 직접 추가 폼
   const [showAddForm, setShowAddForm] = useState(false);
   const [addName, setAddName] = useState('');
+  const [addDosage, setAddDosage] = useState('');
   const [addTimes, setAddTimes] = useState<TimeSlot[]>([]);
+  const [addSchedules, setAddSchedules] = useState<MealSchedules>({});
+  const [addDrugInfo, setAddDrugInfo] = useState<DrugInfo | null | undefined>(undefined);
+  const [isMfdsLoading, setIsMfdsLoading] = useState(false);
 
   // 인라인 수정 모드
   const [editingId, setEditingId] = useState<string | null>(null);
   const [editName, setEditName] = useState('');
+  const [editDosage, setEditDosage] = useState('');
   const [editTimes, setEditTimes] = useState<TimeSlot[]>([]);
+  const [editSchedules, setEditSchedules] = useState<MealSchedules>({});
+  const [editDrugInfo, setEditDrugInfo] = useState<DrugInfo | null | undefined>(undefined);
+  const [isEditMfdsLoading, setIsEditMfdsLoading] = useState(false);
 
   // 대상 환자 id 결정 (보호자는 연동된 환자, 환자는 본인)
   useEffect(() => {
@@ -290,7 +541,9 @@ export function MedicationManageScreen() {
           id: row.id,
           dbId: row.id,
           name: row.name,
+          dosage: row.dosage ?? null,
           times: (row.meal_times ?? []) as TimeSlot[],
+          schedules: (row.meal_schedules ?? {}) as MealSchedules,
           drugInfo: row.drug_image_url ? { itemName: row.name, itemImage: row.drug_image_url } : undefined,
         }))
       );
@@ -347,6 +600,7 @@ export function MedicationManageScreen() {
         id: (Date.now() + i).toString(),
         name: med.name,
         times: med.times.filter((t): t is TimeSlot => validSlots.includes(t as TimeSlot)),
+        schedules: {},
       }));
 
       const enriched = await Promise.all(
@@ -363,7 +617,8 @@ export function MedicationManageScreen() {
                 patient_id: targetPatientId,
                 name: med.name,
                 dosage: null,
-                meal_times: med.times as any,
+                meal_times: med.times,
+                meal_schedules: {},
                 scheduled_times: [] as string[],
                 drug_code: null,
                 drug_image_url: med.drugInfo?.itemImage ?? null,
@@ -376,7 +631,9 @@ export function MedicationManageScreen() {
           const dbMeds: Medication[] = (inserted ?? []).map((row: any, i: number) => ({
             id: row.id,
             name: row.name,
+            dosage: null,
             times: (row.meal_times ?? []) as TimeSlot[],
+            schedules: (row.meal_schedules ?? {}) as MealSchedules,
             drugInfo: enriched[i]?.drugInfo ?? null,
           }));
           setMedications(prev => [...prev, ...dbMeds]);
@@ -414,6 +671,32 @@ export function MedicationManageScreen() {
     ]);
   };
 
+  // ── 식약처 정보 수동 조회 ──────────────────────────────────────────────────
+
+  const handleFetchMfdsForAdd = async () => {
+    const trimmed = addName.trim();
+    if (!trimmed) { Alert.alert('', '약 이름을 먼저 입력해주세요.'); return; }
+    setIsMfdsLoading(true);
+    try {
+      const info = await searchMfdsInfo(trimmed);
+      setAddDrugInfo(info);
+    } finally {
+      setIsMfdsLoading(false);
+    }
+  };
+
+  const handleFetchMfdsForEdit = async () => {
+    const trimmed = editName.trim();
+    if (!trimmed) { Alert.alert('', '약 이름을 먼저 입력해주세요.'); return; }
+    setIsEditMfdsLoading(true);
+    try {
+      const info = await searchMfdsInfo(trimmed);
+      setEditDrugInfo(info);
+    } finally {
+      setIsEditMfdsLoading(false);
+    }
+  };
+
   // ── 추가 ────────────────────────────────────────────────────────────────
 
   const handleAddSubmit = async () => {
@@ -422,18 +705,24 @@ export function MedicationManageScreen() {
     if (addTimes.length === 0) { Alert.alert('', '복용 시간대를 하나 이상 선택해주세요.'); return; }
     if (!user || !targetPatientId) return;
 
-    const drugInfo = await searchMfdsInfo(trimmed);
+    // 선택된 시간대에 스케줄 기본값 채우기
+    const finalSchedules: MealSchedules = {};
+    addTimes.forEach(slot => {
+      finalSchedules[slot] = addSchedules[slot] ?? TIME_SLOTS.find(s => s.key === slot)?.defaultTime ?? '08:00';
+    });
+
     try {
       const { data, error } = await supabase
         .from('medications')
         .insert({
           patient_id: targetPatientId,
           name: trimmed,
-          dosage: null,
-          meal_times: addTimes as any,
+          dosage: addDosage.trim() || null,
+          meal_times: addTimes,
+          meal_schedules: finalSchedules,
           scheduled_times: [] as string[],
           drug_code: null,
-          drug_image_url: drugInfo?.itemImage ?? null,
+          drug_image_url: addDrugInfo?.itemImage ?? null,
           is_active: true,
         })
         .select()
@@ -442,11 +731,16 @@ export function MedicationManageScreen() {
       setMedications(prev => [...prev, {
         id: data.id,
         name: data.name,
+        dosage: data.dosage ?? null,
         times: (data.meal_times ?? []) as TimeSlot[],
-        drugInfo: drugInfo ?? null,
+        schedules: (data.meal_schedules ?? {}) as MealSchedules,
+        drugInfo: addDrugInfo ?? null,
       }]);
       setAddName('');
+      setAddDosage('');
       setAddTimes([]);
+      setAddSchedules({});
+      setAddDrugInfo(undefined);
       setShowAddForm(false);
     } catch (e) {
       console.error('[MedicationManageScreen] 약 추가 오류:', e);
@@ -459,7 +753,10 @@ export function MedicationManageScreen() {
   const handleEditStart = (med: Medication) => {
     setEditingId(med.id);
     setEditName(med.name);
+    setEditDosage(med.dosage ?? '');
     setEditTimes([...med.times]);
+    setEditSchedules({ ...(med.schedules ?? {}) });
+    setEditDrugInfo(med.drugInfo);
     setShowAddForm(false);
   };
 
@@ -470,24 +767,32 @@ export function MedicationManageScreen() {
     const savedId = editingId;
     if (!savedId) return;
 
+    // 선택된 시간대에 스케줄 기본값 채우기
+    const finalSchedules: MealSchedules = {};
+    editTimes.forEach(slot => {
+      finalSchedules[slot] = editSchedules[slot] ?? TIME_SLOTS.find(s => s.key === slot)?.defaultTime ?? '08:00';
+    });
+
     // 낙관적 UI 업데이트
     setMedications(prev => prev.map(m =>
-      m.id === savedId ? { ...m, name: trimmed, times: editTimes, drugInfo: undefined } : m
+      m.id === savedId
+        ? { ...m, name: trimmed, dosage: editDosage.trim() || null, times: editTimes, schedules: finalSchedules, drugInfo: editDrugInfo }
+        : m
     ));
     setEditingId(null);
 
     try {
-      const drugInfo = await searchMfdsInfo(trimmed);
       const { error } = await supabase
         .from('medications')
         .update({
           name: trimmed,
-          meal_times: editTimes as any,
-          drug_image_url: drugInfo?.itemImage ?? null,
+          dosage: editDosage.trim() || null,
+          meal_times: editTimes,
+          meal_schedules: finalSchedules,
+          drug_image_url: editDrugInfo?.itemImage ?? null,
         })
         .eq('id', savedId);
       if (error) throw error;
-      setMedications(prev => prev.map(m => m.id === savedId ? { ...m, drugInfo: drugInfo ?? null } : m));
     } catch (e) {
       console.error('[MedicationManageScreen] 약 수정 오류:', e);
       Alert.alert('', '약 수정에 실패했어요.');
@@ -498,7 +803,10 @@ export function MedicationManageScreen() {
   const handleEditCancel = () => {
     setEditingId(null);
     setEditName('');
+    setEditDosage('');
     setEditTimes([]);
+    setEditSchedules({});
+    setEditDrugInfo(undefined);
   };
 
   // ── 삭제 ────────────────────────────────────────────────────────────────
@@ -527,11 +835,23 @@ export function MedicationManageScreen() {
     ]);
   };
 
-  const toggleAddTime = (t: TimeSlot) =>
-    setAddTimes(prev => prev.includes(t) ? prev.filter(x => x !== t) : [...prev, t]);
+  const toggleAddTime = (t: TimeSlot) => {
+    setAddTimes(prev => {
+      if (prev.includes(t)) return prev.filter(x => x !== t);
+      const defaultTime = TIME_SLOTS.find(s => s.key === t)?.defaultTime ?? '08:00';
+      setAddSchedules(sched => ({ ...sched, [t]: sched[t] ?? defaultTime }));
+      return [...prev, t];
+    });
+  };
 
-  const toggleEditTime = (t: TimeSlot) =>
-    setEditTimes(prev => prev.includes(t) ? prev.filter(x => x !== t) : [...prev, t]);
+  const toggleEditTime = (t: TimeSlot) => {
+    setEditTimes(prev => {
+      if (prev.includes(t)) return prev.filter(x => x !== t);
+      const defaultTime = TIME_SLOTS.find(s => s.key === t)?.defaultTime ?? '08:00';
+      setEditSchedules(sched => ({ ...sched, [t]: sched[t] ?? defaultTime }));
+      return [...prev, t];
+    });
+  };
 
   // ── 렌더 ────────────────────────────────────────────────────────────────
 
@@ -590,38 +910,66 @@ export function MedicationManageScreen() {
           {/* ── 직접 추가 폼 ── */}
           {showAddForm && (
             <View style={styles.addFormCard}>
+              {/* 약 이름 */}
               <TextInput
                 style={styles.medInput}
                 value={addName}
-                onChangeText={setAddName}
+                onChangeText={(v) => { setAddName(v); setAddDrugInfo(undefined); }}
                 placeholder="약 이름 입력 (예: 시네메트)"
                 placeholderTextColor={Colors.textHint}
                 returnKeyType="done"
               />
+
+              {/* 식약처 정보 불러오기 버튼 */}
+              <TouchableOpacity
+                style={styles.mfdsBtn}
+                onPress={handleFetchMfdsForAdd}
+                activeOpacity={0.85}
+                disabled={isMfdsLoading}
+              >
+                {isMfdsLoading ? (
+                  <ActivityIndicator size="small" color={Colors.white} />
+                ) : (
+                  <Text style={styles.mfdsBtnText}>🔍 식약처 정보 불러오기</Text>
+                )}
+              </TouchableOpacity>
+
+              {/* 식약처 결과 표시 */}
+              {addDrugInfo !== undefined && (
+                <View style={[styles.mfdsResult, addDrugInfo ? styles.mfdsResultOk : styles.mfdsResultFail]}>
+                  <Text style={[styles.mfdsResultText, addDrugInfo ? styles.mfdsResultTextOk : styles.mfdsResultTextFail]}>
+                    {addDrugInfo
+                      ? `✅ 확인됨${addDrugInfo.entpName ? ` (${addDrugInfo.entpName})` : ''}`
+                      : '⚠️ 식약처 정보 없음'}
+                  </Text>
+                </View>
+              )}
+
+              {/* 복용량 */}
+              <TextInput
+                style={styles.medInput}
+                value={addDosage}
+                onChangeText={setAddDosage}
+                placeholder="복용량 (예) 1정, 0.5정, 500mg)"
+                placeholderTextColor={Colors.textHint}
+                returnKeyType="done"
+              />
+
               <Text style={styles.inputLabel}>복용 시간대</Text>
-              <View style={styles.timeRow}>
-                {TIME_SLOTS.map(t => {
-                  const sel = addTimes.includes(t.key);
-                  return (
-                    <TouchableOpacity
-                      key={t.key}
-                      style={[styles.timeBtn, sel && styles.timeBtnSelected]}
-                      onPress={() => toggleAddTime(t.key)}
-                      activeOpacity={0.85}
-                    >
-                      <Text style={styles.timeEmoji}>{t.emoji}</Text>
-                      <Text style={[styles.timeText, sel && styles.timeTextSelected]}>{t.label}</Text>
-                    </TouchableOpacity>
-                  );
-                })}
-              </View>
+              <TimeSlotsWithTime
+                selectedTimes={addTimes}
+                schedules={addSchedules}
+                onToggle={toggleAddTime}
+                onTimeChange={(slot, time) => setAddSchedules(prev => ({ ...prev, [slot]: time }))}
+              />
+
               <TouchableOpacity
                 style={[styles.addSubmitBtn, (!addName.trim() || addTimes.length === 0) && styles.addSubmitBtnDisabled]}
                 onPress={handleAddSubmit}
                 activeOpacity={0.85}
                 disabled={!addName.trim() || addTimes.length === 0}
               >
-                <Text style={styles.addSubmitBtnText}>+ 추가하기</Text>
+                <Text style={(!addName.trim() || addTimes.length === 0) ? styles.addSubmitBtnTextDisabled : styles.addSubmitBtnText}>+ 추가하기</Text>
               </TouchableOpacity>
             </View>
           )}
@@ -648,32 +996,60 @@ export function MedicationManageScreen() {
             if (isEditing) {
               return (
                 <View key={med.id} style={styles.medCardEditing}>
+                  {/* 약 이름 수정 */}
                   <TextInput
                     style={styles.medInput}
                     value={editName}
-                    onChangeText={setEditName}
+                    onChangeText={(v) => { setEditName(v); setEditDrugInfo(undefined); }}
                     placeholder="약 이름"
                     placeholderTextColor={Colors.textHint}
                     returnKeyType="done"
                     autoFocus
                   />
+
+                  {/* 식약처 정보 불러오기 버튼 */}
+                  <TouchableOpacity
+                    style={styles.mfdsBtn}
+                    onPress={handleFetchMfdsForEdit}
+                    activeOpacity={0.85}
+                    disabled={isEditMfdsLoading}
+                  >
+                    {isEditMfdsLoading ? (
+                      <ActivityIndicator size="small" color={Colors.white} />
+                    ) : (
+                      <Text style={styles.mfdsBtnText}>🔍 식약처 정보 불러오기</Text>
+                    )}
+                  </TouchableOpacity>
+
+                  {/* 식약처 결과 표시 */}
+                  {editDrugInfo !== undefined && (
+                    <View style={[styles.mfdsResult, editDrugInfo ? styles.mfdsResultOk : styles.mfdsResultFail]}>
+                      <Text style={[styles.mfdsResultText, editDrugInfo ? styles.mfdsResultTextOk : styles.mfdsResultTextFail]}>
+                        {editDrugInfo
+                          ? `✅ 확인됨${editDrugInfo.entpName ? ` (${editDrugInfo.entpName})` : ''}`
+                          : '⚠️ 식약처 정보 없음'}
+                      </Text>
+                    </View>
+                  )}
+
+                  {/* 복용량 수정 */}
+                  <TextInput
+                    style={styles.medInput}
+                    value={editDosage}
+                    onChangeText={setEditDosage}
+                    placeholder="복용량 (예) 1정, 0.5정, 500mg)"
+                    placeholderTextColor={Colors.textHint}
+                    returnKeyType="done"
+                  />
+
                   <Text style={styles.inputLabel}>복용 시간대</Text>
-                  <View style={styles.timeRow}>
-                    {TIME_SLOTS.map(t => {
-                      const sel = editTimes.includes(t.key);
-                      return (
-                        <TouchableOpacity
-                          key={t.key}
-                          style={[styles.timeBtn, sel && styles.timeBtnSelected]}
-                          onPress={() => toggleEditTime(t.key)}
-                          activeOpacity={0.85}
-                        >
-                          <Text style={styles.timeEmoji}>{t.emoji}</Text>
-                          <Text style={[styles.timeText, sel && styles.timeTextSelected]}>{t.label}</Text>
-                        </TouchableOpacity>
-                      );
-                    })}
-                  </View>
+                  <TimeSlotsWithTime
+                    selectedTimes={editTimes}
+                    schedules={editSchedules}
+                    onToggle={toggleEditTime}
+                    onTimeChange={(slot, time) => setEditSchedules(prev => ({ ...prev, [slot]: time }))}
+                  />
+
                   <View style={styles.editActionRow}>
                     <TouchableOpacity style={styles.editCancelBtn} onPress={handleEditCancel} activeOpacity={0.85}>
                       <Text style={styles.editCancelBtnText}>취소</Text>
@@ -701,6 +1077,9 @@ export function MedicationManageScreen() {
                       <Text style={styles.medName}>{med.name}</Text>
                       <Text style={styles.medInfoIndicator}> ℹ️</Text>
                     </TouchableOpacity>
+                    {med.dosage ? (
+                      <Text style={styles.medDosage}>{med.dosage}</Text>
+                    ) : null}
                     <Text style={styles.medSchedule}>
                       {med.times.map(t => TIME_SLOTS.find(s => s.key === t)?.label).join(' · ')}
                     </Text>
@@ -711,10 +1090,10 @@ export function MedicationManageScreen() {
                 </View>
                 <View style={styles.medBtnRow}>
                   <TouchableOpacity style={styles.editBtn} onPress={() => handleEditStart(med)} activeOpacity={0.7}>
-                    <Text style={styles.editBtnText}>수정</Text>
+                    <Text style={styles.editBtnText}>✏️ 수정</Text>
                   </TouchableOpacity>
                   <TouchableOpacity style={styles.deleteBtn} onPress={() => handleDelete(med)} activeOpacity={0.7}>
-                    <Text style={styles.deleteBtnText}>삭제</Text>
+                    <Text style={styles.deleteBtnText}>🗑️ 삭제</Text>
                   </TouchableOpacity>
                 </View>
               </View>
@@ -812,32 +1191,43 @@ const styles = StyleSheet.create({
     paddingHorizontal: 16,
     fontSize: 20,
     color: Colors.text,
-    marginBottom: 16,
+    marginBottom: 12,
   },
-  inputLabel: { fontSize: 18, fontWeight: '700', color: Colors.text, marginBottom: 12 },
-  timeRow: { flexDirection: 'row', gap: 8, marginBottom: 16 },
-  timeBtn: {
-    flex: 1,
-    paddingVertical: 12,
+
+  // 식약처 버튼 및 결과
+  mfdsBtn: {
+    height: 52,
     borderRadius: 12,
-    borderWidth: 1.5,
-    borderColor: Colors.border,
+    backgroundColor: '#4CAF50',
     alignItems: 'center',
-    backgroundColor: Colors.white,
+    justifyContent: 'center',
+    marginBottom: 10,
   },
-  timeBtnSelected: { backgroundColor: Colors.primary, borderColor: Colors.primary },
-  timeEmoji: { fontSize: 20 },
-  timeText: { fontSize: 16, fontWeight: '600', color: Colors.textSub, marginTop: 4 },
-  timeTextSelected: { color: Colors.white },
+  mfdsBtnText: { fontSize: 18, fontWeight: '700', color: Colors.white },
+  mfdsResult: {
+    borderRadius: 10,
+    paddingHorizontal: 14,
+    paddingVertical: 10,
+    marginBottom: 12,
+  },
+  mfdsResultOk: { backgroundColor: '#E8F5E9' },
+  mfdsResultFail: { backgroundColor: '#FFF3E0' },
+  mfdsResultText: { fontSize: 16, fontWeight: '600' },
+  mfdsResultTextOk: { color: '#2E7D32' },
+  mfdsResultTextFail: { color: '#E65100' },
+
+  inputLabel: { fontSize: 18, fontWeight: '700', color: Colors.text, marginBottom: 12 },
   addSubmitBtn: {
     backgroundColor: Colors.primary,
     borderRadius: 12,
     height: 60,
     alignItems: 'center',
     justifyContent: 'center',
+    marginTop: 4,
   },
   addSubmitBtnDisabled: { backgroundColor: Colors.border },
   addSubmitBtnText: { fontSize: 20, fontWeight: '700', color: Colors.white },
+  addSubmitBtnTextDisabled: { fontSize: 20, fontWeight: '700', color: '#666666' },
 
   // 섹션 헤더
   sectionHeader: { fontSize: 20, fontWeight: '700', color: Colors.text, marginBottom: 14, marginTop: 8 },
@@ -852,7 +1242,7 @@ const styles = StyleSheet.create({
     paddingHorizontal: 20,
   },
   emptyTitle: { fontSize: 20, color: Colors.textSub, marginTop: 16, fontWeight: '600' },
-  emptyDesc: { fontSize: 16, color: Colors.textHint, textAlign: 'center', marginTop: 8, lineHeight: 24 },
+  emptyDesc: { fontSize: 18, color: Colors.textHint, textAlign: 'center', marginTop: 8, lineHeight: 26 },
 
   // 약 카드
   medCard: {
@@ -889,13 +1279,14 @@ const styles = StyleSheet.create({
   medNameRow: { flexDirection: 'row', alignItems: 'center' },
   medName: { fontSize: 22, fontWeight: '700', color: Colors.text },
   medInfoIndicator: { fontSize: 18 },
-  medSchedule: { fontSize: 17, color: Colors.textSub, marginTop: 4 },
-  noInfoBadge: { fontSize: 14, color: Colors.danger, marginTop: 4 },
+  medDosage: { fontSize: 18, color: Colors.textSub, marginTop: 3, fontWeight: '500' },
+  medSchedule: { fontSize: 18, color: Colors.textSub, marginTop: 4 },
+  noInfoBadge: { fontSize: 18, color: Colors.danger, marginTop: 4 },
 
   medBtnRow: { flexDirection: 'row', marginTop: 16, gap: 10 },
   editBtn: {
     flex: 1,
-    height: 52,
+    height: 56,
     borderRadius: 12,
     borderWidth: 1.5,
     borderColor: Colors.primary,
@@ -905,7 +1296,7 @@ const styles = StyleSheet.create({
   editBtnText: { fontSize: 18, fontWeight: '700', color: Colors.primary },
   deleteBtn: {
     flex: 1,
-    height: 52,
+    height: 56,
     borderRadius: 12,
     borderWidth: 1.5,
     borderColor: Colors.danger,
@@ -952,5 +1343,5 @@ const styles = StyleSheet.create({
     minWidth: 200,
   },
   ocrText: { fontSize: 20, fontWeight: '700', color: Colors.text },
-  ocrSubText: { fontSize: 17, color: Colors.textSub },
+  ocrSubText: { fontSize: 18, color: Colors.textSub },
 });
