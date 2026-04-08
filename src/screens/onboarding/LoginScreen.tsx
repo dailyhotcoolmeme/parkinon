@@ -77,9 +77,7 @@ export function LoginScreen() {
     <SafeAreaView style={styles.container}>
       <View style={styles.content}>
         <View style={styles.logoArea}>
-          <Text style={styles.logoEmoji}>💊</Text>
-          <Text style={styles.title}>파킨온</Text>
-          <Text style={styles.subtitle}>ParkinON</Text>
+          <Image source={require('../../../assets/icon.png')} style={styles.logoImage} />
           <Text style={styles.desc}>
             파킨슨 환자와 가족을 위한{'\n'}케어 앱이에요
           </Text>
@@ -132,21 +130,17 @@ const styles = StyleSheet.create({
   logoArea: {
     alignItems: 'center',
   },
-  logoEmoji: {
-    fontSize: 72,
-    marginBottom: 16,
+  logoImage: {
+    width: 520,
+    height: 520,
+    borderRadius: 130,
+    marginVertical: 16,
   },
   title: {
     fontSize: 36,
     fontWeight: '700',
     color: Colors.white,
     marginBottom: 4,
-  },
-  subtitle: {
-    fontSize: 20,
-    color: Colors.white,
-    opacity: 0.8,
-    marginBottom: 24,
   },
   desc: {
     fontSize: 18,

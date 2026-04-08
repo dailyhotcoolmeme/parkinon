@@ -6,11 +6,13 @@ import {
   ScrollView,
   ActivityIndicator,
   Dimensions,
+  TouchableOpacity,
+  Linking,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useRoute } from '@react-navigation/native';
 import type { NativeStackScreenProps } from '@react-navigation/native-stack';
-import { WebView } from 'react-native-webview';
+import YoutubePlayer from 'react-native-youtube-iframe';
 import { Colors } from '../../constants/colors';
 import { TopBar } from '../../components/common/TopBar';
 import type { ExerciseStackParamList } from '../../navigation/ExerciseNavigator';
@@ -20,47 +22,17 @@ type RouteProps = NativeStackScreenProps<ExerciseStackParamList, 'ExerciseVideoP
 const SCREEN_WIDTH = Dimensions.get('window').width;
 const VIDEO_HEIGHT = Math.round(SCREEN_WIDTH * 9 / 16);
 
-function makePlayerHtml(videoId: string): string {
-  return `<!DOCTYPE html>
-<html>
-<head>
-  <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1">
-  <style>
-    * { margin: 0; padding: 0; box-sizing: border-box; }
-    body { background: #000; width: 100%; height: 100%; }
-    #player { width: 100%; height: 100%; }
-  </style>
-</head>
-<body>
-  <div id="player"></div>
-  <script>
-    var tag = document.createElement('script');
-    tag.src = "https://www.youtube.com/iframe_api";
-    var firstScriptTag = document.getElementsByTagName('script')[0];
-    firstScriptTag.parentNode.insertBefore(tag, firstScriptTag);
-    function onYouTubeIframeAPIReady() {
-      new YT.Player('player', {
-        videoId: '${videoId}',
-        playerVars: {
-          autoplay: 0,
-          playsinline: 1,
-          controls: 1,
-          rel: 0,
-          modestbranding: 1,
-        },
-        height: '100%',
-        width: '100%',
-      });
-    }
-  </script>
-</body>
-</html>`;
-}
-
 export function ExerciseVideoPlayerScreen() {
   const route = useRoute<RouteProps>();
   const { videoId, title, description } = route.params;
+
+  const [playing, setPlaying] = useState(false);
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState(false);
+
+  const openInYoutube = () => {
+    Linking.openURL(`https://www.youtube.com/watch?v=${videoId}`);
+  };
 
   return (
     <SafeAreaView style={styles.safe} edges={['top']}>
@@ -68,24 +40,42 @@ export function ExerciseVideoPlayerScreen() {
 
       <ScrollView style={styles.scroll} showsVerticalScrollIndicator={false}>
         {/* 영상 영역 */}
-        <View style={[styles.playerContainer, { height: VIDEO_HEIGHT }]}>
-          {loading && (
+        <View style={[styles.playerContainer, { minHeight: VIDEO_HEIGHT }]}>
+          {loading && !error && (
             <View style={styles.loadingOverlay}>
               <ActivityIndicator size="large" color={Colors.primary} />
             </View>
           )}
-          <WebView
-            style={{ flex: 1 }}
-            source={{ html: makePlayerHtml(videoId) }}
-            javaScriptEnabled
-            allowsInlineMediaPlayback
-            mediaPlaybackRequiresUserAction={false}
-            onLoad={() => setLoading(false)}
-            onError={() => setLoading(false)}
-            scrollEnabled={false}
-            bounces={false}
-            originWhitelist={['*']}
-          />
+
+          {!error ? (
+            <YoutubePlayer
+              height={VIDEO_HEIGHT}
+              videoId={videoId}
+              play={playing}
+              onReady={() => setLoading(false)}
+              onError={() => {
+                setLoading(false);
+                setError(true);
+              }}
+              onChangeState={(state) => {
+                if (state === 'ended') setPlaying(false);
+              }}
+              initialPlayerParams={{
+                preventFullScreen: false,
+                controls: true,
+                modestbranding: true,
+                rel: false,
+              }}
+            />
+          ) : (
+            /* 에러 시 fallback */
+            <View style={styles.errorBox}>
+              <Text style={styles.errorText}>영상을 불러올 수 없어요</Text>
+              <TouchableOpacity style={styles.youtubeBtn} onPress={openInYoutube}>
+                <Text style={styles.youtubeBtnText}>▶ 유튜브로 보기</Text>
+              </TouchableOpacity>
+            </View>
+          )}
         </View>
 
         {/* 운동 정보 */}
@@ -123,6 +113,29 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     backgroundColor: '#111',
     zIndex: 10,
+  },
+  errorBox: {
+    minHeight: VIDEO_HEIGHT,
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 16,
+    backgroundColor: '#111',
+    padding: 32,
+  },
+  errorText: {
+    fontSize: 18,
+    color: '#fff',
+  },
+  youtubeBtn: {
+    backgroundColor: '#FF0000',
+    paddingVertical: 14,
+    paddingHorizontal: 32,
+    borderRadius: 8,
+  },
+  youtubeBtnText: {
+    fontSize: 18,
+    color: '#fff',
+    fontWeight: '700',
   },
   infoArea: {
     padding: 20,

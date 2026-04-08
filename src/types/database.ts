@@ -76,6 +76,7 @@ export interface Database {
           name: string;
           dosage: string | null;
           meal_times: MealTime[];
+          meal_schedules: Record<string, string> | null;
           scheduled_times: string[];
           drug_code: string | null;
           drug_image_url: string | null;

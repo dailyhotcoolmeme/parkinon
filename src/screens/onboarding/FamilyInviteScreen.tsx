@@ -142,7 +142,9 @@ export function FamilyInviteScreen() {
       if (medicationsJson && role === 'patient') {
         const meds: Array<{
           name: string;
+          dosage?: string;
           times: string[];
+          meal_schedules?: Record<string, string>;
           drugInfo?: { itemImage?: string };
         }> = JSON.parse(medicationsJson);
 
@@ -151,8 +153,9 @@ export function FamilyInviteScreen() {
             meds.map((med) => ({
               patient_id: userId,
               name: med.name,
-              dosage: null,
+              dosage: med.dosage ?? null,
               meal_times: med.times as any,
+              meal_schedules: med.meal_schedules ?? {},
               scheduled_times: [] as string[],
               drug_code: null,
               drug_image_url: med.drugInfo?.itemImage || null,

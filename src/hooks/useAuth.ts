@@ -306,7 +306,7 @@ export function useAuthProvider(): UseAuthReturn {
       id: 'dev-user-001',
       name: '홍길동',
       role: 'patient',
-      onboarding_done: false,
+      onboarding_done: true,
       notification_enabled: true,
       patient_group_id: null,
       kakao_id: null,
