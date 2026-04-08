@@ -1,5 +1,5 @@
 import React from 'react';
-import { View, Text, TouchableOpacity, StyleSheet } from 'react-native';
+import { View, Text, TouchableOpacity, StyleSheet, Image } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { useNavigation } from '@react-navigation/native';
 import { Colors } from '../../constants/colors';
@@ -20,12 +20,17 @@ export function TopBar({ title, showBack, showClose, showParkinon, rightIcon, ri
   return (
     <View style={styles.container}>
       <View style={styles.inner}>
-        <View style={styles.left}>
+        <View style={[styles.left, showParkinon && styles.leftExpanded]}>
           {showParkinon && (
             <TouchableOpacity
               onPress={() => navigateTo('Medication')}
               hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+              style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}
             >
+              <Image
+                source={require('../../../assets/parkinon-logo.png')}
+                style={{ width: 28, height: 28, borderRadius: 6 }}
+              />
               <Text style={styles.parkinonText}>파킨온</Text>
             </TouchableOpacity>
           )}
@@ -71,6 +76,7 @@ const styles = StyleSheet.create({
     paddingHorizontal: 16,
   },
   left: { width: 76, alignItems: 'flex-start' },
+  leftExpanded: { width: 'auto', flex: 1 },
   right: { width: 76, alignItems: 'flex-end' },
   title: { flex: 1, fontSize: 20, fontWeight: '700', color: Colors.text, textAlign: 'center' },
   parkinonText: {
