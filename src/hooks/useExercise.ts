@@ -9,6 +9,7 @@
 import { useState, useEffect, useCallback } from 'react';
 import { supabase } from '../lib/supabase';
 import { useAuth } from '../context/AuthContext';
+import { sendCaregiverPush } from '../utils/notifications';
 import type { Database } from '../types/database';
 
 type ExerciseLogRow = Database['public']['Tables']['exercise_logs']['Row'];
@@ -121,6 +122,42 @@ export function useExercise(): UseExerciseReturn {
       if (insertError) throw insertError;
 
       await fetchTodayLogs();
+
+      // 보호자에게 푸시 알림
+      try {
+        if (user.patient_group_id) {
+          const { data: caregivers } = await supabase
+            .from('patient_group_members')
+            .select('user_id')
+            .eq('group_id', user.patient_group_id)
+            .eq('role', 'caregiver');
+
+          if (caregivers?.length) {
+            const caregiverIds = caregivers.map((c: any) => c.user_id);
+            const { data: caregiverUsers } = await supabase
+              .from('users')
+              .select('push_token, caregiver_notif_prefs')
+              .in('id', caregiverIds)
+              .not('push_token', 'is', null);
+
+            for (const cu of caregiverUsers ?? []) {
+              if (!cu.push_token) continue;
+              const prefs = (cu.caregiver_notif_prefs ?? {}) as Record<string, boolean>;
+              if (prefs.exercise !== false) {
+                await sendCaregiverPush(
+                  cu.push_token,
+                  '🏃 운동을 완료했어요',
+                  `환자분이 ${exerciseType} ${durationMinutes}분 운동을 완료했어요.`,
+                  { type: 'caregiver_exercise' },
+                );
+              }
+            }
+          }
+        }
+      } catch (notifErr) {
+        console.error('[useExercise] 보호자 푸시 실패 (기록은 저장됨):', notifErr);
+      }
+
       return true;
     } catch (err: any) {
       console.error('[useExercise] saveExercise 오류:', err);

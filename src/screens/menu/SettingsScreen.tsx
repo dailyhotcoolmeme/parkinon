@@ -74,6 +74,18 @@ export function SettingsScreen() {
     setCaregiverNotifs(prev => {
       const next = prev.map(n => n.id === id ? { ...n, enabled: !n.enabled } : n);
       AsyncStorage.setItem(STORAGE_KEY_CAREGIVER, JSON.stringify(next)).catch(() => {});
+      // DB에도 동기화
+      const prefs: Record<string, boolean> = {};
+      next.forEach(n => { prefs[n.id] = n.enabled; });
+      supabase.auth.getSession().then(({ data: { session } }) => {
+        if (!session?.user) return;
+        supabase.from('users')
+          .update({ caregiver_notif_prefs: prefs })
+          .eq('id', session.user.id)
+          .then(({ error }) => {
+            if (error) console.error('[SettingsScreen] caregiver_notif_prefs 저장 오류:', error.message);
+          });
+      });
       return next;
     });
   };
@@ -90,7 +102,7 @@ export function SettingsScreen() {
     minute: 0,
   });
 
-  // 화면 포커스 시 DB에서 notification_enabled 재로드
+  // 화면 포커스 시 DB에서 notification_enabled + caregiver_notif_prefs 재로드
   useFocusEffect(
     React.useCallback(() => {
       (async () => {
@@ -99,17 +111,24 @@ export function SettingsScreen() {
           if (!session?.user) return;
           const { data: userRow } = await supabase
             .from('users')
-            .select('notification_enabled')
+            .select('notification_enabled, caregiver_notif_prefs')
             .eq('id', session.user.id)
             .single();
           if (userRow != null) {
             setNotificationEnabled(userRow.notification_enabled ?? true);
+            if (isCaregiver && userRow.caregiver_notif_prefs) {
+              const prefs = userRow.caregiver_notif_prefs as Record<string, boolean>;
+              setCaregiverNotifs(prev => prev.map(n => ({
+                ...n,
+                enabled: prefs[n.id] !== undefined ? prefs[n.id] : n.enabled,
+              })));
+            }
           }
         } catch (e) {
-          console.warn('[SettingsScreen] notification_enabled 로드 오류:', e);
+          console.warn('[SettingsScreen] 설정 로드 오류:', e);
         }
       })();
-    }, [setNotificationEnabled])
+    }, [setNotificationEnabled, isCaregiver])
   );
 
 
