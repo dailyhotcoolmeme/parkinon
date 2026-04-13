@@ -376,7 +376,9 @@ function TimeSlotsWithTime({
                   activeOpacity={0.8}
                 >
                   <Text style={tsStyles.timeChipText}>{time}</Text>
-                  <Text style={tsStyles.timeEditText}>수정</Text>
+                  <View style={tsStyles.timeEditBtn}>
+                    <Text style={tsStyles.timeEditText}>수정</Text>
+                  </View>
                 </TouchableOpacity>
               )}
             </View>
@@ -418,8 +420,7 @@ const tsStyles = StyleSheet.create({
   timeChip: {
     flexDirection: 'row',
     alignItems: 'center',
-    justifyContent: 'center',
-    gap: 4,
+    justifyContent: 'space-between',
     backgroundColor: '#E8F5E9',
     borderRadius: 8,
     paddingHorizontal: 8,
@@ -427,7 +428,15 @@ const tsStyles = StyleSheet.create({
     width: '100%',
   },
   timeChipText: { fontSize: 18, fontWeight: '700', color: Colors.primary },
-  timeEditText: { fontSize: 16, fontWeight: '600', color: Colors.primary },
+  timeEditBtn: {
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    borderRadius: 8,
+    borderWidth: 1,
+    borderColor: Colors.primary,
+    backgroundColor: Colors.white,
+  },
+  timeEditText: { fontSize: 15, fontWeight: '600', color: Colors.primary },
 });
 
 // ─── DrugInfoModal ─────────────────────────────────────────────────────────────

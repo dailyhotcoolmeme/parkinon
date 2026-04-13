@@ -650,7 +650,9 @@ function TimeSlotsEditor({ selectedTimes, mealSchedules, onToggleTime, onSetSche
                   activeOpacity={0.8}
                 >
                   <Text style={tseStyles.timeChipText}>{time}</Text>
-                  <Text style={tseStyles.timeChipEdit}>편집</Text>
+                  <View style={tseStyles.timeChipEditBtn}>
+                    <Text style={tseStyles.timeChipEdit}>수정</Text>
+                  </View>
                 </TouchableOpacity>
               )}
             </View>
@@ -709,13 +711,13 @@ const tseStyles = StyleSheet.create({
   timeChip: {
     flexDirection: 'row',
     alignItems: 'center',
+    justifyContent: 'space-between',
     paddingHorizontal: 16,
     paddingVertical: 14,
     borderRadius: 10,
     borderWidth: 2,
     borderColor: Colors.primary,
     backgroundColor: Colors.white,
-    gap: 6,
     minHeight: 56,
   },
   timeChipText: {
@@ -723,8 +725,18 @@ const tseStyles = StyleSheet.create({
     fontWeight: '700',
     color: Colors.primary,
   },
+  timeChipEditBtn: {
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    borderRadius: 8,
+    borderWidth: 1,
+    borderColor: Colors.primary,
+    backgroundColor: Colors.white,
+  },
   timeChipEdit: {
-    fontSize: 14,
+    fontSize: 15,
+    fontWeight: '600',
+    color: Colors.primary,
   },
 });
 
