@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useRef, useEffect } from 'react';
 import {
   View,
   Text,
@@ -42,11 +42,11 @@ const DEFAULT_TIMES: Record<TimeSlot, string> = {
   bedtime: '22:00',
 };
 
-const TIME_SLOTS: { key: TimeSlot; emoji: string; label: string }[] = [
-  { key: 'morning', emoji: '🌅', label: '아침' },
-  { key: 'lunch', emoji: '☀️', label: '점심' },
-  { key: 'dinner', emoji: '🌇', label: '저녁' },
-  { key: 'bedtime', emoji: '🌙', label: '취침' },
+const TIME_SLOTS: { key: TimeSlot; label: string }[] = [
+  { key: 'morning', label: '아침' },
+  { key: 'lunch', label: '점심' },
+  { key: 'dinner', label: '저녁' },
+  { key: 'bedtime', label: '취침' },
 ];
 
 interface DrugInfo {
@@ -196,12 +196,18 @@ function TimePickerModal({ visible, slotLabel, initialTime, onConfirm, onClose }
     const m = parseInt(initialTime.split(':')[1], 10);
     return Math.round(m / 10) * 10 % 60;
   });
+  const hourScrollRef = useRef<ScrollView>(null);
 
-  React.useEffect(() => {
+  useEffect(() => {
     if (visible) {
-      setHour(parseInt(initialTime.split(':')[0], 10));
+      const h = parseInt(initialTime.split(':')[0], 10);
       const m = parseInt(initialTime.split(':')[1], 10);
+      setHour(h);
       setMinute(Math.round(m / 10) * 10 % 60);
+      // 현재 시(hour)로 스크롤 위치 이동 (chipVertical minHeight 56 + marginBottom 6 = 62px)
+      setTimeout(() => {
+        hourScrollRef.current?.scrollTo({ y: h * 62, animated: false });
+      }, 50);
     }
   }, [visible, initialTime]);
 
@@ -221,7 +227,7 @@ function TimePickerModal({ visible, slotLabel, initialTime, onConfirm, onClose }
 
           {/* 시 선택 */}
           <Text style={tpStyles.sectionLabel}>시</Text>
-          <ScrollView style={tpStyles.scrollCol} showsVerticalScrollIndicator={false}>
+          <ScrollView ref={hourScrollRef} style={tpStyles.scrollCol} showsVerticalScrollIndicator={false}>
             {hours.map((h) => (
               <TouchableOpacity
                 key={h}
@@ -423,7 +429,6 @@ function DrugInfoModal({ drug, onClose }: DrugInfoModalProps) {
                 />
               ) : (
                 <View style={drugModalStyles.imagePlaceholder}>
-                  <Text style={drugModalStyles.imagePlaceholderEmoji}>💊</Text>
                 </View>
               )}
             </View>
@@ -440,7 +445,6 @@ function DrugInfoModal({ drug, onClose }: DrugInfoModalProps) {
 
             {!info && (
               <View style={drugModalStyles.noInfoContainer}>
-                <Text style={drugModalStyles.noInfoEmoji}>💊</Text>
                 <Text style={drugModalStyles.noInfoText}>약 정보를 불러오는 중이에요</Text>
                 <Text style={drugModalStyles.noInfoSubText}>
                   식약처 낱알식별 정보를 가져올 수 없어요
@@ -450,14 +454,14 @@ function DrugInfoModal({ drug, onClose }: DrugInfoModalProps) {
 
             {info?.chart && (
               <View style={drugModalStyles.section}>
-                <Text style={drugModalStyles.sectionHeader}>💊 성상</Text>
+                <Text style={drugModalStyles.sectionHeader}>성상</Text>
                 <Text style={drugModalStyles.sectionContent}>{info.chart}</Text>
               </View>
             )}
 
             {(info?.className || info?.etcOtcName) && (
               <View style={drugModalStyles.section}>
-                <Text style={drugModalStyles.sectionHeader}>🏷️ 분류</Text>
+                <Text style={drugModalStyles.sectionHeader}>분류</Text>
                 <Text style={drugModalStyles.sectionContent}>
                   {[info.className, info.etcOtcName].filter(Boolean).join(' · ')}
                 </Text>
@@ -466,7 +470,7 @@ function DrugInfoModal({ drug, onClose }: DrugInfoModalProps) {
 
             {(info?.printFront || info?.printBack) && (
               <View style={drugModalStyles.section}>
-                <Text style={drugModalStyles.sectionHeader}>🔍 식별</Text>
+                <Text style={drugModalStyles.sectionHeader}>식별</Text>
                 <Text style={drugModalStyles.sectionContent}>
                   {info.printFront ? `앞: ${info.printFront}` : ''}
                   {info.printFront && info.printBack ? '\n' : ''}
@@ -534,9 +538,6 @@ const drugModalStyles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
   },
-  imagePlaceholderEmoji: {
-    fontSize: 48,
-  },
   drugName: {
     fontSize: 24,
     fontWeight: '700',
@@ -561,9 +562,6 @@ const drugModalStyles = StyleSheet.create({
     alignItems: 'center',
     paddingVertical: 24,
     gap: 10,
-  },
-  noInfoEmoji: {
-    fontSize: 56,
   },
   noInfoText: {
     fontSize: 20,
@@ -639,7 +637,6 @@ function TimeSlotsEditor({ selectedTimes, mealSchedules, onToggleTime, onSetSche
                 onPress={() => onToggleTime(t.key)}
                 activeOpacity={0.85}
               >
-                <Text style={tseStyles.slotEmoji}>{t.emoji}</Text>
                 <Text style={[tseStyles.slotText, selected && tseStyles.slotTextSelected]}>
                   {t.label}
                 </Text>
@@ -653,7 +650,7 @@ function TimeSlotsEditor({ selectedTimes, mealSchedules, onToggleTime, onSetSche
                   activeOpacity={0.8}
                 >
                   <Text style={tseStyles.timeChipText}>{time}</Text>
-                  <Text style={tseStyles.timeChipEdit}>✏️</Text>
+                  <Text style={tseStyles.timeChipEdit}>편집</Text>
                 </TouchableOpacity>
               )}
             </View>
@@ -701,9 +698,6 @@ const tseStyles = StyleSheet.create({
     borderColor: Colors.primary,
     backgroundColor: Colors.light,
   },
-  slotEmoji: {
-    fontSize: 20,
-  },
   slotText: {
     fontSize: 18,
     fontWeight: '600',
@@ -739,7 +733,7 @@ const tseStyles = StyleSheet.create({
 // ─────────────────────────────────────────────
 export function MedicationRegisterScreen() {
   const navigation = useNavigation<Nav>();
-  const { signOut } = useAuth();
+  const { forceCompleteOnboarding } = useAuth();
   const [mode, setMode] = useState<Mode>('home');
   const [medName, setMedName] = useState('');
   const [medDosage, setMedDosage] = useState('');
@@ -893,7 +887,7 @@ export function MedicationRegisterScreen() {
       } else if (noInfoCount > 0) {
         Alert.alert(
           `약 ${enriched.length}개 인식됨`,
-          `⚠️ ${noInfoCount}개는 식약처에서 정보를 찾지 못했어요.\n약 이름이 정확한지 꼭 확인하고 수정해주세요.`
+          `${noInfoCount}개는 식약처에서 정보를 찾지 못했어요.\n약 이름이 정확한지 꼭 확인하고 수정해주세요.`
         );
       } else {
         Alert.alert('', `약 ${enriched.length}개를 찾았어요. 정보를 확인해주세요.`);
@@ -1083,16 +1077,16 @@ export function MedicationRegisterScreen() {
                 {mfdsLoading ? (
                   <ActivityIndicator size="small" color={Colors.primary} />
                 ) : (
-                  <Text style={styles.mfdsBtnText}>🔍 식약처 정보 불러오기</Text>
+                  <Text style={styles.mfdsBtnText}>식약처 정보 불러오기</Text>
                 )}
               </TouchableOpacity>
 
               {/* 식약처 조회 결과 */}
               {mfdsResult === 'found' && (
-                <Text style={styles.mfdsFound}>✅ 식약처 정보 확인됨{mfdsCompany ? ` (${mfdsCompany})` : ''}</Text>
+                <Text style={styles.mfdsFound}>식약처 정보 확인됨{mfdsCompany ? ` (${mfdsCompany})` : ''}</Text>
               )}
               {mfdsResult === 'not_found' && (
-                <Text style={styles.mfdsNotFound}>⚠️ 식약처 정보 없음</Text>
+                <Text style={styles.mfdsNotFound}>식약처 정보 없음</Text>
               )}
 
               <Text style={styles.inputLabel}>복용 시간대</Text>
@@ -1178,8 +1172,7 @@ export function MedicationRegisterScreen() {
                         />
                       ) : (
                         <View style={styles.medThumbnailPlaceholder}>
-                          <Text style={styles.medThumbnailEmoji}>💊</Text>
-                        </View>
+                                </View>
                       )}
 
                       {/* 중앙: 약 이름(탭→모달) + 복용량 + 복용시간 + 식약처 상태 */}
@@ -1190,7 +1183,7 @@ export function MedicationRegisterScreen() {
                           style={styles.medNameRow}
                         >
                           <Text style={styles.medName}>{med.name}</Text>
-                          <Text style={styles.medInfoIndicator}>ℹ️</Text>
+                          <Text style={styles.medInfoIndicator}>정보</Text>
                         </TouchableOpacity>
                         {!!med.dosage && (
                           <Text style={styles.medDosage}>{med.dosage}</Text>
@@ -1203,7 +1196,7 @@ export function MedicationRegisterScreen() {
                           }).join(' · ')}
                         </Text>
                         {med.drugInfo === null && (
-                          <Text style={styles.medNoInfoBadge}>⚠️ 식약처 정보 없음 · 이름 확인 필요</Text>
+                          <Text style={styles.medNoInfoBadge}>식약처 정보 없음 · 이름 확인 필요</Text>
                         )}
                       </View>
 
@@ -1214,7 +1207,6 @@ export function MedicationRegisterScreen() {
                           onPress={() => handleEditStart(med)}
                           hitSlop={{ top: 4, bottom: 4, left: 4, right: 4 }}
                         >
-                          <Text style={styles.editBtnIcon}>✏️</Text>
                           <Text style={styles.editBtnText}>수정</Text>
                         </TouchableOpacity>
                         <TouchableOpacity
@@ -1222,7 +1214,6 @@ export function MedicationRegisterScreen() {
                           onPress={() => handleDeleteMed(med.id)}
                           hitSlop={{ top: 4, bottom: 4, left: 4, right: 4 }}
                         >
-                          <Text style={styles.deleteBtnIcon}>🗑️</Text>
                           <Text style={styles.deleteBtnText}>삭제</Text>
                         </TouchableOpacity>
                       </View>
@@ -1239,8 +1230,9 @@ export function MedicationRegisterScreen() {
               onPress={handleNext}
               disabled={medications.length === 0}
             />
-            <TouchableOpacity style={styles.closeBtn} onPress={signOut}>
-              <Text style={styles.closeBtnText}>닫기</Text>
+            <Text style={{ fontSize: 18, color: Colors.textSub, textAlign: 'center', marginBottom: 12 }}>약은 나중에 등록하셔도 되요</Text>
+            <TouchableOpacity style={styles.closeBtn} onPress={forceCompleteOnboarding}>
+              <Text style={styles.closeBtnText}>나중에 등록하기</Text>
             </TouchableOpacity>
           </View>
         </KeyboardAvoidingView>
@@ -1273,7 +1265,6 @@ export function MedicationRegisterScreen() {
             onPress={handleOcrPress}
             activeOpacity={0.85}
           >
-            <Text style={styles.homeCardEmoji}>📷</Text>
             <View>
               <Text style={styles.homeCardLabel}>처방전 사진으로 등록하기</Text>
               <Text style={styles.homeCardDesc}>사진 한 장으로 자동 입력돼요</Text>
@@ -1285,7 +1276,6 @@ export function MedicationRegisterScreen() {
             onPress={() => setMode('manual')}
             activeOpacity={0.85}
           >
-            <Text style={styles.homeCardEmoji}>✍️</Text>
             <View>
               <Text style={styles.homeCardLabel}>직접 입력하기</Text>
               <Text style={styles.homeCardDesc}>약 이름과 복용 시간을 직접 입력해요</Text>
@@ -1295,8 +1285,9 @@ export function MedicationRegisterScreen() {
       </View>
 
       <View style={styles.bottomArea}>
-        <TouchableOpacity style={styles.closeBtn} onPress={signOut}>
-          <Text style={styles.closeBtnText}>닫기</Text>
+        <Text style={{ fontSize: 18, color: Colors.textSub, textAlign: 'center', marginBottom: 12 }}>약은 나중에 등록하셔도 되요</Text>
+        <TouchableOpacity style={styles.closeBtn} onPress={forceCompleteOnboarding}>
+          <Text style={styles.closeBtnText}>나중에 등록하기</Text>
         </TouchableOpacity>
       </View>
 
@@ -1380,9 +1371,6 @@ const styles = StyleSheet.create({
     borderColor: Colors.border,
     gap: 18,
     minHeight: 80,
-  },
-  homeCardEmoji: {
-    fontSize: 40,
   },
   homeCardLabel: {
     fontSize: 18,
@@ -1516,9 +1504,6 @@ const styles = StyleSheet.create({
     backgroundColor: Colors.light,
     alignItems: 'center',
     justifyContent: 'center',
-  },
-  medThumbnailEmoji: {
-    fontSize: 24,
   },
   medItemInfo: {
     flex: 1,

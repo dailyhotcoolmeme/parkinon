@@ -29,11 +29,11 @@ import { useFamilyLink } from '../../hooks/useFamilyLink';
 
 type TimeSlot = 'morning' | 'lunch' | 'dinner' | 'bedtime';
 
-const TIME_SLOTS: { key: TimeSlot; emoji: string; label: string; defaultTime: string; bgColor: string }[] = [
-  { key: 'morning', emoji: '🌅', label: '아침약', defaultTime: '08:00', bgColor: '#FFF8E1' },
-  { key: 'lunch',   emoji: '☀️', label: '점심약', defaultTime: '12:00', bgColor: '#E8F5E9' },
-  { key: 'dinner',  emoji: '🌇', label: '저녁약', defaultTime: '18:00', bgColor: '#E3F2FD' },
-  { key: 'bedtime', emoji: '🌙', label: '취침약', defaultTime: '22:00', bgColor: '#EDE7F6' },
+const TIME_SLOTS: { key: TimeSlot; label: string; defaultTime: string; bgColor: string }[] = [
+  { key: 'morning', label: '아침약', defaultTime: '08:00', bgColor: '#FFF8E1' },
+  { key: 'lunch',   label: '점심약', defaultTime: '12:00', bgColor: '#E8F5E9' },
+  { key: 'dinner',  label: '저녁약', defaultTime: '18:00', bgColor: '#E3F2FD' },
+  { key: 'bedtime', label: '취침약', defaultTime: '22:00', bgColor: '#EDE7F6' },
 ];
 
 type MealSchedules = Partial<Record<TimeSlot, string>>;
@@ -206,12 +206,17 @@ function TimePickerModal({
 
   const [hour, setHour] = useState(() => parseTime(initialTime).hour);
   const [minute, setMinute] = useState(() => parseTime(initialTime).minute);
+  const hourScrollRef = useRef<ScrollView>(null);
 
   useEffect(() => {
     if (visible) {
       const parsed = parseTime(initialTime);
       setHour(parsed.hour);
       setMinute(parsed.minute);
+      // 현재 시(hour)로 스크롤 위치 이동 (아이템 높이 56 + marginBottom 4 = 60px)
+      setTimeout(() => {
+        hourScrollRef.current?.scrollTo({ y: parsed.hour * 60, animated: false });
+      }, 50);
     }
   }, [visible, initialTime]);
 
@@ -226,7 +231,7 @@ function TimePickerModal({
           <View style={tpStyles.pickerRow}>
             <View style={tpStyles.pickerCol}>
               <Text style={tpStyles.colLabel}>시</Text>
-              <ScrollView style={tpStyles.scroll} showsVerticalScrollIndicator={false}>
+              <ScrollView ref={hourScrollRef} style={tpStyles.scroll} showsVerticalScrollIndicator={false}>
                 {hours.map(h => (
                   <TouchableOpacity
                     key={h}
@@ -362,7 +367,6 @@ function TimeSlotsWithTime({
                 onPress={() => onToggle(t.key)}
                 activeOpacity={0.85}
               >
-                <Text style={tsStyles.slotEmoji}>{t.emoji}</Text>
                 <Text style={[tsStyles.slotLabel, sel && tsStyles.slotLabelSelected]}>{t.label}</Text>
               </TouchableOpacity>
               {sel && (
@@ -372,7 +376,7 @@ function TimeSlotsWithTime({
                   activeOpacity={0.8}
                 >
                   <Text style={tsStyles.timeChipText}>{time}</Text>
-                  <Ionicons name="pencil-outline" size={13} color={Colors.primary} />
+                  <Text style={tsStyles.timeEditText}>수정</Text>
                 </TouchableOpacity>
               )}
             </View>
@@ -409,7 +413,6 @@ const tsStyles = StyleSheet.create({
     gap: 6,
   },
   slotBtnSelected: { backgroundColor: Colors.primary, borderColor: Colors.primary },
-  slotEmoji: { fontSize: 20 },
   slotLabel: { fontSize: 18, fontWeight: '600', color: Colors.textSub },
   slotLabelSelected: { color: Colors.white },
   timeChip: {
@@ -424,6 +427,7 @@ const tsStyles = StyleSheet.create({
     width: '100%',
   },
   timeChipText: { fontSize: 18, fontWeight: '700', color: Colors.primary },
+  timeEditText: { fontSize: 16, fontWeight: '600', color: Colors.primary },
 });
 
 // ─── DrugInfoModal ─────────────────────────────────────────────────────────────
@@ -493,7 +497,6 @@ function DrugInfoModal({ drug, onClose }: { drug: Medication | null; onClose: ()
                   <Image source={{ uri: info.itemImage }} style={modalStyles.drugImage} resizeMode="contain" />
                 ) : (
                   <View style={modalStyles.imagePlaceholder}>
-                    <Text style={modalStyles.imagePlaceholderEmoji}>💊</Text>
                   </View>
                 )}
               </View>
@@ -501,20 +504,19 @@ function DrugInfoModal({ drug, onClose }: { drug: Medication | null; onClose: ()
               {info?.entpName && <Text style={modalStyles.companyName}>{info.entpName}</Text>}
               {!info && (
                 <View style={modalStyles.noInfoContainer}>
-                  <Text style={modalStyles.noInfoEmoji}>💊</Text>
                   <Text style={modalStyles.noInfoText}>식약처 정보를 불러올 수 없어요</Text>
                   <Text style={modalStyles.noInfoSubText}>약 이름이 정확한지 확인해주세요</Text>
                 </View>
               )}
               {shapeDesc ? (
                 <View style={modalStyles.section}>
-                  <Text style={modalStyles.sectionHeader}>💊 성상</Text>
+                  <Text style={modalStyles.sectionHeader}>성상</Text>
                   <Text style={modalStyles.sectionContent}>{shapeDesc}</Text>
                 </View>
               ) : null}
               {(info?.className || info?.etcOtcName) && (
                 <View style={modalStyles.section}>
-                  <Text style={modalStyles.sectionHeader}>🏷️ 분류</Text>
+                  <Text style={modalStyles.sectionHeader}>분류</Text>
                   <Text style={modalStyles.sectionContent}>
                     {[info.className, info.etcOtcName].filter(Boolean).join(' · ')}
                   </Text>
@@ -522,7 +524,7 @@ function DrugInfoModal({ drug, onClose }: { drug: Medication | null; onClose: ()
               )}
               {(info?.printFront || info?.printBack) && (
                 <View style={modalStyles.section}>
-                  <Text style={modalStyles.sectionHeader}>🔍 식별</Text>
+                  <Text style={modalStyles.sectionHeader}>식별</Text>
                   <Text style={modalStyles.sectionContent}>
                     {info.printFront ? `앞: ${info.printFront}` : ''}
                     {info.printFront && info.printBack ? '\n' : ''}
@@ -537,7 +539,7 @@ function DrugInfoModal({ drug, onClose }: { drug: Medication | null; onClose: ()
               )}
               {!easyLoading && easyInfo?.efficacy && (
                 <View style={modalStyles.section}>
-                  <Text style={modalStyles.sectionHeader}>✅ 효능효과</Text>
+                  <Text style={modalStyles.sectionHeader}>효능효과</Text>
                   <Text style={modalStyles.sectionContent}>
                     {easyInfo.efficacy.slice(0, 300)}
                   </Text>
@@ -545,7 +547,7 @@ function DrugInfoModal({ drug, onClose }: { drug: Medication | null; onClose: ()
               )}
               {!easyLoading && easyInfo?.caution && (
                 <View style={modalStyles.section}>
-                  <Text style={modalStyles.cautionHeader}>⚠️ 주의사항·부작용</Text>
+                  <Text style={modalStyles.cautionHeader}>주의사항·부작용</Text>
                   <Text style={modalStyles.sectionContent}>
                     {easyInfo.caution.slice(0, 300)}
                   </Text>
@@ -570,11 +572,9 @@ const modalStyles = StyleSheet.create({
   imageContainer: { alignItems: 'center', marginVertical: 16 },
   drugImage: { width: 160, height: 100, resizeMode: 'contain', borderRadius: 8, backgroundColor: '#F5F5F5' },
   imagePlaceholder: { width: 100, height: 100, borderRadius: 50, backgroundColor: Colors.light, alignItems: 'center', justifyContent: 'center' },
-  imagePlaceholderEmoji: { fontSize: 48 },
   drugName: { fontSize: 24, fontWeight: '700', color: Colors.text, textAlign: 'center', marginBottom: 6 },
   companyName: { fontSize: 16, color: Colors.textSub, textAlign: 'center', marginBottom: 20 },
   noInfoContainer: { alignItems: 'center', paddingVertical: 24, gap: 10 },
-  noInfoEmoji: { fontSize: 56 },
   noInfoText: { fontSize: 20, fontWeight: '700', color: Colors.text, textAlign: 'center' },
   noInfoSubText: { fontSize: 16, color: Colors.textSub, textAlign: 'center', lineHeight: 26 },
   section: { marginBottom: 20 },
@@ -689,7 +689,7 @@ function SlotEditBottomSheet({ visible, slot, medications, onClose, onSave }: Sl
 
             {/* 헤더 */}
             <View style={[seBsStyles.header, { backgroundColor: slot.bgColor }]}>
-              <Text style={seBsStyles.headerTitle}>{slot.emoji} {slot.label} 수정</Text>
+              <Text style={seBsStyles.headerTitle}>{slot.label} 수정</Text>
               <TouchableOpacity onPress={onClose} style={seBsStyles.closeBtn} activeOpacity={0.7}>
                 <Text style={seBsStyles.closeBtnText}>닫기</Text>
               </TouchableOpacity>
@@ -732,7 +732,7 @@ function SlotEditBottomSheet({ visible, slot, medications, onClose, onSave }: Sl
                       {med.drugInfo?.itemImage ? (
                         <Image source={{ uri: med.drugInfo.itemImage }} style={seBsStyles.medImg} resizeMode="contain" />
                       ) : (
-                        <Text style={seBsStyles.medEmoji}>💊</Text>
+                        <View style={seBsStyles.medImg} />
                       )}
                       <View style={seBsStyles.medTextGroup}>
                         <Text style={seBsStyles.medName}>{med.name}</Text>
@@ -764,7 +764,7 @@ function SlotEditBottomSheet({ visible, slot, medications, onClose, onSave }: Sl
                           {med.drugInfo?.itemImage ? (
                             <Image source={{ uri: med.drugInfo.itemImage }} style={seBsStyles.medImg} resizeMode="contain" />
                           ) : (
-                            <Text style={seBsStyles.medEmoji}>💊</Text>
+                            <View style={seBsStyles.medImg} />
                           )}
                           <View style={seBsStyles.medTextGroup}>
                             <Text style={[seBsStyles.medName, { color: Colors.textSub }]}>{med.name}</Text>
@@ -1055,7 +1055,7 @@ export function MedicationManageScreen() {
       } else if (noInfoCount > 0) {
         Alert.alert(
           `약 ${enriched.length}개 인식됨`,
-          `⚠️ ${noInfoCount}개는 식약처 정보를 찾지 못했어요.\n약 이름이 정확한지 확인하고 수정해주세요.`,
+          `${noInfoCount}개는 식약처 정보를 찾지 못했어요.\n약 이름이 정확한지 확인하고 수정해주세요.`,
         );
       } else {
         Alert.alert('', `약 ${enriched.length}개를 찾았어요. 내용을 확인해주세요.`);
@@ -1314,7 +1314,6 @@ export function MedicationManageScreen() {
             activeOpacity={0.8}
           >
             <View style={styles.prescriptionIconCircle}>
-              <Text style={styles.prescriptionIconEmoji}>📷</Text>
             </View>
             <View style={styles.prescriptionTextGroup}>
               <Text style={styles.prescriptionTitle}>처방전으로 등록하기</Text>
@@ -1341,7 +1340,6 @@ export function MedicationManageScreen() {
                     {/* 섹션 헤더 */}
                     <View style={[styles.sectionHeader, { backgroundColor: slot.bgColor }]}>
                       <View style={styles.sectionHeaderLeft}>
-                        <Text style={styles.sectionHeaderEmoji}>{slot.emoji}</Text>
                         <Text style={styles.sectionHeaderLabel}>{slot.label}</Text>
                         <Text style={styles.sectionHeaderTime}>{slotTime}</Text>
                       </View>
@@ -1368,7 +1366,7 @@ export function MedicationManageScreen() {
                         {med.drugInfo?.itemImage ? (
                           <Image source={{ uri: med.drugInfo.itemImage }} style={styles.medItemImg} resizeMode="contain" />
                         ) : (
-                          <Text style={styles.medItemEmoji}>💊</Text>
+                          <View style={styles.medItemImg} />
                         )}
                         <View style={styles.medItemTextGroup}>
                           <Text style={styles.medItemName}>
@@ -1376,7 +1374,7 @@ export function MedicationManageScreen() {
                           </Text>
                         </View>
                         {med.drugInfo === null && (
-                          <Text style={styles.noInfoBadge}>⚠️</Text>
+                          <Text style={styles.noInfoBadge}>!</Text>
                         )}
                       </TouchableOpacity>
                     ))}
@@ -1439,7 +1437,7 @@ export function MedicationManageScreen() {
                   {isMfdsLoading ? (
                     <ActivityIndicator size="small" color={Colors.white} />
                   ) : (
-                    <Text style={styles.mfdsBtnText}>🔍 식약처 정보 불러오기</Text>
+                    <Text style={styles.mfdsBtnText}>식약처 정보 불러오기</Text>
                   )}
                 </TouchableOpacity>
 
@@ -1447,8 +1445,8 @@ export function MedicationManageScreen() {
                   <View style={[styles.mfdsResult, addDrugInfo ? styles.mfdsResultOk : styles.mfdsResultFail]}>
                     <Text style={[styles.mfdsResultText, addDrugInfo ? styles.mfdsResultTextOk : styles.mfdsResultTextFail]}>
                       {addDrugInfo
-                        ? `✅ 확인됨${addDrugInfo.entpName ? ` (${addDrugInfo.entpName})` : ''}`
-                        : '⚠️ 식약처 정보 없음'}
+                        ? `확인됨${addDrugInfo.entpName ? ` (${addDrugInfo.entpName})` : ''}`
+                        : '식약처 정보 없음'}
                     </Text>
                   </View>
                 )}
@@ -1515,7 +1513,7 @@ export function MedicationManageScreen() {
                         {isEditMfdsLoading ? (
                           <ActivityIndicator size="small" color={Colors.white} />
                         ) : (
-                          <Text style={styles.mfdsBtnText}>🔍 식약처 정보 불러오기</Text>
+                          <Text style={styles.mfdsBtnText}>식약처 정보 불러오기</Text>
                         )}
                       </TouchableOpacity>
 
@@ -1523,8 +1521,8 @@ export function MedicationManageScreen() {
                         <View style={[styles.mfdsResult, editDrugInfo ? styles.mfdsResultOk : styles.mfdsResultFail]}>
                           <Text style={[styles.mfdsResultText, editDrugInfo ? styles.mfdsResultTextOk : styles.mfdsResultTextFail]}>
                             {editDrugInfo
-                              ? `✅ 확인됨${editDrugInfo.entpName ? ` (${editDrugInfo.entpName})` : ''}`
-                              : '⚠️ 식약처 정보 없음'}
+                              ? `확인됨${editDrugInfo.entpName ? ` (${editDrugInfo.entpName})` : ''}`
+                              : '식약처 정보 없음'}
                           </Text>
                         </View>
                       )}
@@ -1576,7 +1574,7 @@ export function MedicationManageScreen() {
                           const time = med.schedules?.[t] ?? slot.defaultTime;
                           return (
                             <Text key={t} style={styles.medSlotRow}>
-                              {slot.emoji} {slot.label}{'  '}{time}
+                              {slot.label}{'  '}{time}
                             </Text>
                           );
                         })}
@@ -1584,7 +1582,7 @@ export function MedicationManageScreen() {
                     )}
 
                     {med.drugInfo === null && (
-                      <Text style={styles.noInfoBadge}>⚠️ 식약처 정보 없음 · 이름 확인 필요</Text>
+                      <Text style={styles.noInfoBadge}>식약처 정보 없음 · 이름 확인 필요</Text>
                     )}
 
                     {/* 수정/삭제 버튼 — 카드 하단 우측 */}
