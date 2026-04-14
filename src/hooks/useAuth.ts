@@ -18,6 +18,7 @@ import { Platform } from 'react-native';
 import * as WebBrowser from 'expo-web-browser';
 import * as Linking from 'expo-linking';
 import { supabase } from '../lib/supabase';
+import { registerMissedMedCheckTask } from '../utils/notifications';
 
 // ─── 딥링크 redirect URI ────────────────────────────────────────────────────
 const REDIRECT_TO = 'parkinon://auth/callback';
@@ -44,6 +45,7 @@ export interface UseAuthReturn {
   user: UserProfile | null;
   loading: boolean;
   signInWithKakao: () => Promise<void>;
+  signInWithGoogle: () => Promise<void>;
   signOut: () => Promise<void>;
   refreshUser: () => Promise<void>;
   devSignIn: () => Promise<void>;
@@ -186,6 +188,10 @@ export function useAuthProvider(): UseAuthReturn {
         }
       } else {
         setUser(rows[0]);
+        // 환자인 경우 미복용 체크 백그라운드 태스크 등록
+        if (rows[0].role === 'patient' && rows[0].notification_enabled) {
+          registerMissedMedCheckTask().catch(console.error);
+        }
       }
     } catch (e) {
       console.error('[useAuth] loadUserProfile 오류:', e);
@@ -253,6 +259,27 @@ export function useAuthProvider(): UseAuthReturn {
     });
 
     return () => subscription.remove();
+  }, []);
+
+  // ─── 구글 로그인 (Android 전용) ───────────────────────────────────────────
+  const signInWithGoogle = useCallback(async () => {
+    try {
+      console.log('[useAuth] signInWithGoogle 시작');
+      const { data, error } = await supabase.auth.signInWithOAuth({
+        provider: 'google',
+        options: {
+          redirectTo: REDIRECT_TO,
+          skipBrowserRedirect: true,
+        },
+      });
+      if (error || !data?.url) {
+        console.error('[useAuth] signInWithOAuth(google) 오류:', error?.message);
+        return;
+      }
+      await Linking.openURL(data.url);
+    } catch (err) {
+      console.error('[useAuth] signInWithGoogle 오류:', err);
+    }
   }, []);
 
   // ─── 카카오 로그인 ────────────────────────────────────────────────────────
@@ -339,5 +366,5 @@ export function useAuthProvider(): UseAuthReturn {
     setUser((prev) => (prev ? { ...prev, onboarding_done: true } : prev));
   }, []);
 
-  return { user, loading, signInWithKakao, signOut, refreshUser, devSignIn, forceCompleteOnboarding };
+  return { user, loading, signInWithKakao, signInWithGoogle, signOut, refreshUser, devSignIn, forceCompleteOnboarding };
 }
