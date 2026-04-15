@@ -12,6 +12,7 @@ export type FeedStackParamList = {
     initialContent?: string;
     initialCategory?: string;
     initialPhotos?: string[];
+    onSave?: (newPhotos: string[]) => void;
   } | undefined;
   PostDetail: { post: PostItem };
 };

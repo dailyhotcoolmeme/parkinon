@@ -10,11 +10,7 @@ import {
   Platform,
   Alert,
   ActivityIndicator,
-  Image,
-  Dimensions,
 } from 'react-native';
-
-const SCREEN_WIDTH = Dimensions.get('window').width;
 
 // 카테고리별 색상 매핑
 const CATEGORY_COLORS: Record<string, { bg: string; text: string; icon: string }> = {
@@ -31,6 +27,7 @@ import type { NativeStackScreenProps, NativeStackNavigationProp } from '@react-n
 import { Ionicons } from '@expo/vector-icons';
 import { Colors } from '../../constants/colors';
 import { TopBar } from '../../components/common/TopBar';
+import { ImageGalleryViewer } from '../../components/common/ImageGalleryViewer';
 import type { FeedStackParamList } from '../../navigation/FeedNavigator';
 import { supabase } from '../../lib/supabase';
 import { useAuth } from '../../context/AuthContext';
@@ -125,6 +122,9 @@ export function PostDetailScreen() {
       initialContent: post.preview,
       initialCategory: post.categoryId ?? post.category,
       initialPhotos: mediaUrls,
+      onSave: (newPhotos: string[]) => {
+        setMediaUrls(newPhotos);
+      },
     });
   };
 
@@ -425,24 +425,8 @@ export function PostDetailScreen() {
             {/* 본문 */}
             <Text style={styles.postContent}>{post.preview}</Text>
 
-            {/* 첨부 사진 (가로 스크롤) */}
-            {mediaUrls.length > 0 && (
-              <ScrollView
-                horizontal
-                showsHorizontalScrollIndicator={false}
-                style={styles.mediaScroll}
-                contentContainerStyle={styles.mediaScrollContent}
-              >
-                {mediaUrls.map((url, idx) => (
-                  <Image
-                    key={idx}
-                    source={{ uri: url }}
-                    style={styles.mediaImage}
-                    resizeMode="cover"
-                  />
-                ))}
-              </ScrollView>
-            )}
+            {/* 첨부 사진 갤러리 (전체보기 + 인디케이터 포함) */}
+            <ImageGalleryViewer urls={mediaUrls} />
           </View>
 
           {/* ── 통계 바 ── */}
@@ -642,22 +626,6 @@ const styles = StyleSheet.create({
     color: '#222222',
     lineHeight: 30,
     marginBottom: 4,
-  },
-
-  // 사진 가로 스크롤
-  mediaScroll: {
-    marginTop: 16,
-    marginHorizontal: -20,
-  },
-  mediaScrollContent: {
-    paddingHorizontal: 20,
-    gap: 10,
-  },
-  mediaImage: {
-    width: SCREEN_WIDTH * 0.72,
-    height: SCREEN_WIDTH * 0.72,
-    borderRadius: 12,
-    backgroundColor: '#E0E0E0',
   },
 
   // ── 통계 바 카드 ──

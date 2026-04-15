@@ -29,11 +29,11 @@ import { useFamilyLink } from '../../hooks/useFamilyLink';
 
 type TimeSlot = 'morning' | 'lunch' | 'dinner' | 'bedtime';
 
-const TIME_SLOTS: { key: TimeSlot; label: string; defaultTime: string; bgColor: string }[] = [
-  { key: 'morning', label: '아침약', defaultTime: '08:00', bgColor: '#FFF8E1' },
-  { key: 'lunch',   label: '점심약', defaultTime: '12:00', bgColor: '#E8F5E9' },
-  { key: 'dinner',  label: '저녁약', defaultTime: '18:00', bgColor: '#E3F2FD' },
-  { key: 'bedtime', label: '취침약', defaultTime: '22:00', bgColor: '#EDE7F6' },
+const TIME_SLOTS: { key: TimeSlot; label: string; emoji: string; defaultTime: string; bgColor: string }[] = [
+  { key: 'morning', label: '아침약', emoji: '🌅', defaultTime: '08:00', bgColor: '#FFF8E1' },
+  { key: 'lunch',   label: '점심약', emoji: '☀️', defaultTime: '12:00', bgColor: '#E8F5E9' },
+  { key: 'dinner',  label: '저녁약', emoji: '🌙', defaultTime: '18:00', bgColor: '#E3F2FD' },
+  { key: 'bedtime', label: '취침약', emoji: '😴', defaultTime: '22:00', bgColor: '#EDE7F6' },
 ];
 
 type MealSchedules = Partial<Record<TimeSlot, string>>;
@@ -427,7 +427,7 @@ const tsStyles = StyleSheet.create({
     paddingVertical: 5,
     width: '100%',
   },
-  timeChipText: { fontSize: 18, fontWeight: '700', color: Colors.primary },
+  timeChipText: { fontSize: 18, fontWeight: '700', color: Colors.primary, flex: 1, textAlign: 'center' },
   timeEditBtn: {
     paddingHorizontal: 12,
     paddingVertical: 6,
@@ -698,7 +698,7 @@ function SlotEditBottomSheet({ visible, slot, medications, onClose, onSave }: Sl
 
             {/* 헤더 */}
             <View style={[seBsStyles.header, { backgroundColor: slot.bgColor }]}>
-              <Text style={seBsStyles.headerTitle}>{slot.label} 수정</Text>
+              <Text style={seBsStyles.headerTitle}>{slot.emoji} {slot.label} 수정</Text>
               <TouchableOpacity onPress={onClose} style={seBsStyles.closeBtn} activeOpacity={0.7}>
                 <Text style={seBsStyles.closeBtnText}>닫기</Text>
               </TouchableOpacity>
@@ -952,17 +952,43 @@ export function MedicationManageScreen() {
         .eq('is_active', true)
         .order('created_at', { ascending: true });
       if (error) throw error;
-      setMedications(
-        (data ?? []).map((row: any) => ({
-          id: row.id,
-          dbId: row.id,
-          name: row.name,
-          dosage: row.dosage ?? null,
-          times: (row.meal_times ?? []) as TimeSlot[],
-          schedules: (row.meal_schedules ?? {}) as MealSchedules,
-          drugInfo: row.drug_image_url ? { itemName: row.name, itemImage: row.drug_image_url } : undefined,
-        }))
-      );
+      const baseMeds: Medication[] = (data ?? []).map((row: any) => ({
+        id: row.id,
+        name: row.name,
+        dosage: row.dosage ?? null,
+        times: (row.meal_times ?? []) as TimeSlot[],
+        schedules: (row.meal_schedules ?? {}) as MealSchedules,
+        drugInfo: row.drug_image_url ? { itemName: row.name, itemImage: row.drug_image_url } : undefined,
+      }));
+      setMedications(baseMeds);
+
+      // drug_image_url 없는 약은 식약처 API로 이미지 보충 시도
+      const medsWithoutImage = baseMeds.filter(m => !m.drugInfo?.itemImage);
+      if (medsWithoutImage.length > 0) {
+        Promise.all(
+          medsWithoutImage.map(async med => {
+            const info = await searchMfdsInfo(med.name);
+            return { id: med.id, drugInfo: info };
+          })
+        ).then(results => {
+          setMedications(prev =>
+            prev.map(med => {
+              const found = results.find(r => r.id === med.id);
+              if (!found) return med;
+              // DB에도 이미지 URL 저장 (비동기, 실패해도 무시)
+              if (found.drugInfo?.itemImage) {
+                supabase
+                  .from('medications')
+                  .update({ drug_image_url: found.drugInfo.itemImage })
+                  .eq('id', med.id)
+                  .then(() => {})
+                  .catch(() => {});
+              }
+              return { ...med, drugInfo: found.drugInfo ?? med.drugInfo };
+            })
+          );
+        }).catch(() => {});
+      }
     } catch (e) {
       console.error('[MedicationManageScreen] loadMedications 오류:', e);
     } finally {
@@ -1349,6 +1375,7 @@ export function MedicationManageScreen() {
                     {/* 섹션 헤더 */}
                     <View style={[styles.sectionHeader, { backgroundColor: slot.bgColor }]}>
                       <View style={styles.sectionHeaderLeft}>
+                        <Text style={styles.sectionHeaderEmoji}>{slot.emoji}</Text>
                         <Text style={styles.sectionHeaderLabel}>{slot.label}</Text>
                         <Text style={styles.sectionHeaderTime}>{slotTime}</Text>
                       </View>

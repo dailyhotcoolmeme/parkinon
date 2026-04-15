@@ -16,6 +16,7 @@ import { useNavigation, useRoute } from '@react-navigation/native';
 import type { NativeStackScreenProps } from '@react-navigation/native-stack';
 import { Ionicons } from '@expo/vector-icons';
 import * as ImagePicker from 'expo-image-picker';
+import * as ImageManipulator from 'expo-image-manipulator';
 import { uploadPhoto } from '../../lib/r2Upload';
 import { Colors } from '../../constants/colors';
 import { TopBar } from '../../components/common/TopBar';
@@ -83,8 +84,21 @@ export function PostWriteScreen() {
       quality: 0.7,
     });
     if (!result.canceled && result.assets.length > 0) {
-      const newEntries: PhotoEntry[] = result.assets.map(a => ({ uri: a.uri, isExisting: false }));
-      setPhotoEntries(prev => [...prev, ...newEntries].slice(0, 5));
+      const compressed: PhotoEntry[] = await Promise.all(
+        result.assets.map(async (a) => {
+          try {
+            const manipResult = await ImageManipulator.manipulateAsync(
+              a.uri,
+              [{ resize: { width: 1280 } }],
+              { compress: 0.7, format: ImageManipulator.SaveFormat.JPEG }
+            );
+            return { uri: manipResult.uri, isExisting: false };
+          } catch {
+            return { uri: a.uri, isExisting: false };
+          }
+        })
+      );
+      setPhotoEntries(prev => [...prev, ...compressed].slice(0, 5));
     }
   };
 
@@ -165,6 +179,16 @@ export function PostWriteScreen() {
             return;
           }
         }
+
+        // 수정 후 최신 사진 목록 조회하여 콜백 전달
+        const { data: updatedMedia } = await supabase
+          .from('post_media')
+          .select('r2_url, sort_order')
+          .eq('post_id', postId)
+          .eq('media_type', 'image')
+          .order('sort_order', { ascending: true });
+        const updatedUrls = (updatedMedia ?? []).map((m: any) => m.r2_url);
+        params?.onSave?.(updatedUrls);
 
         Alert.alert('수정 완료', '글이 수정되었어요.', [
           { text: '확인', onPress: () => navigation.goBack() },
@@ -298,33 +322,53 @@ export function PostWriteScreen() {
 
           <View style={styles.divider} />
 
-          {/* 사진 추가 */}
-          <TouchableOpacity
-            style={styles.photoBtn}
-            onPress={handlePhotoAdd}
-            activeOpacity={0.7}
-          >
-            <Ionicons name="camera-outline" size={22} color={Colors.textSub} />
-            <Text style={styles.photoText}>사진 추가</Text>
-            <Text style={styles.photoHint}>{photoEntries.length}/5</Text>
-          </TouchableOpacity>
+          {/* 사진 추가 - 사진 없을 때는 큰 박스, 있을 때는 상단 작은 버튼 */}
+          {photoEntries.length === 0 ? (
+            <TouchableOpacity
+              style={styles.photoBtnLarge}
+              onPress={handlePhotoAdd}
+              activeOpacity={0.7}
+            >
+              <Ionicons name="camera-outline" size={36} color={Colors.primary} />
+              <Text style={styles.photoBtnLargeText}>사진 추가하기</Text>
+              <Text style={styles.photoBtnLargeHint}>최대 5장 · JPG/PNG</Text>
+            </TouchableOpacity>
+          ) : (
+            <TouchableOpacity
+              style={styles.photoBtn}
+              onPress={handlePhotoAdd}
+              activeOpacity={0.7}
+            >
+              <Ionicons name="camera-outline" size={22} color={Colors.textSub} />
+              <Text style={styles.photoText}>사진 추가</Text>
+              <Text style={styles.photoHint}>{photoEntries.length}/5</Text>
+            </TouchableOpacity>
+          )}
 
           {/* 선택된 사진 미리보기 */}
           {photoEntries.length > 0 && (
-            <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.photoRow}>
+            <ScrollView
+              horizontal
+              showsHorizontalScrollIndicator={false}
+              style={styles.photoRow}
+              contentContainerStyle={{ paddingTop: 12, paddingBottom: 4 }}
+            >
               {photoEntries.map((entry, idx) => (
-                <View key={idx} style={styles.photoThumb}>
-                  <Image source={{ uri: entry.uri }} style={styles.photoThumbImg} />
-                  {entry.isExisting && (
-                    <View style={styles.existingBadge}>
-                      <Text style={styles.existingBadgeText}>기존</Text>
-                    </View>
-                  )}
+                <View key={idx} style={styles.photoThumbWrap}>
+                  <View style={styles.photoThumb}>
+                    <Image source={{ uri: entry.uri }} style={styles.photoThumbImg} />
+                    {entry.isExisting && (
+                      <View style={styles.existingBadge}>
+                        <Text style={styles.existingBadgeText}>기존</Text>
+                      </View>
+                    )}
+                  </View>
                   <TouchableOpacity
                     style={styles.photoRemoveBtn}
                     onPress={() => handleRemovePhoto(idx)}
+                    hitSlop={{ top: 4, right: 4, bottom: 4, left: 4 }}
                   >
-                    <Ionicons name="close-circle" size={22} color={Colors.danger} />
+                    <Ionicons name="close-circle" size={26} color={Colors.danger} />
                   </TouchableOpacity>
                 </View>
               ))}
@@ -401,6 +445,29 @@ const styles = StyleSheet.create({
     minHeight: 200,
     lineHeight: 28,
   },
+  photoBtnLarge: {
+    borderWidth: 2,
+    borderColor: Colors.primary,
+    borderStyle: 'dashed',
+    borderRadius: 12,
+    backgroundColor: Colors.light,
+    paddingVertical: 28,
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 8,
+    marginTop: 8,
+    marginBottom: 8,
+    minHeight: 120,
+  },
+  photoBtnLargeText: {
+    fontSize: 20,
+    fontWeight: '700',
+    color: Colors.primary,
+  },
+  photoBtnLargeHint: {
+    fontSize: 15,
+    color: Colors.textHint,
+  },
   photoBtn: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -409,10 +476,11 @@ const styles = StyleSheet.create({
   },
   photoText: { fontSize: 18, fontWeight: '600', color: Colors.textSub, flex: 1 },
   photoHint: { fontSize: 13, color: Colors.textHint },
-  photoRow: { marginTop: 8, marginBottom: 4 },
-  photoThumb: { position: 'relative', marginRight: 8 },
-  photoThumbImg: { width: 80, height: 80, borderRadius: 8 },
-  photoRemoveBtn: { position: 'absolute', top: -8, right: -8 },
+  photoRow: { marginTop: 0, marginBottom: 4 },
+  photoThumbWrap: { position: 'relative', marginRight: 16, paddingTop: 10, paddingRight: 10 },
+  photoThumb: {},
+  photoThumbImg: { width: 88, height: 88, borderRadius: 8 },
+  photoRemoveBtn: { position: 'absolute', top: 0, right: 0 },
   existingBadge: {
     position: 'absolute',
     bottom: 4,

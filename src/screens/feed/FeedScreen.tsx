@@ -70,7 +70,19 @@ const CATEGORY_BADGE_COLORS: Record<string, { bg: string; text: string }> = {
 
 function formatDate(isoString: string): string {
   const d = new Date(isoString);
-  return `${d.getMonth() + 1}월 ${d.getDate()}일`;
+  const year = d.getFullYear();
+  const month = String(d.getMonth() + 1).padStart(2, '0');
+  const day = String(d.getDate()).padStart(2, '0');
+  const hour = String(d.getHours()).padStart(2, '0');
+  const min = String(d.getMinutes()).padStart(2, '0');
+  return `${year}년 ${month}월 ${day}일 ${hour}:${min}`;
+}
+
+function getThumbnailUrl(url: string | undefined): string | undefined {
+  if (!url) return undefined;
+  // Cloudflare R2 이미지 리사이징
+  const sep = url.includes('?') ? '&' : '?';
+  return `${url}${sep}width=200&quality=75&format=webp`;
 }
 
 export function FeedScreen() {
@@ -215,7 +227,7 @@ const scrollY = useRef(new Animated.Value(0)).current;
               color={badgeColors.text}
             />
             <Text style={[styles.badgeText, { color: badgeColors.text }]}>
-              {item.isNews ? '📰 뉴스' : item.category}
+              {item.isNews ? '뉴스' : item.category}
             </Text>
           </View>
           <Text style={styles.dateText}>{item.date}</Text>
@@ -226,7 +238,7 @@ const scrollY = useRef(new Animated.Value(0)).current;
           <Text style={styles.cardTitle} numberOfLines={2}>{item.title}</Text>
           {item.thumbnail ? (
             <Image
-              source={{ uri: item.thumbnail }}
+              source={{ uri: getThumbnailUrl(item.thumbnail) }}
               style={styles.cardThumbnail}
               resizeMode="cover"
             />
@@ -268,6 +280,10 @@ const scrollY = useRef(new Animated.Value(0)).current;
             refreshing={loading}
             onEndReached={handleLoadMore}
             onEndReachedThreshold={0.3}
+            removeClippedSubviews={true}
+            maxToRenderPerBatch={5}
+            initialNumToRender={8}
+            windowSize={10}
             ListFooterComponent={
               loadingMore ? (
                 <ActivityIndicator size="small" color={Colors.primary} style={{ marginVertical: 16 }} />
