@@ -61,6 +61,12 @@ const MENU_SECTIONS: MenuSection[] = [
         desc: '복용 중인 약을 추가·수정해요',
       },
       {
+        key: 'MedicalRecordList',
+        icon: 'medical-outline',
+        label: '진료 기록',
+        desc: '병원 진료 기록을 관리해요',
+      },
+      {
         key: 'FamilyLink',
         icon: 'people-outline',
         label: '가족 연동',
@@ -121,6 +127,8 @@ export function MenuScreen() {
       navigation.navigate('Terms');
     } else if (key === 'Privacy') {
       navigation.navigate('Privacy');
+    } else if (key === 'MedicalRecordList') {
+      navigation.navigate('MedicalRecordList');
     }
   };
 

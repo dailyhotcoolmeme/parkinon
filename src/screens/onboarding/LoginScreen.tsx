@@ -12,6 +12,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { useNavigation } from '@react-navigation/native';
 import type { StackNavigationProp } from '@react-navigation/stack';
 import type { OnboardingStackParamList } from '../../navigation/OnboardingNavigator';
+import { AntDesign } from '@expo/vector-icons';
 import { Colors } from '../../constants/colors';
 import { useAuth } from '../../context/AuthContext';
 
@@ -19,9 +20,10 @@ type Nav = StackNavigationProp<OnboardingStackParamList, 'Login'>;
 
 export function LoginScreen() {
   const navigation = useNavigation<Nav>();
-  const { user, loading, signInWithKakao, devSignIn } = useAuth();
+  const { user, loading, signInWithKakao, signInWithGoogle, devSignIn } = useAuth();
   const [signing, setSigning] = useState(false);
-  const kakaoStarted = useRef(false);
+  const oauthStarted = useRef(false);
+  const kakaoStarted = oauthStarted; // 하위 호환
   const signingTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   // 앱이 포그라운드로 돌아올 때 카카오 인증 대기 중이면 로딩 유지
@@ -66,18 +68,22 @@ export function LoginScreen() {
   }, [user, loading]);
 
   const handleKakaoLogin = async () => {
-    kakaoStarted.current = true;
+    oauthStarted.current = true;
     setSigning(true);
     await signInWithKakao();
-    // Android: Linking.openURL은 즉시 리턴 → signing 유지 (AppState 핸들러가 처리)
-    // iOS: openAuthSessionAsync는 auth 완료까지 대기 → 여기서 해제
+  };
+
+  const handleGoogleLogin = async () => {
+    oauthStarted.current = true;
+    setSigning(true);
+    await signInWithGoogle();
   };
 
   return (
     <SafeAreaView style={styles.container}>
       <View style={styles.content}>
         <View style={styles.logoArea}>
-          <Image source={require('../../../assets/icon.png')} style={styles.logoImage} />
+          <Image source={require('../../../assets/parkinon-logo.png')} style={styles.logoImage} />
           <Text style={styles.desc}>
             파킨슨 환자와 가족을 위한{'\n'}케어 앱이에요
           </Text>
@@ -102,10 +108,26 @@ export function LoginScreen() {
         </TouchableOpacity>
 
         <TouchableOpacity
+          style={[styles.googleBtn, signing && styles.kakaoBtnDisabled]}
+          onPress={handleGoogleLogin}
+          activeOpacity={0.85}
+          disabled={signing}
+        >
+          {signing ? (
+            <ActivityIndicator color="#444" />
+          ) : (
+            <>
+              <AntDesign name="google" size={24} color="#DB4437" />
+              <Text style={styles.googleText}>구글로 시작하기</Text>
+            </>
+          )}
+        </TouchableOpacity>
+
+        <TouchableOpacity
           style={styles.devButton}
           onPress={devSignIn}
         >
-          <Text style={styles.devButtonText}>🛠 테스트로 둘러보기</Text>
+          <Text style={styles.devButtonText}>테스트로 둘러보기</Text>
         </TouchableOpacity>
 
         <Text style={styles.terms}>
@@ -131,9 +153,9 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
   logoImage: {
-    width: 520,
-    height: 520,
-    borderRadius: 130,
+    width: 170,
+    height: 170,
+    borderRadius: 42,
     marginVertical: 16,
   },
   title: {
@@ -183,8 +205,23 @@ const styles = StyleSheet.create({
     textAlign: 'center',
     lineHeight: 20,
   },
+  googleBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: Colors.white,
+    borderRadius: 12,
+    minHeight: 60,
+    gap: 10,
+    marginBottom: 16,
+  },
+  googleText: {
+    fontSize: 18,
+    fontWeight: '700',
+    color: '#444444',
+  },
   devButton: {
-    marginTop: 16,
+    marginTop: 4,
     padding: 12,
     alignItems: 'center',
   },

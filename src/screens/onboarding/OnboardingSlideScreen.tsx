@@ -11,17 +11,14 @@ const { width } = Dimensions.get('window');
 
 const SLIDES = [
   {
-    emoji: '💊',
     title: '약 먹는걸 잊지 않게\n챙길 수 있어요.',
     desc: '약 시간이 되면 알려드려요.\n드셨으면 탭 한 번으로 끝이에요.',
   },
   {
-    emoji: '👨‍👩‍👧',
     title: '가족들도 함께 알 수 있어서\n더욱 안심이에요.',
     desc: '약을 드시면 가족 모두가 알 수 있어요.\n서로 확인하지 않아도 돼요.',
   },
   {
-    emoji: '📊',
     title: '남긴 기록들은 다음 진료 때\n참고할 수 있어요.',
     desc: '약 먹은 후 몸 상태를 간단히 남겨두면\n시간이 지나면서 변화가 보여요.',
   },
@@ -65,7 +62,6 @@ export function OnboardingSlideScreen() {
         keyExtractor={(_, i) => String(i)}
         renderItem={({ item }) => (
           <View style={styles.slide}>
-            <Text style={styles.emoji}>{item.emoji}</Text>
             <Text style={styles.title}>{item.title}</Text>
             <Text style={styles.desc}>{item.desc}</Text>
           </View>
@@ -99,7 +95,6 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     paddingHorizontal: 32,
   },
-  emoji: { fontSize: 80, marginBottom: 32 },
   title: { fontSize: 24, fontWeight: '700', color: Colors.text, textAlign: 'center', lineHeight: 36, marginBottom: 16 },
   desc: { fontSize: 18, color: Colors.textSub, textAlign: 'center', lineHeight: 28 },
   dots: { flexDirection: 'row', justifyContent: 'center', gap: 8, marginBottom: 24 },

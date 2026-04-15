@@ -38,13 +38,12 @@ type StepKey = Exclude<Step, 'exercise_suggest' | 'constipation'>;
 
 const STEP_CONFIG: Record<StepKey, {
   title: string; desc: string; type: 'body' | 'mood' | 'sleep';
-  emoji: string; accentColor: string; bgColor: string; stepLabel: string;
+  accentColor: string; bgColor: string; stepLabel: string;
 }> = {
   body: {
     title: '지금 몸 상태는 어떠세요?',
     desc: '현재 몸 컨디션을 알려주세요',
     type: 'body',
-    emoji: '🏃',
     accentColor: Colors.primary,
     bgColor: '#E8F5E9',
     stepLabel: '몸 상태',
@@ -53,7 +52,6 @@ const STEP_CONFIG: Record<StepKey, {
     title: '지금 기분은 어떠세요?',
     desc: '마음 상태를 알려주세요',
     type: 'mood',
-    emoji: '😊',
     accentColor: '#7C4DFF',
     bgColor: '#F3E8FF',
     stepLabel: '기분 상태',
@@ -62,7 +60,6 @@ const STEP_CONFIG: Record<StepKey, {
     title: '어젯밤 수면은 어떠셨어요?',
     desc: '잠자리가 어떠셨는지 알려주세요',
     type: 'sleep',
-    emoji: '🌙',
     accentColor: '#1565C0',
     bgColor: '#E3F2FD',
     stepLabel: '수면',
@@ -208,7 +205,6 @@ export function BodyStatePopupFlow({
       return (
         <View style={styles.contentWrap}>
           <View style={[styles.stepBanner, { backgroundColor: '#FFF8E1' }]}>
-            <Text style={styles.stepBannerEmoji}>🚽</Text>
             <View style={styles.stepBannerText}>
               <Text style={[styles.stepBannerLabel, { color: '#F57F17' }]}>
                 변비  {currentIndex + 1}/{orderedSteps.length}단계
@@ -223,7 +219,6 @@ export function BodyStatePopupFlow({
               onPress={() => handleConstipationSelect(true)}
               activeOpacity={0.75}
             >
-              <Text style={styles.constipationEmoji}>😖</Text>
               <Text style={[styles.constipationLabel, constipation === true && styles.constipationLabelActive]}>
                 네, 있었어요
               </Text>
@@ -233,7 +228,6 @@ export function BodyStatePopupFlow({
               onPress={() => handleConstipationSelect(false)}
               activeOpacity={0.75}
             >
-              <Text style={styles.constipationEmoji}>😊</Text>
               <Text style={[styles.constipationLabel, constipation === false && styles.constipationLabelActive]}>
                 아니요, 없었어요
               </Text>
@@ -248,7 +242,6 @@ export function BodyStatePopupFlow({
       <View>
         {/* 스텝별 컬러 배너 */}
         <View style={[styles.stepBanner, { backgroundColor: cfg.bgColor }]}>
-          <Text style={styles.stepBannerEmoji}>{cfg.emoji}</Text>
           <View style={styles.stepBannerText}>
             <Text style={[styles.stepBannerLabel, { color: cfg.accentColor }]}>
               {cfg.stepLabel}  {currentIndex + 1}/{orderedSteps.length}단계

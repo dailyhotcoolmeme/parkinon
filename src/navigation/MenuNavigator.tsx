@@ -10,6 +10,10 @@ import { RecordDetailScreen } from '../screens/records/RecordDetailScreen';
 import { TermsScreen } from '../screens/menu/TermsScreen';
 import { PrivacyScreen } from '../screens/menu/PrivacyScreen';
 import { VideoListScreen } from '../screens/bodystate/VideoListScreen';
+import { MedicalRecordListScreen } from '../screens/menu/MedicalRecordListScreen';
+import { MedicalRecordWriteScreen } from '../screens/menu/MedicalRecordWriteScreen';
+import { MedicalRecordDetailScreen } from '../screens/menu/MedicalRecordDetailScreen';
+import { AppointmentWriteScreen } from '../screens/menu/AppointmentWriteScreen';
 
 export type MenuStackParamList = {
   MenuHome: undefined;
@@ -25,6 +29,10 @@ export type MenuStackParamList = {
   Terms: undefined;
   Privacy: undefined;
   VideoList: undefined;
+  MedicalRecordList: undefined;
+  MedicalRecordWrite: { recordId?: string } | undefined;
+  MedicalRecordDetail: { recordId: string };
+  AppointmentWrite: { appointmentId?: string } | undefined;
 };
 
 const Stack = createStackNavigator<MenuStackParamList>();
@@ -42,6 +50,10 @@ export function MenuNavigator() {
       <Stack.Screen name="Terms" component={TermsScreen} />
       <Stack.Screen name="Privacy" component={PrivacyScreen} />
       <Stack.Screen name="VideoList" component={VideoListScreen} />
+      <Stack.Screen name="MedicalRecordList" component={MedicalRecordListScreen} />
+      <Stack.Screen name="MedicalRecordWrite" component={MedicalRecordWriteScreen} />
+      <Stack.Screen name="MedicalRecordDetail" component={MedicalRecordDetailScreen} />
+      <Stack.Screen name="AppointmentWrite" component={AppointmentWriteScreen} />
     </Stack.Navigator>
   );
 }

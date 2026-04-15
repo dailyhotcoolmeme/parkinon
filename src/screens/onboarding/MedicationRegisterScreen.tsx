@@ -724,6 +724,8 @@ const tseStyles = StyleSheet.create({
     fontSize: 18,
     fontWeight: '700',
     color: Colors.primary,
+    flex: 1,
+    textAlign: 'center',
   },
   timeChipEditBtn: {
     paddingHorizontal: 12,

@@ -90,7 +90,6 @@ export function NotificationSetupScreen() {
 
       <ScrollView contentContainerStyle={styles.scrollContent}>
         <View style={styles.heroArea}>
-          <Text style={styles.heroEmoji}>🔔</Text>
           <Text style={styles.title}>약효 추적 알림을{'\n'}설정해드릴게요</Text>
           <Text style={styles.subtitle}>
             약을 드신 후 몸 상태를 확인해드려요.{'\n'}나중에 설정에서 바꾸실 수 있어요.
@@ -121,7 +120,7 @@ export function NotificationSetupScreen() {
         {enabledCount === 0 && (
           <View style={styles.warningCard}>
             <Text style={styles.warningText}>
-              💡 알림을 받으시면 약효 패턴을 더 정확하게 확인할 수 있어요
+              알림을 받으시면 약효 패턴을 더 정확하게 확인할 수 있어요
             </Text>
           </View>
         )}
@@ -176,10 +175,6 @@ const styles = StyleSheet.create({
   heroArea: {
     alignItems: 'center',
     marginBottom: 36,
-  },
-  heroEmoji: {
-    fontSize: 56,
-    marginBottom: 16,
   },
   title: {
     fontSize: 26,

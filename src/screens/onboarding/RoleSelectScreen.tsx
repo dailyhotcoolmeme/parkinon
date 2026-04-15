@@ -22,13 +22,11 @@ type RoleKey = 'patient' | 'caregiver';
 const ROLES = [
   {
     key: 'patient',
-    emoji: '🧑',
     label: '파킨슨 진단을 받은 환자예요',
     desc: '직접 약 복용과 몸 상태를\n기록할 수 있어요',
   },
   {
     key: 'caregiver',
-    emoji: '👨‍👩‍👧',
     label: '파킨슨 환자 가족이에요',
     desc: '가족의 건강 상태를 함께\n확인하고 도울 수 있어요',
   },
@@ -102,7 +100,6 @@ export function RoleSelectScreen() {
 
                 {/* 중앙 콘텐츠 */}
                 <View style={styles.cardCenter}>
-                  <Text style={styles.cardEmoji}>{role.emoji}</Text>
                   <Text style={[styles.cardLabel, selected && styles.cardLabelSelected]}>
                     {role.label}
                   </Text>
@@ -204,9 +201,6 @@ const styles = StyleSheet.create({
   cardSelected: {
     borderColor: Colors.primary,
     backgroundColor: Colors.light,
-  },
-  cardEmoji: {
-    fontSize: 52,
   },
   cardLabel: {
     fontSize: 20,

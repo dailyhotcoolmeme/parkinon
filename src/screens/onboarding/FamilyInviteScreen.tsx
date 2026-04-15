@@ -210,7 +210,6 @@ export function FamilyInviteScreen() {
 
       <ScrollView contentContainerStyle={styles.scrollContent}>
         <View style={styles.heroArea}>
-          <Text style={styles.heroEmoji}>👨‍👩‍👧</Text>
           <Text style={styles.title}>가족을 초대해드릴게요</Text>
           <Text style={styles.subtitle}>
             초대 코드를 가족에게 전달하면{'\n'}서로 연결할 수 있어요
@@ -236,9 +235,9 @@ export function FamilyInviteScreen() {
         <View style={styles.infoCard}>
           <Text style={styles.infoTitle}>이렇게 사용해요</Text>
           <View style={styles.infoSteps}>
-            <Text style={styles.infoStep}>1️⃣  가족이 파킨온 앱을 설치해요</Text>
-            <Text style={styles.infoStep}>2️⃣  회원가입 후 초대 코드를 입력해요</Text>
-            <Text style={styles.infoStep}>3️⃣  서로의 건강 정보를 함께 볼 수 있어요</Text>
+            <Text style={styles.infoStep}>1. 가족이 파킨온 앱을 설치해요</Text>
+            <Text style={styles.infoStep}>2. 회원가입 후 초대 코드를 입력해요</Text>
+            <Text style={styles.infoStep}>3. 서로의 건강 정보를 함께 볼 수 있어요</Text>
           </View>
         </View>
       </ScrollView>
@@ -250,7 +249,6 @@ export function FamilyInviteScreen() {
           activeOpacity={0.85}
           disabled={isSaving}
         >
-          <Text style={styles.kakaoIcon}>💛</Text>
           <Text style={styles.kakaoBtnText}>카카오톡으로 공유하기</Text>
         </TouchableOpacity>
         <TouchableOpacity
@@ -304,10 +302,6 @@ const styles = StyleSheet.create({
   heroArea: {
     alignItems: 'center',
     marginBottom: 32,
-  },
-  heroEmoji: {
-    fontSize: 56,
-    marginBottom: 16,
   },
   title: {
     fontSize: 26,
@@ -402,9 +396,6 @@ const styles = StyleSheet.create({
     borderRadius: 12,
     minHeight: 60,
     gap: 10,
-  },
-  kakaoIcon: {
-    fontSize: 22,
   },
   kakaoBtnText: {
     fontSize: 18,

@@ -27,15 +27,15 @@ type RouteType = RouteProp<OnboardingStackParamList, 'CaregiverInfo'>;
 const BIRTH_YEARS = Array.from({ length: 2005 - 1940 + 1 }, (_, i) => String(1940 + i)).reverse();
 
 const RELATIONS = [
-  { key: 'spouse', emoji: '💑', label: '배우자' },
-  { key: 'child', emoji: '👨‍👩‍👧', label: '자녀' },
-  { key: 'sibling', emoji: '👫', label: '형제/자매' },
-  { key: 'other', emoji: '🤝', label: '기타' },
+  { key: 'spouse', label: '배우자' },
+  { key: 'child', label: '자녀' },
+  { key: 'sibling', label: '형제/자매' },
+  { key: 'other', label: '기타' },
 ] as const;
 
 const LIVING = [
-  { key: 'together', emoji: '🏠', label: '함께 살고 있어요' },
-  { key: 'separate', emoji: '📍', label: '따로 살고 있어요' },
+  { key: 'together', label: '함께 살고 있어요' },
+  { key: 'separate', label: '따로 살고 있어요' },
 ] as const;
 
 type RelationKey = typeof RELATIONS[number]['key'];
@@ -167,7 +167,6 @@ export function CaregiverInfoScreen() {
                   onPress={() => setGender('male')}
                   activeOpacity={0.85}
                 >
-                  <Text style={styles.genderEmoji}>👨</Text>
                   <Text style={[styles.genderText, gender === 'male' && styles.genderTextSelected]}>남자</Text>
                 </TouchableOpacity>
                 <TouchableOpacity
@@ -175,7 +174,6 @@ export function CaregiverInfoScreen() {
                   onPress={() => setGender('female')}
                   activeOpacity={0.85}
                 >
-                  <Text style={styles.genderEmoji}>👩</Text>
                   <Text style={[styles.genderText, gender === 'female' && styles.genderTextSelected]}>여자</Text>
                 </TouchableOpacity>
               </View>
@@ -195,7 +193,6 @@ export function CaregiverInfoScreen() {
                     onPress={() => setRelation(r.key)}
                     activeOpacity={0.85}
                   >
-                    <Text style={styles.relationEmoji}>{r.emoji}</Text>
                     <Text style={[styles.relationText, relation === r.key && styles.relationTextSelected]}>{r.label}</Text>
                   </TouchableOpacity>
                 ))}
@@ -212,7 +209,6 @@ export function CaregiverInfoScreen() {
                     onPress={() => setLiving(l.key)}
                     activeOpacity={0.85}
                   >
-                    <Text style={styles.livingEmoji}>{l.emoji}</Text>
                     <Text style={[styles.livingText, living === l.key && styles.livingTextSelected]}>{l.label}</Text>
                     <View style={[styles.radioOuter, living === l.key && styles.radioOuterSelected]}>
                       {living === l.key && <View style={styles.radioInner} />}
@@ -306,7 +302,6 @@ const styles = StyleSheet.create({
     paddingVertical: 32, gap: 12, minHeight: 120,
   },
   genderBtnSelected: { borderColor: Colors.primary, backgroundColor: Colors.light },
-  genderEmoji: { fontSize: 44 },
   genderText: { fontSize: 20, fontWeight: '700', color: Colors.textSub },
   genderTextSelected: { color: Colors.dark },
   sectionDivider: { height: 1, backgroundColor: Colors.border, marginVertical: 28 },
@@ -318,7 +313,6 @@ const styles = StyleSheet.create({
     paddingVertical: 20, gap: 8, minHeight: 90,
   },
   relationBtnSelected: { borderColor: Colors.primary, backgroundColor: Colors.light },
-  relationEmoji: { fontSize: 28 },
   relationText: { fontSize: 16, fontWeight: '700', color: Colors.textSub },
   relationTextSelected: { color: Colors.dark },
   livingArea: { gap: 12 },
@@ -328,7 +322,6 @@ const styles = StyleSheet.create({
     padding: 18, gap: 14, minHeight: 64,
   },
   livingBtnSelected: { borderColor: Colors.primary, backgroundColor: Colors.light },
-  livingEmoji: { fontSize: 28 },
   livingText: { flex: 1, fontSize: 18, fontWeight: '600', color: Colors.textSub },
   livingTextSelected: { color: Colors.dark },
   radioOuter: { width: 24, height: 24, borderRadius: 12, borderWidth: 2, borderColor: Colors.border, alignItems: 'center', justifyContent: 'center' },

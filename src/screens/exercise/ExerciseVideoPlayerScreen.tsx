@@ -13,6 +13,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { useRoute } from '@react-navigation/native';
 import type { NativeStackScreenProps } from '@react-navigation/native-stack';
 import YoutubePlayer from 'react-native-youtube-iframe';
+import { Ionicons } from '@expo/vector-icons';
 import { Colors } from '../../constants/colors';
 import { TopBar } from '../../components/common/TopBar';
 import type { ExerciseStackParamList } from '../../navigation/ExerciseNavigator';
@@ -35,9 +36,8 @@ export function ExerciseVideoPlayerScreen() {
   };
 
   return (
-    <SafeAreaView style={styles.safe} edges={['top']}>
-      <TopBar title={title} showBack />
-
+    <SafeAreaView style={styles.safe}>
+      <TopBar title="" showBack />
       <ScrollView style={styles.scroll} showsVerticalScrollIndicator={false}>
         {/* 영상 영역 */}
         <View style={[styles.playerContainer, { minHeight: VIDEO_HEIGHT }]}>
@@ -82,11 +82,17 @@ export function ExerciseVideoPlayerScreen() {
         <View style={styles.infoArea}>
           <Text style={styles.infoTitle}>{title}</Text>
           <View style={styles.descCard}>
-            <Text style={styles.descLabel}>운동 소개</Text>
+            <View style={styles.descLabelRow}>
+              <Ionicons name="fitness" size={24} color={Colors.primary} />
+              <Text style={styles.descLabel}>운동 소개</Text>
+            </View>
             <Text style={styles.descText}>{description}</Text>
           </View>
           <View style={styles.tipCard}>
-            <Text style={styles.tipTitle}>💡 운동 전 주의사항</Text>
+            <View style={styles.tipTitleRow}>
+              <Ionicons name="alert-circle" size={24} color="#B45309" />
+              <Text style={styles.tipTitle}> 운동 전 주의사항</Text>
+            </View>
             <Text style={styles.tipItem}>• 운동 전 충분히 스트레칭 하세요</Text>
             <Text style={styles.tipItem}>• 몸 상태가 좋지 않으면 쉬어 가세요</Text>
             <Text style={styles.tipItem}>• 의자나 벽을 잡고 안전하게 진행하세요</Text>
@@ -104,7 +110,6 @@ const styles = StyleSheet.create({
   playerContainer: {
     width: SCREEN_WIDTH,
     backgroundColor: '#000',
-    position: 'relative',
   },
   loadingOverlay: {
     position: 'absolute',
@@ -157,11 +162,16 @@ const styles = StyleSheet.create({
     shadowOpacity: 0.05,
     shadowRadius: 3,
   },
+  descLabelRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    marginBottom: 8,
+  },
   descLabel: {
-    fontSize: 15,
+    fontSize: 18,
     fontWeight: '700',
     color: Colors.primary,
-    marginBottom: 8,
   },
   descText: {
     fontSize: 18,
@@ -174,11 +184,15 @@ const styles = StyleSheet.create({
     padding: 20,
     gap: 8,
   },
+  tipTitleRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginBottom: 4,
+  },
   tipTitle: {
     fontSize: 18,
     fontWeight: '700',
     color: '#B45309',
-    marginBottom: 4,
   },
   tipItem: {
     fontSize: 17,

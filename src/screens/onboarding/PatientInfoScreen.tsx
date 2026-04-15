@@ -146,7 +146,6 @@ export function PatientInfoScreen() {
                   onPress={() => setGender('male')}
                   activeOpacity={0.85}
                 >
-                  <Text style={styles.genderEmoji}>👨</Text>
                   <Text style={[styles.genderText, gender === 'male' && styles.genderTextSelected]}>남자</Text>
                 </TouchableOpacity>
                 <TouchableOpacity
@@ -154,7 +153,6 @@ export function PatientInfoScreen() {
                   onPress={() => setGender('female')}
                   activeOpacity={0.85}
                 >
-                  <Text style={styles.genderEmoji}>👩</Text>
                   <Text style={[styles.genderText, gender === 'female' && styles.genderTextSelected]}>여자</Text>
                 </TouchableOpacity>
               </View>
@@ -290,7 +288,6 @@ const styles = StyleSheet.create({
     paddingVertical: 32, gap: 12, minHeight: 120,
   },
   genderBtnSelected: { borderColor: Colors.primary, backgroundColor: Colors.light },
-  genderEmoji: { fontSize: 44 },
   genderText: { fontSize: 20, fontWeight: '700', color: Colors.textSub },
   genderTextSelected: { color: Colors.dark },
   bottomArea: { paddingHorizontal: 24, paddingBottom: 40, gap: 12 },

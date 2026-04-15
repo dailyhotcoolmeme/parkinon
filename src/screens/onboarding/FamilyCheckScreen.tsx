@@ -197,10 +197,10 @@ export function FamilyCheckScreen() {
 
         <View style={styles.btnGroup}>
           {([
-            { key: 'yes', emoji: '✅', label: '네, 있어요', desc: '초대 코드로 연결할게요' },
-            { key: 'no', emoji: '🆕', label: '아니요, 저 혼자 처음 시작해요', desc: '나중에 가족을 초대할 수 있어요' },
-            { key: 'unsure', emoji: '🤔', label: '잘 모르겠어요', desc: '' },
-          ] as { key: ChoiceKey; emoji: string; label: string; desc: string }[]).map((item) => {
+            { key: 'yes', label: '네, 있어요', desc: '초대 코드로 연결할게요' },
+            { key: 'no', label: '아니요, 저 혼자 처음 시작해요', desc: '나중에 가족을 초대할 수 있어요' },
+            { key: 'unsure', label: '잘 모르겠어요', desc: '' },
+          ] as { key: ChoiceKey; label: string; desc: string }[]).map((item) => {
             const selected = selectedChoice === item.key;
             return (
               <TouchableOpacity
@@ -212,7 +212,6 @@ export function FamilyCheckScreen() {
                 <View style={[styles.radioOuter, selected && styles.radioOuterSelected]}>
                   {selected && <View style={styles.radioInner} />}
                 </View>
-                <Text style={styles.choiceEmoji}>{item.emoji}</Text>
                 <View style={{ flex: 1 }}>
                   <Text style={[styles.choiceLabel, selected && styles.choiceLabelSelected]}>{item.label}</Text>
                   {item.desc ? <Text style={[styles.choiceDesc, selected && styles.choiceDescSelected]}>{item.desc}</Text> : null}
@@ -308,9 +307,6 @@ const styles = StyleSheet.create({
   choiceCardSelected: {
     borderColor: Colors.primary,
     backgroundColor: Colors.light,
-  },
-  choiceEmoji: {
-    fontSize: 32,
   },
   choiceLabel: {
     fontSize: 18,

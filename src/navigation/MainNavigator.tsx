@@ -60,7 +60,7 @@ export function MainNavigator() {
         return {
           headerShown: false,
           tabBarStyle: {
-            height: 80 + insets.bottom,
+            height: 72 + insets.bottom,
             paddingBottom: insets.bottom,
             backgroundColor: Colors.white,
             borderTopWidth: 1,
@@ -79,8 +79,8 @@ export function MainNavigator() {
             <View style={[styles.iconWrap, focused && styles.iconWrapActive]}>
               <Ionicons
                 name={focused ? item.iconFocused : item.icon}
-                size={28}
-                color={focused ? Colors.primary : Colors.textHint}
+                size={30}
+                color={focused ? Colors.primary : '#767676'}
               />
             </View>
           ),
@@ -146,16 +146,16 @@ export function MainNavigator() {
 const styles = StyleSheet.create({
   iconWrap: {
     width: 56,
-    height: 36,
+    height: 40,
     alignItems: 'center',
     justifyContent: 'center',
-    borderRadius: 18,
+    borderRadius: 20,
   },
   iconWrapActive: {
     backgroundColor: Colors.light,
   },
   tabLabel: {
-    fontSize: 10,
+    fontSize: 13,
     marginTop: 2,
     fontWeight: '600',
   },
@@ -164,6 +164,6 @@ const styles = StyleSheet.create({
     fontWeight: '700',
   },
   tabLabelInactive: {
-    color: Colors.textHint,
+    color: '#767676',
   },
 });
