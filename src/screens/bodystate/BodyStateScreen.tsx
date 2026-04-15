@@ -30,6 +30,7 @@ interface BodyRecord {
   time: string;
   period: string;
   trigger: string;
+  triggeredBy: string;
   bodyScore: number;
   moodScore: number;
   sleepScore?: number;
@@ -67,36 +68,62 @@ const TRIGGER_LABEL: Record<string, string> = {
 };
 
 const PERIOD_EMOJI: Record<string, string> = {
-  '아침': '🌅', '점심': '☀️', '저녁': '🌙', '취침': '😴'
+  '아침': '', '점심': '', '저녁': '', '취침': ''
 };
+
+function toLocalDateString(date: Date): string {
+  const y = date.getFullYear();
+  const m = String(date.getMonth() + 1).padStart(2, '0');
+  const d = String(date.getDate()).padStart(2, '0');
+  return `${y}-${m}-${d}`;
+}
 
 export function BodyStateScreen() {
   const { user } = useAuth();
-  const { todayLogs, saveBodyState, fetchVideoLogs } = useBodyState();
+  const { todayLogs, saveBodyState, fetchVideoLogs, getBodyStateLogs, refresh } = useBodyState();
   const [showFlow, setShowFlow] = useState(false);
   const [showCaregiverConfirm, setShowCaregiverConfirm] = useState(false);
   const [selectedDate, setSelectedDate] = useState(new Date());
   const [showDatePicker, setShowDatePicker] = useState(false);
   const [videoLogs, setVideoLogs] = useState<any[]>([]);
+  const [dateLogs, setDateLogs] = useState<any[]>([]);
   const navigation = useNavigation<any>();
   const insets = useSafeAreaInsets();
 
+  const isToday = toLocalDateString(selectedDate) === toLocalDateString(new Date());
+
   const loadVideoLogs = useCallback(async () => {
-    const dateStr = selectedDate.toISOString().split('T')[0];
+    const dateStr = toLocalDateString(selectedDate);
     const logs = await fetchVideoLogs(dateStr);
     setVideoLogs(logs);
   }, [selectedDate, fetchVideoLogs]);
 
-  // 날짜 바뀔 때마다 영상 목록 갱신
+  const loadDateLogs = useCallback(async () => {
+    if (isToday) {
+      setDateLogs([]);
+      return;
+    }
+    const dateStr = toLocalDateString(selectedDate);
+    const logs = await getBodyStateLogs(dateStr);
+    setDateLogs(logs);
+  }, [selectedDate, isToday, getBodyStateLogs]);
+
+  // 날짜 바뀔 때마다 영상 목록 + 날짜별 기록 갱신
   useEffect(() => {
     loadVideoLogs();
-  }, [loadVideoLogs]);
+    loadDateLogs();
+  }, [loadVideoLogs, loadDateLogs]);
 
-  // 화면 포커스 시 영상 목록 갱신
+  // 화면 포커스 시 오늘 기록 갱신
   useFocusEffect(
     useCallback(() => {
       loadVideoLogs();
-    }, [loadVideoLogs])
+      if (isToday) {
+        refresh();
+      } else {
+        loadDateLogs();
+      }
+    }, [loadVideoLogs, loadDateLogs, isToday, refresh])
   );
 
   const userRole = user?.role === 'caregiver'
@@ -105,13 +132,17 @@ export function BodyStateScreen() {
 
   const patientName = '환자';
 
+  // 표시할 로그: 오늘이면 todayLogs, 다른 날이면 dateLogs
+  const activeLogs = isToday ? todayLogs : dateLogs;
+
   // DB 로그 → BodyRecord 변환
-  const records: BodyRecord[] = todayLogs.map((log) => ({
+  const records: BodyRecord[] = activeLogs.map((log) => ({
     id: log.id,
     time: formatTime(log.logged_at),
     period: getPeriod(log.logged_at),
     trigger: (log.trigger_time_label && TRIGGER_LABEL[log.trigger_time_label])
       || (log.triggered_by === 'notification' ? '알림' : '직접 입력'),
+    triggeredBy: log.triggered_by ?? 'manual',
     bodyScore: log.body_state ?? 3,
     moodScore: log.mood ?? 3,
     sleepScore: log.sleep_quality ?? undefined,
@@ -199,7 +230,7 @@ export function BodyStateScreen() {
         <View style={styles.records}>
           <View style={styles.sectionHeader}>
             <View style={styles.divider} />
-            <Text style={styles.sectionTitle}>오늘 몸상태 기록</Text>
+            <Text style={styles.sectionTitle}>{isToday ? '오늘 몸상태 기록' : '몸상태 기록'}</Text>
             <View style={styles.divider} />
           </View>
           {records.length === 0 ? (
@@ -208,9 +239,17 @@ export function BodyStateScreen() {
             ['아침', '점심', '저녁', '취침'].map(period => {
               const periodRecords = records.filter(r => r.period === period);
               if (periodRecords.length === 0) return null;
+              // 해당 시간대 기록이 모두 notification인 경우만 "약 복용 후" 표시
+              const allNotification = periodRecords.every(r => r.triggeredBy === 'notification');
+              const hasNotification = periodRecords.some(r => r.triggeredBy === 'notification');
+              const periodTitle = allNotification
+                ? `${period} 약 복용 후`
+                : hasNotification
+                  ? `${period}`
+                  : `${period} 독립 기록`;
               return (
                 <View key={period} style={styles.periodGroup}>
-                  <Text style={styles.periodTitle}>{PERIOD_EMOJI[period] ?? ''} {period} 약 복용 후</Text>
+                  <Text style={styles.periodTitle}>{periodTitle}</Text>
                   {periodRecords.map(record => (
                     <BodyRecordCard key={record.id} record={record} />
                   ))}
@@ -232,7 +271,7 @@ export function BodyStateScreen() {
         onClose={() => setShowFlow(false)}
         onSave={handleSaveRecord}
         onGoExercise={() => navigateTo('Exercise')}
-        showSleep={records.length === 0}
+        showSleep={todayLogs.length === 0}
         showConstipation={false}
       />
       <DatePickerModal
@@ -245,12 +284,8 @@ export function BodyStateScreen() {
   );
 }
 
-function getScoreEmoji(score: number): string {
-  if (score >= 5) return '😄';
-  if (score >= 4) return '🙂';
-  if (score >= 3) return '😐';
-  if (score >= 2) return '😞';
-  return '😣';
+function getScoreEmoji(_score: number): string {
+  return '';
 }
 
 function getScoreColor(score: number): string {
@@ -273,7 +308,6 @@ function BodyRecordCard({ record }: { record: BodyRecord }) {
         <View style={cardStyles.scoreBox}>
           <Text style={cardStyles.scoreLabel}>몸상태</Text>
           <View style={cardStyles.scoreValueRow}>
-            <Text style={cardStyles.scoreEmoji}>{getScoreEmoji(record.bodyScore)}</Text>
             <Text style={[cardStyles.scoreNum, { color: getScoreColor(record.bodyScore) }]}>
               {record.bodyScore}점
             </Text>
@@ -283,7 +317,6 @@ function BodyRecordCard({ record }: { record: BodyRecord }) {
         <View style={cardStyles.scoreBox}>
           <Text style={cardStyles.scoreLabel}>기분</Text>
           <View style={cardStyles.scoreValueRow}>
-            <Text style={cardStyles.scoreEmoji}>{getScoreEmoji(record.moodScore)}</Text>
             <Text style={[cardStyles.scoreNum, { color: getScoreColor(record.moodScore) }]}>
               {record.moodScore}점
             </Text>
@@ -294,7 +327,6 @@ function BodyRecordCard({ record }: { record: BodyRecord }) {
       {record.sleepScore !== undefined && (
         <View style={cardStyles.extraRow}>
           <Text style={cardStyles.extraLabel}>수면</Text>
-          <Text style={cardStyles.scoreEmoji}>{getScoreEmoji(record.sleepScore)}</Text>
           <Text style={[cardStyles.extraValue, { color: getScoreColor(record.sleepScore) }]}>
             {record.sleepScore}점
           </Text>
@@ -305,7 +337,7 @@ function BodyRecordCard({ record }: { record: BodyRecord }) {
         <View style={cardStyles.extraRow}>
           <Text style={cardStyles.extraLabel}>변비</Text>
           <Text style={cardStyles.extraValue}>
-            {record.constipation ? '😖 있었어요' : '😊 없었어요'}
+            {record.constipation ? '있었어요' : '없었어요'}
           </Text>
         </View>
       )}

@@ -14,9 +14,10 @@ import { Ionicons } from '@expo/vector-icons';
 import { Colors } from '../../constants/colors';
 import { TopBar } from '../../components/common/TopBar';
 import { MealTimeModal } from './MealTimeModal';
-import { BodyStatePopupModal } from '../../components/common/BodyStatePopupModal';
+import { BodyStatePopupFlow } from '../bodystate/BodyStatePopupFlow';
 import { CaregiverConfirmModal } from '../../components/common/CaregiverConfirmModal';
 import { useMedication } from '../../hooks/useMedication';
+import { useBodyState } from '../../hooks/useBodyState';
 import { useAuth } from '../../context/AuthContext';
 import { DatePickerModal } from '../../components/common/DatePickerModal';
 
@@ -68,11 +69,13 @@ function toLocalDateString(date: Date): string {
 export function MedicationScreen() {
   const { user } = useAuth();
   const { todayStatus, takeMedication, getMedLogs, error: medError, refresh } = useMedication();
+  const { saveBodyState, todayLogs: bodyLogs } = useBodyState();
   const insets = useSafeAreaInsets();
 
   const [showCaregiverConfirm, setShowCaregiverConfirm] = useState(false);
   const [showMealTimeModal, setShowMealTimeModal] = useState(false);
   const [showBodyStatePopup, setShowBodyStatePopup] = useState(false);
+  const [selectedMealTime, setSelectedMealTime] = useState<MealTime | null>(null);
   const [selectedDate, setSelectedDate] = useState(new Date());
   const [showDatePicker, setShowDatePicker] = useState(false);
 
@@ -134,7 +137,20 @@ export function MedicationScreen() {
       Alert.alert('저장 실패', medError ?? '복용 기록 저장에 실패했어요. 다시 시도해 주세요.');
       return;
     }
+    setSelectedMealTime(mealTime);
     setShowBodyStatePopup(true);
+  };
+
+  const handleBodyStateSave = async (record: { bodyScore: number; moodScore: number; sleepScore?: number; constipation?: boolean }) => {
+    await saveBodyState({
+      body_state: record.bodyScore,
+      mood: record.moodScore,
+      sleep_quality: record.sleepScore,
+      constipation: record.constipation,
+      trigger_time_label: 'after_medication',
+    }, 'notification');
+    setShowBodyStatePopup(false);
+    setSelectedMealTime(null);
   };
 
   // activeStatus → MedicationStatus[] 변환
@@ -241,10 +257,12 @@ export function MedicationScreen() {
         onConfirm={() => { setShowCaregiverConfirm(false); setShowMealTimeModal(true); }}
         onCancel={() => setShowCaregiverConfirm(false)}
       />
-      <BodyStatePopupModal
+      <BodyStatePopupFlow
         visible={showBodyStatePopup}
-        onClose={() => setShowBodyStatePopup(false)}
-        onSave={() => setShowBodyStatePopup(false)}
+        onClose={() => { setShowBodyStatePopup(false); setSelectedMealTime(null); }}
+        onSave={handleBodyStateSave}
+        showSleep={bodyLogs.length === 0}
+        showConstipation={false}
       />
       <DatePickerModal
         visible={showDatePicker}
