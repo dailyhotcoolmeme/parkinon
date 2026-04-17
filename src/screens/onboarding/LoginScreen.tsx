@@ -7,14 +7,19 @@ import {
   ActivityIndicator,
   Image,
   AppState,
+  Linking,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useNavigation } from '@react-navigation/native';
 import type { StackNavigationProp } from '@react-navigation/stack';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 import type { OnboardingStackParamList } from '../../navigation/OnboardingNavigator';
 import { AntDesign } from '@expo/vector-icons';
 import { Colors } from '../../constants/colors';
 import { useAuth } from '../../context/AuthContext';
+
+const TERMS_URL = 'https://parkinon-terms.dailyhotcoolmeme.workers.dev';
+const PRIVACY_URL = 'https://parkinon-privacy.dailyhotcoolmeme.workers.dev';
 
 type Nav = StackNavigationProp<OnboardingStackParamList, 'Login'>;
 
@@ -62,7 +67,14 @@ export function LoginScreen() {
         signingTimeoutRef.current = null;
       }
       if (!user.onboarding_done) {
-        navigation.replace('RoleSelect');
+        // 민감정보 동의 여부 확인: 미동의 시 동의 화면 먼저 표시
+        AsyncStorage.getItem('sensitive_info_consented').then((consented) => {
+          if (consented === 'true') {
+            navigation.replace('FamilyCheck');
+          } else {
+            navigation.replace('SensitiveInfoConsent');
+          }
+        });
       }
     }
   }, [user, loading]);
@@ -131,7 +143,21 @@ export function LoginScreen() {
         </TouchableOpacity>
 
         <Text style={styles.terms}>
-          시작하면 이용약관 및 개인정보처리방침에 동의하게 됩니다.
+          {'시작하면 '}
+          <Text
+            style={styles.termsLink}
+            onPress={() => Linking.openURL(TERMS_URL)}
+          >
+            이용약관
+          </Text>
+          {' 및 '}
+          <Text
+            style={styles.termsLink}
+            onPress={() => Linking.openURL(PRIVACY_URL)}
+          >
+            개인정보처리방침
+          </Text>
+          {'에 동의하게 됩니다.'}
         </Text>
       </View>
     </SafeAreaView>
@@ -204,6 +230,12 @@ const styles = StyleSheet.create({
     opacity: 0.6,
     textAlign: 'center',
     lineHeight: 20,
+  },
+  termsLink: {
+    fontSize: 13,
+    color: Colors.white,
+    opacity: 1,
+    textDecorationLine: 'underline',
   },
   googleBtn: {
     flexDirection: 'row',

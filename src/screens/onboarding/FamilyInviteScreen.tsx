@@ -9,6 +9,7 @@ import {
   Alert,
   ActivityIndicator,
 } from 'react-native';
+import { ShareClient } from '@react-native-kakao/share';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useNavigation } from '@react-navigation/native';
@@ -53,14 +54,25 @@ export function FamilyInviteScreen() {
   };
 
   const handleKakaoShare = async () => {
-    // TODO: 카카오 SDK 공유 연동 예정
     try {
-      await Share.share({
-        message: `[파킨온] ${userName || '가족'}님이 파킨온에 초대했어요!\n\n앱을 설치하고 초대 코드를 입력해주세요.\n\n초대 코드: ${inviteCode}\n\n파킨온 다운로드: https://parkinon.app`,
-        title: '파킨온 가족 초대',
+      await ShareClient.sendDefault({
+        objectType: 'text',
+        text: `[파킨온] ${userName || '가족'}님이 파킨온에 초대했어요!\n\n초대 코드: ${inviteCode}\n\n앱을 설치하고 초대 코드를 입력해주세요.`,
+        link: {
+          mobileWebUrl: 'https://parkinon-support.dailyhotcoolmeme.workers.dev',
+          webUrl: 'https://parkinon-support.dailyhotcoolmeme.workers.dev',
+        },
       });
-    } catch {
-      Alert.alert('', '공유하기에 실패했어요. 코드를 직접 전달해주세요.');
+    } catch (err) {
+      // SDK 실패 시 fallback: 시스템 공유 시트
+      try {
+        await Share.share({
+          message: `[파킨온] ${userName || '가족'}님이 파킨온에 초대했어요!\n\n초대 코드: ${inviteCode}\n\n파킨온 다운로드: https://parkinon-support.dailyhotcoolmeme.workers.dev`,
+          title: '파킨온 가족 초대',
+        });
+      } catch {
+        Alert.alert('', '공유하기에 실패했어요. 코드를 직접 전달해주세요.');
+      }
     }
   };
 
