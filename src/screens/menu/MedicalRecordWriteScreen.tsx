@@ -18,7 +18,9 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { useNavigation, useRoute, RouteProp } from '@react-navigation/native';
 import { StackNavigationProp } from '@react-navigation/stack';
 import * as ImagePicker from 'expo-image-picker';
+import * as ImageManipulator from 'expo-image-manipulator';
 import * as FileSystem from 'expo-file-system/legacy';
+import { Ionicons } from '@expo/vector-icons';
 import { Colors } from '../../constants/colors';
 import { TopBar } from '../../components/common/TopBar';
 import { useAuth } from '../../context/AuthContext';
@@ -390,9 +392,18 @@ export function MedicalRecordWriteScreen() {
       }
       if (result.canceled || !result.assets?.[0]) return;
       const asset = result.assets[0];
-      setPrescriptionImageUri(asset.uri);
+
+      // 사진 압축: quality 0.7, maxWidth 1280px
+      const compressed = await ImageManipulator.manipulateAsync(
+        asset.uri,
+        [{ resize: { width: 1280 } }],
+        { compress: 0.7, format: ImageManipulator.SaveFormat.JPEG }
+      );
+      const compressedUri = compressed.uri;
+
+      setPrescriptionImageUri(compressedUri);
       setIsOcrLoading(true);
-      const base64 = await FileSystem.readAsStringAsync(asset.uri, { encoding: FileSystem.EncodingType.Base64 });
+      const base64 = await FileSystem.readAsStringAsync(compressedUri, { encoding: FileSystem.EncodingType.Base64 });
       const ocrResult = await callClaudeOCR(base64, 'image/jpeg');
       setOcrMeds(ocrResult.medications);
       if (ocrResult.medications.length === 0) Alert.alert('알림', '처방전에서 약 이름을 찾지 못했어요.\n직접 확인해 주세요.');
@@ -612,6 +623,7 @@ export function MedicalRecordWriteScreen() {
               activeOpacity={0.8}
               disabled={isOcrLoading}
             >
+              <Ionicons name="camera-outline" size={22} color={Colors.primary} style={{ marginRight: 6 }} />
               <Text style={styles.prescriptionBtnText}>카메라로 촬영</Text>
             </TouchableOpacity>
             <TouchableOpacity
@@ -620,6 +632,7 @@ export function MedicalRecordWriteScreen() {
               activeOpacity={0.8}
               disabled={isOcrLoading}
             >
+              <Ionicons name="images-outline" size={22} color={Colors.primary} style={{ marginRight: 6 }} />
               <Text style={styles.prescriptionBtnText}>갤러리 선택</Text>
             </TouchableOpacity>
           </View>
@@ -708,6 +721,7 @@ const styles = StyleSheet.create({
     flex: 1, backgroundColor: Colors.white, borderWidth: 1.5,
     borderColor: Colors.primary, borderRadius: 12, minHeight: 56,
     alignItems: 'center', justifyContent: 'center',
+    flexDirection: 'row',
   },
   prescriptionBtnText: { fontSize: 17, fontWeight: '700', color: Colors.primary },
   prescriptionPreview: { width: '100%', height: 200, borderRadius: 12, marginTop: 16, backgroundColor: Colors.border },
