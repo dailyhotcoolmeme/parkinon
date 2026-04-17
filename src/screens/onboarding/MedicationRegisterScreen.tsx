@@ -22,6 +22,7 @@ import { Colors } from '../../constants/colors';
 import { PrimaryButton } from '../../components/common/PrimaryButton';
 import { useAuth } from '../../context/AuthContext';
 import * as ImagePicker from 'expo-image-picker';
+import * as FileSystem from 'expo-file-system';
 
 type Nav = StackNavigationProp<OnboardingStackParamList, 'MedicationRegister'>;
 
@@ -73,68 +74,41 @@ interface Medication {
 
 type Mode = 'home' | 'manual';
 
-const CLAUDE_API_KEY = process.env.EXPO_PUBLIC_CLAUDE_API_KEY;
-const CLAUDE_API_URL = 'https://api.anthropic.com/v1/messages';
+const SUPABASE_URL = process.env.EXPO_PUBLIC_SUPABASE_URL ?? '';
+const SUPABASE_ANON_KEY = process.env.EXPO_PUBLIC_SUPABASE_ANON_KEY ?? '';
 
 const MFDS_KEY = process.env.EXPO_PUBLIC_MFDS_KEY ?? '';
 const MFDS_URL = 'https://apis.data.go.kr/1471000/MdcinGrnIdntfcInfoService03/getMdcinGrnIdntfcInfoList03';
 
 async function callClaudeOCR(base64Image: string, mediaType: string): Promise<{ medications: { name: string; times: string[] }[] }> {
-  const response = await fetch(CLAUDE_API_URL, {
+  // image_type은 'jpeg' 또는 'png'만 허용 (Edge Function 스펙)
+  const rawType = mediaType.replace('image/', '');
+  const imageType: 'jpeg' | 'png' = rawType === 'png' ? 'png' : 'jpeg';
+
+  const response = await fetch(`${SUPABASE_URL}/functions/v1/ocr-prescription`, {
     method: 'POST',
     headers: {
-      'x-api-key': CLAUDE_API_KEY ?? '',
-      'anthropic-version': '2023-06-01',
-      'content-type': 'application/json',
+      'Content-Type': 'application/json',
+      'Authorization': `Bearer ${SUPABASE_ANON_KEY}`,
     },
-    body: JSON.stringify({
-      model: 'claude-haiku-4-5',
-      max_tokens: 1024,
-      messages: [
-        {
-          role: 'user',
-          content: [
-            {
-              type: 'image',
-              source: {
-                type: 'base64',
-                media_type: mediaType,
-                data: base64Image,
-              },
-            },
-            {
-              type: 'text',
-              text: `이 사진에서 약 이름과 복용 시간대를 추출해주세요.
-
-규칙:
-- 사진에 명확하게 보이는 약 이름만 추출하세요. 확실하지 않으면 추출하지 마세요.
-- 약 이름은 사진에 적힌 그대로 정확히 읽어주세요. 임의로 변경하거나 추측하지 마세요.
-- 처방전이면: 약품명 컬럼에서 읽으세요
-- 약봉투/약봉지이면: 봉투에 인쇄된 약품명을 읽으세요
-- 복용 시간대가 명확히 표시된 경우만 포함하세요. 불명확하면 빈 배열로 두세요.
-
-반드시 아래 JSON 형식으로만 응답하세요 (다른 텍스트 없이):
-{"medications":[{"name":"약 이름","times":["morning","lunch","dinner","bedtime"]}]}
-복용 시간대: morning(아침)/lunch(점심)/dinner(저녁)/bedtime(취침)
-개인정보(이름, 주민번호 등)는 무시하세요.
-약이 보이지 않거나 읽기 어려우면 {"medications":[]} 를 반환하세요.`,
-            },
-          ],
-        },
-      ],
-    }),
+    body: JSON.stringify({ image_base64: base64Image, image_type: imageType }),
   });
 
   if (!response.ok) {
-    throw new Error(`API 오류: ${response.status}`);
+    throw new Error(`OCR 오류: ${response.status}`);
   }
 
+  // Edge Function 응답: { medications: [{ name, dosage, meal_times }] }
+  // 클라이언트 내부 형식: { medications: [{ name, times }] } 로 변환
   const data = await response.json();
-  const text: string = data.content[0].text;
+  const medications: { name: string; times: string[] }[] = (data.medications ?? []).map(
+    (med: { name: string; dosage?: string; meal_times?: string[] }) => ({
+      name: med.name,
+      times: med.meal_times ?? [],
+    })
+  );
 
-  const cleaned = text.replace(/```json\n?/g, '').replace(/```\n?/g, '').trim();
-  const parsed = JSON.parse(cleaned);
-  return parsed as { medications: { name: string; times: string[] }[] };
+  return { medications };
 }
 
 async function searchMfdsInfo(drugName: string): Promise<DrugInfo | null> {
@@ -870,6 +844,15 @@ export function MedicationRegisterScreen() {
       setIsOcrLoading(true);
 
       const parsed = await callClaudeOCR(asset.base64, mediaType);
+
+      // OCR 완료 후 원본 이미지 즉시 삭제 (개인정보 보호)
+      if (asset.uri && asset.uri.startsWith('file://')) {
+        try {
+          await FileSystem.deleteAsync(asset.uri, { idempotent: true });
+        } catch {
+          // 삭제 실패해도 계속 진행
+        }
+      }
 
       const validTimeSlots: TimeSlot[] = ['morning', 'lunch', 'dinner', 'bedtime'];
       const newMedications: Medication[] = parsed.medications.map((med, index) => {
