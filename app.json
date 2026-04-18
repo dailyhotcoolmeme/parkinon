@@ -7,7 +7,7 @@
     "orientation": "portrait",
     "icon": "./assets/icon.png",
     "userInterfaceStyle": "light",
-    "newArchEnabled": true,
+    "newArchEnabled": false,
     "splash": {
       "image": "./assets/splash-icon.png",
       "resizeMode": "contain",
@@ -25,9 +25,6 @@
       },
       "edgeToEdgeEnabled": true,
       "predictiveBackGestureEnabled": false,
-      "targetSdkVersion": 35,
-      "compileSdkVersion": 35,
-      "minSdkVersion": 24,
       "permissions": [
         "android.permission.CAMERA",
         "android.permission.READ_MEDIA_VIDEO",
@@ -64,8 +61,20 @@
           "cameraPermission": "처방전 촬영 및 영상 기록을 위해 카메라 접근이 필요해요."
         }
       ],
-      "expo-video"
+      "expo-video",
+      [
+        "@react-native-kakao/core",
+        {
+          "nativeAppKey": "a46e187c314536d5fd4ef610710479ab"
+        }
+      ]
     ],
+    "runtimeVersion": {
+      "policy": "appVersion"
+    },
+    "updates": {
+      "url": "https://u.expo.dev/3ab78295-11fe-4002-8175-e1c42ff6583d"
+    },
     "extra": {
       "eas": {
         "projectId": "3ab78295-11fe-4002-8175-e1c42ff6583d"
