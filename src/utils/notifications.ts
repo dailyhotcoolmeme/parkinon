@@ -9,10 +9,9 @@
 import * as Notifications from 'expo-notifications';
 import * as TaskManager from 'expo-task-manager';
 import * as BackgroundFetch from 'expo-background-fetch';
-import * as Linking from 'expo-linking';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import Constants from 'expo-constants';
-import { Platform, Alert } from 'react-native';
+import { Platform } from 'react-native';
 import { supabase } from '../lib/supabase';
 import type { MedNotif, ExerciseNotif } from '../context/SettingsContext';
 
@@ -332,50 +331,6 @@ export async function requestPermissionsAndSaveToken(
     console.error('[notifications] push token 획득 실패:', e);
     return null;
   }
-}
-
-const NOTIF_BLOCKED_ALERT_THROTTLE_KEY = 'notif_blocked_alert_last_shown';
-const NOTIF_BLOCKED_ALERT_INTERVAL_MS = 24 * 60 * 60 * 1000; // 24시간에 1번만 알림
-
-/**
- * 앱 재진입 시 알림 권한 상태 확인
- * (온보딩 완료 후 매 앱 포어그라운드 진입 시 호출)
- *
- * - undetermined: 아직 권한 요청을 한 번도 하지 않은 상태 → 아무것도 안 함
- *   (온보딩 팝업 or 설정 화면 Switch로 요청해야 함 — 포그라운드 진입 시 자동 요청 금지)
- * - denied: 명시적으로 거부된 상태 → 24시간에 1번만 설정 화면 안내
- * - granted: 정상 → 아무것도 안 함
- */
-export async function checkAndPromptNotificationPermission(): Promise<void> {
-  const { status } = await Notifications.getPermissionsAsync();
-
-  // granted이면 정상 — 아무것도 안 함
-  if (status === 'granted') return;
-
-  // undetermined: 팝업 요청은 사용자 액션(Switch 탭) 시에만 해야 함 — 여기서는 건드리지 않음
-  if (status === 'undetermined') return;
-
-  // denied(명시적 차단)인 경우에만 → 최근 24시간 이내 이미 안내했으면 스킵
-  try {
-    const lastShownRaw = await AsyncStorage.getItem(NOTIF_BLOCKED_ALERT_THROTTLE_KEY);
-    if (lastShownRaw) {
-      const lastShown = parseInt(lastShownRaw, 10);
-      if (Date.now() - lastShown < NOTIF_BLOCKED_ALERT_INTERVAL_MS) return;
-    }
-    await AsyncStorage.setItem(NOTIF_BLOCKED_ALERT_THROTTLE_KEY, String(Date.now()));
-  } catch {}
-
-  Alert.alert(
-    '알림이 차단되어 있어요',
-    '약 복용 알림을 받으려면 설정에서 파킨온 알림을 허용해주세요.',
-    [
-      { text: '나중에', style: 'cancel' },
-      {
-        text: '설정 열기',
-        onPress: () => Linking.openSettings(),
-      },
-    ],
-  );
 }
 
 /** 약 복용 예정 알림 스케줄 (매일 반복) */
