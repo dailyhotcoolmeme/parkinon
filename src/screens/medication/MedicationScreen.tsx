@@ -10,12 +10,14 @@ import {
 } from 'react-native';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useFocusEffect } from '@react-navigation/native';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 import { Ionicons } from '@expo/vector-icons';
 import { Colors } from '../../constants/colors';
 import { TopBar } from '../../components/common/TopBar';
 import { MealTimeModal } from './MealTimeModal';
 import { BodyStatePopupFlow } from '../bodystate/BodyStatePopupFlow';
 import { CaregiverConfirmModal } from '../../components/common/CaregiverConfirmModal';
+import { NotificationOnboardingModal, NOTIF_ONBOARDING_SHOWN_KEY } from '../../components/common/NotificationOnboardingModal';
 import { useMedication } from '../../hooks/useMedication';
 import { useBodyState } from '../../hooks/useBodyState';
 import { useAuth } from '../../context/AuthContext';
@@ -78,6 +80,18 @@ export function MedicationScreen() {
   const [selectedMealTime, setSelectedMealTime] = useState<MealTime | null>(null);
   const [selectedDate, setSelectedDate] = useState(new Date());
   const [showDatePicker, setShowDatePicker] = useState(false);
+  const [showNotifOnboarding, setShowNotifOnboarding] = useState(false);
+
+  // 온보딩 완료 후 홈 최초 진입 시 알림 설정 팝업 1회 표시
+  useEffect(() => {
+    if (!user?.onboarding_done) return;
+    AsyncStorage.getItem(NOTIF_ONBOARDING_SHOWN_KEY).then((val) => {
+      if (!val) {
+        // 약간의 딜레이 후 표시 (화면 전환 애니메이션 완료 후)
+        setTimeout(() => setShowNotifOnboarding(true), 600);
+      }
+    }).catch(() => {});
+  }, [user?.onboarding_done]);
 
   // 날짜별 복용 현황 (날짜 선택 시 사용)
   const [dateLogStatus, setDateLogStatus] = useState<Record<string, any> | null>(null);
@@ -279,6 +293,13 @@ export function MedicationScreen() {
         selectedDate={selectedDate}
         onSelect={setSelectedDate}
         onClose={() => setShowDatePicker(false)}
+      />
+      {/* 온보딩 완료 후 최초 진입 시 알림 설정 팝업 */}
+      <NotificationOnboardingModal
+        visible={showNotifOnboarding}
+        isCaregiver={user?.role === 'caregiver'}
+        userId={user?.id ?? ''}
+        onClose={() => setShowNotifOnboarding(false)}
       />
     </SafeAreaView>
   );
