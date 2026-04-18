@@ -373,7 +373,7 @@ const styles = StyleSheet.create({
   stepBanner: {
     flexDirection: 'row',
     alignItems: 'center',
-    paddingHorizontal: 24,
+    paddingHorizontal: 16,
     paddingVertical: 20,
     gap: 16,
   },
@@ -382,7 +382,7 @@ const styles = StyleSheet.create({
   stepBannerLabel: { fontSize: 14, fontWeight: '700', marginBottom: 4, letterSpacing: 0.3 },
   stepTitle: { fontSize: 22, fontWeight: '800', color: Colors.text, lineHeight: 30 },
 
-  contentWrap: { paddingHorizontal: 20, paddingTop: 12 },
+  contentWrap: { paddingHorizontal: 16, paddingTop: 12 },
   stepDesc: { fontSize: 17, color: Colors.textSub, marginBottom: 16, lineHeight: 24 },
   scoreScroll: { maxHeight: SCREEN_HEIGHT * 0.46 },
 
@@ -390,14 +390,14 @@ const styles = StyleSheet.create({
   constipationBtn: {
     flexDirection: 'row', alignItems: 'center',
     minHeight: 80, borderRadius: 18, borderWidth: 2, borderColor: Colors.border,
-    backgroundColor: Colors.white, paddingHorizontal: 24, paddingVertical: 16, gap: 18,
+    backgroundColor: Colors.white, paddingHorizontal: 16, paddingVertical: 16, gap: 18,
   },
   constipationBtnActive: { borderColor: Colors.primary, backgroundColor: Colors.light },
   constipationEmoji: { fontSize: 38 },
   constipationLabel: { fontSize: 22, fontWeight: '700', color: Colors.text },
   constipationLabelActive: { color: Colors.dark },
 
-  exerciseWrap: { paddingHorizontal: 24, paddingTop: 16, alignItems: 'center' },
+  exerciseWrap: { paddingHorizontal: 16, paddingTop: 16, alignItems: 'center' },
   exerciseIconCircle: {
     width: 100, height: 100, borderRadius: 50,
     backgroundColor: Colors.light, alignItems: 'center', justifyContent: 'center',

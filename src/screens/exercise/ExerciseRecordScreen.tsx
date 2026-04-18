@@ -158,7 +158,7 @@ const styles = StyleSheet.create({
   },
   row: {
     flexDirection: 'row', alignItems: 'center',
-    paddingHorizontal: 20, paddingVertical: 16, minHeight: 76, gap: 16,
+    paddingHorizontal: 16, paddingVertical: 16, minHeight: 76, gap: 16,
   },
   rowSelected: { backgroundColor: Colors.light },
   iconCircle: {
@@ -180,7 +180,7 @@ const styles = StyleSheet.create({
   otherToggle: {
     flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between',
     backgroundColor: Colors.white, borderRadius: 14,
-    paddingHorizontal: 20, paddingVertical: 18, marginBottom: 12,
+    paddingHorizontal: 16, paddingVertical: 18, marginBottom: 12,
     shadowColor: '#000', shadowOffset: { width: 0, height: 1 }, shadowOpacity: 0.05, shadowRadius: 3, elevation: 1,
   },
   otherToggleText: { fontSize: 18, fontWeight: '700', color: Colors.primary },

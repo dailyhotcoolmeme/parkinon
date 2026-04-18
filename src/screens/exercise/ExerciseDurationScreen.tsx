@@ -96,7 +96,7 @@ export function ExerciseDurationScreen() {
 
 const styles = StyleSheet.create({
   safe: { flex: 1, backgroundColor: Colors.background },
-  content: { padding: 20, paddingBottom: 24 },
+  content: { padding: 16, paddingBottom: 24 },
   question: { fontSize: 26, fontWeight: '800', color: Colors.text, marginBottom: 6, marginTop: 4 },
   exerciseName: { fontSize: 18, color: Colors.primary, fontWeight: '700', marginBottom: 28 },
 
@@ -117,5 +117,5 @@ const styles = StyleSheet.create({
   durText: { fontSize: 20, fontWeight: '700', color: Colors.textSub },
   durTextSelected: { color: Colors.dark, fontWeight: '800' },
 
-  bottom: { paddingHorizontal: 20, paddingBottom: 32, paddingTop: 12, backgroundColor: Colors.background },
+  bottom: { paddingHorizontal: 16, paddingBottom: 32, paddingTop: 12, backgroundColor: Colors.background },
 });
