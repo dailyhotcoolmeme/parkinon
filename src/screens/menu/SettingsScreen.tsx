@@ -126,10 +126,11 @@ export function SettingsScreen() {
             // 시스템 권한 상태를 최종 확인해서 연동
             const { status } = await Notifications.getPermissionsAsync();
             const dbEnabled = userRow.notification_enabled ?? true;
-            // 'denied'(명시적 차단)인 경우만 false로 강제 설정
-            // 'undetermined'는 아직 팝업 미표시 상태 → DB 값 그대로 유지
+            // 'granted'가 아닌 경우 false로 강제 설정 (denied, blocked 등 모든 비허용 상태)
+            // 단, 'undetermined'는 아직 팝업 미표시 상태 → DB 값 그대로 유지
             // setNotificationEnabledOnly: 개별 알림 state를 건드리지 않고 전체 토글만 동기화
-            await setNotificationEnabledOnly(status === 'denied' ? false : dbEnabled);
+            const forceOff = status !== 'granted' && status !== 'undetermined';
+            await setNotificationEnabledOnly(forceOff ? false : dbEnabled);
 
             if (isCaregiver && userRow.caregiver_notif_prefs) {
               const prefs = userRow.caregiver_notif_prefs as Record<string, boolean>;

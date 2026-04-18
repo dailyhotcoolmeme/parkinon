@@ -77,9 +77,9 @@ export function SettingsProvider({ children }: { children: React.ReactNode }) {
       const granted = status === 'granted';
       setSystemPermissionGranted(granted);
 
-      // 오직 'denied'(명시적 차단)인 경우에만 앱 설정도 false로 동기화
-      // 'undetermined'는 아직 팝업을 보여주지 않은 것이므로 notificationEnabled 절대 건드리지 않음
-      if (status === 'denied') {
+      // 'granted'가 아닌 경우 앱 설정도 false로 동기화 (denied, blocked 등 모든 비허용 상태 포함)
+      // 단, 'undetermined'는 아직 팝업을 보여주지 않은 것이므로 notificationEnabled 절대 건드리지 않음
+      if (status !== 'granted' && status !== 'undetermined') {
         setNotificationEnabledState(false);
         try {
           const { data: { session } } = await supabase.auth.getSession();
@@ -149,12 +149,13 @@ export function SettingsProvider({ children }: { children: React.ReactNode }) {
             .eq('id', session.user.id)
             .single();
           if (userRow != null) {
-            // 시스템이 'denied'인 경우만 DB 값과 무관하게 false로 처리
-            // 'undetermined'는 아직 결정 전이므로 DB 값 그대로 반영
-            const enabled = (sysStatus === 'denied') ? false : (userRow.notification_enabled ?? true);
+            // 'granted'가 아닌 경우 DB 값과 무관하게 false로 처리 (denied, blocked 등 모든 비허용 상태)
+            // 단, 'undetermined'는 아직 결정 전이므로 DB 값 그대로 반영
+            const notGranted = sysStatus !== 'granted' && sysStatus !== 'undetermined';
+            const enabled = notGranted ? false : (userRow.notification_enabled ?? true);
             setNotificationEnabledState(enabled);
-            // 시스템이 denied인데 DB에 true로 저장되어 있으면 false로 동기화
-            if (sysStatus === 'denied' && userRow.notification_enabled !== false) {
+            // 시스템이 비허용(undetermined 제외)인데 DB에 true로 저장되어 있으면 false로 동기화
+            if (notGranted && userRow.notification_enabled !== false) {
               const SUPABASE_URL = process.env.EXPO_PUBLIC_SUPABASE_URL!;
               const SUPABASE_ANON_KEY = process.env.EXPO_PUBLIC_SUPABASE_ANON_KEY!;
               fetch(`${SUPABASE_URL}/rest/v1/users?id=eq.${session.user.id}`, {
