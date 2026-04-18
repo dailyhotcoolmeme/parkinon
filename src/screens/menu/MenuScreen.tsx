@@ -225,8 +225,14 @@ export function MenuScreen() {
                     onPress={() => handleMenuPress(item.key)}
                     activeOpacity={0.75}
                   >
-                    <View style={styles.menuIconCircle}>
-                      <Ionicons name={item.icon} size={28} color={Colors.primary} />
+                    <View style={[
+                      styles.menuIconCircle,
+                    ]}>
+                      <Ionicons
+                        name={item.icon}
+                        size={28}
+                        color={item.key === 'EmergencyContacts' ? '#F44336' : Colors.primary}
+                      />
                     </View>
                     <View style={styles.menuTextWrap}>
                       <Text style={styles.menuLabel}>{item.label}</Text>
@@ -330,7 +336,7 @@ const styles = StyleSheet.create({
     marginBottom: 2,
   },
   profileRole: {
-    fontSize: 14,
+    fontSize: 16,
     color: '#FFFFFF',
     fontWeight: '500',
   },
@@ -340,7 +346,7 @@ const styles = StyleSheet.create({
     gap: 2,
   },
   profileEditText: {
-    fontSize: 14,
+    fontSize: 16,
     color: '#FFFFFF',
     fontWeight: '500',
   },
@@ -354,8 +360,8 @@ const styles = StyleSheet.create({
     zIndex: 1,
   },
   sectionHeaderText: {
-    fontSize: 12,
-    color: '#999999',
+    fontSize: 16,
+    color: '#666666',
     fontWeight: '600',
     letterSpacing: 0.5,
   },
@@ -407,7 +413,7 @@ const styles = StyleSheet.create({
     marginBottom: 2,
   },
   menuDesc: {
-    fontSize: 14,
+    fontSize: 16,
     color: Colors.textSub,
     lineHeight: 20,
   },
