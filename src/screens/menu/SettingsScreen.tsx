@@ -62,6 +62,7 @@ export function SettingsScreen() {
     exerciseNotifs, setExerciseNotifs,
     notificationEnabled, setNotificationEnabled,
     systemPermissionGranted, recheckSystemPermission,
+    syncGlobalFromIndividual,
   } = useSettings();
 
   // 보호자 알림 설정
@@ -215,6 +216,8 @@ export function SettingsScreen() {
     setMedNotifs((prev) =>
       prev.map((n) => (n.id === id ? { ...n, enabled: !n.enabled } : n))
     );
+    // 상태 반영 후 전체 알림 토글 자동 동기화
+    setTimeout(syncGlobalFromIndividual, 0);
   };
 
   const deleteMed = (id: string) => {
@@ -253,6 +256,8 @@ export function SettingsScreen() {
     setExerciseNotifs((prev) =>
       prev.map((n) => (n.id === id ? { ...n, enabled: !n.enabled } : n))
     );
+    // 상태 반영 후 전체 알림 토글 자동 동기화
+    setTimeout(syncGlobalFromIndividual, 0);
   };
 
   const deleteExercise = (id: string) => {

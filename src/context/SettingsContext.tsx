@@ -29,6 +29,8 @@ interface SettingsContextValue {
   systemPermissionGranted: boolean;
   /** 시스템 권한 상태를 다시 확인하고 동기화 */
   recheckSystemPermission: () => Promise<void>;
+  /** 개별 알림 전체 OFF 여부를 반영해 전체 알림 토글 자동 동기화 */
+  syncGlobalFromIndividual: () => void;
 }
 
 const SettingsContext = createContext<SettingsContextValue | null>(null);
@@ -167,14 +169,26 @@ export function SettingsProvider({ children }: { children: React.ReactNode }) {
   // notification_enabled → users 테이블 UPDATE (fetch API 사용 — 새 아키텍처 hang 우회)
   const setNotificationEnabled = useCallback(async (enabled: boolean) => {
     setNotificationEnabledState(enabled);
-    // 알림 스케줄 즉시 취소 (OFF 시)
+
+    // 전체 알림 OFF 시: 모든 개별 알림도 화면·AsyncStorage에서 끄기 + 예약 알림 전부 취소
     if (!enabled) {
       try {
         await Notifications.cancelAllScheduledNotificationsAsync();
       } catch (e) {
         console.warn('[SettingsContext] 알림 취소 오류:', e);
       }
+      setMedNotifsState(prev => {
+        const next = prev.map(n => ({ ...n, enabled: false }));
+        AsyncStorage.setItem(STORAGE_KEY_MED, JSON.stringify(next)).catch(console.warn);
+        return next;
+      });
+      setExerciseNotifsState(prev => {
+        const next = prev.map(n => ({ ...n, enabled: false }));
+        AsyncStorage.setItem(STORAGE_KEY_EXERCISE, JSON.stringify(next)).catch(console.warn);
+        return next;
+      });
     }
+
     try {
       const { data: { session } } = await supabase.auth.getSession();
       if (!session?.user) return;
@@ -199,6 +213,37 @@ export function SettingsProvider({ children }: { children: React.ReactNode }) {
     }
   }, []);
 
+  // 개별 알림이 변경될 때마다: 전부 OFF면 전체 알림도 OFF, 하나라도 ON이면 전체 알림 ON
+  const syncGlobalFromIndividual = useCallback(() => {
+    setMedNotifsState(currentMed => {
+      setExerciseNotifsState(currentEx => {
+        const anyOn = currentMed.some(n => n.enabled) || currentEx.some(n => n.enabled);
+        setNotificationEnabledState(prev => {
+          if (prev === anyOn) return prev; // 변화 없으면 DB 호출 불필요
+          // DB 업데이트 (비동기, fire-and-forget)
+          supabase.auth.getSession().then(({ data: { session } }) => {
+            if (!session?.user) return;
+            const SUPABASE_URL = process.env.EXPO_PUBLIC_SUPABASE_URL!;
+            const SUPABASE_ANON_KEY = process.env.EXPO_PUBLIC_SUPABASE_ANON_KEY!;
+            fetch(`${SUPABASE_URL}/rest/v1/users?id=eq.${session.user.id}`, {
+              method: 'PATCH',
+              headers: {
+                'apikey': SUPABASE_ANON_KEY,
+                'Authorization': `Bearer ${session.access_token}`,
+                'Content-Type': 'application/json',
+                'Prefer': 'return=minimal',
+              },
+              body: JSON.stringify({ notification_enabled: anyOn }),
+            }).catch(console.warn);
+          }).catch(console.warn);
+          return anyOn;
+        });
+        return currentEx; // 상태값은 그대로 유지
+      });
+      return currentMed; // 상태값은 그대로 유지
+    });
+  }, []);
+
   // 설정 변경 시 알림 재스케줄 (초기 로드 완료 후에만)
   useEffect(() => {
     if (!loaded) return;
@@ -215,6 +260,7 @@ export function SettingsProvider({ children }: { children: React.ReactNode }) {
       setNotificationEnabled,
       systemPermissionGranted,
       recheckSystemPermission,
+      syncGlobalFromIndividual,
     }}>
       {children}
     </SettingsContext.Provider>
