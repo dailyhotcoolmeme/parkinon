@@ -177,14 +177,6 @@ export function MedicationScreen() {
         showParkinon
       />
 
-      {/* 면책 배너 */}
-      <View style={styles.disclaimerBanner}>
-        <Ionicons name="information-circle-outline" size={18} color="#388E3C" style={styles.disclaimerIcon} />
-        <Text style={styles.disclaimerText}>
-          이 앱은 복용 기록 도구입니다. 약 변경은 담당 의사와 상의하세요.
-        </Text>
-      </View>
-
       {/* 날짜 헤더 */}
       <View style={styles.dateHeader}>
         <Text style={styles.dateText}>{getDateLabel(selectedDate)}</Text>
@@ -224,6 +216,14 @@ export function MedicationScreen() {
           {!isToday && userRole !== 'caregiver_separate' && (
             <Text style={styles.caregiverNotice}>오늘 날짜에서만 복용 기록을 입력할 수 있어요</Text>
           )}
+        </View>
+
+        {/* 면책 배너 */}
+        <View style={styles.disclaimerBanner}>
+          <Ionicons name="information-circle-outline" size={16} color="#388E3C" style={styles.disclaimerIcon} />
+          <Text style={styles.disclaimerText} numberOfLines={1}>
+            복용 기록 도구예요. 약 변경은 담당 의사와 상의하세요.
+          </Text>
         </View>
 
         {/* 오늘 복용 현황 */}
@@ -300,11 +300,10 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     backgroundColor: '#E8F5E9',
     paddingHorizontal: 14,
-    paddingVertical: 10,
+    paddingVertical: 8,
     borderRadius: 8,
-    marginHorizontal: 16,
-    marginTop: 10,
-    marginBottom: 4,
+    marginHorizontal: 24,
+    marginBottom: 16,
     gap: 8,
   },
   disclaimerIcon: {
