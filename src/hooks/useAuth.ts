@@ -286,7 +286,13 @@ export function useAuthProvider(): UseAuthReturn {
         console.error('[useAuth] signInWithOAuth(google) 오류:', error?.message);
         return;
       }
-      await Linking.openURL(data.url);
+      // openAuthSessionAsync: 인앱 브라우저로 열고 OAuth 완료 후 자동 닫힘
+      const result = await WebBrowser.openAuthSessionAsync(data.url, REDIRECT_TO);
+      console.log('[useAuth] 구글 브라우저 결과:', result.type);
+      if (result.type === 'success' && result.url) {
+        console.log('[useAuth] 구글 success URL 처리');
+        await processAuthUrl(result.url);
+      }
     } catch (err) {
       console.error('[useAuth] signInWithGoogle 오류:', err);
     }
