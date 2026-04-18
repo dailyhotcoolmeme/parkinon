@@ -296,7 +296,7 @@ const styles = StyleSheet.create({
     backgroundColor: Colors.background,
     borderBottomWidth: 1,
     borderBottomColor: Colors.border,
-    paddingHorizontal: 20,
+    paddingHorizontal: 16,
   },
   dateText: { fontSize: 26, fontWeight: '800', color: Colors.text },
   calBtn: { padding: 4, flexDirection: 'row', alignItems: 'center', gap: 4 },
@@ -308,7 +308,7 @@ const styles = StyleSheet.create({
   centerBlock: {
     justifyContent: 'flex-start',
     alignItems: 'center',
-    paddingHorizontal: 24,
+    paddingHorizontal: 16,
     paddingTop: 20,
     paddingBottom: 32,
   },
@@ -337,7 +337,7 @@ const styles = StyleSheet.create({
     textAlign: 'center',
   },
 
-  records: { paddingHorizontal: 24, paddingBottom: 32 },
+  records: { paddingHorizontal: 16, paddingBottom: 32 },
   sectionHeader: { flexDirection: 'row', alignItems: 'center', marginBottom: 14, gap: 8 },
   divider: { flex: 1, height: 1, backgroundColor: Colors.border },
   sectionTitle: { fontSize: 17, fontWeight: '600', color: Colors.textSub, paddingHorizontal: 4 },

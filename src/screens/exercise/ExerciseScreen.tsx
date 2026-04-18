@@ -206,7 +206,7 @@ const styles = StyleSheet.create({
     backgroundColor: Colors.background,
     borderBottomWidth: 1,
     borderBottomColor: Colors.border,
-    paddingHorizontal: 20,
+    paddingHorizontal: 16,
   },
   dateText: { fontSize: 26, fontWeight: '800', color: Colors.text },
   calBtn: { padding: 4 },
@@ -217,7 +217,7 @@ const styles = StyleSheet.create({
   centerBlock: {
     justifyContent: 'flex-start',
     alignItems: 'center',
-    paddingHorizontal: 24,
+    paddingHorizontal: 16,
     paddingTop: 20,
     paddingBottom: 32,
     gap: 14,
@@ -252,7 +252,7 @@ const styles = StyleSheet.create({
   outlineBtnInner: { flexDirection: 'row', alignItems: 'center', gap: 10 },
   outlineBtnText: { fontSize: 18, fontWeight: '700', color: Colors.primary },
 
-  records: { paddingHorizontal: 24, paddingBottom: 32 },
+  records: { paddingHorizontal: 16, paddingBottom: 32 },
   sectionHeader: { flexDirection: 'row', alignItems: 'center', marginBottom: 20, gap: 8 },
   dividerLine: { flex: 1, height: 1, backgroundColor: Colors.border },
   sectionTitle: { fontSize: 17, fontWeight: '600', color: Colors.textSub, marginHorizontal: 12 },
