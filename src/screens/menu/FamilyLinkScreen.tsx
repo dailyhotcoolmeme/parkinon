@@ -13,7 +13,6 @@ import {
   Animated,
   Share,
 } from 'react-native';
-import { ShareClient } from '@react-native-kakao/share';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useFocusEffect } from '@react-navigation/native';
 import { Ionicons } from '@expo/vector-icons';
@@ -167,22 +166,10 @@ export function FamilyLinkScreen() {
       setInviteCode(code);
     }
     try {
-      await ShareClient.sendDefault({
-        objectType: 'text',
-        text: `파킨온 앱에서 가족 연동을 요청했어요.\n연결 번호: ${code}\n앱이 있다면 '받은 번호 입력'에 입력해주세요.`,
-        link: {
-          mobileWebUrl: 'https://parkinon-support.dailyhotcoolmeme.workers.dev',
-          webUrl: 'https://parkinon-support.dailyhotcoolmeme.workers.dev',
-        },
-      });
-    } catch (err) {
-      // SDK 실패 시 fallback: 시스템 공유 시트
       const message = `파킨온 앱에서 가족 연동을 요청했어요.\n연결 번호: ${code}\n앱이 있다면 '받은 번호 입력'에 입력해주세요.`;
-      try {
-        await Share.share({ message });
-      } catch (shareErr) {
-        console.warn('[FamilyLinkScreen] 공유 오류:', shareErr);
-      }
+      await Share.share({ message });
+    } catch (shareErr) {
+      console.warn('[FamilyLinkScreen] 공유 오류:', shareErr);
     }
   };
 
