@@ -284,11 +284,14 @@ export function useFamilyLink(): UseFamilyLinkReturn {
       const accessToken = sessionData?.session?.access_token ?? SUPABASE_ANON_KEY;
 
       // 본인 제외 필터 포함: group_id=eq.{groupId}&user_id=neq.{userId}
+      // ⚠️ select 파라미터에 embedded resource(user:users)가 있으면
+      //    user_id=neq 필터가 embedded join에 혼용될 수 있으므로
+      //    not.eq 방식으로 명시하고 group_id 필터를 맨 앞에 배치
       const url =
         `${SUPABASE_URL}/rest/v1/patient_group_members` +
-        `?select=user_id,role,joined_at,user:users(id,name,role,caregiver_relation,residence_type)` +
-        `&group_id=eq.${encodeURIComponent(user.patient_group_id)}` +
-        `&user_id=neq.${encodeURIComponent(user.id)}`;
+        `?group_id=eq.${encodeURIComponent(user.patient_group_id)}` +
+        `&user_id=neq.${encodeURIComponent(user.id)}` +
+        `&select=user_id,role,joined_at,user:users(id,name,role,caregiver_relation,residence_type)`;
 
       const res = await fetch(url, {
         method: 'GET',
