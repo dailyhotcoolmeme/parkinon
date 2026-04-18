@@ -218,14 +218,6 @@ export function MedicationScreen() {
           )}
         </View>
 
-        {/* 면책 배너 */}
-        <View style={styles.disclaimerBanner}>
-          <Ionicons name="information-circle-outline" size={16} color="#388E3C" style={styles.disclaimerIcon} />
-          <Text style={styles.disclaimerText} numberOfLines={1}>
-            복용 기록 도구예요. 약 변경은 담당 의사와 상의하세요.
-          </Text>
-        </View>
-
         {/* 오늘 복용 현황 */}
         <View style={styles.records}>
           <View style={styles.sectionHeader}>
@@ -294,27 +286,6 @@ export function MedicationScreen() {
 
 const styles = StyleSheet.create({
   safeArea: { flex: 1, backgroundColor: Colors.background },
-
-  disclaimerBanner: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: '#E8F5E9',
-    paddingHorizontal: 14,
-    paddingVertical: 8,
-    borderRadius: 8,
-    marginHorizontal: 24,
-    marginBottom: 16,
-    gap: 8,
-  },
-  disclaimerIcon: {
-    flexShrink: 0,
-  },
-  disclaimerText: {
-    fontSize: 14,
-    color: '#2E7D32',
-    lineHeight: 20,
-    flex: 1,
-  },
 
   dateHeader: {
     height: DATE_HEADER_H,
