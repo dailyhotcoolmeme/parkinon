@@ -11,6 +11,11 @@
  *   patient_groups.invite_code (char(6)) + invite_code_expires_at
  *   patient_group_members: group_id, user_id, role
  *   users.patient_group_id (denormalized 참조)
+ *
+ * ⚠️ New Architecture 주의:
+ *   supabase-js의 쓰기 작업(.insert/.update/.delete)은 New Architecture에서 hang됨.
+ *   모든 쓰기 작업은 fetch() API 직접 사용.
+ *   읽기(SELECT)는 supabase-js 그대로 사용 가능.
  */
 import { useState, useCallback } from 'react';
 import { supabase } from '../lib/supabase';
@@ -45,6 +50,20 @@ function generateCode(): string {
   return Math.floor(100000 + Math.random() * 900000).toString();
 }
 
+// fetch API용 공통 헤더 생성
+async function buildHeaders(prefer?: string): Promise<Record<string, string>> {
+  const { data: sessionData } = await supabase.auth.getSession();
+  const accessToken = sessionData?.session?.access_token ?? SUPABASE_ANON_KEY;
+  const headers: Record<string, string> = {
+    'apikey': SUPABASE_ANON_KEY,
+    'Authorization': `Bearer ${accessToken}`,
+    'Content-Type': 'application/json',
+    'Accept': 'application/json',
+  };
+  if (prefer) headers['Prefer'] = prefer;
+  return headers;
+}
+
 export function useFamilyLink(): UseFamilyLinkReturn {
   const { user, refreshUser } = useAuth();
   const [loading, setLoading] = useState(false);
@@ -63,50 +82,74 @@ export function useFamilyLink(): UseFamilyLinkReturn {
 
       // 기존 그룹이 있는지 확인
       if (user.patient_group_id) {
-        // 기존 그룹의 초대 코드 갱신
-        const { error: updateError } = await supabase
-          .from('patient_groups')
-          .update({
-            invite_code: code,
-            invite_code_expires_at: expiresAt,
-          })
-          .eq('id', user.patient_group_id);
-
-        if (updateError) throw updateError;
+        // 기존 그룹의 초대 코드 갱신 (fetch PATCH)
+        const headers = await buildHeaders('return=minimal');
+        const res = await fetch(
+          `${SUPABASE_URL}/rest/v1/patient_groups?id=eq.${encodeURIComponent(user.patient_group_id)}`,
+          {
+            method: 'PATCH',
+            headers,
+            body: JSON.stringify({
+              invite_code: code,
+              invite_code_expires_at: expiresAt,
+            }),
+          }
+        );
+        if (!res.ok) {
+          const errText = await res.text();
+          throw new Error(`초대 코드 갱신 실패 (HTTP ${res.status}): ${errText}`);
+        }
         return code;
       }
 
-      // 새 그룹 생성
-      const { data: newGroup, error: insertError } = await supabase
-        .from('patient_groups')
-        .insert({
+      // 새 그룹 생성 (fetch POST)
+      const insertHeaders = await buildHeaders('return=representation');
+      const insertRes = await fetch(`${SUPABASE_URL}/rest/v1/patient_groups`, {
+        method: 'POST',
+        headers: insertHeaders,
+        body: JSON.stringify({
           invite_code: code,
           invite_code_expires_at: expiresAt,
-        })
-        .select()
-        .single();
+        }),
+      });
+      if (!insertRes.ok) {
+        const errText = await insertRes.text();
+        throw new Error(`그룹 생성 실패 (HTTP ${insertRes.status}): ${errText}`);
+      }
+      const insertedGroups: any[] = await insertRes.json();
+      const newGroup = insertedGroups?.[0];
+      if (!newGroup?.id) throw new Error('그룹 생성에 실패했어요.');
 
-      if (insertError) throw insertError;
-      if (!newGroup) throw new Error('그룹 생성에 실패했어요.');
-
-      // patient_group_members에 본인 추가 (역할 그대로 반영)
-      const { error: memberError } = await supabase
-        .from('patient_group_members')
-        .insert({
+      // patient_group_members에 본인 추가 (fetch POST)
+      const memberHeaders = await buildHeaders('return=minimal');
+      const memberRes = await fetch(`${SUPABASE_URL}/rest/v1/patient_group_members`, {
+        method: 'POST',
+        headers: memberHeaders,
+        body: JSON.stringify({
           group_id: newGroup.id,
           user_id: user.id,
           role: user.role ?? 'patient',
-        });
+        }),
+      });
+      if (!memberRes.ok) {
+        const errText = await memberRes.text();
+        throw new Error(`멤버 추가 실패 (HTTP ${memberRes.status}): ${errText}`);
+      }
 
-      if (memberError) throw memberError;
-
-      // users 테이블의 patient_group_id 업데이트
-      const { error: userUpdateError } = await supabase
-        .from('users')
-        .update({ patient_group_id: newGroup.id })
-        .eq('id', user.id);
-
-      if (userUpdateError) throw userUpdateError;
+      // users 테이블의 patient_group_id 업데이트 (fetch PATCH)
+      const userUpdateHeaders = await buildHeaders('return=minimal');
+      const userUpdateRes = await fetch(
+        `${SUPABASE_URL}/rest/v1/users?id=eq.${encodeURIComponent(user.id)}`,
+        {
+          method: 'PATCH',
+          headers: userUpdateHeaders,
+          body: JSON.stringify({ patient_group_id: newGroup.id }),
+        }
+      );
+      if (!userUpdateRes.ok) {
+        const errText = await userUpdateRes.text();
+        throw new Error(`사용자 업데이트 실패 (HTTP ${userUpdateRes.status}): ${errText}`);
+      }
 
       // 로컬 user 상태 갱신
       await refreshUser();
@@ -133,7 +176,7 @@ export function useFamilyLink(): UseFamilyLinkReturn {
     try {
       const trimmedCode = code.trim();
 
-      // 유효한 초대 코드 조회 (만료 전)
+      // 유효한 초대 코드 조회 (만료 전) — SELECT는 supabase-js 그대로 사용
       const { data: group, error: groupError } = await supabase
         .from('patient_groups')
         .select('id, invite_code_expires_at')
@@ -148,7 +191,7 @@ export function useFamilyLink(): UseFamilyLinkReturn {
         };
       }
 
-      // 이미 같은 그룹에 있는지 확인
+      // 이미 같은 그룹에 있는지 확인 — SELECT는 supabase-js 그대로 사용
       const { data: existingMember } = await supabase
         .from('patient_group_members')
         .select('id')
@@ -160,33 +203,50 @@ export function useFamilyLink(): UseFamilyLinkReturn {
         return { success: false, message: '이미 연동된 가족이에요.' };
       }
 
-      // 기존 그룹에서 본인 멤버십 삭제 (이전 그룹 정리)
+      // 기존 그룹에서 본인 멤버십 삭제 (fetch DELETE)
       if (user.patient_group_id && user.patient_group_id !== group.id) {
-        await supabase
-          .from('patient_group_members')
-          .delete()
-          .eq('group_id', user.patient_group_id)
-          .eq('user_id', user.id);
+        const deleteHeaders = await buildHeaders('return=minimal');
+        await fetch(
+          `${SUPABASE_URL}/rest/v1/patient_group_members` +
+            `?group_id=eq.${encodeURIComponent(user.patient_group_id)}` +
+            `&user_id=eq.${encodeURIComponent(user.id)}`,
+          {
+            method: 'DELETE',
+            headers: deleteHeaders,
+          }
+        );
       }
 
-      // 그룹 멤버 추가
-      const { error: memberError } = await supabase
-        .from('patient_group_members')
-        .insert({
+      // 그룹 멤버 추가 (fetch POST)
+      const memberHeaders = await buildHeaders('return=minimal');
+      const memberRes = await fetch(`${SUPABASE_URL}/rest/v1/patient_group_members`, {
+        method: 'POST',
+        headers: memberHeaders,
+        body: JSON.stringify({
           group_id: group.id,
           user_id: user.id,
           role: user.role ?? 'caregiver',
-        });
+        }),
+      });
+      if (!memberRes.ok) {
+        const errText = await memberRes.text();
+        throw new Error(`멤버 추가 실패 (HTTP ${memberRes.status}): ${errText}`);
+      }
 
-      if (memberError) throw memberError;
-
-      // users 테이블의 patient_group_id 업데이트
-      const { error: userUpdateError } = await supabase
-        .from('users')
-        .update({ patient_group_id: group.id })
-        .eq('id', user.id);
-
-      if (userUpdateError) throw userUpdateError;
+      // users 테이블의 patient_group_id 업데이트 (fetch PATCH)
+      const userUpdateHeaders = await buildHeaders('return=minimal');
+      const userUpdateRes = await fetch(
+        `${SUPABASE_URL}/rest/v1/users?id=eq.${encodeURIComponent(user.id)}`,
+        {
+          method: 'PATCH',
+          headers: userUpdateHeaders,
+          body: JSON.stringify({ patient_group_id: group.id }),
+        }
+      );
+      if (!userUpdateRes.ok) {
+        const errText = await userUpdateRes.text();
+        throw new Error(`사용자 업데이트 실패 (HTTP ${userUpdateRes.status}): ${errText}`);
+      }
 
       // 로컬 user 상태 갱신
       await refreshUser();
@@ -249,7 +309,7 @@ export function useFamilyLink(): UseFamilyLinkReturn {
     }
   }, [user]);
 
-  // 보호자가 연동된 환자 정보 조회
+  // 보호자가 연동된 환자 정보 조회 — SELECT이므로 supabase-js 그대로 사용
   const getPatientForCaregiver = useCallback(async (): Promise<UserRow | null> => {
     if (!user || user.role !== 'caregiver' || !user.patient_group_id) return null;
 
@@ -285,22 +345,36 @@ export function useFamilyLink(): UseFamilyLinkReturn {
     setError(null);
 
     try {
-      // patient_group_members에서 제거
-      const { error: deleteError } = await supabase
-        .from('patient_group_members')
-        .delete()
-        .eq('group_id', user.patient_group_id)
-        .eq('user_id', user.id);
+      // patient_group_members에서 제거 (fetch DELETE)
+      const deleteHeaders = await buildHeaders('return=minimal');
+      const deleteRes = await fetch(
+        `${SUPABASE_URL}/rest/v1/patient_group_members` +
+          `?group_id=eq.${encodeURIComponent(user.patient_group_id)}` +
+          `&user_id=eq.${encodeURIComponent(user.id)}`,
+        {
+          method: 'DELETE',
+          headers: deleteHeaders,
+        }
+      );
+      if (!deleteRes.ok) {
+        const errText = await deleteRes.text();
+        throw new Error(`멤버 삭제 실패 (HTTP ${deleteRes.status}): ${errText}`);
+      }
 
-      if (deleteError) throw deleteError;
-
-      // users 테이블의 patient_group_id 초기화
-      const { error: userUpdateError } = await supabase
-        .from('users')
-        .update({ patient_group_id: null })
-        .eq('id', user.id);
-
-      if (userUpdateError) throw userUpdateError;
+      // users 테이블의 patient_group_id 초기화 (fetch PATCH)
+      const userUpdateHeaders = await buildHeaders('return=minimal');
+      const userUpdateRes = await fetch(
+        `${SUPABASE_URL}/rest/v1/users?id=eq.${encodeURIComponent(user.id)}`,
+        {
+          method: 'PATCH',
+          headers: userUpdateHeaders,
+          body: JSON.stringify({ patient_group_id: null }),
+        }
+      );
+      if (!userUpdateRes.ok) {
+        const errText = await userUpdateRes.text();
+        throw new Error(`사용자 업데이트 실패 (HTTP ${userUpdateRes.status}): ${errText}`);
+      }
 
       await refreshUser();
       return true;
