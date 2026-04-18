@@ -160,6 +160,15 @@ export function useFamilyLink(): UseFamilyLinkReturn {
         return { success: false, message: '이미 연동된 가족이에요.' };
       }
 
+      // 기존 그룹에서 본인 멤버십 삭제 (이전 그룹 정리)
+      if (user.patient_group_id && user.patient_group_id !== group.id) {
+        await supabase
+          .from('patient_group_members')
+          .delete()
+          .eq('group_id', user.patient_group_id)
+          .eq('user_id', user.id);
+      }
+
       // 그룹 멤버 추가
       const { error: memberError } = await supabase
         .from('patient_group_members')
@@ -225,12 +234,15 @@ export function useFamilyLink(): UseFamilyLinkReturn {
 
       const data: any[] = await res.json();
 
-      return (data ?? []).map((item: any) => ({
-        user_id: item.user_id,
-        role: item.role,
-        joined_at: item.joined_at,
-        user: item.user ?? null,
-      }));
+      // 클라이언트 측 이중 방어: 혹시 본인이 포함된 경우 제거
+      return (data ?? [])
+        .filter((item: any) => item.user_id !== user.id)
+        .map((item: any) => ({
+          user_id: item.user_id,
+          role: item.role,
+          joined_at: item.joined_at,
+          user: item.user ?? null,
+        }));
     } catch (err: any) {
       console.error('[useFamilyLink] getGroupMembers 오류:', err);
       return [];
