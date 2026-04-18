@@ -7,8 +7,6 @@ import { SettingsProvider } from './src/context/SettingsContext';
 import { RootNavigator } from './src/navigation/RootNavigator';
 import * as Notifications from 'expo-notifications';
 import { navigateTo } from './src/navigation/navigationRef';
-import { checkAndPromptNotificationPermission } from './src/utils/notifications';
-
 export default function App() {
   const appState = useRef<AppStateStatus>(AppState.currentState);
 
@@ -29,15 +27,7 @@ export default function App() {
       }
     });
 
-    // 앱이 백그라운드 → 포어그라운드로 돌아올 때 알림 권한 상태 확인
-    // 시스템 설정에서 차단한 경우 안내 Alert 표시
     const appStateSubscription = AppState.addEventListener('change', (nextAppState: AppStateStatus) => {
-      if (
-        appState.current.match(/inactive|background/) &&
-        nextAppState === 'active'
-      ) {
-        checkAndPromptNotificationPermission().catch(console.warn);
-      }
       appState.current = nextAppState;
     });
 

@@ -253,7 +253,7 @@ export async function requestPermissionsAndSaveToken(
   const { status: existingStatus } = await Notifications.getPermissionsAsync();
   let finalStatus = existingStatus;
 
-  if (existingStatus !== 'granted') {
+  if (existingStatus === 'undetermined') {
     // 아직 요청 안 했으면 시스템 권한 다이얼로그 표시
     const { status: requestedStatus } = await Notifications.requestPermissionsAsync();
     finalStatus = requestedStatus;
