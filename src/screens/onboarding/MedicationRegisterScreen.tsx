@@ -23,6 +23,7 @@ import { PrimaryButton } from '../../components/common/PrimaryButton';
 import { useAuth } from '../../context/AuthContext';
 import * as ImagePicker from 'expo-image-picker';
 import * as FileSystem from 'expo-file-system';
+import { supabase } from '../../lib/supabase';
 
 type Nav = StackNavigationProp<OnboardingStackParamList, 'MedicationRegister'>;
 
@@ -723,6 +724,31 @@ export function MedicationRegisterScreen() {
   const navigation = useNavigation<Nav>();
   const { forceCompleteOnboarding } = useAuth();
   const [mode, setMode] = useState<Mode>('home');
+
+  // "나중에 등록하기" — DB onboarding_done 업데이트 후 메인으로
+  // supabase-js PostgREST는 새 아키텍처에서 hang → 직접 fetch 사용
+  const handleCompleteOnboarding = async () => {
+    try {
+      const { data: sessionData } = await supabase.auth.getSession();
+      const userId = sessionData?.session?.user?.id;
+      const accessToken = sessionData?.session?.access_token;
+      if (userId && accessToken) {
+        await fetch(`${process.env.EXPO_PUBLIC_SUPABASE_URL}/rest/v1/users?id=eq.${userId}`, {
+          method: 'PATCH',
+          headers: {
+            'apikey': process.env.EXPO_PUBLIC_SUPABASE_ANON_KEY!,
+            'Authorization': `Bearer ${accessToken}`,
+            'Content-Type': 'application/json',
+            'Prefer': 'return=minimal',
+          },
+          body: JSON.stringify({ onboarding_done: true }),
+        });
+      }
+    } catch (e) {
+      console.warn('[MedicationRegisterScreen] onboarding_done 업데이트 실패 (계속 진행):', e);
+    }
+    forceCompleteOnboarding();
+  };
   const [medName, setMedName] = useState('');
   const [medDosage, setMedDosage] = useState('');
   const [selectedTimes, setSelectedTimes] = useState<TimeSlot[]>([]);
@@ -1240,7 +1266,7 @@ export function MedicationRegisterScreen() {
               disabled={medications.length === 0}
             />
             <Text style={{ fontSize: 18, color: Colors.textSub, textAlign: 'center', marginBottom: 12 }}>약은 나중에 등록하셔도 되요</Text>
-            <TouchableOpacity style={styles.closeBtn} onPress={forceCompleteOnboarding}>
+            <TouchableOpacity style={styles.closeBtn} onPress={handleCompleteOnboarding}>
               <Text style={styles.closeBtnText}>나중에 등록하기</Text>
             </TouchableOpacity>
           </View>
@@ -1295,7 +1321,7 @@ export function MedicationRegisterScreen() {
 
       <View style={styles.bottomArea}>
         <Text style={{ fontSize: 18, color: Colors.textSub, textAlign: 'center', marginBottom: 12 }}>약은 나중에 등록하셔도 되요</Text>
-        <TouchableOpacity style={styles.closeBtn} onPress={forceCompleteOnboarding}>
+        <TouchableOpacity style={styles.closeBtn} onPress={handleCompleteOnboarding}>
           <Text style={styles.closeBtnText}>나중에 등록하기</Text>
         </TouchableOpacity>
       </View>

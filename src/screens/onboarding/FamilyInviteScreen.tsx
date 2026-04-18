@@ -91,14 +91,27 @@ export function FamilyInviteScreen() {
         'onboarding_group_id',
       ]).then((pairs) => pairs.map(([, v]) => v));
 
-      // 세션에서 userId 획득
+      // 세션에서 userId / accessToken 획득
       const { data: sessionData } = await supabase.auth.getSession();
       const userId = sessionData?.session?.user?.id;
-      if (!userId) {
+      const accessToken = sessionData?.session?.access_token;
+
+      if (!userId || !accessToken) {
         // 개발 모드 (devSignIn): 실제 세션 없음 → 로컬 상태만 업데이트
         forceCompleteOnboarding();
         return;
       }
+
+      // supabase-js PostgREST가 React Native 새 아키텍처에서 hang하는 버그 우회
+      // → 직접 fetch API 사용 (useAuth.ts의 dbFetch와 동일한 방식)
+      const SUPABASE_URL = process.env.EXPO_PUBLIC_SUPABASE_URL!;
+      const SUPABASE_ANON_KEY = process.env.EXPO_PUBLIC_SUPABASE_ANON_KEY!;
+      const baseHeaders = {
+        'apikey': SUPABASE_ANON_KEY,
+        'Authorization': `Bearer ${accessToken}`,
+        'Content-Type': 'application/json',
+        'Accept': 'application/json',
+      };
 
       // users 테이블 업데이트 (보호자이면 caregiver_relation, residence_type 포함)
       const userUpdateData: Record<string, any> = {
@@ -114,30 +127,37 @@ export function FamilyInviteScreen() {
         if (caregiverRelation) userUpdateData.caregiver_relation = caregiverRelation;
         if (caregiverLiving) userUpdateData.residence_type = caregiverLiving;
       }
-      // 초대 코드로 가입한 경우 → patient_group_id 연결
       if (joinGroupId) {
         userUpdateData.patient_group_id = joinGroupId;
       }
-      const { error: updateError } = await supabase
-        .from('users')
-        .update(userUpdateData)
-        .eq('id', userId);
-      if (updateError) throw updateError;
+
+      const updateRes = await fetch(`${SUPABASE_URL}/rest/v1/users?id=eq.${userId}`, {
+        method: 'PATCH',
+        headers: { ...baseHeaders, 'Prefer': 'return=minimal' },
+        body: JSON.stringify(userUpdateData),
+      });
+      if (!updateRes.ok) {
+        const errText = await updateRes.text();
+        throw new Error(`users 업데이트 실패: ${updateRes.status} ${errText}`);
+      }
+
+      // DB 업데이트 성공 즉시 로컬 상태도 반영 (MenuScreen refreshUser 타이밍 문제 방지)
+      forceCompleteOnboarding();
 
       // 초대 코드로 가입한 경우 → patient_group_members에도 추가
       if (joinGroupId && role) {
-        const { error: memberError } = await supabase
-          .from('patient_group_members')
-          .upsert(
-            { group_id: joinGroupId, user_id: userId, role: role as 'patient' | 'caregiver' },
-            { onConflict: 'group_id,user_id' }
-          );
-        if (memberError) {
-          console.warn('[FamilyInviteScreen] patient_group_members 추가 오류 (계속 진행):', memberError.message);
+        const memberRes = await fetch(`${SUPABASE_URL}/rest/v1/patient_group_members`, {
+          method: 'POST',
+          headers: { ...baseHeaders, 'Prefer': 'resolution=merge-duplicates,return=minimal' },
+          body: JSON.stringify({ group_id: joinGroupId, user_id: userId, role }),
+        });
+        if (!memberRes.ok) {
+          const errText = await memberRes.text();
+          console.warn('[FamilyInviteScreen] patient_group_members 추가 오류 (계속 진행):', errText);
         }
       }
 
-      // medications 저장 (환자 본인만 저장 — 보호자는 환자 연결 후 별도 등록)
+      // medications 저장 (환자 본인만 저장)
       if (medicationsJson && role === 'patient') {
         const meds: Array<{
           name: string;
@@ -148,24 +168,29 @@ export function FamilyInviteScreen() {
         }> = JSON.parse(medicationsJson);
 
         if (meds.length > 0) {
-          const { error: medError } = await supabase.from('medications').insert(
-            meds.map((med) => ({
+          const medRes = await fetch(`${SUPABASE_URL}/rest/v1/medications`, {
+            method: 'POST',
+            headers: { ...baseHeaders, 'Prefer': 'return=minimal' },
+            body: JSON.stringify(meds.map((med) => ({
               patient_id: userId,
               name: med.name,
               dosage: med.dosage ?? null,
-              meal_times: med.times as any,
+              meal_times: med.times,
               meal_schedules: med.meal_schedules ?? {},
-              scheduled_times: [] as string[],
+              scheduled_times: [],
               drug_code: null,
               drug_image_url: med.drugInfo?.itemImage || null,
               is_active: true,
-            }))
-          );
-          if (medError) throw medError;
+            }))),
+          });
+          if (!medRes.ok) {
+            const errText = await medRes.text();
+            throw new Error(`medications 저장 실패: ${medRes.status} ${errText}`);
+          }
         }
       }
 
-      // refreshUser로 앱 상태 갱신 (onboarding_done: true → 메인으로 이동)
+      // refreshUser로 앱 상태 최종 갱신
       await refreshUser();
 
       // AsyncStorage 온보딩 키 정리
