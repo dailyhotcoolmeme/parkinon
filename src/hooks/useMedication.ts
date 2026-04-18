@@ -217,19 +217,20 @@ export function useMedication(): UseMedicationReturn {
             const caregiverIds = caregivers.map((c: any) => c.user_id);
             const { data: caregiverUsers } = await supabase
               .from('users')
-              .select('push_token')
+              .select('push_token, caregiver_notif_prefs')
               .in('id', caregiverIds)
               .not('push_token', 'is', null);
 
             for (const cu of caregiverUsers ?? []) {
-              if (cu.push_token) {
-                await sendCaregiverPush(
-                  cu.push_token,
-                  '💊 약을 드셨어요',
-                  `환자분이 ${MEAL_TIME_LABELS[mealTime]} 약을 드셨어요.`,
-                  { type: 'caregiver_medication' },
-                );
-              }
+              if (!cu.push_token) continue;
+              const prefs = (cu.caregiver_notif_prefs ?? {}) as Record<string, boolean>;
+              if (prefs.med_taken === false) continue;
+              await sendCaregiverPush(
+                cu.push_token,
+                '💊 약을 드셨어요',
+                `환자분이 ${MEAL_TIME_LABELS[mealTime]} 약을 드셨어요.`,
+                { type: 'caregiver_medication' },
+              );
             }
           }
         }

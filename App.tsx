@@ -14,9 +14,13 @@ export default function App() {
       const data = response.notification.request.content.data as Record<string, any>;
       const type = data?.type;
 
-      if (type === 'medication_reminder' || type === 'effect_tracking') {
-        navigateTo('Main');
+      if (type === 'medication_reminder' || type === 'missed_medication') {
+        navigateTo('Main', { screen: 'Medication' });
+      } else if (type === 'effect_tracking') {
+        navigateTo('Main', { screen: 'BodyStateTab' });
       } else if (type === 'exercise_reminder') {
+        navigateTo('Main', { screen: 'Exercise' });
+      } else {
         navigateTo('Main');
       }
     });

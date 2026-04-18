@@ -157,6 +157,23 @@ export function FamilyInviteScreen() {
         }
       }
 
+      // 알림 설정 반영: 온보딩에서 설정한 값을 settings_med_notifs에 저장
+      // onboarding_notifications 형식: { immediate: bool, after30: bool, after2h: bool }
+      // settings_med_notifs 형식: MedNotif[] = [{ id, minutes, enabled }]
+      if (notificationsJson) {
+        try {
+          const notifSettings: Record<string, boolean> = JSON.parse(notificationsJson);
+          const medNotifs = [
+            { id: '1', minutes: 0,   enabled: notifSettings.immediate ?? true },
+            { id: '2', minutes: 30,  enabled: notifSettings.after30   ?? true },
+            { id: '3', minutes: 120, enabled: notifSettings.after2h   ?? true },
+          ];
+          await AsyncStorage.setItem('settings_med_notifs', JSON.stringify(medNotifs));
+        } catch (parseErr) {
+          console.warn('[FamilyInviteScreen] onboarding_notifications 파싱 오류:', parseErr);
+        }
+      }
+
       // medications 저장 (환자 본인만 저장)
       if (medicationsJson && role === 'patient') {
         const meds: Array<{

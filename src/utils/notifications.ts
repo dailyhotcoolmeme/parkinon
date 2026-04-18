@@ -26,6 +26,14 @@ const MEAL_TIME_LABELS_BG: Record<string, string> = {
   bedtime: '취침',
 };
 
+// 식사 시간 + 10분 후 재알림 체크 윈도우 (분, 자정 기준)
+const MEAL_REMIND_WINDOWS: Record<string, { from: number; to: number }> = {
+  morning: { from: 8 * 60 + 10, to: 8 * 60 + 19 },
+  lunch:   { from: 12 * 60 + 10, to: 12 * 60 + 19 },
+  dinner:  { from: 18 * 60 + 10, to: 18 * 60 + 19 },
+  bedtime: { from: 22 * 60 + 10, to: 22 * 60 + 19 },
+};
+
 // 식사 시간 + 20분 후부터 40분 내 체크 (분, 자정 기준)
 const MEAL_CHECK_WINDOWS: Record<string, { from: number; to: number }> = {
   morning: { from: 8 * 60 + 20, to: 9 * 60 },
@@ -40,7 +48,58 @@ TaskManager.defineTask(MISSED_MED_CHECK_TASK, async () => {
     const now = new Date();
     const minutesFromMidnight = now.getHours() * 60 + now.getMinutes();
 
-    // 현재 시간이 어느 체크 윈도우에 있는지 확인
+    const today = now.toISOString().split('T')[0];
+
+    // ── +10분 재알림 체크포인트 ──────────────────────────────────────
+    let remindMealTime: string | null = null;
+    for (const [mealTime, win] of Object.entries(MEAL_REMIND_WINDOWS)) {
+      if (minutesFromMidnight >= win.from && minutesFromMidnight <= win.to) {
+        remindMealTime = mealTime;
+        break;
+      }
+    }
+
+    if (remindMealTime) {
+      const remindDedupeKey = `med_remind_sent_${today}_${remindMealTime}`;
+      const alreadyReminded = await AsyncStorage.getItem(remindDedupeKey);
+
+      if (!alreadyReminded) {
+        const { data: { session } } = await supabase.auth.getSession();
+        if (session?.user) {
+          const { data: userRow } = await supabase
+            .from('users')
+            .select('role, notification_enabled')
+            .eq('id', session.user.id)
+            .single();
+
+          if (userRow?.role === 'patient' && userRow.notification_enabled) {
+            const { data: logs } = await supabase
+              .from('med_logs')
+              .select('id')
+              .eq('patient_id', session.user.id)
+              .eq('meal_time', remindMealTime)
+              .gte('taken_at', `${today}T00:00:00.000Z`)
+              .lte('taken_at', `${today}T23:59:59.999Z`)
+              .limit(1);
+
+            if (!logs || logs.length === 0) {
+              await AsyncStorage.setItem(remindDedupeKey, '1');
+              await Notifications.scheduleNotificationAsync({
+                content: {
+                  title: '💊 아직 복용 전이에요',
+                  body: `${MEAL_TIME_LABELS_BG[remindMealTime]} 약, 잊지 마세요!`,
+                  data: { type: 'medication_reminder', mealTime: remindMealTime },
+                },
+                trigger: null,
+              });
+              return BackgroundFetch.BackgroundFetchResult.NewData;
+            }
+          }
+        }
+      }
+    }
+
+    // ── +20분 최종 체크포인트 (환자 + 보호자 알림) ──────────────────
     let targetMealTime: string | null = null;
     for (const [mealTime, win] of Object.entries(MEAL_CHECK_WINDOWS)) {
       if (minutesFromMidnight >= win.from && minutesFromMidnight <= win.to) {
@@ -49,8 +108,6 @@ TaskManager.defineTask(MISSED_MED_CHECK_TASK, async () => {
       }
     }
     if (!targetMealTime) return BackgroundFetch.BackgroundFetchResult.NoData;
-
-    const today = now.toISOString().split('T')[0];
 
     // 중복 발송 방지
     const dedupeKey = `missed_med_sent_${today}_${targetMealTime}`;
