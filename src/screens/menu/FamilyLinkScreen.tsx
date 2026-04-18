@@ -99,20 +99,20 @@ export function FamilyLinkScreen() {
           groupRow.invite_code_expires_at &&
           groupRow.invite_code_expires_at > now
         ) {
-          const existingCode = groupRow.invite_code;
-          if (/^\d{6}$/.test(existingCode)) {
+          const existingCode = groupRow.invite_code.trim();
+          if (existingCode.length === 6) {
             setInviteCode(existingCode);
             setLoadingCode(false);
             return;
           }
         }
       }
+      // 코드가 없거나 만료된 경우에만 생성
       const code = await generateInviteCode();
       if (code) setInviteCode(code);
     } catch (e) {
+      // catch에서 재시도하지 않음 — generateInviteCode 내부에서 에러 처리됨
       console.warn('[FamilyLinkScreen] 초대 코드 로드 오류:', e);
-      const code = await generateInviteCode();
-      if (code) setInviteCode(code);
     } finally {
       setLoadingCode(false);
     }
