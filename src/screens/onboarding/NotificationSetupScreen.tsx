@@ -65,8 +65,12 @@ export function NotificationSetupScreen() {
     await AsyncStorage.setItem('onboarding_notifications', JSON.stringify(settings));
 
     if (user) {
-      // 권한 요청 + push token 저장
-      await requestPermissionsAndSaveToken(user.id);
+      // accessToken을 직접 전달하여 supabase-js PostgREST hang 버그 우회
+      const { data: { session } } = await (await import('../../lib/supabase')).supabase.auth.getSession();
+      const accessToken = session?.access_token;
+
+      // 권한 요청 + Android 채널 설정 + push token 저장
+      await requestPermissionsAndSaveToken(user.id, accessToken);
       // 약 복용 예정 알림 스케줄
       await scheduleMedicationReminders();
       // 운동 알림 스케줄

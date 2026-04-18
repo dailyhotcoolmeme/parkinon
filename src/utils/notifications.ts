@@ -9,11 +9,15 @@
 import * as Notifications from 'expo-notifications';
 import * as TaskManager from 'expo-task-manager';
 import * as BackgroundFetch from 'expo-background-fetch';
+import * as Linking from 'expo-linking';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import Constants from 'expo-constants';
-import { Platform } from 'react-native';
+import { Platform, Alert } from 'react-native';
 import { supabase } from '../lib/supabase';
 import type { MedNotif, ExerciseNotif } from '../context/SettingsContext';
+
+const SUPABASE_URL = process.env.EXPO_PUBLIC_SUPABASE_URL!;
+const SUPABASE_ANON_KEY = process.env.EXPO_PUBLIC_SUPABASE_ANON_KEY!;
 
 // ─── 미복용 체크 백그라운드 태스크 ─────────────────────────────────────────
 
@@ -233,18 +237,70 @@ function minutesToLabel(m: number): string {
   return rem === 0 ? `${h}시간 후` : `${h}시간 ${rem}분 후`;
 }
 
-/** 권한 요청 + Expo Push Token 획득 → users 테이블 저장 */
-export async function requestPermissionsAndSaveToken(userId: string): Promise<string | null> {
-  const { status: existing } = await Notifications.getPermissionsAsync();
-  let status = existing;
+/**
+ * 권한 요청 + Android 알림 채널 설정 + Expo Push Token 획득 → users 테이블 저장
+ *
+ * - 권한이 이미 거부된 경우 시스템 설정으로 안내하는 Alert 표시
+ * - Android 알림 채널을 MAX 중요도로 생성 (시스템 알림 설정에 채널이 보여야 함)
+ * - supabase-js PostgREST 대신 직접 fetch 사용 (새 아키텍처 hang 버그 우회)
+ * - accessToken 미전달 시 supabase.auth.getSession()으로 폴백
+ */
+export async function requestPermissionsAndSaveToken(
+  userId: string,
+  accessToken?: string,
+): Promise<string | null> {
+  // 1. 현재 권한 상태 확인
+  const { status: existingStatus } = await Notifications.getPermissionsAsync();
+  let finalStatus = existingStatus;
 
-  if (existing !== 'granted') {
-    const { status: requested } = await Notifications.requestPermissionsAsync();
-    status = requested;
+  if (existingStatus !== 'granted') {
+    // 아직 요청 안 했으면 시스템 권한 다이얼로그 표시
+    const { status: requestedStatus } = await Notifications.requestPermissionsAsync();
+    finalStatus = requestedStatus;
   }
 
-  if (status !== 'granted') return null;
+  if (finalStatus !== 'granted') {
+    // 거부됐으면 시스템 설정으로 안내
+    Alert.alert(
+      '알림 허용이 필요해요',
+      '약 복용 알림을 받으려면 알림 권한이 필요해요.\n설정에서 파킨온 알림을 허용해주세요.',
+      [
+        { text: '나중에', style: 'cancel' },
+        {
+          text: '설정 열기',
+          onPress: () => Linking.openSettings(),
+        },
+      ],
+    );
+    return null;
+  }
 
+  // 2. Android 알림 채널 생성 (MAX 중요도 — 시스템 알림 설정에 채널이 표시되어야 차단 해제 가능)
+  if (Platform.OS === 'android') {
+    await Notifications.setNotificationChannelAsync('default', {
+      name: '파킨온 알림',
+      importance: Notifications.AndroidImportance.MAX,
+      vibrationPattern: [0, 250, 250, 250],
+      lightColor: '#4CAF50',
+      sound: 'default',
+      enableLights: true,
+      enableVibrate: true,
+      showBadge: true,
+    });
+    // 약 복용 알림 전용 채널
+    await Notifications.setNotificationChannelAsync('medication', {
+      name: '약 복용 알림',
+      importance: Notifications.AndroidImportance.MAX,
+      vibrationPattern: [0, 250, 250, 250],
+      lightColor: '#4CAF50',
+      sound: 'default',
+      enableLights: true,
+      enableVibrate: true,
+      showBadge: true,
+    });
+  }
+
+  // 3. Expo Push Token 획득
   try {
     const projectId =
       Constants.expoConfig?.extra?.eas?.projectId ??
@@ -256,12 +312,58 @@ export async function requestPermissionsAndSaveToken(userId: string): Promise<st
 
     const token = tokenData.data;
 
-    await supabase.from('users').update({ push_token: token }).eq('id', userId);
+    // 4. users 테이블에 push_token 저장
+    //    supabase-js PostgREST 대신 직접 fetch 사용 (새 아키텍처 hang 버그 우회)
+    let token_ = accessToken;
+    if (!token_) {
+      const { data: { session } } = await supabase.auth.getSession();
+      token_ = session?.access_token;
+    }
+    if (token_) {
+      const res = await fetch(`${SUPABASE_URL}/rest/v1/users?id=eq.${userId}`, {
+        method: 'PATCH',
+        headers: {
+          'apikey': SUPABASE_ANON_KEY,
+          'Authorization': `Bearer ${token_}`,
+          'Content-Type': 'application/json',
+          'Prefer': 'return=minimal',
+        },
+        body: JSON.stringify({ push_token: token }),
+      });
+      if (!res.ok) {
+        const txt = await res.text();
+        console.error('[notifications] push_token 저장 실패:', res.status, txt);
+      }
+    } else {
+      console.warn('[notifications] accessToken 없음 — push_token DB 저장 스킵');
+    }
 
+    console.log('[notifications] 권한 획득 + push token 저장 완료:', token.substring(0, 30) + '...');
     return token;
   } catch (e) {
     console.error('[notifications] push token 획득 실패:', e);
     return null;
+  }
+}
+
+/**
+ * 앱 재진입 시 알림 권한 상태 확인 — 이미 거부된 경우 시스템 설정 안내
+ * (온보딩 완료 후 매 앱 포어그라운드 진입 시 호출)
+ */
+export async function checkAndPromptNotificationPermission(): Promise<void> {
+  const { status } = await Notifications.getPermissionsAsync();
+  if (status === 'denied') {
+    Alert.alert(
+      '알림이 차단되어 있어요',
+      '약 복용 알림을 받으려면 설정에서 파킨온 알림을 허용해주세요.',
+      [
+        { text: '나중에', style: 'cancel' },
+        {
+          text: '설정 열기',
+          onPress: () => Linking.openSettings(),
+        },
+      ],
+    );
   }
 }
 
