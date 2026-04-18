@@ -11,6 +11,7 @@ import {
   Animated,
   Dimensions,
   Linking,
+  AppState,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useFocusEffect } from '@react-navigation/native';
@@ -99,6 +100,10 @@ export function SettingsScreen() {
     });
   };
 
+  // 알림 차단 상태 바텀시트
+  const [showPermissionSheet, setShowPermissionSheet] = useState(false);
+  const [pendingOn, setPendingOn] = useState(false); // 토글 시각적 ON 유지용
+
   // Modal / picker state
   const [pickerVisible, setPickerVisible] = useState(false);
   const [pickerType, setPickerType] = useState<'med' | 'exercise'>('med');
@@ -152,6 +157,24 @@ export function SettingsScreen() {
     }, [setNotificationEnabledOnly, isCaregiver, recheckSystemPermission])
   );
 
+
+  // AppState 리스너: 설정 앱에서 복귀 시 권한 재확인
+  useEffect(() => {
+    const subscription = AppState.addEventListener('change', async (nextState) => {
+      if (nextState === 'active' && showPermissionSheet) {
+        const { status } = await Notifications.getPermissionsAsync();
+        if (status === 'granted') {
+          setShowPermissionSheet(false);
+          setPendingOn(false);
+          await setNotificationEnabled(true);
+          await scheduleMedicationReminders();
+          await scheduleExerciseReminders(exerciseNotifs);
+        }
+        // denied면 그대로 유지 (바텀시트 열린 채)
+      }
+    });
+    return () => subscription.remove();
+  }, [showPermissionSheet, setNotificationEnabled, exerciseNotifs]);
 
   // ─── Animation refs ─────────────────────────────────────────────────────────
   const fadeAnim = useRef(new Animated.Value(0)).current;
@@ -328,7 +351,7 @@ export function SettingsScreen() {
               </Text>
             </View>
             <Switch
-              value={notificationEnabled}
+              value={pendingOn || notificationEnabled}
               onValueChange={async (v) => {
                 if (v) {
                   // ── OFF → ON 시도: 시스템 권한 상태 먼저 확인 ──────────────
@@ -357,19 +380,10 @@ export function SettingsScreen() {
                     }
 
                   } else {
-                    // denied → 시스템 팝업 불가, 설정으로 안내 + 앱 OFF 유지
-                    Alert.alert(
-                      '알림이 차단되어 있어요',
-                      '약 복용 알림을 받으려면\n스마트폰 설정에서 파킨온 알림을 허용해주세요.',
-                      [
-                        { text: '나중에', style: 'cancel' },
-                        {
-                          text: '설정 열기',
-                          onPress: () => Linking.openSettings(),
-                        },
-                      ]
-                    );
-                    // 앱 상태 OFF 유지 — setNotificationEnabled 호출 안 함
+                    // denied → 시스템 팝업 불가, 바텀시트로 안내 + 토글 시각적 ON 유지
+                    setPendingOn(true);
+                    setShowPermissionSheet(true);
+                    // setNotificationEnabled 호출 없음
                   }
                   return;
                 }
@@ -791,6 +805,86 @@ export function SettingsScreen() {
             )}
           </Animated.View>
         </Animated.View>
+      </Modal>
+      {/* ── 알림 차단 안내 바텀시트 ── */}
+      <Modal
+        visible={showPermissionSheet}
+        transparent
+        animationType="slide"
+        onRequestClose={() => {
+          setShowPermissionSheet(false);
+          setPendingOn(false);
+        }}
+      >
+        <TouchableOpacity
+          style={{ flex: 1, backgroundColor: 'rgba(0,0,0,0.55)' }}
+          activeOpacity={1}
+          onPress={() => {
+            setShowPermissionSheet(false);
+            setPendingOn(false);
+          }}
+        />
+        <View style={{
+          backgroundColor: '#FFFFFF',
+          borderTopLeftRadius: 28,
+          borderTopRightRadius: 28,
+          paddingHorizontal: 24,
+          paddingBottom: 40,
+          paddingTop: 12,
+          alignItems: 'center',
+        }}>
+          {/* 핸들바 */}
+          <View style={{ width: 40, height: 4, backgroundColor: '#EEEEEE', borderRadius: 2, marginBottom: 24 }} />
+
+          {/* 아이콘 */}
+          <Ionicons name="notifications-off-circle-outline" size={56} color="#F44336" />
+
+          {/* 제목 */}
+          <Text style={{ fontSize: 24, fontWeight: 'bold', color: '#111111', textAlign: 'center', marginTop: 16 }}>
+            알림이 꺼져 있어요
+          </Text>
+
+          {/* 본문 */}
+          <Text style={{ fontSize: 18, color: '#444444', textAlign: 'center', lineHeight: 28, marginTop: 10, marginBottom: 28 }}>
+            {'약 복용 알림을 받으려면\n스마트폰 설정에서\n파킨온 알림을 켜주세요.'}
+          </Text>
+
+          {/* 설정 열기 버튼 */}
+          <TouchableOpacity
+            style={{
+              backgroundColor: '#2E7D32',
+              height: 60,
+              borderRadius: 14,
+              width: '100%',
+              alignItems: 'center',
+              justifyContent: 'center',
+              marginBottom: 12,
+            }}
+            onPress={() => Linking.openSettings()}
+          >
+            <Text style={{ fontSize: 18, fontWeight: 'bold', color: '#FFFFFF' }}>설정 열기</Text>
+          </TouchableOpacity>
+
+          {/* 나중에 버튼 */}
+          <TouchableOpacity
+            style={{
+              backgroundColor: '#FFFFFF',
+              height: 56,
+              borderRadius: 14,
+              width: '100%',
+              alignItems: 'center',
+              justifyContent: 'center',
+              borderWidth: 1.5,
+              borderColor: '#EEEEEE',
+            }}
+            onPress={() => {
+              setShowPermissionSheet(false);
+              setPendingOn(false);
+            }}
+          >
+            <Text style={{ fontSize: 18, fontWeight: 'bold', color: '#666666' }}>나중에</Text>
+          </TouchableOpacity>
+        </View>
       </Modal>
     </SafeAreaView>
   );
