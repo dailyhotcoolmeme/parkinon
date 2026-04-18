@@ -101,29 +101,10 @@ export function SettingsProvider({ children }: { children: React.ReactNode }) {
           console.warn('[SettingsContext] 시스템 권한 차단 DB 동기화 오류:', e);
         }
       }
-      // 'granted'로 복귀 (설정에서 허용하고 돌아온 경우) → notificationEnabled를 true로 복원
-      if (status === 'granted') {
-        setNotificationEnabledState(true);
-        try {
-          const { data: { session } } = await supabase.auth.getSession();
-          if (session?.user) {
-            const SUPABASE_URL = process.env.EXPO_PUBLIC_SUPABASE_URL!;
-            const SUPABASE_ANON_KEY = process.env.EXPO_PUBLIC_SUPABASE_ANON_KEY!;
-            await fetch(`${SUPABASE_URL}/rest/v1/users?id=eq.${session.user.id}`, {
-              method: 'PATCH',
-              headers: {
-                'apikey': SUPABASE_ANON_KEY,
-                'Authorization': `Bearer ${session.access_token}`,
-                'Content-Type': 'application/json',
-                'Prefer': 'return=minimal',
-              },
-              body: JSON.stringify({ notification_enabled: true }),
-            });
-          }
-        } catch (e) {
-          console.warn('[SettingsContext] 시스템 권한 복원 DB 동기화 오류:', e);
-        }
-      }
+      // 'granted'로 복귀한 경우: systemPermissionGranted는 위에서 이미 true로 설정됨.
+      // notificationEnabled는 DB 값(사용자 앱 설정)을 따르므로 여기서 절대 건드리지 않음.
+      // → 앱에서 전체 알림을 OFF로 꺼둔 사용자가 시스템 설정 확인 후 돌아왔을 때
+      //   앱 설정이 강제로 ON 되는 버그 방지
     } catch (e) {
       console.warn('[SettingsContext] 시스템 권한 확인 오류:', e);
     }

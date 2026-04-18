@@ -568,12 +568,13 @@ export function SettingsScreen() {
                 <View style={styles.notifLeft}>
                   <Text style={styles.notifTitle}>{notif.label}</Text>
                   <Text style={styles.notifSub}>
-                    {notif.enabled ? '알림이 켜져 있어요' : '알림이 꺼져 있어요'}
+                    {notif.enabled && notificationEnabled ? '알림이 켜져 있어요' : '알림이 꺼져 있어요'}
                   </Text>
                 </View>
                 <Switch
-                  value={notif.enabled}
+                  value={notif.enabled && notificationEnabled}
                   onValueChange={() => toggleCaregiverNotif(notif.id)}
+                  disabled={!notificationEnabled}
                   trackColor={{ false: Colors.border, true: Colors.primary }}
                   thumbColor={Colors.white}
                 />
