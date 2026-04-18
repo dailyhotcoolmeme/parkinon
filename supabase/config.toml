@@ -1,0 +1,2 @@
+[functions.r2-upload]
+verify_jwt = false
