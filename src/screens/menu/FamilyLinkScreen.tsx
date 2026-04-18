@@ -24,7 +24,7 @@ import { supabase } from '../../lib/supabase';
 
 export function FamilyLinkScreen() {
   const { user } = useAuth();
-  const { generateInviteCode, joinByCode, getGroupMembers, leaveGroup, loading } = useFamilyLink();
+  const { generateInviteCode, joinByCode, getGroupMembers, leaveGroup, loading, error: familyLinkError } = useFamilyLink();
 
   const [members, setMembers] = useState<import('../../hooks/useFamilyLink').GroupMember[]>([]);
   const [inviteCode, setInviteCode] = useState('');
@@ -117,10 +117,16 @@ export function FamilyLinkScreen() {
       }
       // 코드가 없거나 만료된 경우에만 생성
       const code = await generateInviteCode();
-      if (code) setInviteCode(code);
-    } catch (e) {
+      if (code) {
+        setInviteCode(code);
+      } else {
+        // generateInviteCode가 null 반환 = 내부에서 오류 발생
+        Alert.alert('오류', '초대 코드 생성에 실패했어요.\n잠시 후 다시 시도해주세요.');
+      }
+    } catch (e: any) {
       // catch에서 재시도하지 않음 — generateInviteCode 내부에서 에러 처리됨
       console.warn('[FamilyLinkScreen] 초대 코드 로드 오류:', e);
+      Alert.alert('오류', e?.message ?? '초대 코드 로드 중 오류가 발생했어요.');
     } finally {
       setLoadingCode(false);
       isLoadingRef.current = false;
