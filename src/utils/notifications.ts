@@ -346,25 +346,41 @@ export async function requestPermissionsAndSaveToken(
   }
 }
 
+const NOTIF_BLOCKED_ALERT_THROTTLE_KEY = 'notif_blocked_alert_last_shown';
+const NOTIF_BLOCKED_ALERT_INTERVAL_MS = 24 * 60 * 60 * 1000; // 24시간에 1번만 알림
+
 /**
  * 앱 재진입 시 알림 권한 상태 확인 — 이미 거부된 경우 시스템 설정 안내
  * (온보딩 완료 후 매 앱 포어그라운드 진입 시 호출)
+ * - 24시간에 1번만 Alert 표시 (매번 뜨면 UX 저하)
+ * - Android: status !== 'granted' 로 판단 (denied / undetermined 구분 없이 처리)
  */
 export async function checkAndPromptNotificationPermission(): Promise<void> {
   const { status } = await Notifications.getPermissionsAsync();
-  if (status === 'denied') {
-    Alert.alert(
-      '알림이 차단되어 있어요',
-      '약 복용 알림을 받으려면 설정에서 파킨온 알림을 허용해주세요.',
-      [
-        { text: '나중에', style: 'cancel' },
-        {
-          text: '설정 열기',
-          onPress: () => Linking.openSettings(),
-        },
-      ],
-    );
-  }
+  // granted이면 정상 — 아무것도 안 함
+  if (status === 'granted') return;
+
+  // 차단된 경우 → 최근 24시간 이내 이미 안내했으면 스킵
+  try {
+    const lastShownRaw = await AsyncStorage.getItem(NOTIF_BLOCKED_ALERT_THROTTLE_KEY);
+    if (lastShownRaw) {
+      const lastShown = parseInt(lastShownRaw, 10);
+      if (Date.now() - lastShown < NOTIF_BLOCKED_ALERT_INTERVAL_MS) return;
+    }
+    await AsyncStorage.setItem(NOTIF_BLOCKED_ALERT_THROTTLE_KEY, String(Date.now()));
+  } catch {}
+
+  Alert.alert(
+    '알림이 차단되어 있어요',
+    '약 복용 알림을 받으려면 설정에서 파킨온 알림을 허용해주세요.',
+    [
+      { text: '나중에', style: 'cancel' },
+      {
+        text: '설정 열기',
+        onPress: () => Linking.openSettings(),
+      },
+    ],
+  );
 }
 
 /** 약 복용 예정 알림 스케줄 (매일 반복) */

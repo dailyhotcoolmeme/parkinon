@@ -10,10 +10,12 @@ import {
   Modal,
   Animated,
   Dimensions,
+  Linking,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useFocusEffect } from '@react-navigation/native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import * as Notifications from 'expo-notifications';
 import { Ionicons } from '@expo/vector-icons';
 import { Colors } from '../../constants/colors';
 import { TopBar } from '../../components/common/TopBar';
@@ -59,6 +61,7 @@ export function SettingsScreen() {
     medNotifs, setMedNotifs,
     exerciseNotifs, setExerciseNotifs,
     notificationEnabled, setNotificationEnabled,
+    systemPermissionGranted, recheckSystemPermission,
   } = useSettings();
 
   // 보호자 알림 설정
@@ -102,11 +105,15 @@ export function SettingsScreen() {
     minute: 0,
   });
 
-  // 화면 포커스 시 DB에서 notification_enabled + caregiver_notif_prefs 재로드
+  // 화면 포커스 시 시스템 알림 권한 + DB에서 notification_enabled + caregiver_notif_prefs 재로드
   useFocusEffect(
     React.useCallback(() => {
       (async () => {
         try {
+          // 1. 시스템 알림 권한 상태 먼저 재확인 (설정에서 차단/허용 후 돌아왔을 때 반영)
+          await recheckSystemPermission();
+
+          // 2. DB에서 설정 로드
           const { data: { session } } = await supabase.auth.getSession();
           if (!session?.user) return;
           const { data: userRow } = await supabase
@@ -115,7 +122,13 @@ export function SettingsScreen() {
             .eq('id', session.user.id)
             .single();
           if (userRow != null) {
-            setNotificationEnabled(userRow.notification_enabled ?? true);
+            // 시스템 권한 상태를 최종 확인해서 연동
+            const { status } = await Notifications.getPermissionsAsync();
+            const sysGranted = status === 'granted';
+            const dbEnabled = userRow.notification_enabled ?? true;
+            // 시스템이 차단됐으면 무조건 false, 아니면 DB 값 따름
+            setNotificationEnabled(sysGranted ? dbEnabled : false);
+
             if (isCaregiver && userRow.caregiver_notif_prefs) {
               const prefs = userRow.caregiver_notif_prefs as Record<string, boolean>;
               setCaregiverNotifs(prev => prev.map(n => ({
@@ -128,7 +141,7 @@ export function SettingsScreen() {
           console.warn('[SettingsScreen] 설정 로드 오류:', e);
         }
       })();
-    }, [setNotificationEnabled, isCaregiver])
+    }, [setNotificationEnabled, isCaregiver, recheckSystemPermission])
   );
 
 
@@ -304,11 +317,47 @@ export function SettingsScreen() {
             </View>
             <Switch
               value={notificationEnabled}
-              onValueChange={(v) => setNotificationEnabled(v)}
+              onValueChange={async (v) => {
+                if (v) {
+                  // ON으로 켤 때: 시스템 권한 확인
+                  const { status } = await Notifications.getPermissionsAsync();
+                  if (status !== 'granted') {
+                    // 시스템에서 차단된 경우 설정으로 안내
+                    Alert.alert(
+                      '알림이 차단되어 있어요',
+                      '설정에서 파킨온 알림을 허용해야 켤 수 있어요.',
+                      [
+                        { text: '나중에', style: 'cancel' },
+                        {
+                          text: '설정 열기',
+                          onPress: () => Linking.openSettings(),
+                        },
+                      ],
+                    );
+                    return; // 토글 ON 막기
+                  }
+                }
+                await setNotificationEnabled(v);
+              }}
               trackColor={{ false: Colors.border, true: Colors.primary }}
               thumbColor={Colors.white}
             />
           </View>
+          {/* 시스템에서 알림이 차단된 경우 안내 배너 */}
+          {!systemPermissionGranted && (
+            <TouchableOpacity
+              activeOpacity={0.8}
+              style={styles.permissionBanner}
+              onPress={() => Linking.openSettings()}
+            >
+              <Ionicons name="warning-outline" size={20} color="#B45309" style={{ marginRight: 8 }} />
+              <View style={{ flex: 1 }}>
+                <Text style={styles.permissionBannerTitle}>시스템 알림이 차단되어 있어요</Text>
+                <Text style={styles.permissionBannerSub}>탭하여 설정에서 파킨온 알림을 허용해주세요</Text>
+              </View>
+              <Ionicons name="chevron-forward" size={18} color="#B45309" />
+            </TouchableOpacity>
+          )}
         </View>
 
         {/* ── Card 1: 약효 추적 알림 (환자만) ── */}
@@ -830,6 +879,27 @@ const styles = StyleSheet.create({
     fontSize: 20,
     fontWeight: 'bold',
     color: Colors.primary,
+  },
+
+  // ── Permission banner ──
+  permissionBanner: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#FEF3C7',
+    borderTopWidth: 1,
+    borderTopColor: '#FDE68A',
+    paddingHorizontal: 20,
+    paddingVertical: 14,
+  },
+  permissionBannerTitle: {
+    fontSize: 16,
+    fontWeight: 'bold',
+    color: '#92400E',
+  },
+  permissionBannerSub: {
+    fontSize: 14,
+    color: '#B45309',
+    marginTop: 2,
   },
 
   // ── Backdrop ──

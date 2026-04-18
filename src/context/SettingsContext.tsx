@@ -1,5 +1,6 @@
 import React, { createContext, useContext, useState, useEffect, useCallback } from 'react';
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import * as Notifications from 'expo-notifications';
 import { rescheduleAllNotifications } from '../utils/notifications';
 import { supabase } from '../lib/supabase';
 
@@ -24,6 +25,10 @@ interface SettingsContextValue {
   setExerciseNotifs: React.Dispatch<React.SetStateAction<ExerciseNotif[]>>;
   notificationEnabled: boolean;
   setNotificationEnabled: (enabled: boolean) => Promise<void>;
+  /** 시스템 알림 권한이 실제로 허용되어 있는지 여부 */
+  systemPermissionGranted: boolean;
+  /** 시스템 권한 상태를 다시 확인하고 동기화 */
+  recheckSystemPermission: () => Promise<void>;
 }
 
 const SettingsContext = createContext<SettingsContextValue | null>(null);
@@ -45,9 +50,44 @@ export function SettingsProvider({ children }: { children: React.ReactNode }) {
   const [medNotifs, setMedNotifsState] = useState<MedNotif[]>(DEFAULT_MED_NOTIFS);
   const [exerciseNotifs, setExerciseNotifsState] = useState<ExerciseNotif[]>(DEFAULT_EXERCISE_NOTIFS);
   const [notificationEnabled, setNotificationEnabledState] = useState(true);
+  const [systemPermissionGranted, setSystemPermissionGranted] = useState(true);
   const [loaded, setLoaded] = useState(false);
 
-  // AsyncStorage에서 알림 시간 설정 로드 + DB에서 notification_enabled 로드
+  // 시스템 알림 권한 상태 확인 및 동기화
+  const recheckSystemPermission = useCallback(async () => {
+    try {
+      const { status } = await Notifications.getPermissionsAsync();
+      const granted = status === 'granted';
+      setSystemPermissionGranted(granted);
+      // 시스템에서 차단된 경우 DB의 notification_enabled도 false로 동기화
+      if (!granted) {
+        setNotificationEnabledState(false);
+        try {
+          const { data: { session } } = await supabase.auth.getSession();
+          if (session?.user) {
+            const SUPABASE_URL = process.env.EXPO_PUBLIC_SUPABASE_URL!;
+            const SUPABASE_ANON_KEY = process.env.EXPO_PUBLIC_SUPABASE_ANON_KEY!;
+            await fetch(`${SUPABASE_URL}/rest/v1/users?id=eq.${session.user.id}`, {
+              method: 'PATCH',
+              headers: {
+                'apikey': SUPABASE_ANON_KEY,
+                'Authorization': `Bearer ${session.access_token}`,
+                'Content-Type': 'application/json',
+                'Prefer': 'return=minimal',
+              },
+              body: JSON.stringify({ notification_enabled: false }),
+            });
+          }
+        } catch (e) {
+          console.warn('[SettingsContext] 시스템 권한 차단 DB 동기화 오류:', e);
+        }
+      }
+    } catch (e) {
+      console.warn('[SettingsContext] 시스템 권한 확인 오류:', e);
+    }
+  }, []);
+
+  // AsyncStorage에서 알림 시간 설정 로드 + DB에서 notification_enabled 로드 + 시스템 권한 확인
   useEffect(() => {
     (async () => {
       try {
@@ -58,6 +98,11 @@ export function SettingsProvider({ children }: { children: React.ReactNode }) {
         if (medRaw) setMedNotifsState(JSON.parse(medRaw));
         if (exRaw) setExerciseNotifsState(JSON.parse(exRaw));
 
+        // 시스템 알림 권한 상태 확인 (최우선)
+        const { status: sysStatus } = await Notifications.getPermissionsAsync();
+        const sysGranted = sysStatus === 'granted';
+        setSystemPermissionGranted(sysGranted);
+
         // DB에서 notification_enabled 로드
         const { data: { session } } = await supabase.auth.getSession();
         if (session?.user) {
@@ -67,7 +112,24 @@ export function SettingsProvider({ children }: { children: React.ReactNode }) {
             .eq('id', session.user.id)
             .single();
           if (userRow != null) {
-            setNotificationEnabledState(userRow.notification_enabled ?? true);
+            // 시스템 권한이 차단된 경우 DB 값과 무관하게 false
+            const enabled = sysGranted ? (userRow.notification_enabled ?? true) : false;
+            setNotificationEnabledState(enabled);
+            // 시스템 차단인데 DB에 true로 저장되어 있으면 false로 동기화
+            if (!sysGranted && userRow.notification_enabled !== false) {
+              const SUPABASE_URL = process.env.EXPO_PUBLIC_SUPABASE_URL!;
+              const SUPABASE_ANON_KEY = process.env.EXPO_PUBLIC_SUPABASE_ANON_KEY!;
+              fetch(`${SUPABASE_URL}/rest/v1/users?id=eq.${session.user.id}`, {
+                method: 'PATCH',
+                headers: {
+                  'apikey': SUPABASE_ANON_KEY,
+                  'Authorization': `Bearer ${session.access_token}`,
+                  'Content-Type': 'application/json',
+                  'Prefer': 'return=minimal',
+                },
+                body: JSON.stringify({ notification_enabled: false }),
+              }).catch(console.warn);
+            }
           }
         }
       } catch (e) {
@@ -102,17 +164,36 @@ export function SettingsProvider({ children }: { children: React.ReactNode }) {
     []
   );
 
-  // notification_enabled → users 테이블 UPDATE
+  // notification_enabled → users 테이블 UPDATE (fetch API 사용 — 새 아키텍처 hang 우회)
   const setNotificationEnabled = useCallback(async (enabled: boolean) => {
     setNotificationEnabledState(enabled);
+    // 알림 스케줄 즉시 취소 (OFF 시)
+    if (!enabled) {
+      try {
+        await Notifications.cancelAllScheduledNotificationsAsync();
+      } catch (e) {
+        console.warn('[SettingsContext] 알림 취소 오류:', e);
+      }
+    }
     try {
       const { data: { session } } = await supabase.auth.getSession();
       if (!session?.user) return;
-      const { error } = await supabase
-        .from('users')
-        .update({ notification_enabled: enabled })
-        .eq('id', session.user.id);
-      if (error) console.error('[SettingsContext] notification_enabled 저장 오류:', error.message);
+      const SUPABASE_URL = process.env.EXPO_PUBLIC_SUPABASE_URL!;
+      const SUPABASE_ANON_KEY = process.env.EXPO_PUBLIC_SUPABASE_ANON_KEY!;
+      const res = await fetch(`${SUPABASE_URL}/rest/v1/users?id=eq.${session.user.id}`, {
+        method: 'PATCH',
+        headers: {
+          'apikey': SUPABASE_ANON_KEY,
+          'Authorization': `Bearer ${session.access_token}`,
+          'Content-Type': 'application/json',
+          'Prefer': 'return=minimal',
+        },
+        body: JSON.stringify({ notification_enabled: enabled }),
+      });
+      if (!res.ok) {
+        const txt = await res.text();
+        console.error('[SettingsContext] notification_enabled 저장 오류:', res.status, txt);
+      }
     } catch (e) {
       console.error('[SettingsContext] setNotificationEnabled 오류:', e);
     }
@@ -132,6 +213,8 @@ export function SettingsProvider({ children }: { children: React.ReactNode }) {
       setExerciseNotifs,
       notificationEnabled,
       setNotificationEnabled,
+      systemPermissionGranted,
+      recheckSystemPermission,
     }}>
       {children}
     </SettingsContext.Provider>
