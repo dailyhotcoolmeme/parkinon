@@ -203,7 +203,8 @@ export function useFamilyLink(): UseFamilyLinkReturn {
           joined_at,
           user:users(id, name, role, caregiver_relation, residence_type)
         `)
-        .eq('group_id', user.patient_group_id);
+        .eq('group_id', user.patient_group_id)
+        .neq('user_id', user.id);  // 본인 제외
 
       if (queryError) throw queryError;
 
