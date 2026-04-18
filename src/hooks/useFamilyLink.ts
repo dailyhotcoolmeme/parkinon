@@ -80,12 +80,24 @@ export function useFamilyLink(): UseFamilyLinkReturn {
       const code = generateCode();
       const expiresAt = new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString();
 
+      // ── DB에서 최신 patient_group_id를 재조회 (로컬 캐시 race condition 방지) ──
+      // useEffect + useFocusEffect 동시 호출 시, 두 번째 호출이 첫 번째 refreshUser()
+      // 완료 전에 실행되면 user.patient_group_id가 여전히 null로 보임 → 중복 INSERT 발생.
+      // 여기서 DB를 직접 조회해 최신 상태를 확인한다.
+      const { data: freshUser } = await supabase
+        .from('users')
+        .select('patient_group_id')
+        .eq('id', user.id)
+        .single();
+
+      const currentGroupId = freshUser?.patient_group_id ?? user.patient_group_id;
+
       // 기존 그룹이 있는지 확인
-      if (user.patient_group_id) {
+      if (currentGroupId) {
         // 기존 그룹의 초대 코드 갱신 (fetch PATCH)
         const headers = await buildHeaders('return=minimal');
         const res = await fetch(
-          `${SUPABASE_URL}/rest/v1/patient_groups?id=eq.${encodeURIComponent(user.patient_group_id)}`,
+          `${SUPABASE_URL}/rest/v1/patient_groups?id=eq.${encodeURIComponent(currentGroupId)}`,
           {
             method: 'PATCH',
             headers,

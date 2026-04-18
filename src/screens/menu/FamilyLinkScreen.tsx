@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback, useRef } from 'react';
+import React, { useState, useCallback, useRef } from 'react';
 import {
   View,
   Text,
@@ -29,6 +29,9 @@ export function FamilyLinkScreen() {
   const [members, setMembers] = useState<import('../../hooks/useFamilyLink').GroupMember[]>([]);
   const [inviteCode, setInviteCode] = useState('');
   const [loadingCode, setLoadingCode] = useState(false);
+
+  // 중복 실행 방지: loadData가 동시에 2번 호출되는 race condition 차단
+  const isLoadingRef = useRef(false);
 
   // 바텀시트 상태
   const [sheetVisible, setSheetVisible] = useState(false);
@@ -81,6 +84,10 @@ export function FamilyLinkScreen() {
   ).current;
 
   const loadData = useCallback(async () => {
+    // 이미 실행 중이면 즉시 반환 — race condition 방지
+    if (isLoadingRef.current) return;
+    isLoadingRef.current = true;
+
     const memberList = await getGroupMembers();
     setMembers(memberList);
 
@@ -103,6 +110,7 @@ export function FamilyLinkScreen() {
           if (existingCode.length === 6) {
             setInviteCode(existingCode);
             setLoadingCode(false);
+            isLoadingRef.current = false;
             return;
           }
         }
@@ -115,13 +123,11 @@ export function FamilyLinkScreen() {
       console.warn('[FamilyLinkScreen] 초대 코드 로드 오류:', e);
     } finally {
       setLoadingCode(false);
+      isLoadingRef.current = false;
     }
   }, [user, getGroupMembers, generateInviteCode]);
 
-  useEffect(() => {
-    if (user) loadData();
-  }, [user?.patient_group_id]);
-
+  // useFocusEffect 하나로 통일 (useEffect + useFocusEffect 동시 호출 race condition 제거)
   useFocusEffect(
     useCallback(() => {
       loadData();
