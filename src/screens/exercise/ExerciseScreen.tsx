@@ -14,7 +14,6 @@ import { useNavigation } from '@react-navigation/native';
 import { useFocusEffect } from '@react-navigation/native';
 import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { Ionicons } from '@expo/vector-icons';
-import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { Colors } from '../../constants/colors';
 import { TopBar } from '../../components/common/TopBar';
 import type { ExerciseStackParamList } from '../../navigation/ExerciseNavigator';
@@ -28,31 +27,22 @@ const TOP_BAR_H = 56;
 const DATE_HEADER_H = 56;
 const TAB_BAR_H = 68;
 
-
-type MCIName = React.ComponentProps<typeof MaterialCommunityIcons>['name'];
-
-const MCI_ICONS: Record<string, MCIName> = {
-  '걷기': 'walk',
-  '스트레칭': 'yoga',
-  '근력': 'dumbbell',       // ExerciseRecordScreen label과 일치
-  '자전거': 'bike',
-  '수영': 'swim',
-  '댄스': 'music-note',
-  '복싱': 'boxing-glove',
-  '요가': 'meditation',
-  '조깅': 'run',
-};
-
-const IONICONS_ICONS: Record<string, React.ComponentProps<typeof Ionicons>['name']> = {
-  '균형': 'body-outline', // ExerciseRecordScreen label과 일치
+const EXERCISE_ICONS: Record<string, React.ComponentProps<typeof Ionicons>['name']> = {
+  '걷기': 'walk-outline',
+  '스트레칭': 'body-outline',
+  '근력': 'barbell-outline',
+  '균형': 'man-outline',
+  '자전거': 'bicycle-outline',
+  '수영': 'water-outline',
+  '댄스': 'musical-notes-outline',
+  '복싱': 'fitness-outline',
+  '요가': 'leaf-outline',
+  '조깅': 'footsteps-outline',
 };
 
 function ExerciseTypeIcon({ type, size = 30, color = Colors.text }: { type: string; size?: number; color?: string }) {
-  const mciName = MCI_ICONS[type];
-  if (mciName) return <MaterialCommunityIcons name={mciName} size={size} color={color} />;
-  const ionName = IONICONS_ICONS[type];
-  if (ionName) return <Ionicons name={ionName} size={size} color={color} />;
-  return <Ionicons name="fitness-outline" size={size} color={color} />;
+  const iconName = EXERCISE_ICONS[type] ?? 'fitness-outline';
+  return <Ionicons name={iconName} size={size} color={color} />;
 }
 
 function getDateLabel(date: Date): string {

@@ -235,7 +235,11 @@ export function BodyStateScreen() {
             <View style={styles.divider} />
           </View>
           {records.length === 0 ? (
-            <Text style={styles.emptyText}>오늘 기록이 없어요.</Text>
+            <View style={styles.emptyWrap}>
+              <Ionicons name="happy-outline" size={48} color={Colors.border} />
+              <Text style={styles.emptyText}>기록이 없어요</Text>
+              <Text style={styles.emptySubText}>위 버튼을 눌러 기록해 보세요!</Text>
+            </View>
           ) : (
             ['아침', '점심', '저녁', '취침'].map(period => {
               const periodRecords = records.filter(r => r.period === period);
@@ -491,5 +495,7 @@ const styles = StyleSheet.create({
   sectionTitle: { fontSize: 17, fontWeight: '600', color: Colors.textSub, paddingHorizontal: 4 },
   periodGroup: { marginBottom: 8 },
   periodTitle: { fontSize: 16, fontWeight: '700', color: Colors.textSub, marginBottom: 10, marginLeft: 2, letterSpacing: 0.3 },
-  emptyText: { fontSize: 17, color: Colors.textHint, textAlign: 'center', marginTop: 20 },
+  emptyWrap: { alignItems: 'center', paddingVertical: 40, gap: 12 },
+  emptyText: { fontSize: 20, fontWeight: '700', color: Colors.textSub },
+  emptySubText: { fontSize: 17, color: Colors.textHint, textAlign: 'center', lineHeight: 26 },
 });
