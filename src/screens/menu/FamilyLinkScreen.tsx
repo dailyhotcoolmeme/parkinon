@@ -119,8 +119,8 @@ export function FamilyLinkScreen() {
   }, [user, getGroupMembers, generateInviteCode]);
 
   useEffect(() => {
-    loadData();
-  }, []);
+    if (user) loadData();
+  }, [user?.patient_group_id]);
 
   useFocusEffect(
     useCallback(() => {

@@ -17,6 +17,9 @@ import { supabase } from '../lib/supabase';
 import { useAuth } from '../context/AuthContext';
 import type { Database } from '../types/database';
 
+const SUPABASE_URL = process.env.EXPO_PUBLIC_SUPABASE_URL!;
+const SUPABASE_ANON_KEY = process.env.EXPO_PUBLIC_SUPABASE_ANON_KEY!;
+
 type UserRow = Database['public']['Tables']['users']['Row'];
 type GroupMemberRow = Database['public']['Tables']['patient_group_members']['Row'];
 
@@ -190,23 +193,37 @@ export function useFamilyLink(): UseFamilyLinkReturn {
     }
   }, [user, refreshUser]);
 
-  // 그룹 멤버 조회
+  // 그룹 멤버 조회 (fetch API 직접 사용 - New Architecture supabase-js hang 방지)
   const getGroupMembers = useCallback(async (): Promise<GroupMember[]> => {
     if (!user?.patient_group_id) return [];
 
     try {
-      const { data, error: queryError } = await supabase
-        .from('patient_group_members')
-        .select(`
-          user_id,
-          role,
-          joined_at,
-          user:users(id, name, role, caregiver_relation, residence_type)
-        `)
-        .eq('group_id', user.patient_group_id)
-        .neq('user_id', user.id);  // 본인 제외
+      // supabase.auth.getSession()으로 액세스 토큰 획득
+      const { data: sessionData } = await supabase.auth.getSession();
+      const accessToken = sessionData?.session?.access_token ?? SUPABASE_ANON_KEY;
 
-      if (queryError) throw queryError;
+      // 본인 제외 필터 포함: group_id=eq.{groupId}&user_id=neq.{userId}
+      const url =
+        `${SUPABASE_URL}/rest/v1/patient_group_members` +
+        `?select=user_id,role,joined_at,user:users(id,name,role,caregiver_relation,residence_type)` +
+        `&group_id=eq.${encodeURIComponent(user.patient_group_id)}` +
+        `&user_id=neq.${encodeURIComponent(user.id)}`;
+
+      const res = await fetch(url, {
+        method: 'GET',
+        headers: {
+          'apikey': SUPABASE_ANON_KEY,
+          'Authorization': `Bearer ${accessToken}`,
+          'Content-Type': 'application/json',
+        },
+      });
+
+      if (!res.ok) {
+        const errText = await res.text();
+        throw new Error(`getGroupMembers HTTP ${res.status}: ${errText}`);
+      }
+
+      const data: any[] = await res.json();
 
       return (data ?? []).map((item: any) => ({
         user_id: item.user_id,
