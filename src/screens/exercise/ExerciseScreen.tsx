@@ -158,7 +158,7 @@ const { todayLogs, getTodayTotalMinutes, getExerciseLogs, loading, error, refres
             </View>
           ) : displayLogs.length === 0 ? (
             <View style={styles.emptyWrap}>
-              <Ionicons name="fitness-outline" size={48} color={Colors.border} />
+              <Ionicons name="fitness-outline" size={48} color={Colors.textSub} />
               <Text style={styles.emptyText}>운동 기록이 없어요</Text>
               <Text style={styles.emptySubText}>위 버튼을 눌러 운동을 기록해 보세요!</Text>
             </View>
@@ -253,7 +253,7 @@ const styles = StyleSheet.create({
   outlineBtnText: { fontSize: 18, fontWeight: '700', color: Colors.primary },
 
   records: { paddingHorizontal: 24, paddingBottom: 32 },
-  sectionHeader: { flexDirection: 'row', alignItems: 'center', marginBottom: 14 },
+  sectionHeader: { flexDirection: 'row', alignItems: 'center', marginBottom: 20, gap: 8 },
   dividerLine: { flex: 1, height: 1, backgroundColor: Colors.border },
   sectionTitle: { fontSize: 17, fontWeight: '600', color: Colors.textSub, marginHorizontal: 12 },
 

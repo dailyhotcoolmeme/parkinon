@@ -236,7 +236,7 @@ export function BodyStateScreen() {
           </View>
           {records.length === 0 ? (
             <View style={styles.emptyWrap}>
-              <Ionicons name="happy-outline" size={48} color={Colors.border} />
+              <Ionicons name="happy-outline" size={48} color={Colors.textSub} />
               <Text style={styles.emptyText}>기록이 없어요</Text>
               <Text style={styles.emptySubText}>위 버튼을 눌러 기록해 보세요!</Text>
             </View>
