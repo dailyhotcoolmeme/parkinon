@@ -232,7 +232,7 @@ export function SettingsProvider({ children }: { children: React.ReactNode }) {
   /**
    * 전체 알림 토글 (사용자 액션용):
    * - OFF → 개별 알림 모두 enabled: false + AsyncStorage 저장 + 예약 알림 전부 취소 + DB 저장
-   * - ON  → notificationEnabled만 true로 변경 (개별 알림 state는 건드리지 않음) + DB 저장
+   * - ON  → 개별 알림 모두 enabled: true + AsyncStorage 저장 + DB 저장
    */
   const setNotificationEnabled = useCallback(async (enabled: boolean) => {
     setNotificationEnabledState(enabled);
@@ -254,8 +254,19 @@ export function SettingsProvider({ children }: { children: React.ReactNode }) {
         AsyncStorage.setItem(STORAGE_KEY_EXERCISE, JSON.stringify(next)).catch(console.warn);
         return next;
       });
+    } else {
+      // 전체 알림 ON: 개별 알림 state 모두 true
+      setMedNotifsState(prev => {
+        const next = prev.map(n => ({ ...n, enabled: true }));
+        AsyncStorage.setItem(STORAGE_KEY_MED, JSON.stringify(next)).catch(console.warn);
+        return next;
+      });
+      setExerciseNotifsState(prev => {
+        const next = prev.map(n => ({ ...n, enabled: true }));
+        AsyncStorage.setItem(STORAGE_KEY_EXERCISE, JSON.stringify(next)).catch(console.warn);
+        return next;
+      });
     }
-    // ON이면 개별 알림 state는 그대로 유지 (사용자가 켜둔 항목만 살아있음)
 
     await _persistNotificationEnabled(enabled);
   }, [_persistNotificationEnabled]);
