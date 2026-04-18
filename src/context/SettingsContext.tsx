@@ -1,6 +1,7 @@
-import React, { createContext, useContext, useState, useEffect, useCallback } from 'react';
+import React, { createContext, useContext, useState, useEffect, useCallback, useRef } from 'react';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import * as Notifications from 'expo-notifications';
+import { AppState, AppStateStatus } from 'react-native';
 import { rescheduleAllNotifications } from '../utils/notifications';
 import { supabase } from '../lib/supabase';
 
@@ -54,6 +55,7 @@ export function SettingsProvider({ children }: { children: React.ReactNode }) {
   const [notificationEnabled, setNotificationEnabledState] = useState(true);
   const [systemPermissionGranted, setSystemPermissionGranted] = useState(true);
   const [loaded, setLoaded] = useState(false);
+  const appStateRef = useRef<AppStateStatus>(AppState.currentState);
 
   // 시스템 알림 권한 상태 확인 및 동기화
   const recheckSystemPermission = useCallback(async () => {
@@ -88,6 +90,20 @@ export function SettingsProvider({ children }: { children: React.ReactNode }) {
       console.warn('[SettingsContext] 시스템 권한 확인 오류:', e);
     }
   }, []);
+
+  // 앱이 백그라운드 → 포그라운드로 복귀할 때 시스템 권한 상태 자동 동기화 (qt2026 방식)
+  useEffect(() => {
+    const subscription = AppState.addEventListener('change', (nextState: AppStateStatus) => {
+      if (
+        appStateRef.current.match(/inactive|background/) &&
+        nextState === 'active'
+      ) {
+        recheckSystemPermission().catch(console.warn);
+      }
+      appStateRef.current = nextState;
+    });
+    return () => subscription.remove();
+  }, [recheckSystemPermission]);
 
   // AsyncStorage에서 알림 시간 설정 로드 + DB에서 notification_enabled 로드 + 시스템 권한 확인
   useEffect(() => {

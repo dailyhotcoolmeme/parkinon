@@ -324,10 +324,18 @@ export function SettingsScreen() {
               value={notificationEnabled}
               onValueChange={async (v) => {
                 if (v) {
-                  // ON으로 켤 때: 시스템 권한 확인
-                  const { status } = await Notifications.getPermissionsAsync();
-                  if (status !== 'granted') {
-                    // 시스템에서 차단된 경우 설정으로 안내
+                  // ON으로 켤 때: 시스템 권한 상태 확인 (qt2026 방식)
+                  const { status: currentStatus } = await Notifications.getPermissionsAsync();
+
+                  if (currentStatus === 'granted') {
+                    // 이미 허용됨 → 바로 ON
+                    await setNotificationEnabled(true);
+                    await recheckSystemPermission();
+                    return;
+                  }
+
+                  if (currentStatus === 'denied') {
+                    // 이미 차단됨 → 시스템 설정으로 안내 (팝업 다시 못 뜸)
                     Alert.alert(
                       '알림이 차단되어 있어요',
                       '설정에서 파킨온 알림을 허용해야 켤 수 있어요.',
@@ -341,8 +349,22 @@ export function SettingsScreen() {
                     );
                     return; // 토글 ON 막기
                   }
+
+                  // undetermined — 시스템 권한 팝업 요청 (qt2026 방식)
+                  const { status: requestedStatus } = await Notifications.requestPermissionsAsync();
+                  await recheckSystemPermission();
+
+                  if (requestedStatus === 'granted') {
+                    // 허용됨 → 앱 설정도 ON으로 동기화
+                    await setNotificationEnabled(true);
+                  } else {
+                    // 거부됨 → 토글 유지 OFF, 앱 설정 동기화
+                    await setNotificationEnabled(false);
+                  }
+                  return;
                 }
-                await setNotificationEnabled(v);
+                // OFF 처리
+                await setNotificationEnabled(false);
               }}
               trackColor={{ false: Colors.border, true: Colors.primary }}
               thumbColor={Colors.white}

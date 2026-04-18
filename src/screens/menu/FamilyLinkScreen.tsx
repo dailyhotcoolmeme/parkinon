@@ -88,12 +88,15 @@ export function FamilyLinkScreen() {
     if (isLoadingRef.current) return;
     isLoadingRef.current = true;
 
-    const memberList = await getGroupMembers();
-    setMembers(memberList);
-
-    setLoadingCode(true);
     try {
+      const memberList = await getGroupMembers();
+      setMembers(memberList);
+
+      // 초대 코드는 화면 진입 시 자동 생성하지 않음
+      // → 사용자가 "카카오톡으로 초대하기" 또는 공유 버튼을 누를 때만 생성
+      // (자동 생성 시 가족 연동 없이도 그룹이 만들어져 본인이 목록에 노출되는 버그 방지)
       if (user?.patient_group_id) {
+        // 이미 그룹이 있는 경우: 유효한 초대 코드가 있으면 미리 표시만 해둠 (생성 X)
         const { data: groupRow } = await supabase
           .from('patient_groups')
           .select('invite_code, invite_code_expires_at')
@@ -109,29 +112,20 @@ export function FamilyLinkScreen() {
           const existingCode = groupRow.invite_code.trim();
           if (existingCode.length === 6) {
             setInviteCode(existingCode);
-            setLoadingCode(false);
-            isLoadingRef.current = false;
-            return;
           }
+        } else {
+          setInviteCode('');
         }
-      }
-      // 코드가 없거나 만료된 경우에만 생성
-      const code = await generateInviteCode();
-      if (code) {
-        setInviteCode(code);
       } else {
-        // generateInviteCode가 null 반환 = 내부에서 오류 발생
-        Alert.alert('오류', '초대 코드 생성에 실패했어요.\n잠시 후 다시 시도해주세요.');
+        // 그룹이 없는 경우: 초대 코드 없음 (버튼 클릭 시 생성)
+        setInviteCode('');
       }
     } catch (e: any) {
-      // catch에서 재시도하지 않음 — generateInviteCode 내부에서 에러 처리됨
-      console.warn('[FamilyLinkScreen] 초대 코드 로드 오류:', e);
-      Alert.alert('오류', e?.message ?? '초대 코드 로드 중 오류가 발생했어요.');
+      console.warn('[FamilyLinkScreen] loadData 오류:', e);
     } finally {
-      setLoadingCode(false);
       isLoadingRef.current = false;
     }
-  }, [user, getGroupMembers, generateInviteCode]);
+  }, [user, getGroupMembers]);
 
   // useFocusEffect 하나로 통일 (useEffect + useFocusEffect 동시 호출 race condition 제거)
   useFocusEffect(
