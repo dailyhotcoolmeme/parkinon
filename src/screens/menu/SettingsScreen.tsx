@@ -23,6 +23,11 @@ import { useSettings, MedNotif, ExerciseNotif } from '../../context/SettingsCont
 import { useAuth } from '../../context/AuthContext';
 import { minutesToLabel } from '../../utils/medUtils';
 import { supabase } from '../../lib/supabase';
+import {
+  requestPermissionsAndSaveToken,
+  scheduleMedicationReminders,
+  scheduleExerciseReminders,
+} from '../../utils/notifications';
 
 interface CaregiverNotif {
   id: string;
@@ -326,53 +331,45 @@ export function SettingsScreen() {
               value={notificationEnabled}
               onValueChange={async (v) => {
                 if (v) {
-                  // ── ON으로 켤 때: 시스템 권한 상태 먼저 확인 ──────────────
-                  const { status: currentStatus } = await Notifications.getPermissionsAsync();
+                  // ── OFF → ON 시도: 시스템 권한 상태 먼저 확인 ──────────────
+                  const { status } = await Notifications.getPermissionsAsync();
 
-                  if (currentStatus === 'granted') {
-                    // 케이스 3: 이미 허용됨 → 바로 ON
+                  if (status === 'granted') {
+                    // 시스템 이미 허용 → 바로 ON
                     await setNotificationEnabled(true);
-                    await recheckSystemPermission();
-                    return;
-                  }
+                    await scheduleMedicationReminders();
+                    await scheduleExerciseReminders(exerciseNotifs);
 
-                  if (currentStatus === 'denied') {
-                    // 케이스 2: 이미 차단됨 → 시스템 설정으로 안내 (팝업 다시 못 뜸)
+                  } else if (status === 'undetermined') {
+                    // 아직 한 번도 요청 안 함 → 시스템 팝업
+                    const { status: newStatus } = await Notifications.requestPermissionsAsync();
+                    if (newStatus === 'granted') {
+                      await setNotificationEnabled(true);
+                      if (user?.id) {
+                        const { data: { session } } = await supabase.auth.getSession();
+                        requestPermissionsAndSaveToken(user.id, session?.access_token ?? undefined).catch(console.error);
+                      }
+                      await scheduleMedicationReminders();
+                      await scheduleExerciseReminders(exerciseNotifs);
+                    } else {
+                      // 거부 → 앱도 OFF 유지 (상태 변경 없음)
+                      // 아무것도 안 함
+                    }
+
+                  } else {
+                    // denied → 시스템 팝업 불가, 설정으로 안내 + 앱 OFF 유지
                     Alert.alert(
                       '알림이 차단되어 있어요',
-                      '설정에서 파킨온 알림을 허용해야 켤 수 있어요.',
+                      '약 복용 알림을 받으려면\n스마트폰 설정에서 파킨온 알림을 허용해주세요.',
                       [
                         { text: '나중에', style: 'cancel' },
                         {
                           text: '설정 열기',
                           onPress: () => Linking.openSettings(),
                         },
-                      ],
+                      ]
                     );
-                    // Switch가 ON으로 튕기는 것을 방지하기 위해 명시적으로 false 유지
-                    await setNotificationEnabled(false);
-                    return;
-                  }
-
-                  // 케이스 1: undetermined — 시스템 알림 권한 팝업 즉시 요청
-                  // requestPermissionsAsync() 는 반드시 사용자 액션 직후 호출해야 Android에서 팝업이 뜸
-                  const { status: requestedStatus } = await Notifications.requestPermissionsAsync();
-                  await recheckSystemPermission();
-
-                  if (requestedStatus === 'granted') {
-                    // 허용됨 → 앱 설정도 ON으로 확정
-                    await setNotificationEnabled(true);
-                  } else {
-                    // 거부됨 → 앱 설정 OFF 유지 + 설정 안내
-                    await setNotificationEnabled(false);
-                    Alert.alert(
-                      '알림 권한이 필요해요',
-                      '약 복용 알림을 받으려면 설정에서 파킨온 알림을 허용해주세요.',
-                      [
-                        { text: '나중에', style: 'cancel' },
-                        { text: '설정 열기', onPress: () => Linking.openSettings() },
-                      ],
-                    );
+                    // 앱 상태 OFF 유지 — setNotificationEnabled 호출 안 함
                   }
                   return;
                 }
