@@ -94,12 +94,7 @@ export function LoginScreen() {
   return (
     <SafeAreaView style={styles.container}>
       <View style={styles.content}>
-        <View style={styles.logoArea}>
-          <Image source={require('../../../assets/parkinon-logo.png')} style={styles.logoImage} />
-          <Text style={styles.desc}>
-            파킨슨 환자와 가족을 위한{'\n'}케어 앱이에요
-          </Text>
-        </View>
+        <Image source={require('../../../assets/parkinon-logo.png')} style={styles.logoImage} />
       </View>
 
       <View style={styles.bottomArea}>
