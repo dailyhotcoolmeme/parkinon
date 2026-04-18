@@ -17,8 +17,6 @@ import {
   TouchableOpacity,
   Switch,
   ScrollView,
-  Linking,
-  Alert,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import AsyncStorage from '@react-native-async-storage/async-storage';
@@ -113,57 +111,50 @@ export function NotificationOnboardingModal({ isCaregiver, userId, visible, onCl
 
     const anyEnabled = enabledValues.some(Boolean);
 
-    if (anyEnabled) {
-      // 하나라도 ON → 시스템 알림 권한 요청
-      const { status: existing } = await Notifications.getPermissionsAsync();
-      let finalStatus = existing;
+    closeWithAnim(async () => {
+      onClose();
+      if (anyEnabled) {
+        // 모달 닫힘 후 500ms 딜레이 → 시스템 알림 권한 요청
+        await new Promise(resolve => setTimeout(resolve, 500));
+        const { status: existing } = await Notifications.getPermissionsAsync();
+        let finalStatus = existing;
 
-      if (existing !== 'granted') {
-        const { status: requested } = await Notifications.requestPermissionsAsync();
-        finalStatus = requested;
-      }
+        if (existing !== 'granted') {
+          const { status: requested } = await Notifications.requestPermissionsAsync();
+          finalStatus = requested;
+        }
 
-      if (finalStatus === 'granted') {
-        // 권한 허용됨 → DB notification_enabled = true
-        await setNotificationEnabled(true);
+        if (finalStatus === 'granted') {
+          // 권한 허용됨 → DB notification_enabled = true
+          await setNotificationEnabled(true);
 
-        // 보호자인 경우 caregiver_notif_prefs DB 저장
-        if (isCaregiver) {
-          try {
-            const { data: { session } } = await supabase.auth.getSession();
-            if (session?.user) {
-              await fetch(`${SUPABASE_URL}/rest/v1/users?id=eq.${userId}`, {
-                method: 'PATCH',
-                headers: {
-                  apikey: SUPABASE_ANON_KEY,
-                  Authorization: `Bearer ${session.access_token}`,
-                  'Content-Type': 'application/json',
-                  Prefer: 'return=minimal',
-                },
-                body: JSON.stringify({ caregiver_notif_prefs: caregiverEnabled }),
-              });
+          // 보호자인 경우 caregiver_notif_prefs DB 저장
+          if (isCaregiver) {
+            try {
+              const { data: { session } } = await supabase.auth.getSession();
+              if (session?.user) {
+                await fetch(`${SUPABASE_URL}/rest/v1/users?id=eq.${userId}`, {
+                  method: 'PATCH',
+                  headers: {
+                    apikey: SUPABASE_ANON_KEY,
+                    Authorization: `Bearer ${session.access_token}`,
+                    'Content-Type': 'application/json',
+                    Prefer: 'return=minimal',
+                  },
+                  body: JSON.stringify({ caregiver_notif_prefs: caregiverEnabled }),
+                });
+              }
+            } catch (e) {
+              console.warn('[NotificationOnboardingModal] caregiver_notif_prefs 저장 오류:', e);
             }
-          } catch (e) {
-            console.warn('[NotificationOnboardingModal] caregiver_notif_prefs 저장 오류:', e);
           }
         }
+        // denied 시 Alert 없이 조용히 종료
       } else {
-        // 거부됨 → 설정 안내
-        Alert.alert(
-          '알림이 차단되어 있어요',
-          '약 복용 알림을 받으려면 설정에서 파킨온 알림을 허용해주세요.',
-          [
-            { text: '나중에', style: 'cancel' },
-            { text: '설정 열기', onPress: () => Linking.openSettings() },
-          ],
-        );
+        // 전체 OFF → notification_enabled = false
+        await setNotificationEnabled(false);
       }
-    } else {
-      // 전체 OFF → notification_enabled = false
-      await setNotificationEnabled(false);
-    }
-
-    closeWithAnim(onClose);
+    });
   };
 
   // ─── 나중에 버튼 ─────────────────────────────────────────────────────────────
@@ -224,6 +215,23 @@ export function NotificationOnboardingModal({ isCaregiver, userId, visible, onCl
               </View>
             ))}
           </ScrollView>
+
+          {/* 사전 안내 박스 */}
+          <View style={{
+            backgroundColor: '#FFF3E0',
+            borderLeftWidth: 4,
+            borderLeftColor: '#FF9800',
+            borderRadius: 8,
+            padding: 14,
+            marginHorizontal: 20,
+            marginBottom: 16,
+          }}>
+            <Text style={{ fontSize: 16, color: '#111111', lineHeight: 24 }}>
+              {'잠시 후 스마트폰이 알림 허용 여부를\n물어봐요. '}
+              <Text style={{ fontWeight: '700', color: '#E65100' }}>"허용"</Text>
+              {' 버튼을 눌러주세요.'}
+            </Text>
+          </View>
 
           {/* 버튼 영역 */}
           <View style={styles.buttonArea}>

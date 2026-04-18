@@ -260,18 +260,6 @@ export async function requestPermissionsAndSaveToken(
   }
 
   if (finalStatus !== 'granted') {
-    // 거부됐으면 시스템 설정으로 안내
-    Alert.alert(
-      '알림 허용이 필요해요',
-      '약 복용 알림을 받으려면 알림 권한이 필요해요.\n설정에서 파킨온 알림을 허용해주세요.',
-      [
-        { text: '나중에', style: 'cancel' },
-        {
-          text: '설정 열기',
-          onPress: () => Linking.openSettings(),
-        },
-      ],
-    );
     return null;
   }
 

@@ -17,6 +17,7 @@ import { useState, useEffect, useCallback } from 'react';
 import { Platform } from 'react-native';
 import * as WebBrowser from 'expo-web-browser';
 import * as Linking from 'expo-linking';
+import * as Notifications from 'expo-notifications';
 import { supabase } from '../lib/supabase';
 import { registerMissedMedCheckTask, requestPermissionsAndSaveToken } from '../utils/notifications';
 
@@ -191,7 +192,11 @@ export function useAuthProvider(): UseAuthReturn {
         // 로그인 성공 시 push token 항상 저장 (온보딩 완료 여부 무관)
         // - 재로그인, 재설치, 앱 업데이트 시에도 토큰이 최신 값으로 유지됨
         if (token) {
-          requestPermissionsAndSaveToken(userId, token).catch(console.error);
+          Notifications.getPermissionsAsync().then(({ status }) => {
+            if (status === 'granted') {
+              requestPermissionsAndSaveToken(userId, token).catch(console.error);
+            }
+          }).catch(console.error);
         }
         // 환자인 경우 미복용 체크 백그라운드 태스크 등록
         if (rows[0].role === 'patient' && rows[0].notification_enabled) {
