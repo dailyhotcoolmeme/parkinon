@@ -330,7 +330,7 @@ export function useAuthProvider(): UseAuthReturn {
   // 개발용 mock 로그인
   const devSignIn = useCallback(async () => {
     const mockUser: UserProfile = {
-      id: 'dev-user-001',
+      id: '00000000-0000-0000-0000-000000000001',
       name: '홍길동',
       role: 'patient',
       onboarding_done: true,
