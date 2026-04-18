@@ -118,8 +118,7 @@ export function useFamilyLink(): UseFamilyLinkReturn {
         return code;
       }
 
-      // ── 그룹이 없는 경우: 새 그룹 생성 (본인은 멤버로 추가하지 않음)
-      // 상대방이 joinByCode() 할 때 양쪽 모두 멤버로 추가됨
+      // ── 그룹이 없는 경우: 새 그룹 생성 ──
       const insertHeaders = await buildHeaders('return=representation');
       const insertRes = await fetch(`${SUPABASE_URL}/rest/v1/patient_groups`, {
         method: 'POST',
@@ -137,10 +136,38 @@ export function useFamilyLink(): UseFamilyLinkReturn {
       const newGroup = insertedGroups?.[0];
       if (!newGroup?.id) throw new Error('그룹 생성에 실패했어요.');
 
-      // ⚠️ 의도적으로 본인을 patient_group_members에 추가하지 않음
-      // ⚠️ users.patient_group_id도 아직 업데이트하지 않음
-      // → 상대방이 joinByCode()로 코드 입력하면 그때 양쪽 모두 처리됨
-      // → 이로써 혼자만 있는 솔로 그룹으로 인해 본인이 가족 목록에 노출되는 버그 방지
+      // patient_group_members에 본인 추가 (fetch POST)
+      const memberHeaders = await buildHeaders('return=minimal');
+      const memberRes = await fetch(`${SUPABASE_URL}/rest/v1/patient_group_members`, {
+        method: 'POST',
+        headers: memberHeaders,
+        body: JSON.stringify({
+          group_id: newGroup.id,
+          user_id: user.id,
+          role: user.role ?? 'patient',
+        }),
+      });
+      if (!memberRes.ok) {
+        const errText = await memberRes.text();
+        throw new Error(`멤버 추가 실패 (HTTP ${memberRes.status}): ${errText}`);
+      }
+
+      // users 테이블의 patient_group_id 업데이트 (fetch PATCH)
+      const userUpdateHeaders = await buildHeaders('return=minimal');
+      const userUpdateRes = await fetch(
+        `${SUPABASE_URL}/rest/v1/users?id=eq.${encodeURIComponent(user.id)}`,
+        {
+          method: 'PATCH',
+          headers: userUpdateHeaders,
+          body: JSON.stringify({ patient_group_id: newGroup.id }),
+        }
+      );
+      if (!userUpdateRes.ok) {
+        const errText = await userUpdateRes.text();
+        throw new Error(`사용자 업데이트 실패 (HTTP ${userUpdateRes.status}): ${errText}`);
+      }
+
+      await refreshUser();
 
       return code;
     } catch (err: any) {

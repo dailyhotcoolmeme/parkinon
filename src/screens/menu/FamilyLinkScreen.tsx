@@ -90,7 +90,8 @@ export function FamilyLinkScreen() {
 
     try {
       const memberList = await getGroupMembers();
-      setMembers(memberList);
+      // 방어적 필터: 혹시라도 본인 ID가 포함된 경우 제거 (솔로 그룹 버그 방지)
+      setMembers(memberList.filter((m) => m.user_id !== user?.id));
 
       // 초대 코드는 화면 진입 시 자동 생성하지 않음
       // → 사용자가 "카카오톡으로 초대하기" 또는 공유 버튼을 누를 때만 생성
