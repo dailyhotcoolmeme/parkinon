@@ -1,0 +1,79 @@
+{
+  "expo": {
+    "name": "파킨온",
+    "slug": "parkinon",
+    "scheme": "parkinon",
+    "version": "1.0.0",
+    "orientation": "portrait",
+    "icon": "./assets/icon.png",
+    "userInterfaceStyle": "light",
+    "newArchEnabled": true,
+    "splash": {
+      "image": "./assets/splash-icon.png",
+      "resizeMode": "contain",
+      "backgroundColor": "#4CAF50"
+    },
+    "ios": {
+      "supportsTablet": false,
+      "bundleIdentifier": "com.ourmine.parkinon"
+    },
+    "android": {
+      "package": "com.ourmine.parkinon",
+      "adaptiveIcon": {
+        "foregroundImage": "./assets/adaptive-icon.png",
+        "backgroundColor": "#4CAF50"
+      },
+      "edgeToEdgeEnabled": true,
+      "predictiveBackGestureEnabled": false,
+      "permissions": [
+        "android.permission.CAMERA",
+        "android.permission.READ_MEDIA_VIDEO",
+        "android.permission.READ_MEDIA_IMAGES",
+        "android.permission.POST_NOTIFICATIONS",
+        "android.permission.INTERNET",
+        "android.permission.RECEIVE_BOOT_COMPLETED",
+        "android.permission.RECORD_AUDIO"
+      ],
+      "intentFilters": [
+        {
+          "action": "VIEW",
+          "autoVerify": true,
+          "data": [
+            {
+              "scheme": "parkinon"
+            }
+          ],
+          "category": [
+            "BROWSABLE",
+            "DEFAULT"
+          ]
+        }
+      ]
+    },
+    "plugins": [
+      "expo-notifications",
+      "expo-camera",
+      "expo-web-browser",
+      [
+        "expo-image-picker",
+        {
+          "photosPermission": "사진 및 영상을 선택하기 위해 갤러리 접근이 필요해요.",
+          "cameraPermission": "처방전 촬영 및 영상 기록을 위해 카메라 접근이 필요해요."
+        }
+      ],
+      "expo-video"
+    ],
+    "runtimeVersion": {
+      "policy": "appVersion"
+    },
+    "updates": {
+      "url": "https://u.expo.dev/3ab78295-11fe-4002-8175-e1c42ff6583d"
+    },
+    "extra": {
+      "eas": {
+        "projectId": "3ab78295-11fe-4002-8175-e1c42ff6583d"
+      }
+    },
+    "owner": "dailyhotcoolmeme"
+  }
+}
