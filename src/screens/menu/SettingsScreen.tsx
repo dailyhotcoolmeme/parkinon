@@ -60,7 +60,7 @@ export function SettingsScreen() {
   const {
     medNotifs, setMedNotifs,
     exerciseNotifs, setExerciseNotifs,
-    notificationEnabled, setNotificationEnabled,
+    notificationEnabled, setNotificationEnabled, setNotificationEnabledOnly,
     systemPermissionGranted, recheckSystemPermission,
     syncGlobalFromIndividual,
   } = useSettings();
@@ -125,10 +125,11 @@ export function SettingsScreen() {
           if (userRow != null) {
             // 시스템 권한 상태를 최종 확인해서 연동
             const { status } = await Notifications.getPermissionsAsync();
-            const sysGranted = status === 'granted';
             const dbEnabled = userRow.notification_enabled ?? true;
-            // 시스템이 차단됐으면 무조건 false, 아니면 DB 값 따름
-            setNotificationEnabled(sysGranted ? dbEnabled : false);
+            // 'denied'(명시적 차단)인 경우만 false로 강제 설정
+            // 'undetermined'는 아직 팝업 미표시 상태 → DB 값 그대로 유지
+            // setNotificationEnabledOnly: 개별 알림 state를 건드리지 않고 전체 토글만 동기화
+            await setNotificationEnabledOnly(status === 'denied' ? false : dbEnabled);
 
             if (isCaregiver && userRow.caregiver_notif_prefs) {
               const prefs = userRow.caregiver_notif_prefs as Record<string, boolean>;
@@ -142,7 +143,7 @@ export function SettingsScreen() {
           console.warn('[SettingsScreen] 설정 로드 오류:', e);
         }
       })();
-    }, [setNotificationEnabled, isCaregiver, recheckSystemPermission])
+    }, [setNotificationEnabledOnly, isCaregiver, recheckSystemPermission])
   );
 
 
@@ -411,13 +412,14 @@ export function SettingsScreen() {
                   {minutesToLabel(notif.minutes)}
                 </Text>
                 <Text style={styles.notifSub}>
-                  {notif.enabled ? '알림이 켜져 있어요' : '알림이 꺼져 있어요'}
+                  {notif.enabled && notificationEnabled ? '알림이 켜져 있어요' : '알림이 꺼져 있어요'}
                 </Text>
               </View>
               <View style={styles.notifRight}>
                 <Switch
-                  value={notif.enabled}
+                  value={notif.enabled && notificationEnabled}
                   onValueChange={() => toggleMed(notif.id)}
+                  disabled={!notificationEnabled}
                   trackColor={{
                     false: Colors.border,
                     true: Colors.primary,
@@ -487,13 +489,14 @@ export function SettingsScreen() {
               <View style={styles.notifLeft}>
                 <Text style={styles.notifTitle}>{formatExerciseNotif(notif)}</Text>
                 <Text style={styles.notifSub}>
-                  {notif.enabled ? '알림이 켜져 있어요' : '알림이 꺼져 있어요'}
+                  {notif.enabled && notificationEnabled ? '알림이 켜져 있어요' : '알림이 꺼져 있어요'}
                 </Text>
               </View>
               <View style={styles.notifRight}>
                 <Switch
-                  value={notif.enabled}
+                  value={notif.enabled && notificationEnabled}
                   onValueChange={() => toggleExercise(notif.id)}
+                  disabled={!notificationEnabled}
                   trackColor={{ false: Colors.border, true: Colors.primary }}
                   thumbColor={Colors.white}
                 />

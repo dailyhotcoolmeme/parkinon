@@ -481,11 +481,20 @@ export async function scheduleExerciseReminders(exerciseNotifs: ExerciseNotif[])
   }
 }
 
-/** 약/운동 알림 전체 재스케줄 (설정 변경 시) */
+/**
+ * 약/운동 알림 전체 재스케줄 (설정 변경 시)
+ * notificationEnabled가 false이면 모든 예약 알림을 취소하고 종료.
+ */
 export async function rescheduleAllNotifications(
   medNotifs: MedNotif[],
   exerciseNotifs: ExerciseNotif[],
+  notificationEnabled: boolean = true,
 ): Promise<void> {
+  if (!notificationEnabled) {
+    // 전체 알림 OFF — 모든 예약 알림 취소
+    await Notifications.cancelAllScheduledNotificationsAsync();
+    return;
+  }
   await scheduleMedicationReminders();
   await scheduleExerciseReminders(exerciseNotifs);
 }

@@ -63,14 +63,20 @@ export function SettingsProvider({ children }: { children: React.ReactNode }) {
   const [loaded, setLoaded] = useState(false);
   const appStateRef = useRef<AppStateStatus>(AppState.currentState);
 
-  // 시스템 알림 권한 상태 확인 및 동기화
+  // ─── 시스템 알림 권한 상태 확인 및 동기화 ────────────────────────────────────
+  // ⚠️ 중요: undetermined = "아직 사용자에게 팝업을 보여주지 않은 상태"
+  //   → denied와 구분해서 처리해야 함
+  //   → undetermined일 때는 앱 설정(notificationEnabled)을 강제로 바꾸면 안 됨
+  //   → denied일 때만 앱 설정을 false로 동기화
   const recheckSystemPermission = useCallback(async () => {
     try {
       const { status } = await Notifications.getPermissionsAsync();
       const granted = status === 'granted';
       setSystemPermissionGranted(granted);
-      // 시스템에서 차단된 경우 DB의 notification_enabled도 false로 동기화
-      if (!granted) {
+
+      // 오직 'denied'(명시적 차단)인 경우에만 앱 설정도 false로 동기화
+      // 'undetermined'는 아직 팝업을 보여주지 않은 것이므로 절대 건드리지 않음
+      if (status === 'denied') {
         setNotificationEnabledState(false);
         try {
           const { data: { session } } = await supabase.auth.getSession();
@@ -97,7 +103,7 @@ export function SettingsProvider({ children }: { children: React.ReactNode }) {
     }
   }, []);
 
-  // 앱이 백그라운드 → 포그라운드로 복귀할 때 시스템 권한 상태 자동 동기화 (qt2026 방식)
+  // 앱이 백그라운드 → 포그라운드로 복귀할 때 시스템 권한 상태 자동 동기화
   useEffect(() => {
     const subscription = AppState.addEventListener('change', (nextState: AppStateStatus) => {
       if (
@@ -136,11 +142,12 @@ export function SettingsProvider({ children }: { children: React.ReactNode }) {
             .eq('id', session.user.id)
             .single();
           if (userRow != null) {
-            // 시스템 권한이 차단된 경우 DB 값과 무관하게 false
-            const enabled = sysGranted ? (userRow.notification_enabled ?? true) : false;
+            // 시스템이 'denied'인 경우만 DB 값과 무관하게 false로 처리
+            // 'undetermined'는 아직 결정 전이므로 DB 값 그대로 반영
+            const enabled = (sysStatus === 'denied') ? false : (userRow.notification_enabled ?? true);
             setNotificationEnabledState(enabled);
-            // 시스템 차단인데 DB에 true로 저장되어 있으면 false로 동기화
-            if (!sysGranted && userRow.notification_enabled !== false) {
+            // 시스템이 denied인데 DB에 true로 저장되어 있으면 false로 동기화
+            if (sysStatus === 'denied' && userRow.notification_enabled !== false) {
               const SUPABASE_URL = process.env.EXPO_PUBLIC_SUPABASE_URL!;
               const SUPABASE_ANON_KEY = process.env.EXPO_PUBLIC_SUPABASE_ANON_KEY!;
               fetch(`${SUPABASE_URL}/rest/v1/users?id=eq.${session.user.id}`, {
@@ -295,10 +302,11 @@ export function SettingsProvider({ children }: { children: React.ReactNode }) {
   }, []);
 
   // 설정 변경 시 알림 재스케줄 (초기 로드 완료 후에만)
+  // notificationEnabled가 false이면 재스케줄 함수 내부에서 모든 알림 취소
   useEffect(() => {
     if (!loaded) return;
-    rescheduleAllNotifications(medNotifs, exerciseNotifs).catch(console.error);
-  }, [medNotifs, exerciseNotifs, loaded]);
+    rescheduleAllNotifications(medNotifs, exerciseNotifs, notificationEnabled).catch(console.error);
+  }, [medNotifs, exerciseNotifs, notificationEnabled, loaded]);
 
   return (
     <SettingsContext.Provider value={{
