@@ -2,10 +2,13 @@
  * useFamilyLink.ts
  * 가족 연동 관련 훅
  *
- * - generateInviteCode() - 6자리 코드 생성, patient_groups 테이블에 저장
+ * - generateInviteCode() - 6자리 코드 생성/갱신
  * - joinByCode(code) - 코드로 그룹 합류 (보호자가 사용)
  * - getGroupMembers() - 그룹 멤버 조회
  * - getPatientForCaregiver() - 보호자가 연동된 환자 정보 조회
+ * - leaveGroup() - 그룹 탈퇴 (마지막 멤버면 그룹 자체 삭제)
+ *
+ * 핵심 원칙: 한 유저는 반드시 하나의 그룹에만 속한다.
  *
  * 스키마 기준:
  *   patient_groups.invite_code (char(6)) + invite_code_expires_at
@@ -39,7 +42,8 @@ export interface UseFamilyLinkReturn {
   loading: boolean;
   error: string | null;
   generateInviteCode: () => Promise<string | null>;
-  joinByCode: (code: string) => Promise<{ success: boolean; message: string }>;
+  joinByCode: (code: string) => Promise<{ success: boolean; message: string; needsConfirm?: boolean }>;
+  joinByCodeForce: (code: string) => Promise<{ success: boolean; message: string }>;
   getGroupMembers: () => Promise<GroupMember[]>;
   getPatientForCaregiver: () => Promise<UserRow | null>;
   leaveGroup: () => Promise<boolean>;
@@ -69,7 +73,11 @@ export function useFamilyLink(): UseFamilyLinkReturn {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  // 초대 코드 생성 (환자가 생성)
+  // ─────────────────────────────────────────────────────────────────────────
+  // generateInviteCode
+  // - 유저에게 이미 그룹이 있으면 → 기존 그룹의 코드만 갱신 (새 그룹 만들지 않음)
+  // - 그룹이 없을 때만 → 새 그룹 생성
+  // ─────────────────────────────────────────────────────────────────────────
   const generateInviteCode = useCallback(async (): Promise<string | null> => {
     if (!user) return null;
 
@@ -80,10 +88,7 @@ export function useFamilyLink(): UseFamilyLinkReturn {
       const code = generateCode();
       const expiresAt = new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString();
 
-      // ── DB에서 최신 patient_group_id를 재조회 (로컬 캐시 race condition 방지) ──
-      // useEffect + useFocusEffect 동시 호출 시, 두 번째 호출이 첫 번째 refreshUser()
-      // 완료 전에 실행되면 user.patient_group_id가 여전히 null로 보임 → 중복 INSERT 발생.
-      // 여기서 DB를 직접 조회해 최신 상태를 확인한다.
+      // DB에서 최신 patient_group_id를 직접 재조회 (로컬 캐시 race condition 방지)
       const { data: freshUser } = await supabase
         .from('users')
         .select('patient_group_id')
@@ -92,9 +97,8 @@ export function useFamilyLink(): UseFamilyLinkReturn {
 
       const currentGroupId = freshUser?.patient_group_id ?? user.patient_group_id;
 
-      // 기존 그룹이 있는지 확인
       if (currentGroupId) {
-        // 기존 그룹의 초대 코드 갱신 (fetch PATCH)
+        // ── 기존 그룹이 있는 경우: 코드만 갱신, 새 그룹 생성 안 함 ──
         const headers = await buildHeaders('return=minimal');
         const res = await fetch(
           `${SUPABASE_URL}/rest/v1/patient_groups?id=eq.${encodeURIComponent(currentGroupId)}`,
@@ -114,7 +118,7 @@ export function useFamilyLink(): UseFamilyLinkReturn {
         return code;
       }
 
-      // 새 그룹 생성 (fetch POST)
+      // ── 그룹이 없는 경우: 새 그룹 생성 ──
       const insertHeaders = await buildHeaders('return=representation');
       const insertRes = await fetch(`${SUPABASE_URL}/rest/v1/patient_groups`, {
         method: 'POST',
@@ -163,7 +167,6 @@ export function useFamilyLink(): UseFamilyLinkReturn {
         throw new Error(`사용자 업데이트 실패 (HTTP ${userUpdateRes.status}): ${errText}`);
       }
 
-      // 로컬 user 상태 갱신
       await refreshUser();
 
       return code;
@@ -176,10 +179,92 @@ export function useFamilyLink(): UseFamilyLinkReturn {
     }
   }, [user, refreshUser]);
 
-  // 코드로 그룹 합류 (보호자가 사용)
+  // ─────────────────────────────────────────────────────────────────────────
+  // _doJoin: 실제 그룹 합류 처리 (기존 그룹 정리 → 새 그룹 멤버 추가 → users 업데이트)
+  // skipOldGroupId: 이미 삭제 처리된 그룹 ID (재삭제 방지)
+  // ─────────────────────────────────────────────────────────────────────────
+  const _doJoin = useCallback(async (
+    targetGroupId: string,
+    oldGroupId: string | null | undefined,
+    deleteOldGroup: boolean
+  ): Promise<{ success: boolean; message: string }> => {
+    if (!user) return { success: false, message: '로그인이 필요해요.' };
+
+    // 1) 기존 멤버십 삭제
+    if (oldGroupId && oldGroupId !== targetGroupId) {
+      const deleteHeaders = await buildHeaders('return=minimal');
+      const delRes = await fetch(
+        `${SUPABASE_URL}/rest/v1/patient_group_members` +
+          `?group_id=eq.${encodeURIComponent(oldGroupId)}` +
+          `&user_id=eq.${encodeURIComponent(user.id)}`,
+        { method: 'DELETE', headers: deleteHeaders }
+      );
+      if (!delRes.ok) {
+        const errText = await delRes.text();
+        throw new Error(`기존 멤버십 삭제 실패 (HTTP ${delRes.status}): ${errText}`);
+      }
+
+      // 2) 기존 그룹이 이제 빈 그룹이면 그룹 자체도 삭제
+      if (deleteOldGroup) {
+        const { count } = await supabase
+          .from('patient_group_members')
+          .select('id', { count: 'exact', head: true })
+          .eq('group_id', oldGroupId);
+
+        if ((count ?? 0) === 0) {
+          const groupDeleteHeaders = await buildHeaders('return=minimal');
+          await fetch(
+            `${SUPABASE_URL}/rest/v1/patient_groups?id=eq.${encodeURIComponent(oldGroupId)}`,
+            { method: 'DELETE', headers: groupDeleteHeaders }
+          );
+        }
+      }
+    }
+
+    // 3) 새 그룹에 멤버 추가
+    const memberHeaders = await buildHeaders('return=minimal');
+    const memberRes = await fetch(`${SUPABASE_URL}/rest/v1/patient_group_members`, {
+      method: 'POST',
+      headers: memberHeaders,
+      body: JSON.stringify({
+        group_id: targetGroupId,
+        user_id: user.id,
+        role: user.role ?? 'caregiver',
+      }),
+    });
+    if (!memberRes.ok) {
+      const errText = await memberRes.text();
+      throw new Error(`멤버 추가 실패 (HTTP ${memberRes.status}): ${errText}`);
+    }
+
+    // 4) users 테이블의 patient_group_id 업데이트
+    const userUpdateHeaders = await buildHeaders('return=minimal');
+    const userUpdateRes = await fetch(
+      `${SUPABASE_URL}/rest/v1/users?id=eq.${encodeURIComponent(user.id)}`,
+      {
+        method: 'PATCH',
+        headers: userUpdateHeaders,
+        body: JSON.stringify({ patient_group_id: targetGroupId }),
+      }
+    );
+    if (!userUpdateRes.ok) {
+      const errText = await userUpdateRes.text();
+      throw new Error(`사용자 업데이트 실패 (HTTP ${userUpdateRes.status}): ${errText}`);
+    }
+
+    await refreshUser();
+    return { success: true, message: '가족 연동이 완료됐어요.' };
+  }, [user, refreshUser]);
+
+  // ─────────────────────────────────────────────────────────────────────────
+  // joinByCode
+  // - 기존 그룹 없음 → 바로 합류
+  // - 기존 그룹 있고 솔로(혼자만) → 기존 그룹 및 멤버십 삭제 후 합류
+  // - 기존 그룹 있고 다른 멤버도 있음 → needsConfirm: true 반환 (화면에서 Alert 처리)
+  // ─────────────────────────────────────────────────────────────────────────
   const joinByCode = useCallback(async (
     code: string
-  ): Promise<{ success: boolean; message: string }> => {
+  ): Promise<{ success: boolean; message: string; needsConfirm?: boolean }> => {
     if (!user) return { success: false, message: '로그인이 필요해요.' };
 
     setLoading(true);
@@ -203,7 +288,7 @@ export function useFamilyLink(): UseFamilyLinkReturn {
         };
       }
 
-      // 이미 같은 그룹에 있는지 확인 — SELECT는 supabase-js 그대로 사용
+      // 이미 같은 그룹에 있는지 확인
       const { data: existingMember } = await supabase
         .from('patient_group_members')
         .select('id')
@@ -215,55 +300,37 @@ export function useFamilyLink(): UseFamilyLinkReturn {
         return { success: false, message: '이미 연동된 가족이에요.' };
       }
 
-      // 기존 그룹에서 본인 멤버십 삭제 (fetch DELETE)
-      if (user.patient_group_id && user.patient_group_id !== group.id) {
-        const deleteHeaders = await buildHeaders('return=minimal');
-        await fetch(
-          `${SUPABASE_URL}/rest/v1/patient_group_members` +
-            `?group_id=eq.${encodeURIComponent(user.patient_group_id)}` +
-            `&user_id=eq.${encodeURIComponent(user.id)}`,
-          {
-            method: 'DELETE',
-            headers: deleteHeaders,
-          }
-        );
-      }
+      // DB에서 최신 patient_group_id 재조회 (race condition 방지)
+      const { data: freshUser } = await supabase
+        .from('users')
+        .select('patient_group_id')
+        .eq('id', user.id)
+        .single();
 
-      // 그룹 멤버 추가 (fetch POST)
-      const memberHeaders = await buildHeaders('return=minimal');
-      const memberRes = await fetch(`${SUPABASE_URL}/rest/v1/patient_group_members`, {
-        method: 'POST',
-        headers: memberHeaders,
-        body: JSON.stringify({
-          group_id: group.id,
-          user_id: user.id,
-          role: user.role ?? 'caregiver',
-        }),
-      });
-      if (!memberRes.ok) {
-        const errText = await memberRes.text();
-        throw new Error(`멤버 추가 실패 (HTTP ${memberRes.status}): ${errText}`);
-      }
+      const currentGroupId = freshUser?.patient_group_id ?? user.patient_group_id;
 
-      // users 테이블의 patient_group_id 업데이트 (fetch PATCH)
-      const userUpdateHeaders = await buildHeaders('return=minimal');
-      const userUpdateRes = await fetch(
-        `${SUPABASE_URL}/rest/v1/users?id=eq.${encodeURIComponent(user.id)}`,
-        {
-          method: 'PATCH',
-          headers: userUpdateHeaders,
-          body: JSON.stringify({ patient_group_id: group.id }),
+      if (currentGroupId && currentGroupId !== group.id) {
+        // 기존 그룹의 멤버 수 확인
+        const { count: memberCount } = await supabase
+          .from('patient_group_members')
+          .select('id', { count: 'exact', head: true })
+          .eq('group_id', currentGroupId);
+
+        if ((memberCount ?? 0) > 1) {
+          // ── 다른 멤버도 있는 경우 → 화면에서 확인 Alert 처리 필요 ──
+          return {
+            success: false,
+            needsConfirm: true,
+            message: '기존 가족 연결을 끊고 새로 연동하시겠습니까?',
+          };
         }
-      );
-      if (!userUpdateRes.ok) {
-        const errText = await userUpdateRes.text();
-        throw new Error(`사용자 업데이트 실패 (HTTP ${userUpdateRes.status}): ${errText}`);
+
+        // ── 솔로 그룹인 경우 → 기존 그룹과 멤버십 삭제 후 새 그룹 합류 ──
+        return await _doJoin(group.id, currentGroupId, true);
       }
 
-      // 로컬 user 상태 갱신
-      await refreshUser();
-
-      return { success: true, message: '가족 연동이 완료됐어요.' };
+      // ── 기존 그룹 없음 → 바로 합류 ──
+      return await _doJoin(group.id, null, false);
     } catch (err: any) {
       console.error('[useFamilyLink] joinByCode 오류:', err);
       const message = err.message ?? '연동 중 오류가 발생했어요.';
@@ -272,21 +339,68 @@ export function useFamilyLink(): UseFamilyLinkReturn {
     } finally {
       setLoading(false);
     }
-  }, [user, refreshUser]);
+  }, [user, refreshUser, _doJoin]);
 
-  // 그룹 멤버 조회 (fetch API 직접 사용 - New Architecture supabase-js hang 방지)
+  // ─────────────────────────────────────────────────────────────────────────
+  // joinByCodeForce
+  // 화면에서 "기존 연동 끊고 새로 연동" 확인 Alert → 예 선택 시 호출
+  // needsConfirm 상황에서 강제로 합류 처리
+  // ─────────────────────────────────────────────────────────────────────────
+  const joinByCodeForce = useCallback(async (
+    code: string
+  ): Promise<{ success: boolean; message: string }> => {
+    if (!user) return { success: false, message: '로그인이 필요해요.' };
+
+    setLoading(true);
+    setError(null);
+
+    try {
+      const trimmedCode = code.trim();
+
+      const { data: group, error: groupError } = await supabase
+        .from('patient_groups')
+        .select('id, invite_code_expires_at')
+        .eq('invite_code', trimmedCode)
+        .gt('invite_code_expires_at', new Date().toISOString())
+        .single();
+
+      if (groupError || !group) {
+        return {
+          success: false,
+          message: '유효하지 않은 코드예요. 다시 확인해주세요.',
+        };
+      }
+
+      const { data: freshUser } = await supabase
+        .from('users')
+        .select('patient_group_id')
+        .eq('id', user.id)
+        .single();
+
+      const currentGroupId = freshUser?.patient_group_id ?? user.patient_group_id;
+
+      // 기존 그룹과 멤버십 삭제 후 새 그룹 합류 (그룹은 빈 경우만 삭제)
+      return await _doJoin(group.id, currentGroupId, true);
+    } catch (err: any) {
+      console.error('[useFamilyLink] joinByCodeForce 오류:', err);
+      const message = err.message ?? '연동 중 오류가 발생했어요.';
+      setError(message);
+      return { success: false, message };
+    } finally {
+      setLoading(false);
+    }
+  }, [user, refreshUser, _doJoin]);
+
+  // ─────────────────────────────────────────────────────────────────────────
+  // getGroupMembers — SELECT이므로 supabase-js 사용 가능하나 fetch API 직접 사용
+  // ─────────────────────────────────────────────────────────────────────────
   const getGroupMembers = useCallback(async (): Promise<GroupMember[]> => {
     if (!user?.patient_group_id) return [];
 
     try {
-      // supabase.auth.getSession()으로 액세스 토큰 획득
       const { data: sessionData } = await supabase.auth.getSession();
       const accessToken = sessionData?.session?.access_token ?? SUPABASE_ANON_KEY;
 
-      // 본인 제외 필터 포함: group_id=eq.{groupId}&user_id=neq.{userId}
-      // ⚠️ select 파라미터에 embedded resource(user:users)가 있으면
-      //    user_id=neq 필터가 embedded join에 혼용될 수 있으므로
-      //    not.eq 방식으로 명시하고 group_id 필터를 맨 앞에 배치
       const url =
         `${SUPABASE_URL}/rest/v1/patient_group_members` +
         `?group_id=eq.${encodeURIComponent(user.patient_group_id)}` +
@@ -309,7 +423,6 @@ export function useFamilyLink(): UseFamilyLinkReturn {
 
       const data: any[] = await res.json();
 
-      // 클라이언트 측 이중 방어: 혹시 본인이 포함된 경우 제거
       return (data ?? [])
         .filter((item: any) => item.user_id !== user.id)
         .map((item: any) => ({
@@ -324,7 +437,9 @@ export function useFamilyLink(): UseFamilyLinkReturn {
     }
   }, [user]);
 
-  // 보호자가 연동된 환자 정보 조회 — SELECT이므로 supabase-js 그대로 사용
+  // ─────────────────────────────────────────────────────────────────────────
+  // getPatientForCaregiver — SELECT이므로 supabase-js 그대로 사용
+  // ─────────────────────────────────────────────────────────────────────────
   const getPatientForCaregiver = useCallback(async (): Promise<UserRow | null> => {
     if (!user || user.role !== 'caregiver' || !user.patient_group_id) return null;
 
@@ -352,31 +467,53 @@ export function useFamilyLink(): UseFamilyLinkReturn {
     }
   }, [user]);
 
-  // 그룹 탈퇴
+  // ─────────────────────────────────────────────────────────────────────────
+  // leaveGroup
+  // - 멤버십 삭제 후 그룹에 멤버가 0명이면 patient_groups 그룹 자체도 삭제
+  // ─────────────────────────────────────────────────────────────────────────
   const leaveGroup = useCallback(async (): Promise<boolean> => {
     if (!user?.patient_group_id) return false;
 
     setLoading(true);
     setError(null);
 
+    const groupId = user.patient_group_id;
+
     try {
-      // patient_group_members에서 제거 (fetch DELETE)
+      // 1) patient_group_members에서 본인 제거 (fetch DELETE)
       const deleteHeaders = await buildHeaders('return=minimal');
       const deleteRes = await fetch(
         `${SUPABASE_URL}/rest/v1/patient_group_members` +
-          `?group_id=eq.${encodeURIComponent(user.patient_group_id)}` +
+          `?group_id=eq.${encodeURIComponent(groupId)}` +
           `&user_id=eq.${encodeURIComponent(user.id)}`,
-        {
-          method: 'DELETE',
-          headers: deleteHeaders,
-        }
+        { method: 'DELETE', headers: deleteHeaders }
       );
       if (!deleteRes.ok) {
         const errText = await deleteRes.text();
         throw new Error(`멤버 삭제 실패 (HTTP ${deleteRes.status}): ${errText}`);
       }
 
-      // users 테이블의 patient_group_id 초기화 (fetch PATCH)
+      // 2) 탈퇴 후 그룹에 남은 멤버 수 확인
+      const { count: remainingCount } = await supabase
+        .from('patient_group_members')
+        .select('id', { count: 'exact', head: true })
+        .eq('group_id', groupId);
+
+      // 3) 멤버가 0명이면 그룹 자체도 삭제 (fetch DELETE)
+      if ((remainingCount ?? 0) === 0) {
+        const groupDeleteHeaders = await buildHeaders('return=minimal');
+        const groupDeleteRes = await fetch(
+          `${SUPABASE_URL}/rest/v1/patient_groups?id=eq.${encodeURIComponent(groupId)}`,
+          { method: 'DELETE', headers: groupDeleteHeaders }
+        );
+        if (!groupDeleteRes.ok) {
+          // 그룹 삭제 실패는 치명적이지 않으므로 경고만 로깅
+          const errText = await groupDeleteRes.text();
+          console.warn(`[useFamilyLink] 빈 그룹 삭제 실패 (HTTP ${groupDeleteRes.status}): ${errText}`);
+        }
+      }
+
+      // 4) users 테이블의 patient_group_id 초기화 (fetch PATCH)
       const userUpdateHeaders = await buildHeaders('return=minimal');
       const userUpdateRes = await fetch(
         `${SUPABASE_URL}/rest/v1/users?id=eq.${encodeURIComponent(user.id)}`,
@@ -407,6 +544,7 @@ export function useFamilyLink(): UseFamilyLinkReturn {
     error,
     generateInviteCode,
     joinByCode,
+    joinByCodeForce,
     getGroupMembers,
     getPatientForCaregiver,
     leaveGroup,

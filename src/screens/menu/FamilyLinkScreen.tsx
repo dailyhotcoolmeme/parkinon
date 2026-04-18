@@ -24,7 +24,7 @@ import { supabase } from '../../lib/supabase';
 
 export function FamilyLinkScreen() {
   const { user } = useAuth();
-  const { generateInviteCode, joinByCode, getGroupMembers, leaveGroup, loading, error: familyLinkError } = useFamilyLink();
+  const { generateInviteCode, joinByCode, joinByCodeForce, getGroupMembers, leaveGroup, loading, error: familyLinkError } = useFamilyLink();
 
   const [members, setMembers] = useState<import('../../hooks/useFamilyLink').GroupMember[]>([]);
   const [inviteCode, setInviteCode] = useState('');
@@ -192,6 +192,32 @@ export function FamilyLinkScreen() {
     setConnecting(true);
     const result = await joinByCode(trimmed);
     setConnecting(false);
+
+    if (result.needsConfirm) {
+      // 기존 그룹에 다른 멤버가 있는 경우 → 확인 Alert
+      Alert.alert(
+        '가족 연동 변경',
+        result.message,
+        [
+          { text: '취소', style: 'cancel' },
+          {
+            text: '확인',
+            style: 'destructive',
+            onPress: async () => {
+              setConnecting(true);
+              const forceResult = await joinByCodeForce(trimmed);
+              setConnecting(false);
+              Alert.alert(forceResult.success ? '연결 완료' : '연결 실패', forceResult.message);
+              if (forceResult.success) {
+                closeSheet();
+                loadData();
+              }
+            },
+          },
+        ]
+      );
+      return;
+    }
 
     Alert.alert(result.success ? '연결 완료' : '연결 실패', result.message);
     if (result.success) {
