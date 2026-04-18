@@ -350,17 +350,24 @@ const NOTIF_BLOCKED_ALERT_THROTTLE_KEY = 'notif_blocked_alert_last_shown';
 const NOTIF_BLOCKED_ALERT_INTERVAL_MS = 24 * 60 * 60 * 1000; // 24시간에 1번만 알림
 
 /**
- * 앱 재진입 시 알림 권한 상태 확인 — 이미 거부된 경우 시스템 설정 안내
+ * 앱 재진입 시 알림 권한 상태 확인
  * (온보딩 완료 후 매 앱 포어그라운드 진입 시 호출)
- * - 24시간에 1번만 Alert 표시 (매번 뜨면 UX 저하)
- * - Android: status !== 'granted' 로 판단 (denied / undetermined 구분 없이 처리)
+ *
+ * - undetermined: 아직 권한 요청을 한 번도 하지 않은 상태 → 아무것도 안 함
+ *   (온보딩 팝업 or 설정 화면 Switch로 요청해야 함 — 포그라운드 진입 시 자동 요청 금지)
+ * - denied: 명시적으로 거부된 상태 → 24시간에 1번만 설정 화면 안내
+ * - granted: 정상 → 아무것도 안 함
  */
 export async function checkAndPromptNotificationPermission(): Promise<void> {
   const { status } = await Notifications.getPermissionsAsync();
+
   // granted이면 정상 — 아무것도 안 함
   if (status === 'granted') return;
 
-  // 차단된 경우 → 최근 24시간 이내 이미 안내했으면 스킵
+  // undetermined: 팝업 요청은 사용자 액션(Switch 탭) 시에만 해야 함 — 여기서는 건드리지 않음
+  if (status === 'undetermined') return;
+
+  // denied(명시적 차단)인 경우에만 → 최근 24시간 이내 이미 안내했으면 스킵
   try {
     const lastShownRaw = await AsyncStorage.getItem(NOTIF_BLOCKED_ALERT_THROTTLE_KEY);
     if (lastShownRaw) {

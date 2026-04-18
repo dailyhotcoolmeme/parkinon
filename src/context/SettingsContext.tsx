@@ -59,15 +59,18 @@ export function SettingsProvider({ children }: { children: React.ReactNode }) {
   const [medNotifs, setMedNotifsState] = useState<MedNotif[]>(DEFAULT_MED_NOTIFS);
   const [exerciseNotifs, setExerciseNotifsState] = useState<ExerciseNotif[]>(DEFAULT_EXERCISE_NOTIFS);
   const [notificationEnabled, setNotificationEnabledState] = useState(true);
-  const [systemPermissionGranted, setSystemPermissionGranted] = useState(true);
+  // 초기값 false: 앱 시작 후 실제 시스템 권한 확인 전에 배너가 잘못 숨겨지지 않도록
+  // (초기 useEffect에서 getPermissionsAsync() 호출 후 실제 값으로 업데이트됨)
+  const [systemPermissionGranted, setSystemPermissionGranted] = useState(false);
   const [loaded, setLoaded] = useState(false);
   const appStateRef = useRef<AppStateStatus>(AppState.currentState);
 
   // ─── 시스템 알림 권한 상태 확인 및 동기화 ────────────────────────────────────
   // ⚠️ 중요: undetermined = "아직 사용자에게 팝업을 보여주지 않은 상태"
-  //   → denied와 구분해서 처리해야 함
-  //   → undetermined일 때는 앱 설정(notificationEnabled)을 강제로 바꾸면 안 됨
-  //   → denied일 때만 앱 설정을 false로 동기화
+  //   → denied와 반드시 구분해서 처리
+  //   → undetermined: systemPermissionGranted = false (배너 표시), notificationEnabled는 건드리지 않음
+  //   → denied:       systemPermissionGranted = false (배너 표시), notificationEnabled = false (앱 설정 동기화)
+  //   → granted:      systemPermissionGranted = true,  notificationEnabled는 건드리지 않음
   const recheckSystemPermission = useCallback(async () => {
     try {
       const { status } = await Notifications.getPermissionsAsync();
@@ -75,7 +78,7 @@ export function SettingsProvider({ children }: { children: React.ReactNode }) {
       setSystemPermissionGranted(granted);
 
       // 오직 'denied'(명시적 차단)인 경우에만 앱 설정도 false로 동기화
-      // 'undetermined'는 아직 팝업을 보여주지 않은 것이므로 절대 건드리지 않음
+      // 'undetermined'는 아직 팝업을 보여주지 않은 것이므로 notificationEnabled 절대 건드리지 않음
       if (status === 'denied') {
         setNotificationEnabledState(false);
         try {
@@ -96,6 +99,29 @@ export function SettingsProvider({ children }: { children: React.ReactNode }) {
           }
         } catch (e) {
           console.warn('[SettingsContext] 시스템 권한 차단 DB 동기화 오류:', e);
+        }
+      }
+      // 'granted'로 복귀 (설정에서 허용하고 돌아온 경우) → notificationEnabled를 true로 복원
+      if (status === 'granted') {
+        setNotificationEnabledState(true);
+        try {
+          const { data: { session } } = await supabase.auth.getSession();
+          if (session?.user) {
+            const SUPABASE_URL = process.env.EXPO_PUBLIC_SUPABASE_URL!;
+            const SUPABASE_ANON_KEY = process.env.EXPO_PUBLIC_SUPABASE_ANON_KEY!;
+            await fetch(`${SUPABASE_URL}/rest/v1/users?id=eq.${session.user.id}`, {
+              method: 'PATCH',
+              headers: {
+                'apikey': SUPABASE_ANON_KEY,
+                'Authorization': `Bearer ${session.access_token}`,
+                'Content-Type': 'application/json',
+                'Prefer': 'return=minimal',
+              },
+              body: JSON.stringify({ notification_enabled: true }),
+            });
+          }
+        } catch (e) {
+          console.warn('[SettingsContext] 시스템 권한 복원 DB 동기화 오류:', e);
         }
       }
     } catch (e) {

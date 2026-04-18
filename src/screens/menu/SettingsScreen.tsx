@@ -325,18 +325,18 @@ export function SettingsScreen() {
               value={notificationEnabled}
               onValueChange={async (v) => {
                 if (v) {
-                  // ON으로 켤 때: 시스템 권한 상태 확인 (qt2026 방식)
+                  // ── ON으로 켤 때: 시스템 권한 상태 먼저 확인 ──────────────
                   const { status: currentStatus } = await Notifications.getPermissionsAsync();
 
                   if (currentStatus === 'granted') {
-                    // 이미 허용됨 → 바로 ON
+                    // 케이스 3: 이미 허용됨 → 바로 ON
                     await setNotificationEnabled(true);
                     await recheckSystemPermission();
                     return;
                   }
 
                   if (currentStatus === 'denied') {
-                    // 이미 차단됨 → 시스템 설정으로 안내 (팝업 다시 못 뜸)
+                    // 케이스 2: 이미 차단됨 → 시스템 설정으로 안내 (팝업 다시 못 뜸)
                     Alert.alert(
                       '알림이 차단되어 있어요',
                       '설정에서 파킨온 알림을 허용해야 켤 수 있어요.',
@@ -348,19 +348,30 @@ export function SettingsScreen() {
                         },
                       ],
                     );
-                    return; // 토글 ON 막기
+                    // Switch가 ON으로 튕기는 것을 방지하기 위해 명시적으로 false 유지
+                    await setNotificationEnabled(false);
+                    return;
                   }
 
-                  // undetermined — 시스템 권한 팝업 요청 (qt2026 방식)
+                  // 케이스 1: undetermined — 시스템 알림 권한 팝업 즉시 요청
+                  // requestPermissionsAsync() 는 반드시 사용자 액션 직후 호출해야 Android에서 팝업이 뜸
                   const { status: requestedStatus } = await Notifications.requestPermissionsAsync();
                   await recheckSystemPermission();
 
                   if (requestedStatus === 'granted') {
-                    // 허용됨 → 앱 설정도 ON으로 동기화
+                    // 허용됨 → 앱 설정도 ON으로 확정
                     await setNotificationEnabled(true);
                   } else {
-                    // 거부됨 → 토글 유지 OFF, 앱 설정 동기화
+                    // 거부됨 → 앱 설정 OFF 유지 + 설정 안내
                     await setNotificationEnabled(false);
+                    Alert.alert(
+                      '알림 권한이 필요해요',
+                      '약 복용 알림을 받으려면 설정에서 파킨온 알림을 허용해주세요.',
+                      [
+                        { text: '나중에', style: 'cancel' },
+                        { text: '설정 열기', onPress: () => Linking.openSettings() },
+                      ],
+                    );
                   }
                   return;
                 }
