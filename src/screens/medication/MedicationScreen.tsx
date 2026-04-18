@@ -190,7 +190,7 @@ export function MedicationScreen() {
         <Text style={styles.dateText}>{getDateLabel(selectedDate)}</Text>
         <TouchableOpacity style={styles.calBtn} onPress={() => setShowDatePicker(true)} hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}>
           <Ionicons name="calendar-outline" size={24} color={Colors.text} />
-          <Text style={styles.calBtnText}>날짜</Text>
+          
         </TouchableOpacity>
       </View>
 
