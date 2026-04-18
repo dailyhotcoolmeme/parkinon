@@ -10,6 +10,8 @@ import {
   NativeScrollEvent,
   ActivityIndicator,
   Image,
+  TextInput,
+  ScrollView,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useNavigation, useFocusEffect } from '@react-navigation/native';
@@ -68,6 +70,17 @@ const CATEGORY_BADGE_COLORS: Record<string, { bg: string; text: string }> = {
   default:  { bg: '#F5F5F5', text: '#555555' },
 };
 
+// 필터칩 목록
+const FILTER_CHIPS = [
+  { id: 'all',      label: '전체' },
+  { id: 'cheer',    label: '응원해요' },
+  { id: 'question', label: '질문있어요' },
+  { id: 'chat',     label: '자유수다' },
+  { id: 'info',     label: '정보공유' },
+  { id: 'exercise', label: '운동인증' },
+  { id: 'news',     label: '뉴스' },
+];
+
 function formatDate(isoString: string): string {
   const d = new Date(isoString);
   const year = d.getFullYear();
@@ -85,9 +98,19 @@ function getThumbnailUrl(url: string | undefined): string | undefined {
   return `${url}${sep}width=200&quality=75&format=webp`;
 }
 
+async function triggerHaptic() {
+  try {
+    // expo-haptics가 있으면 사용, 없으면 무시
+    const Haptics = require('expo-haptics');
+    await Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+  } catch {
+    // expo-haptics 미설치 시 무시
+  }
+}
+
 export function FeedScreen() {
   const navigation = useNavigation<Nav>();
-const scrollY = useRef(new Animated.Value(0)).current;
+  const scrollY = useRef(new Animated.Value(0)).current;
   const lastScrollY = useRef(0);
   const [fabExpanded, setFabExpanded] = useState(true);
   const [posts, setPosts] = useState<PostItem[]>([]);
@@ -95,6 +118,16 @@ const scrollY = useRef(new Animated.Value(0)).current;
   const [loadingMore, setLoadingMore] = useState(false);
   const [hasMore, setHasMore] = useState(true);
   const pageRef = useRef(0);
+
+  // 검색 및 필터 상태
+  const [searchInput, setSearchInput] = useState('');
+  const [searchQuery, setSearchQuery] = useState('');
+  const [selectedCategory, setSelectedCategory] = useState('all');
+  const [isSearchFocused, setIsSearchFocused] = useState(false);
+
+  // 최신 값 ref (fetchPosts 콜백에서 최신 상태를 참조하기 위해)
+  const searchQueryRef = useRef('');
+  const selectedCategoryRef = useRef('all');
 
   const mapPost = (p: any): PostItem => ({
     id: p.id,
@@ -115,7 +148,7 @@ const scrollY = useRef(new Animated.Value(0)).current;
     likeCount: p.like_count ?? 0,
   });
 
-  const fetchPosts = useCallback(async (reset = true) => {
+  const fetchPosts = useCallback(async (reset = true, overrideSearch?: string, overrideCategory?: string) => {
     if (reset) {
       setLoading(true);
       pageRef.current = 0;
@@ -126,18 +159,70 @@ const scrollY = useRef(new Animated.Value(0)).current;
       const from = pageRef.current * PAGE_SIZE;
       const to = from + PAGE_SIZE - 1;
 
-      // posts 테이블 (post_media 첫 번째 사진 포함)
-      const { data: postsData, error: postsError } = await supabase
+      // 현재 필터 값 (override 또는 ref 사용)
+      const currentSearch = overrideSearch !== undefined ? overrideSearch : searchQueryRef.current;
+      const currentCategory = overrideCategory !== undefined ? overrideCategory : selectedCategoryRef.current;
+
+      let mappedPosts: PostItem[] = [];
+      let newsFeedItems: PostItem[] = [];
+
+      // 뉴스 전용 모드
+      if (currentCategory === 'news') {
+        const { data: newsData } = await supabase
+          .from('news_feed')
+          .select('id, title, description, published_at, source_name, url')
+          .order('published_at', { ascending: false })
+          .range(from, to);
+
+        newsFeedItems = (newsData ?? []).map((n: any) => ({
+          id: 'news_' + n.id,
+          isNews: true,
+          category: '뉴스',
+          categoryIcon: 'newspaper-outline' as IoniconName,
+          author: n.source_name ?? '파킨온 뉴스',
+          date: formatDate(n.published_at ?? new Date().toISOString()),
+          views: 0,
+          title: n.title ?? '',
+          preview: n.description ?? '',
+          commentCount: 0,
+          likeCount: 0,
+        }));
+
+        if (reset) {
+          setPosts(newsFeedItems);
+        } else {
+          setPosts(prev => [...prev, ...newsFeedItems]);
+        }
+        setHasMore((newsData ?? []).length === PAGE_SIZE);
+        pageRef.current += 1;
+        return;
+      }
+
+      // 일반 게시글 쿼리
+      let query = supabase
         .from('posts')
         .select('*, author:users(name), post_media(r2_url, sort_order, media_type)')
         .order('created_at', { ascending: false })
         .range(from, to);
 
+      // 카테고리 필터 (all이 아닐 때)
+      if (currentCategory !== 'all') {
+        query = query.eq('post_type', currentCategory);
+      }
+
+      // 검색어 필터
+      if (currentSearch.trim()) {
+        query = query.ilike('title', `%${currentSearch.trim()}%`);
+      }
+
+      const { data: postsData, error: postsError } = await query;
+
       if (postsError) throw postsError;
 
-      // news_feed 테이블 (첫 페이지 리셋 시에만 최신 5개 혼합)
-      let newsFeedItems: PostItem[] = [];
-      if (reset) {
+      mappedPosts = (postsData ?? []).map(mapPost);
+
+      // 뉴스 혼합: all 카테고리 + 검색어 없음 + 첫 페이지 리셋 시에만
+      if (currentCategory === 'all' && !currentSearch.trim() && reset) {
         const { data: newsData } = await supabase
           .from('news_feed')
           .select('id, title, description, published_at, source_name, url')
@@ -159,17 +244,19 @@ const scrollY = useRef(new Animated.Value(0)).current;
         }));
       }
 
-      const mappedPosts = (postsData ?? []).map(mapPost);
-
       if (reset) {
-        // 첫 페이지: 게시글과 뉴스 번갈아 배치
-        const interleaved: PostItem[] = [];
-        let ni = 0, pi = 0;
-        while (ni < newsFeedItems.length || pi < mappedPosts.length) {
-          if (pi < mappedPosts.length) interleaved.push(mappedPosts[pi++]);
-          if (ni < newsFeedItems.length) interleaved.push(newsFeedItems[ni++]);
+        if (newsFeedItems.length > 0) {
+          // 첫 페이지: 게시글과 뉴스 번갈아 배치
+          const interleaved: PostItem[] = [];
+          let ni = 0, pi = 0;
+          while (ni < newsFeedItems.length || pi < mappedPosts.length) {
+            if (pi < mappedPosts.length) interleaved.push(mappedPosts[pi++]);
+            if (ni < newsFeedItems.length) interleaved.push(newsFeedItems[ni++]);
+          }
+          setPosts(interleaved);
+        } else {
+          setPosts(mappedPosts);
         }
-        setPosts(interleaved);
       } else {
         setPosts(prev => [...prev, ...mappedPosts]);
       }
@@ -187,7 +274,7 @@ const scrollY = useRef(new Animated.Value(0)).current;
   // 화면 포커스 시 목록 갱신 (PostWrite 후 복귀 포함)
   useFocusEffect(
     useCallback(() => {
-      fetchPosts(true);
+      fetchPosts(true, searchQueryRef.current, selectedCategoryRef.current);
     }, [fetchPosts])
   );
 
@@ -205,6 +292,45 @@ const scrollY = useRef(new Animated.Value(0)).current;
       setFabExpanded(true);
     }
     lastScrollY.current = currentY;
+  };
+
+  // 검색 실행 (onSubmitEditing)
+  const handleSearchSubmit = useCallback(() => {
+    const trimmed = searchInput.trim();
+    searchQueryRef.current = trimmed;
+    setSearchQuery(trimmed);
+    fetchPosts(true, trimmed, selectedCategoryRef.current);
+  }, [searchInput, fetchPosts]);
+
+  // X 버튼 탭: 검색어 초기화
+  const handleClearSearch = useCallback(() => {
+    setSearchInput('');
+    searchQueryRef.current = '';
+    setSearchQuery('');
+    fetchPosts(true, '', selectedCategoryRef.current);
+  }, [fetchPosts]);
+
+  // 필터칩 선택
+  const handleChipSelect = useCallback((chipId: string) => {
+    triggerHaptic();
+    // 동일 칩 재탭 = 'all'로 복귀
+    const newCategory = chipId === selectedCategoryRef.current ? 'all' : chipId;
+    selectedCategoryRef.current = newCategory;
+    setSelectedCategory(newCategory);
+    fetchPosts(true, searchQueryRef.current, newCategory);
+  }, [fetchPosts]);
+
+  // Empty State 텍스트 분기
+  const getEmptyText = () => {
+    if (searchQuery.trim()) {
+      return `'${searchQuery}'에 대한\n게시글을 찾지 못했어요`;
+    }
+    if (selectedCategory !== 'all') {
+      const chip = FILTER_CHIPS.find(c => c.id === selectedCategory);
+      const label = chip?.label ?? selectedCategory;
+      return `아직 ${label} 글이 없어요\n첫 번째로 글을 써보세요!`;
+    }
+    return '아직 게시글이 없어요.\n첫 글을 작성해보세요!';
   };
 
   const renderItem = ({ item }: { item: PostItem }) => {
@@ -262,6 +388,58 @@ const scrollY = useRef(new Animated.Value(0)).current;
   return (
     <SafeAreaView style={styles.safe} edges={['top']}>
       <TopBar title="파킨온" showParkinon />
+
+      {/* 검색창 */}
+      <View
+        style={[
+          styles.searchBar,
+          isSearchFocused && styles.searchBarFocused,
+        ]}
+      >
+        <Ionicons name="search-outline" size={20} color="#AAAAAA" style={styles.searchIcon} />
+        <TextInput
+          style={styles.searchInput}
+          placeholder="제목으로 검색..."
+          placeholderTextColor="#AAAAAA"
+          value={searchInput}
+          onChangeText={setSearchInput}
+          onFocus={() => setIsSearchFocused(true)}
+          onBlur={() => setIsSearchFocused(false)}
+          onSubmitEditing={handleSearchSubmit}
+          returnKeyType="search"
+          clearButtonMode="never"
+        />
+        {searchInput.length > 0 && (
+          <TouchableOpacity onPress={handleClearSearch} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
+            <Ionicons name="close-circle" size={20} color="#AAAAAA" />
+          </TouchableOpacity>
+        )}
+      </View>
+
+      {/* 필터칩 */}
+      <ScrollView
+        horizontal
+        showsHorizontalScrollIndicator={false}
+        style={styles.chipScrollView}
+        contentContainerStyle={styles.chipContainer}
+      >
+        {FILTER_CHIPS.map((chip) => {
+          const isSelected = selectedCategory === chip.id;
+          return (
+            <TouchableOpacity
+              key={chip.id}
+              style={[styles.chip, isSelected && styles.chipSelected]}
+              onPress={() => handleChipSelect(chip.id)}
+              activeOpacity={0.75}
+            >
+              <Text style={[styles.chipText, isSelected && styles.chipTextSelected]}>
+                {chip.label}
+              </Text>
+            </TouchableOpacity>
+          );
+        })}
+      </ScrollView>
+
       <View style={styles.flex}>
         {loading ? (
           <View style={styles.loadingWrap}>
@@ -276,7 +454,7 @@ const scrollY = useRef(new Animated.Value(0)).current;
             showsVerticalScrollIndicator={false}
             onScroll={handleScroll}
             scrollEventThrottle={16}
-            onRefresh={() => fetchPosts(true)}
+            onRefresh={() => fetchPosts(true, searchQueryRef.current, selectedCategoryRef.current)}
             refreshing={loading}
             onEndReached={handleLoadMore}
             onEndReachedThreshold={0.3}
@@ -290,7 +468,7 @@ const scrollY = useRef(new Animated.Value(0)).current;
               ) : null
             }
             ListEmptyComponent={
-              <Text style={styles.emptyText}>아직 게시글이 없어요.{'\n'}첫 글을 작성해보세요!</Text>
+              <Text style={styles.emptyText}>{getEmptyText()}</Text>
             }
           />
         )}
@@ -320,6 +498,72 @@ const styles = StyleSheet.create({
     fontSize: 18,
     marginTop: 60,
     lineHeight: 30,
+  },
+
+  /* ── 검색창 ── */
+  searchBar: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginHorizontal: 16,
+    marginTop: 8,
+    marginBottom: 4,
+    height: 52,
+    borderRadius: 12,
+    borderWidth: 1.5,
+    borderColor: '#EEEEEE',
+    backgroundColor: '#FFFFFF',
+    paddingHorizontal: 12,
+  },
+  searchBarFocused: {
+    borderWidth: 2,
+    borderColor: '#4CAF50',
+  },
+  searchIcon: {
+    marginRight: 8,
+  },
+  searchInput: {
+    flex: 1,
+    fontSize: 18,
+    color: '#111111',
+    paddingVertical: 0,
+  },
+
+  /* ── 필터칩 ── */
+  chipScrollView: {
+    height: 56,
+    flexGrow: 0,
+  },
+  chipContainer: {
+    paddingHorizontal: 16,
+    paddingVertical: 8,
+    gap: 8,
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
+  chip: {
+    height: 44,
+    borderRadius: 22,
+    borderWidth: 1.5,
+    borderColor: '#EEEEEE',
+    backgroundColor: '#FFFFFF',
+    paddingVertical: 10,
+    paddingHorizontal: 16,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  chipSelected: {
+    borderWidth: 2,
+    borderColor: '#4CAF50',
+    backgroundColor: '#E8F5E9',
+  },
+  chipText: {
+    fontSize: 16,
+    fontWeight: '400',
+    color: '#666666',
+  },
+  chipTextSelected: {
+    fontWeight: '700',
+    color: '#2E7D32',
   },
 
   /* ── 카드 ── */
