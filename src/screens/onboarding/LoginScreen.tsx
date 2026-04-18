@@ -174,9 +174,9 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
   logoImage: {
-    width: 170,
-    height: 170,
-    borderRadius: 42,
+    width: 220,
+    height: 220,
+    borderRadius: 54,
     marginVertical: 16,
   },
   title: {
