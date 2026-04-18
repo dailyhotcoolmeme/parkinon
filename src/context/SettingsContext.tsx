@@ -26,6 +26,12 @@ interface SettingsContextValue {
   setExerciseNotifs: React.Dispatch<React.SetStateAction<ExerciseNotif[]>>;
   notificationEnabled: boolean;
   setNotificationEnabled: (enabled: boolean) => Promise<void>;
+  /**
+   * DB/시스템 상태 동기화 전용 — 개별 알림 state를 건드리지 않고
+   * notificationEnabled 값만 업데이트 + DB 저장.
+   * useFocusEffect에서 DB 재로드 시 사용.
+   */
+  setNotificationEnabledOnly: (enabled: boolean) => Promise<void>;
   /** 시스템 알림 권한이 실제로 허용되어 있는지 여부 */
   systemPermissionGranted: boolean;
   /** 시스템 권한 상태를 다시 확인하고 동기화 */
@@ -182,29 +188,8 @@ export function SettingsProvider({ children }: { children: React.ReactNode }) {
     []
   );
 
-  // notification_enabled → users 테이블 UPDATE (fetch API 사용 — 새 아키텍처 hang 우회)
-  const setNotificationEnabled = useCallback(async (enabled: boolean) => {
-    setNotificationEnabledState(enabled);
-
-    // 전체 알림 OFF 시: 모든 개별 알림도 화면·AsyncStorage에서 끄기 + 예약 알림 전부 취소
-    if (!enabled) {
-      try {
-        await Notifications.cancelAllScheduledNotificationsAsync();
-      } catch (e) {
-        console.warn('[SettingsContext] 알림 취소 오류:', e);
-      }
-      setMedNotifsState(prev => {
-        const next = prev.map(n => ({ ...n, enabled: false }));
-        AsyncStorage.setItem(STORAGE_KEY_MED, JSON.stringify(next)).catch(console.warn);
-        return next;
-      });
-      setExerciseNotifsState(prev => {
-        const next = prev.map(n => ({ ...n, enabled: false }));
-        AsyncStorage.setItem(STORAGE_KEY_EXERCISE, JSON.stringify(next)).catch(console.warn);
-        return next;
-      });
-    }
-
+  // notification_enabled DB 저장 공통 헬퍼
+  const _persistNotificationEnabled = useCallback(async (enabled: boolean) => {
     try {
       const { data: { session } } = await supabase.auth.getSession();
       if (!session?.user) return;
@@ -225,9 +210,58 @@ export function SettingsProvider({ children }: { children: React.ReactNode }) {
         console.error('[SettingsContext] notification_enabled 저장 오류:', res.status, txt);
       }
     } catch (e) {
-      console.error('[SettingsContext] setNotificationEnabled 오류:', e);
+      console.error('[SettingsContext] _persistNotificationEnabled 오류:', e);
     }
   }, []);
+
+  /**
+   * 전체 알림 토글 (사용자 액션용):
+   * - OFF → 개별 알림 모두 enabled: false + AsyncStorage 저장 + 예약 알림 전부 취소 + DB 저장
+   * - ON  → notificationEnabled만 true로 변경 (개별 알림 state는 건드리지 않음) + DB 저장
+   */
+  const setNotificationEnabled = useCallback(async (enabled: boolean) => {
+    setNotificationEnabledState(enabled);
+
+    if (!enabled) {
+      // 전체 알림 OFF: 예약 알림 전부 취소 + 개별 알림 state 모두 false
+      try {
+        await Notifications.cancelAllScheduledNotificationsAsync();
+      } catch (e) {
+        console.warn('[SettingsContext] 알림 취소 오류:', e);
+      }
+      setMedNotifsState(prev => {
+        const next = prev.map(n => ({ ...n, enabled: false }));
+        AsyncStorage.setItem(STORAGE_KEY_MED, JSON.stringify(next)).catch(console.warn);
+        return next;
+      });
+      setExerciseNotifsState(prev => {
+        const next = prev.map(n => ({ ...n, enabled: false }));
+        AsyncStorage.setItem(STORAGE_KEY_EXERCISE, JSON.stringify(next)).catch(console.warn);
+        return next;
+      });
+    }
+    // ON이면 개별 알림 state는 그대로 유지 (사용자가 켜둔 항목만 살아있음)
+
+    await _persistNotificationEnabled(enabled);
+  }, [_persistNotificationEnabled]);
+
+  /**
+   * DB/시스템 상태 동기화 전용 — 개별 알림 state를 건드리지 않고
+   * notificationEnabled 값만 업데이트 + DB 저장.
+   * useFocusEffect에서 DB 재로드 시 사용 (개별 항목 state 보존).
+   */
+  const setNotificationEnabledOnly = useCallback(async (enabled: boolean) => {
+    setNotificationEnabledState(enabled);
+    // 전체 OFF 시 예약 알림만 취소 (개별 state는 건드리지 않음)
+    if (!enabled) {
+      try {
+        await Notifications.cancelAllScheduledNotificationsAsync();
+      } catch (e) {
+        console.warn('[SettingsContext] 알림 취소 오류:', e);
+      }
+    }
+    await _persistNotificationEnabled(enabled);
+  }, [_persistNotificationEnabled]);
 
   // 개별 알림이 변경될 때마다: 전부 OFF면 전체 알림도 OFF, 하나라도 ON이면 전체 알림 ON
   const syncGlobalFromIndividual = useCallback(() => {
@@ -274,6 +308,7 @@ export function SettingsProvider({ children }: { children: React.ReactNode }) {
       setExerciseNotifs,
       notificationEnabled,
       setNotificationEnabled,
+      setNotificationEnabledOnly,
       systemPermissionGranted,
       recheckSystemPermission,
       syncGlobalFromIndividual,
