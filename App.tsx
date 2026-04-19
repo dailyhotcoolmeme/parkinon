@@ -8,7 +8,6 @@ import { RootNavigator } from './src/navigation/RootNavigator';
 import * as Notifications from 'expo-notifications';
 import { navigateTo } from './src/navigation/navigationRef';
 import * as Updates from 'expo-updates';
-import { supabase } from './src/lib/supabase';
 export default function App() {
   const appState = useRef<AppStateStatus>(AppState.currentState);
 
@@ -31,24 +30,6 @@ export default function App() {
   }, []);
 
   useEffect(() => {
-    // 알림 수신 핸들러 (알림이 수신될 때 DB 기록)
-    const notifReceivedSubscription = Notifications.addNotificationReceivedListener(async (notification) => {
-      try {
-        const { title, body, data } = notification.request.content;
-        const type = (data as any)?.type ?? 'unknown';
-        const { data: { session } } = await supabase.auth.getSession();
-        if (session?.user) {
-          await (supabase as any).from('notification_logs').insert({
-            user_id: session.user.id,
-            type,
-            title: title ?? '',
-            body: body ?? '',
-            data: (data as any) ?? null,
-          });
-        }
-      } catch {}
-    });
-
     // 알림 탭 핸들러 (앱이 열려있거나 백그라운드에서 탭할 때)
     const notifSubscription = Notifications.addNotificationResponseReceivedListener((response) => {
       const data = response.notification.request.content.data as Record<string, any>;
@@ -70,7 +51,6 @@ export default function App() {
     });
 
     return () => {
-      notifReceivedSubscription.remove();
       notifSubscription.remove();
       appStateSubscription.remove();
     };

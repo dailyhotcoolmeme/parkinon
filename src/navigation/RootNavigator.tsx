@@ -6,13 +6,10 @@ import { OnboardingNavigator } from './OnboardingNavigator';
 import { MainNavigator } from './MainNavigator';
 import { LoadingScreen } from '../screens/LoadingScreen';
 import { navigationRef } from './navigationRef';
-import { NotificationHistoryScreen } from '../screens/notification/NotificationHistoryScreen';
-
 export type RootStackParamList = {
   OnboardingGuest: undefined;
   OnboardingAuth: undefined;
   Main: undefined;
-  NotificationHistory: undefined;
 };
 
 const Stack = createStackNavigator<RootStackParamList>();
@@ -34,11 +31,6 @@ export function RootNavigator() {
         ) : (
           <Stack.Screen name="Main" component={MainNavigator} />
         )}
-        <Stack.Screen
-          name="NotificationHistory"
-          component={NotificationHistoryScreen}
-          options={{ presentation: 'modal', headerShown: false }}
-        />
       </Stack.Navigator>
     </NavigationContainer>
   );
