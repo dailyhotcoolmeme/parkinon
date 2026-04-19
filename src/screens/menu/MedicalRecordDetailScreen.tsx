@@ -17,6 +17,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { Colors } from '../../constants/colors';
 import { TopBar } from '../../components/common/TopBar';
 import { useAuth } from '../../context/AuthContext';
+import { supabase } from '../../lib/supabase';
 import { MenuStackParamList } from '../../navigation/MenuNavigator';
 
 type NavProp = StackNavigationProp<MenuStackParamList>;
@@ -68,17 +69,23 @@ export function MedicalRecordDetailScreen() {
   const [error, setError] = useState<string | null>(null);
   const [imageModalVisible, setImageModalVisible] = useState(false);
 
+  const getToken = async () => {
+    const { data: { session } } = await supabase.auth.getSession();
+    return session?.access_token ?? SUPABASE_ANON_KEY;
+  };
+
   const fetchRecord = useCallback(async () => {
     if (!user || !recordId) return;
     setLoading(true);
     setError(null);
     try {
+      const token = await getToken();
       const res = await fetch(
         `${SUPABASE_URL}/rest/v1/medical_records?id=eq.${recordId}&select=*,medical_record_medications(*)`,
         {
           headers: {
             apikey: SUPABASE_ANON_KEY,
-            Authorization: `Bearer ${SUPABASE_ANON_KEY}`,
+            Authorization: `Bearer ${token}`,
           },
         }
       );
@@ -110,9 +117,10 @@ export function MedicalRecordDetailScreen() {
           style: 'destructive',
           onPress: async () => {
             try {
+              const token = await getToken();
               const headers = {
                 apikey: SUPABASE_ANON_KEY,
-                Authorization: `Bearer ${SUPABASE_ANON_KEY}`,
+                Authorization: `Bearer ${token}`,
               };
               // 처방약 먼저 삭제
               await fetch(
