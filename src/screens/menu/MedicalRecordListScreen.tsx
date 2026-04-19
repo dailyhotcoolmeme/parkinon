@@ -329,7 +329,7 @@ const styles = StyleSheet.create({
   apptTop: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 4 },
   apptDate: { fontSize: 18, fontWeight: '700', color: Colors.text },
   ddayBadge: {
-    backgroundColor: Colors.primary, color: Colors.white,
+    backgroundColor: '#EEEEEE', color: Colors.textSub,
     fontSize: 15, fontWeight: '800',
     paddingHorizontal: 12, paddingVertical: 4,
     borderRadius: 20, overflow: 'hidden',
