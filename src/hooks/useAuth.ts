@@ -250,14 +250,13 @@ export function useAuthProvider(): UseAuthReturn {
   // ─── 글로벌 딥링크 핸들러 ─────────────────────────────────────────────────
   // signInWithKakao와 별개로 앱 전체 생명주기 동안 auth URL을 감지해 처리
   // Samsung 등 일부 Android에서 딥링크가 늦게 도착하는 경우도 커버
+  // 구글 로그인은 openAuthSessionAsync(Custom Tab)으로 처리하므로
+  // Custom Tab 내에서 딥링크가 캡처되어 여기에 중복 도착하지 않음
   useEffect(() => {
     const subscription = Linking.addEventListener('url', ({ url }) => {
       console.log('[useAuth] 글로벌 Linking URL 수신:', url.substring(0, 80));
       if (isAuthUrl(url)) {
-        processAuthUrl(url).then(() => {
-          // OAuth 완료 후 열려있는 크롬 탭 자동 닫기
-          WebBrowser.dismissBrowser();
-        });
+        processAuthUrl(url);
       }
     });
 
@@ -266,10 +265,7 @@ export function useAuthProvider(): UseAuthReturn {
       if (url) {
         console.log('[useAuth] getInitialURL:', url.substring(0, 80));
         if (isAuthUrl(url)) {
-          processAuthUrl(url).then(() => {
-            // OAuth 완료 후 열려있는 크롬 탭 자동 닫기
-            WebBrowser.dismissBrowser();
-          });
+          processAuthUrl(url);
         }
       }
     });
@@ -278,11 +274,9 @@ export function useAuthProvider(): UseAuthReturn {
   }, []);
 
   // ─── 구글 로그인 (Android 전용) ───────────────────────────────────────────
-  // Android에서 WebBrowser.openAuthSessionAsync는 Chrome Custom Tab을 사용하지만,
-  // Supabase Google OAuth는 중간에 https:// 리다이렉트가 발생해 Custom Tab이 자동으로
-  // 닫히지 않는 문제가 있음.
-  // → 카카오와 동일하게 Linking.openURL로 일반 브라우저를 열고,
-  //   딥링크(parkinon://auth/callback) 수신은 글로벌 핸들러가 처리.
+  // Chrome Custom Tab(openAuthSessionAsync)으로 열기
+  // → OAuth 완료 후 딥링크(parkinon://auth/callback) 감지 시 Custom Tab이 자동으로 닫힘
+  // → result.url에서 직접 processAuthUrl 호출
   const signInWithGoogle = useCallback(async () => {
     try {
       console.log('[useAuth] signInWithGoogle 시작');
@@ -297,10 +291,17 @@ export function useAuthProvider(): UseAuthReturn {
         console.error('[useAuth] signInWithOAuth(google) 오류:', error?.message);
         return;
       }
-      // Android: 일반 브라우저로 열기 → 딥링크는 글로벌 핸들러가 처리
-      // (Chrome Custom Tab 방식은 Google OAuth 중간 리다이렉트로 인해 자동 닫힘 불가)
-      console.log('[useAuth] Google - Linking.openURL 사용');
-      await Linking.openURL(data.url);
+
+      // Chrome Custom Tab으로 열기 → OAuth 완료 후 딥링크 감지 시 탭 자동 닫힘
+      console.log('[useAuth] Google - openAuthSessionAsync(Custom Tab) 사용');
+      const result = await WebBrowser.openAuthSessionAsync(data.url, REDIRECT_TO);
+      console.log('[useAuth] Google Custom Tab 결과:', result.type);
+
+      if (result.type === 'success' && result.url) {
+        // Custom Tab에서 캡처한 URL을 processAuthUrl로 처리
+        await processAuthUrl(result.url);
+      }
+      // result.type === 'cancel'이면 사용자가 취소한 것 → 아무 처리 안 함
     } catch (err) {
       console.error('[useAuth] signInWithGoogle 오류:', err);
     }
