@@ -246,9 +246,18 @@ export function MedicalRecordListScreen() {
           )}
 
           {/* ── 진료 이력 ─────────────────────────────── */}
-          <View style={[styles.sectionLabelRow, { marginTop: 32, marginBottom: 12 }]}>
-            <Ionicons name="clipboard-outline" size={24} color={Colors.primary} style={{ marginRight: 8 }} />
-            <Text style={styles.sectionLabel}>진료 이력</Text>
+          <View style={[styles.sectionHeader, { marginTop: 32, marginBottom: 12 }]}>
+            <View style={styles.sectionLabelRow}>
+              <Ionicons name="clipboard-outline" size={24} color={Colors.primary} style={{ marginRight: 8 }} />
+              <Text style={styles.sectionLabel}>진료 이력</Text>
+            </View>
+            <TouchableOpacity
+              style={styles.addApptBtn}
+              onPress={() => navigation.navigate('MedicalRecordWrite' as any)}
+              activeOpacity={0.8}
+            >
+              <Text style={styles.addApptBtnText}>+ 기록 추가</Text>
+            </TouchableOpacity>
           </View>
           {records.length === 0 ? (
             <View style={styles.emptyCard}>
@@ -287,13 +296,6 @@ export function MedicalRecordListScreen() {
             })
           )}
 
-          <TouchableOpacity
-            style={styles.addRecordBtn}
-            onPress={() => navigation.navigate('MedicalRecordWrite' as any)}
-            activeOpacity={0.8}
-          >
-            <Text style={styles.addRecordBtnText}>+ 진료 기록 추가</Text>
-          </TouchableOpacity>
         </ScrollView>
       )}
     </SafeAreaView>
