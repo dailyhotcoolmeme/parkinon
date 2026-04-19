@@ -11,6 +11,7 @@ import { useState, useEffect, useCallback } from 'react';
 import { supabase } from '../lib/supabase';
 import { useAuth } from '../context/AuthContext';
 import { cancelMedicationReminder, scheduleEffectTrackingNotifications, sendCaregiverPush } from '../utils/notifications';
+import { getKSTToday, getKSTDayRange } from '../utils/medUtils';
 import { useSettings } from '../context/SettingsContext';
 import type { Database } from '../types/database';
 
@@ -93,14 +94,15 @@ export function useMedication(): UseMedicationReturn {
         return;
       }
 
-      const today = new Date().toISOString().split('T')[0];
+      const today = getKSTToday();
+      const { start, end } = getKSTDayRange(today);
 
       const { data, error: queryError } = await supabase
         .from('med_logs')
         .select('*')
         .eq('patient_id', patientId)
-        .gte('taken_at', `${today}T00:00:00.000Z`)
-        .lte('taken_at', `${today}T23:59:59.999Z`)
+        .gte('taken_at', start)
+        .lte('taken_at', end)
         .order('taken_at', { ascending: false });
 
       if (queryError) throw queryError;
@@ -256,12 +258,13 @@ export function useMedication(): UseMedicationReturn {
       const patientId = await getPatientId();
       if (!patientId) return [];
 
+      const { start, end } = getKSTDayRange(date);
       const { data, error: queryError } = await supabase
         .from('med_logs')
         .select('*')
         .eq('patient_id', patientId)
-        .gte('taken_at', `${date}T00:00:00.000Z`)
-        .lte('taken_at', `${date}T23:59:59.999Z`)
+        .gte('taken_at', start)
+        .lte('taken_at', end)
         .order('taken_at', { ascending: true });
 
       if (queryError) throw queryError;

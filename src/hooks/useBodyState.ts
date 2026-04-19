@@ -11,6 +11,7 @@ import { useState, useEffect, useCallback } from 'react';
 import { supabase } from '../lib/supabase';
 import { useAuth } from '../context/AuthContext';
 import { sendCaregiverPush } from '../utils/notifications';
+import { getKSTToday, getKSTDayRange } from '../utils/medUtils';
 import type { Database } from '../types/database';
 
 type OnOffLogRow = Database['public']['Tables']['on_off_logs']['Row'];
@@ -74,14 +75,15 @@ export function useBodyState(): UseBodyStateReturn {
         return;
       }
 
-      const today = new Date().toISOString().split('T')[0];
+      const today = getKSTToday();
+      const { start, end } = getKSTDayRange(today);
 
       const { data, error: queryError } = await supabase
         .from('on_off_logs')
         .select('*')
         .eq('patient_id', patientId)
-        .gte('logged_at', `${today}T00:00:00.000Z`)
-        .lte('logged_at', `${today}T23:59:59.999Z`)
+        .gte('logged_at', start)
+        .lte('logged_at', end)
         .order('logged_at', { ascending: false });
 
       if (queryError) throw queryError;
@@ -186,12 +188,13 @@ export function useBodyState(): UseBodyStateReturn {
       const patientId = await getPatientId();
       if (!patientId) return [];
 
+      const { start, end } = getKSTDayRange(date);
       const { data, error: queryError } = await supabase
         .from('on_off_logs')
         .select('*')
         .eq('patient_id', patientId)
-        .gte('logged_at', `${date}T00:00:00.000Z`)
-        .lte('logged_at', `${date}T23:59:59.999Z`)
+        .gte('logged_at', start)
+        .lte('logged_at', end)
         .order('logged_at', { ascending: true });
 
       if (queryError) throw queryError;
@@ -210,13 +213,14 @@ export function useBodyState(): UseBodyStateReturn {
       const patientId = await getPatientId();
       if (!patientId) return true;
 
-      const today = new Date().toISOString().split('T')[0];
+      const today = getKSTToday();
+      const { start } = getKSTDayRange(today);
 
       const { count, error: queryError } = await supabase
         .from('on_off_logs')
         .select('*', { count: 'exact', head: true })
         .eq('patient_id', patientId)
-        .gte('logged_at', `${today}T00:00:00.000Z`);
+        .gte('logged_at', start);
 
       if (queryError) throw queryError;
       return (count ?? 0) === 0;
@@ -234,14 +238,15 @@ export function useBodyState(): UseBodyStateReturn {
       const patientId = await getPatientId();
       if (!patientId) return [];
 
+      const { start, end } = getKSTDayRange(date);
       const { data } = await supabase
         .from('media_logs')
         .select('*')
         .eq('patient_id', patientId)
         .eq('media_type', 'video')
         .eq('category', 'body_state')
-        .gte('logged_at', `${date}T00:00:00.000Z`)
-        .lte('logged_at', `${date}T23:59:59.999Z`)
+        .gte('logged_at', start)
+        .lte('logged_at', end)
         .order('logged_at', { ascending: false });
 
       return data ?? [];
