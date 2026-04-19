@@ -186,7 +186,7 @@ export function MenuScreen() {
 
   return (
     <SafeAreaView style={styles.safeArea} edges={['top']}>
-      <TopBar showParkinon />
+      <TopBar showParkinon showBell onBellPress={() => navigateTo('MyInfo', { screen: 'NotificationHistory' } as any)} />
 
       <ScrollView
         style={styles.scroll}

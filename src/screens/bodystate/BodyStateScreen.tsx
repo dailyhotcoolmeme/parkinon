@@ -168,6 +168,8 @@ export function BodyStateScreen() {
       <TopBar
         title="파킨온"
         showParkinon
+        showBell
+        onBellPress={() => navigateTo('MyInfo', { screen: 'NotificationHistory' } as any)}
       />
 
       {/* 날짜 헤더 */}
