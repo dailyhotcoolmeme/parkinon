@@ -23,6 +23,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { Colors } from '../../constants/colors';
 import { TopBar } from '../../components/common/TopBar';
 import { useAuth } from '../../context/AuthContext';
+import { usePatientId } from '../../hooks/usePatientId';
 import { supabase } from '../../lib/supabase';
 import { MenuStackParamList } from '../../navigation/MenuNavigator';
 
@@ -263,6 +264,7 @@ export function AppointmentWriteScreen() {
   const route = useRoute<RouteType>();
   const appointmentId = (route.params as any)?.appointmentId as string | undefined;
   const { user } = useAuth();
+  const { patientId } = usePatientId();
 
   // 내일 10:00 기본값
   const tomorrow = new Date(NOW.getTime() + 24 * 60 * 60 * 1000);
@@ -305,7 +307,7 @@ export function AppointmentWriteScreen() {
         const { data: { session } } = await supabase.auth.getSession();
         const token = session?.access_token ?? SUPABASE_ANON_KEY;
         const res = await fetch(
-          `${SUPABASE_URL}/rest/v1/medical_appointments?patient_id=eq.${user.id}&order=created_at.desc&limit=1`,
+          `${SUPABASE_URL}/rest/v1/medical_appointments?patient_id=eq.${patientId ?? user.id}&order=created_at.desc&limit=1`,
           { headers: { apikey: SUPABASE_ANON_KEY, Authorization: `Bearer ${token}` } },
         );
         if (res.ok) {
@@ -416,7 +418,7 @@ export function AppointmentWriteScreen() {
       }
 
       const payload = {
-        patient_id: user.id,
+        patient_id: patientId ?? user.id,
         appointment_date: apptDate.toISOString(),
         hospital_name: hospitalName.trim() || null,
         doctor_name: doctorName.trim() || null,

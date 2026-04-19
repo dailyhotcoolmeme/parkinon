@@ -16,6 +16,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { Colors } from '../../constants/colors';
 import { TopBar } from '../../components/common/TopBar';
 import { useAuth } from '../../context/AuthContext';
+import { usePatientId } from '../../hooks/usePatientId';
 import { supabase } from '../../lib/supabase';
 import { MenuStackParamList } from '../../navigation/MenuNavigator';
 
@@ -90,6 +91,7 @@ function hasPrescriptionChange(meds: { change_type: string }[]): boolean {
 export function MedicalRecordListScreen() {
   const navigation = useNavigation<NavProp>();
   const { user } = useAuth();
+  const { patientId } = usePatientId();
 
   const [appointments, setAppointments] = useState<Appointment[]>([]);
   const [records, setRecords] = useState<MedRecord[]>([]);
@@ -102,7 +104,7 @@ export function MedicalRecordListScreen() {
   };
 
   const fetchData = useCallback(async () => {
-    if (!user) return;
+    if (!user || !patientId) return;
     setLoading(true);
     setError(null);
     try {
@@ -115,11 +117,11 @@ export function MedicalRecordListScreen() {
       const now = new Date().toISOString();
       const [apptRes, recRes] = await Promise.all([
         fetch(
-          `${SUPABASE_URL}/rest/v1/medical_appointments?patient_id=eq.${user.id}&appointment_date=gt.${now}&order=appointment_date.asc`,
+          `${SUPABASE_URL}/rest/v1/medical_appointments?patient_id=eq.${patientId}&appointment_date=gt.${now}&order=appointment_date.asc`,
           { headers },
         ),
         fetch(
-          `${SUPABASE_URL}/rest/v1/medical_records?patient_id=eq.${user.id}&order=visit_date.desc&select=*,medical_record_medications(id,change_type)`,
+          `${SUPABASE_URL}/rest/v1/medical_records?patient_id=eq.${patientId}&order=visit_date.desc&select=*,medical_record_medications(id,change_type)`,
           { headers },
         ),
       ]);
@@ -133,7 +135,7 @@ export function MedicalRecordListScreen() {
     } finally {
       setLoading(false);
     }
-  }, [user]);
+  }, [user, patientId]);
 
   useFocusEffect(useCallback(() => { fetchData(); }, [fetchData]));
 

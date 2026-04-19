@@ -24,6 +24,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { Colors } from '../../constants/colors';
 import { TopBar } from '../../components/common/TopBar';
 import { useAuth } from '../../context/AuthContext';
+import { usePatientId } from '../../hooks/usePatientId';
 import { supabase } from '../../lib/supabase';
 import { MenuStackParamList } from '../../navigation/MenuNavigator';
 import { uploadPhoto } from '../../lib/r2Upload';
@@ -247,6 +248,7 @@ export function MedicalRecordWriteScreen() {
   const route = useRoute<RouteType>();
   const recordId = (route.params as any)?.recordId as string | undefined;
   const { user } = useAuth();
+  const { patientId } = usePatientId();
 
   // 날짜/시간 상태 (기본: 오늘 오전 9시)
   const [selYear, setSelYear] = useState(NOW.getFullYear());
@@ -298,7 +300,7 @@ export function MedicalRecordWriteScreen() {
       try {
         const token = await getToken();
         const res = await fetch(
-          `${SUPABASE_URL}/rest/v1/medical_records?patient_id=eq.${user.id}&order=visit_date.desc&limit=1`,
+          `${SUPABASE_URL}/rest/v1/medical_records?patient_id=eq.${patientId ?? user.id}&order=visit_date.desc&limit=1`,
           { headers: { apikey: SUPABASE_ANON_KEY, Authorization: `Bearer ${token}` } },
         );
         if (res.ok) {
@@ -470,7 +472,7 @@ export function MedicalRecordWriteScreen() {
           {
             method: 'POST', headers,
             body: JSON.stringify({
-              patient_id: user.id,
+              patient_id: patientId ?? user.id,
               visit_date: visitDateISO,
               hospital_name: hospitalName.trim() || null,
               doctor_name: doctorName.trim() || null,
@@ -486,7 +488,7 @@ export function MedicalRecordWriteScreen() {
 
       // 직전 기록의 처방약 조회 (change_type 비교용)
       const prevRes = await fetch(
-        `${SUPABASE_URL}/rest/v1/medical_records?patient_id=eq.${user.id}&visit_date=lt.${visitDateISO}&order=visit_date.desc&limit=1&select=id`,
+        `${SUPABASE_URL}/rest/v1/medical_records?patient_id=eq.${patientId ?? user.id}&visit_date=lt.${visitDateISO}&order=visit_date.desc&limit=1&select=id`,
         { headers: { apikey: SUPABASE_ANON_KEY, Authorization: `Bearer ${token}` } },
       );
       let prevMeds: PrevMed[] = [];
