@@ -17,6 +17,7 @@ import { MenuStackParamList } from '../../navigation/MenuNavigator';
 import { TopBar } from '../../components/common/TopBar';
 import { useAuth } from '../../context/AuthContext';
 import { supabase } from '../../lib/supabase';
+import { navigateTo } from '../../navigation/navigationRef';
 
 type NavigationProp = StackNavigationProp<MenuStackParamList, 'MenuHome'>;
 type IoniconName = React.ComponentProps<typeof Ionicons>['name'];
@@ -185,7 +186,7 @@ export function MenuScreen() {
 
   return (
     <SafeAreaView style={styles.safeArea} edges={['top']}>
-      <TopBar showParkinon />
+      <TopBar showParkinon showBell onBellPress={() => navigateTo('NotificationHistory')} />
 
       <ScrollView
         style={styles.scroll}

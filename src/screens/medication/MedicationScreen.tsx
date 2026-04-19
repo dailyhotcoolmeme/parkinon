@@ -22,6 +22,7 @@ import { useMedication } from '../../hooks/useMedication';
 import { useBodyState } from '../../hooks/useBodyState';
 import { useAuth } from '../../context/AuthContext';
 import { DatePickerModal } from '../../components/common/DatePickerModal';
+import { navigateTo } from '../../navigation/navigationRef';
 
 const WINDOW_HEIGHT = Dimensions.get('window').height;
 const TOP_BAR_H = 56;
@@ -189,6 +190,8 @@ export function MedicationScreen() {
       <TopBar
         title="파킨온"
         showParkinon
+        showBell
+        onBellPress={() => navigateTo('NotificationHistory')}
       />
 
       {/* 날짜 헤더 */}

@@ -19,6 +19,7 @@ import { TopBar } from '../../components/common/TopBar';
 import type { ExerciseStackParamList } from '../../navigation/ExerciseNavigator';
 import { useExercise } from '../../hooks/useExercise';
 import { DatePickerModal } from '../../components/common/DatePickerModal';
+import { navigateTo } from '../../navigation/navigationRef';
 
 type Nav = NativeStackNavigationProp<ExerciseStackParamList, 'ExerciseMain'>;
 
@@ -106,6 +107,8 @@ const { todayLogs, getTodayTotalMinutes, getExerciseLogs, loading, error, refres
       <TopBar
         title="파킨온"
         showParkinon
+        showBell
+        onBellPress={() => navigateTo('NotificationHistory')}
       />
 
       {/* 날짜 헤더 */}

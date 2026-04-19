@@ -6,15 +6,17 @@ import { Colors } from '../../constants/colors';
 import { navigateTo } from '../../navigation/navigationRef';
 
 interface Props {
-  title: string;
+  title?: string;
   showBack?: boolean;
   showClose?: boolean;
   showParkinon?: boolean;
   rightIcon?: React.ReactNode;
   rightComponent?: React.ReactNode;
+  showBell?: boolean;
+  onBellPress?: () => void;
 }
 
-export function TopBar({ title, showBack, showClose, showParkinon, rightIcon, rightComponent }: Props) {
+export function TopBar({ title, showBack, showClose, showParkinon, rightIcon, rightComponent, showBell, onBellPress }: Props) {
   const navigation = useNavigation();
 
   return (
@@ -57,7 +59,11 @@ export function TopBar({ title, showBack, showClose, showParkinon, rightIcon, ri
         </View>
         {!showParkinon && !!title && <Text style={styles.title}>{title}</Text>}
         <View style={styles.right}>
-          {rightComponent ?? rightIcon}
+          {rightComponent ?? rightIcon ?? (showBell ? (
+            <TouchableOpacity onPress={onBellPress} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
+              <Ionicons name="notifications-outline" size={26} color={Colors.textSub} />
+            </TouchableOpacity>
+          ) : null)}
         </View>
       </View>
     </View>
