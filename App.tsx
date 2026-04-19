@@ -7,8 +7,27 @@ import { SettingsProvider } from './src/context/SettingsContext';
 import { RootNavigator } from './src/navigation/RootNavigator';
 import * as Notifications from 'expo-notifications';
 import { navigateTo } from './src/navigation/navigationRef';
+import * as Updates from 'expo-updates';
 export default function App() {
   const appState = useRef<AppStateStatus>(AppState.currentState);
+
+  // 앱 시작 시 OTA 업데이트 체크
+  useEffect(() => {
+    async function checkForUpdates() {
+      if (!__DEV__) {
+        try {
+          const update = await Updates.checkForUpdateAsync();
+          if (update.isAvailable) {
+            await Updates.fetchUpdateAsync();
+            await Updates.reloadAsync();
+          }
+        } catch (e) {
+          // 업데이트 체크 실패 시 조용히 무시
+        }
+      }
+    }
+    checkForUpdates();
+  }, []);
 
   useEffect(() => {
     // 알림 탭 핸들러 (앱이 열려있거나 백그라운드에서 탭할 때)
