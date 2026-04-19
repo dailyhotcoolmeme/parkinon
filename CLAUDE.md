@@ -283,3 +283,37 @@
 - 새 패키지 추가 시 네이티브 모듈 포함 여부를 반드시 확인할 것
 - 네이티브 모듈이 포함된 패키지는 OTA 불가 → 새 APK 빌드 필요
 - `runtimeVersion`은 `appVersion` 정책 사용 중 → app.json의 `version` 변경 시 기존 OTA와 호환 끊김 주의
+
+---
+
+### ⚠️ OTA가 작동하려면 APK가 올바르게 빌드되어야 한다 (2026-04 사고 분석)
+
+**어제 OTA가 안 됐던 원인:**
+4월 15일 빌드된 APK는 `app.json`에 `expo.updates` 설정 자체가 없이 빌드됨.
+네이티브 레벨(AndroidManifest.xml)에 `ENABLED=false`, EAS URL 없음 → 앱이 OTA를 아예 체크하지 않았음.
+JS 코드에서 `checkForUpdateAsync`를 아무리 호출해도 네이티브가 비활성화면 작동 안 함.
+
+**지금 OTA가 되는 이유:**
+새 APK(`build-1776610644306.apk`, 2026-04-20 로컬 빌드)에 아래 설정이 반영됨:
+- `app.json` → `expo.updates.enabled: true`
+- `app.json` → `expo.updates.url`: EAS Update 엔드포인트
+- `app.json` → `expo.updates.checkAutomatically: "ON_LOAD"`
+- `App.tsx` → 앱 시작 시 `checkForUpdateAsync` + `fetchUpdateAsync` + `reloadAsync` 코드
+
+**핵심 규칙:**
+1. `app.json`의 `expo.updates` 설정을 절대 삭제하거나 `enabled: false`로 바꾸지 말 것
+2. `App.tsx`의 OTA 체크 코드(`checkForUpdateAsync`)를 절대 삭제하지 말 것
+3. OTA 작동 여부는 **앱 완전 종료 후 재실행**으로만 확인 가능 (백그라운드 상태에서는 업데이트 미적용)
+4. `expo prebuild --clean` 없이 `app.json`만 수정해도 네이티브에 반영 안 됨 → APK 재빌드 시 반드시 `expo prebuild --clean` 선행
+
+**OTA 작동 여부 빠른 확인법:**
+```
+npx expo run:android 로 빌드된 android/app/build/intermediates/merged_manifests 또는
+android/app/src/main/AndroidManifest.xml 에서 아래 항목 확인:
+- expo.modules.updates.ENABLED = true
+- expo.modules.updates.EXPO_UPDATE_URL = (URL 존재)
+- expo.modules.updates.EXPO_RUNTIME_VERSION = 1.0.0
+```
+
+**APK 재빌드가 필요한 경우 (OTA 불가):**
+위 AndroidManifest 항목 중 하나라도 잘못되어 있으면 JS 코드 수정만으로는 OTA 복구 불가 → 반드시 APK 재빌드
