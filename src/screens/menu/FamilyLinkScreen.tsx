@@ -293,8 +293,15 @@ export function FamilyLinkScreen() {
                 member.role === 'patient' || member.user?.role === 'patient'
                   ? '환자'
                   : (RELATION_MAP[rawRelation] ?? (rawRelation || '보호자'));
-              const residence =
-                member.user?.residence_type === 'together' ? '함께 거주' : '따로 거주';
+
+              // residence_type은 보호자가 설정하는 값이다.
+              // - 내가 보호자인 경우: 내 residence_type(user.residence_type)을 사용
+              // - 내가 환자인 경우: 상대(보호자)의 residence_type을 사용
+              const isCurrentUserCaregiver = user?.role === 'caregiver';
+              const residenceType = isCurrentUserCaregiver
+                ? user?.residence_type
+                : member.user?.residence_type;
+              const residence = residenceType === 'together' ? '함께 거주' : '따로 거주';
               const initials = name.slice(-1);
 
               return (
