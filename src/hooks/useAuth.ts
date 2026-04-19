@@ -254,7 +254,10 @@ export function useAuthProvider(): UseAuthReturn {
     const subscription = Linking.addEventListener('url', ({ url }) => {
       console.log('[useAuth] 글로벌 Linking URL 수신:', url.substring(0, 80));
       if (isAuthUrl(url)) {
-        processAuthUrl(url);
+        processAuthUrl(url).then(() => {
+          // OAuth 완료 후 열려있는 크롬 탭 자동 닫기
+          WebBrowser.dismissBrowser();
+        });
       }
     });
 
@@ -263,7 +266,10 @@ export function useAuthProvider(): UseAuthReturn {
       if (url) {
         console.log('[useAuth] getInitialURL:', url.substring(0, 80));
         if (isAuthUrl(url)) {
-          processAuthUrl(url);
+          processAuthUrl(url).then(() => {
+            // OAuth 완료 후 열려있는 크롬 탭 자동 닫기
+            WebBrowser.dismissBrowser();
+          });
         }
       }
     });
