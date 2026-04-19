@@ -429,7 +429,8 @@ export function useFamilyLink(): UseFamilyLinkReturn {
           user_id: item.user_id,
           role: item.role,
           joined_at: item.joined_at,
-          user: item.user ?? null,
+          // Supabase REST API join 결과가 배열로 올 수 있으므로 배열이면 첫 번째 요소 사용
+          user: Array.isArray(item.user) ? (item.user[0] ?? null) : (item.user ?? null),
         }));
     } catch (err: any) {
       console.error('[useFamilyLink] getGroupMembers 오류:', err);

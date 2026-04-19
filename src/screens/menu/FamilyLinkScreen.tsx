@@ -289,19 +289,26 @@ export function FamilyLinkScreen() {
             {members.map((member) => {
               const name = member.user?.name ?? '이름 없음';
               const rawRelation = member.user?.caregiver_relation ?? '';
-              const role =
-                member.role === 'patient' || member.user?.role === 'patient'
-                  ? '환자'
-                  : (RELATION_MAP[rawRelation] ?? (rawRelation || '보호자'));
+              // patient_group_members.role 또는 users.role 중 하나가 'patient'이면 환자로 표시
+              const memberUserRole = member.user?.role;
+              const isPatient = member.role === 'patient' || memberUserRole === 'patient';
+              const role = isPatient
+                ? '환자'
+                : (RELATION_MAP[rawRelation] ?? (rawRelation || '보호자'));
 
               // residence_type은 보호자가 설정하는 값이다.
               // - 내가 보호자인 경우: 내 residence_type(user.residence_type)을 사용
               // - 내가 환자인 경우: 상대(보호자)의 residence_type을 사용
+              // null/undefined인 경우 '따로 거주' 대신 '미설정'으로 표시
               const isCurrentUserCaregiver = user?.role === 'caregiver';
               const residenceType = isCurrentUserCaregiver
                 ? user?.residence_type
                 : member.user?.residence_type;
-              const residence = residenceType === 'together' ? '함께 거주' : '따로 거주';
+              const residence = residenceType === 'together'
+                ? '함께 거주'
+                : residenceType === 'separate'
+                  ? '따로 거주'
+                  : '거주 정보 없음';
               const initials = name.slice(-1);
 
               return (
