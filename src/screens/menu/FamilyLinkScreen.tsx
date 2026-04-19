@@ -22,6 +22,14 @@ import { useFamilyLink } from '../../hooks/useFamilyLink';
 import { useAuth } from '../../context/AuthContext';
 import { supabase } from '../../lib/supabase';
 
+const RELATION_MAP: Record<string, string> = {
+  spouse: '배우자',
+  child: '자녀',
+  sibling: '형제/자매',
+  other: '기타',
+  parent: '부모',
+};
+
 export function FamilyLinkScreen() {
   const { user } = useAuth();
   const { generateInviteCode, joinByCode, joinByCodeForce, getGroupMembers, leaveGroup, loading, error: familyLinkError } = useFamilyLink();
@@ -280,10 +288,11 @@ export function FamilyLinkScreen() {
 
             {members.map((member) => {
               const name = member.user?.name ?? '이름 없음';
+              const rawRelation = member.user?.caregiver_relation ?? '';
               const role =
                 member.role === 'patient' || member.user?.role === 'patient'
                   ? '환자'
-                  : (member.user?.caregiver_relation ?? '보호자');
+                  : (RELATION_MAP[rawRelation] ?? (rawRelation || '보호자'));
               const residence =
                 member.user?.residence_type === 'together' ? '함께 거주' : '따로 거주';
               const initials = name.slice(-1);
