@@ -466,11 +466,13 @@ function DrugInfoModal({ drug, onClose }: { drug: Medication | null; onClose: ()
     setEasyInfo(null);
     setEasyLoading(true);
     fetch(
-      `https://apis.data.go.kr/1471000/DrbEasyDrugInfoService/getDrbEasyDrugList?serviceKey=${encodeURIComponent(MFDS_KEY)}&item_name=${encodeURIComponent(drug.name)}&type=json&numOfRows=3&pageNo=1`
+      `https://apis.data.go.kr/1471000/DrbEasyDrugInfoService01/getDrbEasyDrugList?serviceKey=${encodeURIComponent(MFDS_KEY)}&itemName=${encodeURIComponent(drug.name)}&type=json&numOfRows=3&pageNo=1`
     )
       .then(r => r.json())
       .then(data => {
-        const rawItems = data?.body?.items?.item ?? data?.body?.items;
+        // 공공 API 응답: data.response.body 또는 data.body
+        const body = data?.response?.body ?? data?.body;
+        const rawItems = body?.items?.item ?? body?.items;
         const item = Array.isArray(rawItems) ? rawItems[0] : rawItems;
         if (item) {
           setEasyInfo({
@@ -480,7 +482,7 @@ function DrugInfoModal({ drug, onClose }: { drug: Medication | null; onClose: ()
           });
         }
       })
-      .catch(() => {})
+      .catch((e) => { console.error('[DrugInfo] easyDrug API 오류:', e); })
       .finally(() => setEasyLoading(false));
   }, [drug?.name]);
 
