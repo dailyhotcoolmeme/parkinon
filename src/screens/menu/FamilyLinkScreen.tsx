@@ -233,7 +233,7 @@ export function FamilyLinkScreen() {
 
   return (
     <SafeAreaView style={styles.safeArea} edges={['top']}>
-      <TopBar title="가족 연동 ✓" showBack />
+      <TopBar title="가족 연동" showBack />
 
       <ScrollView
         style={styles.scroll}
