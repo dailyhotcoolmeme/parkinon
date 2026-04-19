@@ -48,8 +48,8 @@ export function useBodyState(): UseBodyStateReturn {
     if (!user) return null;
     if (user.role === 'patient') return user.id;
 
-    // 가족 미연동 보호자: 본인 id fallback
-    if (!user.patient_group_id) return user.id;
+    // 가족 미연동 보호자: null 반환
+    if (!user.patient_group_id) return null;
 
     const { data } = await supabase
       .from('patient_group_members')

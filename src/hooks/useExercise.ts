@@ -35,7 +35,7 @@ export function useExercise(): UseExerciseReturn {
     if (!user) return null;
     if (user.role === 'patient') return user.id;
 
-    if (!user.patient_group_id) return user.id;
+    if (!user.patient_group_id) return null;
 
     const { data } = await supabase
       .from('patient_group_members')

@@ -62,10 +62,8 @@ export function useMedication(): UseMedicationReturn {
 
     // 보호자인 경우 그룹에서 환자 ID 조회
     if (!user.patient_group_id) {
-      // 가족 미연동 상태: 보호자 본인 ID로 fallback
-      // (온보딩 시 약을 직접 등록한 경우 medications.patient_id = 보호자 ID)
-      console.warn('[useMedication] 보호자 patient_group_id=null → 본인 ID fallback:', user.id);
-      return user.id;
+      console.warn('[useMedication] 보호자 patient_group_id=null → 환자 미연동');
+      return null;
     }
 
     const { data, error } = await supabase
