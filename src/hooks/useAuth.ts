@@ -272,6 +272,11 @@ export function useAuthProvider(): UseAuthReturn {
   }, []);
 
   // ─── 구글 로그인 (Android 전용) ───────────────────────────────────────────
+  // Android에서 WebBrowser.openAuthSessionAsync는 Chrome Custom Tab을 사용하지만,
+  // Supabase Google OAuth는 중간에 https:// 리다이렉트가 발생해 Custom Tab이 자동으로
+  // 닫히지 않는 문제가 있음.
+  // → 카카오와 동일하게 Linking.openURL로 일반 브라우저를 열고,
+  //   딥링크(parkinon://auth/callback) 수신은 글로벌 핸들러가 처리.
   const signInWithGoogle = useCallback(async () => {
     try {
       console.log('[useAuth] signInWithGoogle 시작');
@@ -286,13 +291,10 @@ export function useAuthProvider(): UseAuthReturn {
         console.error('[useAuth] signInWithOAuth(google) 오류:', error?.message);
         return;
       }
-      // openAuthSessionAsync: 인앱 브라우저로 열고 OAuth 완료 후 자동 닫힘
-      const result = await WebBrowser.openAuthSessionAsync(data.url, REDIRECT_TO);
-      console.log('[useAuth] 구글 브라우저 결과:', result.type);
-      if (result.type === 'success' && result.url) {
-        console.log('[useAuth] 구글 success URL 처리');
-        await processAuthUrl(result.url);
-      }
+      // Android: 일반 브라우저로 열기 → 딥링크는 글로벌 핸들러가 처리
+      // (Chrome Custom Tab 방식은 Google OAuth 중간 리다이렉트로 인해 자동 닫힘 불가)
+      console.log('[useAuth] Google - Linking.openURL 사용');
+      await Linking.openURL(data.url);
     } catch (err) {
       console.error('[useAuth] signInWithGoogle 오류:', err);
     }
