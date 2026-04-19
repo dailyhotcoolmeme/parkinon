@@ -38,7 +38,7 @@ export default function App() {
         const type = (data as any)?.type ?? 'unknown';
         const { data: { session } } = await supabase.auth.getSession();
         if (session?.user) {
-          await supabase.from('notification_logs').insert({
+          await (supabase as any).from('notification_logs').insert({
             user_id: session.user.id,
             type,
             title: title ?? '',
