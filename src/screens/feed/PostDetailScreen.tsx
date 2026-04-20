@@ -491,7 +491,7 @@ export function PostDetailScreen() {
                 color={isBookmarked ? Colors.primary : '#888'}
               />
               <Text style={[styles.statLabel, isBookmarked && { color: Colors.primary }]}>
-                {isBookmarked ? '저장됨' : '저장'}
+                {isBookmarked ? '즐겨찾기됨' : '즐겨찾기'}
               </Text>
             </TouchableOpacity>
           </View>
