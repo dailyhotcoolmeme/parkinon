@@ -10,7 +10,7 @@
 import { useState, useEffect, useCallback } from 'react';
 import { supabase } from '../lib/supabase';
 import { useAuth } from '../context/AuthContext';
-import { cancelMedicationReminder, scheduleEffectTrackingNotifications, sendCaregiverPush } from '../utils/notifications';
+import { sendCaregiverPush } from '../utils/notifications';
 import { getKSTToday, getKSTDayRange } from '../utils/medUtils';
 import { useSettings } from '../context/SettingsContext';
 import type { Database } from '../types/database';
@@ -199,11 +199,16 @@ export function useMedication(): UseMedicationReturn {
 
       // DB INSERT 성공 후 알림 처리 (실패해도 전체 함수에 영향 없음)
       try {
-        // 해당 시간대 복용 예정 알림 취소
-        await cancelMedicationReminder(mealTime);
-
-        // 약효 추적 알림 스케줄
-        await scheduleEffectTrackingNotifications(medNotifs);
+        // 약효 추적 알림 — 서버 큐에 등록 (앱 종료 후에도 발송)
+        if (user?.push_token) {
+          await supabase.functions.invoke('queue-effect-tracking', {
+            body: {
+              patient_id: patientId,
+              push_token: user.push_token,
+              notif_settings: medNotifs.map((n) => ({ minutes: n.minutes, enabled: n.enabled })),
+            },
+          });
+        }
 
         // 보호자에게 푸시 알림 (같은 그룹의 보호자 push_token 조회 후 전송)
         if (user.patient_group_id) {

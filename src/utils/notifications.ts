@@ -196,20 +196,9 @@ TaskManager.defineTask(MISSED_MED_CHECK_TASK, async () => {
   }
 });
 
-/** 미복용 체크 백그라운드 태스크 등록 (환자 로그인 시 1회 호출) */
+/** 미복용 체크 — 서버 cron으로 전환됨. 하위 호환용 빈 함수. */
 export async function registerMissedMedCheckTask(): Promise<void> {
-  try {
-    const isRegistered = await TaskManager.isTaskRegisteredAsync(MISSED_MED_CHECK_TASK);
-    if (isRegistered) return;
-    await BackgroundFetch.registerTaskAsync(MISSED_MED_CHECK_TASK, {
-      minimumInterval: 15 * 60, // Android 최소 15분
-      stopOnTerminate: false,   // 앱 종료 후에도 실행
-      startOnBoot: true,        // 재부팅 후에도 실행
-    });
-    console.log('[notifications] 미복용 체크 태스크 등록 완료');
-  } catch (e) {
-    console.error('[notifications] 미복용 체크 태스크 등록 실패:', e);
-  }
+  // 서버 cron이 감지하므로 백그라운드 태스크 불필요
 }
 
 // 포그라운드 알림 표시 설정
@@ -333,27 +322,9 @@ export async function requestPermissionsAndSaveToken(
   }
 }
 
-/** 약 복용 예정 알림 스케줄 (매일 반복) */
+/** 약 복용 예정 알림 — 서버 푸시(pg_cron)로 전환됨. 하위 호환용 빈 함수. */
 export async function scheduleMedicationReminders(): Promise<void> {
-  for (const [mealTime, time] of Object.entries(MEAL_TIMES)) {
-    try {
-      await Notifications.cancelScheduledNotificationAsync(`med-reminder-${mealTime}`);
-    } catch {}
-
-    await Notifications.scheduleNotificationAsync({
-      identifier: `med-reminder-${mealTime}`,
-      content: {
-        title: '💊 약 드실 시간이에요',
-        body: `${time.label} 약을 드실 시간이에요.`,
-        data: { type: 'medication_reminder', mealTime },
-      },
-      trigger: {
-        type: Notifications.SchedulableTriggerInputTypes.DAILY,
-        hour: time.hour,
-        minute: time.minute,
-      },
-    });
-  }
+  // 서버 cron이 전송하므로 로컬 스케줄 불필요
 }
 
 /** 특정 시간대 복용 예정 알림 취소 (복용 완료 시 호출) */
@@ -363,39 +334,9 @@ export async function cancelMedicationReminder(mealTime: string): Promise<void> 
   } catch {}
 }
 
-/** 약효 추적 알림 스케줄 (복용 직후 호출) */
-export async function scheduleEffectTrackingNotifications(medNotifs: MedNotif[]): Promise<void> {
-  try {
-    // 기존 약효 추적 알림 모두 취소
-    const scheduled = await Notifications.getAllScheduledNotificationsAsync();
-    for (const n of scheduled) {
-      if (n.identifier.startsWith('effect-')) {
-        await Notifications.cancelScheduledNotificationAsync(n.identifier);
-      }
-    }
-
-    for (const notif of medNotifs) {
-      if (!notif.enabled) continue;
-
-      const seconds = notif.minutes === 0 ? 3 : notif.minutes * 60;
-
-      await Notifications.scheduleNotificationAsync({
-        identifier: `effect-${notif.id}`,
-        content: {
-          title: '😊 몸 상태는 어때요?',
-          body: `${minutesToLabel(notif.minutes)} 몸 상태를 기록해보세요.`,
-          data: { type: 'effect_tracking', minutes: notif.minutes },
-        },
-        trigger: {
-          type: Notifications.SchedulableTriggerInputTypes.TIME_INTERVAL,
-          seconds,
-          repeats: false,
-        },
-      });
-    }
-  } catch (e) {
-    console.error('[notifications] 약효 추적 알림 스케줄 실패:', e);
-  }
+/** 약효 추적 알림 — 서버 큐(queue-effect-tracking)로 전환됨. 하위 호환용 빈 함수. */
+export async function scheduleEffectTrackingNotifications(_medNotifs: MedNotif[]): Promise<void> {
+  // useMedication에서 queue-effect-tracking Edge Function으로 직접 큐잉
 }
 
 /** 운동 알림 스케줄 (매일 반복) */
