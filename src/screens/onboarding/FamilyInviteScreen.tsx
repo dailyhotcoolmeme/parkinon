@@ -55,7 +55,7 @@ export function FamilyInviteScreen() {
   const handleKakaoShare = async () => {
     try {
       await Share.share({
-        message: `[파킨온] ${userName || '가족'}님이 파킨온에 초대했어요!\n\n초대 코드: ${inviteCode}\n\n파킨온 앱을 설치하고 초대 코드를 입력해주세요.`,
+        message: `💊 파킨온 - 파킨슨 케어 앱\n\n${userName || '가족'}님이 파킨온에 초대했어요!\n\n파킨온은 파킨슨 환자와 가족이 함께 사용하는 건강 관리 앱이에요.\n✅ 약 복용 알림 & 기록\n✅ 약효 추적 (복용 후 상태 체크)\n✅ 몸 상태·운동 기록\n✅ 가족과 실시간 공유\n\n📱 구글 플레이에서 설치하기\nhttps://play.google.com/store/apps/details?id=com.ourmine.parkinon\n\n🔑 초대 코드: ${inviteCode}\n앱 설치 후 '초대 코드 입력'에 입력해주세요.`,
         title: '파킨온 가족 초대',
       });
     } catch {
