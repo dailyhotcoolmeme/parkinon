@@ -1,4 +1,4 @@
-import React, { useState, useCallback } from 'react';
+import React, { useState, useCallback, useEffect } from 'react';
 import {
   View,
   Text,
@@ -20,6 +20,9 @@ import type { ExerciseStackParamList } from '../../navigation/ExerciseNavigator'
 import { useExercise } from '../../hooks/useExercise';
 import { DatePickerModal } from '../../components/common/DatePickerModal';
 import { navigateTo } from '../../navigation/navigationRef';
+import { useAuth } from '../../context/AuthContext';
+import { CaregiverConfirmModal } from '../../components/common/CaregiverConfirmModal';
+import { supabase } from '../../lib/supabase';
 
 type Nav = NativeStackNavigationProp<ExerciseStackParamList, 'ExerciseMain'>;
 
@@ -55,12 +58,38 @@ function getDateLabel(date: Date): string {
 
 export function ExerciseScreen() {
   const navigation = useNavigation<Nav>();
-const { todayLogs, getTodayTotalMinutes, getExerciseLogs, loading, error, refresh } = useExercise();
+  const { user } = useAuth();
+  const { todayLogs, getTodayTotalMinutes, getExerciseLogs, loading, error, refresh } = useExercise();
   const insets = useSafeAreaInsets();
   const [selectedDate, setSelectedDate] = useState(new Date());
   const [showDatePicker, setShowDatePicker] = useState(false);
   const [dateLogs, setDateLogs] = useState(todayLogs);
   const [dateLoading, setDateLoading] = useState(false);
+  const [showCaregiverConfirm, setShowCaregiverConfirm] = useState(false);
+  const [patientName, setPatientName] = useState('환자');
+
+  const userRole: 'patient' | 'caregiver_same' | 'caregiver_separate' =
+    user?.role !== 'caregiver'
+      ? 'patient'
+      : user.residence_type === 'together'
+      ? 'caregiver_same'
+      : 'caregiver_separate';
+
+  useEffect(() => {
+    if (!user) return;
+    if (user.role === 'patient') { setPatientName(user.name); return; }
+    if (!user.patient_group_id) return;
+    supabase
+      .from('patient_group_members')
+      .select('users(name)')
+      .eq('group_id', user.patient_group_id)
+      .eq('role', 'patient')
+      .single()
+      .then(({ data }) => {
+        const name = (data?.users as any)?.name;
+        if (name) setPatientName(name);
+      });
+  }, [user]);
 
   const isToday = (date: Date) => {
     const today = new Date();
@@ -121,8 +150,18 @@ const { todayLogs, getTodayTotalMinutes, getExerciseLogs, loading, error, refres
         {/* 버튼 영역 */}
         <View style={styles.centerBlock}>
           <TouchableOpacity
-            style={styles.primaryBtn}
-            onPress={() => navigation.navigate('ExerciseRecord')}
+            style={[styles.primaryBtn, userRole === 'caregiver_separate' && styles.primaryBtnDisabled]}
+            onPress={() => {
+              if (userRole === 'caregiver_separate') {
+                Alert.alert('대신 입력 불가', '함께 거주하지 않아\n대신 기록이 불가능해요.');
+                return;
+              }
+              if (userRole === 'caregiver_same') {
+                setShowCaregiverConfirm(true);
+              } else {
+                navigation.navigate('ExerciseRecord');
+              }
+            }}
             activeOpacity={0.85}
           >
             <View style={styles.primaryBtnInner}>
@@ -191,6 +230,12 @@ const { todayLogs, getTodayTotalMinutes, getExerciseLogs, loading, error, refres
         }}
         onClose={() => setShowDatePicker(false)}
       />
+      <CaregiverConfirmModal
+        visible={showCaregiverConfirm}
+        patientName={patientName}
+        onConfirm={() => { setShowCaregiverConfirm(false); navigation.navigate('ExerciseRecord'); }}
+        onCancel={() => setShowCaregiverConfirm(false)}
+      />
     </SafeAreaView>
   );
 }
@@ -237,6 +282,7 @@ const styles = StyleSheet.create({
     shadowOpacity: 0.15,
     shadowRadius: 8,
   },
+  primaryBtnDisabled: { backgroundColor: Colors.border },
   primaryBtnInner: { alignItems: 'center', gap: 12 },
   primaryBtnText: { fontSize: 26, fontWeight: '800', color: Colors.white },
 

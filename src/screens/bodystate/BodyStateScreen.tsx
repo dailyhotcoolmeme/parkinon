@@ -19,6 +19,7 @@ import { DatePickerModal } from '../../components/common/DatePickerModal';
 import { useAuth } from '../../context/AuthContext';
 import { useBodyState } from '../../hooks/useBodyState';
 import { navigateTo } from '../../navigation/navigationRef';
+import { supabase } from '../../lib/supabase';
 
 const WINDOW_HEIGHT = Dimensions.get('window').height;
 const TOP_BAR_H = 56;
@@ -127,10 +128,26 @@ export function BodyStateScreen() {
   );
 
   const userRole = user?.role === 'caregiver'
-    ? (user.residence_type === 'separate' ? 'caregiver_separate' : 'caregiver_same')
+    ? (user.residence_type === 'together' ? 'caregiver_same' : 'caregiver_separate')
     : 'patient';
 
-  const patientName = '환자';
+  const [patientName, setPatientName] = useState('환자');
+
+  useEffect(() => {
+    if (!user) return;
+    if (user.role === 'patient') { setPatientName(user.name); return; }
+    if (!user.patient_group_id) return;
+    supabase
+      .from('patient_group_members')
+      .select('users(name)')
+      .eq('group_id', user.patient_group_id)
+      .eq('role', 'patient')
+      .single()
+      .then(({ data }) => {
+        const name = (data?.users as any)?.name;
+        if (name) setPatientName(name);
+      });
+  }, [user]);
 
   // 표시할 로그: 오늘이면 todayLogs, 다른 날이면 dateLogs
   const activeLogs = isToday ? todayLogs : dateLogs;
@@ -188,7 +205,10 @@ export function BodyStateScreen() {
               userRole === 'caregiver_separate' && styles.mainButtonDisabled,
             ]}
             onPress={() => {
-              if (userRole === 'caregiver_separate') return;
+              if (userRole === 'caregiver_separate') {
+                Alert.alert('대신 입력 불가', '함께 거주하지 않아\n대신 기록이 불가능해요.');
+                return;
+              }
               if (userRole === 'caregiver_same') {
                 setShowCaregiverConfirm(true);
               } else {
