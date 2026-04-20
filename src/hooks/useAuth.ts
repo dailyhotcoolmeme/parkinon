@@ -187,6 +187,14 @@ export function useAuthProvider(): UseAuthReturn {
             setUser(newUser as UserProfile);
           }
         }
+        // 신규 유저도 push token 저장
+        if (token) {
+          Notifications.getPermissionsAsync().then(({ status }) => {
+            if (status === 'granted') {
+              requestPermissionsAndSaveToken(userId, token).catch(console.error);
+            }
+          }).catch(console.error);
+        }
       } else {
         setUser(rows[0]);
         // 로그인 성공 시 push token 항상 저장 (온보딩 완료 여부 무관)
