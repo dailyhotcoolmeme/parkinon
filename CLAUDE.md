@@ -275,9 +275,10 @@
 - Android 네이티브 코드 변경 (android/ 폴더)
 - Expo SDK 버전 업그레이드
 
-### 배포 방식
-- **자동**: main 브랜치 push 시 GitHub Actions가 `eas update --branch production` 자동 실행
-- **수동**: `eas update --branch production --message "수정 내용"` 직접 실행
+### 배포 방식 (2026-04 수정)
+- **⚠️ GitHub Actions 자동 배포 비활성화됨** — GitHub Actions 환경에 `.env`가 없어 Supabase URL이 undefined로 번들되어 앱 시작 즉시 크래시 발생. `ota-update.yml`을 `workflow_dispatch`로 변경.
+- **수동 배포만 사용**: 맥북 로컬에서 `npx eas update --branch production --message "수정 내용" --non-interactive` 직접 실행
+- `git push`는 코드 저장용, OTA 배포는 항상 별도로 수동 실행할 것
 
 ### 개발 시 주의사항
 - 새 패키지 추가 시 네이티브 모듈 포함 여부를 반드시 확인할 것
