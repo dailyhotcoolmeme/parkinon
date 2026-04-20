@@ -16,7 +16,9 @@ import {
   Animated,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { useFocusEffect } from '@react-navigation/native';
+import { useFocusEffect, useRoute } from '@react-navigation/native';
+import type { RouteProp } from '@react-navigation/native';
+import type { MenuStackParamList } from '../../navigation/MenuNavigator';
 import { Ionicons } from '@expo/vector-icons';
 import * as ImagePicker from 'expo-image-picker';
 import { Colors } from '../../constants/colors';
@@ -900,6 +902,8 @@ const seBsStyles = StyleSheet.create({
 
 export function MedicationManageScreen() {
   const { user } = useAuth();
+  const route = useRoute<RouteProp<MenuStackParamList, 'MedicationManage'>>();
+  const openSlotParam = (route.params as any)?.openSlot as ('morning' | 'lunch' | 'dinner' | 'bedtime') | undefined;
   const { getPatientForCaregiver } = useFamilyLink();
   const [medications, setMedications] = useState<Medication[]>([]);
   const [isOcrLoading, setIsOcrLoading] = useState(false);
@@ -928,6 +932,12 @@ export function MedicationManageScreen() {
 
   // 시간대 수정 바텀시트
   const [slotEditTarget, setSlotEditTarget] = useState<typeof TIME_SLOTS[0] | null>(null);
+
+  useEffect(() => {
+    if (!openSlotParam || isLoading || medications.length === 0) return;
+    const slot = TIME_SLOTS.find(s => s.key === openSlotParam);
+    if (slot) setSlotEditTarget(slot);
+  }, [openSlotParam, isLoading, medications.length]);
 
   // 대상 환자 id 결정
   useEffect(() => {

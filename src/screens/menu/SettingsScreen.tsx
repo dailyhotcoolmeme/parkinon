@@ -523,7 +523,7 @@ export function SettingsScreen() {
                   />
                   <TouchableOpacity
                     activeOpacity={0.7}
-                    onPress={() => navigation.navigate('MedicationManage')}
+                    onPress={() => navigation.navigate('MedicationManage', { openSlot: slotKey })}
                     style={{ flexDirection: 'row', alignItems: 'center', gap: 4, paddingVertical: 8, paddingHorizontal: 4 }}
                   >
                     <Ionicons name="create-outline" size={20} color={Colors.textSub} />

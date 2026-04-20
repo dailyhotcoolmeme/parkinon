@@ -23,7 +23,7 @@ export type MenuStackParamList = {
     period?: string;
   };
   Settings: undefined;
-  MedicationManage: undefined;
+  MedicationManage: { openSlot?: 'morning' | 'lunch' | 'dinner' | 'bedtime' } | undefined;
   FamilyLink: undefined;
   ProfileEdit: undefined;
   Terms: undefined;
