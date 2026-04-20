@@ -485,6 +485,30 @@ export function SettingsScreen() {
     await supabase.from('users').update({ exercise_notif_prefs: next }).eq('id', patientId);
   };
 
+  const deletePatientMedNotif = (id: string) => {
+    if (!patientId) return;
+    Alert.alert('알림 삭제', '이 알림을 삭제하시겠어요?', [
+      { text: '취소', style: 'cancel' },
+      { text: '삭제', style: 'destructive', onPress: async () => {
+        const next = patientMedNotifs.filter(n => n.id !== id);
+        setPatientMedNotifs(next);
+        await supabase.from('users').update({ med_notif_prefs: next }).eq('id', patientId!);
+      }},
+    ]);
+  };
+
+  const deletePatientExerciseNotif = (id: string) => {
+    if (!patientId) return;
+    Alert.alert('알림 삭제', '이 알림을 삭제하시겠어요?', [
+      { text: '취소', style: 'cancel' },
+      { text: '삭제', style: 'destructive', onPress: async () => {
+        const next = patientExerciseNotifs.filter(n => n.id !== id);
+        setPatientExerciseNotifs(next);
+        await supabase.from('users').update({ exercise_notif_prefs: next }).eq('id', patientId!);
+      }},
+    ]);
+  };
+
   // ─── Handlers ───────────────────────────────────────────────────────────────
   const toggleMed = (id: string) => {
     setMedNotifs((prev) =>
@@ -920,129 +944,160 @@ export function SettingsScreen() {
               />
             </TouchableOpacity>
 
-            {showPatientNotifs && (
-              <>
-                {/* ── 섹션 1: 약 복용 시간 알림 ── */}
-                <View style={{ paddingHorizontal: 20, paddingTop: 16, paddingBottom: 4 }}>
-                  <Text style={{ fontSize: 17, fontWeight: '700', color: Colors.text }}>약 복용 시간 알림</Text>
-                </View>
-                {patientActiveMedSlots.length === 0 ? (
-                  <View style={{ paddingHorizontal: 20, paddingVertical: 8 }}>
-                    <Text style={{ fontSize: 16, color: Colors.textSub }}>등록된 약이 없어요</Text>
+            {showPatientNotifs && (() => {
+              const formatPatientTime = (t: string) => {
+                const [hStr, mStr] = t.split(':');
+                const h = parseInt(hStr, 10);
+                if (h === 0) return `오전 12:${mStr}`;
+                if (h < 12) return `오전 ${h}:${mStr}`;
+                if (h === 12) return `오후 12:${mStr}`;
+                return `오후 ${h - 12}:${mStr}`;
+              };
+              return (
+                <>
+                  {/* ── 서브카드 1: 약 복용 시간 알림 (파란색) ── */}
+                  <View style={{ marginTop: 12, marginHorizontal: 12, borderRadius: 12, overflow: 'hidden', borderWidth: 1, borderColor: '#BBDEFB' }}>
+                    <View style={{ flexDirection: 'row', alignItems: 'center', backgroundColor: '#E3F2FD', paddingHorizontal: 16, paddingVertical: 12 }}>
+                      <Ionicons name="alarm-outline" size={20} color="#1565C0" style={{ marginRight: 10 }} />
+                      <Text style={{ fontSize: 17, fontWeight: '700', color: '#1565C0' }}>약 복용 시간 알림</Text>
+                    </View>
+                    {patientActiveMedSlots.length === 0 ? (
+                      <View style={{ paddingHorizontal: 16, paddingVertical: 14 }}>
+                        <Text style={{ fontSize: 16, color: Colors.textSub }}>등록된 약이 없어요</Text>
+                      </View>
+                    ) : (
+                      MED_TIME_SLOTS.filter(slot => patientActiveMedSlots.includes(slot.key as MedTimeSlotKey)).map((slot) => {
+                        const slotKey = slot.key as MedTimeSlotKey;
+                        const displayTime = formatPatientTime(patientMedSlotTimes[slotKey]);
+                        const isOn = patientMedTimePrefs[slotKey] && notificationEnabled;
+                        return (
+                          <View key={slotKey} style={[styles.notifRow, { backgroundColor: Colors.white }]}>
+                            <View style={styles.notifLeft}>
+                              <Text style={styles.notifTitle}>{slot.label}  {displayTime}</Text>
+                              <Text style={styles.notifSub}>매일 {displayTime}에 복용 알림을 보내요</Text>
+                            </View>
+                            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 12 }}>
+                              <Switch
+                                value={isOn}
+                                onValueChange={() => togglePatientMedTimeSlot(slotKey)}
+                                disabled={!notificationEnabled}
+                                trackColor={{ false: Colors.border, true: '#1565C0' }}
+                                thumbColor={Colors.white}
+                              />
+                              <TouchableOpacity
+                                activeOpacity={0.7}
+                                onPress={() => navigation.navigate('MedicationManage', { openSlot: slotKey })}
+                                style={{ paddingVertical: 8, paddingHorizontal: 8 }}
+                              >
+                                <Ionicons name="create-outline" size={22} color={Colors.textSub} />
+                              </TouchableOpacity>
+                            </View>
+                          </View>
+                        );
+                      })
+                    )}
                   </View>
-                ) : (
-                  MED_TIME_SLOTS.filter(slot => patientActiveMedSlots.includes(slot.key as MedTimeSlotKey)).map((slot) => {
-                    const slotKey = slot.key as MedTimeSlotKey;
-                    const rawTime = patientMedSlotTimes[slotKey];
-                    const formatTime = (t: string) => {
-                      const [hStr, mStr] = t.split(':');
-                      const h = parseInt(hStr, 10);
-                      if (h === 0) return `오전 12:${mStr}`;
-                      if (h < 12) return `오전 ${h}:${mStr}`;
-                      if (h === 12) return `오후 12:${mStr}`;
-                      return `오후 ${h - 12}:${mStr}`;
-                    };
-                    const displayTime = formatTime(rawTime);
-                    const isOn = patientMedTimePrefs[slotKey] && notificationEnabled;
-                    return (
-                      <View key={slotKey} style={styles.notifRow}>
+
+                  {/* ── 서브카드 2: 약효 추적 알림 (오렌지) ── */}
+                  <View style={{ marginTop: 10, marginHorizontal: 12, borderRadius: 12, overflow: 'hidden', borderWidth: 1, borderColor: '#FFE0B2' }}>
+                    <View style={{ flexDirection: 'row', alignItems: 'center', backgroundColor: '#FFF3E0', paddingHorizontal: 16, paddingVertical: 12 }}>
+                      <Ionicons name="notifications-outline" size={20} color="#E65100" style={{ marginRight: 10 }} />
+                      <Text style={{ fontSize: 17, fontWeight: '700', color: '#E65100' }}>약효 추적 알림</Text>
+                    </View>
+                    {patientMedNotifs.map((notif) => (
+                      <View key={notif.id} style={[styles.notifRow, { backgroundColor: Colors.white }]}>
                         <View style={styles.notifLeft}>
-                          <Text style={styles.notifTitle}>{slot.label}  {displayTime}</Text>
-                          <Text style={styles.notifSub}>매일 {displayTime}에 복용 알림을 보내요</Text>
+                          <Text style={styles.notifTitle}>{minutesToLabel(notif.minutes)}</Text>
+                          <Text style={styles.notifSub}>약 복용 후 {minutesToLabel(notif.minutes)}에 알림을 보내요</Text>
                         </View>
-                        <View style={{ flexDirection: 'row', alignItems: 'center', gap: 12 }}>
+                        <View style={styles.notifRight}>
                           <Switch
-                            value={isOn}
-                            onValueChange={() => togglePatientMedTimeSlot(slotKey)}
+                            value={notif.enabled && notificationEnabled}
+                            onValueChange={() => togglePatientMedNotif(notif.id)}
                             disabled={!notificationEnabled}
-                            trackColor={{ false: Colors.border, true: Colors.primary }}
+                            trackColor={{ false: Colors.border, true: '#E65100' }}
                             thumbColor={Colors.white}
                           />
                           <TouchableOpacity
                             activeOpacity={0.7}
-                            onPress={() => navigation.navigate('MedicationManage', { openSlot: slotKey })}
-                            style={{ paddingVertical: 8, paddingHorizontal: 8 }}
+                            hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+                            style={styles.iconBtn}
+                            onPress={() => openPatientPicker('med', notif.id)}
                           >
                             <Ionicons name="create-outline" size={22} color={Colors.textSub} />
                           </TouchableOpacity>
+                          <TouchableOpacity
+                            activeOpacity={0.7}
+                            hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+                            style={[styles.iconBtn, styles.iconBtnDelete]}
+                            onPress={() => deletePatientMedNotif(notif.id)}
+                          >
+                            <Ionicons name="trash-outline" size={22} color={Colors.danger} />
+                          </TouchableOpacity>
                         </View>
                       </View>
-                    );
-                  })
-                )}
-
-                {/* ── 섹션 2: 약효 추적 알림 ── */}
-                <View style={{ paddingHorizontal: 20, paddingTop: 16, paddingBottom: 4, borderTopWidth: 1, borderTopColor: Colors.border, marginTop: 8 }}>
-                  <Text style={{ fontSize: 17, fontWeight: '700', color: Colors.text }}>약효 추적 알림</Text>
-                </View>
-                {patientMedNotifs.length === 0 ? (
-                  <View style={{ paddingHorizontal: 20, paddingVertical: 8 }}>
-                    <Text style={{ fontSize: 16, color: Colors.textSub }}>설정된 알림이 없어요</Text>
+                    ))}
+                    <TouchableOpacity
+                      activeOpacity={0.7}
+                      style={[styles.addRow, { backgroundColor: Colors.white }]}
+                      onPress={() => openPatientPicker('med', null)}
+                    >
+                      <Ionicons name="add-circle-outline" size={22} color="#E65100" style={{ marginRight: 8 }} />
+                      <Text style={[styles.addLabel, { color: '#E65100' }]}>알림 추가하기</Text>
+                    </TouchableOpacity>
                   </View>
-                ) : (
-                  patientMedNotifs.map((notif) => (
-                    <View key={notif.id} style={styles.notifRow}>
-                      <View style={styles.notifLeft}>
-                        <Text style={styles.notifTitle}>{minutesToLabel(notif.minutes)}</Text>
-                        <Text style={styles.notifSub}>약 복용 후 {minutesToLabel(notif.minutes)}에 알림</Text>
-                      </View>
-                      <View style={{ flexDirection: 'row', alignItems: 'center', gap: 12 }}>
-                        <Switch
-                          value={notif.enabled && notificationEnabled}
-                          onValueChange={() => togglePatientMedNotif(notif.id)}
-                          disabled={!notificationEnabled}
-                          trackColor={{ false: Colors.border, true: Colors.primary }}
-                          thumbColor={Colors.white}
-                        />
-                        <TouchableOpacity
-                          activeOpacity={0.7}
-                          onPress={() => openPatientPicker('med', notif.id)}
-                          style={{ paddingVertical: 8, paddingHorizontal: 8 }}
-                        >
-                          <Ionicons name="create-outline" size={22} color={Colors.textSub} />
-                        </TouchableOpacity>
-                      </View>
-                    </View>
-                  ))
-                )}
 
-                {/* ── 섹션 3: 운동 알림 ── */}
-                <View style={{ paddingHorizontal: 20, paddingTop: 16, paddingBottom: 4, borderTopWidth: 1, borderTopColor: Colors.border, marginTop: 8 }}>
-                  <Text style={{ fontSize: 17, fontWeight: '700', color: Colors.text }}>운동 알림</Text>
-                </View>
-                {patientExerciseNotifs.length === 0 ? (
-                  <View style={{ paddingHorizontal: 20, paddingVertical: 8 }}>
-                    <Text style={{ fontSize: 16, color: Colors.textSub }}>설정된 알림이 없어요</Text>
-                  </View>
-                ) : (
-                  patientExerciseNotifs.map((notif) => (
-                    <View key={notif.id} style={styles.notifRow}>
-                      <View style={styles.notifLeft}>
-                        <Text style={styles.notifTitle}>{formatExerciseNotif(notif)}</Text>
-                        <Text style={styles.notifSub}>매일 {formatExerciseNotif(notif)}에 운동 알림</Text>
-                      </View>
-                      <View style={{ flexDirection: 'row', alignItems: 'center', gap: 12 }}>
-                        <Switch
-                          value={notif.enabled && notificationEnabled}
-                          onValueChange={() => togglePatientExerciseNotif(notif.id)}
-                          disabled={!notificationEnabled}
-                          trackColor={{ false: Colors.border, true: Colors.primary }}
-                          thumbColor={Colors.white}
-                        />
-                        <TouchableOpacity
-                          activeOpacity={0.7}
-                          onPress={() => openPatientPicker('exercise', notif.id)}
-                          style={{ paddingVertical: 8, paddingHorizontal: 8 }}
-                        >
-                          <Ionicons name="create-outline" size={22} color={Colors.textSub} />
-                        </TouchableOpacity>
-                      </View>
+                  {/* ── 서브카드 3: 운동 알림 (초록) ── */}
+                  <View style={{ marginTop: 10, marginHorizontal: 12, marginBottom: 12, borderRadius: 12, overflow: 'hidden', borderWidth: 1, borderColor: '#C8E6C9' }}>
+                    <View style={{ flexDirection: 'row', alignItems: 'center', backgroundColor: '#E8F5E9', paddingHorizontal: 16, paddingVertical: 12 }}>
+                      <Ionicons name="fitness-outline" size={20} color="#2E7D32" style={{ marginRight: 10 }} />
+                      <Text style={{ fontSize: 17, fontWeight: '700', color: '#2E7D32' }}>운동 알림</Text>
                     </View>
-                  ))
-                )}
-                <View style={{ height: 8 }} />
-              </>
-            )}
+                    {patientExerciseNotifs.map((notif) => (
+                      <View key={notif.id} style={[styles.notifRow, { backgroundColor: Colors.white }]}>
+                        <View style={styles.notifLeft}>
+                          <Text style={styles.notifTitle}>{formatExerciseNotif(notif)}</Text>
+                          <Text style={styles.notifSub}>매일 {formatExerciseNotif(notif)}에 운동 알림을 보내요</Text>
+                        </View>
+                        <View style={styles.notifRight}>
+                          <Switch
+                            value={notif.enabled && notificationEnabled}
+                            onValueChange={() => togglePatientExerciseNotif(notif.id)}
+                            disabled={!notificationEnabled}
+                            trackColor={{ false: Colors.border, true: '#2E7D32' }}
+                            thumbColor={Colors.white}
+                          />
+                          <TouchableOpacity
+                            activeOpacity={0.7}
+                            hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+                            style={styles.iconBtn}
+                            onPress={() => openPatientPicker('exercise', notif.id)}
+                          >
+                            <Ionicons name="create-outline" size={22} color={Colors.textSub} />
+                          </TouchableOpacity>
+                          <TouchableOpacity
+                            activeOpacity={0.7}
+                            hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+                            style={[styles.iconBtn, styles.iconBtnDelete]}
+                            onPress={() => deletePatientExerciseNotif(notif.id)}
+                          >
+                            <Ionicons name="trash-outline" size={22} color={Colors.danger} />
+                          </TouchableOpacity>
+                        </View>
+                      </View>
+                    ))}
+                    <TouchableOpacity
+                      activeOpacity={0.7}
+                      style={[styles.addRow, { backgroundColor: Colors.white }]}
+                      onPress={() => openPatientPicker('exercise', null)}
+                    >
+                      <Ionicons name="add-circle-outline" size={22} color="#2E7D32" style={{ marginRight: 8 }} />
+                      <Text style={[styles.addLabel, { color: '#2E7D32' }]}>알림 추가하기</Text>
+                    </TouchableOpacity>
+                  </View>
+                </>
+              );
+            })()}
           </View>
         )}
       </ScrollView>

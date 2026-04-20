@@ -24,6 +24,10 @@ export interface Database {
           onboarding_done: boolean;
           notification_enabled: boolean;
           push_token: string | null;
+          med_time_notif_prefs: Record<string, boolean> | null;
+          med_notif_prefs: unknown[] | null;
+          exercise_notif_prefs: unknown[] | null;
+          caregiver_notif_prefs: Record<string, boolean> | null;
           created_at: string;
           updated_at: string;
         };

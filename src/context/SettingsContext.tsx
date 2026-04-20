@@ -215,7 +215,7 @@ export function SettingsProvider({ children }: { children: React.ReactNode }) {
         // DB 저장
         supabase.auth.getSession().then(({ data: { session } }) => {
           if (!session?.user) return;
-          supabase.from('users').update({ med_notif_prefs: next }).eq('id', session.user.id).catch(console.warn);
+          supabase.from('users').update({ med_notif_prefs: next as unknown[] }).eq('id', session.user.id).then(null, console.warn);
         }).catch(console.warn);
         return next;
       });
@@ -232,7 +232,7 @@ export function SettingsProvider({ children }: { children: React.ReactNode }) {
         // DB 저장
         supabase.auth.getSession().then(({ data: { session } }) => {
           if (!session?.user) return;
-          supabase.from('users').update({ exercise_notif_prefs: next }).eq('id', session.user.id).catch(console.warn);
+          supabase.from('users').update({ exercise_notif_prefs: next as unknown[] }).eq('id', session.user.id).then(null, console.warn);
         }).catch(console.warn);
         return next;
       });
