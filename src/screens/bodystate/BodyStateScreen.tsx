@@ -68,8 +68,18 @@ const TRIGGER_LABEL: Record<string, string> = {
   '2hour_after': '2시간 후',
 };
 
-const PERIOD_EMOJI: Record<string, string> = {
-  '아침': '', '점심': '', '저녁': '', '취침': ''
+const PERIOD_COLOR: Record<string, string> = {
+  '아침': '#FF8A65',
+  '점심': '#4CAF50',
+  '저녁': '#1565C0',
+  '취침': '#7C4DFF',
+};
+
+const PERIOD_ICON: Record<string, string> = {
+  '아침': '🌅',
+  '점심': '☀️',
+  '저녁': '🌙',
+  '취침': '💤',
 };
 
 function toLocalDateString(date: Date): string {
@@ -264,21 +274,8 @@ export function BodyStateScreen() {
             ['아침', '점심', '저녁', '취침'].map(period => {
               const periodRecords = records.filter(r => r.period === period);
               if (periodRecords.length === 0) return null;
-              // 해당 시간대 기록이 모두 notification인 경우만 "약 복용 후" 표시
-              const allNotification = periodRecords.every(r => r.triggeredBy === 'notification');
-              const hasNotification = periodRecords.some(r => r.triggeredBy === 'notification');
-              const periodTitle = allNotification
-                ? `${period} 약 복용 후`
-                : hasNotification
-                  ? `${period}`
-                  : `${period} 독립 기록`;
               return (
-                <View key={period} style={styles.periodGroup}>
-                  <Text style={styles.periodTitle}>{periodTitle}</Text>
-                  {periodRecords.map(record => (
-                    <BodyRecordCard key={record.id} record={record} />
-                  ))}
-                </View>
+                <MealSectionCard key={period} period={period} records={periodRecords} />
               );
             })
           )}
@@ -309,125 +306,120 @@ export function BodyStateScreen() {
   );
 }
 
-function getScoreEmoji(score: number): string {
-  if (score >= 5) return '😄';
-  if (score >= 4) return '🙂';
-  if (score >= 3) return '😐';
-  if (score >= 2) return '😔';
-  return '😢';
+function scoreColor(s: number): string {
+  if (s >= 4) return '#2E7D32';
+  if (s === 3) return '#E65100';
+  return '#B71C1C';
 }
 
-function getScoreColor(score: number): string {
-  if (score >= 4) return Colors.primary;
-  if (score >= 3) return Colors.accent;
-  return '#F44336';
-}
+function RecordRow({ record, isLast }: { record: BodyRecord; isLast: boolean }) {
+  const isManual = record.triggeredBy === 'manual';
 
-function BodyRecordCard({ record }: { record: BodyRecord }) {
   return (
-    <View style={cardStyles.card}>
-      <View style={cardStyles.header}>
-        <Text style={cardStyles.time}>{record.time}</Text>
-        <View style={cardStyles.triggerBadge}>
-          <Text style={cardStyles.triggerText}>{record.trigger}</Text>
-        </View>
-      </View>
-
-      <View style={cardStyles.scoreRow}>
-        <View style={cardStyles.scoreBox}>
-          <Text style={cardStyles.scoreLabel}>몸상태</Text>
-          <View style={cardStyles.scoreValueRow}>
-            <Text style={[cardStyles.scoreNum, { color: getScoreColor(record.bodyScore) }]}>
-              {record.bodyScore}점
-            </Text>
-          </View>
-        </View>
-        <View style={cardStyles.scoreDivider} />
-        <View style={cardStyles.scoreBox}>
-          <Text style={cardStyles.scoreLabel}>기분</Text>
-          <View style={cardStyles.scoreValueRow}>
-            <Text style={[cardStyles.scoreNum, { color: getScoreColor(record.moodScore) }]}>
-              {record.moodScore}점
-            </Text>
-          </View>
-        </View>
-      </View>
-
-      {record.sleepScore !== undefined && (
-        <View style={cardStyles.extraRow}>
-          <Text style={cardStyles.extraLabel}>수면</Text>
-          <Text style={[cardStyles.extraValue, { color: getScoreColor(record.sleepScore) }]}>
-            {record.sleepScore}점
+    <View style={{
+      paddingHorizontal: 18,
+      paddingVertical: 14,
+      borderBottomWidth: isLast ? 0 : 1,
+      borderBottomColor: '#F0F0F0',
+    }}>
+      {/* 트리거 라벨 + 시간 */}
+      <View style={{ flexDirection: 'row', justifyContent: 'space-between', marginBottom: 10 }}>
+        <View style={{ flexDirection: 'row', alignItems: 'center' }}>
+          {isManual && (
+            <View style={{
+              backgroundColor: '#F5F5F5',
+              borderRadius: 6,
+              paddingHorizontal: 6,
+              paddingVertical: 2,
+              marginRight: 6,
+            }}>
+              <Text style={{ fontSize: 11, color: '#888' }}>직접 입력</Text>
+            </View>
+          )}
+          <Text style={{ fontSize: 15, fontWeight: '600', color: '#333' }}>
+            {record.trigger}
           </Text>
         </View>
-      )}
+        <Text style={{ fontSize: 13, color: '#999' }}>{record.time}</Text>
+      </View>
 
-      {record.constipation !== undefined && (
-        <View style={cardStyles.extraRow}>
-          <Text style={cardStyles.extraLabel}>변비</Text>
-          <Text style={cardStyles.extraValue}>
-            {record.constipation ? '있었어요' : '없었어요'}
+      {/* 점수 항목들 — 가로 나열 */}
+      <View style={{ flexDirection: 'row', flexWrap: 'wrap' }}>
+        {/* 몸상태 */}
+        <View style={{ alignItems: 'center', marginRight: 20 }}>
+          <Text style={{ fontSize: 12, color: '#888', marginBottom: 4 }}>몸상태</Text>
+          <Text style={{ fontSize: 18, fontWeight: '700', color: scoreColor(record.bodyScore) }}>
+            {record.bodyScore}점
           </Text>
         </View>
-      )}
+        {/* 기분 */}
+        <View style={{ alignItems: 'center', marginRight: 20 }}>
+          <Text style={{ fontSize: 12, color: '#888', marginBottom: 4 }}>기분</Text>
+          <Text style={{ fontSize: 18, fontWeight: '700', color: scoreColor(record.moodScore) }}>
+            {record.moodScore}점
+          </Text>
+        </View>
+        {/* 수면 (있는 경우만) */}
+        {record.sleepScore !== undefined && (
+          <View style={{ alignItems: 'center', marginRight: 20 }}>
+            <Text style={{ fontSize: 12, color: '#888', marginBottom: 4 }}>수면</Text>
+            <Text style={{ fontSize: 18, fontWeight: '700', color: scoreColor(record.sleepScore) }}>
+              {record.sleepScore}점
+            </Text>
+          </View>
+        )}
+        {/* 변비 (있는 경우만) */}
+        {record.constipation !== undefined && (
+          <View style={{ alignItems: 'center', marginRight: 20 }}>
+            <Text style={{ fontSize: 12, color: '#888', marginBottom: 4 }}>변비</Text>
+            <Text style={{ fontSize: 14, fontWeight: '600', color: record.constipation ? '#B71C1C' : '#2E7D32' }}>
+              {record.constipation ? '있음' : '없음'}
+            </Text>
+          </View>
+        )}
+      </View>
     </View>
   );
 }
 
-const cardStyles = StyleSheet.create({
-  card: {
-    backgroundColor: Colors.white,
-    borderRadius: 16,
-    padding: 20,
-    marginBottom: 10,
-    elevation: 2,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 1 },
-    shadowOpacity: 0.07,
-    shadowRadius: 4,
-  },
-  header: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    marginBottom: 16,
-  },
-  time: { fontSize: 18, fontWeight: '700', color: Colors.text },
-  triggerBadge: {
-    backgroundColor: Colors.light,
-    borderRadius: 10,
-    paddingHorizontal: 12,
-    paddingVertical: 5,
-  },
-  triggerText: { fontSize: 15, fontWeight: '600', color: Colors.dark },
+function MealSectionCard({ period, records }: { period: string; records: BodyRecord[] }) {
+  const color = PERIOD_COLOR[period] ?? '#888';
+  const icon = PERIOD_ICON[period] ?? '🕐';
 
-  scoreRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: Colors.background,
-    borderRadius: 12,
-    paddingVertical: 14,
-    paddingHorizontal: 8,
-  },
-  scoreBox: { flex: 1, alignItems: 'center' },
-  scoreDivider: { width: 1, height: 44, backgroundColor: Colors.border },
-  scoreLabel: { fontSize: 15, color: Colors.textSub, marginBottom: 6, fontWeight: '600' },
-  scoreValueRow: { flexDirection: 'row', alignItems: 'center', gap: 6 },
-  scoreEmoji: { fontSize: 26 },
-  scoreNum: { fontSize: 22, fontWeight: '800' },
+  return (
+    <View style={{
+      backgroundColor: '#fff',
+      borderRadius: 16,
+      marginBottom: 14,
+      overflow: 'hidden',
+      elevation: 2,
+      shadowColor: '#000',
+      shadowOffset: { width: 0, height: 1 },
+      shadowOpacity: 0.08,
+      shadowRadius: 4,
+    }}>
+      {/* 섹션 헤더 */}
+      <View style={{
+        backgroundColor: color,
+        paddingHorizontal: 18,
+        paddingVertical: 12,
+        flexDirection: 'row',
+        alignItems: 'center',
+      }}>
+        <Text style={{ fontSize: 18, marginRight: 8 }}>{icon}</Text>
+        <Text style={{ fontSize: 17, fontWeight: '700', color: '#fff' }}>{period}</Text>
+        <Text style={{ fontSize: 13, color: 'rgba(255,255,255,0.8)', marginLeft: 8 }}>
+          {records.length}개 기록
+        </Text>
+      </View>
 
-  extraRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 8,
-    marginTop: 12,
-    paddingTop: 12,
-    borderTopWidth: 1,
-    borderTopColor: Colors.border,
-  },
-  extraLabel: { fontSize: 16, color: Colors.textSub, fontWeight: '600', width: 36 },
-  extraValue: { fontSize: 18, fontWeight: '600', color: Colors.text },
-});
+      {/* 기록 행들 */}
+      {records.map((rec, idx) => (
+        <RecordRow key={rec.id} record={rec} isLast={idx === records.length - 1} />
+      ))}
+    </View>
+  );
+}
 
 const styles = StyleSheet.create({
   safeArea: { flex: 1, backgroundColor: Colors.background },
@@ -513,8 +505,6 @@ const styles = StyleSheet.create({
   sectionHeader: { flexDirection: 'row', alignItems: 'center', marginBottom: 20, gap: 8 },
   divider: { flex: 1, height: 1, backgroundColor: Colors.border },
   sectionTitle: { fontSize: 17, fontWeight: '600', color: Colors.textSub, paddingHorizontal: 4 },
-  periodGroup: { marginBottom: 8 },
-  periodTitle: { fontSize: 16, fontWeight: '700', color: Colors.textSub, marginBottom: 10, marginLeft: 2, letterSpacing: 0.3 },
   emptyWrap: { alignItems: 'center', paddingVertical: 40, gap: 12 },
   emptyText: { fontSize: 20, fontWeight: '700', color: Colors.textSub },
   emptySubText: { fontSize: 17, color: Colors.textHint, textAlign: 'center', lineHeight: 26 },
