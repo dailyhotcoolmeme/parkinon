@@ -200,6 +200,12 @@ export function MedicationScreen() {
       : { id: mt, label: MEAL_TIME_LABELS[mt].label, time: MEAL_TIME_LABELS[mt].time, taken: false };
   });
 
+  // 오늘 모든 시간대 복용 완료 여부 (아침/점심/저녁 기준 — 취침은 모달에 없으므로 제외)
+  const NON_BEDTIME_SLOTS: MealTime[] = ['morning', 'lunch', 'dinner'];
+  const allNonBedtimeTaken = isToday && NON_BEDTIME_SLOTS.every(
+    (mt) => !!(activeStatus as any)[mt]
+  );
+
   return (
     <SafeAreaView style={styles.safeArea} edges={['top']}>
       <TopBar
@@ -222,10 +228,11 @@ export function MedicationScreen() {
           <TouchableOpacity
             style={[
               styles.mainButton,
-              (userRole === 'caregiver_separate' || !isToday) && styles.mainButtonDisabled,
+              (userRole === 'caregiver_separate' || !isToday || allNonBedtimeTaken) && styles.mainButtonDisabled,
             ]}
             onPress={() => {
               if (!isToday) return;
+              if (allNonBedtimeTaken) return;
               if (userRole === 'caregiver_separate') {
                 Alert.alert('대신 입력 불가', '함께 거주하지 않아\n대신 기록이 불가능해요.');
                 return;
@@ -240,7 +247,9 @@ export function MedicationScreen() {
           >
             <View style={styles.mainButtonInner}>
               <Ionicons name="medkit" size={40} color={Colors.white} />
-              <Text style={styles.mainButtonText}>약 먹었어요</Text>
+              <Text style={styles.mainButtonText}>
+                {allNonBedtimeTaken ? '오늘 복용 완료 ✓' : '약 먹었어요'}
+              </Text>
             </View>
           </TouchableOpacity>
 
@@ -249,6 +258,9 @@ export function MedicationScreen() {
           )}
           {!isToday && userRole !== 'caregiver_separate' && (
             <Text style={styles.caregiverNotice}>오늘 날짜에서만 복용 기록을 입력할 수 있어요</Text>
+          )}
+          {allNonBedtimeTaken && (
+            <Text style={styles.caregiverNotice}>아침·점심·저녁 약을 모두 복용했어요</Text>
           )}
         </View>
 

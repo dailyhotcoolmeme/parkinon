@@ -76,6 +76,7 @@ export function BodyStatePopupFlow({
   const [moodScore, setMoodScore] = useState<number | null>(null);
   const [sleepScore, setSleepScore] = useState<number | null>(null);
   const [constipation, setConstipation] = useState<boolean | null>(null);
+  const [constipationSaving, setConstipationSaving] = useState(false);
 
   const bsRef = useRef<number | null>(null);
   const msRef = useRef<number | null>(null);
@@ -97,6 +98,7 @@ export function BodyStatePopupFlow({
       setMoodScore(null); msRef.current = null;
       setSleepScore(null); ssRef.current = null;
       setConstipation(null); cRef.current = null;
+      setConstipationSaving(false);
       slideAnim.setValue(80);
       contentSlide.setValue(0);
       contentOpacity.setValue(1);
@@ -165,8 +167,13 @@ export function BodyStatePopupFlow({
   };
 
   const handleConstipationSelect = (val: boolean) => {
+    if (constipationSaving) return; // 중복 저장 방지
     setConstipation(val); cRef.current = val;
-    setTimeout(() => advanceFrom('constipation'), 350);
+    setConstipationSaving(true);
+    setTimeout(() => {
+      advanceFrom('constipation');
+      setConstipationSaving(false);
+    }, 350);
   };
 
   const scoreForStep = () => {
@@ -288,10 +295,13 @@ export function BodyStatePopupFlow({
               </TouchableOpacity>
             )}
             <TouchableOpacity
-              style={[styles.navBtnPrimary, scoreForStep() === null && step !== 'constipation' && styles.navBtnPrimaryDisabled]}
+              style={[
+                styles.navBtnPrimary,
+                (scoreForStep() === null || step === 'constipation') && styles.navBtnPrimaryDisabled,
+              ]}
               onPress={handleNextPress}
               activeOpacity={0.8}
-              disabled={scoreForStep() === null && step !== 'constipation'}
+              disabled={scoreForStep() === null || step === 'constipation'}
             >
               <Text style={styles.navBtnPrimaryText}>다음</Text>
             </TouchableOpacity>

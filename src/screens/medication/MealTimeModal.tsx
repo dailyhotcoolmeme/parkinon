@@ -17,8 +17,7 @@ function getDefaultMealTime(): MealTime {
   const h = new Date().getHours();
   if (h < 11) return 'morning';
   if (h < 15) return 'lunch';
-  if (h < 20) return 'dinner';
-  return 'bedtime';
+  return 'dinner';
 }
 type IoniconName = React.ComponentProps<typeof Ionicons>['name'];
 
@@ -32,7 +31,7 @@ const MEAL_OPTIONS: { id: MealTime; label: string; icon: IoniconName; time: stri
   { id: 'morning',  label: '아침 약',  icon: 'sunny-outline',        time: '오전 8:00',  color: '#FF9800' },
   { id: 'lunch',    label: '점심 약',  icon: 'partly-sunny-outline', time: '오후 12:00', color: '#4CAF50' },
   { id: 'dinner',   label: '저녁 약',  icon: 'moon-outline',         time: '오후 6:00',  color: '#3F51B5' },
-  { id: 'bedtime',  label: '취침 약',  icon: 'bed-outline',          time: '오후 10:00', color: '#9C27B0' },
+  // 취침(bedtime)은 약 복용 시간대 선택에서 제외 (약 관리 화면에서는 표시됨)
 ];
 
 export function MealTimeModal({ visible, onSelect, onClose }: Props) {
