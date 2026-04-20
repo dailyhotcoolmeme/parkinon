@@ -524,10 +524,9 @@ export function SettingsScreen() {
                   <TouchableOpacity
                     activeOpacity={0.7}
                     onPress={() => navigation.navigate('MedicationManage', { openSlot: slotKey })}
-                    style={{ flexDirection: 'row', alignItems: 'center', gap: 4, paddingVertical: 8, paddingHorizontal: 4 }}
+                    style={{ paddingVertical: 8, paddingHorizontal: 8 }}
                   >
-                    <Ionicons name="create-outline" size={20} color={Colors.textSub} />
-                    <Text style={{ fontSize: 15, color: Colors.textSub, fontWeight: '600' }}>수정</Text>
+                    <Ionicons name="create-outline" size={22} color={Colors.textSub} />
                   </TouchableOpacity>
                 </View>
               </View>
