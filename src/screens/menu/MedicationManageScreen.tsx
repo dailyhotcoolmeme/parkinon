@@ -698,7 +698,7 @@ function SlotEditBottomSheet({ visible, slot, medications, onClose, onSave }: Sl
           style={[seBsStyles.sheet, { transform: [{ translateY }] }]}
           {...panResponder.panHandlers}
         >
-          <TouchableOpacity activeOpacity={1} onPress={() => {}}>
+          <TouchableOpacity activeOpacity={1} onPress={() => {}} style={{ flex: 1 }}>
             <View style={seBsStyles.dragHandle} />
 
             {/* 헤더 */}
@@ -790,23 +790,23 @@ function SlotEditBottomSheet({ visible, slot, medications, onClose, onSave }: Sl
                   </View>
                 </>
               )}
-
-              {/* 저장 버튼 */}
-              <View style={seBsStyles.saveSection}>
-                <TouchableOpacity
-                  style={seBsStyles.saveBtn}
-                  onPress={handleSave}
-                  activeOpacity={0.85}
-                  disabled={isSaving}
-                >
-                  {isSaving ? (
-                    <ActivityIndicator color={Colors.white} />
-                  ) : (
-                    <Text style={seBsStyles.saveBtnText}>저장</Text>
-                  )}
-                </TouchableOpacity>
-              </View>
             </ScrollView>
+
+            {/* 저장 버튼 — ScrollView 밖 고정 */}
+            <View style={seBsStyles.saveSection}>
+              <TouchableOpacity
+                style={seBsStyles.saveBtn}
+                onPress={handleSave}
+                activeOpacity={0.85}
+                disabled={isSaving}
+              >
+                {isSaving ? (
+                  <ActivityIndicator color={Colors.white} />
+                ) : (
+                  <Text style={seBsStyles.saveBtnText}>저장</Text>
+                )}
+              </TouchableOpacity>
+            </View>
           </TouchableOpacity>
         </Animated.View>
       </TouchableOpacity>
@@ -844,7 +844,7 @@ const seBsStyles = StyleSheet.create({
   headerTitle: { fontSize: 22, fontWeight: '700', color: Colors.text },
   closeBtn: { paddingHorizontal: 16, paddingVertical: 10, borderRadius: 8, backgroundColor: 'rgba(0,0,0,0.08)' },
   closeBtnText: { fontSize: 18, fontWeight: '600', color: Colors.text },
-  scroll: { maxHeight: 500 },
+  scroll: { flexShrink: 1 },
   section: { paddingHorizontal: 20, paddingVertical: 16 },
   sectionLabel: { fontSize: 18, fontWeight: '700', color: Colors.textSub, marginBottom: 12 },
   divider: { height: 1, backgroundColor: Colors.border, marginHorizontal: 20 },
