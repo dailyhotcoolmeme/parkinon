@@ -329,7 +329,7 @@ export function PostWriteScreen() {
               onPress={handlePhotoAdd}
               activeOpacity={0.7}
             >
-              <Ionicons name="camera-outline" size={36} color={Colors.primary} />
+              <Ionicons name="camera-outline" size={28} color="#AAAAAA" />
               <Text style={styles.photoBtnLargeText}>사진 추가하기</Text>
               <Text style={styles.photoBtnLargeHint}>최대 5장 · JPG/PNG</Text>
             </TouchableOpacity>
@@ -446,23 +446,23 @@ const styles = StyleSheet.create({
     lineHeight: 28,
   },
   photoBtnLarge: {
-    borderWidth: 2,
-    borderColor: Colors.primary,
+    borderWidth: 1,
+    borderColor: '#CCCCCC',
     borderStyle: 'dashed',
     borderRadius: 12,
-    backgroundColor: Colors.light,
-    paddingVertical: 28,
+    backgroundColor: '#FAFAFA',
+    paddingVertical: 18,
     alignItems: 'center',
     justifyContent: 'center',
-    gap: 8,
+    gap: 6,
     marginTop: 8,
     marginBottom: 8,
-    minHeight: 120,
+    minHeight: 88,
   },
   photoBtnLargeText: {
     fontSize: 20,
     fontWeight: '700',
-    color: Colors.primary,
+    color: '#888888',
   },
   photoBtnLargeHint: {
     fontSize: 15,
