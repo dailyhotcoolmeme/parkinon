@@ -1617,6 +1617,11 @@ const styles = StyleSheet.create({
     backgroundColor: Colors.white,
     borderRadius: 16,
     overflow: 'hidden',
+    elevation: 2,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.08,
+    shadowRadius: 4,
   },
   cardMarginTop: {
     marginTop: 16,
