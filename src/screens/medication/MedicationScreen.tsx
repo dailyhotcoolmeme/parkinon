@@ -23,6 +23,7 @@ import { useBodyState } from '../../hooks/useBodyState';
 import { useAuth } from '../../context/AuthContext';
 import { DatePickerModal } from '../../components/common/DatePickerModal';
 import { navigateTo } from '../../navigation/navigationRef';
+import { supabase } from '../../lib/supabase';
 
 const WINDOW_HEIGHT = Dimensions.get('window').height;
 const TOP_BAR_H = 56;
@@ -139,11 +140,30 @@ export function MedicationScreen() {
   // 표시할 현황: 오늘이면 todayStatus, 과거 날짜면 dateLogStatus
   const activeStatus = isToday ? todayStatus : (dateLogStatus ?? { morning: null, lunch: null, dinner: null, bedtime: null });
 
-  // 환자명: 실제 user.name 사용, 없으면 '환자'
-  const patientName = user?.name ?? '환자';
+  const [patientName, setPatientName] = useState('환자');
 
-  const userRole = (user?.role === 'caregiver' ? 'caregiver_same' : 'patient') as
-    'patient' | 'caregiver_same' | 'caregiver_separate';
+  useEffect(() => {
+    if (!user) return;
+    if (user.role === 'patient') { setPatientName(user.name); return; }
+    if (!user.patient_group_id) return;
+    supabase
+      .from('patient_group_members')
+      .select('users(name)')
+      .eq('group_id', user.patient_group_id)
+      .eq('role', 'patient')
+      .single()
+      .then(({ data }) => {
+        const name = (data?.users as any)?.name;
+        if (name) setPatientName(name);
+      });
+  }, [user]);
+
+  const userRole: 'patient' | 'caregiver_same' | 'caregiver_separate' =
+    user?.role !== 'caregiver'
+      ? 'patient'
+      : user.residence_type === 'together'
+      ? 'caregiver_same'
+      : 'caregiver_separate';
 
   const handleMealTimeSelect = async (mealTime: MealTime) => {
     setShowMealTimeModal(false);
@@ -210,7 +230,11 @@ export function MedicationScreen() {
               (userRole === 'caregiver_separate' || !isToday) && styles.mainButtonDisabled,
             ]}
             onPress={() => {
-              if (userRole === 'caregiver_separate' || !isToday) return;
+              if (!isToday) return;
+              if (userRole === 'caregiver_separate') {
+                Alert.alert('대신 입력 불가', '함께 거주하지 않아\n대신 기록이 불가능해요.');
+                return;
+              }
               if (userRole === 'caregiver_same') {
                 setShowCaregiverConfirm(true);
               } else {
