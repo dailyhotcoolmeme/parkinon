@@ -12,7 +12,6 @@ import {
 import { Ionicons } from '@expo/vector-icons';
 import { Colors } from '../../constants/colors';
 import { ScoreSelector } from '../../components/common/ScoreSelector';
-import { PrimaryButton } from '../../components/common/PrimaryButton';
 
 interface SaveData {
   bodyScore: number;
@@ -25,16 +24,15 @@ interface Props {
   visible: boolean;
   onClose: () => void;
   onSave: (data: SaveData) => void;
-  onGoExercise?: () => void;
   showSleep?: boolean;
   showConstipation?: boolean;
 }
 
-type Step = 'body' | 'mood' | 'sleep' | 'constipation' | 'exercise_suggest';
+type Step = 'body' | 'mood' | 'sleep' | 'constipation';
 
 const { height: SCREEN_HEIGHT } = Dimensions.get('window');
 
-type StepKey = Exclude<Step, 'exercise_suggest' | 'constipation'>;
+type StepKey = Exclude<Step, 'constipation'>;
 
 const STEP_CONFIG: Record<StepKey, {
   title: string; desc: string; type: 'body' | 'mood' | 'sleep';
@@ -70,7 +68,6 @@ export function BodyStatePopupFlow({
   visible,
   onClose,
   onSave,
-  onGoExercise,
   showSleep = false,
   showConstipation = false,
 }: Props) {
@@ -126,12 +123,7 @@ export function BodyStatePopupFlow({
     const ms = msRef.current ?? 0;
     const ss = ssRef.current ?? undefined;
     const c = cRef.current ?? undefined;
-    if (bs >= 4 || ms >= 4) {
-      setStep('exercise_suggest');
-      setTimeout(animateStepIn, 0);
-    } else {
-      onSave({ bodyScore: bs, moodScore: ms, sleepScore: ss, constipation: c });
-    }
+    onSave({ bodyScore: bs, moodScore: ms, sleepScore: ss, constipation: c });
   };
 
   const advanceFrom = (currentStep: Step) => {
@@ -159,7 +151,7 @@ export function BodyStatePopupFlow({
   const orderedSteps: Step[] = ['body', 'mood'];
   if (showSleep) orderedSteps.push('sleep');
   if (showConstipation) orderedSteps.push('constipation');
-  const currentIndex = step === 'exercise_suggest' ? -1 : orderedSteps.indexOf(step);
+  const currentIndex = orderedSteps.indexOf(step);
 
   const handleNextPress = () => {
     advanceFrom(step);
@@ -177,18 +169,6 @@ export function BodyStatePopupFlow({
     setTimeout(() => advanceFrom('constipation'), 350);
   };
 
-  const handleExerciseSave = () => {
-    onSave({
-      bodyScore: bsRef.current ?? 0,
-      moodScore: msRef.current ?? 0,
-      sleepScore: ssRef.current ?? undefined,
-      constipation: cRef.current ?? undefined,
-    });
-    if (onGoExercise) {
-      onGoExercise();
-    }
-  };
-
   const scoreForStep = () => {
     if (step === 'body') return bodyScore;
     if (step === 'mood') return moodScore;
@@ -197,21 +177,6 @@ export function BodyStatePopupFlow({
   };
 
   const renderContent = () => {
-    if (step === 'exercise_suggest') {
-      return (
-        <View style={styles.exerciseWrap}>
-          <View style={styles.exerciseIconCircle}>
-            <Ionicons name="trophy-outline" size={52} color={Colors.primary} />
-          </View>
-          <Text style={styles.exerciseTitle}>몸 상태가{'\n'}좋으시네요!</Text>
-          <Text style={styles.exerciseDesc}>
-            컨디션이 좋을 때 가볍게 운동하면{'\n'}파킨슨 증상 완화에 도움이 돼요.
-          </Text>
-          <PrimaryButton title="운동하러 가기" onPress={handleExerciseSave} />
-        </View>
-      );
-    }
-
     if (step === 'constipation') {
       return (
         <View style={styles.contentWrap}>
@@ -275,8 +240,7 @@ export function BodyStatePopupFlow({
   };
 
   const handleClose = () => {
-    if (step === 'exercise_suggest') handleExerciseSave();
-    else onClose();
+    onClose();
   };
 
   return (
@@ -284,26 +248,24 @@ export function BodyStatePopupFlow({
       <Animated.View style={[styles.backdrop, { opacity: fadeAnim }]}>
         <Animated.View style={[styles.sheet, { transform: [{ translateY: slideAnim }] }]}>
           {/* 진행 도트 */}
-          {step !== 'exercise_suggest' && (
-            <View style={styles.header}>
-              <View style={styles.dotRow}>
-                {orderedSteps.map((s, i) => (
-                  <View
-                    key={s}
-                    style={[
-                      styles.dot,
-                      i === currentIndex && {
-                        backgroundColor: step in STEP_CONFIG
-                          ? STEP_CONFIG[step as StepKey].accentColor
-                          : Colors.primary,
-                        width: 24,
-                      },
-                    ]}
-                  />
-                ))}
-              </View>
+          <View style={styles.header}>
+            <View style={styles.dotRow}>
+              {orderedSteps.map((s, i) => (
+                <View
+                  key={s}
+                  style={[
+                    styles.dot,
+                    i === currentIndex && {
+                      backgroundColor: step in STEP_CONFIG
+                        ? STEP_CONFIG[step as StepKey].accentColor
+                        : Colors.primary,
+                      width: 24,
+                    },
+                  ]}
+                />
+              ))}
             </View>
-          )}
+          </View>
 
           {/* 스텝 콘텐츠 (전환 애니메이션) */}
           <Animated.View style={{
@@ -314,33 +276,26 @@ export function BodyStatePopupFlow({
           </Animated.View>
 
           {/* 하단 버튼 영역 */}
-          {step === 'exercise_suggest' ? (
-            <TouchableOpacity style={styles.closeBtn} onPress={handleClose} activeOpacity={0.75}>
-              <Ionicons name="close-outline" size={22} color={Colors.textSub} />
-              <Text style={styles.closeBtnText}>닫기</Text>
-            </TouchableOpacity>
-          ) : (
-            <View style={styles.navRow}>
-              {currentIndex > 0 ? (
-                <TouchableOpacity style={styles.navBtnOutline} onPress={handlePrevPress} activeOpacity={0.75}>
-                  <Text style={styles.navBtnOutlineText}>이전</Text>
-                </TouchableOpacity>
-              ) : (
-                <TouchableOpacity style={styles.navBtnOutline} onPress={onClose} activeOpacity={0.75}>
-                  <Ionicons name="close-outline" size={20} color={Colors.textSub} />
-                  <Text style={styles.navBtnOutlineText}>닫기</Text>
-                </TouchableOpacity>
-              )}
-              <TouchableOpacity
-                style={[styles.navBtnPrimary, scoreForStep() === null && step !== 'constipation' && styles.navBtnPrimaryDisabled]}
-                onPress={handleNextPress}
-                activeOpacity={0.8}
-                disabled={scoreForStep() === null && step !== 'constipation'}
-              >
-                <Text style={styles.navBtnPrimaryText}>다음</Text>
+          <View style={styles.navRow}>
+            {currentIndex > 0 ? (
+              <TouchableOpacity style={styles.navBtnOutline} onPress={handlePrevPress} activeOpacity={0.75}>
+                <Text style={styles.navBtnOutlineText}>이전</Text>
               </TouchableOpacity>
-            </View>
-          )}
+            ) : (
+              <TouchableOpacity style={styles.navBtnOutline} onPress={onClose} activeOpacity={0.75}>
+                <Ionicons name="close-outline" size={20} color={Colors.textSub} />
+                <Text style={styles.navBtnOutlineText}>닫기</Text>
+              </TouchableOpacity>
+            )}
+            <TouchableOpacity
+              style={[styles.navBtnPrimary, scoreForStep() === null && step !== 'constipation' && styles.navBtnPrimaryDisabled]}
+              onPress={handleNextPress}
+              activeOpacity={0.8}
+              disabled={scoreForStep() === null && step !== 'constipation'}
+            >
+              <Text style={styles.navBtnPrimaryText}>다음</Text>
+            </TouchableOpacity>
+          </View>
         </Animated.View>
       </Animated.View>
     </Modal>
@@ -396,30 +351,6 @@ const styles = StyleSheet.create({
   constipationEmoji: { fontSize: 38 },
   constipationLabel: { fontSize: 22, fontWeight: '700', color: Colors.text },
   constipationLabelActive: { color: Colors.dark },
-
-  exerciseWrap: { paddingHorizontal: 16, paddingTop: 16, alignItems: 'center' },
-  exerciseIconCircle: {
-    width: 100, height: 100, borderRadius: 50,
-    backgroundColor: Colors.light, alignItems: 'center', justifyContent: 'center',
-    marginBottom: 20,
-  },
-  exerciseTitle: {
-    fontSize: 30, fontWeight: '800', color: Colors.text,
-    textAlign: 'center', lineHeight: 42, marginBottom: 14,
-  },
-  exerciseDesc: {
-    fontSize: 18, color: Colors.textSub, textAlign: 'center',
-    lineHeight: 28, marginBottom: 32,
-  },
-
-  closeBtn: {
-    flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8,
-    marginHorizontal: 20, marginTop: 12,
-    paddingVertical: 18,
-    borderRadius: 14, borderWidth: 1.5, borderColor: Colors.border,
-    backgroundColor: Colors.background,
-  },
-  closeBtnText: { fontSize: 18, color: Colors.textSub, fontWeight: '700' },
 
   navRow: {
     flexDirection: 'row',

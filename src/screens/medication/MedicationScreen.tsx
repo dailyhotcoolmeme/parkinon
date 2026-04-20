@@ -7,6 +7,7 @@ import {
   StyleSheet,
   Dimensions,
   Alert,
+  Modal,
 } from 'react-native';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useFocusEffect } from '@react-navigation/native';
@@ -79,6 +80,7 @@ export function MedicationScreen() {
   const [showCaregiverConfirm, setShowCaregiverConfirm] = useState(false);
   const [showMealTimeModal, setShowMealTimeModal] = useState(false);
   const [showBodyStatePopup, setShowBodyStatePopup] = useState(false);
+  const [showBodyStateSuggest, setShowBodyStateSuggest] = useState(false);
   const [selectedMealTime, setSelectedMealTime] = useState<MealTime | null>(null);
   const [selectedDate, setSelectedDate] = useState(new Date());
   const [showDatePicker, setShowDatePicker] = useState(false);
@@ -174,15 +176,8 @@ export function MedicationScreen() {
     }
     setSelectedMealTime(mealTime);
     setTimeout(() => {
-      Alert.alert(
-        '몸 상태도 기록해볼까요?',
-        '약 복용 후 몸 상태와 기분 상태를 기록하면\n약효 패턴을 더 잘 파악할 수 있어요.',
-        [
-          { text: '나중에', style: 'cancel', onPress: () => setSelectedMealTime(null) },
-          { text: '기록하기', onPress: () => setShowBodyStatePopup(true) },
-        ]
-      );
-    }, 1500);
+      setShowBodyStateSuggest(true);
+    }, 400);
   };
 
   const handleBodyStateSave = async (record: { bodyScore: number; moodScore: number; sleepScore?: number; constipation?: boolean }) => {
@@ -306,6 +301,76 @@ export function MedicationScreen() {
         onConfirm={() => { setShowCaregiverConfirm(false); setShowMealTimeModal(true); }}
         onCancel={() => setShowCaregiverConfirm(false)}
       />
+      <Modal
+        visible={showBodyStateSuggest}
+        transparent
+        animationType="fade"
+        onRequestClose={() => { setShowBodyStateSuggest(false); setSelectedMealTime(null); }}
+      >
+        <View style={{
+          flex: 1,
+          justifyContent: 'center',
+          alignItems: 'center',
+          backgroundColor: 'rgba(0,0,0,0.45)',
+          paddingHorizontal: 28,
+        }}>
+          <View style={{
+            backgroundColor: '#fff',
+            borderRadius: 20,
+            padding: 28,
+            width: '100%',
+            alignItems: 'center',
+            elevation: 8,
+            shadowColor: '#000',
+            shadowOffset: { width: 0, height: 4 },
+            shadowOpacity: 0.15,
+            shadowRadius: 12,
+          }}>
+            <View style={{
+              width: 64, height: 64, borderRadius: 32,
+              backgroundColor: '#FFF3E0',
+              alignItems: 'center', justifyContent: 'center',
+              marginBottom: 16,
+            }}>
+              <Text style={{ fontSize: 32 }}>😊</Text>
+            </View>
+            <Text style={{
+              fontSize: 20, fontWeight: '700', color: '#222',
+              textAlign: 'center', marginBottom: 10,
+            }}>
+              몸 상태도 기록해볼까요?
+            </Text>
+            <Text style={{
+              fontSize: 15, color: '#666', textAlign: 'center',
+              lineHeight: 22, marginBottom: 24,
+            }}>
+              약 복용 후 몸 상태를 기록하면{'\n'}약효 패턴을 더 잘 파악할 수 있어요.
+            </Text>
+            <TouchableOpacity
+              onPress={() => {
+                setShowBodyStateSuggest(false);
+                setShowBodyStatePopup(true);
+              }}
+              style={{
+                backgroundColor: '#FF6B35',
+                borderRadius: 12,
+                paddingVertical: 15,
+                width: '100%',
+                alignItems: 'center',
+                marginBottom: 10,
+              }}
+            >
+              <Text style={{ color: '#fff', fontSize: 17, fontWeight: '700' }}>기록하기</Text>
+            </TouchableOpacity>
+            <TouchableOpacity
+              onPress={() => { setShowBodyStateSuggest(false); setSelectedMealTime(null); }}
+              style={{ paddingVertical: 10, width: '100%', alignItems: 'center' }}
+            >
+              <Text style={{ color: '#999', fontSize: 16 }}>나중에</Text>
+            </TouchableOpacity>
+          </View>
+        </View>
+      </Modal>
       <BodyStatePopupFlow
         visible={showBodyStatePopup}
         onClose={() => { setShowBodyStatePopup(false); setSelectedMealTime(null); }}
