@@ -1,16 +1,8 @@
 import React, { useRef, useState, useCallback } from 'react';
 import {
-  View,
-  Text,
-  FlatList,
-  TouchableOpacity,
-  StyleSheet,
-  Animated,
-  NativeSyntheticEvent,
-  NativeScrollEvent,
-  ActivityIndicator,
-  Image,
-  TextInput,
+  View, Text, FlatList, TouchableOpacity, StyleSheet, Animated,
+  NativeSyntheticEvent, NativeScrollEvent, ActivityIndicator, Image,
+  TextInput, ScrollView,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useNavigation, useFocusEffect } from '@react-navigation/native';
@@ -70,19 +62,8 @@ const CATEGORY_BADGE_COLORS: Record<string, { bg: string; text: string }> = {
   default:  { bg: '#F5F5F5', text: '#555555' },
 };
 
-// 필터칩 목록 (유지)
-const FILTER_CHIPS = [
-  { id: 'all',      label: '전체' },
-  { id: 'cheer',    label: '응원해요' },
-  { id: 'question', label: '질문있어요' },
-  { id: 'chat',     label: '자유수다' },
-  { id: 'info',     label: '정보공유' },
-  { id: 'exercise', label: '운동인증' },
-  { id: 'news',     label: '뉴스' },
-];
-
-// 글유형 드롭다운 옵션
-const TYPE_FILTER_OPTIONS = [
+// 서브탭 목록 (PostWriteScreen 글유형과 동일한 순서)
+const SUB_TABS = [
   { id: 'all',      label: '전체' },
   { id: 'chat',     label: '자유수다' },
   { id: 'question', label: '질문있어요' },
@@ -133,15 +114,14 @@ export function FeedScreen() {
   const [isSearchFocused, setIsSearchFocused] = useState(false);
   const searchQueryRef = useRef('');
 
-  // 탭 및 드롭다운 상태
+  // 탭 상태
   const [mainTab, setMainTab] = useState<MainTab>('all');
   const mainTabRef = useRef<MainTab>('all');
-  const [typeDropdownVisible, setTypeDropdownVisible] = useState(false);
   const [typeFilter, setTypeFilter] = useState('all');
   const typeFilterRef = useRef('all');
 
-  // 북마크 상태
-  const [bookmarkedIds, setBookmarkedIds] = useState<Set<string>>(new Set());
+  // 북마크 ref (의존성 루프 방지)
+  const bookmarkedIdsRef = useRef<Set<string>>(new Set()); // mapPost에서 참조 (의존성 루프 방지)
 
   const mapPost = useCallback((p: any): PostItem => ({
     id: p.id,
@@ -160,8 +140,8 @@ export function FeedScreen() {
       ?.sort((a: any, b: any) => a.sort_order - b.sort_order)?.[0]?.r2_url ?? undefined,
     commentCount: p.comment_count ?? 0,
     likeCount: p.like_count ?? 0,
-    isBookmarked: bookmarkedIds.has(p.id),
-  }), [bookmarkedIds]);
+    isBookmarked: bookmarkedIdsRef.current.has(p.id),  // ref 사용 (state X)
+  }), []); // ← 의존성 빈 배열 (안정적인 참조 유지)
 
   const fetchBookmarks = useCallback(async () => {
     const { data: { session } } = await supabase.auth.getSession();
@@ -170,19 +150,16 @@ export function FeedScreen() {
       .from('post_bookmarks')
       .select('post_id')
       .eq('user_id', session.user.id);
-    setBookmarkedIds(new Set((data ?? []).map((b: any) => b.post_id)));
+    bookmarkedIdsRef.current = new Set((data ?? []).map((b: any) => b.post_id));
   }, []);
 
   const toggleBookmark = useCallback(async (postId: string, currentlyBookmarked: boolean) => {
     const { data: { session } } = await supabase.auth.getSession();
     if (!session?.user) return;
-    // 낙관적 업데이트
-    setBookmarkedIds(prev => {
-      const next = new Set(prev);
-      if (currentlyBookmarked) next.delete(postId);
-      else next.add(postId);
-      return next;
-    });
+    // ref 낙관적 업데이트
+    if (currentlyBookmarked) bookmarkedIdsRef.current.delete(postId);
+    else bookmarkedIdsRef.current.add(postId);
+    // posts 직접 업데이트
     setPosts(prev => prev.map(p => p.id === postId ? { ...p, isBookmarked: !currentlyBookmarked } : p));
     if (currentlyBookmarked) {
       await supabase.from('post_bookmarks').delete()
@@ -361,11 +338,10 @@ export function FeedScreen() {
     fetchPosts(true, '', typeFilterRef.current, mainTabRef.current);
   }, [fetchPosts]);
 
-  // 글유형 드롭다운 선택
+  // 글유형 서브탭 선택
   const handleTypeFilterSelect = useCallback((typeId: string) => {
     typeFilterRef.current = typeId;
     setTypeFilter(typeId);
-    setTypeDropdownVisible(false);
     fetchPosts(true, searchQueryRef.current, typeId, mainTabRef.current);
   }, [fetchPosts]);
 
@@ -384,7 +360,7 @@ export function FeedScreen() {
     if (mainTab === 'bookmarks') return '즐겨찾기한 글이 없어요\n북마크를 추가해보세요!';
     if (mainTab === 'mine') return '작성한 글이 없어요\n첫 글을 써보세요!';
     if (typeFilter !== 'all') {
-      const opt = TYPE_FILTER_OPTIONS.find(o => o.id === typeFilter);
+      const opt = SUB_TABS.find(o => o.id === typeFilter);
       return `아직 ${opt?.label ?? typeFilter} 글이 없어요\n첫 번째로 글을 써보세요!`;
     }
     return '아직 게시글이 없어요.\n첫 글을 작성해보세요!';
@@ -443,7 +419,47 @@ export function FeedScreen() {
     <SafeAreaView style={styles.safe} edges={['top']}>
       <TopBar title="파킨온" showParkinon />
 
-      {/* 검색창 */}
+      {/* 메인 탭 */}
+      <View style={styles.tabRow}>
+        {([['all', '전체'], ['bookmarks', '즐겨찾기'], ['mine', '내가쓴글']] as [MainTab, string][]).map(([tab, label]) => (
+          <TouchableOpacity
+            key={tab}
+            style={[styles.tab, mainTab === tab && styles.tabActive]}
+            onPress={() => handleTabChange(tab)}
+            activeOpacity={0.75}
+          >
+            <Text style={[styles.tabText, mainTab === tab && styles.tabTextActive]}>{label}</Text>
+          </TouchableOpacity>
+        ))}
+      </View>
+
+      {/* 서브탭 (글유형 필터) — 전체 탭에서만 */}
+      {mainTab === 'all' && (
+        <ScrollView
+          horizontal
+          showsHorizontalScrollIndicator={false}
+          style={styles.subTabScroll}
+          contentContainerStyle={styles.subTabContainer}
+        >
+          {SUB_TABS.map((sub) => {
+            const isActive = typeFilter === sub.id;
+            return (
+              <TouchableOpacity
+                key={sub.id}
+                style={[styles.subTab, isActive && styles.subTabActive]}
+                onPress={() => handleTypeFilterSelect(sub.id)}
+                activeOpacity={0.75}
+              >
+                <Text style={[styles.subTabText, isActive && styles.subTabTextActive]}>
+                  {sub.label}
+                </Text>
+              </TouchableOpacity>
+            );
+          })}
+        </ScrollView>
+      )}
+
+      {/* 검색창 (서브탭 아래) */}
       <View style={[styles.searchBar, isSearchFocused && styles.searchBarFocused]}>
         <Ionicons name="search-outline" size={20} color="#AAAAAA" style={styles.searchIcon} />
         <TextInput
@@ -460,35 +476,6 @@ export function FeedScreen() {
         {searchInput.length > 0 && (
           <TouchableOpacity onPress={handleClearSearch} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
             <Ionicons name="close-circle" size={20} color="#AAAAAA" />
-          </TouchableOpacity>
-        )}
-      </View>
-
-      {/* 탭 + 드롭다운 */}
-      <View style={styles.tabRow}>
-        <View style={styles.tabs}>
-          {([['all', '전체'], ['bookmarks', '즐겨찾기'], ['mine', '내가쓴글']] as [MainTab, string][]).map(([tab, label]) => (
-            <TouchableOpacity
-              key={tab}
-              style={[styles.tab, mainTab === tab && styles.tabActive]}
-              onPress={() => handleTabChange(tab)}
-              activeOpacity={0.75}
-            >
-              <Text style={[styles.tabText, mainTab === tab && styles.tabTextActive]}>{label}</Text>
-            </TouchableOpacity>
-          ))}
-        </View>
-        {/* 글유형 드롭다운 — 전체 탭에서만 표시 */}
-        {mainTab === 'all' && (
-          <TouchableOpacity
-            style={styles.typeDropdownBtn}
-            onPress={() => setTypeDropdownVisible(true)}
-            activeOpacity={0.75}
-          >
-            <Text style={styles.typeDropdownText}>
-              {TYPE_FILTER_OPTIONS.find(o => o.id === typeFilter)?.label ?? '전체'}
-            </Text>
-            <Ionicons name="chevron-down" size={16} color="#555" />
           </TouchableOpacity>
         )}
       </View>
@@ -530,30 +517,6 @@ export function FeedScreen() {
           {fabExpanded && <Text style={styles.fabText}>글쓰기</Text>}
         </TouchableOpacity>
       </View>
-
-      {/* 글유형 드롭다운 모달 */}
-      {typeDropdownVisible && (
-        <TouchableOpacity
-          style={styles.dropdownOverlay}
-          activeOpacity={1}
-          onPress={() => setTypeDropdownVisible(false)}
-        >
-          <View style={styles.dropdownMenu}>
-            {TYPE_FILTER_OPTIONS.map(opt => (
-              <TouchableOpacity
-                key={opt.id}
-                style={[styles.dropdownItem, typeFilter === opt.id && styles.dropdownItemSelected]}
-                onPress={() => handleTypeFilterSelect(opt.id)}
-              >
-                <Text style={[styles.dropdownItemText, typeFilter === opt.id && styles.dropdownItemTextSelected]}>
-                  {opt.label}
-                </Text>
-                {typeFilter === opt.id && <Ionicons name="checkmark" size={18} color={Colors.primary} />}
-              </TouchableOpacity>
-            ))}
-          </View>
-        </TouchableOpacity>
-      )}
     </SafeAreaView>
   );
 }
@@ -578,9 +541,9 @@ const styles = StyleSheet.create({
     marginHorizontal: 16,
     marginTop: 8,
     marginBottom: 4,
-    height: 52,
-    borderRadius: 12,
-    borderWidth: 1.5,
+    height: 48,
+    borderRadius: 10,
+    borderWidth: 1,
     borderColor: '#EEEEEE',
     backgroundColor: '#FFFFFF',
     paddingHorizontal: 12,
@@ -602,14 +565,9 @@ const styles = StyleSheet.create({
   /* ── 탭바 ── */
   tabRow: {
     flexDirection: 'row',
-    alignItems: 'center',
     borderBottomWidth: 1,
     borderBottomColor: '#E0E0E0',
     backgroundColor: Colors.white,
-  },
-  tabs: {
-    flex: 1,
-    flexDirection: 'row',
   },
   tab: {
     flex: 1,
@@ -630,17 +588,44 @@ const styles = StyleSheet.create({
     fontWeight: '700',
     color: Colors.primary,
   },
-  typeDropdownBtn: {
+
+  /* ── 서브탭 ── */
+  subTabScroll: {
+    height: 50,
+    flexGrow: 0,
+    backgroundColor: Colors.white,
+    borderBottomWidth: 1,
+    borderBottomColor: '#F0F0F0',
+  },
+  subTabContainer: {
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+    gap: 8,
     flexDirection: 'row',
     alignItems: 'center',
-    paddingHorizontal: 14,
-    paddingVertical: 12,
-    gap: 4,
   },
-  typeDropdownText: {
+  subTab: {
+    height: 34,
+    borderRadius: 17,
+    borderWidth: 1.5,
+    borderColor: '#DDDDDD',
+    backgroundColor: Colors.white,
+    paddingHorizontal: 14,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  subTabActive: {
+    borderColor: Colors.primary,
+    backgroundColor: '#E8F5E9',
+  },
+  subTabText: {
     fontSize: 15,
-    color: '#444444',
-    fontWeight: '600',
+    fontWeight: '500',
+    color: '#666666',
+  },
+  subTabTextActive: {
+    fontWeight: '700',
+    color: '#2E7D32',
   },
 
   /* ── BBS 리스트 행 ── */
@@ -713,47 +698,6 @@ const styles = StyleSheet.create({
     fontSize: 11,
     color: '#888888',
     marginTop: 1,
-  },
-
-  /* ── 드롭다운 ── */
-  dropdownOverlay: {
-    position: 'absolute',
-    top: 0, left: 0, right: 0, bottom: 0,
-    zIndex: 999,
-  },
-  dropdownMenu: {
-    position: 'absolute',
-    right: 12,
-    top: 130,
-    backgroundColor: Colors.white,
-    borderRadius: 12,
-    elevation: 8,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.15,
-    shadowRadius: 8,
-    minWidth: 140,
-    overflow: 'hidden',
-  },
-  dropdownItem: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    paddingHorizontal: 16,
-    paddingVertical: 14,
-    borderBottomWidth: 1,
-    borderBottomColor: '#F5F5F5',
-  },
-  dropdownItemSelected: {
-    backgroundColor: '#F0FAF0',
-  },
-  dropdownItemText: {
-    fontSize: 17,
-    color: '#333333',
-  },
-  dropdownItemTextSelected: {
-    fontWeight: '700',
-    color: Colors.primary,
   },
 
   /* ── FAB ── */
