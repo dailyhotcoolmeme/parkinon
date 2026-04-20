@@ -388,7 +388,7 @@ export function FeedScreen() {
 
   return (
     <SafeAreaView style={styles.safe} edges={['top']}>
-      <TopBar title="파킨온" showParkinon showBell onBellPress={() => navigateTo('MyInfo', { screen: 'NotificationHistory' } as any)} />
+      <TopBar title="파킨온" showParkinon />
 
       {/* 검색창 */}
       <View
