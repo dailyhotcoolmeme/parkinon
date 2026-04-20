@@ -414,19 +414,8 @@ export function FeedScreen() {
           </View>
           <View style={styles.rowMeta}>
             <Text style={styles.metaText} numberOfLines={1}>
-              {item.author}{'  '}{item.date}{'  조회 '}{item.views}
+              {item.author}{' · '}{item.date}{' · 조회 '}{item.views}{' · ♥ '}{item.likeCount}
             </Text>
-            <TouchableOpacity
-              hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
-              onPress={() => toggleBookmark(item.id, !!item.isBookmarked)}
-              style={{ marginLeft: 8 }}
-            >
-              <Ionicons
-                name={item.isBookmarked ? 'bookmark' : 'bookmark-outline'}
-                size={18}
-                color={item.isBookmarked ? Colors.primary : '#AAAAAA'}
-              />
-            </TouchableOpacity>
           </View>
         </View>
 
@@ -692,8 +681,8 @@ const styles = StyleSheet.create({
     fontWeight: '400',
   },
   rowThumb: {
-    width: 64,
-    height: 64,
+    width: 52,
+    height: 52,
     borderRadius: 6,
     backgroundColor: '#E0E0E0',
     flexShrink: 0,
@@ -710,8 +699,8 @@ const styles = StyleSheet.create({
 
   /* ── 댓글 박스 ── */
   commentBox: {
-    width: 48,
-    minHeight: 48,
+    width: 52,
+    minHeight: 52,
     backgroundColor: '#F5F5F5',
     borderRadius: 8,
     alignItems: 'center',

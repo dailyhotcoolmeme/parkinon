@@ -107,6 +107,7 @@ export function PostDetailScreen() {
 
   const [liked, setLiked] = useState(false);
   const [likeCount, setLikeCount] = useState(post.likeCount);
+  const [isBookmarked, setIsBookmarked] = useState(post.isBookmarked ?? false);
   const [commentText, setCommentText] = useState('');
   const [comments, setComments] = useState<CommentDisplay[]>([]);
   const [commentsLoading, setCommentsLoading] = useState(true);
@@ -207,6 +208,31 @@ export function PostDetailScreen() {
     };
     incrementView();
   }, [post.id]);
+
+  // 북마크 상태 초기 조회
+  useEffect(() => {
+    if (!user) return;
+    supabase
+      .from('post_bookmarks')
+      .select('post_id')
+      .eq('post_id', post.id)
+      .eq('user_id', user.id)
+      .maybeSingle()
+      .then(({ data }) => setIsBookmarked(!!data));
+  }, [post.id, user]);
+
+  // 북마크 토글
+  const toggleBookmark = async () => {
+    if (!user) return;
+    const next = !isBookmarked;
+    setIsBookmarked(next);
+    if (next) {
+      await supabase.from('post_bookmarks').insert({ user_id: user.id, post_id: post.id });
+    } else {
+      await supabase.from('post_bookmarks').delete()
+        .eq('user_id', user.id).eq('post_id', post.id);
+    }
+  };
 
   // 좋아요 상태 초기 조회
   useEffect(() => {
@@ -455,6 +481,19 @@ export function PostDetailScreen() {
               <Ionicons name="eye-outline" size={20} color="#888" />
               <Text style={styles.statLabel}>조회 {post.views}</Text>
             </View>
+
+            <View style={styles.statSep} />
+
+            <TouchableOpacity style={styles.statItem} onPress={toggleBookmark} activeOpacity={0.7}>
+              <Ionicons
+                name={isBookmarked ? 'bookmark' : 'bookmark-outline'}
+                size={22}
+                color={isBookmarked ? Colors.primary : '#888'}
+              />
+              <Text style={[styles.statLabel, isBookmarked && { color: Colors.primary }]}>
+                {isBookmarked ? '저장됨' : '저장'}
+              </Text>
+            </TouchableOpacity>
           </View>
 
           {/* ── 댓글 섹션 ── */}
