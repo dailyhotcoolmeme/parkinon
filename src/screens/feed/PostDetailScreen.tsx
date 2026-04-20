@@ -22,7 +22,7 @@ const CATEGORY_COLORS: Record<string, { bg: string; text: string; icon: string }
   '뉴스':       { bg: '#FFF3E0', text: '#BF360C', icon: '#FF6D00' },
 };
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { useRoute, useNavigation } from '@react-navigation/native';
+import { useRoute, useNavigation, useFocusEffect } from '@react-navigation/native';
 import type { NativeStackScreenProps, NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { Ionicons } from '@expo/vector-icons';
 import { Colors } from '../../constants/colors';
@@ -105,6 +105,26 @@ export function PostDetailScreen() {
 
   const isOwner = !!(user && post.authorId && user.id === post.authorId);
 
+  const [postTitle, setPostTitle] = useState(post.title);
+  const [postContent, setPostContent] = useState(post.preview);
+
+  // 포커스 시 최신 본문 갱신 (수정 후 돌아왔을 때 즉시 반영)
+  useFocusEffect(
+    useCallback(() => {
+      supabase
+        .from('posts')
+        .select('title, content')
+        .eq('id', post.id)
+        .single()
+        .then(({ data }) => {
+          if (data) {
+            setPostTitle(data.title);
+            setPostContent(data.content);
+          }
+        });
+    }, [post.id])
+  );
+
   const [liked, setLiked] = useState(false);
   const [likeCount, setLikeCount] = useState(post.likeCount);
   const [isBookmarked, setIsBookmarked] = useState(post.isBookmarked ?? false);
@@ -119,8 +139,8 @@ export function PostDetailScreen() {
   const handleEdit = () => {
     navigation.navigate('PostWrite', {
       postId: post.id,
-      initialTitle: post.title,
-      initialContent: post.preview,
+      initialTitle: postTitle,
+      initialContent: postContent,
       initialCategory: post.categoryId ?? post.category,
       initialPhotos: mediaUrls,
       onSave: (newPhotos: string[]) => {
@@ -435,7 +455,7 @@ export function PostDetailScreen() {
             </View>
 
             {/* 제목 */}
-            <Text style={styles.postTitle}>{post.title}</Text>
+            <Text style={styles.postTitle}>{postTitle}</Text>
 
             {/* 작성자 + 날짜 */}
             <Text style={styles.postMeta}>
@@ -449,7 +469,7 @@ export function PostDetailScreen() {
             <View style={styles.metaDivider} />
 
             {/* 본문 */}
-            <Text style={styles.postContent}>{post.preview}</Text>
+            <Text style={styles.postContent}>{postContent}</Text>
 
             {/* 첨부 사진 갤러리 (전체보기 + 인디케이터 포함) */}
             <ImageGalleryViewer urls={mediaUrls} />
