@@ -34,21 +34,15 @@ export function NotificationSetupScreen() {
 
   const [options, setOptions] = useState<NotifOption[]>([
     {
-      key: 'immediate',
-      label: '복용 직후',
-      desc: '약을 드신 직후 몸 상태를 확인해요',
-      enabled: true,
-    },
-    {
       key: 'after30',
       label: '복용 30분 후',
-      desc: '약이 흡수되는 시간에 확인해요',
+      desc: '약이 흡수되는 시간에 컨디션을 확인해요',
       enabled: true,
     },
     {
       key: 'after2h',
       label: '복용 2시간 후',
-      desc: '약효가 나타나는 시간에 확인해요',
+      desc: '약효가 나타나는 시간에 컨디션을 확인해요',
       enabled: true,
     },
   ]);
@@ -94,9 +88,10 @@ export function NotificationSetupScreen() {
 
       <ScrollView contentContainerStyle={styles.scrollContent}>
         <View style={styles.heroArea}>
-          <Text style={styles.title}>약효 추적 알림을{'\n'}설정해드릴게요</Text>
+          <Text style={styles.title}>알림을{'\n'}설정해드릴게요</Text>
           <Text style={styles.subtitle}>
-            약을 드신 후 몸 상태를 확인해드려요.{'\n'}나중에 설정에서 바꾸실 수 있어요.
+            💊 약 드실 시간(아침·점심·저녁·취침)에{'\n'}매일 알림이 자동으로 발송돼요.{'\n\n'}
+            아래는 복용 후 컨디션 확인 알림이에요.{'\n'}나중에 설정에서 바꾸실 수 있어요.
           </Text>
         </View>
 

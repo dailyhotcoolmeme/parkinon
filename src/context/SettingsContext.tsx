@@ -46,7 +46,6 @@ const STORAGE_KEY_MED = 'settings_med_notifs';
 const STORAGE_KEY_EXERCISE = 'settings_exercise_notifs';
 
 const DEFAULT_MED_NOTIFS: MedNotif[] = [
-  { id: '1', minutes: 0, enabled: true },
   { id: '2', minutes: 30, enabled: true },
   { id: '3', minutes: 120, enabled: true },
 ];
@@ -149,7 +148,11 @@ export function SettingsProvider({ children }: { children: React.ReactNode }) {
           AsyncStorage.getItem(STORAGE_KEY_MED),
           AsyncStorage.getItem(STORAGE_KEY_EXERCISE),
         ]);
-        if (medRaw) setMedNotifsState(JSON.parse(medRaw));
+        if (medRaw) {
+          const parsed: MedNotif[] = JSON.parse(medRaw);
+          // 복용 직후(minutes=0) 항목 제거 — 서버 전환 후 불필요
+          setMedNotifsState(parsed.filter((n) => n.minutes !== 0));
+        }
         if (exRaw) setExerciseNotifsState(JSON.parse(exRaw));
 
         // 시스템 알림 권한 상태 확인 (최우선)

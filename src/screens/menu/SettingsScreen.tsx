@@ -411,7 +411,41 @@ export function SettingsScreen() {
           )}
         </View>
 
-        {/* ── Card 1: 약효 추적 알림 (환자만) ── */}
+        {/* ── Card 1: 약 복용 시간 알림 (환자만) ── */}
+        {!isCaregiver && <View style={[styles.card, styles.cardMarginTop]}>
+          <View style={styles.cardHeader}>
+            <Ionicons name="alarm-outline" size={24} color={Colors.primary} style={styles.cardHeaderIcon} />
+            <View style={styles.cardHeaderText}>
+              <Text style={styles.cardHeaderTitle}>약 복용 시간 알림</Text>
+              <Text style={styles.cardHeaderSub}>정해진 시간에 약 드실 시간을 알려드려요</Text>
+            </View>
+          </View>
+          {[
+            { label: '아침', time: '오전 8:00' },
+            { label: '점심', time: '오후 12:00' },
+            { label: '저녁', time: '오후 6:00' },
+            { label: '취침', time: '오후 10:00' },
+          ].map((item) => (
+            <View key={item.label} style={styles.notifRow}>
+              <View style={styles.notifLeft}>
+                <Text style={styles.notifTitle}>{item.label}  {item.time}</Text>
+                <Text style={styles.notifSub}>
+                  {notificationEnabled ? '알림이 켜져 있어요' : '알림이 꺼져 있어요'}
+                </Text>
+              </View>
+              <Ionicons
+                name={notificationEnabled ? 'checkmark-circle' : 'ellipse-outline'}
+                size={24}
+                color={notificationEnabled ? Colors.primary : Colors.border}
+              />
+            </View>
+          ))}
+          <Text style={styles.medTimeNote}>
+            💡 전체 알림 ON 시 자동 발송돼요. 복용 시간 개별 설정은 추후 지원 예정이에요.
+          </Text>
+        </View>}
+
+        {/* ── Card 2: 약효 추적 알림 (환자만) ── */}
         {!isCaregiver && <View style={[styles.card, styles.cardMarginTop]}>
           <View style={styles.cardHeader}>
             <Ionicons
@@ -960,6 +994,13 @@ const styles = StyleSheet.create({
     fontSize: 15,
     color: Colors.textSub,
     marginTop: 3,
+  },
+  medTimeNote: {
+    fontSize: 14,
+    color: Colors.textHint,
+    marginTop: 12,
+    lineHeight: 20,
+    paddingHorizontal: 4,
   },
   notifRight: {
     flexDirection: 'row',
