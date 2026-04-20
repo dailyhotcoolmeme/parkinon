@@ -92,6 +92,17 @@ export function SettingsScreen() {
   });
   const [activeMedSlots, setActiveMedSlots] = useState<MedTimeSlotKey[]>([]);
 
+  // 환자 알림 수정 (보호자용)
+  const [showPatientNotifs, setShowPatientNotifs] = useState(false);
+  const [patientId, setPatientId] = useState<string | null>(null);
+  const [patientMedTimePrefs, setPatientMedTimePrefs] = useState<Record<MedTimeSlotKey, boolean>>({
+    morning: true, lunch: true, dinner: true, bedtime: true,
+  });
+  const [patientActiveMedSlots, setPatientActiveMedSlots] = useState<MedTimeSlotKey[]>([]);
+  const [patientMedSlotTimes, setPatientMedSlotTimes] = useState<Record<MedTimeSlotKey, string>>({
+    morning: '08:00', lunch: '12:00', dinner: '18:00', bedtime: '22:00',
+  });
+
   // 약 복용 시간 알림 설정 로드 + 약 관리에서 설정한 실제 시간 조회
   const loadMedTimePrefs = React.useCallback(async () => {
     if (!user || isCaregiver) return;
@@ -136,6 +147,66 @@ export function SettingsScreen() {
     setMedTimePrefs(next);
     try {
       await supabase.from('users').update({ med_time_notif_prefs: next }).eq('id', user!.id);
+    } catch {}
+  };
+
+  const loadPatientNotifPrefs = React.useCallback(async () => {
+    if (!user || !isCaregiver || !user.patient_group_id) return;
+    try {
+      // 1. 환자 ID 조회
+      const { data: memberData } = await supabase
+        .from('patient_group_members')
+        .select('user_id')
+        .eq('group_id', user.patient_group_id)
+        .eq('role', 'patient')
+        .single();
+      const pid = memberData?.user_id;
+      if (!pid) return;
+      setPatientId(pid);
+
+      // 2. 환자의 med_time_notif_prefs
+      const { data: patientUser } = await supabase
+        .from('users')
+        .select('med_time_notif_prefs')
+        .eq('id', pid)
+        .single();
+      if (patientUser?.med_time_notif_prefs) {
+        setPatientMedTimePrefs(prev => ({ ...prev, ...patientUser.med_time_notif_prefs }));
+      }
+
+      // 3. 환자의 활성 약 슬롯 + 복용 시간
+      const { data: meds } = await supabase
+        .from('medications')
+        .select('meal_times, meal_schedules')
+        .eq('patient_id', pid)
+        .eq('is_active', true);
+      if (meds?.length) {
+        const earliest: Record<string, string> = {};
+        const activeSlots = new Set<string>();
+        for (const med of meds) {
+          const sched = (med.meal_schedules ?? {}) as Record<string, string>;
+          for (const slot of (med.meal_times ?? []) as string[]) {
+            const t = sched[slot];
+            if (t) {
+              activeSlots.add(slot);
+              if (!earliest[slot] || t < earliest[slot]) earliest[slot] = t;
+            }
+          }
+        }
+        setPatientMedSlotTimes(prev => ({ ...prev, ...earliest }));
+        setPatientActiveMedSlots(Array.from(activeSlots) as MedTimeSlotKey[]);
+      } else {
+        setPatientActiveMedSlots([]);
+      }
+    } catch {}
+  }, [user, isCaregiver]);
+
+  const togglePatientMedTimeSlot = async (slot: MedTimeSlotKey) => {
+    if (!patientId) return;
+    const next = { ...patientMedTimePrefs, [slot]: !patientMedTimePrefs[slot] };
+    setPatientMedTimePrefs(next);
+    try {
+      await supabase.from('users').update({ med_time_notif_prefs: next }).eq('id', patientId);
     } catch {}
   };
 
@@ -220,11 +291,13 @@ export function SettingsScreen() {
           }
           // 3. 약 복용 시간 알림 설정 로드
           await loadMedTimePrefs();
+          // 4. 환자 알림 설정 로드 (보호자만)
+          await loadPatientNotifPrefs();
         } catch (e) {
           console.warn('[SettingsScreen] 설정 로드 오류:', e);
         }
       })();
-    }, [setNotificationEnabledOnly, isCaregiver, recheckSystemPermission, loadMedTimePrefs])
+    }, [setNotificationEnabledOnly, isCaregiver, recheckSystemPermission, loadMedTimePrefs, loadPatientNotifPrefs])
   );
 
 
@@ -715,6 +788,79 @@ export function SettingsScreen() {
                 />
               </View>
             ))}
+          </View>
+        )}
+
+        {/* ── Card: 환자 알림 수정 (보호자만) ── */}
+        {isCaregiver && (
+          <View style={[styles.card, styles.cardMarginTop]}>
+            <TouchableOpacity
+              activeOpacity={0.8}
+              style={styles.cardHeader}
+              onPress={() => {
+                if (!showPatientNotifs) loadPatientNotifPrefs();
+                setShowPatientNotifs(v => !v);
+              }}
+            >
+              <Ionicons
+                name="person-circle-outline"
+                size={24}
+                color={Colors.primary}
+                style={styles.cardHeaderIcon}
+              />
+              <View style={styles.cardHeaderText}>
+                <Text style={styles.cardHeaderTitle}>환자 알림 수정</Text>
+                <Text style={styles.cardHeaderSub}>환자 대신 알림 설정을 변경해요</Text>
+              </View>
+              <Ionicons
+                name={showPatientNotifs ? 'chevron-up' : 'chevron-down'}
+                size={22}
+                color={Colors.textSub}
+              />
+            </TouchableOpacity>
+
+            {showPatientNotifs && (
+              patientActiveMedSlots.length === 0 ? (
+                <View style={{ paddingHorizontal: 20, paddingVertical: 16 }}>
+                  <Text style={{ fontSize: 18, color: Colors.textSub }}>
+                    환자의 등록된 약이 없어요
+                  </Text>
+                </View>
+              ) : (
+                <>
+                  {MED_TIME_SLOTS.filter(slot => patientActiveMedSlots.includes(slot.key as MedTimeSlotKey)).map((slot) => {
+                    const slotKey = slot.key as MedTimeSlotKey;
+                    const rawTime = patientMedSlotTimes[slotKey];
+                    const formatTime = (t: string) => {
+                      const [hStr, mStr] = t.split(':');
+                      const h = parseInt(hStr, 10);
+                      const m = mStr;
+                      if (h === 0) return `오전 12:${m}`;
+                      if (h < 12) return `오전 ${h}:${m}`;
+                      if (h === 12) return `오후 12:${m}`;
+                      return `오후 ${h - 12}:${m}`;
+                    };
+                    const displayTime = formatTime(rawTime);
+                    const isOn = patientMedTimePrefs[slotKey] && notificationEnabled;
+                    return (
+                      <View key={slotKey} style={styles.notifRow}>
+                        <View style={styles.notifLeft}>
+                          <Text style={styles.notifTitle}>{slot.label}  {displayTime}</Text>
+                          <Text style={styles.notifSub}>매일 {displayTime}에 복용 알림을 보내요</Text>
+                        </View>
+                        <Switch
+                          value={isOn}
+                          onValueChange={() => togglePatientMedTimeSlot(slotKey)}
+                          disabled={!notificationEnabled}
+                          trackColor={{ false: Colors.border, true: Colors.primary }}
+                          thumbColor={Colors.white}
+                        />
+                      </View>
+                    );
+                  })}
+                </>
+              )
+            )}
           </View>
         )}
       </ScrollView>
