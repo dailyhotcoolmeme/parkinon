@@ -35,12 +35,13 @@ import {
 interface CaregiverNotif {
   id: string;
   label: string;
+  sub?: string;
   enabled: boolean;
 }
 
 const DEFAULT_CAREGIVER_NOTIFS: CaregiverNotif[] = [
-  { id: 'med_taken', label: '약 복용 기록 시', enabled: true },
-  { id: 'med_missed', label: '약 미복용 알림 (20분 후)', enabled: true },
+  { id: 'med_taken', label: '환자 약 복용 기록 시', sub: '환자가 약 복용 기록 시 알림을 받아요', enabled: true },
+  { id: 'med_missed', label: '환자 약 미복용 알림 2차', sub: '환자가 약 미복용 20분이 되면 알림을 받아요\n알림을 받으면 환자에게 알려주세요', enabled: true },
   { id: 'body_state', label: '몸상태 기록 시', enabled: true },
   { id: 'mood', label: '기분 기록 시', enabled: true },
   { id: 'exercise', label: '운동 기록 시', enabled: true },
@@ -987,7 +988,7 @@ export function SettingsScreen() {
                 <View style={styles.notifLeft}>
                   <Text style={styles.notifTitle}>{notif.label}</Text>
                   <Text style={styles.notifSub}>
-                    환자 {notif.label} 알림을 받아요
+                    {notif.sub ?? `환자 ${notif.label} 알림을 받아요`}
                   </Text>
                 </View>
                 <Switch
