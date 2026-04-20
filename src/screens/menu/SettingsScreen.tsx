@@ -510,7 +510,7 @@ export function SettingsScreen() {
                 <View style={styles.notifLeft}>
                   <Text style={styles.notifTitle}>{slot.label}  {displayTime}</Text>
                   <Text style={styles.notifSub}>
-                    {isOn ? '알림이 켜져 있어요' : '알림이 꺼져 있어요'}
+                    매일 {displayTime}에 복용 알림을 보내요
                   </Text>
                 </View>
                 <View style={{ flexDirection: 'row', alignItems: 'center', gap: 12 }}>
@@ -558,7 +558,7 @@ export function SettingsScreen() {
                   {minutesToLabel(notif.minutes)}
                 </Text>
                 <Text style={styles.notifSub}>
-                  {notif.enabled && notificationEnabled ? '알림이 켜져 있어요' : '알림이 꺼져 있어요'}
+                  약 복용 후 {minutesToLabel(notif.minutes)}에 알림을 보내요
                 </Text>
               </View>
               <View style={styles.notifRight}>
@@ -635,7 +635,7 @@ export function SettingsScreen() {
               <View style={styles.notifLeft}>
                 <Text style={styles.notifTitle}>{formatExerciseNotif(notif)}</Text>
                 <Text style={styles.notifSub}>
-                  {notif.enabled && notificationEnabled ? '알림이 켜져 있어요' : '알림이 꺼져 있어요'}
+                  매일 {formatExerciseNotif(notif)}에 운동 알림을 보내요
                 </Text>
               </View>
               <View style={styles.notifRight}>
@@ -703,7 +703,7 @@ export function SettingsScreen() {
                 <View style={styles.notifLeft}>
                   <Text style={styles.notifTitle}>{notif.label}</Text>
                   <Text style={styles.notifSub}>
-                    {notif.enabled && notificationEnabled ? '알림이 켜져 있어요' : '알림이 꺼져 있어요'}
+                    환자 {notif.label} 알림을 받아요
                   </Text>
                 </View>
                 <Switch
