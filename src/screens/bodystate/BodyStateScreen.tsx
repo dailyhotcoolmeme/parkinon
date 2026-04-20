@@ -313,66 +313,51 @@ function scoreColor(s: number): string {
 }
 
 function RecordRow({ record, isLast }: { record: BodyRecord; isLast: boolean }) {
-  const isManual = record.triggeredBy === 'manual';
-
   return (
     <View style={{
       paddingHorizontal: 18,
-      paddingVertical: 14,
+      paddingVertical: 16,
       borderBottomWidth: isLast ? 0 : 1,
       borderBottomColor: '#F0F0F0',
     }}>
       {/* 트리거 라벨 + 시간 */}
-      <View style={{ flexDirection: 'row', justifyContent: 'space-between', marginBottom: 10 }}>
-        <View style={{ flexDirection: 'row', alignItems: 'center' }}>
-          {isManual && (
-            <View style={{
-              backgroundColor: '#F5F5F5',
-              borderRadius: 6,
-              paddingHorizontal: 6,
-              paddingVertical: 2,
-              marginRight: 6,
-            }}>
-              <Text style={{ fontSize: 11, color: '#888' }}>직접 입력</Text>
-            </View>
-          )}
-          <Text style={{ fontSize: 15, fontWeight: '600', color: '#333' }}>
-            {record.trigger}
-          </Text>
-        </View>
-        <Text style={{ fontSize: 13, color: '#999' }}>{record.time}</Text>
+      <View style={{ flexDirection: 'row', justifyContent: 'space-between', marginBottom: 14, alignItems: 'center' }}>
+        <Text style={{ fontSize: 18, fontWeight: '700', color: '#333' }}>
+          {record.trigger}
+        </Text>
+        <Text style={{ fontSize: 16, color: '#999' }}>{record.time}</Text>
       </View>
 
       {/* 점수 항목들 — 가로 나열 */}
       <View style={{ flexDirection: 'row', flexWrap: 'wrap' }}>
         {/* 몸상태 */}
-        <View style={{ alignItems: 'center', marginRight: 20 }}>
-          <Text style={{ fontSize: 12, color: '#888', marginBottom: 4 }}>몸상태</Text>
-          <Text style={{ fontSize: 18, fontWeight: '700', color: scoreColor(record.bodyScore) }}>
+        <View style={{ alignItems: 'center', marginRight: 28 }}>
+          <Text style={{ fontSize: 15, color: '#888', marginBottom: 6 }}>몸상태</Text>
+          <Text style={{ fontSize: 22, fontWeight: '700', color: scoreColor(record.bodyScore) }}>
             {record.bodyScore}점
           </Text>
         </View>
         {/* 기분 */}
-        <View style={{ alignItems: 'center', marginRight: 20 }}>
-          <Text style={{ fontSize: 12, color: '#888', marginBottom: 4 }}>기분</Text>
-          <Text style={{ fontSize: 18, fontWeight: '700', color: scoreColor(record.moodScore) }}>
+        <View style={{ alignItems: 'center', marginRight: 28 }}>
+          <Text style={{ fontSize: 15, color: '#888', marginBottom: 6 }}>기분</Text>
+          <Text style={{ fontSize: 22, fontWeight: '700', color: scoreColor(record.moodScore) }}>
             {record.moodScore}점
           </Text>
         </View>
         {/* 수면 (있는 경우만) */}
         {record.sleepScore !== undefined && (
-          <View style={{ alignItems: 'center', marginRight: 20 }}>
-            <Text style={{ fontSize: 12, color: '#888', marginBottom: 4 }}>수면</Text>
-            <Text style={{ fontSize: 18, fontWeight: '700', color: scoreColor(record.sleepScore) }}>
+          <View style={{ alignItems: 'center', marginRight: 28 }}>
+            <Text style={{ fontSize: 15, color: '#888', marginBottom: 6 }}>수면</Text>
+            <Text style={{ fontSize: 22, fontWeight: '700', color: scoreColor(record.sleepScore) }}>
               {record.sleepScore}점
             </Text>
           </View>
         )}
         {/* 변비 (있는 경우만) */}
         {record.constipation !== undefined && (
-          <View style={{ alignItems: 'center', marginRight: 20 }}>
-            <Text style={{ fontSize: 12, color: '#888', marginBottom: 4 }}>변비</Text>
-            <Text style={{ fontSize: 14, fontWeight: '600', color: record.constipation ? '#B71C1C' : '#2E7D32' }}>
+          <View style={{ alignItems: 'center', marginRight: 28 }}>
+            <Text style={{ fontSize: 15, color: '#888', marginBottom: 6 }}>변비</Text>
+            <Text style={{ fontSize: 22, fontWeight: '700', color: record.constipation ? '#B71C1C' : '#2E7D32' }}>
               {record.constipation ? '있음' : '없음'}
             </Text>
           </View>
@@ -406,9 +391,9 @@ function MealSectionCard({ period, records }: { period: string; records: BodyRec
         flexDirection: 'row',
         alignItems: 'center',
       }}>
-        <Text style={{ fontSize: 18, marginRight: 8 }}>{icon}</Text>
-        <Text style={{ fontSize: 17, fontWeight: '700', color: '#fff' }}>{period}</Text>
-        <Text style={{ fontSize: 13, color: 'rgba(255,255,255,0.8)', marginLeft: 8 }}>
+        <Text style={{ fontSize: 20, marginRight: 8 }}>{icon}</Text>
+        <Text style={{ fontSize: 20, fontWeight: '700', color: '#fff' }}>{period}</Text>
+        <Text style={{ fontSize: 16, color: 'rgba(255,255,255,0.85)', marginLeft: 8 }}>
           {records.length}개 기록
         </Text>
       </View>
