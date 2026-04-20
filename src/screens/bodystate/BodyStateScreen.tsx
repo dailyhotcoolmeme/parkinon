@@ -9,7 +9,8 @@ import {
   Alert,
 } from 'react-native';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
-import { useNavigation, useFocusEffect } from '@react-navigation/native';
+import { useNavigation, useRoute, useFocusEffect } from '@react-navigation/native';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 import { Ionicons } from '@expo/vector-icons';
 import { Colors } from '../../constants/colors';
 import { TopBar } from '../../components/common/TopBar';
@@ -98,8 +99,18 @@ export function BodyStateScreen() {
   const [showDatePicker, setShowDatePicker] = useState(false);
   const [videoLogs, setVideoLogs] = useState<any[]>([]);
   const [dateLogs, setDateLogs] = useState<any[]>([]);
+  const [pendingTriggerLabel, setPendingTriggerLabel] = useState<string | null>(null);
   const navigation = useNavigation<any>();
+  const route = useRoute<any>();
   const insets = useSafeAreaInsets();
+
+  // minutes → trigger_time_label 변환
+  const minutesToLabel = (minutes: number): string => {
+    if (minutes === 0) return 'after_medication';
+    if (minutes === 30) return '30min_after';
+    if (minutes === 120) return '2hour_after';
+    return `${minutes}min_after`;
+  };
 
   const isToday = toLocalDateString(selectedDate) === toLocalDateString(new Date());
 
@@ -124,6 +135,33 @@ export function BodyStateScreen() {
     loadVideoLogs();
     loadDateLogs();
   }, [loadVideoLogs, loadDateLogs]);
+
+  // 알림 탭 진입 또는 시간 기반 trigger_time_label 결정
+  useFocusEffect(
+    React.useCallback(() => {
+      const triggerMinutes = route.params?.triggerMinutes;
+
+      if (triggerMinutes != null) {
+        // 알림 탭으로 진입한 경우
+        setPendingTriggerLabel(minutesToLabel(triggerMinutes));
+        if (!showFlow) setShowFlow(true);
+      } else {
+        // 시간 기반 자동 감지
+        AsyncStorage.getItem('parkinon_last_medication').then((raw) => {
+          if (!raw) return;
+          const { taken_at } = JSON.parse(raw);
+          const elapsedMin = (Date.now() - new Date(taken_at).getTime()) / 60000;
+          if (elapsedMin >= 15 && elapsedMin < 60) {
+            setPendingTriggerLabel('30min_after');
+          } else if (elapsedMin >= 90 && elapsedMin < 180) {
+            setPendingTriggerLabel('2hour_after');
+          } else {
+            setPendingTriggerLabel(null);
+          }
+        }).catch(() => {});
+      }
+    }, [route.params?.triggerMinutes])
+  );
 
   // 화면 포커스 시 오늘 기록 갱신
   useFocusEffect(
@@ -182,8 +220,14 @@ export function BodyStateScreen() {
       mood: record.moodScore,
       sleep_quality: record.sleepScore,
       constipation: record.constipation,
-    }, 'manual');
+      trigger_time_label: pendingTriggerLabel ?? undefined,
+    }, pendingTriggerLabel ? 'notification' : 'manual');
     if (success) {
+      setPendingTriggerLabel(null);
+      // route params 초기화 (다음 진입 시 재사용 방지)
+      if (route.params?.triggerMinutes != null) {
+        navigation.setParams({ triggerMinutes: null });
+      }
       setShowFlow(false);
     } else {
       Alert.alert('저장 실패', '몸상태 기록 저장에 실패했어요. 다시 시도해주세요.');

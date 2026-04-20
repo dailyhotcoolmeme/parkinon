@@ -38,7 +38,7 @@ export default function App() {
       if (type === 'medication_reminder' || type === 'missed_medication') {
         navigateTo('Main', { screen: 'Medication' });
       } else if (type === 'effect_tracking') {
-        navigateTo('Main', { screen: 'BodyStateTab' });
+        navigateTo('Main', { screen: 'BodyStateTab', params: { triggerMinutes: data?.minutes ?? null } });
       } else if (type === 'exercise_reminder') {
         navigateTo('Main', { screen: 'Exercise' });
       } else {

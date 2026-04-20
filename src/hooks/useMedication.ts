@@ -8,6 +8,7 @@
  * - getMedLogs(date) - 날짜별 복용 내역 조회
  */
 import { useState, useEffect, useCallback } from 'react';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 import { supabase } from '../lib/supabase';
 import { useAuth } from '../context/AuthContext';
 import { sendCaregiverPush } from '../utils/notifications';
@@ -196,6 +197,12 @@ export function useMedication(): UseMedicationReturn {
         .insert(insertData);
 
       if (insertError) throw insertError;
+
+      // 복용 시각 AsyncStorage 저장 (약효 추적 trigger_time_label 추론용)
+      await AsyncStorage.setItem(
+        'parkinon_last_medication',
+        JSON.stringify({ taken_at: new Date().toISOString(), meal_time: mealTime })
+      ).catch(() => {});
 
       // DB INSERT 성공 후 알림 처리 (실패해도 전체 함수에 영향 없음)
       try {
