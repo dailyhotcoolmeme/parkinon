@@ -322,6 +322,21 @@ export function SettingsScreen() {
           await loadMedTimePrefs();
           // 4. 환자 알림 설정 로드 (보호자만)
           await loadPatientNotifPrefs();
+          // 5. 환자(본인)의 med_notif_prefs, exercise_notif_prefs DB에서 재로드
+          //    보호자가 DB를 수정했을 수 있으므로 포커스마다 최신값 반영
+          if (!isCaregiver && session?.user) {
+            const { data: notifPrefs } = await supabase
+              .from('users')
+              .select('med_notif_prefs, exercise_notif_prefs')
+              .eq('id', session.user.id)
+              .single();
+            if (notifPrefs?.med_notif_prefs) {
+              setMedNotifs((notifPrefs.med_notif_prefs as MedNotif[]).filter(n => n.minutes !== 0));
+            }
+            if (notifPrefs?.exercise_notif_prefs) {
+              setExerciseNotifs(notifPrefs.exercise_notif_prefs as ExerciseNotif[]);
+            }
+          }
         } catch (e) {
           console.warn('[SettingsScreen] 설정 로드 오류:', e);
         }
