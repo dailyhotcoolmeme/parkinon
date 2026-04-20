@@ -160,15 +160,22 @@ export function SettingsProvider({ children }: { children: React.ReactNode }) {
         const sysGranted = sysStatus === 'granted';
         setSystemPermissionGranted(sysGranted);
 
-        // DB에서 notification_enabled 로드
+        // DB에서 notification_enabled + med_notif_prefs + exercise_notif_prefs 로드
         const { data: { session } } = await supabase.auth.getSession();
         if (session?.user) {
           const { data: userRow } = await supabase
             .from('users')
-            .select('notification_enabled')
+            .select('notification_enabled, med_notif_prefs, exercise_notif_prefs')
             .eq('id', session.user.id)
             .single();
           if (userRow != null) {
+            // med_notif_prefs가 DB에 있으면 AsyncStorage보다 DB 우선
+            if (userRow.med_notif_prefs) {
+              setMedNotifsState((userRow.med_notif_prefs as MedNotif[]).filter((n) => n.minutes !== 0));
+            }
+            if (userRow.exercise_notif_prefs) {
+              setExerciseNotifsState(userRow.exercise_notif_prefs as ExerciseNotif[]);
+            }
             // 'granted'가 아닌 경우 DB 값과 무관하게 false로 처리 (denied, blocked 등 모든 비허용 상태)
             // 단, 'undetermined'는 아직 결정 전이므로 DB 값 그대로 반영
             const notGranted = sysStatus !== 'granted' && sysStatus !== 'undetermined';
@@ -199,24 +206,34 @@ export function SettingsProvider({ children }: { children: React.ReactNode }) {
     })();
   }, []);
 
-  // medNotifs 변경 시 AsyncStorage 저장
+  // medNotifs 변경 시 AsyncStorage + DB 저장
   const setMedNotifs: React.Dispatch<React.SetStateAction<MedNotif[]>> = useCallback(
     (value) => {
       setMedNotifsState((prev) => {
         const next = typeof value === 'function' ? value(prev) : value;
         AsyncStorage.setItem(STORAGE_KEY_MED, JSON.stringify(next)).catch(console.warn);
+        // DB 저장
+        supabase.auth.getSession().then(({ data: { session } }) => {
+          if (!session?.user) return;
+          supabase.from('users').update({ med_notif_prefs: next }).eq('id', session.user.id).catch(console.warn);
+        }).catch(console.warn);
         return next;
       });
     },
     []
   );
 
-  // exerciseNotifs 변경 시 AsyncStorage 저장
+  // exerciseNotifs 변경 시 AsyncStorage + DB 저장
   const setExerciseNotifs: React.Dispatch<React.SetStateAction<ExerciseNotif[]>> = useCallback(
     (value) => {
       setExerciseNotifsState((prev) => {
         const next = typeof value === 'function' ? value(prev) : value;
         AsyncStorage.setItem(STORAGE_KEY_EXERCISE, JSON.stringify(next)).catch(console.warn);
+        // DB 저장
+        supabase.auth.getSession().then(({ data: { session } }) => {
+          if (!session?.user) return;
+          supabase.from('users').update({ exercise_notif_prefs: next }).eq('id', session.user.id).catch(console.warn);
+        }).catch(console.warn);
         return next;
       });
     },

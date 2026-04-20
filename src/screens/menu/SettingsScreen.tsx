@@ -102,6 +102,8 @@ export function SettingsScreen() {
   const [patientMedSlotTimes, setPatientMedSlotTimes] = useState<Record<MedTimeSlotKey, string>>({
     morning: '08:00', lunch: '12:00', dinner: '18:00', bedtime: '22:00',
   });
+  const [patientMedNotifs, setPatientMedNotifs] = useState<MedNotif[]>([]);
+  const [patientExerciseNotifs, setPatientExerciseNotifs] = useState<ExerciseNotif[]>([]);
 
   // 약 복용 시간 알림 설정 로드 + 약 관리에서 설정한 실제 시간 조회
   const loadMedTimePrefs = React.useCallback(async () => {
@@ -164,14 +166,20 @@ export function SettingsScreen() {
       if (!pid) return;
       setPatientId(pid);
 
-      // 2. 환자의 med_time_notif_prefs
+      // 2. 환자의 알림 설정 (med_time_notif_prefs + med_notif_prefs + exercise_notif_prefs)
       const { data: patientUser } = await supabase
         .from('users')
-        .select('med_time_notif_prefs')
+        .select('med_time_notif_prefs, med_notif_prefs, exercise_notif_prefs')
         .eq('id', pid)
         .single();
       if (patientUser?.med_time_notif_prefs) {
         setPatientMedTimePrefs(prev => ({ ...prev, ...patientUser.med_time_notif_prefs }));
+      }
+      if (patientUser?.med_notif_prefs) {
+        setPatientMedNotifs((patientUser.med_notif_prefs as MedNotif[]).filter(n => n.minutes !== 0));
+      }
+      if (patientUser?.exercise_notif_prefs) {
+        setPatientExerciseNotifs(patientUser.exercise_notif_prefs as ExerciseNotif[]);
       }
 
       // 3. 환자의 활성 약 슬롯 + 복용 시간
@@ -242,6 +250,18 @@ export function SettingsScreen() {
   // 알림 차단 상태 바텀시트
   const [showPermissionSheet, setShowPermissionSheet] = useState(false);
   const [pendingOn, setPendingOn] = useState(false); // 토글 시각적 ON 유지용
+
+  // 환자용 picker state
+  const [patientPickerVisible, setPatientPickerVisible] = useState(false);
+  const [patientPickerType, setPatientPickerType] = useState<'med' | 'exercise'>('med');
+  const [editingPatientMedId, setEditingPatientMedId] = useState<string | null>(null);
+  const [patientSelectedMinutes, setPatientSelectedMinutes] = useState(30);
+  const [editingPatientExerciseId, setEditingPatientExerciseId] = useState<string | null>(null);
+  const [patientPickerExTime, setPatientPickerExTime] = useState<{ ampm: '오전' | '오후'; hour: number; minute: number }>({
+    ampm: '오후', hour: 2, minute: 0,
+  });
+  const patientFadeAnim = useRef(new Animated.Value(0)).current;
+  const patientSlideAnim = useRef(new Animated.Value(300)).current;
 
   // Modal / picker state
   const [pickerVisible, setPickerVisible] = useState(false);
@@ -382,6 +402,78 @@ export function SettingsScreen() {
     ]).start(() => {
       setPickerVisible(false);
     });
+  };
+
+  // ─── 환자용 Picker 함수 ──────────────────────────────────────────────────────
+  const openPatientPicker = (type: 'med' | 'exercise', id?: string | null) => {
+    setPatientPickerType(type);
+    if (type === 'med') {
+      setEditingPatientMedId(id ?? null);
+      if (id) {
+        const existing = patientMedNotifs.find(n => n.id === id);
+        setPatientSelectedMinutes(existing ? existing.minutes : 30);
+      } else {
+        setPatientSelectedMinutes(30);
+      }
+    } else {
+      setEditingPatientExerciseId(id ?? null);
+      if (id) {
+        const existing = patientExerciseNotifs.find(n => n.id === id);
+        setPatientPickerExTime(existing
+          ? { ampm: existing.ampm, hour: existing.hour, minute: existing.minute }
+          : { ampm: '오후', hour: 2, minute: 0 });
+      } else {
+        setPatientPickerExTime({ ampm: '오후', hour: 2, minute: 0 });
+      }
+    }
+    setPatientPickerVisible(true);
+    patientFadeAnim.setValue(0);
+    patientSlideAnim.setValue(300);
+    Animated.parallel([
+      Animated.timing(patientFadeAnim, { toValue: 1, duration: 220, useNativeDriver: true }),
+      Animated.spring(patientSlideAnim, { toValue: 0, useNativeDriver: true, bounciness: 6 }),
+    ]).start();
+  };
+
+  const closePatientPicker = () => {
+    Animated.parallel([
+      Animated.timing(patientFadeAnim, { toValue: 0, duration: 200, useNativeDriver: true }),
+      Animated.timing(patientSlideAnim, { toValue: 300, duration: 200, useNativeDriver: true }),
+    ]).start(() => setPatientPickerVisible(false));
+  };
+
+  const savePatientMedTime = async () => {
+    if (!patientId) return;
+    const next = editingPatientMedId
+      ? patientMedNotifs.map(n => n.id === editingPatientMedId ? { ...n, minutes: patientSelectedMinutes } : n)
+      : [...patientMedNotifs, { id: Date.now().toString(), minutes: patientSelectedMinutes, enabled: true }];
+    setPatientMedNotifs(next);
+    await supabase.from('users').update({ med_notif_prefs: next }).eq('id', patientId);
+    closePatientPicker();
+  };
+
+  const savePatientExerciseTime = async () => {
+    if (!patientId) return;
+    const next = editingPatientExerciseId
+      ? patientExerciseNotifs.map(n => n.id === editingPatientExerciseId ? { ...n, ...patientPickerExTime } : n)
+      : [...patientExerciseNotifs, { id: Date.now().toString(), ...patientPickerExTime, enabled: true }];
+    setPatientExerciseNotifs(next);
+    await supabase.from('users').update({ exercise_notif_prefs: next }).eq('id', patientId);
+    closePatientPicker();
+  };
+
+  const togglePatientMedNotif = async (id: string) => {
+    if (!patientId) return;
+    const next = patientMedNotifs.map(n => n.id === id ? { ...n, enabled: !n.enabled } : n);
+    setPatientMedNotifs(next);
+    await supabase.from('users').update({ med_notif_prefs: next }).eq('id', patientId);
+  };
+
+  const togglePatientExerciseNotif = async (id: string) => {
+    if (!patientId) return;
+    const next = patientExerciseNotifs.map(n => n.id === id ? { ...n, enabled: !n.enabled } : n);
+    setPatientExerciseNotifs(next);
+    await supabase.from('users').update({ exercise_notif_prefs: next }).eq('id', patientId);
   };
 
   // ─── Handlers ───────────────────────────────────────────────────────────────
@@ -820,25 +912,26 @@ export function SettingsScreen() {
             </TouchableOpacity>
 
             {showPatientNotifs && (
-              patientActiveMedSlots.length === 0 ? (
-                <View style={{ paddingHorizontal: 20, paddingVertical: 16 }}>
-                  <Text style={{ fontSize: 18, color: Colors.textSub }}>
-                    환자의 등록된 약이 없어요
-                  </Text>
+              <>
+                {/* ── 섹션 1: 약 복용 시간 알림 ── */}
+                <View style={{ paddingHorizontal: 20, paddingTop: 16, paddingBottom: 4 }}>
+                  <Text style={{ fontSize: 17, fontWeight: '700', color: Colors.text }}>약 복용 시간 알림</Text>
                 </View>
-              ) : (
-                <>
-                  {MED_TIME_SLOTS.filter(slot => patientActiveMedSlots.includes(slot.key as MedTimeSlotKey)).map((slot) => {
+                {patientActiveMedSlots.length === 0 ? (
+                  <View style={{ paddingHorizontal: 20, paddingVertical: 8 }}>
+                    <Text style={{ fontSize: 16, color: Colors.textSub }}>등록된 약이 없어요</Text>
+                  </View>
+                ) : (
+                  MED_TIME_SLOTS.filter(slot => patientActiveMedSlots.includes(slot.key as MedTimeSlotKey)).map((slot) => {
                     const slotKey = slot.key as MedTimeSlotKey;
                     const rawTime = patientMedSlotTimes[slotKey];
                     const formatTime = (t: string) => {
                       const [hStr, mStr] = t.split(':');
                       const h = parseInt(hStr, 10);
-                      const m = mStr;
-                      if (h === 0) return `오전 12:${m}`;
-                      if (h < 12) return `오전 ${h}:${m}`;
-                      if (h === 12) return `오후 12:${m}`;
-                      return `오후 ${h - 12}:${m}`;
+                      if (h === 0) return `오전 12:${mStr}`;
+                      if (h < 12) return `오전 ${h}:${mStr}`;
+                      if (h === 12) return `오후 12:${mStr}`;
+                      return `오후 ${h - 12}:${mStr}`;
                     };
                     const displayTime = formatTime(rawTime);
                     const isOn = patientMedTimePrefs[slotKey] && notificationEnabled;
@@ -848,18 +941,98 @@ export function SettingsScreen() {
                           <Text style={styles.notifTitle}>{slot.label}  {displayTime}</Text>
                           <Text style={styles.notifSub}>매일 {displayTime}에 복용 알림을 보내요</Text>
                         </View>
+                        <View style={{ flexDirection: 'row', alignItems: 'center', gap: 12 }}>
+                          <Switch
+                            value={isOn}
+                            onValueChange={() => togglePatientMedTimeSlot(slotKey)}
+                            disabled={!notificationEnabled}
+                            trackColor={{ false: Colors.border, true: Colors.primary }}
+                            thumbColor={Colors.white}
+                          />
+                          <TouchableOpacity
+                            activeOpacity={0.7}
+                            onPress={() => navigation.navigate('MedicationManage', { openSlot: slotKey })}
+                            style={{ paddingVertical: 8, paddingHorizontal: 8 }}
+                          >
+                            <Ionicons name="create-outline" size={22} color={Colors.textSub} />
+                          </TouchableOpacity>
+                        </View>
+                      </View>
+                    );
+                  })
+                )}
+
+                {/* ── 섹션 2: 약효 추적 알림 ── */}
+                <View style={{ paddingHorizontal: 20, paddingTop: 16, paddingBottom: 4, borderTopWidth: 1, borderTopColor: Colors.border, marginTop: 8 }}>
+                  <Text style={{ fontSize: 17, fontWeight: '700', color: Colors.text }}>약효 추적 알림</Text>
+                </View>
+                {patientMedNotifs.length === 0 ? (
+                  <View style={{ paddingHorizontal: 20, paddingVertical: 8 }}>
+                    <Text style={{ fontSize: 16, color: Colors.textSub }}>설정된 알림이 없어요</Text>
+                  </View>
+                ) : (
+                  patientMedNotifs.map((notif) => (
+                    <View key={notif.id} style={styles.notifRow}>
+                      <View style={styles.notifLeft}>
+                        <Text style={styles.notifTitle}>{minutesToLabel(notif.minutes)}</Text>
+                        <Text style={styles.notifSub}>약 복용 후 {minutesToLabel(notif.minutes)}에 알림</Text>
+                      </View>
+                      <View style={{ flexDirection: 'row', alignItems: 'center', gap: 12 }}>
                         <Switch
-                          value={isOn}
-                          onValueChange={() => togglePatientMedTimeSlot(slotKey)}
+                          value={notif.enabled && notificationEnabled}
+                          onValueChange={() => togglePatientMedNotif(notif.id)}
                           disabled={!notificationEnabled}
                           trackColor={{ false: Colors.border, true: Colors.primary }}
                           thumbColor={Colors.white}
                         />
+                        <TouchableOpacity
+                          activeOpacity={0.7}
+                          onPress={() => openPatientPicker('med', notif.id)}
+                          style={{ paddingVertical: 8, paddingHorizontal: 8 }}
+                        >
+                          <Ionicons name="create-outline" size={22} color={Colors.textSub} />
+                        </TouchableOpacity>
                       </View>
-                    );
-                  })}
-                </>
-              )
+                    </View>
+                  ))
+                )}
+
+                {/* ── 섹션 3: 운동 알림 ── */}
+                <View style={{ paddingHorizontal: 20, paddingTop: 16, paddingBottom: 4, borderTopWidth: 1, borderTopColor: Colors.border, marginTop: 8 }}>
+                  <Text style={{ fontSize: 17, fontWeight: '700', color: Colors.text }}>운동 알림</Text>
+                </View>
+                {patientExerciseNotifs.length === 0 ? (
+                  <View style={{ paddingHorizontal: 20, paddingVertical: 8 }}>
+                    <Text style={{ fontSize: 16, color: Colors.textSub }}>설정된 알림이 없어요</Text>
+                  </View>
+                ) : (
+                  patientExerciseNotifs.map((notif) => (
+                    <View key={notif.id} style={styles.notifRow}>
+                      <View style={styles.notifLeft}>
+                        <Text style={styles.notifTitle}>{formatExerciseNotif(notif)}</Text>
+                        <Text style={styles.notifSub}>매일 {formatExerciseNotif(notif)}에 운동 알림</Text>
+                      </View>
+                      <View style={{ flexDirection: 'row', alignItems: 'center', gap: 12 }}>
+                        <Switch
+                          value={notif.enabled && notificationEnabled}
+                          onValueChange={() => togglePatientExerciseNotif(notif.id)}
+                          disabled={!notificationEnabled}
+                          trackColor={{ false: Colors.border, true: Colors.primary }}
+                          thumbColor={Colors.white}
+                        />
+                        <TouchableOpacity
+                          activeOpacity={0.7}
+                          onPress={() => openPatientPicker('exercise', notif.id)}
+                          style={{ paddingVertical: 8, paddingHorizontal: 8 }}
+                        >
+                          <Ionicons name="create-outline" size={22} color={Colors.textSub} />
+                        </TouchableOpacity>
+                      </View>
+                    </View>
+                  ))
+                )}
+                <View style={{ height: 8 }} />
+              </>
             )}
           </View>
         )}
@@ -1075,6 +1248,192 @@ export function SettingsScreen() {
           </Animated.View>
         </Animated.View>
       </Modal>
+      {/* ── 환자용 Bottom Sheet Modal ── */}
+      <Modal
+        visible={patientPickerVisible}
+        transparent
+        animationType="none"
+        onRequestClose={closePatientPicker}
+      >
+        <Animated.View style={[styles.backdrop, { opacity: patientFadeAnim }]}>
+          <TouchableOpacity
+            style={StyleSheet.absoluteFill}
+            activeOpacity={1}
+            onPress={closePatientPicker}
+          />
+          <Animated.View
+            style={[
+              styles.sheet,
+              { transform: [{ translateY: patientSlideAnim }] },
+            ]}
+          >
+            {/* Handle bar */}
+            <View style={styles.handle} />
+
+            {patientPickerType === 'med' ? (
+              /* ── 환자 Med time picker ── */
+              <>
+                <Text style={styles.pickerTitle}>알림 시간 선택</Text>
+
+                <View style={styles.optionGrid}>
+                  {MED_TIME_OPTIONS.map((opt) => {
+                    const active = patientSelectedMinutes === opt;
+                    return (
+                      <TouchableOpacity
+                        key={opt}
+                        activeOpacity={0.7}
+                        onPress={() => setPatientSelectedMinutes(opt)}
+                        style={[
+                          styles.optionBtn,
+                          { width: optionButtonWidth },
+                          active ? styles.optionBtnActive : styles.optionBtnInactive,
+                        ]}
+                      >
+                        <Text
+                          style={[
+                            styles.optionBtnText,
+                            active ? styles.optionBtnTextActive : styles.optionBtnTextInactive,
+                          ]}
+                        >
+                          {minutesToLabel(opt)}
+                        </Text>
+                      </TouchableOpacity>
+                    );
+                  })}
+                </View>
+
+                <TouchableOpacity
+                  activeOpacity={0.8}
+                  style={styles.saveBtn}
+                  onPress={savePatientMedTime}
+                >
+                  <Text style={styles.saveBtnText}>저장하기</Text>
+                </TouchableOpacity>
+
+                <TouchableOpacity
+                  activeOpacity={0.7}
+                  style={styles.cancelLink}
+                  onPress={closePatientPicker}
+                >
+                  <Ionicons name="close-outline" size={22} color={Colors.textSub} />
+                  <Text style={styles.cancelLinkText}>닫기</Text>
+                </TouchableOpacity>
+              </>
+            ) : (
+              /* ── 환자 Exercise time picker ── */
+              <>
+                <Text style={styles.pickerTitle}>운동 알림 시간</Text>
+
+                {/* AM/PM row */}
+                <View style={styles.ampmRow}>
+                  {(['오전', '오후'] as const).map((ap) => {
+                    const active = patientPickerExTime.ampm === ap;
+                    return (
+                      <TouchableOpacity
+                        key={ap}
+                        activeOpacity={0.7}
+                        onPress={() => setPatientPickerExTime((prev) => ({ ...prev, ampm: ap }))}
+                        style={[
+                          styles.ampmBtn,
+                          active ? styles.ampmBtnActive : styles.ampmBtnInactive,
+                        ]}
+                      >
+                        <Text
+                          style={[
+                            styles.ampmBtnText,
+                            active ? styles.ampmBtnTextActive : styles.ampmBtnTextInactive,
+                          ]}
+                        >
+                          {ap}
+                        </Text>
+                      </TouchableOpacity>
+                    );
+                  })}
+                </View>
+
+                {/* Hour label */}
+                <Text style={styles.unitLabel}>시</Text>
+
+                {/* Hour grid */}
+                <View style={styles.hourGrid}>
+                  {EXERCISE_HOURS.map((h) => {
+                    const active = patientPickerExTime.hour === h;
+                    return (
+                      <TouchableOpacity
+                        key={h}
+                        activeOpacity={0.7}
+                        onPress={() => setPatientPickerExTime((prev) => ({ ...prev, hour: h }))}
+                        style={[
+                          styles.hourBtn,
+                          { width: hourButtonWidth },
+                          active ? styles.gridBtnActive : styles.gridBtnInactive,
+                        ]}
+                      >
+                        <Text
+                          style={[
+                            styles.gridBtnText,
+                            active ? styles.gridBtnTextActive : styles.gridBtnTextInactive,
+                          ]}
+                        >
+                          {h}
+                        </Text>
+                      </TouchableOpacity>
+                    );
+                  })}
+                </View>
+
+                {/* Minute label */}
+                <Text style={[styles.unitLabel, { marginTop: 16 }]}>분</Text>
+
+                {/* Minute grid */}
+                <View style={styles.minuteGrid}>
+                  {EXERCISE_MINUTES.map((min) => {
+                    const active = patientPickerExTime.minute === min;
+                    return (
+                      <TouchableOpacity
+                        key={min}
+                        activeOpacity={0.7}
+                        onPress={() => setPatientPickerExTime((prev) => ({ ...prev, minute: min }))}
+                        style={[
+                          styles.minuteBtn,
+                          active ? styles.gridBtnActive : styles.gridBtnInactive,
+                        ]}
+                      >
+                        <Text
+                          style={[
+                            styles.gridBtnText,
+                            active ? styles.gridBtnTextActive : styles.gridBtnTextInactive,
+                          ]}
+                        >
+                          {String(min).padStart(2, '0')}
+                        </Text>
+                      </TouchableOpacity>
+                    );
+                  })}
+                </View>
+
+                <TouchableOpacity
+                  activeOpacity={0.8}
+                  style={styles.saveBtn}
+                  onPress={savePatientExerciseTime}
+                >
+                  <Text style={styles.saveBtnText}>저장하기</Text>
+                </TouchableOpacity>
+
+                <TouchableOpacity
+                  activeOpacity={0.7}
+                  style={styles.cancelLink}
+                  onPress={closePatientPicker}
+                >
+                  <Ionicons name="close-outline" size={22} color={Colors.textSub} />
+                  <Text style={styles.cancelLinkText}>닫기</Text>
+                </TouchableOpacity>
+              </>
+            )}
+          </Animated.View>
+        </Animated.View>
+      </Modal>
+
       {/* ── 알림 차단 안내 바텀시트 ── */}
       <Modal
         visible={showPermissionSheet}
