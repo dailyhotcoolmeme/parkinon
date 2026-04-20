@@ -19,6 +19,7 @@
     },
     "android": {
       "package": "com.ourmine.parkinon",
+      "versionCode": 1,
       "adaptiveIcon": {
         "foregroundImage": "./assets/adaptive-icon.png",
         "backgroundColor": "#4CAF50"
