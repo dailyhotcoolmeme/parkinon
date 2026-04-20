@@ -84,8 +84,9 @@ export function SettingsScreen() {
   } = useSettings();
 
   // 약 복용 시간 알림 per-slot 설정
-  const [medTimePrefs, setMedTimePrefs] = useState<Record<MedTimeSlotKey, boolean>>({
+  const [medTimePrefs, setMedTimePrefs] = useState<Record<string, boolean>>({
     morning: true, lunch: true, dinner: true, bedtime: true,
+    missed_first: true, missed_second: true,
   });
   const [medSlotTimes, setMedSlotTimes] = useState<Record<MedTimeSlotKey, string>>({
     morning: '08:00', lunch: '12:00', dinner: '18:00', bedtime: '22:00',
@@ -95,8 +96,9 @@ export function SettingsScreen() {
   // 환자 알림 수정 (보호자용)
   const [showPatientNotifs, setShowPatientNotifs] = useState(false);
   const [patientId, setPatientId] = useState<string | null>(null);
-  const [patientMedTimePrefs, setPatientMedTimePrefs] = useState<Record<MedTimeSlotKey, boolean>>({
+  const [patientMedTimePrefs, setPatientMedTimePrefs] = useState<Record<string, boolean>>({
     morning: true, lunch: true, dinner: true, bedtime: true,
+    missed_first: true, missed_second: true,
   });
   const [patientActiveMedSlots, setPatientActiveMedSlots] = useState<MedTimeSlotKey[]>([]);
   const [patientMedSlotTimes, setPatientMedSlotTimes] = useState<Record<MedTimeSlotKey, string>>({
@@ -144,7 +146,7 @@ export function SettingsScreen() {
     } catch {}
   }, [user, isCaregiver]);
 
-  const toggleMedTimeSlot = async (slot: MedTimeSlotKey) => {
+  const toggleMedTimeSlot = async (slot: string) => {
     const next = { ...medTimePrefs, [slot]: !medTimePrefs[slot] };
     setMedTimePrefs(next);
     try {
@@ -218,7 +220,7 @@ export function SettingsScreen() {
     } catch {}
   }, [user, isCaregiver]);
 
-  const togglePatientMedTimeSlot = async (slot: MedTimeSlotKey) => {
+  const togglePatientMedTimeSlot = async (slot: string) => {
     if (!patientId) return;
     const next = { ...patientMedTimePrefs, [slot]: !patientMedTimePrefs[slot] };
     setPatientMedTimePrefs(next);
@@ -331,10 +333,13 @@ export function SettingsScreen() {
               .eq('id', session.user.id)
               .single();
             if (notifPrefs?.med_notif_prefs) {
-              setMedNotifs((notifPrefs.med_notif_prefs as MedNotif[]).filter(n => n.minutes !== 0));
+              setMedNotifs((notifPrefs.med_notif_prefs as MedNotif[])
+                .filter(n => n.minutes !== 0)
+                .sort((a, b) => a.minutes - b.minutes));
             }
             if (notifPrefs?.exercise_notif_prefs) {
-              setExerciseNotifs(notifPrefs.exercise_notif_prefs as ExerciseNotif[]);
+              setExerciseNotifs((notifPrefs.exercise_notif_prefs as ExerciseNotif[])
+                .sort((a, b) => toTotal24hMinutes(a) - toTotal24hMinutes(b)));
             }
           }
         } catch (e) {
@@ -468,9 +473,19 @@ export function SettingsScreen() {
 
   const savePatientMedTime = async () => {
     if (!patientId) return;
+    const isDuplicate = editingPatientMedId
+      ? patientMedNotifs.some(n => n.id !== editingPatientMedId && n.minutes === patientSelectedMinutes)
+      : patientMedNotifs.some(n => n.minutes === patientSelectedMinutes);
+    if (isDuplicate) {
+      Alert.alert('중복된 알림', '이미 같은 시간의 알림이 있어요.');
+      closePatientPicker();
+      return;
+    }
     const next = editingPatientMedId
-      ? patientMedNotifs.map(n => n.id === editingPatientMedId ? { ...n, minutes: patientSelectedMinutes } : n)
-      : [...patientMedNotifs, { id: Date.now().toString(), minutes: patientSelectedMinutes, enabled: true }];
+      ? [...patientMedNotifs.map(n => n.id === editingPatientMedId ? { ...n, minutes: patientSelectedMinutes } : n)]
+          .sort((a, b) => a.minutes - b.minutes)
+      : [...patientMedNotifs, { id: Date.now().toString(), minutes: patientSelectedMinutes, enabled: true }]
+          .sort((a, b) => a.minutes - b.minutes);
     setPatientMedNotifs(next);
     await supabase.from('users').update({ med_notif_prefs: next }).eq('id', patientId);
     closePatientPicker();
@@ -478,9 +493,20 @@ export function SettingsScreen() {
 
   const savePatientExerciseTime = async () => {
     if (!patientId) return;
+    const newTotal = toTotal24hMinutes(patientPickerExTime);
+    const isDuplicate = editingPatientExerciseId
+      ? patientExerciseNotifs.some(n => n.id !== editingPatientExerciseId && toTotal24hMinutes(n) === newTotal)
+      : patientExerciseNotifs.some(n => toTotal24hMinutes(n) === newTotal);
+    if (isDuplicate) {
+      Alert.alert('중복된 알림', '이미 같은 시간의 알림이 있어요.');
+      closePatientPicker();
+      return;
+    }
     const next = editingPatientExerciseId
-      ? patientExerciseNotifs.map(n => n.id === editingPatientExerciseId ? { ...n, ...patientPickerExTime } : n)
-      : [...patientExerciseNotifs, { id: Date.now().toString(), ...patientPickerExTime, enabled: true }];
+      ? [...patientExerciseNotifs.map(n => n.id === editingPatientExerciseId ? { ...n, ...patientPickerExTime } : n)]
+          .sort((a, b) => toTotal24hMinutes(a) - toTotal24hMinutes(b))
+      : [...patientExerciseNotifs, { id: Date.now().toString(), ...patientPickerExTime, enabled: true }]
+          .sort((a, b) => toTotal24hMinutes(a) - toTotal24hMinutes(b));
     setPatientExerciseNotifs(next);
     await supabase.from('users').update({ exercise_notif_prefs: next }).eq('id', patientId);
     closePatientPicker();
@@ -524,6 +550,12 @@ export function SettingsScreen() {
     ]);
   };
 
+  // ─── Sort helpers ───────────────────────────────────────────────────────────
+  const toTotal24hMinutes = (n: { ampm: '오전' | '오후'; hour: number; minute: number }) => {
+    const h24 = n.ampm === '오후' ? (n.hour === 12 ? 12 : n.hour + 12) : (n.hour === 12 ? 0 : n.hour);
+    return h24 * 60 + n.minute;
+  };
+
   // ─── Handlers ───────────────────────────────────────────────────────────────
   const toggleMed = (id: string) => {
     setMedNotifs((prev) =>
@@ -546,21 +578,23 @@ export function SettingsScreen() {
   };
 
   const saveMedTime = () => {
+    const isDuplicate = editingMedId
+      ? medNotifs.some(n => n.id !== editingMedId && n.minutes === selectedMinutes)
+      : medNotifs.some(n => n.minutes === selectedMinutes);
+    if (isDuplicate) {
+      Alert.alert('중복된 알림', '이미 같은 시간의 알림이 있어요.');
+      return;
+    }
     if (editingMedId) {
       setMedNotifs((prev) =>
-        prev.map((n) =>
-          n.id === editingMedId ? { ...n, minutes: selectedMinutes } : n
-        )
+        [...prev.map((n) => n.id === editingMedId ? { ...n, minutes: selectedMinutes } : n)]
+          .sort((a, b) => a.minutes - b.minutes)
       );
     } else {
-      setMedNotifs((prev) => [
-        ...prev,
-        {
-          id: Date.now().toString(),
-          minutes: selectedMinutes,
-          enabled: true,
-        },
-      ]);
+      setMedNotifs((prev) =>
+        [...prev, { id: Date.now().toString(), minutes: selectedMinutes, enabled: true }]
+          .sort((a, b) => a.minutes - b.minutes)
+      );
     }
     closePicker();
   };
@@ -586,17 +620,24 @@ export function SettingsScreen() {
   };
 
   const saveExerciseTime = () => {
+    const newTotal = toTotal24hMinutes(pickerExTime);
+    const isDuplicate = editingExerciseId
+      ? exerciseNotifs.some(n => n.id !== editingExerciseId && toTotal24hMinutes(n) === newTotal)
+      : exerciseNotifs.some(n => toTotal24hMinutes(n) === newTotal);
+    if (isDuplicate) {
+      Alert.alert('중복된 알림', '이미 같은 시간의 알림이 있어요.');
+      return;
+    }
     if (editingExerciseId) {
       setExerciseNotifs((prev) =>
-        prev.map((n) =>
-          n.id === editingExerciseId ? { ...n, ...pickerExTime } : n
-        )
+        [...prev.map((n) => n.id === editingExerciseId ? { ...n, ...pickerExTime } : n)]
+          .sort((a, b) => toTotal24hMinutes(a) - toTotal24hMinutes(b))
       );
     } else {
-      setExerciseNotifs((prev) => [
-        ...prev,
-        { id: Date.now().toString(), ...pickerExTime, enabled: true },
-      ]);
+      setExerciseNotifs((prev) =>
+        [...prev, { id: Date.now().toString(), ...pickerExTime, enabled: true }]
+          .sort((a, b) => toTotal24hMinutes(a) - toTotal24hMinutes(b))
+      );
     }
     closePicker();
   };
@@ -745,6 +786,36 @@ export function SettingsScreen() {
               </View>
             );
           })}
+          {activeMedSlots.length > 0 && (
+            <>
+              <View style={[styles.notifRow, { borderTopWidth: 2, borderTopColor: '#E0E0E0' }]}>
+                <View style={styles.notifLeft}>
+                  <Text style={styles.notifTitle}>약 미복용 알림 1차</Text>
+                  <Text style={styles.notifSub}>복용 시간 10분 후 미복용 시 알림을 보내요</Text>
+                </View>
+                <Switch
+                  value={!!medTimePrefs['missed_first'] && notificationEnabled}
+                  onValueChange={() => toggleMedTimeSlot('missed_first')}
+                  disabled={!notificationEnabled}
+                  trackColor={{ false: Colors.border, true: Colors.primary }}
+                  thumbColor={Colors.white}
+                />
+              </View>
+              <View style={styles.notifRow}>
+                <View style={styles.notifLeft}>
+                  <Text style={styles.notifTitle}>약 미복용 알림 2차</Text>
+                  <Text style={styles.notifSub}>복용 시간 20분 후에도 미복용 시 알림을 보내요</Text>
+                </View>
+                <Switch
+                  value={!!medTimePrefs['missed_second'] && notificationEnabled}
+                  onValueChange={() => toggleMedTimeSlot('missed_second')}
+                  disabled={!notificationEnabled}
+                  trackColor={{ false: Colors.border, true: Colors.primary }}
+                  thumbColor={Colors.white}
+                />
+              </View>
+            </>
+          )}
         </View>}
 
         {/* ── Card 2: 약효 추적 알림 (환자만) ── */}
@@ -1010,6 +1081,36 @@ export function SettingsScreen() {
                           </View>
                         );
                       })
+                    )}
+                    {patientActiveMedSlots.length > 0 && (
+                      <>
+                        <View style={[styles.notifRow, { backgroundColor: Colors.white, borderTopWidth: 2, borderTopColor: '#E0E0E0' }]}>
+                          <View style={styles.notifLeft}>
+                            <Text style={styles.notifTitle}>약 미복용 알림 1차</Text>
+                            <Text style={styles.notifSub}>복용 시간 10분 후 미복용 시 알림을 보내요</Text>
+                          </View>
+                          <Switch
+                            value={!!patientMedTimePrefs['missed_first'] && notificationEnabled}
+                            onValueChange={() => togglePatientMedTimeSlot('missed_first')}
+                            disabled={!notificationEnabled}
+                            trackColor={{ false: Colors.border, true: '#1565C0' }}
+                            thumbColor={Colors.white}
+                          />
+                        </View>
+                        <View style={[styles.notifRow, { backgroundColor: Colors.white }]}>
+                          <View style={styles.notifLeft}>
+                            <Text style={styles.notifTitle}>약 미복용 알림 2차</Text>
+                            <Text style={styles.notifSub}>복용 시간 20분 후에도 미복용 시 알림을 보내요</Text>
+                          </View>
+                          <Switch
+                            value={!!patientMedTimePrefs['missed_second'] && notificationEnabled}
+                            onValueChange={() => togglePatientMedTimeSlot('missed_second')}
+                            disabled={!notificationEnabled}
+                            trackColor={{ false: Colors.border, true: '#1565C0' }}
+                            thumbColor={Colors.white}
+                          />
+                        </View>
+                      </>
                     )}
                   </View>
 
