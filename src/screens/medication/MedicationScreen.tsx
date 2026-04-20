@@ -449,7 +449,7 @@ const styles = StyleSheet.create({
     shadowRadius: 8,
     elevation: 6,
   },
-  mainButtonDisabled: { backgroundColor: Colors.border },
+  mainButtonDisabled: { backgroundColor: '#BDBDBD' },
   mainButtonInner: { alignItems: 'center', gap: 12 },
   mainButtonText: { fontSize: 28, fontWeight: '800', color: Colors.white },
 
