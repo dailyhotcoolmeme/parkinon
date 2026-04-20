@@ -24,6 +24,7 @@ import * as Notifications from 'expo-notifications';
 import { Colors } from '../../constants/colors';
 import { useSettings } from '../../context/SettingsContext';
 import { supabase } from '../../lib/supabase';
+import { requestPermissionsAndSaveToken } from '../../utils/notifications';
 
 const SUPABASE_URL = process.env.EXPO_PUBLIC_SUPABASE_URL!;
 const SUPABASE_ANON_KEY = process.env.EXPO_PUBLIC_SUPABASE_ANON_KEY!;
@@ -127,6 +128,10 @@ export function NotificationOnboardingModal({ isCaregiver, userId, visible, onCl
         if (finalStatus === 'granted') {
           // 권한 허용됨 → DB notification_enabled = true
           await setNotificationEnabled(true);
+          // push_token DB 저장
+          await requestPermissionsAndSaveToken(userId).catch((e) =>
+            console.warn('[NotificationOnboardingModal] push_token 저장 오류:', e)
+          );
 
           // 보호자인 경우 caregiver_notif_prefs DB 저장
           if (isCaregiver) {
