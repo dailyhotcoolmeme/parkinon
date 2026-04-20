@@ -1,4 +1,5 @@
-import React, { useRef, useState, useCallback } from 'react';
+import React, { useRef, useState, useCallback, useEffect } from 'react';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 import {
   View, Text, FlatList, TouchableOpacity, StyleSheet, Animated,
   NativeSyntheticEvent, NativeScrollEvent, ActivityIndicator, Image,
@@ -120,8 +121,27 @@ export function FeedScreen() {
   const [typeFilter, setTypeFilter] = useState('all');
   const typeFilterRef = useRef('all');
 
+  // 읽은 글 추적 (AsyncStorage)
+  const READ_POSTS_KEY = 'parkinon_read_posts';
+  const [readPostIds, setReadPostIds] = useState<Set<string>>(new Set());
+  useEffect(() => {
+    AsyncStorage.getItem(READ_POSTS_KEY).then(raw => {
+      if (raw) setReadPostIds(new Set(JSON.parse(raw)));
+    }).catch(() => {});
+  }, []);
+  const markAsRead = useCallback((postId: string) => {
+    setReadPostIds(prev => {
+      if (prev.has(postId)) return prev;
+      const next = new Set(prev);
+      next.add(postId);
+      const arr = Array.from(next).slice(-500);
+      AsyncStorage.setItem(READ_POSTS_KEY, JSON.stringify(arr)).catch(() => {});
+      return new Set(arr);
+    });
+  }, []);
+
   // 북마크 ref (의존성 루프 방지)
-  const bookmarkedIdsRef = useRef<Set<string>>(new Set()); // mapPost에서 참조 (의존성 루프 방지)
+  const bookmarkedIdsRef = useRef<Set<string>>(new Set());
 
   const mapPost = useCallback((p: any): PostItem => ({
     id: p.id,
@@ -367,19 +387,23 @@ export function FeedScreen() {
   };
 
   const renderItem = ({ item }: { item: PostItem }) => {
+    const isRead = readPostIds.has(item.id);
     return (
       <TouchableOpacity
         style={styles.row}
-        onPress={() => navigation.navigate('PostDetail', { post: item })}
+        onPress={() => {
+          markAsRead(item.id);
+          navigation.navigate('PostDetail', { post: item });
+        }}
         activeOpacity={0.75}
       >
-        {/* 불릿 */}
-        <Text style={styles.bullet}>•</Text>
+        {/* 불릿 — 읽은 글은 숨김 */}
+        <Text style={[styles.bullet, isRead && { opacity: 0 }]}>•</Text>
 
         {/* 중앙 콘텐츠 */}
         <View style={styles.rowContent}>
           <View style={styles.rowMain}>
-            <Text style={styles.rowTitle} numberOfLines={2}>{item.title}</Text>
+            <Text style={[styles.rowTitle, isRead && styles.rowTitleRead]} numberOfLines={2}>{item.title}</Text>
             {item.thumbnail ? (
               <Image
                 source={{ uri: getThumbnailUrl(item.thumbnail) }}
@@ -459,26 +483,28 @@ export function FeedScreen() {
         </ScrollView>
       )}
 
-      {/* 검색창 (서브탭 아래) */}
-      <View style={[styles.searchBar, isSearchFocused && styles.searchBarFocused]}>
-        <Ionicons name="search-outline" size={20} color="#AAAAAA" style={styles.searchIcon} />
-        <TextInput
-          style={styles.searchInput}
-          placeholder="제목으로 검색..."
-          placeholderTextColor="#AAAAAA"
-          value={searchInput}
-          onChangeText={setSearchInput}
-          onFocus={() => setIsSearchFocused(true)}
-          onBlur={() => setIsSearchFocused(false)}
-          onSubmitEditing={handleSearchSubmit}
-          returnKeyType="search"
-        />
-        {searchInput.length > 0 && (
-          <TouchableOpacity onPress={handleClearSearch} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
-            <Ionicons name="close-circle" size={20} color="#AAAAAA" />
-          </TouchableOpacity>
-        )}
-      </View>
+      {/* 검색창 — 위치 미정, 임시 숨김 처리 */}
+      {false && (
+        <View style={[styles.searchBar, isSearchFocused && styles.searchBarFocused]}>
+          <Ionicons name="search-outline" size={20} color="#AAAAAA" style={styles.searchIcon} />
+          <TextInput
+            style={styles.searchInput}
+            placeholder="제목으로 검색..."
+            placeholderTextColor="#AAAAAA"
+            value={searchInput}
+            onChangeText={setSearchInput}
+            onFocus={() => setIsSearchFocused(true)}
+            onBlur={() => setIsSearchFocused(false)}
+            onSubmitEditing={handleSearchSubmit}
+            returnKeyType="search"
+          />
+          {searchInput.length > 0 && (
+            <TouchableOpacity onPress={handleClearSearch} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
+              <Ionicons name="close-circle" size={20} color="#AAAAAA" />
+            </TouchableOpacity>
+          )}
+        </View>
+      )}
 
       <View style={styles.flex}>
         {loading ? (
@@ -522,8 +548,8 @@ export function FeedScreen() {
 }
 
 const styles = StyleSheet.create({
-  safe: { flex: 1, backgroundColor: Colors.background },
-  flex: { flex: 1 },
+  safe: { flex: 1, backgroundColor: Colors.white },
+  flex: { flex: 1, backgroundColor: Colors.white },
   loadingWrap: { flex: 1, alignItems: 'center', justifyContent: 'center' },
   listContent: { paddingTop: 0, paddingBottom: 110 },
   emptyText: {
@@ -660,6 +686,10 @@ const styles = StyleSheet.create({
     color: '#111111',
     lineHeight: 26,
     marginBottom: 6,
+  },
+  rowTitleRead: {
+    color: '#999999',
+    fontWeight: '400',
   },
   rowThumb: {
     width: 64,
