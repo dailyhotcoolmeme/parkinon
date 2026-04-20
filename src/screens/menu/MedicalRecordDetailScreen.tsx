@@ -150,22 +150,7 @@ export function MedicalRecordDetailScreen() {
 
   return (
     <SafeAreaView style={styles.container} edges={['top']}>
-      <TopBar
-        title="진료 기록 상세"
-        showBack
-        rightComponent={
-          record ? (
-            <TouchableOpacity
-              onPress={() =>
-                navigation.navigate('MedicalRecordWrite', { recordId: record.id } as any)
-              }
-              hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
-            >
-              <Text style={styles.editTopBtn}>수정</Text>
-            </TouchableOpacity>
-          ) : undefined
-        }
-      />
+      <TopBar title="진료 기록 상세" showBack />
 
       {loading ? (
         <View style={styles.center}>
@@ -260,14 +245,23 @@ export function MedicalRecordDetailScreen() {
             </View>
           ) : null}
 
-          {/* 삭제 버튼 */}
-          <TouchableOpacity
-            style={styles.deleteBtn}
-            onPress={handleDelete}
-            activeOpacity={0.8}
-          >
-            <Text style={styles.deleteBtnText}>삭제</Text>
-          </TouchableOpacity>
+          {/* 수정 / 삭제 버튼 */}
+          <View style={styles.actionRow}>
+            <TouchableOpacity
+              style={styles.editBtn}
+              onPress={() => navigation.navigate('MedicalRecordWrite', { recordId: record.id } as any)}
+              activeOpacity={0.8}
+            >
+              <Text style={styles.editBtnText}>수정</Text>
+            </TouchableOpacity>
+            <TouchableOpacity
+              style={styles.deleteBtn}
+              onPress={handleDelete}
+              activeOpacity={0.8}
+            >
+              <Text style={styles.deleteBtnText}>삭제</Text>
+            </TouchableOpacity>
+          </View>
         </ScrollView>
       ) : null}
 
@@ -306,7 +300,6 @@ const styles = StyleSheet.create({
     paddingVertical: 14,
   },
   retryBtnText: { fontSize: 18, fontWeight: '700', color: Colors.white },
-  editTopBtn: { fontSize: 18, fontWeight: '700', color: Colors.primary },
   scroll: { padding: 20, paddingBottom: 40 },
 
   infoCard: {
@@ -369,7 +362,24 @@ const styles = StyleSheet.create({
   },
   imageHint: { fontSize: 14, color: Colors.textHint, textAlign: 'center', marginTop: 6 },
 
+  actionRow: {
+    flexDirection: 'row',
+    gap: 10,
+    marginTop: 12,
+  },
+  editBtn: {
+    flex: 1,
+    backgroundColor: Colors.white,
+    borderWidth: 1.5,
+    borderColor: Colors.primary,
+    borderRadius: 14,
+    minHeight: 56,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  editBtnText: { fontSize: 18, fontWeight: '700', color: Colors.primary },
   deleteBtn: {
+    flex: 1,
     backgroundColor: Colors.white,
     borderWidth: 1.5,
     borderColor: Colors.danger,
@@ -377,7 +387,6 @@ const styles = StyleSheet.create({
     minHeight: 56,
     alignItems: 'center',
     justifyContent: 'center',
-    marginTop: 12,
   },
   deleteBtnText: { fontSize: 18, fontWeight: '700', color: Colors.danger },
 
