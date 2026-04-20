@@ -14,7 +14,7 @@ import {
   AppState,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { useFocusEffect } from '@react-navigation/native';
+import { useFocusEffect, useNavigation } from '@react-navigation/native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import * as Notifications from 'expo-notifications';
 import { Ionicons } from '@expo/vector-icons';
@@ -24,6 +24,8 @@ import { useSettings, MedNotif, ExerciseNotif } from '../../context/SettingsCont
 import { useAuth } from '../../context/AuthContext';
 import { minutesToLabel } from '../../utils/medUtils';
 import { supabase } from '../../lib/supabase';
+import type { StackNavigationProp } from '@react-navigation/stack';
+import type { MenuStackParamList } from '../../navigation/MenuNavigator';
 import {
   requestPermissionsAndSaveToken,
   scheduleMedicationReminders,
@@ -69,6 +71,7 @@ type MedTimeSlotKey = 'morning' | 'lunch' | 'dinner' | 'bedtime';
 
 export function SettingsScreen() {
   const { user } = useAuth();
+  const navigation = useNavigation<StackNavigationProp<MenuStackParamList>>();
   const isCaregiver = user?.role === 'caregiver';
 
   // Settings context (shared with Records screens)
@@ -87,6 +90,7 @@ export function SettingsScreen() {
   const [medSlotTimes, setMedSlotTimes] = useState<Record<MedTimeSlotKey, string>>({
     morning: '08:00', lunch: '12:00', dinner: '18:00', bedtime: '22:00',
   });
+  const [activeMedSlots, setActiveMedSlots] = useState<MedTimeSlotKey[]>([]);
 
   // 약 복용 시간 알림 설정 로드 + 약 관리에서 설정한 실제 시간 조회
   const loadMedTimePrefs = React.useCallback(async () => {
@@ -108,14 +112,21 @@ export function SettingsScreen() {
         .eq('is_active', true);
       if (meds?.length) {
         const earliest: Record<string, string> = {};
+        const activeSlots = new Set<string>();
         for (const med of meds) {
           const sched = (med.meal_schedules ?? {}) as Record<string, string>;
           for (const slot of (med.meal_times ?? []) as string[]) {
             const t = sched[slot];
-            if (t && (!earliest[slot] || t < earliest[slot])) earliest[slot] = t;
+            if (t) {
+              activeSlots.add(slot);
+              if (!earliest[slot] || t < earliest[slot]) earliest[slot] = t;
+            }
           }
         }
         setMedSlotTimes(prev => ({ ...prev, ...earliest }));
+        setActiveMedSlots(Array.from(activeSlots) as MedTimeSlotKey[]);
+      } else {
+        setActiveMedSlots([]);
       }
     } catch {}
   }, [user, isCaregiver]);
@@ -479,7 +490,7 @@ export function SettingsScreen() {
               <Text style={styles.cardHeaderSub}>정해진 시간에 약 드실 시간을 알려드려요</Text>
             </View>
           </View>
-          {MED_TIME_SLOTS.map((slot) => {
+          {MED_TIME_SLOTS.filter(slot => activeMedSlots.includes(slot.key as MedTimeSlotKey)).map((slot) => {
             const slotKey = slot.key as MedTimeSlotKey;
             const rawTime = medSlotTimes[slotKey]; // e.g. "08:00"
             // HH:MM → 오전/오후 H:MM 형식으로 변환
@@ -502,13 +513,23 @@ export function SettingsScreen() {
                     {isOn ? '알림이 켜져 있어요' : '알림이 꺼져 있어요'}
                   </Text>
                 </View>
-                <Switch
-                  value={isOn}
-                  onValueChange={() => toggleMedTimeSlot(slotKey)}
-                  disabled={!notificationEnabled}
-                  trackColor={{ false: Colors.border, true: Colors.primary }}
-                  thumbColor={Colors.white}
-                />
+                <View style={{ flexDirection: 'row', alignItems: 'center', gap: 12 }}>
+                  <Switch
+                    value={isOn}
+                    onValueChange={() => toggleMedTimeSlot(slotKey)}
+                    disabled={!notificationEnabled}
+                    trackColor={{ false: Colors.border, true: Colors.primary }}
+                    thumbColor={Colors.white}
+                  />
+                  <TouchableOpacity
+                    activeOpacity={0.7}
+                    onPress={() => navigation.navigate('MedicationManage')}
+                    style={{ flexDirection: 'row', alignItems: 'center', gap: 4, paddingVertical: 8, paddingHorizontal: 4 }}
+                  >
+                    <Ionicons name="create-outline" size={20} color={Colors.textSub} />
+                    <Text style={{ fontSize: 15, color: Colors.textSub, fontWeight: '600' }}>수정</Text>
+                  </TouchableOpacity>
+                </View>
               </View>
             );
           })}
