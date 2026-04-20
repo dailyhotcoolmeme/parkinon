@@ -235,7 +235,13 @@ export function SettingsScreen() {
 
   useEffect(() => {
     AsyncStorage.getItem(STORAGE_KEY_CAREGIVER).then(raw => {
-      if (raw) setCaregiverNotifs(JSON.parse(raw));
+      if (raw) {
+        const saved: CaregiverNotif[] = JSON.parse(raw);
+        setCaregiverNotifs(prev => prev.map(n => {
+          const found = saved.find(s => s.id === n.id);
+          return found ? { ...n, enabled: found.enabled } : n;
+        }));
+      }
     }).catch(() => {});
   }, []);
 
