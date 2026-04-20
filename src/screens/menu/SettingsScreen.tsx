@@ -58,6 +58,15 @@ const EXERCISE_MINUTES = [0, 10, 20, 30, 40, 50];
 
 // ─── Component ────────────────────────────────────────────────────────────────
 
+const MED_TIME_SLOTS = [
+  { key: 'morning', label: '아침' },
+  { key: 'lunch',   label: '점심' },
+  { key: 'dinner',  label: '저녁' },
+  { key: 'bedtime', label: '취침' },
+] as const;
+
+type MedTimeSlotKey = 'morning' | 'lunch' | 'dinner' | 'bedtime';
+
 export function SettingsScreen() {
   const { user } = useAuth();
   const isCaregiver = user?.role === 'caregiver';
@@ -70,6 +79,54 @@ export function SettingsScreen() {
     systemPermissionGranted, recheckSystemPermission,
     syncGlobalFromIndividual,
   } = useSettings();
+
+  // 약 복용 시간 알림 per-slot 설정
+  const [medTimePrefs, setMedTimePrefs] = useState<Record<MedTimeSlotKey, boolean>>({
+    morning: true, lunch: true, dinner: true, bedtime: true,
+  });
+  const [medSlotTimes, setMedSlotTimes] = useState<Record<MedTimeSlotKey, string>>({
+    morning: '08:00', lunch: '12:00', dinner: '18:00', bedtime: '22:00',
+  });
+
+  // 약 복용 시간 알림 설정 로드 + 약 관리에서 설정한 실제 시간 조회
+  const loadMedTimePrefs = React.useCallback(async () => {
+    if (!user || isCaregiver) return;
+    try {
+      const { data } = await supabase
+        .from('users')
+        .select('med_time_notif_prefs')
+        .eq('id', user.id)
+        .single();
+      if (data?.med_time_notif_prefs) {
+        setMedTimePrefs(prev => ({ ...prev, ...data.med_time_notif_prefs }));
+      }
+      // 약 관리에서 설정한 실제 복용 시간 조회 (슬롯별 가장 이른 시간)
+      const { data: meds } = await supabase
+        .from('medications')
+        .select('meal_times, meal_schedules')
+        .eq('patient_id', user.id)
+        .eq('is_active', true);
+      if (meds?.length) {
+        const earliest: Record<string, string> = {};
+        for (const med of meds) {
+          const sched = (med.meal_schedules ?? {}) as Record<string, string>;
+          for (const slot of (med.meal_times ?? []) as string[]) {
+            const t = sched[slot];
+            if (t && (!earliest[slot] || t < earliest[slot])) earliest[slot] = t;
+          }
+        }
+        setMedSlotTimes(prev => ({ ...prev, ...earliest }));
+      }
+    } catch {}
+  }, [user, isCaregiver]);
+
+  const toggleMedTimeSlot = async (slot: MedTimeSlotKey) => {
+    const next = { ...medTimePrefs, [slot]: !medTimePrefs[slot] };
+    setMedTimePrefs(next);
+    try {
+      await supabase.from('users').update({ med_time_notif_prefs: next }).eq('id', user!.id);
+    } catch {}
+  };
 
   // 보호자 알림 설정
   const [caregiverNotifs, setCaregiverNotifs] = useState<CaregiverNotif[]>(DEFAULT_CAREGIVER_NOTIFS);
@@ -150,11 +207,13 @@ export function SettingsScreen() {
               })));
             }
           }
+          // 3. 약 복용 시간 알림 설정 로드
+          await loadMedTimePrefs();
         } catch (e) {
           console.warn('[SettingsScreen] 설정 로드 오류:', e);
         }
       })();
-    }, [setNotificationEnabledOnly, isCaregiver, recheckSystemPermission])
+    }, [setNotificationEnabledOnly, isCaregiver, recheckSystemPermission, loadMedTimePrefs])
   );
 
 
@@ -420,29 +479,39 @@ export function SettingsScreen() {
               <Text style={styles.cardHeaderSub}>정해진 시간에 약 드실 시간을 알려드려요</Text>
             </View>
           </View>
-          {[
-            { label: '아침', time: '오전 8:00' },
-            { label: '점심', time: '오후 12:00' },
-            { label: '저녁', time: '오후 6:00' },
-            { label: '취침', time: '오후 10:00' },
-          ].map((item) => (
-            <View key={item.label} style={styles.notifRow}>
-              <View style={styles.notifLeft}>
-                <Text style={styles.notifTitle}>{item.label}  {item.time}</Text>
-                <Text style={styles.notifSub}>
-                  {notificationEnabled ? '알림이 켜져 있어요' : '알림이 꺼져 있어요'}
-                </Text>
+          {MED_TIME_SLOTS.map((slot) => {
+            const slotKey = slot.key as MedTimeSlotKey;
+            const rawTime = medSlotTimes[slotKey]; // e.g. "08:00"
+            // HH:MM → 오전/오후 H:MM 형식으로 변환
+            const formatTime = (t: string) => {
+              const [hStr, mStr] = t.split(':');
+              const h = parseInt(hStr, 10);
+              const m = mStr;
+              if (h === 0) return `오전 12:${m}`;
+              if (h < 12) return `오전 ${h}:${m}`;
+              if (h === 12) return `오후 12:${m}`;
+              return `오후 ${h - 12}:${m}`;
+            };
+            const displayTime = formatTime(rawTime);
+            const isOn = medTimePrefs[slotKey] && notificationEnabled;
+            return (
+              <View key={slot.key} style={styles.notifRow}>
+                <View style={styles.notifLeft}>
+                  <Text style={styles.notifTitle}>{slot.label}  {displayTime}</Text>
+                  <Text style={styles.notifSub}>
+                    {isOn ? '알림이 켜져 있어요' : '알림이 꺼져 있어요'}
+                  </Text>
+                </View>
+                <Switch
+                  value={isOn}
+                  onValueChange={() => toggleMedTimeSlot(slotKey)}
+                  disabled={!notificationEnabled}
+                  trackColor={{ false: Colors.border, true: Colors.primary }}
+                  thumbColor={Colors.white}
+                />
               </View>
-              <Ionicons
-                name={notificationEnabled ? 'checkmark-circle' : 'ellipse-outline'}
-                size={24}
-                color={notificationEnabled ? Colors.primary : Colors.border}
-              />
-            </View>
-          ))}
-          <Text style={styles.medTimeNote}>
-            💡 전체 알림 ON 시 자동 발송돼요. 복용 시간 개별 설정은 추후 지원 예정이에요.
-          </Text>
+            );
+          })}
         </View>}
 
         {/* ── Card 2: 약효 추적 알림 (환자만) ── */}
