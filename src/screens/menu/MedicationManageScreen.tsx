@@ -934,6 +934,17 @@ export function MedicationManageScreen() {
   const [slotEditTarget, setSlotEditTarget] = useState<typeof TIME_SLOTS[0] | null>(null);
   const openSlotHandled = useRef(false);
 
+  // OCR 결과 확인 바텀시트
+  const [ocrResultVisible, setOcrResultVisible] = useState(false);
+  const [ocrEnrichedMeds, setOcrEnrichedMeds] = useState<Array<{
+    id: string;
+    name: string;
+    times: TimeSlot[];
+    schedules: MealSchedules;
+    drugInfo: any;
+    checked: boolean;
+  }>>([]);
+
   useEffect(() => {
     if (!openSlotParam || openSlotHandled.current) return;
     if (medications.length === 0) return;
@@ -1066,57 +1077,63 @@ export function MedicationManageScreen() {
         newMeds.map(async med => ({ ...med, drugInfo: (await searchMfdsInfo(med.name)) ?? null }))
       );
 
-      if (enriched.length > 0 && user && targetPatientId) {
-        try {
-          const { data: inserted, error: insertError } = await supabase
-            .from('medications')
-            .insert(
-              enriched.map(med => ({
-                patient_id: targetPatientId,
-                name: med.name,
-                dosage: null,
-                meal_times: med.times,
-                meal_schedules: {},
-                scheduled_times: [] as string[],
-                drug_code: null,
-                drug_image_url: med.drugInfo?.itemImage ?? null,
-                is_active: true,
-              }))
-            )
-            .select();
-          if (insertError) throw insertError;
-          const dbMeds: Medication[] = (inserted ?? []).map((row: any, i: number) => ({
-            id: row.id,
-            name: row.name,
-            dosage: null,
-            times: (row.meal_times ?? []) as TimeSlot[],
-            schedules: (row.meal_schedules ?? {}) as MealSchedules,
-            drugInfo: enriched[i]?.drugInfo ?? null,
-          }));
-          setMedications(prev => [...prev, ...dbMeds]);
-        } catch (e) {
-          console.error('[MedicationManageScreen] OCR 약 저장 오류:', e);
-          setMedications(prev => [...prev, ...enriched]);
-        }
-      } else {
-        setMedications(prev => [...prev, ...enriched]);
-      }
-
-      const noInfoCount = enriched.filter(m => m.drugInfo === null).length;
       if (enriched.length === 0) {
         Alert.alert('약을 찾지 못했어요', '사진이 선명한지 확인 후 다시 시도하거나, 직접 입력해주세요.');
-      } else if (noInfoCount > 0) {
-        Alert.alert(
-          `약 ${enriched.length}개 인식됨`,
-          `${noInfoCount}개는 식약처 정보를 찾지 못했어요.\n약 이름이 정확한지 확인하고 수정해주세요.`,
-        );
-      } else {
-        Alert.alert('', `약 ${enriched.length}개를 찾았어요. 내용을 확인해주세요.`);
+        return;
       }
+
+      // DB 저장 대신 바텀시트로 결과 표시
+      setOcrEnrichedMeds(enriched.map(m => ({ ...m, checked: true })));
+      setOcrResultVisible(true);
     } catch {
       Alert.alert('', '분석에 실패했어요. 다시 시도해주세요.');
     } finally {
       setIsOcrLoading(false);
+    }
+  };
+
+  const handleOcrConfirm = async () => {
+    const selected = ocrEnrichedMeds.filter(m => m.checked);
+    if (selected.length === 0) {
+      setOcrResultVisible(false);
+      return;
+    }
+    setOcrResultVisible(false);
+
+    if (user && targetPatientId) {
+      try {
+        const { data: inserted, error: insertError } = await supabase
+          .from('medications')
+          .insert(
+            selected.map(med => ({
+              patient_id: targetPatientId,
+              name: med.name,
+              dosage: null,
+              meal_times: med.times,
+              meal_schedules: {},
+              scheduled_times: [] as string[],
+              drug_code: null,
+              drug_image_url: med.drugInfo?.itemImage ?? null,
+              is_active: true,
+            }))
+          )
+          .select();
+        if (insertError) throw insertError;
+        const dbMeds: Medication[] = (inserted ?? []).map((row: any, i: number) => ({
+          id: row.id,
+          name: row.name,
+          dosage: null,
+          times: (row.meal_times ?? []) as TimeSlot[],
+          schedules: (row.meal_schedules ?? {}) as MealSchedules,
+          drugInfo: selected[i]?.drugInfo ?? null,
+        }));
+        setMedications(prev => [...prev, ...dbMeds]);
+      } catch (e) {
+        console.error('[OCR confirm] 저장 오류:', e);
+        setMedications(prev => [...prev, ...selected]);
+      }
+    } else {
+      setMedications(prev => [...prev, ...selected]);
     }
   };
 
@@ -1681,6 +1698,115 @@ export function MedicationManageScreen() {
         onClose={() => setSlotEditTarget(null)}
         onSave={handleSlotEditSave}
       />
+
+      {/* OCR 결과 확인 바텀시트 */}
+      <Modal
+        visible={ocrResultVisible}
+        transparent
+        animationType="slide"
+        onRequestClose={() => setOcrResultVisible(false)}
+      >
+        <View style={{ flex: 1, justifyContent: 'flex-end', backgroundColor: 'rgba(0,0,0,0.45)' }}>
+          <View style={{
+            backgroundColor: '#fff',
+            borderTopLeftRadius: 20,
+            borderTopRightRadius: 20,
+            paddingHorizontal: 20,
+            paddingTop: 20,
+            paddingBottom: 32,
+            maxHeight: '80%',
+          }}>
+            <Text style={{ fontSize: 18, fontWeight: '700', color: '#222', marginBottom: 4 }}>
+              처방전 인식 결과
+            </Text>
+            <Text style={{ fontSize: 14, color: '#888', marginBottom: 16 }}>
+              추가할 약을 선택해주세요
+            </Text>
+            <ScrollView>
+              {ocrEnrichedMeds.map((med, idx) => (
+                <TouchableOpacity
+                  key={med.id}
+                  onPress={() => setOcrEnrichedMeds(prev =>
+                    prev.map((m, i) => i === idx ? { ...m, checked: !m.checked } : m)
+                  )}
+                  style={{
+                    flexDirection: 'row',
+                    alignItems: 'center',
+                    paddingVertical: 12,
+                    borderBottomWidth: 1,
+                    borderBottomColor: '#f0f0f0',
+                  }}
+                >
+                  {/* 체크박스 */}
+                  <View style={{
+                    width: 24, height: 24, borderRadius: 6,
+                    borderWidth: 2,
+                    borderColor: med.checked ? '#FF6B35' : '#ccc',
+                    backgroundColor: med.checked ? '#FF6B35' : '#fff',
+                    alignItems: 'center', justifyContent: 'center',
+                    marginRight: 12,
+                  }}>
+                    {med.checked && <Text style={{ color: '#fff', fontSize: 14, fontWeight: '700' }}>✓</Text>}
+                  </View>
+
+                  {/* 약 이미지 */}
+                  {med.drugInfo?.itemImage ? (
+                    <Image
+                      source={{ uri: med.drugInfo.itemImage }}
+                      style={{ width: 48, height: 28, borderRadius: 4, marginRight: 12, backgroundColor: '#f5f5f5' }}
+                      resizeMode="contain"
+                    />
+                  ) : (
+                    <View style={{
+                      width: 48, height: 28, borderRadius: 4, marginRight: 12,
+                      backgroundColor: '#f5f5f5', alignItems: 'center', justifyContent: 'center'
+                    }}>
+                      <Text style={{ fontSize: 18 }}>💊</Text>
+                    </View>
+                  )}
+
+                  {/* 약 이름 + 뱃지 */}
+                  <View style={{ flex: 1 }}>
+                    <Text style={{ fontSize: 16, fontWeight: '600', color: '#222' }}>{med.name}</Text>
+                    <View style={{ flexDirection: 'row', marginTop: 4 }}>
+                      {med.drugInfo ? (
+                        <View style={{
+                          paddingHorizontal: 8, paddingVertical: 2,
+                          backgroundColor: '#E8F5E9', borderRadius: 10,
+                        }}>
+                          <Text style={{ fontSize: 12, color: '#2E7D32', fontWeight: '600' }}>✅ 확인됨</Text>
+                        </View>
+                      ) : (
+                        <View style={{
+                          paddingHorizontal: 8, paddingVertical: 2,
+                          backgroundColor: '#FFF3E0', borderRadius: 10,
+                        }}>
+                          <Text style={{ fontSize: 12, color: '#E65100', fontWeight: '600' }}>⚠️ 이름만 인식</Text>
+                        </View>
+                      )}
+                    </View>
+                  </View>
+                </TouchableOpacity>
+              ))}
+            </ScrollView>
+
+            <TouchableOpacity
+              onPress={handleOcrConfirm}
+              style={{
+                marginTop: 20,
+                backgroundColor: '#FF6B35',
+                borderRadius: 12,
+                paddingVertical: 16,
+                alignItems: 'center',
+              }}
+            >
+              <Text style={{ color: '#fff', fontSize: 17, fontWeight: '700' }}>
+                선택한 약 추가하기 ({ocrEnrichedMeds.filter(m => m.checked).length}개)
+              </Text>
+            </TouchableOpacity>
+          </View>
+        </View>
+      </Modal>
     </SafeAreaView>
   );
 }
