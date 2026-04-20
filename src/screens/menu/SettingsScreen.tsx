@@ -177,9 +177,18 @@ export function SettingsScreen() {
       }
       if (patientUser?.med_notif_prefs) {
         setPatientMedNotifs((patientUser.med_notif_prefs as MedNotif[]).filter(n => n.minutes !== 0));
+      } else {
+        setPatientMedNotifs([
+          { id: '2', minutes: 30, enabled: true },
+          { id: '3', minutes: 120, enabled: true },
+        ]);
       }
       if (patientUser?.exercise_notif_prefs) {
         setPatientExerciseNotifs(patientUser.exercise_notif_prefs as ExerciseNotif[]);
+      } else {
+        setPatientExerciseNotifs([
+          { id: '1', ampm: '오후', hour: 2, minute: 0, enabled: true },
+        ]);
       }
 
       // 3. 환자의 활성 약 슬롯 + 복용 시간

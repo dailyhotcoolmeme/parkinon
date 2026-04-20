@@ -932,12 +932,17 @@ export function MedicationManageScreen() {
 
   // 시간대 수정 바텀시트
   const [slotEditTarget, setSlotEditTarget] = useState<typeof TIME_SLOTS[0] | null>(null);
+  const openSlotHandled = useRef(false);
 
   useEffect(() => {
-    if (!openSlotParam || isLoading || medications.length === 0) return;
+    if (!openSlotParam || openSlotHandled.current) return;
+    if (medications.length === 0) return;
     const slot = TIME_SLOTS.find(s => s.key === openSlotParam);
-    if (slot) setSlotEditTarget(slot);
-  }, [openSlotParam, isLoading, medications.length]);
+    if (slot) {
+      openSlotHandled.current = true;
+      setSlotEditTarget(slot);
+    }
+  }, [openSlotParam, medications]);
 
   // 대상 환자 id 결정
   useEffect(() => {
