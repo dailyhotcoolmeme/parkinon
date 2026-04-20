@@ -698,7 +698,7 @@ function SlotEditBottomSheet({ visible, slot, medications, onClose, onSave }: Sl
           style={[seBsStyles.sheet, { transform: [{ translateY }] }]}
           {...panResponder.panHandlers}
         >
-          <TouchableOpacity activeOpacity={1} onPress={() => {}} style={{ flex: 1 }}>
+          <TouchableOpacity activeOpacity={1} onPress={() => {}} style={{ flex: 1, flexDirection: 'column' }}>
             <View style={seBsStyles.dragHandle} />
 
             {/* 헤더 */}
@@ -828,7 +828,7 @@ const seBsStyles = StyleSheet.create({
     backgroundColor: Colors.white,
     borderTopLeftRadius: 24,
     borderTopRightRadius: 24,
-    maxHeight: '85%',
+    height: '85%',
     paddingBottom: 32,
   },
   dragHandle: { width: 40, height: 5, backgroundColor: '#DDDDDD', borderRadius: 3, alignSelf: 'center', marginTop: 12, marginBottom: 8 },
@@ -844,7 +844,7 @@ const seBsStyles = StyleSheet.create({
   headerTitle: { fontSize: 22, fontWeight: '700', color: Colors.text },
   closeBtn: { paddingHorizontal: 16, paddingVertical: 10, borderRadius: 8, backgroundColor: 'rgba(0,0,0,0.08)' },
   closeBtnText: { fontSize: 18, fontWeight: '600', color: Colors.text },
-  scroll: { flexShrink: 1 },
+  scroll: { flex: 1 },
   section: { paddingHorizontal: 20, paddingVertical: 16 },
   sectionLabel: { fontSize: 18, fontWeight: '700', color: Colors.textSub, marginBottom: 12 },
   divider: { height: 1, backgroundColor: Colors.border, marginHorizontal: 20 },
