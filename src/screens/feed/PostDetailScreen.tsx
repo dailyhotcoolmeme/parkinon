@@ -14,12 +14,11 @@ import {
 
 // 카테고리별 색상 매핑
 const CATEGORY_COLORS: Record<string, { bg: string; text: string; icon: string }> = {
-  '자유수다':   { bg: '#E8F5E9', text: '#2E7D32', icon: '#4CAF50' },
-  '질문있어요': { bg: '#E3F2FD', text: '#1565C0', icon: '#1E88E5' },
-  '정보공유':   { bg: '#FFF8E1', text: '#E65100', icon: '#FB8C00' },
-  '운동인증':   { bg: '#FCE4EC', text: '#880E4F', icon: '#E91E63' },
-  '응원해요':   { bg: '#EDE7F6', text: '#4527A0', icon: '#7B1FA2' },
-  '뉴스':       { bg: '#FFF3E0', text: '#BF360C', icon: '#FF6D00' },
+  '자유':    { bg: '#E8F5E9', text: '#2E7D32', icon: '#4CAF50' },
+  '질문':    { bg: '#E3F2FD', text: '#1565C0', icon: '#1E88E5' },
+  '정보':    { bg: '#FFF8E1', text: '#E65100', icon: '#FB8C00' },
+  '운동인증': { bg: '#FCE4EC', text: '#880E4F', icon: '#E91E63' },
+  '응원':    { bg: '#EDE7F6', text: '#4527A0', icon: '#7B1FA2' },
 };
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useRoute, useNavigation, useFocusEffect } from '@react-navigation/native';
@@ -394,7 +393,7 @@ export function PostDetailScreen() {
   };
 
   // 카테고리 라벨 결정
-  const categoryLabel = post.isNews ? '뉴스' : (post.category ?? '자유수다');
+  const categoryLabel = post.isNews ? '정보' : (post.category ?? '자유');
   const categoryColor = CATEGORY_COLORS[categoryLabel] ?? CATEGORY_COLORS['자유수다'];
 
   return (

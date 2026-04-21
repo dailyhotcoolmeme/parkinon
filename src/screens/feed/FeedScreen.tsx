@@ -3,7 +3,7 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import {
   View, Text, FlatList, TouchableOpacity, StyleSheet, Animated,
   NativeSyntheticEvent, NativeScrollEvent, ActivityIndicator, Image,
-  TextInput, ScrollView,
+  TextInput,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useNavigation, useFocusEffect } from '@react-navigation/native';
@@ -46,11 +46,11 @@ const POST_TYPE_ICON: Record<string, IoniconName> = {
 };
 
 const POST_TYPE_LABEL: Record<string, string> = {
-  chat: '자유수다',
-  question: '질문있어요',
-  info: '정보공유',
+  chat: '자유',
+  question: '질문',
+  info: '정보',
   exercise: '운동인증',
-  cheer: '응원해요',
+  cheer: '응원',
 };
 
 // 카테고리별 뱃지 색상
@@ -63,15 +63,13 @@ const CATEGORY_BADGE_COLORS: Record<string, { bg: string; text: string }> = {
   default:  { bg: '#F5F5F5', text: '#555555' },
 };
 
-// 서브탭 목록 (PostWriteScreen 글유형과 동일한 순서)
+// 서브탭 목록 (뉴스는 정보에 통합)
 const SUB_TABS = [
   { id: 'all',      label: '전체' },
-  { id: 'chat',     label: '자유수다' },
-  { id: 'question', label: '질문있어요' },
-  { id: 'info',     label: '정보공유' },
-  { id: 'exercise', label: '운동인증' },
-  { id: 'cheer',    label: '응원해요' },
-  { id: 'news',     label: '뉴스' },
+  { id: 'chat',     label: '자유' },
+  { id: 'question', label: '질문' },
+  { id: 'info',     label: '정보' },
+  { id: 'cheer',    label: '응원' },
 ];
 
 function formatDate(isoString: string): string {
@@ -245,22 +243,53 @@ export function FeedScreen() {
       let mappedPosts: PostItem[] = [];
       let newsFeedItems: PostItem[] = [];
 
-      if (currentCategory === 'news') {
-        const { data: newsData } = await supabase
-          .from('news_feed')
-          .select('id, title, description, published_at, source_name, url')
-          .order('published_at', { ascending: false })
+      const mapNews = (n: any): PostItem => ({
+        id: 'news_' + n.id, isNews: true, category: '정보',
+        categoryIcon: 'newspaper-outline' as IoniconName,
+        author: n.source_name ?? '파킨온 뉴스',
+        date: formatDate(n.published_at ?? new Date().toISOString()),
+        views: 0, title: n.title ?? '', preview: n.description ?? '',
+        commentCount: 0, likeCount: 0,
+      });
+
+      // 정보 탭: info 게시글 + 뉴스 통합
+      if (currentCategory === 'info') {
+        let query = supabase
+          .from('posts')
+          .select('*, author:users(name), post_media(r2_url, sort_order, media_type)')
+          .eq('post_type', 'info')
+          .order('created_at', { ascending: false })
           .range(from, to);
-        newsFeedItems = (newsData ?? []).map((n: any) => ({
-          id: 'news_' + n.id, isNews: true, category: '뉴스',
-          categoryIcon: 'newspaper-outline' as IoniconName,
-          author: n.source_name ?? '파킨온 뉴스',
-          date: formatDate(n.published_at ?? new Date().toISOString()),
-          views: 0, title: n.title ?? '', preview: n.description ?? '',
-          commentCount: 0, likeCount: 0,
-        }));
-        if (reset) setPosts(newsFeedItems); else setPosts(prev => [...prev, ...newsFeedItems]);
-        setHasMore((newsData ?? []).length === PAGE_SIZE);
+        if (currentSearch.trim()) query = query.ilike('title', `%${currentSearch.trim()}%`);
+        const { data: postsData, error: postsError } = await query;
+        if (postsError) throw postsError;
+        mappedPosts = (postsData ?? []).map(mapPost);
+
+        if (!currentSearch.trim() && reset) {
+          const { data: newsData } = await supabase
+            .from('news_feed')
+            .select('id, title, description, published_at, source_name, url')
+            .order('published_at', { ascending: false })
+            .limit(5);
+          newsFeedItems = (newsData ?? []).map(mapNews);
+        }
+
+        if (reset) {
+          if (newsFeedItems.length > 0) {
+            const interleaved: PostItem[] = [];
+            let ni = 0, pi = 0;
+            while (ni < newsFeedItems.length || pi < mappedPosts.length) {
+              if (pi < mappedPosts.length) interleaved.push(mappedPosts[pi++]);
+              if (ni < newsFeedItems.length) interleaved.push(newsFeedItems[ni++]);
+            }
+            setPosts(interleaved);
+          } else {
+            setPosts(mappedPosts);
+          }
+        } else {
+          setPosts(prev => [...prev, ...mappedPosts]);
+        }
+        setHasMore((postsData ?? []).length === PAGE_SIZE);
         pageRef.current += 1;
         return;
       }
@@ -276,20 +305,14 @@ export function FeedScreen() {
       if (postsError) throw postsError;
       mappedPosts = (postsData ?? []).map(mapPost);
 
+      // 전체 탭: 뉴스 인터리빙
       if (currentCategory === 'all' && !currentSearch.trim() && reset) {
         const { data: newsData } = await supabase
           .from('news_feed')
           .select('id, title, description, published_at, source_name, url')
           .order('published_at', { ascending: false })
           .limit(5);
-        newsFeedItems = (newsData ?? []).map((n: any) => ({
-          id: 'news_' + n.id, isNews: true, category: '뉴스',
-          categoryIcon: 'newspaper-outline' as IoniconName,
-          author: n.source_name ?? '파킨온 뉴스',
-          date: formatDate(n.published_at ?? new Date().toISOString()),
-          views: 0, title: n.title ?? '', preview: n.description ?? '',
-          commentCount: 0, likeCount: 0,
-        }));
+        newsFeedItems = (newsData ?? []).map(mapNews);
       }
 
       if (reset) {
@@ -448,12 +471,7 @@ export function FeedScreen() {
 
       {/* 서브탭 (글유형 필터) — 전체 탭에서만 */}
       {mainTab === 'all' && (
-        <ScrollView
-          horizontal
-          showsHorizontalScrollIndicator={false}
-          style={styles.subTabScroll}
-          contentContainerStyle={styles.subTabContainer}
-        >
+        <View style={styles.subTabRow}>
           {SUB_TABS.map((sub) => {
             const isActive = typeFilter === sub.id;
             return (
@@ -469,7 +487,7 @@ export function FeedScreen() {
               </TouchableOpacity>
             );
           })}
-        </ScrollView>
+        </View>
       )}
 
       {/* 검색창 — 위치 미정, 임시 숨김 처리 */}
@@ -605,27 +623,22 @@ const styles = StyleSheet.create({
   },
 
   /* ── 서브탭 ── */
-  subTabScroll: {
-    height: 50,
-    flexGrow: 0,
+  subTabRow: {
+    flexDirection: 'row',
+    paddingHorizontal: 16,
+    paddingVertical: 8,
+    gap: 6,
     backgroundColor: Colors.white,
     borderBottomWidth: 1,
     borderBottomColor: '#F0F0F0',
   },
-  subTabContainer: {
-    paddingHorizontal: 12,
-    paddingVertical: 8,
-    gap: 8,
-    flexDirection: 'row',
-    alignItems: 'center',
-  },
   subTab: {
+    flex: 1,
     height: 34,
     borderRadius: 17,
     borderWidth: 1.5,
     borderColor: '#DDDDDD',
     backgroundColor: Colors.white,
-    paddingHorizontal: 14,
     alignItems: 'center',
     justifyContent: 'center',
   },

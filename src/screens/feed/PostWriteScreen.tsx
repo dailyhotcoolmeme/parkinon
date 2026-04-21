@@ -31,11 +31,11 @@ type IoniconName = React.ComponentProps<typeof Ionicons>['name'];
 type RouteProps = NativeStackScreenProps<FeedStackParamList, 'PostWrite'>['route'];
 
 const CATEGORIES: { id: string; icon: IoniconName; label: string }[] = [
-  { id: 'chat', icon: 'chatbubble-outline', label: '자유수다' },
-  { id: 'question', icon: 'help-circle-outline', label: '질문있어요' },
-  { id: 'info', icon: 'megaphone-outline', label: '정보공유' },
+  { id: 'chat', icon: 'chatbubble-outline', label: '자유' },
+  { id: 'question', icon: 'help-circle-outline', label: '질문' },
+  { id: 'info', icon: 'megaphone-outline', label: '정보' },
   { id: 'exercise', icon: 'fitness-outline', label: '운동인증' },
-  { id: 'cheer', icon: 'heart-circle-outline', label: '응원해요' },
+  { id: 'cheer', icon: 'heart-circle-outline', label: '응원' },
 ];
 
 // 기존 사진(r2_url)과 새 사진(local uri)을 구분
