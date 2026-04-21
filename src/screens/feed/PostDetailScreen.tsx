@@ -392,6 +392,9 @@ export function PostDetailScreen() {
     }
   };
 
+  // 댓글 + 대댓글 합산
+  const totalCommentCount = comments.reduce((acc, c) => acc + 1 + c.replies.length, 0);
+
   // 카테고리 라벨 결정
   const categoryLabel = post.isNews ? '정보' : (post.category ?? '자유');
   const categoryColor = CATEGORY_COLORS[categoryLabel] ?? CATEGORY_COLORS['자유수다'];
@@ -491,7 +494,7 @@ export function PostDetailScreen() {
 
             <View style={styles.statItem}>
               <Ionicons name="chatbubble-outline" size={20} color="#888" />
-              <Text style={styles.statLabel}>댓글 {comments.length}</Text>
+              <Text style={styles.statLabel}>댓글 {totalCommentCount}</Text>
             </View>
 
             <View style={styles.statSep} />
@@ -517,7 +520,7 @@ export function PostDetailScreen() {
 
           {/* ── 댓글 섹션 ── */}
           <View style={styles.commentHeader}>
-            <Text style={styles.commentTitle}>댓글 {comments.length}개</Text>
+            <Text style={styles.commentTitle}>댓글 {totalCommentCount}개</Text>
           </View>
 
           {commentsLoading ? (

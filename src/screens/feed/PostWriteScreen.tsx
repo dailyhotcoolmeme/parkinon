@@ -393,7 +393,7 @@ export function PostWriteScreen() {
 const styles = StyleSheet.create({
   safe: { flex: 1, backgroundColor: Colors.white },
   flex: { flex: 1 },
-  content: { padding: 20, paddingBottom: 40 },
+  content: { padding: 20, paddingBottom: 16 },
   sectionLabel: {
     fontSize: 18,
     fontWeight: '600',
@@ -447,17 +447,18 @@ const styles = StyleSheet.create({
   },
   photoBtnLarge: {
     borderWidth: 1,
+    borderStyle: 'dashed',
     borderColor: '#CCCCCC',
     borderStyle: 'dashed',
     borderRadius: 12,
     backgroundColor: '#FAFAFA',
-    paddingVertical: 18,
+    paddingVertical: 12,
     alignItems: 'center',
     justifyContent: 'center',
     gap: 6,
     marginTop: 8,
     marginBottom: 8,
-    minHeight: 88,
+    minHeight: 68,
   },
   photoBtnLargeText: {
     fontSize: 20,
@@ -493,8 +494,7 @@ const styles = StyleSheet.create({
   existingBadgeText: { fontSize: 10, color: '#fff', fontWeight: '700' },
   bottomActions: {
     paddingHorizontal: 20,
-    paddingTop: 12,
-    paddingBottom: Platform.OS === 'ios' ? 20 : 16,
+    paddingVertical: 16,
     backgroundColor: Colors.white,
     borderTopWidth: 1,
     borderTopColor: Colors.border,
