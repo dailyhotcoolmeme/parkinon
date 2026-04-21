@@ -24,6 +24,8 @@ Deno.serve(async (req) => {
       title,
       body: body ?? '',
       data: data ?? {},
+      priority: 'high',       // Android Doze 모드 우회 (FCM high priority)
+      channelId: 'default',   // MAX 중요도 채널 사용
     };
 
     const response = await fetch('https://exp.host/--/api/v2/push/send', {
