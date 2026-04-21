@@ -581,44 +581,44 @@ export function PostDetailScreen() {
               </View>
             ))
           )}
-        </ScrollView>
 
-        {/* 댓글 입력창 */}
-        <View style={styles.commentInputArea}>
-          {replyingTo && (
-            <View style={styles.replyingBanner}>
-              <Text style={styles.replyingText}>
-                {comments.find((c) => c.id === replyingTo)?.author}에게 답글 작성 중
-              </Text>
-              <TouchableOpacity onPress={() => setReplyingTo(null)}>
-                <Text style={styles.replyCancelText}>취소</Text>
+          {/* 댓글 입력창 */}
+          <View style={styles.commentInputArea}>
+            {replyingTo && (
+              <View style={styles.replyingBanner}>
+                <Text style={styles.replyingText}>
+                  {comments.find((c) => c.id === replyingTo)?.author}에게 답글 작성 중
+                </Text>
+                <TouchableOpacity onPress={() => setReplyingTo(null)}>
+                  <Text style={styles.replyCancelText}>취소</Text>
+                </TouchableOpacity>
+              </View>
+            )}
+            <View style={styles.commentInputRow}>
+              <TextInput
+                style={styles.commentInput}
+                placeholder={replyingTo ? '답글을 입력해주세요' : '댓글을 입력해주세요'}
+                placeholderTextColor={Colors.textHint}
+                value={commentText}
+                onChangeText={setCommentText}
+                multiline
+                maxLength={500}
+              />
+              <TouchableOpacity
+                style={[
+                  styles.commentSubmitBtn,
+                  (!commentText.trim() || submittingComment) && styles.commentSubmitDisabled,
+                ]}
+                onPress={handleCommentSubmit}
+                disabled={!commentText.trim() || submittingComment}
+              >
+                <Text style={styles.commentSubmitText}>
+                  {submittingComment ? '...' : '등록'}
+                </Text>
               </TouchableOpacity>
             </View>
-          )}
-          <View style={styles.commentInputRow}>
-            <TextInput
-              style={styles.commentInput}
-              placeholder={replyingTo ? '답글을 입력해주세요' : '댓글을 입력해주세요'}
-              placeholderTextColor={Colors.textHint}
-              value={commentText}
-              onChangeText={setCommentText}
-              multiline
-              maxLength={500}
-            />
-            <TouchableOpacity
-              style={[
-                styles.commentSubmitBtn,
-                (!commentText.trim() || submittingComment) && styles.commentSubmitDisabled,
-              ]}
-              onPress={handleCommentSubmit}
-              disabled={!commentText.trim() || submittingComment}
-            >
-              <Text style={styles.commentSubmitText}>
-                {submittingComment ? '...' : '등록'}
-              </Text>
-            </TouchableOpacity>
           </View>
-        </View>
+        </ScrollView>
       </KeyboardAvoidingView>
     </SafeAreaView>
   );
@@ -628,7 +628,7 @@ const styles = StyleSheet.create({
   // ── 기반 레이아웃 ──
   safe: { flex: 1, backgroundColor: '#FFFFFF' },
   flex: { flex: 1, backgroundColor: '#FFFFFF' },
-  scrollContent: { paddingBottom: 24 },
+  scrollContent: { paddingBottom: 40 },
 
   // ── 본문 카드 ──
   postCard: {
@@ -757,8 +757,7 @@ const styles = StyleSheet.create({
   // ── 댓글 입력창 ──
   commentInputArea: {
     backgroundColor: Colors.white,
-    borderTopWidth: 1,
-    borderTopColor: '#EEEEEE',
+    marginTop: 8,
   },
   replyingBanner: {
     flexDirection: 'row',
