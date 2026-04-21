@@ -72,20 +72,15 @@ const SUB_TABS = [
   { id: 'cheer',    label: '응원' },
 ];
 
+const DAYS = ['일', '월', '화', '수', '목', '금', '토'];
 function formatDate(isoString: string): string {
   const d = new Date(isoString);
-  const now = new Date();
-  const diffMs = now.getTime() - d.getTime();
-  const diffMin = Math.floor(diffMs / 60000);
-  if (diffMin < 1) return '방금';
-  if (diffMin < 60) return `${diffMin}분 전`;
-  const isSameDay = d.toDateString() === now.toDateString();
-  if (isSameDay) {
-    return `${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}`;
-  }
-  const diffDay = Math.floor(diffMs / 86400000);
-  if (diffDay < 7) return `${diffDay}일 전`;
-  return `${d.getMonth() + 1}.${d.getDate()}`;
+  const month = d.getMonth() + 1;
+  const date = d.getDate();
+  const day = DAYS[d.getDay()];
+  const hh = String(d.getHours()).padStart(2, '0');
+  const mm = String(d.getMinutes()).padStart(2, '0');
+  return `${month}월 ${date}일 (${day}) ${hh}:${mm}`;
 }
 
 function getThumbnailUrl(url: string | undefined): string | undefined {

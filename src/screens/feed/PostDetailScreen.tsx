@@ -64,14 +64,15 @@ interface ReplyDisplay {
   likeCount: number;
 }
 
+const DAYS = ['일', '월', '화', '수', '목', '금', '토'];
 function formatTimeAgo(isoString: string): string {
-  const now = new Date();
-  const past = new Date(isoString);
-  const diff = Math.floor((now.getTime() - past.getTime()) / 1000);
-  if (diff < 60) return '방금 전';
-  if (diff < 3600) return `${Math.floor(diff / 60)}분 전`;
-  if (diff < 86400) return `${Math.floor(diff / 3600)}시간 전`;
-  return `${Math.floor(diff / 86400)}일 전`;
+  const d = new Date(isoString);
+  const month = d.getMonth() + 1;
+  const date = d.getDate();
+  const day = DAYS[d.getDay()];
+  const hh = String(d.getHours()).padStart(2, '0');
+  const mm = String(d.getMinutes()).padStart(2, '0');
+  return `${month}월 ${date}일 (${day}) ${hh}:${mm}`;
 }
 
 function buildCommentTree(rows: CommentRow[]): CommentDisplay[] {
