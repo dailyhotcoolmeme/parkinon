@@ -320,9 +320,13 @@ export function PostWriteScreen() {
             maxLength={2000}
           />
 
+        </ScrollView>
+
+        {/* 사진 + 등록 버튼 — 스크롤 밖 고정 영역 */}
+        <View style={styles.bottomActions}>
           <View style={styles.divider} />
 
-          {/* 사진 추가 - 사진 없을 때는 큰 박스, 있을 때는 상단 작은 버튼 */}
+          {/* 사진 추가 */}
           {photoEntries.length === 0 ? (
             <TouchableOpacity
               style={styles.photoBtnLarge}
@@ -334,49 +338,45 @@ export function PostWriteScreen() {
               <Text style={styles.photoBtnLargeHint}>최대 5장 · JPG/PNG</Text>
             </TouchableOpacity>
           ) : (
-            <TouchableOpacity
-              style={styles.photoBtn}
-              onPress={handlePhotoAdd}
-              activeOpacity={0.7}
-            >
-              <Ionicons name="camera-outline" size={22} color={Colors.textSub} />
-              <Text style={styles.photoText}>사진 추가</Text>
-              <Text style={styles.photoHint}>{photoEntries.length}/5</Text>
-            </TouchableOpacity>
-          )}
-
-          {/* 선택된 사진 미리보기 */}
-          {photoEntries.length > 0 && (
-            <ScrollView
-              horizontal
-              showsHorizontalScrollIndicator={false}
-              style={styles.photoRow}
-              contentContainerStyle={{ paddingTop: 12, paddingBottom: 4 }}
-            >
-              {photoEntries.map((entry, idx) => (
-                <View key={idx} style={styles.photoThumbWrap}>
-                  <View style={styles.photoThumb}>
-                    <Image source={{ uri: entry.uri }} style={styles.photoThumbImg} />
-                    {entry.isExisting && (
-                      <View style={styles.existingBadge}>
-                        <Text style={styles.existingBadgeText}>기존</Text>
-                      </View>
-                    )}
+            <>
+              <TouchableOpacity
+                style={styles.photoBtn}
+                onPress={handlePhotoAdd}
+                activeOpacity={0.7}
+              >
+                <Ionicons name="camera-outline" size={22} color={Colors.textSub} />
+                <Text style={styles.photoText}>사진 추가</Text>
+                <Text style={styles.photoHint}>{photoEntries.length}/5</Text>
+              </TouchableOpacity>
+              <ScrollView
+                horizontal
+                showsHorizontalScrollIndicator={false}
+                style={styles.photoRow}
+                contentContainerStyle={{ paddingTop: 4, paddingBottom: 4 }}
+              >
+                {photoEntries.map((entry, idx) => (
+                  <View key={idx} style={styles.photoThumbWrap}>
+                    <View style={styles.photoThumb}>
+                      <Image source={{ uri: entry.uri }} style={styles.photoThumbImg} />
+                      {entry.isExisting && (
+                        <View style={styles.existingBadge}>
+                          <Text style={styles.existingBadgeText}>기존</Text>
+                        </View>
+                      )}
+                    </View>
+                    <TouchableOpacity
+                      style={styles.photoRemoveBtn}
+                      onPress={() => handleRemovePhoto(idx)}
+                      hitSlop={{ top: 4, right: 4, bottom: 4, left: 4 }}
+                    >
+                      <Ionicons name="close-circle" size={26} color={Colors.danger} />
+                    </TouchableOpacity>
                   </View>
-                  <TouchableOpacity
-                    style={styles.photoRemoveBtn}
-                    onPress={() => handleRemovePhoto(idx)}
-                    hitSlop={{ top: 4, right: 4, bottom: 4, left: 4 }}
-                  >
-                    <Ionicons name="close-circle" size={26} color={Colors.danger} />
-                  </TouchableOpacity>
-                </View>
-              ))}
-            </ScrollView>
+                ))}
+              </ScrollView>
+            </>
           )}
-        </ScrollView>
 
-        <View style={styles.bottomActions}>
           <TouchableOpacity style={styles.bottomMainBtn} onPress={handleSubmit} activeOpacity={0.85} disabled={submitting}>
             <Text style={styles.bottomMainBtnText}>
               {submitting
@@ -393,7 +393,7 @@ export function PostWriteScreen() {
 const styles = StyleSheet.create({
   safe: { flex: 1, backgroundColor: Colors.white },
   flex: { flex: 1 },
-  content: { padding: 20, paddingBottom: 16 },
+  content: { padding: 20, paddingBottom: 8 },
   sectionLabel: {
     fontSize: 18,
     fontWeight: '600',
@@ -494,10 +494,9 @@ const styles = StyleSheet.create({
   existingBadgeText: { fontSize: 10, color: '#fff', fontWeight: '700' },
   bottomActions: {
     paddingHorizontal: 20,
-    paddingVertical: 16,
+    paddingTop: 0,
+    paddingBottom: 16,
     backgroundColor: Colors.white,
-    borderTopWidth: 1,
-    borderTopColor: Colors.border,
   },
   bottomMainBtn: {
     backgroundColor: Colors.primary,
