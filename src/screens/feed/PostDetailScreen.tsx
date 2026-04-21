@@ -628,7 +628,7 @@ const styles = StyleSheet.create({
   // ── 기반 레이아웃 ──
   safe: { flex: 1, backgroundColor: '#FFFFFF' },
   flex: { flex: 1, backgroundColor: '#FFFFFF' },
-  scrollContent: { paddingBottom: 40 },
+  scrollContent: { paddingBottom: 24 },
 
   // ── 본문 카드 ──
   postCard: {

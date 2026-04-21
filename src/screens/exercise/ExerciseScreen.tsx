@@ -299,7 +299,7 @@ const styles = StyleSheet.create({
   outlineBtnInner: { flexDirection: 'row', alignItems: 'center', gap: 10 },
   outlineBtnText: { fontSize: 18, fontWeight: '700', color: Colors.primary },
 
-  records: { paddingHorizontal: 16, paddingBottom: 32 },
+  records: { paddingHorizontal: 16, paddingBottom: 40 },
   sectionHeader: { flexDirection: 'row', alignItems: 'center', marginBottom: 20, gap: 8 },
   dividerLine: { flex: 1, height: 1, backgroundColor: Colors.border },
   sectionTitle: { fontSize: 17, fontWeight: '600', color: Colors.textSub, marginHorizontal: 12 },

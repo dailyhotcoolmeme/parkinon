@@ -299,7 +299,7 @@ const styles = StyleSheet.create({
   scroll: { flex: 1 },
   scrollContent: {
     padding: 16,
-    paddingBottom: 60,
+    paddingBottom: 40,
   },
 
   /* 프로필 컴팩트 카드 */

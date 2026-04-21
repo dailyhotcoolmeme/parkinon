@@ -460,7 +460,7 @@ const styles = StyleSheet.create({
     textAlign: 'center',
   },
 
-  records: { paddingHorizontal: 16, paddingBottom: 32 },
+  records: { paddingHorizontal: 16, paddingBottom: 40 },
   sectionHeader: { flexDirection: 'row', alignItems: 'center', marginBottom: 14, gap: 8 },
   divider: { flex: 1, height: 1, backgroundColor: Colors.border },
   sectionTitle: { fontSize: 17, fontWeight: '600', color: Colors.textSub, paddingHorizontal: 4 },

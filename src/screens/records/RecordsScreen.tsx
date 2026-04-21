@@ -345,7 +345,7 @@ const styles = StyleSheet.create({
   tabBtnTextActive: { color: Colors.white },
 
   scroll: { flex: 1 },
-  scrollContent: { padding: 16, paddingBottom: 48 },
+  scrollContent: { padding: 16, paddingBottom: 40 },
 
   // ── 요약 배너 ──
   banner: {
