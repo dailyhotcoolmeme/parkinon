@@ -237,17 +237,18 @@ export async function requestPermissionsAndSaveToken(
   userId: string,
   accessToken?: string,
 ): Promise<string | null> {
-  // 1. 현재 권한 상태 확인
+  // 1. 현재 권한 상태 확인 — undetermined이거나 아직 granted가 아니면 명시적 요청
   const { status: existingStatus } = await Notifications.getPermissionsAsync();
   let finalStatus = existingStatus;
 
-  if (existingStatus === 'undetermined') {
-    // 아직 요청 안 했으면 시스템 권한 다이얼로그 표시
+  if (existingStatus !== 'granted') {
+    // 거부됐다가 설정에서 다시 허용한 경우도 포함해 항상 재요청 시도
     const { status: requestedStatus } = await Notifications.requestPermissionsAsync();
     finalStatus = requestedStatus;
   }
 
   if (finalStatus !== 'granted') {
+    console.warn('[notifications] 알림 권한 없음 — push token 저장 스킵');
     return null;
   }
 
@@ -308,7 +309,22 @@ export async function requestPermissionsAndSaveToken(
       });
       if (!res.ok) {
         const txt = await res.text();
-        console.error('[notifications] push_token 저장 실패:', res.status, txt);
+        console.error('[notifications] push_token PATCH 실패:', res.status, txt);
+        // Fallback: RLS 우회 Edge Function 경유 저장
+        try {
+          const efRes = await supabase.functions.invoke('save-push-token', {
+            body: { push_token: token },
+          });
+          if (efRes.error) {
+            console.error('[notifications] Edge Function fallback도 실패:', efRes.error);
+          } else {
+            console.log('[notifications] Edge Function fallback으로 push_token 저장 성공');
+          }
+        } catch (fe) {
+          console.error('[notifications] Edge Function fallback 예외:', fe);
+        }
+      } else {
+        console.log('[notifications] push_token PATCH 성공');
       }
     } else {
       console.warn('[notifications] accessToken 없음 — push_token DB 저장 스킵');

@@ -8,8 +8,24 @@ import { RootNavigator } from './src/navigation/RootNavigator';
 import * as Notifications from 'expo-notifications';
 import { navigateTo } from './src/navigation/navigationRef';
 import * as Updates from 'expo-updates';
+import { supabase } from './src/lib/supabase';
+import { requestPermissionsAndSaveToken } from './src/utils/notifications';
 export default function App() {
   const appState = useRef<AppStateStatus>(AppState.currentState);
+
+  // 앱 시작 시마다 push_token DB 갱신 (세션이 있는 경우 무조건 시도)
+  useEffect(() => {
+    (async () => {
+      try {
+        const { data: { session } } = await supabase.auth.getSession();
+        if (session?.user) {
+          await requestPermissionsAndSaveToken(session.user.id, session.access_token);
+        }
+      } catch (e) {
+        console.error('[App] push token 초기화 실패:', e);
+      }
+    })();
+  }, []);
 
   // 앱 시작 시 OTA 업데이트 체크
   useEffect(() => {
