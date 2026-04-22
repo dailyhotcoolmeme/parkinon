@@ -11,7 +11,7 @@ import { useState, useEffect, useCallback } from 'react';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { supabase } from '../lib/supabase';
 import { useAuth } from '../context/AuthContext';
-import { sendCaregiverPush } from '../utils/notifications';
+import { sendCaregiverPush, scheduleEffectTrackingNotifications } from '../utils/notifications';
 import { getKSTToday, getKSTDayRange } from '../utils/medUtils';
 import { useSettings } from '../context/SettingsContext';
 import type { Database } from '../types/database';
@@ -206,7 +206,7 @@ export function useMedication(): UseMedicationReturn {
 
       // DB INSERT 성공 후 알림 처리 (실패해도 전체 함수에 영향 없음)
       try {
-        // 약효 추적 알림 — 서버 큐에 등록 (앱 종료 후에도 발송)
+        // 약효 추적 알림 — push_token 있으면 서버 큐, 없으면 로컬 알림
         if (user?.push_token) {
           await supabase.functions.invoke('queue-effect-tracking', {
             body: {
@@ -215,6 +215,8 @@ export function useMedication(): UseMedicationReturn {
               notif_settings: medNotifs.map((n) => ({ minutes: n.minutes, enabled: n.enabled })),
             },
           });
+        } else {
+          await scheduleEffectTrackingNotifications(medNotifs);
         }
 
         // 보호자에게 푸시 알림 (같은 그룹의 보호자 push_token 조회 후 전송)

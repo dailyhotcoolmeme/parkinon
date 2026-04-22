@@ -338,9 +338,31 @@ export async function requestPermissionsAndSaveToken(
   }
 }
 
-/** 약 복용 예정 알림 — 서버 푸시(pg_cron)로 전환됨. 하위 호환용 빈 함수. */
+/** 약 복용 예정 알림 — 매일 반복 로컬 알림으로 스케줄 */
 export async function scheduleMedicationReminders(): Promise<void> {
-  // 서버 cron이 전송하므로 로컬 스케줄 불필요
+  // 기존 약 복용 알림 전체 취소
+  const scheduled = await Notifications.getAllScheduledNotificationsAsync();
+  for (const n of scheduled) {
+    if (n.identifier.startsWith('med-reminder-')) {
+      await Notifications.cancelScheduledNotificationAsync(n.identifier);
+    }
+  }
+  // 식사 시간대별 매일 반복 알림 등록
+  for (const [mealTime, config] of Object.entries(MEAL_TIMES)) {
+    await Notifications.scheduleNotificationAsync({
+      identifier: `med-reminder-${mealTime}`,
+      content: {
+        title: '💊 약 드실 시간이에요',
+        body: `${config.label} 약을 드실 시간이에요.`,
+        data: { type: 'medication_reminder', mealTime },
+      },
+      trigger: {
+        type: Notifications.SchedulableTriggerInputTypes.DAILY,
+        hour: config.hour,
+        minute: config.minute,
+      },
+    });
+  }
 }
 
 /** 특정 시간대 복용 예정 알림 취소 (복용 완료 시 호출) */
@@ -350,9 +372,22 @@ export async function cancelMedicationReminder(mealTime: string): Promise<void> 
   } catch {}
 }
 
-/** 약효 추적 알림 — 서버 큐(queue-effect-tracking)로 전환됨. 하위 호환용 빈 함수. */
-export async function scheduleEffectTrackingNotifications(_medNotifs: MedNotif[]): Promise<void> {
-  // useMedication에서 queue-effect-tracking Edge Function으로 직접 큐잉
+/** 약효 추적 알림 — 복용 직후 로컬로 스케줄 (push_token 없을 때 fallback) */
+export async function scheduleEffectTrackingNotifications(medNotifs: MedNotif[]): Promise<void> {
+  for (const n of medNotifs) {
+    if (!n.enabled || n.minutes === 0) continue;
+    await Notifications.scheduleNotificationAsync({
+      content: {
+        title: '😊 몸 상태는 어때요?',
+        body: `약 복용 ${minutesToLabel(n.minutes)} 몸 상태를 기록해보세요.`,
+        data: { type: 'effect_tracking', minutes: n.minutes },
+      },
+      trigger: {
+        type: Notifications.SchedulableTriggerInputTypes.TIME_INTERVAL,
+        seconds: n.minutes * 60,
+      },
+    });
+  }
 }
 
 /** 운동 알림 스케줄 (매일 반복) */
