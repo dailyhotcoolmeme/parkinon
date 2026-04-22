@@ -237,12 +237,12 @@ export async function requestPermissionsAndSaveToken(
   userId: string,
   accessToken?: string,
 ): Promise<string | null> {
-  // 1. 현재 권한 상태 확인 — undetermined이거나 아직 granted가 아니면 명시적 요청
+  // 1. 현재 권한 상태 확인 — undetermined인 경우에만 시스템 다이얼로그 요청
+  //    (NotificationOnboardingModal이 별도로 권한 요청 흐름을 제어하므로 여기서는 중복 요청 안 함)
   const { status: existingStatus } = await Notifications.getPermissionsAsync();
   let finalStatus = existingStatus;
 
-  if (existingStatus !== 'granted') {
-    // 거부됐다가 설정에서 다시 허용한 경우도 포함해 항상 재요청 시도
+  if (existingStatus === 'undetermined') {
     const { status: requestedStatus } = await Notifications.requestPermissionsAsync();
     finalStatus = requestedStatus;
   }
