@@ -14,6 +14,7 @@ import { MedicalRecordListScreen } from '../screens/menu/MedicalRecordListScreen
 import { MedicalRecordWriteScreen } from '../screens/menu/MedicalRecordWriteScreen';
 import { MedicalRecordDetailScreen } from '../screens/menu/MedicalRecordDetailScreen';
 import { AppointmentWriteScreen } from '../screens/menu/AppointmentWriteScreen';
+import { NotificationHistoryScreen } from '../screens/notification/NotificationHistoryScreen';
 
 export type MenuStackParamList = {
   MenuHome: undefined;
@@ -33,6 +34,7 @@ export type MenuStackParamList = {
   MedicalRecordWrite: { recordId?: string } | undefined;
   MedicalRecordDetail: { recordId: string };
   AppointmentWrite: { appointmentId?: string } | undefined;
+  NotificationHistory: { mode?: 'inbox' | 'all' } | undefined;
 };
 
 const Stack = createStackNavigator<MenuStackParamList>();
@@ -54,6 +56,7 @@ export function MenuNavigator() {
       <Stack.Screen name="MedicalRecordWrite" component={MedicalRecordWriteScreen} />
       <Stack.Screen name="MedicalRecordDetail" component={MedicalRecordDetailScreen} />
       <Stack.Screen name="AppointmentWrite" component={AppointmentWriteScreen} />
+      <Stack.Screen name="NotificationHistory" component={NotificationHistoryScreen} />
     </Stack.Navigator>
   );
 }

@@ -25,6 +25,7 @@ import { useAuth } from '../../context/AuthContext';
 import { DatePickerModal } from '../../components/common/DatePickerModal';
 import { navigateTo } from '../../navigation/navigationRef';
 import { supabase } from '../../lib/supabase';
+import { useNotificationBadge } from '../../context/NotificationBadgeContext';
 
 const WINDOW_HEIGHT = Dimensions.get('window').height;
 const TOP_BAR_H = 56;
@@ -76,6 +77,7 @@ export function MedicationScreen() {
   const { todayStatus, takeMedication, getMedLogs, error: medError, refresh } = useMedication();
   const { saveBodyState, todayLogs: bodyLogs } = useBodyState();
   const insets = useSafeAreaInsets();
+  const { unreadCount } = useNotificationBadge();
 
   const [showCaregiverConfirm, setShowCaregiverConfirm] = useState(false);
   const [showMealTimeModal, setShowMealTimeModal] = useState(false);
@@ -211,6 +213,9 @@ export function MedicationScreen() {
       <TopBar
         title="파킨온"
         showParkinon
+        showBell
+        bellBadge={unreadCount}
+        onBellPress={() => navigateTo('NotificationHistory', { mode: 'inbox' })}
       />
 
       {/* 날짜 헤더 */}

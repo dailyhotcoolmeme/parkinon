@@ -13,6 +13,8 @@ import { Colors } from '../../constants/colors';
 import { TopBar } from '../../components/common/TopBar';
 import type { FeedStackParamList } from '../../navigation/FeedNavigator';
 import { supabase } from '../../lib/supabase';
+import { useNotificationBadge } from '../../context/NotificationBadgeContext';
+import { navigateTo } from '../../navigation/navigationRef';
 
 type Nav = NativeStackNavigationProp<FeedStackParamList, 'FeedMain'>;
 type IoniconName = React.ComponentProps<typeof Ionicons>['name'];
@@ -93,6 +95,7 @@ type MainTab = 'all' | 'bookmarks' | 'mine';
 
 export function FeedScreen() {
   const navigation = useNavigation<Nav>();
+  const { unreadCount } = useNotificationBadge();
   const scrollY = useRef(new Animated.Value(0)).current;
   const lastScrollY = useRef(0);
   const [fabExpanded, setFabExpanded] = useState(true);
@@ -448,7 +451,13 @@ export function FeedScreen() {
 
   return (
     <SafeAreaView style={styles.safe} edges={['top']}>
-      <TopBar title="파킨온" showParkinon />
+      <TopBar
+        title="파킨온"
+        showParkinon
+        showBell
+        bellBadge={unreadCount}
+        onBellPress={() => navigateTo('NotificationHistory', { mode: 'inbox' })}
+      />
 
       {/* 메인 탭 */}
       <View style={styles.tabRow}>

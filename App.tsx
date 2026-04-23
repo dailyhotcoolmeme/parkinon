@@ -3,6 +3,7 @@ import { AppState, AppStateStatus } from 'react-native';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 import { AuthProvider } from './src/context/AuthContext';
+import { NotificationBadgeProvider, useNotificationBadge } from './src/context/NotificationBadgeContext';
 import { SettingsProvider } from './src/context/SettingsContext';
 import { RootNavigator } from './src/navigation/RootNavigator';
 import * as Notifications from 'expo-notifications';
@@ -10,8 +11,11 @@ import { navigateTo } from './src/navigation/navigationRef';
 import * as Updates from 'expo-updates';
 import { supabase } from './src/lib/supabase';
 import { requestPermissionsAndSaveToken } from './src/utils/notifications';
-export default function App() {
+
+// 알림 리스너는 NotificationBadgeProvider 내부에서 접근해야 context를 쓸 수 있음
+function AppInner() {
   const appState = useRef<AppStateStatus>(AppState.currentState);
+  const { saveNotification } = useNotificationBadge();
 
   // 앱 시작 시마다 push_token DB 갱신 (세션이 있는 경우 무조건 시도)
   useEffect(() => {
@@ -46,10 +50,33 @@ export default function App() {
   }, []);
 
   useEffect(() => {
+    // 포그라운드 알림 수신 → 저장 (read_at = null: 미읽음)
+    const foregroundSubscription = Notifications.addNotificationReceivedListener((notification) => {
+      const content = notification.request.content;
+      const data = (content.data ?? {}) as Record<string, any>;
+      saveNotification(
+        data?.type ?? '',
+        content.title ?? '',
+        content.body ?? '',
+        data,
+        null,
+      );
+    });
+
     // 알림 탭 핸들러 (앱이 열려있거나 백그라운드에서 탭할 때)
     const notifSubscription = Notifications.addNotificationResponseReceivedListener((response) => {
-      const data = response.notification.request.content.data as Record<string, any>;
+      const content = response.notification.request.content;
+      const data = (content.data ?? {}) as Record<string, any>;
       const type = data?.type;
+
+      // 탭한 알림 저장 (read_at = 현재 시각: 탭하는 순간 읽음 처리)
+      saveNotification(
+        type ?? '',
+        content.title ?? '',
+        content.body ?? '',
+        data,
+        new Date().toISOString(),
+      );
 
       if (type === 'medication_reminder' || type === 'missed_medication') {
         navigateTo('Main', { screen: 'Medication' });
@@ -67,18 +94,27 @@ export default function App() {
     });
 
     return () => {
+      foregroundSubscription.remove();
       notifSubscription.remove();
       appStateSubscription.remove();
     };
-  }, []);
+  }, [saveNotification]);
 
+  return (
+    <SettingsProvider>
+      <RootNavigator />
+    </SettingsProvider>
+  );
+}
+
+export default function App() {
   return (
     <GestureHandlerRootView style={{ flex: 1 }}>
       <SafeAreaProvider>
         <AuthProvider>
-          <SettingsProvider>
-            <RootNavigator />
-          </SettingsProvider>
+          <NotificationBadgeProvider>
+            <AppInner />
+          </NotificationBadgeProvider>
         </AuthProvider>
       </SafeAreaProvider>
     </GestureHandlerRootView>

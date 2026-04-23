@@ -23,6 +23,7 @@ import { navigateTo } from '../../navigation/navigationRef';
 import { useAuth } from '../../context/AuthContext';
 import { CaregiverConfirmModal } from '../../components/common/CaregiverConfirmModal';
 import { supabase } from '../../lib/supabase';
+import { useNotificationBadge } from '../../context/NotificationBadgeContext';
 
 type Nav = NativeStackNavigationProp<ExerciseStackParamList, 'ExerciseMain'>;
 
@@ -67,6 +68,7 @@ export function ExerciseScreen() {
   const [dateLoading, setDateLoading] = useState(false);
   const [showCaregiverConfirm, setShowCaregiverConfirm] = useState(false);
   const [patientName, setPatientName] = useState('환자');
+  const { unreadCount } = useNotificationBadge();
 
   const userRole: 'patient' | 'caregiver_same' | 'caregiver_separate' =
     user?.role !== 'caregiver'
@@ -136,6 +138,9 @@ export function ExerciseScreen() {
       <TopBar
         title="파킨온"
         showParkinon
+        showBell
+        bellBadge={unreadCount}
+        onBellPress={() => navigateTo('NotificationHistory', { mode: 'inbox' })}
       />
 
       {/* 날짜 헤더 */}

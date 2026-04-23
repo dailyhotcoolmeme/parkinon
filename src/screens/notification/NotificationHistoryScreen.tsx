@@ -9,12 +9,13 @@ import {
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
-import { useFocusEffect } from '@react-navigation/native';
+import { useFocusEffect, useRoute, RouteProp } from '@react-navigation/native';
 import { Colors } from '../../constants/colors';
 import { useAuth } from '../../context/AuthContext';
 import { supabase } from '../../lib/supabase';
 import { TopBar } from '../../components/common/TopBar';
 import { navigateTo } from '../../navigation/navigationRef';
+import { useNotificationBadge } from '../../context/NotificationBadgeContext';
 
 // ─────────────────────────────────────────────
 // 타입
@@ -26,6 +27,7 @@ interface NotifLog {
   title: string;
   body: string;
   data: Record<string, any> | null;
+  read_at: string | null;
   created_at: string;
 }
 
@@ -33,6 +35,10 @@ interface Section {
   title: string;
   data: NotifLog[];
 }
+
+type RouteParams = {
+  NotificationHistory: { mode?: 'inbox' | 'all' };
+};
 
 // ─────────────────────────────────────────────
 // 알림 타입 설정
@@ -101,6 +107,11 @@ function formatTime(iso: string): string {
 // ─────────────────────────────────────────────
 export function NotificationHistoryScreen() {
   const { user } = useAuth();
+  const route = useRoute<RouteProp<RouteParams, 'NotificationHistory'>>();
+  const mode = route.params?.mode ?? 'all';
+
+  const { markAllRead, markRead, refreshBadge } = useNotificationBadge();
+
   const [sections, setSections] = useState<Section[]>([]);
   const [loading, setLoading] = useState(true);
   const [days, setDays] = useState(7);
@@ -112,19 +123,26 @@ export function NotificationHistoryScreen() {
 
       const since = new Date(Date.now() - targetDays * 86400000).toISOString();
 
-      const { data, error } = await supabase
+      let query = supabase
         .from('notification_logs')
         .select('*')
         .eq('user_id', user.id)
         .gte('created_at', since)
         .order('created_at', { ascending: false });
 
+      // inbox 모드: 미읽음만
+      if (mode === 'inbox') {
+        query = query.is('read_at', null);
+      }
+
+      const { data, error } = await query;
+
       if (!error && data) {
         setSections(groupByDate(data as NotifLog[]));
       }
       setLoading(false);
     },
-    [user?.id],
+    [user?.id, mode],
   );
 
   useFocusEffect(
@@ -138,62 +156,98 @@ export function NotificationHistoryScreen() {
     fetchLogs(30);
   };
 
+  const handleMarkAllRead = async () => {
+    await markAllRead();
+    setSections([]);
+    refreshBadge();
+  };
+
+  const handleItemPress = async (item: NotifLog) => {
+    const config = NOTIF_CONFIG[item.type] ?? DEFAULT_NOTIF_CONFIG;
+
+    // 읽음 처리 (미읽 항목만)
+    if (!item.read_at) {
+      await markRead(item.id);
+      refreshBadge();
+    }
+
+    // inbox 모드: 탭 후 리스트에서 해당 항목 제거
+    if (mode === 'inbox') {
+      setSections((prev) =>
+        prev
+          .map((section) => ({
+            ...section,
+            data: section.data.filter((d) => d.id !== item.id),
+          }))
+          .filter((section) => section.data.length > 0),
+      );
+    } else {
+      // all 모드: 읽음 상태로 UI 갱신
+      setSections((prev) =>
+        prev.map((section) => ({
+          ...section,
+          data: section.data.map((d) =>
+            d.id === item.id ? { ...d, read_at: new Date().toISOString() } : d,
+          ),
+        })),
+      );
+    }
+
+    // 페이지 이동 (tappable인 경우)
+    if (config.tappable && config.navigateTo) {
+      navigateTo(config.navigateTo);
+    }
+  };
+
   // ── 리스트 아이템 ──────────────────────────
   const renderItem = ({ item }: { item: NotifLog }) => {
     const config = NOTIF_CONFIG[item.type] ?? DEFAULT_NOTIF_CONFIG;
     const isAlert =
       item.type === 'missed_medication' || item.type === 'caregiver_missed_med';
+    const isUnread = !item.read_at;
 
-    const content = (
-      <View
-        style={[
-          styles.itemRow,
-          isAlert && styles.itemRowAlert,
-        ]}
-      >
-        {/* 왼쪽: 원형 아이콘 */}
-        <View style={[styles.iconCircle, { backgroundColor: config.bgColor }]}>
-          <Ionicons
-            name={config.icon as any}
-            size={26}
-            color={config.iconColor}
-          />
-        </View>
-
-        {/* 중앙: 제목 + 본문 */}
-        <View style={styles.itemCenter}>
-          <Text style={styles.itemTitle} numberOfLines={1}>
-            {item.title}
-          </Text>
-          <Text style={styles.itemBody} numberOfLines={2}>
-            {item.body}
-          </Text>
-        </View>
-
-        {/* 오른쪽: 시간 + chevron */}
-        <View style={styles.itemRight}>
-          <Text style={styles.itemTime}>{formatTime(item.created_at)}</Text>
-          {config.tappable && (
-            <Ionicons name="chevron-forward" size={20} color="#AAAAAA" />
-          )}
-        </View>
-      </View>
-    );
-
-    if (config.tappable && config.navigateTo) {
-      return (
-        <TouchableOpacity
-          activeOpacity={0.7}
-          onPress={() => navigateTo(config.navigateTo!)}
-        >
-          {content}
-        </TouchableOpacity>
-      );
-    }
+    // all 모드에서 미읽 항목 배경 강조
+    const unreadBg = mode === 'all' && isUnread ? styles.itemRowUnread : null;
 
     return (
-      <TouchableOpacity activeOpacity={1}>
-        {content}
+      <TouchableOpacity
+        activeOpacity={0.7}
+        onPress={() => handleItemPress(item)}
+      >
+        <View
+          style={[
+            styles.itemRow,
+            isAlert && styles.itemRowAlert,
+            unreadBg,
+          ]}
+        >
+          {/* 왼쪽: 원형 아이콘 */}
+          <View style={[styles.iconCircle, { backgroundColor: config.bgColor }]}>
+            <Ionicons
+              name={config.icon as any}
+              size={26}
+              color={config.iconColor}
+            />
+          </View>
+
+          {/* 중앙: 제목 + 본문 */}
+          <View style={styles.itemCenter}>
+            <Text style={styles.itemTitle} numberOfLines={1}>
+              {item.title}
+            </Text>
+            <Text style={styles.itemBody} numberOfLines={2}>
+              {item.body}
+            </Text>
+          </View>
+
+          {/* 오른쪽: 시간 + chevron */}
+          <View style={styles.itemRight}>
+            <Text style={styles.itemTime}>{formatTime(item.created_at)}</Text>
+            {config.tappable && (
+              <Ionicons name="chevron-forward" size={20} color="#AAAAAA" />
+            )}
+          </View>
+        </View>
       </TouchableOpacity>
     );
   };
@@ -221,19 +275,34 @@ export function NotificationHistoryScreen() {
     return (
       <View style={styles.emptyContainer}>
         <Ionicons name="notifications-off-outline" size={64} color="#CCCCCC" />
-        <Text style={styles.emptyTitle}>아직 받은 알림이 없어요</Text>
+        <Text style={styles.emptyTitle}>
+          {mode === 'inbox' ? '모든 알림을 읽었어요' : '아직 받은 알림이 없어요'}
+        </Text>
         <Text style={styles.emptyBody}>
-          최근 {days}일간 받은 알림이 여기에 표시돼요.
+          {mode === 'inbox'
+            ? '새 알림이 오면 여기에 표시돼요.'
+            : `최근 ${days}일간 받은 알림이 여기에 표시돼요.`}
         </Text>
       </View>
     );
   };
 
+  // ── TopBar 우측 컴포넌트 ──────────────────
+  const rightComponent =
+    mode === 'inbox' && sections.length > 0 ? (
+      <TouchableOpacity
+        onPress={handleMarkAllRead}
+        hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+      >
+        <Text style={styles.markAllBtn}>전체 읽음</Text>
+      </TouchableOpacity>
+    ) : undefined;
+
   // ── 로딩 ─────────────────────────────────
   if (loading) {
     return (
       <SafeAreaView style={styles.flex} edges={['top']}>
-        <TopBar title="알림 내역" showBack />
+        <TopBar title="알림 내역" showBack rightComponent={rightComponent} />
         <View style={styles.loadingContainer}>
           <ActivityIndicator size="large" color={Colors.primary} />
         </View>
@@ -243,7 +312,7 @@ export function NotificationHistoryScreen() {
 
   return (
     <SafeAreaView style={styles.flex} edges={['top']}>
-      <TopBar title="알림 내역" showBack />
+      <TopBar title="알림 내역" showBack rightComponent={rightComponent} />
       <SectionList
         sections={sections}
         keyExtractor={(item) => item.id}
@@ -296,6 +365,9 @@ const styles = StyleSheet.create({
   },
   itemRowAlert: {
     backgroundColor: '#FFEBEE',
+  },
+  itemRowUnread: {
+    backgroundColor: '#EFF6FF',
   },
   iconCircle: {
     width: 48,
@@ -354,6 +426,13 @@ const styles = StyleSheet.create({
     fontSize: 18,
     color: '#888888',
     fontWeight: '500',
+  },
+
+  // 전체 읽음 버튼
+  markAllBtn: {
+    fontSize: 16,
+    fontWeight: '600',
+    color: Colors.primary,
   },
 
   // 빈 상태

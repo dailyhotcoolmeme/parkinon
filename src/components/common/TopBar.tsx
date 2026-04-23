@@ -13,11 +13,16 @@ interface Props {
   rightIcon?: React.ReactNode;
   rightComponent?: React.ReactNode;
   showBell?: boolean;
+  bellBadge?: number;
   onBellPress?: () => void;
 }
 
-export function TopBar({ title, showBack, showClose, showParkinon, rightIcon, rightComponent, showBell, onBellPress }: Props) {
+export function TopBar({ title, showBack, showClose, showParkinon, rightIcon, rightComponent, showBell, bellBadge, onBellPress }: Props) {
   const navigation = useNavigation();
+
+  const badgeLabel = bellBadge && bellBadge > 0
+    ? bellBadge > 99 ? '99+' : String(bellBadge)
+    : null;
 
   return (
     <View style={styles.container}>
@@ -60,8 +65,17 @@ export function TopBar({ title, showBack, showClose, showParkinon, rightIcon, ri
         {!showParkinon && !!title && <Text style={styles.title}>{title}</Text>}
         <View style={styles.right}>
           {rightComponent ?? rightIcon ?? (showBell ? (
-            <TouchableOpacity onPress={onBellPress} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
+            <TouchableOpacity
+              onPress={onBellPress}
+              hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+              style={styles.bellWrap}
+            >
               <Ionicons name="notifications-outline" size={26} color={Colors.textSub} />
+              {badgeLabel && (
+                <View style={styles.badge}>
+                  <Text style={styles.badgeText}>{badgeLabel}</Text>
+                </View>
+              )}
             </TouchableOpacity>
           ) : null)}
         </View>
@@ -105,5 +119,25 @@ const styles = StyleSheet.create({
     gap: 4,
     padding: 8,
     justifyContent: 'center',
+  },
+  bellWrap: {
+    position: 'relative',
+  },
+  badge: {
+    position: 'absolute',
+    top: -4,
+    right: -6,
+    minWidth: 18,
+    height: 18,
+    borderRadius: 9,
+    backgroundColor: '#E53935',
+    justifyContent: 'center',
+    alignItems: 'center',
+    paddingHorizontal: 3,
+  },
+  badgeText: {
+    fontSize: 11,
+    fontWeight: '700',
+    color: '#FFFFFF',
   },
 });

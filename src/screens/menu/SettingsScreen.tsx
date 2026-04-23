@@ -22,6 +22,7 @@ import { Colors } from '../../constants/colors';
 import { TopBar } from '../../components/common/TopBar';
 import { useSettings, MedNotif, ExerciseNotif } from '../../context/SettingsContext';
 import { useAuth } from '../../context/AuthContext';
+import { useNotificationBadge } from '../../context/NotificationBadgeContext';
 import { minutesToLabel } from '../../utils/medUtils';
 import { supabase } from '../../lib/supabase';
 import type { StackNavigationProp } from '@react-navigation/stack';
@@ -74,6 +75,7 @@ export function SettingsScreen() {
   const { user } = useAuth();
   const navigation = useNavigation<StackNavigationProp<MenuStackParamList>>();
   const isCaregiver = user?.role === 'caregiver';
+  const { unreadCount } = useNotificationBadge();
 
   // Settings context (shared with Records screens)
   const {
@@ -659,7 +661,37 @@ export function SettingsScreen() {
   // ─── Render ─────────────────────────────────────────────────────────────────
   return (
     <SafeAreaView edges={['top']} style={styles.safe}>
-      <TopBar title="알림 설정" showBack />
+      <TopBar
+        title="알림 설정"
+        showBack
+        rightComponent={
+          <TouchableOpacity
+            onPress={() => navigation.navigate('NotificationHistory', { mode: 'all' })}
+            hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+            style={{ position: 'relative' }}
+          >
+            <Ionicons name="notifications-outline" size={26} color="#666666" />
+            {unreadCount > 0 && (
+              <View style={{
+                position: 'absolute',
+                top: -4,
+                right: -6,
+                minWidth: 18,
+                height: 18,
+                borderRadius: 9,
+                backgroundColor: '#E53935',
+                justifyContent: 'center',
+                alignItems: 'center',
+                paddingHorizontal: 3,
+              }}>
+                <Text style={{ fontSize: 11, fontWeight: '700', color: '#FFF' }}>
+                  {unreadCount > 99 ? '99+' : String(unreadCount)}
+                </Text>
+              </View>
+            )}
+          </TouchableOpacity>
+        }
+      />
 
       <ScrollView
         style={styles.scroll}

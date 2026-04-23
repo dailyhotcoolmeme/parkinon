@@ -21,6 +21,7 @@ import { useAuth } from '../../context/AuthContext';
 import { useBodyState } from '../../hooks/useBodyState';
 import { navigateTo } from '../../navigation/navigationRef';
 import { supabase } from '../../lib/supabase';
+import { useNotificationBadge } from '../../context/NotificationBadgeContext';
 
 const WINDOW_HEIGHT = Dimensions.get('window').height;
 const TOP_BAR_H = 56;
@@ -103,6 +104,7 @@ export function BodyStateScreen() {
   const navigation = useNavigation<any>();
   const route = useRoute<any>();
   const insets = useSafeAreaInsets();
+  const { unreadCount } = useNotificationBadge();
 
   // minutes → trigger_time_label 변환
   const minutesToLabel = (minutes: number): string => {
@@ -239,6 +241,9 @@ export function BodyStateScreen() {
       <TopBar
         title="파킨온"
         showParkinon
+        showBell
+        bellBadge={unreadCount}
+        onBellPress={() => navigateTo('NotificationHistory', { mode: 'inbox' })}
       />
 
       {/* 날짜 헤더 */}
