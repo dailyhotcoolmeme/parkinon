@@ -338,31 +338,20 @@ export async function requestPermissionsAndSaveToken(
   }
 }
 
-/** 약 복용 예정 알림 — 매일 반복 로컬 알림으로 스케줄 */
+/**
+ * 약 복용 예정 알림 — 서버 크론(send-medication-reminders)이 전담.
+ * 로컬 알림 등록 제거 (서버 크론과 중복 발송 방지).
+ * 기존에 등록된 로컬 약 복용 알림이 있으면 취소만 수행.
+ */
 export async function scheduleMedicationReminders(): Promise<void> {
-  // 기존 약 복용 알림 전체 취소
+  // 기존에 등록된 로컬 약 복용 알림 취소 (하위 호환)
   const scheduled = await Notifications.getAllScheduledNotificationsAsync();
   for (const n of scheduled) {
     if (n.identifier.startsWith('med-reminder-')) {
       await Notifications.cancelScheduledNotificationAsync(n.identifier);
     }
   }
-  // 식사 시간대별 매일 반복 알림 등록
-  for (const [mealTime, config] of Object.entries(MEAL_TIMES)) {
-    await Notifications.scheduleNotificationAsync({
-      identifier: `med-reminder-${mealTime}`,
-      content: {
-        title: '💊 약 드실 시간이에요',
-        body: `${config.label} 약을 드실 시간이에요.`,
-        data: { type: 'medication_reminder', mealTime },
-      },
-      trigger: {
-        type: Notifications.SchedulableTriggerInputTypes.DAILY,
-        hour: config.hour,
-        minute: config.minute,
-      },
-    });
-  }
+  // 새 로컬 알림 등록하지 않음 — 서버 크론이 전담
 }
 
 /** 특정 시간대 복용 예정 알림 취소 (복용 완료 시 호출) */
@@ -437,7 +426,8 @@ export async function rescheduleAllNotifications(
     await Notifications.cancelAllScheduledNotificationsAsync();
     return;
   }
-  await scheduleMedicationReminders();
+  // 약 복용 알림은 서버 크론(send-medication-reminders)이 전담
+  // scheduleMedicationReminders() 호출 제거 — 중복 발송 방지
   await scheduleExerciseReminders(exerciseNotifs);
 }
 
