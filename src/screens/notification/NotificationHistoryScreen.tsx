@@ -206,22 +206,16 @@ export function NotificationHistoryScreen() {
       item.type === 'missed_medication' || item.type === 'caregiver_missed_med';
     const isUnread = !item.read_at;
 
-    // all 모드에서 미읽 항목 배경 강조
-    const unreadBg = mode === 'all' && isUnread ? styles.itemRowUnread : null;
-
     return (
       <TouchableOpacity
         activeOpacity={0.7}
         onPress={() => handleItemPress(item)}
       >
-        <View
-          style={[
-            styles.itemRow,
-            isAlert && styles.itemRowAlert,
-            unreadBg,
-          ]}
-        >
-          {/* 왼쪽: 원형 아이콘 */}
+        <View style={[styles.itemRow, isAlert && styles.itemRowAlert]}>
+          {/* 미읽음 빨간점 — 피드와 동일 패턴 */}
+          <Text style={[styles.unreadDot, !isUnread && { opacity: 0 }]}>•</Text>
+
+          {/* 아이콘 원 */}
           <View style={[styles.iconCircle, { backgroundColor: config.bgColor }]}>
             <Ionicons
               name={config.icon as any}
@@ -232,7 +226,7 @@ export function NotificationHistoryScreen() {
 
           {/* 중앙: 제목 + 본문 */}
           <View style={styles.itemCenter}>
-            <Text style={styles.itemTitle} numberOfLines={1}>
+            <Text style={[styles.itemTitle, !isUnread && styles.itemTitleRead]} numberOfLines={1}>
               {item.title}
             </Text>
             <Text style={styles.itemBody} numberOfLines={2}>
@@ -366,8 +360,12 @@ const styles = StyleSheet.create({
   itemRowAlert: {
     backgroundColor: '#FFEBEE',
   },
-  itemRowUnread: {
-    backgroundColor: '#EFF6FF',
+  unreadDot: {
+    fontSize: 18,
+    color: '#E53935',
+    marginRight: 6,
+    lineHeight: 26,
+    alignSelf: 'center',
   },
   iconCircle: {
     width: 48,
@@ -387,6 +385,10 @@ const styles = StyleSheet.create({
     fontWeight: '700',
     color: Colors.text,
     marginBottom: 4,
+  },
+  itemTitleRead: {
+    color: '#999999',
+    fontWeight: '400',
   },
   itemBody: {
     fontSize: 16,
