@@ -9,12 +9,11 @@ import {
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
-import { useFocusEffect, useRoute, RouteProp } from '@react-navigation/native';
+import { useFocusEffect, useRoute, RouteProp, useNavigation, CommonActions } from '@react-navigation/native';
 import { Colors } from '../../constants/colors';
 import { useAuth } from '../../context/AuthContext';
 import { supabase } from '../../lib/supabase';
 import { TopBar } from '../../components/common/TopBar';
-import { navigateTo } from '../../navigation/navigationRef';
 import { useNotificationBadge } from '../../context/NotificationBadgeContext';
 
 // ─────────────────────────────────────────────
@@ -111,6 +110,7 @@ export function NotificationHistoryScreen() {
   const mode = route.params?.mode ?? 'all';
 
   const { markAllRead, markRead, refreshBadge } = useNotificationBadge();
+  const navigation = useNavigation();
 
   const [sections, setSections] = useState<Section[]>([]);
   const [loading, setLoading] = useState(true);
@@ -158,7 +158,18 @@ export function NotificationHistoryScreen() {
 
   const handleMarkAllRead = async () => {
     await markAllRead();
-    setSections([]);
+    if (mode === 'inbox') {
+      setSections([]);
+    } else {
+      // all 모드: 모든 항목 read_at 표시
+      const now = new Date().toISOString();
+      setSections((prev) =>
+        prev.map((section) => ({
+          ...section,
+          data: section.data.map((d) => ({ ...d, read_at: d.read_at ?? now })),
+        }))
+      );
+    }
     refreshBadge();
   };
 
@@ -195,7 +206,9 @@ export function NotificationHistoryScreen() {
 
     // 페이지 이동 (tappable인 경우) — 탭 화면은 Main 하위이므로 중첩 navigate 필요
     if (config.tappable && config.navigateTo) {
-      navigateTo('Main', { screen: config.navigateTo });
+      navigation.dispatch(
+        CommonActions.navigate('Main', { screen: config.navigateTo })
+      );
     }
   };
 
