@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "376097909953",
+    "project_id": "parkinon-1fb4f",
+    "storage_bucket": "parkinon-1fb4f.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:376097909953:android:466df516eb0412149d7840",
+        "android_client_info": {
+          "package_name": "com.ourmine.parkinon"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyB-fE3EdVqqVlutmESAk8mtm0o31QtXmeE"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}
