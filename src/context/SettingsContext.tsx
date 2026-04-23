@@ -51,7 +51,7 @@ const DEFAULT_MED_NOTIFS: MedNotif[] = [
 ];
 
 const DEFAULT_EXERCISE_NOTIFS: ExerciseNotif[] = [
-  { id: '1', ampm: '오후', hour: 2, minute: 0, enabled: true },
+  { id: '1', ampm: '오후', hour: 2, minute: 0, enabled: false },
 ];
 
 export function SettingsProvider({ children }: { children: React.ReactNode }) {
