@@ -388,6 +388,10 @@ export function useAuthProvider(): UseAuthReturn {
   const signOut = useCallback(async () => {
     setLoading(true);
     await supabase.auth.signOut();
+    // 계정 전환 시 이전 계정의 로컬 알림이 남지 않도록 전체 취소
+    try {
+      await Notifications.cancelAllScheduledNotificationsAsync();
+    } catch {}
     setUser(null);
     setLoading(false);
   }, []);
