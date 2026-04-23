@@ -133,16 +133,13 @@ export function NotificationBadgeProvider({ children }: { children: React.ReactN
     async (id: string) => {
       if (!user?.id) return;
       try {
-        const { data, error } = await supabase
+        const { error } = await supabase
           .from('notification_logs')
           .update({ read_at: new Date().toISOString() })
           .eq('id', id)
           .eq('user_id', user.id)
-          .is('read_at', null)
-          .select('id')
-          .single();
-        if (!error && data) {
-          // 실제로 업데이트된 경우만 뱃지 차감
+          .is('read_at', null);
+        if (!error) {
           setUnreadCount((prev) => Math.max(0, prev - 1));
         }
       } catch (e) {

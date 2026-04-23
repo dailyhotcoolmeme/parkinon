@@ -193,9 +193,9 @@ export function NotificationHistoryScreen() {
       );
     }
 
-    // 페이지 이동 (tappable인 경우)
+    // 페이지 이동 (tappable인 경우) — 탭 화면은 Main 하위이므로 중첩 navigate 필요
     if (config.tappable && config.navigateTo) {
-      navigateTo(config.navigateTo);
+      navigateTo('Main', { screen: config.navigateTo });
     }
   };
 
