@@ -70,21 +70,26 @@ async function processAuthUrl(url: string): Promise<void> {
     console.log('[useAuth] fragment 토큰 발견 → setSession');
     const { error } = await supabase.auth.setSession({ access_token: accessToken, refresh_token: refreshToken });
     if (error) console.error('[useAuth] setSession 오류:', error.message);
-    return;
+  } else {
+    // PKCE 방식 (code 파라미터)
+    const parsed = Linking.parse(url);
+    const code = parsed.queryParams?.code as string | undefined;
+    console.log('[useAuth] PKCE code 있음:', !!code);
+
+    if (code) {
+      const { error } = await supabase.auth.exchangeCodeForSession(url);
+      if (error) console.error('[useAuth] exchangeCodeForSession 오류:', error.message, error.status);
+    } else {
+      console.error('[useAuth] Auth URL에서 토큰/코드 없음. 파라미터:', Object.keys(parsed.queryParams ?? {}));
+    }
   }
 
-  // PKCE 방식 (code 파라미터)
-  const parsed = Linking.parse(url);
-  const code = parsed.queryParams?.code as string | undefined;
-  console.log('[useAuth] PKCE code 있음:', !!code);
-
-  if (code) {
-    const { error } = await supabase.auth.exchangeCodeForSession(url);
-    if (error) console.error('[useAuth] exchangeCodeForSession 오류:', error.message, error.status);
-    return;
+  // Android: 카카오 로그인 후 남아있는 브라우저 창 닫기
+  if (Platform.OS === 'android') {
+    try {
+      await WebBrowser.dismissBrowser();
+    } catch {}
   }
-
-  console.error('[useAuth] Auth URL에서 토큰/코드 없음. 파라미터:', Object.keys(parsed.queryParams ?? {}));
 }
 
 function isAuthUrl(url: string): boolean {

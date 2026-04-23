@@ -155,12 +155,37 @@ export function useBodyState(): UseBodyStateReturn {
             for (const cu of caregiverUsers ?? []) {
               if (!cu.push_token) continue;
               const prefs = (cu.caregiver_notif_prefs ?? {}) as Record<string, boolean>;
-              if (prefs.body_state !== false) {
+
+              if (data.body_state !== undefined && prefs.body_state !== false) {
                 await sendCaregiverPush(
                   cu.push_token,
                   '😊 몸 상태를 기록했어요',
                   '환자분이 몸 상태를 기록했어요.',
                   { type: 'caregiver_body_state' },
+                );
+              }
+              if (data.mood !== undefined && prefs.mood !== false) {
+                await sendCaregiverPush(
+                  cu.push_token,
+                  '😄 기분을 기록했어요',
+                  '환자분이 기분을 기록했어요.',
+                  { type: 'caregiver_mood' },
+                );
+              }
+              if (data.sleep_quality !== undefined && prefs.sleep !== false) {
+                await sendCaregiverPush(
+                  cu.push_token,
+                  '😴 수면을 기록했어요',
+                  '환자분이 수면 상태를 기록했어요.',
+                  { type: 'caregiver_sleep' },
+                );
+              }
+              if (data.constipation !== undefined && prefs.constipation !== false) {
+                await sendCaregiverPush(
+                  cu.push_token,
+                  '🚽 변비를 기록했어요',
+                  '환자분이 변비 상태를 기록했어요.',
+                  { type: 'caregiver_constipation' },
                 );
               }
             }
