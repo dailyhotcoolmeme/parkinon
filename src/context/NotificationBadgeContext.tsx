@@ -73,6 +73,30 @@ export function NotificationBadgeProvider({ children }: { children: React.ReactN
     ) => {
       if (!user?.id) return;
       try {
+        // 60초 내 동일 type+title 중복 체크 — OTA 리로드/포그라운드+탭 이중 저장 방지
+        const since = new Date(Date.now() - 60 * 1000).toISOString();
+        const { data: existing } = await supabase
+          .from('notification_logs')
+          .select('id, read_at')
+          .eq('user_id', user.id)
+          .eq('type', type)
+          .eq('title', title)
+          .gte('created_at', since)
+          .limit(1)
+          .maybeSingle();
+
+        if (existing) {
+          // 이미 저장된 알림 — 미읽 상태인데 탭(readAt 있음)이면 읽음 처리만
+          if (readAt && !existing.read_at) {
+            await supabase
+              .from('notification_logs')
+              .update({ read_at: readAt })
+              .eq('id', existing.id);
+            setUnreadCount((prev) => Math.max(0, prev - 1));
+          }
+          return;
+        }
+
         await supabase.from('notification_logs').insert({
           user_id: user.id,
           type,
@@ -81,7 +105,6 @@ export function NotificationBadgeProvider({ children }: { children: React.ReactN
           data,
           read_at: readAt,
         });
-        // read_at이 null(미읽음)인 경우만 뱃지 증가
         if (!readAt) {
           setUnreadCount((prev) => prev + 1);
         }
