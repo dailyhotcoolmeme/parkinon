@@ -210,10 +210,19 @@ export function FamilyLinkScreen() {
               setConnecting(true);
               const forceResult = await joinByCodeForce(trimmed);
               setConnecting(false);
-              Alert.alert(forceResult.success ? '연결 완료' : '연결 실패', forceResult.message);
               if (forceResult.success) {
                 closeSheet();
-                loadData();
+                Alert.alert('연결 완료', forceResult.message, [
+                  {
+                    text: '확인',
+                    onPress: () => {
+                      isLoadingRef.current = false;
+                      loadData();
+                    },
+                  },
+                ]);
+              } else {
+                Alert.alert('연결 실패', forceResult.message);
               }
             },
           },
@@ -222,10 +231,19 @@ export function FamilyLinkScreen() {
       return;
     }
 
-    Alert.alert(result.success ? '연결 완료' : '연결 실패', result.message);
     if (result.success) {
       closeSheet();
-      loadData();
+      Alert.alert('연결 완료', result.message, [
+        {
+          text: '확인',
+          onPress: () => {
+            isLoadingRef.current = false;
+            loadData();
+          },
+        },
+      ]);
+    } else {
+      Alert.alert('연결 실패', result.message);
     }
   };
 

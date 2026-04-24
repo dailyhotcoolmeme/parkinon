@@ -393,17 +393,29 @@ export function useFamilyLink(): UseFamilyLinkReturn {
 
   // ─────────────────────────────────────────────────────────────────────────
   // getGroupMembers — SELECT이므로 supabase-js 사용 가능하나 fetch API 직접 사용
+  // user 클로저 대신 DB에서 최신 patient_group_id를 직접 조회하여 refreshUser()
+  // 직후 호출해도 정확한 데이터를 반환함 (가족 연동 성공 후 화면 갱신 버그 수정)
   // ─────────────────────────────────────────────────────────────────────────
   const getGroupMembers = useCallback(async (): Promise<GroupMember[]> => {
-    if (!user?.patient_group_id) return [];
+    if (!user?.id) return [];
 
     try {
       const { data: sessionData } = await supabase.auth.getSession();
       const accessToken = sessionData?.session?.access_token ?? SUPABASE_ANON_KEY;
 
+      // DB에서 최신 patient_group_id를 직접 조회 (클로저 캐시 무효화)
+      const { data: freshUser } = await supabase
+        .from('users')
+        .select('patient_group_id')
+        .eq('id', user.id)
+        .single();
+
+      const groupId = freshUser?.patient_group_id ?? user.patient_group_id;
+      if (!groupId) return [];
+
       const url =
         `${SUPABASE_URL}/rest/v1/patient_group_members` +
-        `?group_id=eq.${encodeURIComponent(user.patient_group_id)}` +
+        `?group_id=eq.${encodeURIComponent(groupId)}` +
         `&user_id=neq.${encodeURIComponent(user.id)}` +
         `&select=user_id,role,joined_at,user:users(id,name,role,caregiver_relation,residence_type)`;
 
