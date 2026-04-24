@@ -245,7 +245,7 @@ export function BodyStateScreen() {
         showParkinon
         showBell
         bellBadge={unreadCount}
-        onBellPress={() => navigateTo('NotificationHistory', { mode: 'inbox' })}
+        onBellPress={() => navigateTo('NotificationHistory', { mode: 'all' })}
       />
 
       {/* 날짜 헤더 */}

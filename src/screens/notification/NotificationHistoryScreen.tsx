@@ -9,7 +9,7 @@ import {
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
-import { useFocusEffect, useRoute, RouteProp, useNavigation, CommonActions } from '@react-navigation/native';
+import { useFocusEffect, useNavigation, CommonActions } from '@react-navigation/native';
 import { Colors } from '../../constants/colors';
 import { useAuth } from '../../context/AuthContext';
 import { supabase } from '../../lib/supabase';
@@ -35,9 +35,6 @@ interface Section {
   data: NotifLog[];
 }
 
-type RouteParams = {
-  NotificationHistory: { mode?: 'inbox' | 'all' };
-};
 
 // ─────────────────────────────────────────────
 // 알림 타입 설정
@@ -106,8 +103,6 @@ function formatTime(iso: string): string {
 // ─────────────────────────────────────────────
 export function NotificationHistoryScreen() {
   const { user } = useAuth();
-  const route = useRoute<RouteProp<RouteParams, 'NotificationHistory'>>();
-  const mode = route.params?.mode ?? 'all';
 
   const { markAllRead, markRead, refreshBadge } = useNotificationBadge();
   const navigation = useNavigation();
@@ -130,11 +125,6 @@ export function NotificationHistoryScreen() {
         .gte('created_at', since)
         .order('created_at', { ascending: false });
 
-      // inbox 모드: 미읽음만
-      if (mode === 'inbox') {
-        query = query.is('read_at', null);
-      }
-
       const { data, error } = await query;
 
       if (!error && data) {
@@ -142,7 +132,7 @@ export function NotificationHistoryScreen() {
       }
       setLoading(false);
     },
-    [user?.id, mode],
+    [user?.id],
   );
 
   useFocusEffect(
@@ -158,18 +148,13 @@ export function NotificationHistoryScreen() {
 
   const handleMarkAllRead = async () => {
     await markAllRead();
-    if (mode === 'inbox') {
-      setSections([]);
-    } else {
-      // all 모드: 모든 항목 read_at 표시
-      const now = new Date().toISOString();
-      setSections((prev) =>
-        prev.map((section) => ({
-          ...section,
-          data: section.data.map((d) => ({ ...d, read_at: d.read_at ?? now })),
-        }))
-      );
-    }
+    const now = new Date().toISOString();
+    setSections((prev) =>
+      prev.map((section) => ({
+        ...section,
+        data: section.data.map((d) => ({ ...d, read_at: d.read_at ?? now })),
+      }))
+    );
     refreshBadge();
   };
 
@@ -182,27 +167,15 @@ export function NotificationHistoryScreen() {
       refreshBadge();
     }
 
-    // inbox 모드: 탭 후 리스트에서 해당 항목 제거
-    if (mode === 'inbox') {
-      setSections((prev) =>
-        prev
-          .map((section) => ({
-            ...section,
-            data: section.data.filter((d) => d.id !== item.id),
-          }))
-          .filter((section) => section.data.length > 0),
-      );
-    } else {
-      // all 모드: 읽음 상태로 UI 갱신
-      setSections((prev) =>
-        prev.map((section) => ({
-          ...section,
-          data: section.data.map((d) =>
-            d.id === item.id ? { ...d, read_at: new Date().toISOString() } : d,
-          ),
-        })),
-      );
-    }
+    // 읽음 상태로 UI 갱신
+    setSections((prev) =>
+      prev.map((section) => ({
+        ...section,
+        data: section.data.map((d) =>
+          d.id === item.id ? { ...d, read_at: new Date().toISOString() } : d,
+        ),
+      })),
+    );
 
     // 페이지 이동 (tappable인 경우) — 탭 화면은 Main 하위이므로 중첩 navigate 필요
     if (config.tappable && config.navigateTo) {
@@ -282,45 +255,28 @@ export function NotificationHistoryScreen() {
     return (
       <View style={styles.emptyContainer}>
         <Ionicons name="notifications-off-outline" size={64} color="#CCCCCC" />
-        <Text style={styles.emptyTitle}>
-          {mode === 'inbox' ? '모든 알림을 읽었어요' : '아직 받은 알림이 없어요'}
-        </Text>
-        <Text style={styles.emptyBody}>
-          {mode === 'inbox'
-            ? '새 알림이 오면 여기에 표시돼요.'
-            : `최근 ${days}일간 받은 알림이 여기에 표시돼요.`}
-        </Text>
-        {mode === 'inbox' && (
-          <TouchableOpacity
-            style={styles.moreButton}
-            activeOpacity={0.7}
-            onPress={() =>
-              (navigation as any).replace('NotificationHistory', { mode: 'all' })
-            }
-          >
-            <Text style={styles.moreButtonText}>전체 알림 내역 보기</Text>
-          </TouchableOpacity>
-        )}
+        <Text style={styles.emptyTitle}>아직 받은 알림이 없어요</Text>
+        <Text style={styles.emptyBody}>{`최근 ${days}일간 받은 알림이 여기에 표시돼요.`}</Text>
       </View>
     );
   };
 
-  // ── TopBar 우측 컴포넌트 ──────────────────
-  const rightComponent =
-    mode === 'inbox' && sections.length > 0 ? (
-      <TouchableOpacity
-        onPress={handleMarkAllRead}
-        hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
-      >
-        <Text style={styles.markAllBtn}>전체 읽음</Text>
-      </TouchableOpacity>
-    ) : undefined;
+  // ── TopBar 우측 컴포넌트 (미읽음이 1개 이상일 때만 "전체 읽음" 표시) ──────────────────
+  const hasUnread = sections.some((s) => s.data.some((d) => !d.read_at));
+  const rightComponent = hasUnread ? (
+    <TouchableOpacity
+      onPress={handleMarkAllRead}
+      hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+    >
+      <Text style={styles.markAllBtn}>전체 읽음</Text>
+    </TouchableOpacity>
+  ) : undefined;
 
   // ── 로딩 ─────────────────────────────────
   if (loading) {
     return (
       <SafeAreaView style={styles.flex} edges={['top']}>
-        <TopBar title={mode === 'inbox' ? '새 알림' : '알림 내역'} showBack rightComponent={rightComponent} />
+        <TopBar title="알림 내역" showBack rightComponent={rightComponent} />
         <View style={styles.loadingContainer}>
           <ActivityIndicator size="large" color={Colors.primary} />
         </View>
@@ -330,7 +286,7 @@ export function NotificationHistoryScreen() {
 
   return (
     <SafeAreaView style={styles.flex} edges={['top']}>
-      <TopBar title={mode === 'inbox' ? '새 알림' : '알림 내역'} showBack rightComponent={rightComponent} />
+      <TopBar title="알림 내역" showBack rightComponent={rightComponent} />
       <SectionList
         sections={sections}
         keyExtractor={(item) => item.id}

@@ -456,7 +456,7 @@ export function FeedScreen() {
         showParkinon
         showBell
         bellBadge={unreadCount}
-        onBellPress={() => navigateTo('NotificationHistory', { mode: 'inbox' })}
+        onBellPress={() => navigateTo('NotificationHistory', { mode: 'all' })}
       />
 
       {/* 메인 탭 */}
