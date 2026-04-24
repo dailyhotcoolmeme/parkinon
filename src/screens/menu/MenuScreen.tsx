@@ -182,8 +182,12 @@ export function MenuScreen() {
                 throw new Error('탈퇴 실패');
               }
 
-              // 로컬 세션 정리
-              await signOut();
+              // 탈퇴 완료 안내 후 로컬 세션 정리
+              Alert.alert(
+                '탈퇴 완료',
+                '계정이 삭제되었습니다.\n이용해 주셔서 감사합니다.',
+                [{ text: '확인', onPress: () => supabase.auth.signOut() }]
+              );
             } catch (e: any) {
               Alert.alert('오류', '탈퇴 처리 중 문제가 생겼어요. 다시 시도해주세요.');
             }
