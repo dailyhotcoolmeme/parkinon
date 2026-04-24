@@ -51,6 +51,7 @@ const DEFAULT_CAREGIVER_NOTIFS: CaregiverNotif[] = [
 ];
 
 const STORAGE_KEY_CAREGIVER = 'settings_caregiver_notifs';
+const STORAGE_KEY_BATTERY_OPT = 'parkinon_battery_optimized';
 
 const { width: SCREEN_WIDTH } = Dimensions.get('window');
 
@@ -247,6 +248,12 @@ export function SettingsScreen() {
     }).catch(() => {});
   }, []);
 
+  useEffect(() => {
+    AsyncStorage.getItem(STORAGE_KEY_BATTERY_OPT).then((val) => {
+      if (val === 'true') setBatteryOptimized(true);
+    });
+  }, []);
+
   const toggleCaregiverNotif = (id: string) => {
     setCaregiverNotifs(prev => {
       const next = prev.map(n => n.id === id ? { ...n, enabled: !n.enabled } : n);
@@ -269,6 +276,7 @@ export function SettingsScreen() {
 
   // 배터리 최적화 안내 모달
   const [showBatteryModal, setShowBatteryModal] = useState(false);
+  const [batteryOptimized, setBatteryOptimized] = useState(false);
 
   // 알림 차단 상태 바텀시트
   const [showPermissionSheet, setShowPermissionSheet] = useState(false);
@@ -787,18 +795,22 @@ export function SettingsScreen() {
             </TouchableOpacity>
           )}
           {/* 배터리 최적화 안내 */}
-          <View style={styles.separator} />
-          <TouchableOpacity
-            style={styles.batteryRow}
-            onPress={() => setShowBatteryModal(true)}
-            activeOpacity={0.7}
-          >
-            <View style={styles.batteryRowLeft}>
-              <Ionicons name="battery-charging-outline" size={22} color="#E65100" />
-              <Text style={styles.batteryRowText}>알림 지연 방지 설정</Text>
-            </View>
-            <Ionicons name="chevron-forward" size={20} color="#AAAAAA" />
-          </TouchableOpacity>
+          {!batteryOptimized && (
+            <>
+              <View style={styles.separator} />
+              <TouchableOpacity
+                style={styles.batteryRow}
+                onPress={() => setShowBatteryModal(true)}
+                activeOpacity={0.7}
+              >
+                <View style={styles.batteryRowLeft}>
+                  <Ionicons name="battery-charging-outline" size={22} color="#E65100" />
+                  <Text style={styles.batteryRowText}>알림 지연 방지 설정</Text>
+                </View>
+                <Ionicons name="chevron-forward" size={20} color="#AAAAAA" />
+              </TouchableOpacity>
+            </>
+          )}
         </View>
 
         {/* ── Card 1: 약 복용 시간 알림 (환자만) ── */}
@@ -1307,6 +1319,17 @@ export function SettingsScreen() {
               </Text>
               <TouchableOpacity style={styles.batteryModalBtn} onPress={openBatterySettings} activeOpacity={0.8}>
                 <Text style={styles.batteryModalBtnText}>배터리 최적화 설정 열기</Text>
+              </TouchableOpacity>
+              <TouchableOpacity
+                style={styles.batteryDoneBtn}
+                onPress={async () => {
+                  await AsyncStorage.setItem(STORAGE_KEY_BATTERY_OPT, 'true');
+                  setBatteryOptimized(true);
+                  setShowBatteryModal(false);
+                }}
+                activeOpacity={0.8}
+              >
+                <Text style={styles.batteryDoneBtnText}>해제 완료했어요 ✓</Text>
               </TouchableOpacity>
               <TouchableOpacity style={styles.batteryModalCancelBtn} onPress={() => setShowBatteryModal(false)} activeOpacity={0.7}>
                 <Text style={styles.batteryModalCancelText}>닫기</Text>
@@ -2214,5 +2237,17 @@ const styles = StyleSheet.create({
   batteryModalCancelText: {
     fontSize: 17,
     color: '#888888',
+  },
+  batteryDoneBtn: {
+    backgroundColor: '#2E7D32',
+    borderRadius: 12,
+    paddingVertical: 16,
+    alignItems: 'center',
+    marginBottom: 12,
+  },
+  batteryDoneBtnText: {
+    fontSize: 18,
+    fontWeight: '700',
+    color: '#FFFFFF',
   },
 });
