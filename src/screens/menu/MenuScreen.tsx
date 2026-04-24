@@ -159,21 +159,30 @@ export function MenuScreen() {
           style: 'destructive',
           onPress: async () => {
             try {
-              if (user?.patient_group_id) {
-                // 그룹 멤버에서 제거
-                await supabase
-                  .from('patient_group_members')
-                  .delete()
-                  .eq('user_id', user.id);
-                // 환자인 경우 그룹 자체도 삭제
-                if (user.role === 'patient') {
-                  await supabase
-                    .from('patient_groups')
-                    .delete()
-                    .eq('id', user.patient_group_id);
+              // 세션 토큰 확보
+              const { data: { session } } = await supabase.auth.getSession();
+              if (!session?.access_token) throw new Error('세션 없음');
+
+              // delete-account Edge Function 호출
+              // (supabase-js PostgREST hang 버그 우회 + auth.admin.deleteUser 권한 필요)
+              const res = await fetch(
+                `${process.env.EXPO_PUBLIC_SUPABASE_URL}/functions/v1/delete-account`,
+                {
+                  method: 'POST',
+                  headers: {
+                    'Authorization': `Bearer ${session.access_token}`,
+                    'Content-Type': 'application/json',
+                  },
                 }
+              );
+
+              if (!res.ok) {
+                const body = await res.text();
+                console.error('[handleWithdraw] edge function 오류:', res.status, body);
+                throw new Error('탈퇴 실패');
               }
-              await supabase.from('users').delete().eq('id', user!.id);
+
+              // 로컬 세션 정리
               await signOut();
             } catch (e: any) {
               Alert.alert('오류', '탈퇴 처리 중 문제가 생겼어요. 다시 시도해주세요.');
