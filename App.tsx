@@ -12,6 +12,18 @@ import * as Updates from 'expo-updates';
 import { supabase } from './src/lib/supabase';
 import { requestPermissionsAndSaveToken } from './src/utils/notifications';
 
+// Android 알림 채널 — MAX 중요도 (Doze 모드에서도 즉시 표시)
+Notifications.setNotificationChannelAsync('default', {
+  name: '파킨온 알림',
+  importance: Notifications.AndroidImportance.MAX,
+  vibrationPattern: [0, 250, 250, 250],
+  lightColor: '#4CAF50',
+  lockscreenVisibility: Notifications.AndroidNotificationVisibility.PUBLIC,
+  bypassDnd: false,
+  enableLights: true,
+  enableVibrate: true,
+});
+
 // 알림 리스너는 NotificationBadgeProvider 내부에서 접근해야 context를 쓸 수 있음
 function AppInner() {
   const appState = useRef<AppStateStatus>(AppState.currentState);
