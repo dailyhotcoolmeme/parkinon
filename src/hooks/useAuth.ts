@@ -321,13 +321,12 @@ export function useAuthProvider(): UseAuthReturn {
   }, []);
 
   // ─── 카카오 로그인 ────────────────────────────────────────────────────────
-  // 브라우저만 열고 토큰 처리는 글로벌 딥링크 핸들러에게 위임
+  // openAuthSessionAsync(Custom Tab)으로 열기 → OAuth 완료 후 리다이렉트 URL
+  // 직접 캡처 → processAuthUrl 호출 → dismissBrowser()로 탭 닫힘 보장
   //
-  // Android(특히 Samsung): Chrome Custom Tabs는 커스텀 스킴 리다이렉트 시
-  // intent를 올바르게 발생시키지 않는 경우가 있음.
-  // → Linking.openURL로 일반 브라우저 사용 → 글로벌 핸들러가 딥링크 수신
-  //
-  // iOS: openAuthSessionAsync가 리다이렉트 URL을 직접 캡처해 처리
+  // 이전에 Linking.openURL을 사용했으나, 외부 브라우저는 WebBrowser 컨텍스트와
+  // 무관하므로 dismissBrowser()가 작동하지 않아 브라우저가 닫히지 않는 버그 발생.
+  // → 구글 로그인과 동일하게 openAuthSessionAsync 방식으로 통일.
   const signInWithKakao = useCallback(async () => {
     try {
       console.log('[useAuth] signInWithKakao 시작');
@@ -344,22 +343,18 @@ export function useAuthProvider(): UseAuthReturn {
         return;
       }
 
-      if (Platform.OS === 'android') {
-        // Android: 일반 브라우저로 열기 → 딥링크는 글로벌 핸들러가 처리
-        console.log('[useAuth] Android - Linking.openURL 사용');
-        await Linking.openURL(data.url);
-        return;
-      }
-
-      // iOS: openAuthSessionAsync로 리다이렉트 URL 직접 캡처
-      console.log('[useAuth] iOS - openAuthSessionAsync 사용');
+      // Android / iOS 모두 openAuthSessionAsync(Custom Tab) 사용
+      // → 리다이렉트 URL을 직접 캡처하므로 브라우저가 자동으로 닫힘
+      console.log('[useAuth] openAuthSessionAsync(Custom Tab) 사용');
       const result = await WebBrowser.openAuthSessionAsync(data.url, REDIRECT_TO);
-      console.log('[useAuth] 브라우저 결과:', result.type);
+      console.log('[useAuth] 카카오 Custom Tab 결과:', result.type);
 
       if (result.type === 'success' && result.url) {
-        console.log('[useAuth] 브라우저 success URL 직접 처리');
+        console.log('[useAuth] 카카오 success URL 직접 처리');
         await processAuthUrl(result.url);
       }
+      // result.type === 'cancel': 사용자가 취소 → 아무 처리 안 함
+      // result.type === 'dismiss': 사용자가 닫음 → 아무 처리 안 함
     } catch (err) {
       console.error('[useAuth] signInWithKakao 오류:', err);
     }
