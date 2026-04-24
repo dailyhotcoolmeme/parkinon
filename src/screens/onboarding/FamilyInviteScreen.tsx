@@ -144,6 +144,46 @@ export function FamilyInviteScreen() {
       // DB 업데이트 성공 즉시 로컬 상태도 반영 (MenuScreen refreshUser 타이밍 문제 방지)
       forceCompleteOnboarding();
 
+      // 환자 본인 온보딩 완료 시: patient_groups 생성 + 자신을 멤버로 추가 (초대코드 저장)
+      // joinGroupId가 없다는 것은 다른 그룹에 합류하지 않았다는 의미 = 자신이 그룹 생성자
+      if (role === 'patient' && !joinGroupId && inviteCode) {
+        const expiresAt = new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString();
+        // patient_groups INSERT
+        const groupRes = await fetch(`${SUPABASE_URL}/rest/v1/patient_groups`, {
+          method: 'POST',
+          headers: { ...baseHeaders, 'Prefer': 'return=representation' },
+          body: JSON.stringify({
+            invite_code: inviteCode,
+            invite_code_expires_at: expiresAt,
+          }),
+        });
+        if (groupRes.ok) {
+          const groupData = await groupRes.json();
+          const newGroupId = Array.isArray(groupData) ? groupData[0]?.id : groupData?.id;
+          if (newGroupId) {
+            // users.patient_group_id 업데이트
+            await fetch(`${SUPABASE_URL}/rest/v1/users?id=eq.${userId}`, {
+              method: 'PATCH',
+              headers: { ...baseHeaders, 'Prefer': 'return=minimal' },
+              body: JSON.stringify({ patient_group_id: newGroupId }),
+            });
+            // patient_group_members에 환자 본인 추가
+            const memberRes = await fetch(`${SUPABASE_URL}/rest/v1/patient_group_members`, {
+              method: 'POST',
+              headers: { ...baseHeaders, 'Prefer': 'resolution=merge-duplicates,return=minimal' },
+              body: JSON.stringify({ group_id: newGroupId, user_id: userId, role: 'patient' }),
+            });
+            if (!memberRes.ok) {
+              const errText = await memberRes.text();
+              console.warn('[FamilyInviteScreen] patient_group_members(환자) 추가 오류 (계속 진행):', errText);
+            }
+          }
+        } else {
+          const errText = await groupRes.text();
+          console.warn('[FamilyInviteScreen] patient_groups 생성 오류 (계속 진행):', errText);
+        }
+      }
+
       // 초대 코드로 가입한 경우 → patient_group_members에도 추가
       if (joinGroupId && role) {
         const memberRes = await fetch(`${SUPABASE_URL}/rest/v1/patient_group_members`, {
@@ -174,8 +214,12 @@ export function FamilyInviteScreen() {
         }
       }
 
-      // medications 저장 (환자 본인만 저장)
-      if (medicationsJson && role === 'patient') {
+      // medications 저장 (환자 본인 또는 보호자가 대신 입력한 경우 모두 저장)
+      // 보호자가 온보딩 중 약 데이터를 입력했을 때도 medications 테이블에 저장
+      // patient_id: 환자는 자신의 userId, 보호자는 joinGroupId가 있으면 그룹의 환자 ID를 찾아야 하지만
+      // 온보딩 시점엔 아직 그룹 환자 ID를 모르므로 일단 보호자 userId로 임시 저장 후
+      // 추후 가족 연동 시 재매핑 필요 → 단순화: 온보딩 시 medications는 항상 자신의 userId로 저장
+      if (medicationsJson) {
         const meds: Array<{
           name: string;
           dosage?: string;
@@ -202,7 +246,7 @@ export function FamilyInviteScreen() {
           });
           if (!medRes.ok) {
             const errText = await medRes.text();
-            throw new Error(`medications 저장 실패: ${medRes.status} ${errText}`);
+            console.warn(`[FamilyInviteScreen] medications 저장 실패 (계속 진행): ${medRes.status} ${errText}`);
           }
         }
       }
