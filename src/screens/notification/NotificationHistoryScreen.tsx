@@ -290,6 +290,17 @@ export function NotificationHistoryScreen() {
             ? '새 알림이 오면 여기에 표시돼요.'
             : `최근 ${days}일간 받은 알림이 여기에 표시돼요.`}
         </Text>
+        {mode === 'inbox' && (
+          <TouchableOpacity
+            style={styles.moreButton}
+            activeOpacity={0.7}
+            onPress={() =>
+              (navigation as any).replace('NotificationHistory', { mode: 'all' })
+            }
+          >
+            <Text style={styles.moreButtonText}>전체 알림 내역 보기</Text>
+          </TouchableOpacity>
+        )}
       </View>
     );
   };
@@ -309,7 +320,7 @@ export function NotificationHistoryScreen() {
   if (loading) {
     return (
       <SafeAreaView style={styles.flex} edges={['top']}>
-        <TopBar title="알림 내역" showBack rightComponent={rightComponent} />
+        <TopBar title={mode === 'inbox' ? '새 알림' : '알림 내역'} showBack rightComponent={rightComponent} />
         <View style={styles.loadingContainer}>
           <ActivityIndicator size="large" color={Colors.primary} />
         </View>
@@ -319,7 +330,7 @@ export function NotificationHistoryScreen() {
 
   return (
     <SafeAreaView style={styles.flex} edges={['top']}>
-      <TopBar title="알림 내역" showBack rightComponent={rightComponent} />
+      <TopBar title={mode === 'inbox' ? '새 알림' : '알림 내역'} showBack rightComponent={rightComponent} />
       <SectionList
         sections={sections}
         keyExtractor={(item) => item.id}
