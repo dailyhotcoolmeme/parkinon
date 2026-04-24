@@ -299,11 +299,11 @@ export function FamilyLinkScreen() {
               // residence_type은 보호자가 설정하는 값이다.
               // - 내가 보호자인 경우: 내 residence_type(user.residence_type)을 사용
               // - 내가 환자인 경우: 상대(보호자)의 residence_type을 사용
-              // null/undefined인 경우 '따로 거주' 대신 '미설정'으로 표시
+              // 보호자 값이 없으면 멤버의 값으로 폴백 (신규 계정/데이터 미설정 대비)
               const isCurrentUserCaregiver = user?.role === 'caregiver';
               const residenceType = isCurrentUserCaregiver
-                ? user?.residence_type
-                : member.user?.residence_type;
+                ? (user?.residence_type ?? member.user?.residence_type)
+                : (member.user?.residence_type ?? user?.residence_type);
               const residence = residenceType === 'together'
                 ? '함께 거주'
                 : residenceType === 'separate'

@@ -207,15 +207,27 @@ export function SettingsProvider({ children }: { children: React.ReactNode }) {
   }, []);
 
   // medNotifs 변경 시 AsyncStorage + DB 저장
+  // ⚠️ supabase-js .update()는 New Architecture에서 hang됨 → fetch API 직접 사용
   const setMedNotifs: React.Dispatch<React.SetStateAction<MedNotif[]>> = useCallback(
     (value) => {
       setMedNotifsState((prev) => {
         const next = typeof value === 'function' ? value(prev) : value;
         AsyncStorage.setItem(STORAGE_KEY_MED, JSON.stringify(next)).catch(console.warn);
-        // DB 저장
+        // DB 저장 (fetch API 직접 사용 — New Architecture hang 우회)
         supabase.auth.getSession().then(({ data: { session } }) => {
           if (!session?.user) return;
-          supabase.from('users').update({ med_notif_prefs: next as unknown[] }).eq('id', session.user.id).then(null, console.warn);
+          const SUPABASE_URL = process.env.EXPO_PUBLIC_SUPABASE_URL!;
+          const SUPABASE_ANON_KEY = process.env.EXPO_PUBLIC_SUPABASE_ANON_KEY!;
+          fetch(`${SUPABASE_URL}/rest/v1/users?id=eq.${session.user.id}`, {
+            method: 'PATCH',
+            headers: {
+              'apikey': SUPABASE_ANON_KEY,
+              'Authorization': `Bearer ${session.access_token}`,
+              'Content-Type': 'application/json',
+              'Prefer': 'return=minimal',
+            },
+            body: JSON.stringify({ med_notif_prefs: next }),
+          }).catch(console.warn);
         }).catch(console.warn);
         return next;
       });
@@ -224,15 +236,27 @@ export function SettingsProvider({ children }: { children: React.ReactNode }) {
   );
 
   // exerciseNotifs 변경 시 AsyncStorage + DB 저장
+  // ⚠️ supabase-js .update()는 New Architecture에서 hang됨 → fetch API 직접 사용
   const setExerciseNotifs: React.Dispatch<React.SetStateAction<ExerciseNotif[]>> = useCallback(
     (value) => {
       setExerciseNotifsState((prev) => {
         const next = typeof value === 'function' ? value(prev) : value;
         AsyncStorage.setItem(STORAGE_KEY_EXERCISE, JSON.stringify(next)).catch(console.warn);
-        // DB 저장
+        // DB 저장 (fetch API 직접 사용 — New Architecture hang 우회)
         supabase.auth.getSession().then(({ data: { session } }) => {
           if (!session?.user) return;
-          supabase.from('users').update({ exercise_notif_prefs: next as unknown[] }).eq('id', session.user.id).then(null, console.warn);
+          const SUPABASE_URL = process.env.EXPO_PUBLIC_SUPABASE_URL!;
+          const SUPABASE_ANON_KEY = process.env.EXPO_PUBLIC_SUPABASE_ANON_KEY!;
+          fetch(`${SUPABASE_URL}/rest/v1/users?id=eq.${session.user.id}`, {
+            method: 'PATCH',
+            headers: {
+              'apikey': SUPABASE_ANON_KEY,
+              'Authorization': `Bearer ${session.access_token}`,
+              'Content-Type': 'application/json',
+              'Prefer': 'return=minimal',
+            },
+            body: JSON.stringify({ exercise_notif_prefs: next }),
+          }).catch(console.warn);
         }).catch(console.warn);
         return next;
       });

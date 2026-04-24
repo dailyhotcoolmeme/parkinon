@@ -61,6 +61,23 @@ const MED_TIME_OPTIONS = [0, 10, 30, 60, 90, 120, 180, 240];
 const EXERCISE_HOURS = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12];
 const EXERCISE_MINUTES = [0, 10, 20, 30, 40, 50];
 
+const SUPABASE_URL = process.env.EXPO_PUBLIC_SUPABASE_URL!;
+const SUPABASE_ANON_KEY = process.env.EXPO_PUBLIC_SUPABASE_ANON_KEY!;
+
+// supabase-js .update()는 New Architecture에서 hang됨 → fetch API 직접 사용
+async function patchUser(userId: string, accessToken: string, body: Record<string, unknown>) {
+  return fetch(`${SUPABASE_URL}/rest/v1/users?id=eq.${userId}`, {
+    method: 'PATCH',
+    headers: {
+      'apikey': SUPABASE_ANON_KEY,
+      'Authorization': `Bearer ${accessToken}`,
+      'Content-Type': 'application/json',
+      'Prefer': 'return=minimal',
+    },
+    body: JSON.stringify(body),
+  });
+}
+
 // ─── Component ────────────────────────────────────────────────────────────────
 
 const MED_TIME_SLOTS = [
@@ -154,7 +171,9 @@ export function SettingsScreen() {
     const next = { ...medTimePrefs, [slot]: !medTimePrefs[slot] };
     setMedTimePrefs(next);
     try {
-      await supabase.from('users').update({ med_time_notif_prefs: next }).eq('id', user!.id);
+      // fetch API 직접 사용 (supabase-js New Architecture hang 우회)
+      const { data: { session } } = await supabase.auth.getSession();
+      if (session?.access_token) await patchUser(user!.id, session.access_token, { med_time_notif_prefs: next });
     } catch {}
   };
 
@@ -229,7 +248,9 @@ export function SettingsScreen() {
     const next = { ...patientMedTimePrefs, [slot]: !patientMedTimePrefs[slot] };
     setPatientMedTimePrefs(next);
     try {
-      await supabase.from('users').update({ med_time_notif_prefs: next }).eq('id', patientId);
+      // fetch API 직접 사용 (supabase-js New Architecture hang 우회)
+      const { data: { session } } = await supabase.auth.getSession();
+      if (session?.access_token) await patchUser(patientId, session.access_token, { med_time_notif_prefs: next });
     } catch {}
   };
 
@@ -507,7 +528,9 @@ export function SettingsScreen() {
       : [...patientMedNotifs, { id: Date.now().toString(), minutes: patientSelectedMinutes, enabled: true }]
           .sort((a, b) => a.minutes - b.minutes);
     setPatientMedNotifs(next);
-    await supabase.from('users').update({ med_notif_prefs: next }).eq('id', patientId);
+    // fetch API 직접 사용 (supabase-js New Architecture hang 우회)
+    const { data: { session } } = await supabase.auth.getSession();
+    if (session?.access_token) await patchUser(patientId, session.access_token, { med_notif_prefs: next });
     closePatientPicker();
   };
 
@@ -528,7 +551,9 @@ export function SettingsScreen() {
       : [...patientExerciseNotifs, { id: Date.now().toString(), ...patientPickerExTime, enabled: true }]
           .sort((a, b) => toTotal24hMinutes(a) - toTotal24hMinutes(b));
     setPatientExerciseNotifs(next);
-    await supabase.from('users').update({ exercise_notif_prefs: next }).eq('id', patientId);
+    // fetch API 직접 사용 (supabase-js New Architecture hang 우회)
+    const { data: { session } } = await supabase.auth.getSession();
+    if (session?.access_token) await patchUser(patientId, session.access_token, { exercise_notif_prefs: next });
     closePatientPicker();
   };
 
@@ -536,14 +561,18 @@ export function SettingsScreen() {
     if (!patientId) return;
     const next = patientMedNotifs.map(n => n.id === id ? { ...n, enabled: !n.enabled } : n);
     setPatientMedNotifs(next);
-    await supabase.from('users').update({ med_notif_prefs: next }).eq('id', patientId);
+    // fetch API 직접 사용 (supabase-js New Architecture hang 우회)
+    const { data: { session } } = await supabase.auth.getSession();
+    if (session?.access_token) await patchUser(patientId, session.access_token, { med_notif_prefs: next });
   };
 
   const togglePatientExerciseNotif = async (id: string) => {
     if (!patientId) return;
     const next = patientExerciseNotifs.map(n => n.id === id ? { ...n, enabled: !n.enabled } : n);
     setPatientExerciseNotifs(next);
-    await supabase.from('users').update({ exercise_notif_prefs: next }).eq('id', patientId);
+    // fetch API 직접 사용 (supabase-js New Architecture hang 우회)
+    const { data: { session } } = await supabase.auth.getSession();
+    if (session?.access_token) await patchUser(patientId, session.access_token, { exercise_notif_prefs: next });
   };
 
   const deletePatientMedNotif = (id: string) => {
@@ -553,7 +582,9 @@ export function SettingsScreen() {
       { text: '삭제', style: 'destructive', onPress: async () => {
         const next = patientMedNotifs.filter(n => n.id !== id);
         setPatientMedNotifs(next);
-        await supabase.from('users').update({ med_notif_prefs: next }).eq('id', patientId!);
+        // fetch API 직접 사용 (supabase-js New Architecture hang 우회)
+        const { data: { session } } = await supabase.auth.getSession();
+        if (session?.access_token) await patchUser(patientId!, session.access_token, { med_notif_prefs: next });
       }},
     ]);
   };
@@ -565,7 +596,9 @@ export function SettingsScreen() {
       { text: '삭제', style: 'destructive', onPress: async () => {
         const next = patientExerciseNotifs.filter(n => n.id !== id);
         setPatientExerciseNotifs(next);
-        await supabase.from('users').update({ exercise_notif_prefs: next }).eq('id', patientId!);
+        // fetch API 직접 사용 (supabase-js New Architecture hang 우회)
+        const { data: { session } } = await supabase.auth.getSession();
+        if (session?.access_token) await patchUser(patientId!, session.access_token, { exercise_notif_prefs: next });
       }},
     ]);
   };

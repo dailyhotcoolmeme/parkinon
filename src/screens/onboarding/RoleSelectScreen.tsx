@@ -42,6 +42,21 @@ export function RoleSelectScreen() {
     if (!selectedRole) return;
     setLoading(true);
     try {
+      // 새 온보딩 시작 시 이전 세션의 잔류 데이터를 먼저 클리어
+      // (같은 기기에서 다른 계정 온보딩 시 이전 값이 덮어쓰는 버그 방지)
+      await AsyncStorage.multiRemove([
+        'onboarding_name',
+        'onboarding_birth_year',
+        'onboarding_gender',
+        'onboarding_diag_year',
+        'onboarding_medications',
+        'onboarding_notifications',
+        'onboarding_relation',
+        'onboarding_living',
+        'onboarding_invite_code_generated',
+        'onboarding_invite_code',
+        'onboarding_group_id',
+      ]);
       await AsyncStorage.setItem('onboarding_role', selectedRole);
 
       // 세션이 있으면 DB에도 role 중간 저장
