@@ -267,6 +267,9 @@ export function SettingsScreen() {
     });
   };
 
+  // 배터리 최적화 안내 모달
+  const [showBatteryModal, setShowBatteryModal] = useState(false);
+
   // 알림 차단 상태 바텀시트
   const [showPermissionSheet, setShowPermissionSheet] = useState(false);
   const [pendingOn, setPendingOn] = useState(false); // 토글 시각적 ON 유지용
@@ -651,6 +654,17 @@ export function SettingsScreen() {
     closePicker();
   };
 
+  const openBatterySettings = async () => {
+    setShowBatteryModal(false);
+    try {
+      await Linking.openURL(
+        'intent:#Intent;action=android.settings.IGNORE_BATTERY_OPTIMIZATION_SETTINGS;end'
+      );
+    } catch {
+      await Linking.openSettings();
+    }
+  };
+
   // ─── Helpers ────────────────────────────────────────────────────────────────
   const formatExerciseNotif = (n: ExerciseNotif) =>
     `${n.ampm} ${n.hour}:${String(n.minute).padStart(2, '0')}`;
@@ -772,6 +786,19 @@ export function SettingsScreen() {
               <Ionicons name="chevron-forward" size={18} color="#B45309" />
             </TouchableOpacity>
           )}
+          {/* 배터리 최적화 안내 */}
+          <View style={styles.separator} />
+          <TouchableOpacity
+            style={styles.batteryRow}
+            onPress={() => setShowBatteryModal(true)}
+            activeOpacity={0.7}
+          >
+            <View style={styles.batteryRowLeft}>
+              <Ionicons name="battery-charging-outline" size={22} color="#E65100" />
+              <Text style={styles.batteryRowText}>알림 지연 방지 설정</Text>
+            </View>
+            <Ionicons name="chevron-forward" size={20} color="#AAAAAA" />
+          </TouchableOpacity>
         </View>
 
         {/* ── Card 1: 약 복용 시간 알림 (환자만) ── */}
@@ -1256,6 +1283,38 @@ export function SettingsScreen() {
           </View>
         )}
       </ScrollView>
+
+      {/* 배터리 최적화 안내 모달 */}
+      <Modal
+        visible={showBatteryModal}
+        transparent
+        animationType="fade"
+        onRequestClose={() => setShowBatteryModal(false)}
+      >
+        <TouchableOpacity
+          style={styles.batteryModalOverlay}
+          activeOpacity={1}
+          onPress={() => setShowBatteryModal(false)}
+        >
+          <TouchableOpacity activeOpacity={1} onPress={() => {}}>
+            <View style={styles.batteryModalCard}>
+              <Ionicons name="notifications-off-outline" size={48} color="#E65100" style={{ alignSelf: 'center', marginBottom: 12 }} />
+              <Text style={styles.batteryModalTitle}>알림이 늦게 올 수 있어요</Text>
+              <Text style={styles.batteryModalBody}>
+                안드로이드 배터리 최적화 기능으로 인해 알림이 제때 도착하지 않을 수 있어요.{'\n\n'}
+                아래 버튼을 눌러 파킨온을 배터리 최적화에서 제외해 주세요.{'\n\n'}
+                <Text style={{ fontWeight: '700' }}>설정 열기 → 파킨온 → 제한 없음</Text>
+              </Text>
+              <TouchableOpacity style={styles.batteryModalBtn} onPress={openBatterySettings} activeOpacity={0.8}>
+                <Text style={styles.batteryModalBtnText}>배터리 최적화 설정 열기</Text>
+              </TouchableOpacity>
+              <TouchableOpacity style={styles.batteryModalCancelBtn} onPress={() => setShowBatteryModal(false)} activeOpacity={0.7}>
+                <Text style={styles.batteryModalCancelText}>닫기</Text>
+              </TouchableOpacity>
+            </View>
+          </TouchableOpacity>
+        </TouchableOpacity>
+      </Modal>
 
       {/* ── Bottom Sheet Modal ── */}
       <Modal
@@ -2080,5 +2139,80 @@ const styles = StyleSheet.create({
   },
   gridBtnTextInactive: {
     color: Colors.text,
+  },
+
+  // ── Separator ──
+  separator: {
+    height: 1,
+    backgroundColor: Colors.border,
+    marginHorizontal: 20,
+  },
+
+  // ── Battery row ──
+  batteryRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingHorizontal: 20,
+    paddingVertical: 14,
+  },
+  batteryRowLeft: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 10,
+  },
+  batteryRowText: {
+    fontSize: 18,
+    color: '#E65100',
+    fontWeight: '600',
+  },
+
+  // ── Battery modal ──
+  batteryModalOverlay: {
+    flex: 1,
+    backgroundColor: 'rgba(0,0,0,0.5)',
+    justifyContent: 'center',
+    alignItems: 'center',
+    paddingHorizontal: 24,
+  },
+  batteryModalCard: {
+    backgroundColor: '#FFFFFF',
+    borderRadius: 20,
+    padding: 28,
+    width: '100%',
+  },
+  batteryModalTitle: {
+    fontSize: 20,
+    fontWeight: '700',
+    color: '#212121',
+    textAlign: 'center',
+    marginBottom: 16,
+  },
+  batteryModalBody: {
+    fontSize: 17,
+    color: '#555555',
+    lineHeight: 26,
+    marginBottom: 24,
+    textAlign: 'center',
+  },
+  batteryModalBtn: {
+    backgroundColor: '#E65100',
+    borderRadius: 12,
+    paddingVertical: 16,
+    alignItems: 'center',
+    marginBottom: 12,
+  },
+  batteryModalBtnText: {
+    fontSize: 18,
+    fontWeight: '700',
+    color: '#FFFFFF',
+  },
+  batteryModalCancelBtn: {
+    alignItems: 'center',
+    paddingVertical: 12,
+  },
+  batteryModalCancelText: {
+    fontSize: 17,
+    color: '#888888',
   },
 });
