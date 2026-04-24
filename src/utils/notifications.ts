@@ -196,9 +196,63 @@ TaskManager.defineTask(MISSED_MED_CHECK_TASK, async () => {
   }
 });
 
-/** 미복용 체크 — 서버 cron으로 전환됨. 하위 호환용 빈 함수. */
-export async function registerMissedMedCheckTask(): Promise<void> {
-  // 서버 cron이 감지하므로 백그라운드 태스크 불필요
+const MISSED_MED_REMIND_IDS_KEY = 'missedMedRemindNotifIds';
+
+/**
+ * 미복용 체크 재알림 등록 — 약 복용 예정 시간 +10분 후 로컬 알림 스케줄.
+ * 복용 완료 시 cancelMissedMedRemindNotif()로 취소해야 함.
+ *
+ * @param mealTime 식사 시간 키 ('morning' | 'lunch' | 'dinner' | 'bedtime')
+ * @param delaySeconds 알림까지 대기 시간 (기본값: 600 = 10분)
+ */
+export async function registerMissedMedCheckTask(
+  mealTime?: string,
+  delaySeconds: number = 600,
+): Promise<void> {
+  if (!mealTime) return;
+
+  const label = MEAL_TIME_LABELS_BG[mealTime] ?? mealTime;
+  const identifier = `missed-med-remind-${mealTime}`;
+
+  try {
+    // 기존 동일 식사시간 알림 취소 (중복 방지)
+    await Notifications.cancelScheduledNotificationAsync(identifier).catch(() => {});
+
+    await Notifications.scheduleNotificationAsync({
+      identifier,
+      content: {
+        title: '💊 아직 복용 전이에요',
+        body: `${label} 약, 잊지 마세요!`,
+        data: { type: 'medication_reminder', mealTime },
+      },
+      trigger: {
+        type: Notifications.SchedulableTriggerInputTypes.TIME_INTERVAL,
+        seconds: delaySeconds,
+      },
+    });
+
+    // 등록된 미복용 재알림 ID 목록 저장 (취소 시 사용)
+    const savedRaw = await AsyncStorage.getItem(MISSED_MED_REMIND_IDS_KEY).catch(() => null);
+    const savedIds: string[] = savedRaw ? JSON.parse(savedRaw) : [];
+    if (!savedIds.includes(identifier)) savedIds.push(identifier);
+    await AsyncStorage.setItem(MISSED_MED_REMIND_IDS_KEY, JSON.stringify(savedIds));
+  } catch (e) {
+    console.error('[notifications] 미복용 재알림 등록 실패:', e);
+  }
+}
+
+/** 특정 식사시간 미복용 재알림 취소 (복용 완료 시 호출) */
+export async function cancelMissedMedRemindNotif(mealTime: string): Promise<void> {
+  const identifier = `missed-med-remind-${mealTime}`;
+  try {
+    await Notifications.cancelScheduledNotificationAsync(identifier);
+    const savedRaw = await AsyncStorage.getItem(MISSED_MED_REMIND_IDS_KEY).catch(() => null);
+    if (savedRaw) {
+      const savedIds: string[] = JSON.parse(savedRaw);
+      const filtered = savedIds.filter(id => id !== identifier);
+      await AsyncStorage.setItem(MISSED_MED_REMIND_IDS_KEY, JSON.stringify(filtered));
+    }
+  } catch {}
 }
 
 // 포그라운드 알림 표시 설정
@@ -379,10 +433,24 @@ export async function scheduleEffectTrackingNotifications(medNotifs: MedNotif[])
   }
 }
 
-/** 운동 알림 스케줄 (매일 반복) */
+const EXERCISE_NOTIF_IDS_KEY = 'exerciseNotifIds';
+
+/** 운동 알림 스케줄 (매일 반복) — 운동 알림만 선택적으로 취소하여 약효추적 알림 보존 */
 export async function scheduleExerciseReminders(exerciseNotifs: ExerciseNotif[]): Promise<void> {
-  // 기존 모든 로컬 알림 취소 (운동 알림만 로컬 스케줄됨 — 약 복용 알림은 서버 크론 전담)
-  await Notifications.cancelAllScheduledNotificationsAsync();
+  // 이전에 등록된 운동 알림 ID 목록 조회 후 해당 ID들만 취소
+  try {
+    const savedIds = await AsyncStorage.getItem(EXERCISE_NOTIF_IDS_KEY);
+    if (savedIds) {
+      const ids: string[] = JSON.parse(savedIds);
+      for (const id of ids) {
+        try {
+          await Notifications.cancelScheduledNotificationAsync(id);
+        } catch {}
+      }
+    }
+  } catch {}
+
+  const newIds: string[] = [];
 
   for (const notif of exerciseNotifs) {
     if (!notif.enabled) continue;
@@ -391,8 +459,9 @@ export async function scheduleExerciseReminders(exerciseNotifs: ExerciseNotif[])
     if (notif.ampm === '오후' && hour !== 12) hour += 12;
     if (notif.ampm === '오전' && hour === 12) hour = 0;
 
+    const identifier = `exercise-${notif.id}`;
     await Notifications.scheduleNotificationAsync({
-      identifier: `exercise-${notif.id}`,
+      identifier,
       content: {
         title: '🏃 운동할 시간이에요!',
         body: '오늘 운동 기록을 남겨보세요.',
@@ -404,7 +473,11 @@ export async function scheduleExerciseReminders(exerciseNotifs: ExerciseNotif[])
         minute: notif.minute,
       },
     });
+    newIds.push(identifier);
   }
+
+  // 새로 등록한 운동 알림 ID 목록 저장
+  await AsyncStorage.setItem(EXERCISE_NOTIF_IDS_KEY, JSON.stringify(newIds));
 }
 
 /**

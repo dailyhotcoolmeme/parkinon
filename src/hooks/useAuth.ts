@@ -38,6 +38,7 @@ export interface UserProfile {
   caregiver_relation: string | null;
   residence_type: 'together' | 'separate' | null;
   diagnosis_year: number | null;
+  sensitive_info_consented: boolean | null;
 }
 
 export type AuthUser = UserProfile;

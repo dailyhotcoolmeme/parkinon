@@ -10,7 +10,7 @@ import {
   Modal,
 } from 'react-native';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
-import { useFocusEffect } from '@react-navigation/native';
+import { useFocusEffect, useRoute, RouteProp } from '@react-navigation/native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { Ionicons } from '@expo/vector-icons';
 import { Colors } from '../../constants/colors';
@@ -65,14 +65,21 @@ function getDateLabel(date: Date): string {
   return `${month}월 ${day}일 ${dayNames[date.getDay()]}`;
 }
 
+// KST(UTC+9) 기준 날짜 문자열 반환 — UTC 사용 시 오후 11시 이후 날짜 오류 방지
 function toLocalDateString(date: Date): string {
-  const y = date.getFullYear();
-  const m = String(date.getMonth() + 1).padStart(2, '0');
-  const d = String(date.getDate()).padStart(2, '0');
-  return `${y}-${m}-${d}`;
+  const kstOffset = 9 * 60 * 60 * 1000;
+  const kst = new Date(date.getTime() + kstOffset);
+  return kst.toISOString().slice(0, 10);
 }
 
+type MedicationRouteParams = {
+  autoOpen?: boolean;
+  mealTime?: string | null;
+};
+
 export function MedicationScreen() {
+  const route = useRoute<RouteProp<{ Medication: MedicationRouteParams }, 'Medication'>>();
+  const routeParams = (route.params ?? {}) as MedicationRouteParams;
   const { user } = useAuth();
   const { todayStatus, takeMedication, getMedLogs, error: medError, refresh } = useMedication();
   const { saveBodyState, todayLogs: bodyLogs } = useBodyState();
@@ -98,6 +105,19 @@ export function MedicationScreen() {
       }
     }).catch(() => {});
   }, [user?.onboarding_done]);
+
+  // 알림 탭 진입 시 MealTimeModal 자동 오픈
+  // App.tsx에서 navigation params { autoOpen: true, mealTime: '아침' } 전달
+  useEffect(() => {
+    if (!routeParams.autoOpen) return;
+    // 화면 전환 애니메이션 완료 후 모달 오픈
+    const timer = setTimeout(() => {
+      setShowMealTimeModal(true);
+    }, 400);
+    return () => clearTimeout(timer);
+  // routeParams 객체 참조가 바뀌어도 autoOpen 값 기준으로만 실행
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [routeParams.autoOpen]);
 
   // 날짜별 복용 현황 (날짜 선택 시 사용)
   const [dateLogStatus, setDateLogStatus] = useState<Record<string, any> | null>(null);

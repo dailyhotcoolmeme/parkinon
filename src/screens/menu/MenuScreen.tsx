@@ -71,7 +71,7 @@ const MENU_SECTIONS: MenuSection[] = [
         key: 'FamilyLink',
         icon: 'people-outline',
         label: '가족 연동',
-        desc: '보호자와 건강 기록을 공유해요',
+        desc: '__FAMILY_LINK_DESC__',
       },
       {
         key: 'Settings',
@@ -112,6 +112,14 @@ export function MenuScreen() {
   );
 
   const roleName = user?.role === 'caregiver' ? '보호자' : '환자';
+
+  // 가족 연동 설명 텍스트 — role과 연동 여부에 따라 다르게 표시
+  const familyLinkDesc = React.useMemo(() => {
+    const isLinked = !!user?.patient_group_id;
+    if (isLinked) return '가족 연동 관리';
+    if (user?.role === 'caregiver') return '환자(보호 대상자)와 연동하세요';
+    return '보호자를 초대해보세요';
+  }, [user?.patient_group_id, user?.role]);
 
   const handleMenuPress = (key: string) => {
     if (key === 'Records') {
@@ -250,7 +258,9 @@ export function MenuScreen() {
                     </View>
                     <View style={styles.menuTextWrap}>
                       <Text style={styles.menuLabel}>{item.label}</Text>
-                      <Text style={styles.menuDesc}>{item.desc}</Text>
+                      <Text style={styles.menuDesc}>
+                        {item.desc === '__FAMILY_LINK_DESC__' ? familyLinkDesc : item.desc}
+                      </Text>
                     </View>
                     <Ionicons name="chevron-forward" size={22} color={Colors.textHint} />
                   </TouchableOpacity>

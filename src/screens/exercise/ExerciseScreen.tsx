@@ -111,7 +111,8 @@ export function ExerciseScreen() {
       return;
     }
     setDateLoading(true);
-    const dateStr = date.toISOString().split('T')[0];
+    const kstOffset = 9 * 60 * 60 * 1000;
+    const dateStr = new Date(date.getTime() + kstOffset).toISOString().slice(0, 10);
     const { logs, error: fetchError } = await getExerciseLogs(dateStr);
     if (fetchError) {
       Alert.alert('불러오기 실패', fetchError);

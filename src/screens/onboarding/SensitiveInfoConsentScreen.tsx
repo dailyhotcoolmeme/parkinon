@@ -5,6 +5,7 @@ import {
   StyleSheet,
   TouchableOpacity,
   ScrollView,
+  Alert,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useNavigation } from '@react-navigation/native';
@@ -13,6 +14,7 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import { Ionicons } from '@expo/vector-icons';
 import { Colors } from '../../constants/colors';
 import type { OnboardingStackParamList } from '../../navigation/OnboardingNavigator';
+import { supabase } from '../../lib/supabase';
 
 type Nav = StackNavigationProp<OnboardingStackParamList, 'SensitiveInfoConsent'>;
 
@@ -22,8 +24,41 @@ export function SensitiveInfoConsentScreen() {
 
   const handleAgree = async () => {
     if (!agreed) return;
-    await AsyncStorage.setItem('sensitive_info_consented', 'true');
-    navigation.replace('FamilyCheck');
+    try {
+      const { data: sessionData } = await supabase.auth.getSession();
+      const userId = sessionData?.session?.user?.id;
+      const accessToken = sessionData?.session?.access_token;
+
+      if (userId && accessToken) {
+        // DB에 계정 단위로 저장 (기기 이전 시에도 유지)
+        const res = await fetch(
+          `${process.env.EXPO_PUBLIC_SUPABASE_URL}/rest/v1/users?id=eq.${userId}`,
+          {
+            method: 'PATCH',
+            headers: {
+              'apikey': process.env.EXPO_PUBLIC_SUPABASE_ANON_KEY!,
+              'Authorization': `Bearer ${accessToken}`,
+              'Content-Type': 'application/json',
+              'Prefer': 'return=minimal',
+            },
+            body: JSON.stringify({ sensitive_info_consented: true }),
+          }
+        );
+        if (!res.ok) {
+          const errText = await res.text();
+          console.error('[SensitiveInfoConsent] DB 저장 실패:', res.status, errText);
+          Alert.alert('오류', '동의 처리에 실패했어요. 잠시 후 다시 시도해 주세요.');
+          return;
+        }
+      }
+
+      // AsyncStorage는 캐시로만 사용 (오프라인/빠른 접근용)
+      await AsyncStorage.setItem('sensitive_info_consented', 'true');
+      navigation.replace('FamilyCheck');
+    } catch (e) {
+      console.error('[SensitiveInfoConsent] handleAgree 예외:', e);
+      Alert.alert('오류', '동의 처리 중 문제가 생겼어요. 잠시 후 다시 시도해 주세요.');
+    }
   };
 
   return (

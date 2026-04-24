@@ -359,6 +359,179 @@ export interface Database {
         ];
       };
     };
+      comment_likes: {
+        Row: {
+          id: string;
+          comment_id: string;
+          user_id: string;
+          created_at: string | null;
+        };
+        Insert: Omit<Database['public']['Tables']['comment_likes']['Row'], 'id' | 'created_at'> & { id?: string; created_at?: string | null };
+        Update: Partial<Database['public']['Tables']['comment_likes']['Insert']>;
+        Relationships: [
+          {
+            foreignKeyName: 'comment_likes_comment_id_fkey';
+            columns: ['comment_id'];
+            isOneToOne: false;
+            referencedRelation: 'comments';
+            referencedColumns: ['id'];
+          },
+          {
+            foreignKeyName: 'comment_likes_user_id_fkey';
+            columns: ['user_id'];
+            isOneToOne: false;
+            referencedRelation: 'users';
+            referencedColumns: ['id'];
+          }
+        ];
+      };
+      effect_tracking_queue: {
+        Row: {
+          id: string;
+          patient_id: string;
+          push_token: string;
+          med_log_id: string | null;
+          interval_minutes: number;
+          send_at: string;
+          sent_at: string | null;
+          created_at: string | null;
+        };
+        Insert: Omit<Database['public']['Tables']['effect_tracking_queue']['Row'], 'id' | 'created_at'> & { id?: string; created_at?: string | null };
+        Update: Partial<Database['public']['Tables']['effect_tracking_queue']['Insert']>;
+        Relationships: [
+          {
+            foreignKeyName: 'effect_tracking_queue_patient_id_fkey';
+            columns: ['patient_id'];
+            isOneToOne: false;
+            referencedRelation: 'users';
+            referencedColumns: ['id'];
+          }
+        ];
+      };
+      medical_appointments: {
+        Row: {
+          id: string;
+          patient_id: string;
+          appointment_date: string;
+          hospital_name: string | null;
+          doctor_name: string | null;
+          notify_week_before: boolean;
+          notify_day_before: boolean;
+          notified_week: boolean;
+          notified_day: boolean;
+          notification_ids: string[] | null;
+          created_at: string;
+        };
+        Insert: Omit<Database['public']['Tables']['medical_appointments']['Row'], 'id' | 'created_at'> & { id?: string; created_at?: string };
+        Update: Partial<Database['public']['Tables']['medical_appointments']['Insert']>;
+        Relationships: [
+          {
+            foreignKeyName: 'medical_appointments_patient_id_fkey';
+            columns: ['patient_id'];
+            isOneToOne: false;
+            referencedRelation: 'users';
+            referencedColumns: ['id'];
+          }
+        ];
+      };
+      medical_record_medications: {
+        Row: {
+          id: string;
+          medical_record_id: string;
+          medication_name: string;
+          dosage: string | null;
+          frequency: string | null;
+          change_type: string;
+          created_at: string;
+        };
+        Insert: Omit<Database['public']['Tables']['medical_record_medications']['Row'], 'id' | 'created_at'> & { id?: string; created_at?: string };
+        Update: Partial<Database['public']['Tables']['medical_record_medications']['Insert']>;
+        Relationships: [
+          {
+            foreignKeyName: 'medical_record_medications_medical_record_id_fkey';
+            columns: ['medical_record_id'];
+            isOneToOne: false;
+            referencedRelation: 'medical_records';
+            referencedColumns: ['id'];
+          }
+        ];
+      };
+      medical_records: {
+        Row: {
+          id: string;
+          patient_id: string;
+          visit_date: string;
+          hospital_name: string | null;
+          doctor_name: string | null;
+          consultation_notes: string | null;
+          prescription_image_url: string | null;
+          created_at: string;
+        };
+        Insert: Omit<Database['public']['Tables']['medical_records']['Row'], 'id' | 'created_at'> & { id?: string; created_at?: string };
+        Update: Partial<Database['public']['Tables']['medical_records']['Insert']>;
+        Relationships: [
+          {
+            foreignKeyName: 'medical_records_patient_id_fkey';
+            columns: ['patient_id'];
+            isOneToOne: false;
+            referencedRelation: 'users';
+            referencedColumns: ['id'];
+          }
+        ];
+      };
+      post_bookmarks: {
+        Row: {
+          id: string;
+          user_id: string;
+          post_id: string;
+          created_at: string | null;
+        };
+        Insert: Omit<Database['public']['Tables']['post_bookmarks']['Row'], 'id' | 'created_at'> & { id?: string; created_at?: string | null };
+        Update: Partial<Database['public']['Tables']['post_bookmarks']['Insert']>;
+        Relationships: [
+          {
+            foreignKeyName: 'post_bookmarks_user_id_fkey';
+            columns: ['user_id'];
+            isOneToOne: false;
+            referencedRelation: 'users';
+            referencedColumns: ['id'];
+          },
+          {
+            foreignKeyName: 'post_bookmarks_post_id_fkey';
+            columns: ['post_id'];
+            isOneToOne: false;
+            referencedRelation: 'posts';
+            referencedColumns: ['id'];
+          }
+        ];
+      };
+      post_likes: {
+        Row: {
+          id: string;
+          post_id: string;
+          user_id: string;
+          created_at: string | null;
+        };
+        Insert: Omit<Database['public']['Tables']['post_likes']['Row'], 'id' | 'created_at'> & { id?: string; created_at?: string | null };
+        Update: Partial<Database['public']['Tables']['post_likes']['Insert']>;
+        Relationships: [
+          {
+            foreignKeyName: 'post_likes_post_id_fkey';
+            columns: ['post_id'];
+            isOneToOne: false;
+            referencedRelation: 'posts';
+            referencedColumns: ['id'];
+          },
+          {
+            foreignKeyName: 'post_likes_user_id_fkey';
+            columns: ['user_id'];
+            isOneToOne: false;
+            referencedRelation: 'users';
+            referencedColumns: ['id'];
+          }
+        ];
+      };
+    };
     Views: Record<string, never>;
     Functions: Record<string, never>;
   };

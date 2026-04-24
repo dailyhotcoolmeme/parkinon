@@ -732,60 +732,70 @@ export function MedicationRegisterScreen() {
       const { data: sessionData } = await supabase.auth.getSession();
       const userId = sessionData?.session?.user?.id;
       const accessToken = sessionData?.session?.access_token;
-      if (userId && accessToken) {
-        const baseHeaders = {
-          'apikey': process.env.EXPO_PUBLIC_SUPABASE_ANON_KEY!,
-          'Authorization': `Bearer ${accessToken}`,
-          'Content-Type': 'application/json',
-          'Accept': 'application/json',
-        };
+      if (!userId || !accessToken) {
+        Alert.alert('오류', '세션이 만료되었어요. 다시 로그인해 주세요.');
+        return;
+      }
 
-        // onboarding_done 업데이트
-        await fetch(`${SUPABASE_URL}/rest/v1/users?id=eq.${userId}`, {
-          method: 'PATCH',
-          headers: { ...baseHeaders, 'Prefer': 'return=minimal' },
-          body: JSON.stringify({ onboarding_done: true }),
+      const baseHeaders = {
+        'apikey': process.env.EXPO_PUBLIC_SUPABASE_ANON_KEY!,
+        'Authorization': `Bearer ${accessToken}`,
+        'Content-Type': 'application/json',
+        'Accept': 'application/json',
+      };
+
+      // onboarding_done 업데이트
+      const patchRes = await fetch(`${SUPABASE_URL}/rest/v1/users?id=eq.${userId}`, {
+        method: 'PATCH',
+        headers: { ...baseHeaders, 'Prefer': 'return=minimal' },
+        body: JSON.stringify({ onboarding_done: true }),
+      });
+      if (!patchRes.ok) {
+        const errText = await patchRes.text();
+        console.error('[MedicationRegisterScreen] onboarding_done 업데이트 실패:', patchRes.status, errText);
+        Alert.alert('오류', '온보딩 완료 처리에 실패했어요. 잠시 후 다시 시도해 주세요.');
+        return;
+      }
+
+      // 환자인 경우 patient_groups가 없으면 생성 (나중에 등록하기 경로)
+      // AsyncStorage에서 role과 invite_code 확인
+      const [roleVal, inviteCodeVal, joinGroupIdVal] = await AsyncStorage.multiGet([
+        'onboarding_role',
+        'onboarding_invite_code_generated',
+        'onboarding_group_id',
+      ]).then((pairs) => pairs.map(([, v]) => v));
+
+      if (roleVal === 'patient' && !joinGroupIdVal && inviteCodeVal) {
+        const expiresAt = new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString();
+        const groupRes = await fetch(`${SUPABASE_URL}/rest/v1/patient_groups`, {
+          method: 'POST',
+          headers: { ...baseHeaders, 'Prefer': 'return=representation' },
+          body: JSON.stringify({
+            invite_code: inviteCodeVal,
+            invite_code_expires_at: expiresAt,
+          }),
         });
-
-        // 환자인 경우 patient_groups가 없으면 생성 (나중에 등록하기 경로)
-        // AsyncStorage에서 role과 invite_code 확인
-        const [roleVal, inviteCodeVal, joinGroupIdVal] = await AsyncStorage.multiGet([
-          'onboarding_role',
-          'onboarding_invite_code_generated',
-          'onboarding_group_id',
-        ]).then((pairs) => pairs.map(([, v]) => v));
-
-        if (roleVal === 'patient' && !joinGroupIdVal && inviteCodeVal) {
-          const expiresAt = new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString();
-          const groupRes = await fetch(`${SUPABASE_URL}/rest/v1/patient_groups`, {
-            method: 'POST',
-            headers: { ...baseHeaders, 'Prefer': 'return=representation' },
-            body: JSON.stringify({
-              invite_code: inviteCodeVal,
-              invite_code_expires_at: expiresAt,
-            }),
-          });
-          if (groupRes.ok) {
-            const groupData = await groupRes.json();
-            const newGroupId = Array.isArray(groupData) ? groupData[0]?.id : groupData?.id;
-            if (newGroupId) {
-              await fetch(`${SUPABASE_URL}/rest/v1/users?id=eq.${userId}`, {
-                method: 'PATCH',
-                headers: { ...baseHeaders, 'Prefer': 'return=minimal' },
-                body: JSON.stringify({ patient_group_id: newGroupId }),
-              });
-              await fetch(`${SUPABASE_URL}/rest/v1/patient_group_members`, {
-                method: 'POST',
-                headers: { ...baseHeaders, 'Prefer': 'resolution=merge-duplicates,return=minimal' },
-                body: JSON.stringify({ group_id: newGroupId, user_id: userId, role: 'patient' }),
-              });
-            }
-          } else {
-            const errText = await groupRes.text();
-            console.warn('[MedicationRegisterScreen] patient_groups 생성 오류 (계속 진행):', errText);
+        if (groupRes.ok) {
+          const groupData = await groupRes.json();
+          const newGroupId = Array.isArray(groupData) ? groupData[0]?.id : groupData?.id;
+          if (newGroupId) {
+            await fetch(`${SUPABASE_URL}/rest/v1/users?id=eq.${userId}`, {
+              method: 'PATCH',
+              headers: { ...baseHeaders, 'Prefer': 'return=minimal' },
+              body: JSON.stringify({ patient_group_id: newGroupId }),
+            });
+            await fetch(`${SUPABASE_URL}/rest/v1/patient_group_members`, {
+              method: 'POST',
+              headers: { ...baseHeaders, 'Prefer': 'resolution=merge-duplicates,return=minimal' },
+              body: JSON.stringify({ group_id: newGroupId, user_id: userId, role: 'patient' }),
+            });
           }
+        } else {
+          const errText = await groupRes.text();
+          console.warn('[MedicationRegisterScreen] patient_groups 생성 오류 (계속 진행):', errText);
         }
       }
+
       // DB 업데이트 성공 후에만 로컬 상태 완료 처리
       forceCompleteOnboarding();
     } catch (e) {

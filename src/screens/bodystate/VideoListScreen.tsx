@@ -29,6 +29,7 @@ type FilterType = 'all' | 'this_month' | 'last_3_months';
 interface VideoLog {
   id: string;
   r2_url: string;
+  r2_key?: string | null;
   logged_at: string;
   duration_seconds?: number | null;
 }
@@ -557,7 +558,7 @@ export function VideoListScreen() {
 
       let query = supabase
         .from('media_logs')
-        .select('id, r2_url, logged_at, duration_seconds')
+        .select('id, r2_url, r2_key, logged_at, duration_seconds')
         .eq('patient_id', patientId)
         .eq('media_type', 'video')
         .eq('category', 'body_state')
@@ -617,11 +618,26 @@ export function VideoListScreen() {
           style: 'destructive',
           onPress: async () => {
             try {
-              const { error } = await supabase.from('media_logs').delete().eq('id', item.id);
-              if (error) throw error;
+              if (item.r2_key) {
+                // R2 파일 + DB 행을 Edge Function으로 함께 삭제
+                const { error: efError } = await supabase.functions.invoke('delete-r2-file', {
+                  body: { r2_key: item.r2_key, media_log_id: item.id },
+                });
+                if (efError) {
+                  console.error('[VideoListScreen] R2 삭제 오류:', efError);
+                  // Edge Function 실패 시 DB 행만 삭제 (fallback)
+                  const { error: dbError } = await supabase.from('media_logs').delete().eq('id', item.id);
+                  if (dbError) throw dbError;
+                }
+              } else {
+                // r2_key 없으면 DB 행만 삭제
+                const { error } = await supabase.from('media_logs').delete().eq('id', item.id);
+                if (error) throw error;
+              }
               fetchVideos(filter);
             } catch (e) {
               console.error('[VideoListScreen] 삭제 오류:', e);
+              Alert.alert('삭제 실패', '영상 삭제에 실패했어요. 다시 시도해 주세요.');
             }
           },
         },

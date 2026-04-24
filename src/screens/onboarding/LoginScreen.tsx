@@ -67,14 +67,23 @@ export function LoginScreen() {
         signingTimeoutRef.current = null;
       }
       if (!user.onboarding_done) {
-        // 민감정보 동의 여부 확인: 미동의 시 동의 화면 먼저 표시
-        AsyncStorage.getItem('sensitive_info_consented').then((consented) => {
-          if (consented === 'true') {
-            navigation.replace('FamilyCheck');
-          } else {
-            navigation.replace('SensitiveInfoConsent');
-          }
-        });
+        // 민감정보 동의 여부 확인: DB(계정 단위) 우선, 캐시(AsyncStorage) 보조
+        // DB의 sensitive_info_consented는 UserProfile에 포함됨
+        const dbConsented = (user as any).sensitive_info_consented === true;
+        if (dbConsented) {
+          // DB에서 이미 동의 확인 → AsyncStorage 캐시도 갱신
+          AsyncStorage.setItem('sensitive_info_consented', 'true').catch(() => {});
+          navigation.replace('FamilyCheck');
+        } else {
+          // DB에 없으면 AsyncStorage 캐시 확인 (오프라인 or 기존 사용자 호환)
+          AsyncStorage.getItem('sensitive_info_consented').then((consented) => {
+            if (consented === 'true') {
+              navigation.replace('FamilyCheck');
+            } else {
+              navigation.replace('SensitiveInfoConsent');
+            }
+          });
+        }
       }
     }
   }, [user, loading]);
