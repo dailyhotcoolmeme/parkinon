@@ -61,6 +61,48 @@ function AppInner() {
     checkForUpdates();
   }, []);
 
+  // 앱이 종료된 상태에서 알림 탭 → 앱 실행 시 lastNotificationResponse 처리
+  const lastResponse = Notifications.useLastNotificationResponse();
+  useEffect(() => {
+    if (!lastResponse) return;
+    const content = lastResponse.notification.request.content;
+    const data = (content.data ?? {}) as Record<string, any>;
+    const type = data?.type as string | undefined;
+
+    saveNotification(
+      type ?? '',
+      content.title ?? '',
+      content.body ?? '',
+      data,
+      new Date().toISOString(),
+    );
+
+    // navigation이 준비될 때까지 폴링 후 이동 (앱 콜드 스타트 시 nav 초기화 지연 대응)
+    const tryNavigate = (retryCount = 0) => {
+      const { navigationRef: navRef } = require('./src/navigation/navigationRef');
+      if (!navRef.isReady()) {
+        if (retryCount < 20) {
+          setTimeout(() => tryNavigate(retryCount + 1), 100);
+        }
+        return;
+      }
+      if (type === 'medication_reminder' || type === 'missed_medication') {
+        navigateTo('Main', {
+          screen: 'Medication',
+          params: { autoOpen: true, mealTime: data?.mealTime ?? null },
+        });
+      } else if (type === 'effect_tracking') {
+        navigateTo('Main', { screen: 'BodyStateTab', params: { triggerMinutes: data?.minutes ?? null } });
+      } else if (type === 'exercise_reminder') {
+        navigateTo('Main', { screen: 'Exercise' });
+      } else if (type) {
+        navigateTo('Main');
+      }
+    };
+    tryNavigate();
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [lastResponse]);
+
   useEffect(() => {
     // 포그라운드 알림 수신 → 저장 (read_at = null: 미읽음)
     const foregroundSubscription = Notifications.addNotificationReceivedListener((notification) => {
