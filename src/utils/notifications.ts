@@ -381,13 +381,8 @@ export async function scheduleEffectTrackingNotifications(medNotifs: MedNotif[])
 
 /** 운동 알림 스케줄 (매일 반복) */
 export async function scheduleExerciseReminders(exerciseNotifs: ExerciseNotif[]): Promise<void> {
-  // 기존 운동 알림 모두 취소
-  const scheduled = await Notifications.getAllScheduledNotificationsAsync();
-  for (const n of scheduled) {
-    if (n.identifier.startsWith('exercise-')) {
-      await Notifications.cancelScheduledNotificationAsync(n.identifier);
-    }
-  }
+  // 기존 모든 로컬 알림 취소 (운동 알림만 로컬 스케줄됨 — 약 복용 알림은 서버 크론 전담)
+  await Notifications.cancelAllScheduledNotificationsAsync();
 
   for (const notif of exerciseNotifs) {
     if (!notif.enabled) continue;

@@ -144,6 +144,9 @@ export function SettingsProvider({ children }: { children: React.ReactNode }) {
   useEffect(() => {
     (async () => {
       try {
+        // 앱 시작 시 이전 세션 잔류 알림 완전 초기화
+        await Notifications.cancelAllScheduledNotificationsAsync();
+
         const [medRaw, exRaw] = await Promise.all([
           AsyncStorage.getItem(STORAGE_KEY_MED),
           AsyncStorage.getItem(STORAGE_KEY_EXERCISE),
