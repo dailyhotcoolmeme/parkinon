@@ -91,7 +91,10 @@ function AppInner() {
       );
 
       if (type === 'medication_reminder' || type === 'missed_medication') {
-        navigateTo('Main', { screen: 'Medication' });
+        navigateTo('Main', {
+          screen: 'Medication',
+          params: { autoOpen: true, mealTime: data?.mealTime ?? null },
+        });
       } else if (type === 'effect_tracking') {
         navigateTo('Main', { screen: 'BodyStateTab', params: { triggerMinutes: data?.minutes ?? null } });
       } else if (type === 'exercise_reminder') {

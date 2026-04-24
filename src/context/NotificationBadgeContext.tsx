@@ -88,23 +88,52 @@ export function NotificationBadgeProvider({ children }: { children: React.ReactN
         if (existing) {
           // 이미 저장된 알림 — 미읽 상태인데 탭(readAt 있음)이면 읽음 처리만
           if (readAt && !existing.read_at) {
-            await supabase
-              .from('notification_logs')
-              .update({ read_at: readAt })
-              .eq('id', existing.id);
+            const { data: { session } } = await supabase.auth.getSession();
+            const SUPA_URL = process.env.EXPO_PUBLIC_SUPABASE_URL!;
+            const SUPA_KEY = process.env.EXPO_PUBLIC_SUPABASE_ANON_KEY!;
+            await fetch(
+              `${SUPA_URL}/rest/v1/notification_logs?id=eq.${existing.id}`,
+              {
+                method: 'PATCH',
+                headers: {
+                  'Content-Type': 'application/json',
+                  'apikey': SUPA_KEY,
+                  'Authorization': `Bearer ${session?.access_token ?? ''}`,
+                  'Prefer': 'return=minimal',
+                },
+                body: JSON.stringify({ read_at: readAt }),
+              },
+            );
             setUnreadCount((prev) => Math.max(0, prev - 1));
           }
           return;
         }
 
-        await supabase.from('notification_logs').insert({
-          user_id: user.id,
-          type,
-          title,
-          body,
-          data,
-          read_at: readAt,
-        });
+        {
+          const { data: { session } } = await supabase.auth.getSession();
+          const SUPA_URL = process.env.EXPO_PUBLIC_SUPABASE_URL!;
+          const SUPA_KEY = process.env.EXPO_PUBLIC_SUPABASE_ANON_KEY!;
+          await fetch(
+            `${SUPA_URL}/rest/v1/notification_logs`,
+            {
+              method: 'POST',
+              headers: {
+                'Content-Type': 'application/json',
+                'apikey': SUPA_KEY,
+                'Authorization': `Bearer ${session?.access_token ?? ''}`,
+                'Prefer': 'return=minimal',
+              },
+              body: JSON.stringify({
+                user_id: user.id,
+                type,
+                title,
+                body,
+                data,
+                read_at: readAt,
+              }),
+            },
+          );
+        }
         if (!readAt) {
           setUnreadCount((prev) => prev + 1);
         }
@@ -118,11 +147,22 @@ export function NotificationBadgeProvider({ children }: { children: React.ReactN
   const markAllRead = useCallback(async () => {
     if (!user?.id) return;
     try {
-      await supabase
-        .from('notification_logs')
-        .update({ read_at: new Date().toISOString() })
-        .eq('user_id', user.id)
-        .is('read_at', null);
+      const { data: { session } } = await supabase.auth.getSession();
+      const SUPA_URL = process.env.EXPO_PUBLIC_SUPABASE_URL!;
+      const SUPA_KEY = process.env.EXPO_PUBLIC_SUPABASE_ANON_KEY!;
+      await fetch(
+        `${SUPA_URL}/rest/v1/notification_logs?user_id=eq.${user.id}&read_at=is.null`,
+        {
+          method: 'PATCH',
+          headers: {
+            'Content-Type': 'application/json',
+            'apikey': SUPA_KEY,
+            'Authorization': `Bearer ${session?.access_token ?? ''}`,
+            'Prefer': 'return=minimal',
+          },
+          body: JSON.stringify({ read_at: new Date().toISOString() }),
+        },
+      );
       setUnreadCount(0);
     } catch (e) {
       // 조용히 실패
@@ -133,13 +173,23 @@ export function NotificationBadgeProvider({ children }: { children: React.ReactN
     async (id: string) => {
       if (!user?.id) return;
       try {
-        const { error } = await supabase
-          .from('notification_logs')
-          .update({ read_at: new Date().toISOString() })
-          .eq('id', id)
-          .eq('user_id', user.id)
-          .is('read_at', null);
-        if (!error) {
+        const { data: { session } } = await supabase.auth.getSession();
+        const SUPA_URL = process.env.EXPO_PUBLIC_SUPABASE_URL!;
+        const SUPA_KEY = process.env.EXPO_PUBLIC_SUPABASE_ANON_KEY!;
+        const res = await fetch(
+          `${SUPA_URL}/rest/v1/notification_logs?id=eq.${id}&user_id=eq.${user.id}&read_at=is.null`,
+          {
+            method: 'PATCH',
+            headers: {
+              'Content-Type': 'application/json',
+              'apikey': SUPA_KEY,
+              'Authorization': `Bearer ${session?.access_token ?? ''}`,
+              'Prefer': 'return=minimal',
+            },
+            body: JSON.stringify({ read_at: new Date().toISOString() }),
+          },
+        );
+        if (res.ok) {
           setUnreadCount((prev) => Math.max(0, prev - 1));
         }
       } catch (e) {

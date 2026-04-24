@@ -70,12 +70,14 @@ export function ExerciseScreen() {
   const [patientName, setPatientName] = useState('환자');
   const { unreadCount } = useNotificationBadge();
 
+  // 환자는 항상 활성화. 보호자만 residence_type 체크.
+  // residence_type === null(정보 없음)이면 함께거주로 기본값 처리.
   const userRole: 'patient' | 'caregiver_same' | 'caregiver_separate' =
     user?.role !== 'caregiver'
       ? 'patient'
-      : user.residence_type === 'together'
-      ? 'caregiver_same'
-      : 'caregiver_separate';
+      : user.residence_type === 'separate'
+      ? 'caregiver_separate'
+      : 'caregiver_same'; // 'together' 또는 null → 함께거주 취급
 
   useEffect(() => {
     if (!user) return;
@@ -93,9 +95,13 @@ export function ExerciseScreen() {
       });
   }, [user]);
 
+  // KST(UTC+9) 기준 날짜 비교 — UTC 사용 시 오후 11시 이후 날짜 오류 방지
   const isToday = (date: Date) => {
-    const today = new Date();
-    return date.toISOString().split('T')[0] === today.toISOString().split('T')[0];
+    const kstOffset = 9 * 60 * 60 * 1000;
+    const nowKst = new Date(Date.now() + kstOffset);
+    const todayStr = nowKst.toISOString().slice(0, 10);
+    const dateKst = new Date(date.getTime() + kstOffset);
+    return dateKst.toISOString().slice(0, 10) === todayStr;
   };
 
   // 날짜 선택 시 해당 날짜 기록 조회

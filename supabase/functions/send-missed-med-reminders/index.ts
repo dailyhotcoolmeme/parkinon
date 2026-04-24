@@ -37,7 +37,7 @@ Deno.serve(async (req: Request) => {
 
   const { data: patients } = await supabase
     .from('users')
-    .select('id, push_token, patient_group_id')
+    .select('id, push_token, patient_group_id, med_time_notif_prefs')
     .eq('role', 'patient')
     .eq('notification_enabled', true)
     .not('push_token', 'is', null)
@@ -54,6 +54,12 @@ Deno.serve(async (req: Request) => {
 
   for (const patient of patients) {
     if (!patient.push_token) continue
+
+    // med_time_notif_prefs 확인: 해당 meal_time 알림이 꺼져 있으면 건너뜀
+    // prefs 구조: { morning: boolean, lunch: boolean, dinner: boolean, bedtime: boolean }
+    // null/undefined이면 기본값 true (알림 활성화)
+    const medTimePrefs = (patient.med_time_notif_prefs ?? {}) as Record<string, boolean>
+    if (medTimePrefs[meal_time] === false) continue
 
     const { data: logs } = await supabase
       .from('med_logs')

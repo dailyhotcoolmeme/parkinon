@@ -295,11 +295,12 @@ export function PostDetailScreen() {
   // 좋아요 toggle
   const handleLike = async () => {
     if (!user) return;
+    const prevLiked = liked;
+    const prevCount = likeCount;
     const nextLiked = !liked;
-    // 낙관적 업데이트
+    // 낙관적 업데이트 (UX)
     setLiked(nextLiked);
-    const nextCount = nextLiked ? likeCount + 1 : likeCount - 1;
-    setLikeCount(nextCount);
+    setLikeCount(nextLiked ? likeCount + 1 : likeCount - 1);
 
     try {
       if (nextLiked) {
@@ -315,15 +316,20 @@ export function PostDetailScreen() {
           .eq('user_id', user.id);
         if (error) throw error;
       }
-      // posts 테이블 like_count 동기화
-      await supabase
+      // DB 트리거(sync_post_like_count)가 like_count를 자동 계산하므로
+      // 클라이언트 계산값 대신 DB 실제 값으로 동기화
+      const { data: postData } = await supabase
         .from('posts')
-        .update({ like_count: nextCount })
-        .eq('id', post.id);
+        .select('like_count')
+        .eq('id', post.id)
+        .single();
+      if (postData != null) {
+        setLikeCount(postData.like_count ?? 0);
+      }
     } catch (e: any) {
-      // 롤백
-      setLiked(!nextLiked);
-      setLikeCount(likeCount);
+      // 에러 시 롤백
+      setLiked(prevLiked);
+      setLikeCount(prevCount);
       Alert.alert('오류', '좋아요 처리 중 문제가 생겼어요. 다시 시도해주세요.');
       console.error('[PostDetail] handleLike 오류:', e);
     }

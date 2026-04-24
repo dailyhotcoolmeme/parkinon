@@ -162,12 +162,14 @@ export function MedicationScreen() {
       });
   }, [user]);
 
+  // 환자는 항상 활성화. 보호자만 residence_type 체크.
+  // residence_type === null(정보 없음)이면 함께거주로 기본값 처리.
   const userRole: 'patient' | 'caregiver_same' | 'caregiver_separate' =
     user?.role !== 'caregiver'
       ? 'patient'
-      : user.residence_type === 'together'
-      ? 'caregiver_same'
-      : 'caregiver_separate';
+      : user.residence_type === 'separate'
+      ? 'caregiver_separate'
+      : 'caregiver_same'; // 'together' 또는 null → 함께거주 취급
 
   const handleMealTimeSelect = async (mealTime: MealTime) => {
     setShowMealTimeModal(false);

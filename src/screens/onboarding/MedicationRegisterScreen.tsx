@@ -786,10 +786,12 @@ export function MedicationRegisterScreen() {
           }
         }
       }
+      // DB 업데이트 성공 후에만 로컬 상태 완료 처리
+      forceCompleteOnboarding();
     } catch (e) {
-      console.warn('[MedicationRegisterScreen] onboarding_done 업데이트 실패 (계속 진행):', e);
+      console.error('[MedicationRegisterScreen] onboarding_done 업데이트 예외:', e);
+      Alert.alert('오류', '온보딩 완료 처리 중 문제가 생겼어요. 잠시 후 다시 시도해 주세요.');
     }
-    forceCompleteOnboarding();
   };
   const [medName, setMedName] = useState('');
   const [medDosage, setMedDosage] = useState('');

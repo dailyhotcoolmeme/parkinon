@@ -282,14 +282,31 @@ export function SettingsScreen() {
       // DB에도 동기화
       const prefs: Record<string, boolean> = {};
       next.forEach(n => { prefs[n.id] = n.enabled; });
-      supabase.auth.getSession().then(({ data: { session } }) => {
+      supabase.auth.getSession().then(async ({ data: { session } }) => {
         if (!session?.user) return;
-        supabase.from('users')
-          .update({ caregiver_notif_prefs: prefs })
-          .eq('id', session.user.id)
-          .then(({ error }) => {
-            if (error) console.error('[SettingsScreen] caregiver_notif_prefs 저장 오류:', error.message);
-          });
+        const SUPA_URL = process.env.EXPO_PUBLIC_SUPABASE_URL!;
+        const SUPA_KEY = process.env.EXPO_PUBLIC_SUPABASE_ANON_KEY!;
+        try {
+          const res = await fetch(
+            `${SUPA_URL}/rest/v1/users?id=eq.${session.user.id}`,
+            {
+              method: 'PATCH',
+              headers: {
+                'Content-Type': 'application/json',
+                'apikey': SUPA_KEY,
+                'Authorization': `Bearer ${session.access_token}`,
+                'Prefer': 'return=minimal',
+              },
+              body: JSON.stringify({ caregiver_notif_prefs: prefs }),
+            },
+          );
+          if (!res.ok) {
+            const text = await res.text();
+            console.error('[SettingsScreen] caregiver_notif_prefs 저장 오류:', text);
+          }
+        } catch (e) {
+          console.error('[SettingsScreen] caregiver_notif_prefs fetch 오류:', e);
+        }
       });
       return next;
     });

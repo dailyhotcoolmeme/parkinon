@@ -84,11 +84,11 @@ const PERIOD_ICON: Record<string, string> = {
   '취침': '💤',
 };
 
+// KST(UTC+9) 기준 날짜 문자열 반환 — UTC 사용 시 오후 11시 이후 날짜 오류 방지
 function toLocalDateString(date: Date): string {
-  const y = date.getFullYear();
-  const m = String(date.getMonth() + 1).padStart(2, '0');
-  const d = String(date.getDate()).padStart(2, '0');
-  return `${y}-${m}-${d}`;
+  const kstOffset = 9 * 60 * 60 * 1000;
+  const kst = new Date(date.getTime() + kstOffset);
+  return kst.toISOString().slice(0, 10);
 }
 
 export function BodyStateScreen() {
@@ -177,8 +177,10 @@ export function BodyStateScreen() {
     }, [loadVideoLogs, loadDateLogs, isToday, refresh])
   );
 
+  // 환자는 항상 활성화. 보호자만 residence_type 체크.
+  // residence_type === null(정보 없음)이면 함께거주로 기본값 처리.
   const userRole = user?.role === 'caregiver'
-    ? (user.residence_type === 'together' ? 'caregiver_same' : 'caregiver_separate')
+    ? (user.residence_type === 'separate' ? 'caregiver_separate' : 'caregiver_same') // 'together' 또는 null → 함께거주 취급
     : 'patient';
 
   const [patientName, setPatientName] = useState('환자');
