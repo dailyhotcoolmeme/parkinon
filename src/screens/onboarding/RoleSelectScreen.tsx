@@ -44,6 +44,10 @@ export function RoleSelectScreen() {
     try {
       // 새 온보딩 시작 시 이전 세션의 잔류 데이터를 먼저 클리어
       // (같은 기기에서 다른 계정 온보딩 시 이전 값이 덮어쓰는 버그 방지)
+      // NOTE: 'onboarding_invite_code'와 'onboarding_group_id'는 여기서 제거하지 않음.
+      // FamilyCheckScreen에서 코드 입력 후 RoleSelect로 넘어오므로
+      // 이 값들이 삭제되면 FamilyInviteScreen.handleFinish()에서 가족 연결이 안 됨.
+      // (정리는 FamilyInviteScreen.handleFinish() 마지막 multiRemove에서 수행)
       await AsyncStorage.multiRemove([
         'onboarding_name',
         'onboarding_birth_year',
@@ -54,8 +58,6 @@ export function RoleSelectScreen() {
         'onboarding_relation',
         'onboarding_living',
         'onboarding_invite_code_generated',
-        'onboarding_invite_code',
-        'onboarding_group_id',
       ]);
       await AsyncStorage.setItem('onboarding_role', selectedRole);
 
