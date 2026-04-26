@@ -336,61 +336,64 @@ export async function requestPermissionsAndSaveToken(
 
   // 3. Expo Push Token 획득
   try {
+    console.log('[notifications] Expo Push Token 획득 시작...');
     const projectId =
       Constants.expoConfig?.extra?.eas?.projectId ??
       Constants.easConfig?.projectId;
+
+    console.log('[notifications] projectId:', projectId);
 
     const tokenData = projectId
       ? await Notifications.getExpoPushTokenAsync({ projectId })
       : await Notifications.getExpoPushTokenAsync();
 
     const token = tokenData.data;
+    console.log('[notifications] Expo Push Token 획득 성공:', token.substring(0, 30) + '...');
 
     // 4. users 테이블에 push_token 저장
     //    supabase-js PostgREST 대신 직접 fetch 사용 (새 아키텍처 hang 버그 우회)
     let token_ = accessToken;
     if (!token_) {
+      console.log('[notifications] accessToken 미전달 → getSession()으로 폴백');
       const { data: { session } } = await supabase.auth.getSession();
       token_ = session?.access_token;
     }
-    if (token_) {
-      const res = await fetch(`${SUPABASE_URL}/rest/v1/users?id=eq.${userId}`, {
-        method: 'PATCH',
-        headers: {
-          'apikey': SUPABASE_ANON_KEY,
-          'Authorization': `Bearer ${token_}`,
-          'Content-Type': 'application/json',
-          'Prefer': 'return=minimal',
-        },
-        body: JSON.stringify({ push_token: token }),
-      });
-      if (!res.ok) {
-        const txt = await res.text();
-        console.error('[notifications] push_token PATCH 실패:', res.status, txt);
-        // Fallback: RLS 우회 Edge Function 경유 저장
-        try {
-          const efRes = await supabase.functions.invoke('save-push-token', {
-            body: { push_token: token },
-          });
-          if (efRes.error) {
-            console.error('[notifications] Edge Function fallback도 실패:', efRes.error);
-          } else {
-            console.log('[notifications] Edge Function fallback으로 push_token 저장 성공');
-          }
-        } catch (fe) {
-          console.error('[notifications] Edge Function fallback 예외:', fe);
-        }
-      } else {
-        console.log('[notifications] push_token PATCH 성공');
-      }
-    } else {
-      console.warn('[notifications] accessToken 없음 — push_token DB 저장 스킵');
+
+    if (!token_) {
+      console.error('[notifications] ❌ accessToken 없음 — push_token DB 저장 불가');
+      return null;
     }
 
-    console.log('[notifications] 권한 획득 + push token 저장 완료:', token.substring(0, 30) + '...');
+    console.log('[notifications] DB 저장 시작 → userId:', userId);
+    console.log('[notifications] push_token:', token);
+
+    const res = await fetch(`${SUPABASE_URL}/rest/v1/users?id=eq.${userId}`, {
+      method: 'PATCH',
+      headers: {
+        'apikey': SUPABASE_ANON_KEY,
+        'Authorization': `Bearer ${token_}`,
+        'Content-Type': 'application/json',
+        'Prefer': 'return=minimal',
+      },
+      body: JSON.stringify({ push_token: token }),
+    });
+
+    if (!res.ok) {
+      const txt = await res.text();
+      console.error('[notifications] ❌ push_token PATCH 실패:', res.status, txt);
+      console.error('[notifications] userId:', userId);
+      console.error('[notifications] SUPABASE_URL:', SUPABASE_URL);
+      return null;
+    }
+
+    console.log('[notifications] ✅ push_token DB 저장 성공');
     return token;
   } catch (e) {
-    console.error('[notifications] push token 획득 실패:', e);
+    console.error('[notifications] ❌ push token 획득/저장 실패:', e);
+    if (e instanceof Error) {
+      console.error('[notifications] 에러 상세:', e.message);
+      console.error('[notifications] 스택:', e.stack);
+    }
     return null;
   }
 }
