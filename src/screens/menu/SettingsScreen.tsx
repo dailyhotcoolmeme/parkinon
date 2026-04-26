@@ -113,6 +113,7 @@ export function SettingsScreen() {
     morning: '08:00', lunch: '12:00', dinner: '18:00', bedtime: '22:00',
   });
   const [activeMedSlots, setActiveMedSlots] = useState<MedTimeSlotKey[]>([]);
+  const [hasMedicationRegistered, setHasMedicationRegistered] = useState(false);
 
   // 환자 알림 수정 (보호자용)
   const [showPatientNotifs, setShowPatientNotifs] = useState(false);
@@ -147,6 +148,7 @@ export function SettingsScreen() {
         .eq('patient_id', user.id)
         .eq('is_active', true);
       if (meds?.length) {
+        setHasMedicationRegistered(true);
         const earliest: Record<string, string> = {};
         const activeSlots = new Set<string>();
         for (const med of meds) {
@@ -162,6 +164,7 @@ export function SettingsScreen() {
         setMedSlotTimes(prev => ({ ...prev, ...earliest }));
         setActiveMedSlots(Array.from(activeSlots) as MedTimeSlotKey[]);
       } else {
+        setHasMedicationRegistered(false);
         // 약 등록 없으면 users.meal_schedules에서 시간 가져오기, 기본 4개 슬롯 활성화
         const userMealSchedules = (data?.meal_schedules ?? {}) as Record<string, string>;
         const defaultTimes = {
@@ -352,10 +355,11 @@ export function SettingsScreen() {
 
   // Modal / picker state
   const [pickerVisible, setPickerVisible] = useState(false);
-  const [pickerType, setPickerType] = useState<'med' | 'exercise'>('med');
+  const [pickerType, setPickerType] = useState<'med' | 'exercise' | 'medSlot'>('med');
   const [editingMedId, setEditingMedId] = useState<string | null>(null);
   const [selectedMinutes, setSelectedMinutes] = useState(0);
   const [editingExerciseId, setEditingExerciseId] = useState<string | null>(null);
+  const [editingMedSlotKey, setEditingMedSlotKey] = useState<MedTimeSlotKey | null>(null);
   const [pickerExTime, setPickerExTime] = useState<{ ampm: '오전' | '오후'; hour: number; minute: number }>({
     ampm: '오후',
     hour: 2,
@@ -730,6 +734,109 @@ export function SettingsScreen() {
     closePicker();
   };
 
+  const openMedSlotPicker = (slotKey: MedTimeSlotKey) => {
+    setPickerType('medSlot');
+    setEditingMedSlotKey(slotKey);
+
+    // 현재 시간을 HH:MM → { ampm, hour, minute } 형태로 변환
+    const currentTime = medSlotTimes[slotKey];
+    const [hStr, mStr] = currentTime.split(':');
+    const h24 = parseInt(hStr, 10);
+    const minute = parseInt(mStr, 10);
+
+    let ampm: '오전' | '오후';
+    let hour: number;
+
+    if (h24 === 0) {
+      ampm = '오전';
+      hour = 12;
+    } else if (h24 < 12) {
+      ampm = '오전';
+      hour = h24;
+    } else if (h24 === 12) {
+      ampm = '오후';
+      hour = 12;
+    } else {
+      ampm = '오후';
+      hour = h24 - 12;
+    }
+
+    setPickerExTime({ ampm, hour, minute });
+    setPickerVisible(true);
+    fadeAnim.setValue(0);
+    slideAnim.setValue(300);
+
+    Animated.parallel([
+      Animated.timing(fadeAnim, {
+        toValue: 1,
+        duration: 220,
+        useNativeDriver: true,
+      }),
+      Animated.spring(slideAnim, {
+        toValue: 0,
+        useNativeDriver: true,
+        bounciness: 6,
+      }),
+    ]).start();
+  };
+
+  const saveMedSlotTime = async () => {
+    if (!editingMedSlotKey) return;
+
+    // { ampm, hour, minute } → HH:MM 24시간 형식으로 변환
+    let h24: number;
+    if (pickerExTime.ampm === '오전') {
+      h24 = pickerExTime.hour === 12 ? 0 : pickerExTime.hour;
+    } else {
+      h24 = pickerExTime.hour === 12 ? 12 : pickerExTime.hour + 12;
+    }
+    const newTime = `${String(h24).padStart(2, '0')}:${String(pickerExTime.minute).padStart(2, '0')}`;
+
+    // 로컬 상태 업데이트
+    setMedSlotTimes(prev => ({ ...prev, [editingMedSlotKey]: newTime }));
+
+    // DB 업데이트 (users.meal_schedules)
+    try {
+      const session = await supabase.auth.getSession();
+      if (session?.data.session?.access_token) {
+        const updatedSchedules = { ...medSlotTimes, [editingMedSlotKey]: newTime };
+        await patchUser(user!.id, session.data.session.access_token, { meal_schedules: updatedSchedules });
+      }
+    } catch (error) {
+      console.error('Failed to update meal_schedules:', error);
+    }
+
+    closePicker();
+  };
+
+  const deleteMedSlot = (slotKey: MedTimeSlotKey) => {
+    Alert.alert('알림 삭제', `${MED_TIME_SLOTS.find(s => s.key === slotKey)?.label} 시간대 알림을 삭제하시겠어요?`, [
+      { text: '취소', style: 'cancel' },
+      {
+        text: '삭제',
+        style: 'destructive',
+        onPress: async () => {
+          // 1. 해당 시간대 비활성화 (med_time_notif_prefs)
+          const nextPrefs = { ...medTimePrefs, [slotKey]: false };
+          setMedTimePrefs(nextPrefs);
+
+          // 2. activeMedSlots에서 제거
+          setActiveMedSlots(prev => prev.filter(k => k !== slotKey));
+
+          // 3. DB 업데이트
+          try {
+            const session = await supabase.auth.getSession();
+            if (session?.data.session?.access_token) {
+              await patchUser(user!.id, session.data.session.access_token, { med_time_notif_prefs: nextPrefs });
+            }
+          } catch (error) {
+            console.error('Failed to delete med slot:', error);
+          }
+        },
+      },
+    ]);
+  };
+
   const openBatterySettings = async () => {
     setShowBatteryModal(false);
     try {
@@ -921,13 +1028,34 @@ export function SettingsScreen() {
                     trackColor={{ false: Colors.border, true: Colors.primary }}
                     thumbColor={Colors.white}
                   />
-                  <TouchableOpacity
-                    activeOpacity={0.7}
-                    onPress={() => navigation.navigate('MedicationManage', { openSlot: slotKey })}
-                    style={{ paddingVertical: 8, paddingHorizontal: 8 }}
-                  >
-                    <Ionicons name="create-outline" size={22} color={Colors.textSub} />
-                  </TouchableOpacity>
+                  {hasMedicationRegistered ? (
+                    <TouchableOpacity
+                      activeOpacity={0.7}
+                      onPress={() => navigation.navigate('MedicationManage', { openSlot: slotKey })}
+                      style={{ paddingVertical: 8, paddingHorizontal: 8 }}
+                    >
+                      <Ionicons name="create-outline" size={22} color={Colors.textSub} />
+                    </TouchableOpacity>
+                  ) : (
+                    <>
+                      <TouchableOpacity
+                        activeOpacity={0.7}
+                        hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+                        style={styles.iconBtn}
+                        onPress={() => openMedSlotPicker(slotKey)}
+                      >
+                        <Ionicons name="create-outline" size={22} color={Colors.textSub} />
+                      </TouchableOpacity>
+                      <TouchableOpacity
+                        activeOpacity={0.7}
+                        hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+                        style={[styles.iconBtn, styles.iconBtnDelete]}
+                        onPress={() => deleteMedSlot(slotKey)}
+                      >
+                        <Ionicons name="trash-outline" size={22} color={Colors.danger} />
+                      </TouchableOpacity>
+                    </>
+                  )}
                 </View>
               </View>
             );
@@ -1469,6 +1597,137 @@ export function SettingsScreen() {
                   activeOpacity={0.8}
                   style={styles.saveBtn}
                   onPress={saveMedTime}
+                >
+                  <Text style={styles.saveBtnText}>저장하기</Text>
+                </TouchableOpacity>
+
+                <TouchableOpacity
+                  activeOpacity={0.7}
+                  style={styles.cancelLink}
+                  onPress={closePicker}
+                >
+                  <Ionicons name="close-outline" size={22} color={Colors.textSub} />
+                  <Text style={styles.cancelLinkText}>닫기</Text>
+                </TouchableOpacity>
+              </>
+            ) : pickerType === 'medSlot' ? (
+              /* ── Med Slot time picker ── */
+              <>
+                <Text style={styles.pickerTitle}>약 복용 알림 시간</Text>
+
+                {/* AM/PM row */}
+                <View style={styles.ampmRow}>
+                  {(['오전', '오후'] as const).map((ap) => {
+                    const active = pickerExTime.ampm === ap;
+                    return (
+                      <TouchableOpacity
+                        key={ap}
+                        activeOpacity={0.7}
+                        onPress={() =>
+                          setPickerExTime((prev) => ({ ...prev, ampm: ap }))
+                        }
+                        style={[
+                          styles.ampmBtn,
+                          active
+                            ? styles.ampmBtnActive
+                            : styles.ampmBtnInactive,
+                        ]}
+                      >
+                        <Text
+                          style={[
+                            styles.ampmBtnText,
+                            active
+                              ? styles.ampmBtnTextActive
+                              : styles.ampmBtnTextInactive,
+                          ]}
+                        >
+                          {ap}
+                        </Text>
+                      </TouchableOpacity>
+                    );
+                  })}
+                </View>
+
+                {/* Hour label */}
+                <Text style={styles.unitLabel}>시</Text>
+
+                {/* Hour grid */}
+                <View style={styles.hourGrid}>
+                  {EXERCISE_HOURS.map((h) => {
+                    const active = pickerExTime.hour === h;
+                    return (
+                      <TouchableOpacity
+                        key={h}
+                        activeOpacity={0.7}
+                        onPress={() =>
+                          setPickerExTime((prev) => ({ ...prev, hour: h }))
+                        }
+                        style={[
+                          styles.hourBtn,
+                          { width: hourButtonWidth },
+                          active
+                            ? styles.gridBtnActive
+                            : styles.gridBtnInactive,
+                        ]}
+                      >
+                        <Text
+                          style={[
+                            styles.gridBtnText,
+                            active
+                              ? styles.gridBtnTextActive
+                              : styles.gridBtnTextInactive,
+                          ]}
+                        >
+                          {h}
+                        </Text>
+                      </TouchableOpacity>
+                    );
+                  })}
+                </View>
+
+                {/* Minute label */}
+                <Text style={[styles.unitLabel, { marginTop: 16 }]}>분</Text>
+
+                {/* Minute grid */}
+                <View style={styles.minuteGrid}>
+                  {EXERCISE_MINUTES.map((min) => {
+                    const active = pickerExTime.minute === min;
+                    return (
+                      <TouchableOpacity
+                        key={min}
+                        activeOpacity={0.7}
+                        onPress={() =>
+                          setPickerExTime((prev) => ({
+                            ...prev,
+                            minute: min,
+                          }))
+                        }
+                        style={[
+                          styles.minuteBtn,
+                          active
+                            ? styles.gridBtnActive
+                            : styles.gridBtnInactive,
+                        ]}
+                      >
+                        <Text
+                          style={[
+                            styles.gridBtnText,
+                            active
+                              ? styles.gridBtnTextActive
+                              : styles.gridBtnTextInactive,
+                          ]}
+                        >
+                          {String(min).padStart(2, '0')}
+                        </Text>
+                      </TouchableOpacity>
+                    );
+                  })}
+                </View>
+
+                <TouchableOpacity
+                  activeOpacity={0.8}
+                  style={styles.saveBtn}
+                  onPress={saveMedSlotTime}
                 >
                   <Text style={styles.saveBtnText}>저장하기</Text>
                 </TouchableOpacity>
