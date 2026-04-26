@@ -48,13 +48,18 @@ function AppInner() {
     async function checkForUpdates() {
       if (!__DEV__) {
         try {
+          console.log('[OTA] 업데이트 체크 중...');
           const update = await Updates.checkForUpdateAsync();
           if (update.isAvailable) {
+            console.log('[OTA] 업데이트 발견! 다운로드 중...');
             await Updates.fetchUpdateAsync();
+            console.log('[OTA] 다운로드 완료, 앱 재시작 중...');
             await Updates.reloadAsync();
+          } else {
+            console.log('[OTA] 최신 버전입니다.');
           }
         } catch (e) {
-          // 업데이트 체크 실패 시 조용히 무시
+          console.error('[OTA] 업데이트 체크 실패:', e);
         }
       }
     }
