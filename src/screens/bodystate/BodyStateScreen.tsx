@@ -22,6 +22,7 @@ import { useBodyState } from '../../hooks/useBodyState';
 import { navigateTo } from '../../navigation/navigationRef';
 import { supabase } from '../../lib/supabase';
 import { useNotificationBadge } from '../../context/NotificationBadgeContext';
+import { useSettings } from '../../context/SettingsContext';
 
 const WINDOW_HEIGHT = Dimensions.get('window').height;
 const TOP_BAR_H = 56;
@@ -64,7 +65,8 @@ function getPeriod(isoString: string): string {
   return '취침';
 }
 
-const TRIGGER_LABEL: Record<string, string> = {
+// 기본 라벨 (동적 생성 실패 시 폴백용)
+const DEFAULT_TRIGGER_LABEL: Record<string, string> = {
   after_medication: '복용 직후',
   '30min_after': '30분 후',
   '2hour_after': '2시간 후',
@@ -105,6 +107,7 @@ export function BodyStateScreen() {
   const route = useRoute<any>();
   const insets = useSafeAreaInsets();
   const { unreadCount } = useNotificationBadge();
+  const { medNotifs } = useSettings();
 
   // minutes → trigger_time_label 변환
   const minutesToLabel = (minutes: number): string => {
@@ -204,12 +207,38 @@ export function BodyStateScreen() {
   // 표시할 로그: 오늘이면 todayLogs, 다른 날이면 dateLogs
   const activeLogs = isToday ? todayLogs : dateLogs;
 
+  // medNotifs 기반 동적 라벨 생성
+  const getTriggerLabel = (label: string): string => {
+    // 기본 라벨 체크
+    if (DEFAULT_TRIGGER_LABEL[label]) return DEFAULT_TRIGGER_LABEL[label];
+
+    // medNotifs 기반 동적 라벨 생성
+    // label 형식: "30min_after", "2hour_after" 등
+    if (label === 'after_medication') return '복용 직후';
+
+    // medNotifs에서 해당 minutes 찾기
+    const match = label.match(/^(\d+)min_after$/);
+    if (match) {
+      const minutes = parseInt(match[1], 10);
+      const notif = medNotifs.find(n => n.minutes === minutes);
+      if (notif) {
+        if (minutes < 60) return `복용 후 ${minutes}분`;
+        const hours = Math.floor(minutes / 60);
+        const remainMin = minutes % 60;
+        return remainMin === 0 ? `복용 후 ${hours}시간` : `복용 후 ${hours}시간 ${remainMin}분`;
+      }
+    }
+
+    // 폴백
+    return label;
+  };
+
   // DB 로그 → BodyRecord 변환
   const records: BodyRecord[] = activeLogs.map((log) => ({
     id: log.id,
     time: formatTime(log.logged_at),
     period: getPeriod(log.logged_at),
-    trigger: (log.trigger_time_label && TRIGGER_LABEL[log.trigger_time_label])
+    trigger: (log.trigger_time_label && getTriggerLabel(log.trigger_time_label))
       || (log.triggered_by === 'notification' ? '알림' : '직접 입력'),
     triggeredBy: log.triggered_by ?? 'manual',
     bodyScore: log.body_state ?? 3,

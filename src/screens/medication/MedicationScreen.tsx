@@ -42,7 +42,7 @@ interface MedicationStatus {
   takenAt?: string;
 }
 
-const MEAL_TIME_LABELS: Record<MealTime, { label: string; time: string }> = {
+const DEFAULT_MEAL_TIME_LABELS: Record<MealTime, { label: string; time: string }> = {
   morning: { label: '아침', time: '오전 8:00' },
   lunch: { label: '점심', time: '오후 12:00' },
   dinner: { label: '저녁', time: '오후 6:00' },
@@ -53,6 +53,14 @@ function formatTakenAt(isoString: string): string {
   const d = new Date(isoString);
   const h = d.getHours();
   const m = d.getMinutes();
+  const ampm = h < 12 ? '오전' : '오후';
+  const hour = h % 12 === 0 ? 12 : h % 12;
+  return `${ampm} ${hour}:${m.toString().padStart(2, '0')}`;
+}
+
+// "HH:mm" 문자열을 "오전/오후 H:mm" 형식으로 변환
+function formatMealTime(timeStr: string): string {
+  const [h, m] = timeStr.split(':').map(Number);
   const ampm = h < 12 ? '오전' : '오후';
   const hour = h % 12 === 0 ? 12 : h % 12;
   return `${ampm} ${hour}:${m.toString().padStart(2, '0')}`;
@@ -85,6 +93,9 @@ export function MedicationScreen() {
   const { saveBodyState, todayLogs: bodyLogs } = useBodyState();
   const insets = useSafeAreaInsets();
   const { unreadCount } = useNotificationBadge();
+
+  // users.meal_schedules 기반 시간 표시 (약 없을 때 사용)
+  const [userMealSchedules, setUserMealSchedules] = useState<Record<string, string> | null>(null);
 
   const [showCaregiverConfirm, setShowCaregiverConfirm] = useState(false);
   const [showMealTimeModal, setShowMealTimeModal] = useState(false);
@@ -168,17 +179,35 @@ export function MedicationScreen() {
 
   useEffect(() => {
     if (!user) return;
-    if (user.role === 'patient') { setPatientName(user.name); return; }
+    if (user.role === 'patient') {
+      setPatientName(user.name);
+      // 환자 본인의 meal_schedules 로드
+      supabase
+        .from('users')
+        .select('meal_schedules')
+        .eq('id', user.id)
+        .single()
+        .then(({ data }) => {
+          if (data?.meal_schedules) {
+            setUserMealSchedules(data.meal_schedules as Record<string, string>);
+          }
+        });
+      return;
+    }
     if (!user.patient_group_id) return;
+    // 보호자인 경우 환자 정보 로드
     supabase
       .from('patient_group_members')
-      .select('users(name)')
+      .select('users(name, meal_schedules)')
       .eq('group_id', user.patient_group_id)
       .eq('role', 'patient')
       .single()
       .then(({ data }) => {
-        const name = (data?.users as any)?.name;
-        if (name) setPatientName(name);
+        const userInfo = data?.users as any;
+        if (userInfo?.name) setPatientName(userInfo.name);
+        if (userInfo?.meal_schedules) {
+          setUserMealSchedules(userInfo.meal_schedules as Record<string, string>);
+        }
       });
   }, [user]);
 
@@ -217,11 +246,17 @@ export function MedicationScreen() {
   };
 
   // activeStatus → MedicationStatus[] 변환
-  const displayList: MedicationStatus[] = (Object.keys(MEAL_TIME_LABELS) as MealTime[]).map((mt) => {
+  // users.meal_schedules가 있으면 사용, 없으면 기본값 사용
+  const displayList: MedicationStatus[] = (Object.keys(DEFAULT_MEAL_TIME_LABELS) as MealTime[]).map((mt) => {
     const log = (activeStatus as any)[mt];
+    const defaultInfo = DEFAULT_MEAL_TIME_LABELS[mt];
+    const timeStr = userMealSchedules?.[mt]
+      ? formatMealTime(userMealSchedules[mt])
+      : defaultInfo.time;
+
     return log
-      ? { id: mt, label: MEAL_TIME_LABELS[mt].label, time: MEAL_TIME_LABELS[mt].time, taken: true, takenAt: formatTakenAt(log.taken_at) }
-      : { id: mt, label: MEAL_TIME_LABELS[mt].label, time: MEAL_TIME_LABELS[mt].time, taken: false };
+      ? { id: mt, label: defaultInfo.label, time: timeStr, taken: true, takenAt: formatTakenAt(log.taken_at) }
+      : { id: mt, label: defaultInfo.label, time: timeStr, taken: false };
   });
 
   // 오늘 모든 시간대 복용 완료 여부 (아침/점심/저녁 기준 — 취침은 모달에 없으므로 제외)
