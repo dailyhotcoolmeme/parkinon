@@ -89,15 +89,39 @@ export function LoginScreen() {
   }, [user, loading]);
 
   const handleKakaoLogin = async () => {
-    oauthStarted.current = true;
-    setSigning(true);
-    await signInWithKakao();
+    try {
+      oauthStarted.current = true;
+      setSigning(true);
+      console.log('[LoginScreen] 카카오 로그인 시작');
+      await signInWithKakao();
+      console.log('[LoginScreen] 카카오 로그인 완료');
+    } catch (err) {
+      console.error('[LoginScreen] 카카오 로그인 오류:', err);
+      oauthStarted.current = false;
+      setSigning(false);
+      if (signingTimeoutRef.current) {
+        clearTimeout(signingTimeoutRef.current);
+        signingTimeoutRef.current = null;
+      }
+    }
   };
 
   const handleGoogleLogin = async () => {
-    oauthStarted.current = true;
-    setSigning(true);
-    await signInWithGoogle();
+    try {
+      oauthStarted.current = true;
+      setSigning(true);
+      console.log('[LoginScreen] 구글 로그인 시작');
+      await signInWithGoogle();
+      console.log('[LoginScreen] 구글 로그인 완료');
+    } catch (err) {
+      console.error('[LoginScreen] 구글 로그인 오류:', err);
+      oauthStarted.current = false;
+      setSigning(false);
+      if (signingTimeoutRef.current) {
+        clearTimeout(signingTimeoutRef.current);
+        signingTimeoutRef.current = null;
+      }
+    }
   };
 
   return (

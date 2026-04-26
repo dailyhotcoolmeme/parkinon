@@ -70,7 +70,11 @@ async function processAuthUrl(url: string): Promise<void> {
   if (accessToken && refreshToken) {
     console.log('[useAuth] fragment 토큰 발견 → setSession');
     const { error } = await supabase.auth.setSession({ access_token: accessToken, refresh_token: refreshToken });
-    if (error) console.error('[useAuth] setSession 오류:', error.message);
+    if (error) {
+      console.error('[useAuth] setSession 오류:', error.message);
+      throw new Error(`세션 설정 실패: ${error.message}`);
+    }
+    console.log('[useAuth] setSession 성공');
   } else {
     // PKCE 방식 (code 파라미터)
     const parsed = Linking.parse(url);
@@ -79,9 +83,15 @@ async function processAuthUrl(url: string): Promise<void> {
 
     if (code) {
       const { error } = await supabase.auth.exchangeCodeForSession(url);
-      if (error) console.error('[useAuth] exchangeCodeForSession 오류:', error.message, error.status);
+      if (error) {
+        console.error('[useAuth] exchangeCodeForSession 오류:', error.message, error.status);
+        throw new Error(`코드 교환 실패: ${error.message}`);
+      }
+      console.log('[useAuth] exchangeCodeForSession 성공');
     } else {
-      console.error('[useAuth] Auth URL에서 토큰/코드 없음. 파라미터:', Object.keys(parsed.queryParams ?? {}));
+      const errorMsg = 'Auth URL에서 토큰/코드 없음. 파라미터: ' + Object.keys(parsed.queryParams ?? {}).join(', ');
+      console.error('[useAuth]', errorMsg);
+      throw new Error(errorMsg);
     }
   }
 
@@ -302,8 +312,9 @@ export function useAuthProvider(): UseAuthReturn {
         },
       });
       if (error || !data?.url) {
-        console.error('[useAuth] signInWithOAuth(google) 오류:', error?.message);
-        return;
+        const errorMsg = error?.message || '구글 로그인 URL을 생성할 수 없습니다.';
+        console.error('[useAuth] signInWithOAuth(google) 오류:', errorMsg);
+        throw new Error(errorMsg);
       }
 
       // Chrome Custom Tab으로 열기 → OAuth 완료 후 딥링크 감지 시 탭 자동 닫힘
@@ -314,10 +325,16 @@ export function useAuthProvider(): UseAuthReturn {
       if (result.type === 'success' && result.url) {
         // Custom Tab에서 캡처한 URL을 processAuthUrl로 처리
         await processAuthUrl(result.url);
+      } else if (result.type === 'cancel') {
+        console.log('[useAuth] 사용자가 구글 로그인 취소');
+        throw new Error('로그인이 취소되었습니다.');
+      } else if (result.type === 'dismiss') {
+        console.log('[useAuth] 사용자가 구글 로그인 창 닫음');
+        throw new Error('로그인 창이 닫혔습니다.');
       }
-      // result.type === 'cancel'이면 사용자가 취소한 것 → 아무 처리 안 함
     } catch (err) {
       console.error('[useAuth] signInWithGoogle 오류:', err);
+      throw err;
     }
   }, []);
 
@@ -340,8 +357,9 @@ export function useAuthProvider(): UseAuthReturn {
       });
 
       if (error || !data?.url) {
-        console.error('[useAuth] signInWithOAuth 오류:', error?.message);
-        return;
+        const errorMsg = error?.message || '카카오 로그인 URL을 생성할 수 없습니다.';
+        console.error('[useAuth] signInWithOAuth 오류:', errorMsg);
+        throw new Error(errorMsg);
       }
 
       // Android / iOS 모두 openAuthSessionAsync(Custom Tab) 사용
@@ -353,11 +371,16 @@ export function useAuthProvider(): UseAuthReturn {
       if (result.type === 'success' && result.url) {
         console.log('[useAuth] 카카오 success URL 직접 처리');
         await processAuthUrl(result.url);
+      } else if (result.type === 'cancel') {
+        console.log('[useAuth] 사용자가 카카오 로그인 취소');
+        throw new Error('로그인이 취소되었습니다.');
+      } else if (result.type === 'dismiss') {
+        console.log('[useAuth] 사용자가 카카오 로그인 창 닫음');
+        throw new Error('로그인 창이 닫혔습니다.');
       }
-      // result.type === 'cancel': 사용자가 취소 → 아무 처리 안 함
-      // result.type === 'dismiss': 사용자가 닫음 → 아무 처리 안 함
     } catch (err) {
       console.error('[useAuth] signInWithKakao 오류:', err);
+      throw err;
     }
   }, []);
 
