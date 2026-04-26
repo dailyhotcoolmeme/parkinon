@@ -87,7 +87,7 @@ export function OnboardingSlideScreen() {
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: Colors.primary },
   skipBtn: { position: 'absolute', top: 56, right: 24, zIndex: 10, padding: 8 },
-  skipText: { fontSize: 16, color: Colors.textSub },
+  skipText: { fontSize: 16, color: '#FFFFFF' },
   slide: {
     width,
     flex: 1,
@@ -95,8 +95,8 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     paddingHorizontal: 32,
   },
-  title: { fontSize: 24, fontWeight: '700', color: Colors.text, textAlign: 'center', lineHeight: 36, marginBottom: 16 },
-  desc: { fontSize: 18, color: Colors.textSub, textAlign: 'center', lineHeight: 28 },
+  title: { fontSize: 24, fontWeight: '700', color: '#FFFFFF', textAlign: 'center', lineHeight: 36, marginBottom: 16 },
+  desc: { fontSize: 18, color: '#FFFFFF', textAlign: 'center', lineHeight: 28 },
   dots: { flexDirection: 'row', justifyContent: 'center', gap: 8, marginBottom: 24 },
   dot: { width: 8, height: 8, borderRadius: 4, backgroundColor: Colors.border },
   dotActive: { backgroundColor: Colors.primary, width: 24 },
