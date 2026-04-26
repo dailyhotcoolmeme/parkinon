@@ -12,6 +12,7 @@ import {
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useFocusEffect, useNavigation, useRoute, RouteProp } from '@react-navigation/native';
+import { useNotificationBadge } from '../../context/NotificationBadgeContext';
 import { StackNavigationProp } from '@react-navigation/stack';
 import { Ionicons } from '@expo/vector-icons';
 import { Colors } from '../../constants/colors';
@@ -63,6 +64,7 @@ export function MedicalRecordDetailScreen() {
   const route = useRoute<RouteType>();
   const recordId = (route.params as any)?.recordId as string;
   const { user } = useAuth();
+  const { unreadCount } = useNotificationBadge();
 
   const [record, setRecord] = useState<RecordDetail | null>(null);
   const [loading, setLoading] = useState(true);
@@ -150,7 +152,13 @@ export function MedicalRecordDetailScreen() {
 
   return (
     <SafeAreaView style={styles.container} edges={['top']}>
-      <TopBar title="진료 기록 상세" showBack />
+      <TopBar
+        title="진료 기록 상세"
+        showBack
+        showBell
+        bellBadge={unreadCount}
+        onBellPress={() => navigation.navigate('NotificationHistory', { mode: 'all' })}
+      />
 
       {loading ? (
         <View style={styles.center}>

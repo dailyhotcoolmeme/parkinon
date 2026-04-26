@@ -15,6 +15,8 @@ import { Colors } from '../../constants/colors';
 import { TopBar } from '../../components/common/TopBar';
 import { MenuStackParamList } from '../../navigation/MenuNavigator';
 import { useRecordsData } from '../../hooks/useRecordsData';
+import { useNotificationBadge } from '../../context/NotificationBadgeContext';
+import { navigateTo } from '../../navigation/navigationRef';
 
 type NavigationProp = StackNavigationProp<MenuStackParamList, 'Records'>;
 type IoniconName = React.ComponentProps<typeof Ionicons>['name'];
@@ -59,6 +61,7 @@ const ITEM_ROWS: ItemKey[][] = ITEMS.reduce<ItemKey[][]>((rows, item, i) => {
 export function RecordsScreen() {
   const navigation = useNavigation<NavigationProp>();
   const [period, setPeriod] = useState<Period>('이번 주');
+  const { unreadCount } = useNotificationBadge();
 
   // Supabase 실제 데이터
   const { summary, loading, error, refresh } = useRecordsData(period);
@@ -186,7 +189,13 @@ export function RecordsScreen() {
 
   return (
     <SafeAreaView style={styles.safeArea} edges={['top']}>
-      <TopBar title="기록 보기" showBack />
+      <TopBar
+        title="기록 보기"
+        showBack
+        showBell
+        bellBadge={unreadCount}
+        onBellPress={() => navigateTo('NotificationHistory', { mode: 'all' })}
+      />
 
       {/* 기간 탭 */}
       <View style={styles.tabRow}>

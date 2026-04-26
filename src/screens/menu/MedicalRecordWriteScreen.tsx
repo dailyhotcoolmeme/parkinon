@@ -28,6 +28,7 @@ import { usePatientId } from '../../hooks/usePatientId';
 import { supabase } from '../../lib/supabase';
 import { MenuStackParamList } from '../../navigation/MenuNavigator';
 import { uploadPhoto } from '../../lib/r2Upload';
+import { useNotificationBadge } from '../../context/NotificationBadgeContext';
 
 type NavProp = StackNavigationProp<MenuStackParamList>;
 type RouteType = RouteProp<{ MedicalRecordWrite: { recordId?: string } }, 'MedicalRecordWrite'>;
@@ -249,6 +250,7 @@ export function MedicalRecordWriteScreen() {
   const recordId = (route.params as any)?.recordId as string | undefined;
   const { user } = useAuth();
   const { patientId } = usePatientId();
+  const { unreadCount } = useNotificationBadge();
 
   // 날짜/시간 상태 (기본: 오늘 오전 9시)
   const [selYear, setSelYear] = useState(NOW.getFullYear());
@@ -545,7 +547,13 @@ export function MedicalRecordWriteScreen() {
   if (isLoadingEdit) {
     return (
       <SafeAreaView style={styles.container} edges={['top']}>
-        <TopBar title={recordId ? '진료 기록 수정' : '진료 기록 추가'} showBack />
+        <TopBar
+          title={recordId ? '진료 기록 수정' : '진료 기록 추가'}
+          showBack
+          showBell
+          bellBadge={unreadCount}
+          onBellPress={() => navigation.navigate('NotificationHistory', { mode: 'all' })}
+        />
         <View style={styles.center}><ActivityIndicator size="large" color={Colors.primary} /></View>
       </SafeAreaView>
     );

@@ -16,7 +16,7 @@ import {
   Animated,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { useFocusEffect, useRoute } from '@react-navigation/native';
+import { useFocusEffect, useRoute, useNavigation } from '@react-navigation/native';
 import type { RouteProp } from '@react-navigation/native';
 import type { MenuStackParamList } from '../../navigation/MenuNavigator';
 import { Ionicons } from '@expo/vector-icons';
@@ -26,6 +26,7 @@ import { TopBar } from '../../components/common/TopBar';
 import { supabase } from '../../lib/supabase';
 import { useAuth } from '../../context/AuthContext';
 import { useFamilyLink } from '../../hooks/useFamilyLink';
+import { useNotificationBadge } from '../../context/NotificationBadgeContext';
 
 // ─── 타입 ────────────────────────────────────────────────────────────────────
 
@@ -905,6 +906,8 @@ export function MedicationManageScreen() {
   const route = useRoute<RouteProp<MenuStackParamList, 'MedicationManage'>>();
   const openSlotParam = (route.params as any)?.openSlot as ('morning' | 'lunch' | 'dinner' | 'bedtime') | undefined;
   const { getPatientForCaregiver } = useFamilyLink();
+  const { unreadCount } = useNotificationBadge();
+  const navigation = useNavigation<any>();
   const [medications, setMedications] = useState<Medication[]>([]);
   const [isOcrLoading, setIsOcrLoading] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
@@ -1359,7 +1362,13 @@ export function MedicationManageScreen() {
   if (isLoading) {
     return (
       <SafeAreaView style={styles.safeArea} edges={['top']}>
-        <TopBar title="약 관리" showBack />
+        <TopBar
+          title="약 관리"
+          showBack
+          showBell
+          bellBadge={unreadCount}
+          onBellPress={() => navigation.navigate('NotificationHistory', { mode: 'all' })}
+        />
         <View style={{ flex: 1, alignItems: 'center', justifyContent: 'center' }}>
           <ActivityIndicator size="large" color={Colors.primary} />
         </View>
@@ -1369,7 +1378,13 @@ export function MedicationManageScreen() {
 
   return (
     <SafeAreaView style={styles.safeArea} edges={['top']}>
-      <TopBar title="약 관리" showBack />
+      <TopBar
+        title="약 관리"
+        showBack
+        showBell
+        bellBadge={unreadCount}
+        onBellPress={() => navigation.navigate('NotificationHistory', { mode: 'all' })}
+      />
       <KeyboardAvoidingView style={{ flex: 1 }} behavior={Platform.OS === 'ios' ? 'padding' : 'height'}>
         <ScrollView
           style={styles.scroll}

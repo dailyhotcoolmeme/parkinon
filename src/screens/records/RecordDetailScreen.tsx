@@ -8,12 +8,13 @@ import {
   ActivityIndicator,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { useRoute, RouteProp } from '@react-navigation/native';
+import { useRoute, useNavigation, RouteProp } from '@react-navigation/native';
 import { Ionicons } from '@expo/vector-icons';
 import { Colors } from '../../constants/colors';
 import { TopBar } from '../../components/common/TopBar';
 import { MenuStackParamList } from '../../navigation/MenuNavigator';
 import { useRecordDetailData } from '../../hooks/useRecordDetailData';
+import { useNotificationBadge } from '../../context/NotificationBadgeContext';
 
 type RouteProps = RouteProp<MenuStackParamList, 'RecordDetail'>;
 type IoniconName = React.ComponentProps<typeof Ionicons>['name'];
@@ -181,9 +182,11 @@ const chartStyles = StyleSheet.create({
 
 export function RecordDetailScreen() {
   const route = useRoute<RouteProps>();
+  const navigation = useNavigation<any>();
   const { type, period: initialPeriod } = route.params;
 
   const [period, setPeriod] = useState<Period>((initialPeriod as Period) || '이번 주');
+  const { unreadCount } = useNotificationBadge();
 
   const meta = itemMeta[type];
   const prevLabel = prevLabels[period];
@@ -197,7 +200,13 @@ export function RecordDetailScreen() {
 
   return (
     <SafeAreaView style={styles.safeArea} edges={['top']}>
-      <TopBar title={meta.label} showBack />
+      <TopBar
+        title={meta.label}
+        showBack
+        showBell
+        bellBadge={unreadCount}
+        onBellPress={() => navigation.navigate('NotificationHistory', { mode: 'all' })}
+      />
 
       {/* 기간 탭 */}
       <View style={styles.tabRow}>

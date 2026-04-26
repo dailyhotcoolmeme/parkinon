@@ -14,12 +14,13 @@ import {
   Share,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { useFocusEffect } from '@react-navigation/native';
+import { useFocusEffect, useNavigation } from '@react-navigation/native';
 import { Ionicons } from '@expo/vector-icons';
 import { TopBar } from '../../components/common/TopBar';
 import { Colors } from '../../constants/colors';
 import { useFamilyLink } from '../../hooks/useFamilyLink';
 import { useAuth } from '../../context/AuthContext';
+import { useNotificationBadge } from '../../context/NotificationBadgeContext';
 import { supabase } from '../../lib/supabase';
 
 const RELATION_MAP: Record<string, string> = {
@@ -31,8 +32,10 @@ const RELATION_MAP: Record<string, string> = {
 };
 
 export function FamilyLinkScreen() {
+  const navigation = useNavigation<any>();
   const { user } = useAuth();
   const { generateInviteCode, joinByCode, joinByCodeForce, getGroupMembers, leaveGroup, loading, error: familyLinkError } = useFamilyLink();
+  const { unreadCount } = useNotificationBadge();
 
   const [members, setMembers] = useState<import('../../hooks/useFamilyLink').GroupMember[]>([]);
   const [inviteCode, setInviteCode] = useState('');
@@ -251,7 +254,13 @@ export function FamilyLinkScreen() {
 
   return (
     <SafeAreaView style={styles.safeArea} edges={['top']}>
-      <TopBar title="가족 연동" showBack />
+      <TopBar
+        title="가족 연동"
+        showBack
+        showBell
+        bellBadge={unreadCount}
+        onBellPress={() => navigation.navigate('NotificationHistory', { mode: 'all' })}
+      />
 
       <ScrollView
         style={styles.scroll}

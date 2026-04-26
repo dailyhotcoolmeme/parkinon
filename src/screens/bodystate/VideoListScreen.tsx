@@ -13,12 +13,13 @@ import {
   PanResponder,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { useFocusEffect } from '@react-navigation/native';
+import { useFocusEffect, useNavigation } from '@react-navigation/native';
 import { Ionicons } from '@expo/vector-icons';
 import { VideoView, useVideoPlayer } from 'expo-video';
 import { Colors } from '../../constants/colors';
 import { TopBar } from '../../components/common/TopBar';
 import { supabase } from '../../lib/supabase';
+import { useNotificationBadge } from '../../context/NotificationBadgeContext';
 
 const SCREEN_WIDTH = Dimensions.get('window').width;
 const THUMB_WIDTH = 120;
@@ -525,6 +526,8 @@ const FILTERS: { key: FilterType; label: string }[] = [
 ];
 
 export function VideoListScreen() {
+  const navigation = useNavigation<any>();
+  const { unreadCount } = useNotificationBadge();
   const [filter, setFilter] = useState<FilterType>('all');
   const [sections, setSections] = useState<SectionData[]>([]);
   const [loading, setLoading] = useState(false);
@@ -647,7 +650,13 @@ export function VideoListScreen() {
 
   return (
     <SafeAreaView style={styles.safeArea} edges={['top']}>
-      <TopBar title="영상 기록" showBack />
+      <TopBar
+        title="영상 기록"
+        showBack
+        showBell
+        bellBadge={unreadCount}
+        onBellPress={() => navigation.navigate('NotificationHistory', { mode: 'all' })}
+      />
 
       <View style={styles.filterRow}>
         {FILTERS.map(f => (

@@ -18,6 +18,7 @@ import { TopBar } from '../../components/common/TopBar';
 import { PrimaryButton } from '../../components/common/PrimaryButton';
 import { useAuth } from '../../context/AuthContext';
 import { useBodyState } from '../../hooks/useBodyState';
+import { useNotificationBadge } from '../../context/NotificationBadgeContext';
 import { uploadVideo, saveMediaLog } from '../../lib/r2Upload';
 
 const { height: SCREEN_HEIGHT } = Dimensions.get('window');
@@ -32,9 +33,10 @@ interface SelectedVideo {
 }
 
 export function VideoRecordScreen() {
-  const navigation = useNavigation();
+  const navigation = useNavigation<any>();
   const { user } = useAuth();
   const { getPatientId } = useBodyState();
+  const { unreadCount } = useNotificationBadge();
   const [selectedVideo, setSelectedVideo] = useState<SelectedVideo | null>(null);
   const [loading, setLoading] = useState(false);
   const [isPlaying, setIsPlaying] = useState(false);
@@ -225,7 +227,13 @@ export function VideoRecordScreen() {
 
   return (
     <SafeAreaView style={styles.safeArea}>
-      <TopBar title="영상 기록하기" showBack />
+      <TopBar
+        title="영상 기록하기"
+        showBack
+        showBell
+        bellBadge={unreadCount}
+        onBellPress={() => navigation.navigate('NotificationHistory', { mode: 'all' })}
+      />
 
       <View style={styles.container}>
         {/* 영상 미리보기 또는 안내 영역 */}

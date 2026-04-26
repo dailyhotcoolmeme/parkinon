@@ -1,9 +1,11 @@
 import React from 'react';
 import { StyleSheet } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
+import { useNavigation } from '@react-navigation/native';
 import { WebView } from 'react-native-webview';
 import { Colors } from '../../constants/colors';
 import { TopBar } from '../../components/common/TopBar';
+import { useNotificationBadge } from '../../context/NotificationBadgeContext';
 
 const PRIVACY_HTML = `<!DOCTYPE html>
 <html lang="ko">
@@ -307,9 +309,17 @@ const PRIVACY_HTML = `<!DOCTYPE html>
 </html>`;
 
 export function PrivacyScreen() {
+  const navigation = useNavigation<any>();
+  const { unreadCount } = useNotificationBadge();
   return (
     <SafeAreaView style={styles.safeArea} edges={['top']}>
-      <TopBar title="개인정보처리방침" showBack />
+      <TopBar
+        title="개인정보처리방침"
+        showBack
+        showBell
+        bellBadge={unreadCount}
+        onBellPress={() => navigation.navigate('NotificationHistory', { mode: 'all' })}
+      />
       <WebView
         style={styles.webview}
         source={{ html: PRIVACY_HTML }}

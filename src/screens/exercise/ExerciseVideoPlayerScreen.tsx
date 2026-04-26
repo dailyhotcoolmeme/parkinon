@@ -10,13 +10,14 @@ import {
   Linking,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { useRoute } from '@react-navigation/native';
+import { useRoute, useNavigation } from '@react-navigation/native';
 import type { NativeStackScreenProps } from '@react-navigation/native-stack';
 import YoutubePlayer from 'react-native-youtube-iframe';
 import { Ionicons } from '@expo/vector-icons';
 import { Colors } from '../../constants/colors';
 import { TopBar } from '../../components/common/TopBar';
 import type { ExerciseStackParamList } from '../../navigation/ExerciseNavigator';
+import { useNotificationBadge } from '../../context/NotificationBadgeContext';
 
 type RouteProps = NativeStackScreenProps<ExerciseStackParamList, 'ExerciseVideoPlayer'>['route'];
 
@@ -25,7 +26,9 @@ const VIDEO_HEIGHT = Math.round(SCREEN_WIDTH * 9 / 16);
 
 export function ExerciseVideoPlayerScreen() {
   const route = useRoute<RouteProps>();
+  const navigation = useNavigation<any>();
   const { videoId, title, description } = route.params;
+  const { unreadCount } = useNotificationBadge();
 
   const [playing, setPlaying] = useState(false);
   const [loading, setLoading] = useState(true);
@@ -37,7 +40,13 @@ export function ExerciseVideoPlayerScreen() {
 
   return (
     <SafeAreaView style={styles.safe}>
-      <TopBar title="" showBack />
+      <TopBar
+        title=""
+        showBack
+        showBell
+        bellBadge={unreadCount}
+        onBellPress={() => navigation.navigate('NotificationHistory', { mode: 'all' })}
+      />
       <ScrollView style={styles.scroll} showsVerticalScrollIndicator={false}>
         {/* 영상 영역 */}
         <View style={[styles.playerContainer, { minHeight: VIDEO_HEIGHT }]}>

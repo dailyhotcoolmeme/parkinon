@@ -15,6 +15,7 @@ import { TopBar } from '../../components/common/TopBar';
 import { PrimaryButton } from '../../components/common/PrimaryButton';
 import type { ExerciseStackParamList } from '../../navigation/ExerciseNavigator';
 import { useExercise } from '../../hooks/useExercise';
+import { useNotificationBadge } from '../../context/NotificationBadgeContext';
 
 type Nav = NativeStackNavigationProp<ExerciseStackParamList, 'ExerciseDuration'>;
 type RouteProps = NativeStackScreenProps<ExerciseStackParamList, 'ExerciseDuration'>['route'];
@@ -39,6 +40,7 @@ export function ExerciseDurationScreen() {
   const [selected, setSelected] = useState<number | null>(null);
   const [saving, setSaving] = useState(false);
   const { saveExercise } = useExercise();
+  const { unreadCount } = useNotificationBadge();
 
   const handleSave = async () => {
     if (!selected) {
@@ -61,7 +63,13 @@ export function ExerciseDurationScreen() {
 
   return (
     <SafeAreaView style={styles.safe}>
-      <TopBar title="운동 시간" showBack />
+      <TopBar
+        title="운동 시간"
+        showBack
+        showBell
+        bellBadge={unreadCount}
+        onBellPress={() => navigation.navigate('NotificationHistory', { mode: 'all' })}
+      />
       <ScrollView contentContainerStyle={styles.content} showsVerticalScrollIndicator={false}>
         <Text style={styles.question}>얼마나 하셨나요?</Text>
         <Text style={styles.exerciseName}>{exerciseName}</Text>

@@ -19,6 +19,7 @@ import { useAuth } from '../../context/AuthContext';
 import { usePatientId } from '../../hooks/usePatientId';
 import { supabase } from '../../lib/supabase';
 import { MenuStackParamList } from '../../navigation/MenuNavigator';
+import { useNotificationBadge } from '../../context/NotificationBadgeContext';
 
 type NavProp = StackNavigationProp<MenuStackParamList>;
 
@@ -92,6 +93,7 @@ export function MedicalRecordListScreen() {
   const navigation = useNavigation<NavProp>();
   const { user } = useAuth();
   const { patientId } = usePatientId();
+  const { unreadCount } = useNotificationBadge();
 
   const [appointments, setAppointments] = useState<Appointment[]>([]);
   const [records, setRecords] = useState<MedRecord[]>([]);
@@ -177,7 +179,13 @@ export function MedicalRecordListScreen() {
 
   return (
     <SafeAreaView style={styles.container} edges={['top']}>
-      <TopBar title="진료 기록" showBack />
+      <TopBar
+        title="진료 기록"
+        showBack
+        showBell
+        bellBadge={unreadCount}
+        onBellPress={() => navigation.navigate('NotificationHistory', { mode: 'all' })}
+      />
       {loading ? (
         <View style={styles.center}>
           <ActivityIndicator size="large" color={Colors.primary} />

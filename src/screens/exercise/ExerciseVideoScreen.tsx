@@ -14,6 +14,7 @@ import { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { Colors } from '../../constants/colors';
 import { TopBar } from '../../components/common/TopBar';
 import { ExerciseStackParamList } from '../../navigation/ExerciseNavigator';
+import { useNotificationBadge } from '../../context/NotificationBadgeContext';
 
 type NavProp = NativeStackNavigationProp<ExerciseStackParamList, 'ExerciseVideo'>;
 
@@ -86,12 +87,19 @@ function getVideos(tab: string): VideoItem[] {
 
 export function ExerciseVideoScreen() {
   const navigation = useNavigation<NavProp>();
+  const { unreadCount } = useNotificationBadge();
   const [activeTab, setActiveTab] = useState('기본');
   const videos = getVideos(activeTab);
 
   return (
     <SafeAreaView style={styles.safe}>
-      <TopBar title="운동 영상" showBack />
+      <TopBar
+        title="운동 영상"
+        showBack
+        showBell
+        bellBadge={unreadCount}
+        onBellPress={() => navigation.navigate('NotificationHistory', { mode: 'all' })}
+      />
 
       {/* 필터칩 3개 균등 배분 */}
       <View style={styles.tabRow}>

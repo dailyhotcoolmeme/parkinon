@@ -12,6 +12,7 @@ import {
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useNavigation } from '@react-navigation/native';
+import { useNotificationBadge } from '../../context/NotificationBadgeContext';
 import { useFocusEffect } from '@react-navigation/native';
 import { Ionicons } from '@expo/vector-icons';
 import { Colors } from '../../constants/colors';
@@ -27,8 +28,9 @@ const DIAGNOSIS_YEARS = Array.from({ length: 40 }, (_, i) => 1985 + i);
 const RELATIONS = ['배우자', '자녀', '형제/자매', '기타'];
 
 export function ProfileEditScreen() {
-  const navigation = useNavigation();
+  const navigation = useNavigation<any>();
   const { user, refreshUser } = useAuth();
+  const { unreadCount } = useNotificationBadge();
   const isPatient = user?.role === 'patient';
 
   const [name, setName] = useState('');
@@ -290,7 +292,13 @@ export function ProfileEditScreen() {
 
   return (
     <SafeAreaView style={styles.safeArea} edges={['top']}>
-      <TopBar title="프로필 수정" showBack />
+      <TopBar
+        title="프로필 수정"
+        showBack
+        showBell
+        bellBadge={unreadCount}
+        onBellPress={() => navigation.navigate('NotificationHistory', { mode: 'all' })}
+      />
 
       <ScrollView
         style={styles.scroll}

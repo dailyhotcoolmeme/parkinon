@@ -26,6 +26,7 @@ import { useAuth } from '../../context/AuthContext';
 import { usePatientId } from '../../hooks/usePatientId';
 import { supabase } from '../../lib/supabase';
 import { MenuStackParamList } from '../../navigation/MenuNavigator';
+import { useNotificationBadge } from '../../context/NotificationBadgeContext';
 
 type NavProp = StackNavigationProp<MenuStackParamList>;
 type RouteType = RouteProp<{ AppointmentWrite: { appointmentId?: string } }, 'AppointmentWrite'>;
@@ -265,6 +266,7 @@ export function AppointmentWriteScreen() {
   const appointmentId = (route.params as any)?.appointmentId as string | undefined;
   const { user } = useAuth();
   const { patientId } = usePatientId();
+  const { unreadCount } = useNotificationBadge();
 
   // 내일 10:00 기본값
   const tomorrow = new Date(NOW.getTime() + 24 * 60 * 60 * 1000);
@@ -456,7 +458,13 @@ export function AppointmentWriteScreen() {
   if (isLoading) {
     return (
       <SafeAreaView style={styles.container} edges={['top']}>
-        <TopBar title={appointmentId ? '일정 수정' : '진료 일정 등록'} showBack />
+        <TopBar
+          title={appointmentId ? '일정 수정' : '진료 일정 등록'}
+          showBack
+          showBell
+          bellBadge={unreadCount}
+          onBellPress={() => navigation.navigate('NotificationHistory', { mode: 'all' })}
+        />
         <View style={styles.center}>
           <ActivityIndicator size="large" color={Colors.primary} />
         </View>

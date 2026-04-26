@@ -17,6 +17,7 @@ import { Colors } from '../../constants/colors';
 import { TopBar } from '../../components/common/TopBar';
 import { PrimaryButton } from '../../components/common/PrimaryButton';
 import type { ExerciseStackParamList } from '../../navigation/ExerciseNavigator';
+import { useNotificationBadge } from '../../context/NotificationBadgeContext';
 
 type Nav = NativeStackNavigationProp<ExerciseStackParamList, 'ExerciseRecord'>;
 type MCIName = React.ComponentProps<typeof MaterialCommunityIcons>['name'];
@@ -74,6 +75,7 @@ function ExerciseRow({ ex, selected, onPress }: { ex: Exercise; selected: boolea
 
 export function ExerciseRecordScreen() {
   const navigation = useNavigation<Nav>();
+  const { unreadCount } = useNotificationBadge();
   const [selected, setSelected] = useState<string | null>(null);
   const [customText, setCustomText] = useState('');
   const [showOther, setShowOther] = useState(false);
@@ -98,7 +100,13 @@ export function ExerciseRecordScreen() {
 
   return (
     <SafeAreaView style={styles.safe}>
-      <TopBar title="운동 기록하기" showBack />
+      <TopBar
+        title="운동 기록하기"
+        showBack
+        showBell
+        bellBadge={unreadCount}
+        onBellPress={() => navigation.navigate('NotificationHistory', { mode: 'all' })}
+      />
       <ScrollView contentContainerStyle={styles.content} showsVerticalScrollIndicator={false}>
         <Text style={styles.question}>어떤 운동을 하셨나요?</Text>
 

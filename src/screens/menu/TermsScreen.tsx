@@ -1,9 +1,11 @@
 import React from 'react';
 import { StyleSheet } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
+import { useNavigation } from '@react-navigation/native';
 import { WebView } from 'react-native-webview';
 import { Colors } from '../../constants/colors';
 import { TopBar } from '../../components/common/TopBar';
+import { useNotificationBadge } from '../../context/NotificationBadgeContext';
 
 const TERMS_HTML = `<!DOCTYPE html>
 <html lang="ko">
@@ -200,9 +202,17 @@ const TERMS_HTML = `<!DOCTYPE html>
 </html>`;
 
 export function TermsScreen() {
+  const navigation = useNavigation<any>();
+  const { unreadCount } = useNotificationBadge();
   return (
     <SafeAreaView style={styles.safeArea} edges={['top']}>
-      <TopBar title="이용약관" showBack />
+      <TopBar
+        title="이용약관"
+        showBack
+        showBell
+        bellBadge={unreadCount}
+        onBellPress={() => navigation.navigate('NotificationHistory', { mode: 'all' })}
+      />
       <WebView
         style={styles.webview}
         source={{ html: TERMS_HTML }}
