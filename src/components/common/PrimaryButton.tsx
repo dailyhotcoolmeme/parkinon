@@ -43,7 +43,7 @@ const styles = StyleSheet.create({
   },
   primary: { backgroundColor: Colors.primary },
   dark: { backgroundColor: Colors.dark },
-  outline: { backgroundColor: Colors.white, borderWidth: 2, borderColor: Colors.primary },
+  outline: { backgroundColor: Colors.white, borderWidth: 2, borderColor: Colors.white },
   danger: { backgroundColor: Colors.white },
   disabled: { backgroundColor: Colors.border },
   text: { fontSize: 18, fontWeight: '700' },
