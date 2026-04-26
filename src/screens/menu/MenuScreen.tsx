@@ -16,6 +16,7 @@ import { Colors } from '../../constants/colors';
 import { MenuStackParamList } from '../../navigation/MenuNavigator';
 import { TopBar } from '../../components/common/TopBar';
 import { useAuth } from '../../context/AuthContext';
+import { useNotificationBadge } from '../../context/NotificationBadgeContext';
 import { supabase } from '../../lib/supabase';
 import { navigateTo } from '../../navigation/navigationRef';
 
@@ -103,6 +104,7 @@ const MENU_SECTIONS: MenuSection[] = [
 export function MenuScreen() {
   const navigation = useNavigation<NavigationProp>();
   const { user, signOut, refreshUser } = useAuth();
+  const { unreadCount } = useNotificationBadge();
 
   // 화면 포커스 시 사용자 정보 갱신 (ProfileEdit 후 이름 즉시 반영)
   useFocusEffect(
@@ -207,7 +209,12 @@ export function MenuScreen() {
 
   return (
     <SafeAreaView style={styles.safeArea} edges={['top']}>
-      <TopBar showParkinon />
+      <TopBar
+        showParkinon
+        showBell
+        bellBadge={unreadCount}
+        onBellPress={() => navigation.navigate('NotificationHistory', { mode: 'all' })}
+      />
 
       <ScrollView
         style={styles.scroll}
