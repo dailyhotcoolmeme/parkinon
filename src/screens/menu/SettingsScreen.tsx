@@ -17,6 +17,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { useFocusEffect, useNavigation } from '@react-navigation/native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import * as Notifications from 'expo-notifications';
+import Constants from 'expo-constants';
 import { Ionicons } from '@expo/vector-icons';
 import { Colors } from '../../constants/colors';
 import { TopBar } from '../../components/common/TopBar';
@@ -331,6 +332,64 @@ export function SettingsScreen() {
       });
       return next;
     });
+  };
+
+  const handleRefreshPushToken = async () => {
+    try {
+      Alert.alert('알림 토큰 재등록', '잠시만 기다려주세요...');
+
+      // 1. Expo Push Token 획득
+      const { status } = await Notifications.getPermissionsAsync();
+      if (status !== 'granted') {
+        Alert.alert('알림 권한 없음', '기기 설정에서 알림 권한을 허용해주세요.');
+        return;
+      }
+
+      const token = await Notifications.getExpoPushTokenAsync({
+        projectId: Constants.expoConfig?.extra?.eas?.projectId,
+      });
+
+      if (!token?.data) {
+        Alert.alert('실패', '토큰 획득 실패');
+        return;
+      }
+
+      // 2. DB에 저장 (fetch 사용, supabase-js 절대 사용 금지)
+      const { data: { session } } = await supabase.auth.getSession();
+      if (!session?.access_token) {
+        Alert.alert('실패', '로그인 세션 없음');
+        return;
+      }
+
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user?.id) {
+        Alert.alert('실패', '사용자 정보 없음');
+        return;
+      }
+
+      const SUPA_URL = process.env.EXPO_PUBLIC_SUPABASE_URL!;
+      const SUPA_KEY = process.env.EXPO_PUBLIC_SUPABASE_ANON_KEY!;
+
+      const response = await fetch(`${SUPA_URL}/rest/v1/users?id=eq.${user.id}`, {
+        method: 'PATCH',
+        headers: {
+          'Content-Type': 'application/json',
+          'apikey': SUPA_KEY,
+          'Authorization': `Bearer ${session.access_token}`,
+        },
+        body: JSON.stringify({ push_token: token.data }),
+      });
+
+      if (!response.ok) {
+        const error = await response.text();
+        Alert.alert('실패', `DB 저장 실패: ${response.status}\n${error}`);
+        return;
+      }
+
+      Alert.alert('성공', `알림 토큰이 등록되었습니다!\n\n토큰: ${token.data.substring(0, 30)}...`);
+    } catch (error: any) {
+      Alert.alert('오류', error.message);
+    }
   };
 
   // 배터리 최적화 안내 모달
@@ -1490,6 +1549,30 @@ export function SettingsScreen() {
             })()}
           </View>
         )}
+
+        {/* ── Card: 알림 토큰 재등록 (모든 사용자) ── */}
+        <View style={[styles.card, styles.cardMarginTop]}>
+          <View style={styles.cardHeader}>
+            <Ionicons
+              name="refresh-circle-outline"
+              size={24}
+              color={Colors.primary}
+              style={styles.cardHeaderIcon}
+            />
+            <View style={styles.cardHeaderText}>
+              <Text style={styles.cardHeaderTitle}>알림 토큰 재등록</Text>
+              <Text style={styles.cardHeaderSub}>약 복용 알림이 안 오면 누르세요</Text>
+            </View>
+          </View>
+          <TouchableOpacity
+            activeOpacity={0.7}
+            style={styles.refreshTokenButton}
+            onPress={handleRefreshPushToken}
+          >
+            <Ionicons name="notifications-outline" size={20} color={Colors.primary} style={{ marginRight: 8 }} />
+            <Text style={styles.refreshTokenButtonText}>알림 토큰 재등록</Text>
+          </TouchableOpacity>
+        </View>
       </ScrollView>
 
       {/* 배터리 최적화 안내 모달 */}
@@ -2576,5 +2659,27 @@ const styles = StyleSheet.create({
     fontSize: 18,
     fontWeight: '700',
     color: '#FFFFFF',
+  },
+
+  // ── Refresh Token Button ──
+  refreshTokenButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderTopWidth: 1,
+    borderTopColor: Colors.border,
+    paddingHorizontal: 20,
+    paddingVertical: 18,
+    borderWidth: 1.5,
+    borderColor: Colors.primary,
+    borderRadius: 12,
+    margin: 16,
+    marginTop: 0,
+    backgroundColor: Colors.white,
+  },
+  refreshTokenButtonText: {
+    fontSize: 18,
+    fontWeight: '700',
+    color: Colors.primary,
   },
 });
