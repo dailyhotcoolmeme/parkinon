@@ -291,20 +291,23 @@ export async function requestPermissionsAndSaveToken(
   userId: string,
   accessToken?: string,
 ): Promise<string | null> {
-  // 1. 현재 권한 상태 확인 — undetermined인 경우에만 시스템 다이얼로그 요청
-  //    (NotificationOnboardingModal이 별도로 권한 요청 흐름을 제어하므로 여기서는 중복 요청 안 함)
+  // 1. 현재 권한 상태 확인
   const { status: existingStatus } = await Notifications.getPermissionsAsync();
   let finalStatus = existingStatus;
 
+  // undetermined인 경우에만 시스템 다이얼로그 요청
   if (existingStatus === 'undetermined') {
+    console.log('[notifications] 권한 미설정 → 권한 요청 다이얼로그 표시');
     const { status: requestedStatus } = await Notifications.requestPermissionsAsync();
     finalStatus = requestedStatus;
   }
 
   if (finalStatus !== 'granted') {
-    console.warn('[notifications] 알림 권한 없음 — push token 저장 스킵');
+    console.warn('[notifications] 알림 권한 없음 (상태:', finalStatus, ') — push token 저장 스킵');
     return null;
   }
+
+  console.log('[notifications] 알림 권한 있음 → push token 저장 진행');
 
   // 2. Android 알림 채널 생성 (MAX 중요도 — 시스템 알림 설정에 채널이 표시되어야 차단 해제 가능)
   if (Platform.OS === 'android') {
