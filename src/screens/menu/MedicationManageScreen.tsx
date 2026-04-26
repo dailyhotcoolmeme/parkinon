@@ -1204,6 +1204,26 @@ export function MedicationManageScreen() {
         .select()
         .single();
       if (error) throw error;
+
+      // users.meal_schedules 업데이트 (약 미등록 시에도 알림 발송 가능하도록)
+      try {
+        const { data: userData } = await supabase
+          .from('users')
+          .select('meal_schedules')
+          .eq('id', targetPatientId)
+          .single();
+
+        const currentMealSchedules = (userData?.meal_schedules ?? {}) as MealSchedules;
+        const updatedMealSchedules = { ...currentMealSchedules, ...finalSchedules };
+
+        await supabase
+          .from('users')
+          .update({ meal_schedules: updatedMealSchedules })
+          .eq('id', targetPatientId);
+      } catch (userError) {
+        console.warn('[MedicationManageScreen] users.meal_schedules 업데이트 실패:', userError);
+      }
+
       setMedications(prev => [...prev, {
         id: data.id,
         name: data.name,
@@ -1266,6 +1286,27 @@ export function MedicationManageScreen() {
         })
         .eq('id', savedId);
       if (error) throw error;
+
+      // users.meal_schedules 업데이트 (약 미등록 시에도 알림 발송 가능하도록)
+      if (targetPatientId) {
+        try {
+          const { data: userData } = await supabase
+            .from('users')
+            .select('meal_schedules')
+            .eq('id', targetPatientId)
+            .single();
+
+          const currentMealSchedules = (userData?.meal_schedules ?? {}) as MealSchedules;
+          const updatedMealSchedules = { ...currentMealSchedules, ...finalSchedules };
+
+          await supabase
+            .from('users')
+            .update({ meal_schedules: updatedMealSchedules })
+            .eq('id', targetPatientId);
+        } catch (userError) {
+          console.warn('[MedicationManageScreen] users.meal_schedules 업데이트 실패:', userError);
+        }
+      }
     } catch (e) {
       console.error('[MedicationManageScreen] 약 수정 오류:', e);
       Alert.alert('', '약 수정에 실패했어요.');

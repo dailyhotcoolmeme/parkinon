@@ -28,6 +28,7 @@ export interface Database {
           med_notif_prefs: unknown[] | null;
           exercise_notif_prefs: unknown[] | null;
           caregiver_notif_prefs: Record<string, boolean> | null;
+          meal_schedules: Record<string, string> | null;
           created_at: string;
           updated_at: string;
         };

@@ -744,11 +744,19 @@ export function MedicationRegisterScreen() {
         'Accept': 'application/json',
       };
 
-      // onboarding_done 업데이트
+      // onboarding_done 업데이트 + meal_schedules 기본값 설정
       const patchRes = await fetch(`${SUPABASE_URL}/rest/v1/users?id=eq.${userId}`, {
         method: 'PATCH',
         headers: { ...baseHeaders, 'Prefer': 'return=minimal' },
-        body: JSON.stringify({ onboarding_done: true }),
+        body: JSON.stringify({
+          onboarding_done: true,
+          meal_schedules: {
+            morning: '08:00',
+            lunch: '12:00',
+            dinner: '18:00',
+            bedtime: '22:00',
+          },
+        }),
       });
       if (!patchRes.ok) {
         const errText = await patchRes.text();
