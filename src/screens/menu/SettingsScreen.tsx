@@ -134,7 +134,7 @@ export function SettingsScreen() {
     try {
       const { data } = await supabase
         .from('users')
-        .select('med_time_notif_prefs')
+        .select('med_time_notif_prefs, meal_schedules')
         .eq('id', user.id)
         .single();
       if (data?.med_time_notif_prefs) {
@@ -162,7 +162,16 @@ export function SettingsScreen() {
         setMedSlotTimes(prev => ({ ...prev, ...earliest }));
         setActiveMedSlots(Array.from(activeSlots) as MedTimeSlotKey[]);
       } else {
-        setActiveMedSlots([]);
+        // 약 등록 없으면 users.meal_schedules에서 시간 가져오기, 기본 4개 슬롯 활성화
+        const userMealSchedules = (data?.meal_schedules ?? {}) as Record<string, string>;
+        const defaultTimes = {
+          morning: userMealSchedules.morning || '08:00',
+          lunch: userMealSchedules.lunch || '12:00',
+          dinner: userMealSchedules.dinner || '18:00',
+          bedtime: userMealSchedules.bedtime || '22:00',
+        };
+        setMedSlotTimes(defaultTimes);
+        setActiveMedSlots(['morning', 'lunch', 'dinner', 'bedtime']);
       }
     } catch {}
   }, [user, isCaregiver]);
@@ -191,10 +200,10 @@ export function SettingsScreen() {
       if (!pid) return;
       setPatientId(pid);
 
-      // 2. 환자의 알림 설정 (med_time_notif_prefs + med_notif_prefs + exercise_notif_prefs)
+      // 2. 환자의 알림 설정 (med_time_notif_prefs + med_notif_prefs + exercise_notif_prefs + meal_schedules)
       const { data: patientUser } = await supabase
         .from('users')
-        .select('med_time_notif_prefs, med_notif_prefs, exercise_notif_prefs')
+        .select('med_time_notif_prefs, med_notif_prefs, exercise_notif_prefs, meal_schedules')
         .eq('id', pid)
         .single();
       if (patientUser?.med_time_notif_prefs) {
@@ -238,7 +247,16 @@ export function SettingsScreen() {
         setPatientMedSlotTimes(prev => ({ ...prev, ...earliest }));
         setPatientActiveMedSlots(Array.from(activeSlots) as MedTimeSlotKey[]);
       } else {
-        setPatientActiveMedSlots([]);
+        // 약 등록 없으면 users.meal_schedules에서 시간 가져오기, 기본 4개 슬롯 활성화
+        const userMealSchedules = (patientUser?.meal_schedules ?? {}) as Record<string, string>;
+        const defaultTimes = {
+          morning: userMealSchedules.morning || '08:00',
+          lunch: userMealSchedules.lunch || '12:00',
+          dinner: userMealSchedules.dinner || '18:00',
+          bedtime: userMealSchedules.bedtime || '22:00',
+        };
+        setPatientMedSlotTimes(defaultTimes);
+        setPatientActiveMedSlots(['morning', 'lunch', 'dinner', 'bedtime']);
       }
     } catch {}
   }, [user, isCaregiver]);
