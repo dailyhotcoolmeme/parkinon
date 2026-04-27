@@ -358,10 +358,12 @@ export function useAuthProvider(): UseAuthReturn {
         return false;
       }
 
-      // 외부 브라우저로 OAuth URL 열기
-      // 인증 완료 후 parkinon://auth/callback 딥링크는 Linking.addEventListener가 수신
-      console.log('[useAuth] Linking.openURL로 카카오 OAuth 열기');
-      await Linking.openURL(data.url);
+      // Chrome Custom Tab으로 OAuth URL 열기 (await 없이 fire-and-forget)
+      // - Linking.openURL 대비 장점: processAuthUrl에서 WebBrowser.dismissBrowser()로 탭 자동 닫기 가능
+      // - 카카오 앱 설치 시 카카오 앱으로 리다이렉트되어도 Custom Tab이 남아있어 닫기 가능
+      // - 인증 완료 후 parkinon://auth/callback 딥링크는 Linking.addEventListener가 수신
+      console.log('[useAuth] WebBrowser.openBrowserAsync로 카카오 OAuth 열기');
+      WebBrowser.openBrowserAsync(data.url).catch(() => {});
       return true; // 딥링크 대기 중 — signing 상태는 LoginScreen의 AppState 리스너가 관리
     } catch (err) {
       console.error('[useAuth] signInWithKakao 오류:', err);
