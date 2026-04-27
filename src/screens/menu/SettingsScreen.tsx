@@ -1217,6 +1217,8 @@ export function SettingsScreen() {
             </View>
           ))}
 
+          <Text style={styles.notifNotice}>※ 취침약 복용 후에는 약효 추적 알림을 보내지 않아요</Text>
+
           <TouchableOpacity
             activeOpacity={0.7}
             style={styles.addRow}
@@ -2304,6 +2306,13 @@ const styles = StyleSheet.create({
     fontSize: 15,
     color: Colors.textSub,
     marginTop: 3,
+  },
+  notifNotice: {
+    fontSize: 14,
+    color: Colors.textHint,
+    paddingHorizontal: 20,
+    paddingTop: 4,
+    paddingBottom: 8,
   },
   medTimeNote: {
     fontSize: 14,
