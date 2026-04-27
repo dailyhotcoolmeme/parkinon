@@ -320,10 +320,8 @@ export function PostWriteScreen() {
             maxLength={2000}
           />
 
-        </ScrollView>
-
-        {/* 사진 + 등록 버튼 — 스크롤 밖 고정 영역 */}
-        <View style={styles.bottomActions}>
+          {/* 사진 + 등록 버튼 — 스크롤 내부 */}
+          <View style={styles.bottomActions}>
           <View style={styles.divider} />
 
           {/* 사진 추가 */}
@@ -384,7 +382,8 @@ export function PostWriteScreen() {
                 : (isEditMode ? '수정하기' : '등록하기')}
             </Text>
           </TouchableOpacity>
-        </View>
+          </View>
+        </ScrollView>
       </KeyboardAvoidingView>
     </SafeAreaView>
   );
@@ -493,10 +492,8 @@ const styles = StyleSheet.create({
   },
   existingBadgeText: { fontSize: 10, color: '#fff', fontWeight: '700' },
   bottomActions: {
-    paddingHorizontal: 20,
-    paddingTop: 0,
+    paddingTop: 8,
     paddingBottom: 16,
-    backgroundColor: Colors.white,
   },
   bottomMainBtn: {
     backgroundColor: Colors.primary,

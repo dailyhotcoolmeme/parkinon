@@ -186,6 +186,13 @@ export function ExerciseScreen() {
             </View>
           </TouchableOpacity>
 
+          {userRole === 'caregiver_no_patient' && (
+            <Text style={styles.caregiverNotice}>환자와 연동 후 기록할 수 있어요</Text>
+          )}
+          {userRole === 'caregiver_separate' && (
+            <Text style={styles.caregiverNotice}>같이 계신 경우에만 대신 입력할 수 있어요</Text>
+          )}
+
           <TouchableOpacity
             style={styles.outlineBtn}
             onPress={() => navigation.navigate('ExerciseVideo')}
@@ -298,7 +305,7 @@ const styles = StyleSheet.create({
     shadowOpacity: 0.15,
     shadowRadius: 8,
   },
-  primaryBtnDisabled: { backgroundColor: Colors.border },
+  primaryBtnDisabled: { backgroundColor: '#BDBDBD' },
   primaryBtnInner: { alignItems: 'center', gap: 12 },
   primaryBtnText: { fontSize: 26, fontWeight: '800', color: Colors.white },
 
@@ -345,4 +352,10 @@ const styles = StyleSheet.create({
   },
   emptyText: { fontSize: 20, fontWeight: '700', color: Colors.textSub },
   emptySubText: { fontSize: 17, color: Colors.textHint, textAlign: 'center', lineHeight: 26 },
+  caregiverNotice: {
+    marginTop: 14,
+    fontSize: 14,
+    color: Colors.textSub,
+    textAlign: 'center',
+  },
 });

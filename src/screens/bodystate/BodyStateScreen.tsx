@@ -320,6 +320,13 @@ export function BodyStateScreen() {
             </View>
           </TouchableOpacity>
 
+          {userRole === 'caregiver_no_patient' && (
+            <Text style={styles.caregiverNotice}>환자와 연동 후 기록할 수 있어요</Text>
+          )}
+          {userRole === 'caregiver_separate' && (
+            <Text style={styles.caregiverNotice}>같이 계신 경우에만 대신 입력할 수 있어요</Text>
+          )}
+
           <TouchableOpacity
             style={styles.outlineButton}
             onPress={() => navigation.navigate('VideoRecord')}
@@ -536,7 +543,7 @@ const styles = StyleSheet.create({
     shadowRadius: 8,
     elevation: 6,
   },
-  mainButtonDisabled: { backgroundColor: Colors.border },
+  mainButtonDisabled: { backgroundColor: '#BDBDBD' },
   mainButtonInner: { alignItems: 'center', gap: 12 },
   mainButtonText: { fontSize: 26, fontWeight: '800', color: Colors.white },
 
@@ -580,4 +587,10 @@ const styles = StyleSheet.create({
   emptyWrap: { alignItems: 'center', paddingVertical: 40, gap: 12 },
   emptyText: { fontSize: 20, fontWeight: '700', color: Colors.textSub },
   emptySubText: { fontSize: 17, color: Colors.textHint, textAlign: 'center', lineHeight: 26 },
+  caregiverNotice: {
+    marginTop: 14,
+    fontSize: 14,
+    color: Colors.textSub,
+    textAlign: 'center',
+  },
 });

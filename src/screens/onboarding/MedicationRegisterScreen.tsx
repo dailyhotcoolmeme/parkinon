@@ -744,19 +744,39 @@ export function MedicationRegisterScreen() {
         'Accept': 'application/json',
       };
 
-      // onboarding_done 업데이트 + meal_schedules 기본값 설정
+      // AsyncStorage에서 프로필 + 역할 정보 읽기
+      const storageValues = await AsyncStorage.multiGet([
+        'onboarding_role',
+        'onboarding_invite_code_generated',
+        'onboarding_group_id',
+        'onboarding_name',
+        'onboarding_birth_year',
+        'onboarding_gender',
+        'onboarding_relation',
+        'onboarding_living',
+      ]).then((pairs) => pairs.map(([, v]) => v));
+      const [roleVal, inviteCodeVal, joinGroupIdVal, nameVal, birthYearVal, genderVal, relationVal, livingVal] = storageValues;
+
+      // onboarding_done 업데이트 + 프로필 정보 포함
+      const patchBody: Record<string, any> = {
+        onboarding_done: true,
+        meal_schedules: {
+          morning: '08:00',
+          lunch: '12:00',
+          dinner: '18:00',
+          bedtime: '22:00',
+        },
+      };
+      if (nameVal) patchBody.name = nameVal;
+      if (birthYearVal) patchBody.birth_year = parseInt(birthYearVal, 10);
+      if (genderVal) patchBody.gender = genderVal;
+      if (relationVal) patchBody.caregiver_relation = relationVal;
+      if (livingVal) patchBody.residence_type = livingVal;
+
       const patchRes = await fetch(`${SUPABASE_URL}/rest/v1/users?id=eq.${userId}`, {
         method: 'PATCH',
         headers: { ...baseHeaders, 'Prefer': 'return=minimal' },
-        body: JSON.stringify({
-          onboarding_done: true,
-          meal_schedules: {
-            morning: '08:00',
-            lunch: '12:00',
-            dinner: '18:00',
-            bedtime: '22:00',
-          },
-        }),
+        body: JSON.stringify(patchBody),
       });
       if (!patchRes.ok) {
         const errText = await patchRes.text();
@@ -766,12 +786,6 @@ export function MedicationRegisterScreen() {
       }
 
       // 환자인 경우 patient_groups가 없으면 생성 (나중에 등록하기 경로)
-      // AsyncStorage에서 role과 invite_code 확인
-      const [roleVal, inviteCodeVal, joinGroupIdVal] = await AsyncStorage.multiGet([
-        'onboarding_role',
-        'onboarding_invite_code_generated',
-        'onboarding_group_id',
-      ]).then((pairs) => pairs.map(([, v]) => v));
 
       if (roleVal === 'patient' && !joinGroupIdVal && inviteCodeVal) {
         const expiresAt = new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString();
