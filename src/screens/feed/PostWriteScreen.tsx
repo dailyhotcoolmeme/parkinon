@@ -316,6 +316,7 @@ export function PostWriteScreen() {
             value={content}
             onChangeText={setContent}
             multiline
+            scrollEnabled
             textAlignVertical="top"
             maxLength={2000}
           />
@@ -441,7 +442,7 @@ const styles = StyleSheet.create({
     color: Colors.text,
     paddingVertical: 14,
     paddingHorizontal: 0,
-    minHeight: 200,
+    height: 320,
     lineHeight: 28,
   },
   photoBtnLarge: {
@@ -493,7 +494,7 @@ const styles = StyleSheet.create({
   existingBadgeText: { fontSize: 10, color: '#fff', fontWeight: '700' },
   bottomActions: {
     paddingTop: 8,
-    paddingBottom: 16,
+    paddingBottom: 40,
   },
   bottomMainBtn: {
     backgroundColor: Colors.primary,

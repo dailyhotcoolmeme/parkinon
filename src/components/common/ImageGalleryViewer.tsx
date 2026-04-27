@@ -48,19 +48,19 @@ export function ImageGalleryViewer({ urls }: Props) {
   };
 
   const handleThumbnailScroll = (e: NativeSyntheticEvent<NativeScrollEvent>) => {
-    const pageIdx = Math.round(e.nativeEvent.contentOffset.x / (SCREEN_WIDTH * 0.72 + 10));
+    const pageIdx = Math.round(e.nativeEvent.contentOffset.x / SCREEN_WIDTH);
     setCurrentIndex(pageIdx);
   };
 
   return (
     <>
-      {/* 썸네일 가로 스크롤 + N장 인디케이터 */}
+      {/* 본문 사진 — 한 장씩 전체 너비 스와이프 */}
       <View style={styles.galleryWrap}>
         <ScrollView
           horizontal
+          pagingEnabled
           showsHorizontalScrollIndicator={false}
           style={styles.mediaScroll}
-          contentContainerStyle={styles.mediaScrollContent}
           onMomentumScrollEnd={handleThumbnailScroll}
           scrollEventThrottle={16}
         >
@@ -68,7 +68,8 @@ export function ImageGalleryViewer({ urls }: Props) {
             <TouchableOpacity
               key={idx}
               onPress={() => handleThumbnailPress(idx)}
-              activeOpacity={0.85}
+              activeOpacity={0.9}
+              style={styles.mediaPage}
             >
               <Image
                 source={{ uri: url }}
@@ -79,11 +80,15 @@ export function ImageGalleryViewer({ urls }: Props) {
           ))}
         </ScrollView>
 
-        {/* "N장" 뱃지 */}
+        {/* 하단 도트 인디케이터 */}
         {urls.length > 1 && (
-          <View style={styles.countBadge}>
-            <Ionicons name="images-outline" size={13} color="#fff" />
-            <Text style={styles.countBadgeText}>{urls.length}장</Text>
+          <View style={styles.inlineDotsRow}>
+            {urls.map((_, idx) => (
+              <View
+                key={idx}
+                style={[styles.inlineDot, idx === currentIndex && styles.inlineDotActive]}
+              />
+            ))}
           </View>
         )}
       </View>
@@ -167,32 +172,33 @@ const styles = StyleSheet.create({
     marginHorizontal: -20,
   },
   mediaScroll: {},
-  mediaScrollContent: {
-    paddingHorizontal: 20,
-    gap: 10,
+  mediaPage: {
+    width: SCREEN_WIDTH,
+    alignItems: 'center',
   },
   mediaImage: {
-    width: SCREEN_WIDTH * 0.72,
-    height: SCREEN_WIDTH * 0.72,
-    borderRadius: 12,
+    width: SCREEN_WIDTH,
+    height: SCREEN_WIDTH * 0.85,
     backgroundColor: '#E0E0E0',
   },
-  countBadge: {
-    position: 'absolute',
-    top: 10,
-    right: 28,
+  inlineDotsRow: {
     flexDirection: 'row',
+    justifyContent: 'center',
     alignItems: 'center',
-    gap: 4,
-    backgroundColor: 'rgba(0,0,0,0.55)',
-    borderRadius: 14,
-    paddingHorizontal: 10,
-    paddingVertical: 5,
+    paddingTop: 10,
+    paddingBottom: 4,
+    gap: 6,
   },
-  countBadgeText: {
-    color: '#fff',
-    fontSize: 13,
-    fontWeight: '700',
+  inlineDot: {
+    width: 7,
+    height: 7,
+    borderRadius: 4,
+    backgroundColor: '#CCCCCC',
+  },
+  inlineDotActive: {
+    width: 18,
+    borderRadius: 4,
+    backgroundColor: '#444444',
   },
 
   // Modal

@@ -435,7 +435,7 @@ export function FeedScreen() {
           </View>
           <View style={styles.rowMeta}>
             <Text style={styles.metaText} numberOfLines={1}>
-              {item.author}{' · '}{item.date}{' · 조회 '}{item.views}{' · 좋아요 '}{item.likeCount}
+              {item.author}{' · '}{item.date}{' · 조회 '}{item.views}
             </Text>
           </View>
         </View>
