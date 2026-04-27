@@ -92,12 +92,17 @@ export function LoginScreen() {
     oauthStarted.current = true;
     setSigning(true);
     await signInWithKakao();
+    // 성공 시 useEffect([user, loading])에서도 처리됨 — 취소/실패 시 즉시 복구
+    oauthStarted.current = false;
+    setSigning(false);
   };
 
   const handleGoogleLogin = async () => {
     oauthStarted.current = true;
     setSigning(true);
     await signInWithGoogle();
+    oauthStarted.current = false;
+    setSigning(false);
   };
 
   return (

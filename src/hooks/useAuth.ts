@@ -14,7 +14,7 @@
  * 이 파일의 useAuthProvider()는 AuthProvider 내부에서만 사용합니다.
  */
 import { useState, useEffect, useCallback } from 'react';
-import { Platform } from 'react-native';
+import { Platform, Alert } from 'react-native';
 import * as WebBrowser from 'expo-web-browser';
 import * as Linking from 'expo-linking';
 import * as Notifications from 'expo-notifications';
@@ -70,7 +70,10 @@ async function processAuthUrl(url: string): Promise<void> {
   if (accessToken && refreshToken) {
     console.log('[useAuth] fragment 토큰 발견 → setSession');
     const { error } = await supabase.auth.setSession({ access_token: accessToken, refresh_token: refreshToken });
-    if (error) console.error('[useAuth] setSession 오류:', error.message);
+    if (error) {
+      console.error('[useAuth] setSession 오류:', error.message);
+      Alert.alert('로그인 실패', '카카오 로그인 처리 중 오류가 발생했습니다. 다시 시도해주세요.');
+    }
   } else {
     // PKCE 방식 (code 파라미터)
     const parsed = Linking.parse(url);
@@ -78,10 +81,14 @@ async function processAuthUrl(url: string): Promise<void> {
     console.log('[useAuth] PKCE code 있음:', !!code);
 
     if (code) {
-      const { error } = await supabase.auth.exchangeCodeForSession(url);
-      if (error) console.error('[useAuth] exchangeCodeForSession 오류:', error.message, error.status);
+      const { error } = await supabase.auth.exchangeCodeForSession(code);
+      if (error) {
+        console.error('[useAuth] exchangeCodeForSession 오류:', error.message, error.status);
+        Alert.alert('로그인 실패', '카카오 로그인 처리 중 오류가 발생했습니다. 다시 시도해주세요.');
+      }
     } else {
       console.error('[useAuth] Auth URL에서 토큰/코드 없음. 파라미터:', Object.keys(parsed.queryParams ?? {}));
+      Alert.alert('로그인 실패', '카카오 로그인 응답이 올바르지 않습니다. 다시 시도해주세요.');
     }
   }
 
@@ -341,6 +348,7 @@ export function useAuthProvider(): UseAuthReturn {
 
       if (error || !data?.url) {
         console.error('[useAuth] signInWithOAuth 오류:', error?.message);
+        Alert.alert('로그인 오류', '카카오 로그인을 시작할 수 없습니다. 네트워크 연결을 확인해주세요.');
         return;
       }
 
@@ -354,8 +362,7 @@ export function useAuthProvider(): UseAuthReturn {
         console.log('[useAuth] 카카오 success URL 직접 처리');
         await processAuthUrl(result.url);
       }
-      // result.type === 'cancel': 사용자가 취소 → 아무 처리 안 함
-      // result.type === 'dismiss': 사용자가 닫음 → 아무 처리 안 함
+      // result.type === 'cancel' / 'dismiss': 사용자가 취소 → 아무 처리 안 함
     } catch (err) {
       console.error('[useAuth] signInWithKakao 오류:', err);
     }
