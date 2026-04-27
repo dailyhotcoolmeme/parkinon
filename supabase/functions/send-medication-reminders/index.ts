@@ -25,65 +25,181 @@ async function sendPush(to: string, title: string, body: string, data: Record<st
   })
 }
 
+function subtractMinutes(hhmm: string, minutes: number): string {
+  const [h, m] = hhmm.split(':').map(Number)
+  const total = h * 60 + m - minutes
+  const safeTotal = ((total % 1440) + 1440) % 1440
+  return `${String(Math.floor(safeTotal / 60)).padStart(2, '0')}:${String(safeTotal % 60).padStart(2, '0')}`
+}
+
+async function hasTakenMed(patientId: string, slot: string, today: string): Promise<boolean> {
+  const { data: logs } = await supabase
+    .from('med_logs')
+    .select('id')
+    .eq('patient_id', patientId)
+    .eq('meal_time', slot)
+    .gte('taken_at', `${today}T00:00:00+09:00`)
+    .lte('taken_at', `${today}T23:59:59+09:00`)
+    .limit(1)
+  return !!(logs?.length)
+}
+
+async function sendCaregiverMissed(patientId: string, patientGroupId: string, slot: string) {
+  const { data: caregivers } = await supabase
+    .from('patient_group_members')
+    .select('user_id')
+    .eq('group_id', patientGroupId)
+    .eq('role', 'caregiver')
+
+  if (!caregivers?.length) return
+
+  const { data: caregiverUsers } = await supabase
+    .from('users')
+    .select('push_token, caregiver_notif_prefs')
+    .in('id', caregivers.map((c: any) => c.user_id))
+    .not('push_token', 'is', null)
+
+  for (const cu of caregiverUsers ?? []) {
+    if (!cu.push_token) continue
+    const prefs = (cu.caregiver_notif_prefs ?? {}) as Record<string, boolean>
+    if (prefs.med_missed === false) continue
+    await sendPush(
+      cu.push_token,
+      '⚠️ 약을 안 드셨어요',
+      `환자분이 ${MEAL_LABELS[slot]} 약을 아직 안 드셨어요.`,
+      { type: 'caregiver_missed_med', mealTime: slot },
+    )
+  }
+}
+
 Deno.serve(async (_req: Request) => {
   const kstNow = new Date(Date.now() + 9 * 60 * 60 * 1000)
   const hh = String(kstNow.getHours()).padStart(2, '0')
   const mm = String(kstNow.getMinutes()).padStart(2, '0')
   const currentTime = `${hh}:${mm}`
+  const time10 = subtractMinutes(currentTime, 10)
+  const time20 = subtractMinutes(currentTime, 20)
   const today = kstNow.toISOString().split('T')[0]
-
-  const { data: matchedMeds } = await supabase.rpc('get_meds_at_time', { target_time: currentTime })
-
-  if (!matchedMeds?.length) {
-    return new Response(JSON.stringify({ sent: 0, time: currentTime }), {
-      headers: { 'Content-Type': 'application/json' },
-    })
-  }
-
-  const toNotify: Map<string, Set<string>> = new Map()
-  for (const row of matchedMeds) {
-    if (!toNotify.has(row.patient_id)) toNotify.set(row.patient_id, new Set())
-    toNotify.get(row.patient_id)!.add(row.meal_time)
-  }
 
   let sent = 0
 
-  for (const [patientId, slots] of toNotify.entries()) {
-    const { data: patient } = await supabase
-      .from('users')
-      .select('push_token, notification_enabled, med_time_notif_prefs')
-      .eq('id', patientId)
-      .single()
+  // ── 1. 정시 알림 ──────────────────────────────────────────────────
+  const { data: matchedMeds } = await supabase.rpc('get_meds_at_time', { target_time: currentTime })
 
-    if (!patient?.push_token || !patient.notification_enabled) continue
+  if (matchedMeds?.length) {
+    const toNotify: Map<string, Set<string>> = new Map()
+    for (const row of matchedMeds) {
+      if (!toNotify.has(row.patient_id)) toNotify.set(row.patient_id, new Set())
+      toNotify.get(row.patient_id)!.add(row.meal_time)
+    }
 
-    const prefs = (patient.med_time_notif_prefs ?? {}) as Record<string, boolean>
+    for (const [patientId, slots] of toNotify.entries()) {
+      const { data: patient } = await supabase
+        .from('users')
+        .select('push_token, notification_enabled, med_time_notif_prefs, patient_group_id')
+        .eq('id', patientId)
+        .single()
 
-    for (const slot of slots) {
-      if (prefs[slot] === false) continue
+      if (!patient?.push_token || !patient.notification_enabled) continue
 
-      const { data: logs } = await supabase
-        .from('med_logs')
-        .select('id')
-        .eq('patient_id', patientId)
-        .eq('meal_time', slot)
-        .gte('taken_at', `${today}T00:00:00+09:00`)
-        .lte('taken_at', `${today}T23:59:59+09:00`)
-        .limit(1)
+      const prefs = (patient.med_time_notif_prefs ?? {}) as Record<string, boolean>
 
-      if (logs?.length) continue
+      for (const slot of slots) {
+        if (prefs[slot] === false) continue
+        if (await hasTakenMed(patientId, slot, today)) continue
 
-      await sendPush(
-        patient.push_token,
-        '💊 약 드실 시간이에요',
-        `${MEAL_LABELS[slot]} 약을 드실 시간이에요.`,
-        { type: 'medication_reminder', mealTime: slot },
-      )
-      sent++
+        await sendPush(
+          patient.push_token,
+          '💊 약 드실 시간이에요',
+          `${MEAL_LABELS[slot]} 약을 드실 시간이에요.`,
+          { type: 'medication_reminder', mealTime: slot },
+        )
+        sent++
+      }
     }
   }
 
-  return new Response(JSON.stringify({ sent, time: currentTime }), {
+  // ── 2. 1차 미복용 알림 (+10분) — 환자에게만 ───────────────────────
+  const { data: meds10 } = await supabase.rpc('get_meds_at_time', { target_time: time10 })
+
+  if (meds10?.length) {
+    const toNotify10: Map<string, Set<string>> = new Map()
+    for (const row of meds10) {
+      if (!toNotify10.has(row.patient_id)) toNotify10.set(row.patient_id, new Set())
+      toNotify10.get(row.patient_id)!.add(row.meal_time)
+    }
+
+    for (const [patientId, slots] of toNotify10.entries()) {
+      const { data: patient } = await supabase
+        .from('users')
+        .select('push_token, notification_enabled, med_time_notif_prefs, patient_group_id')
+        .eq('id', patientId)
+        .single()
+
+      if (!patient?.push_token || !patient.notification_enabled) continue
+
+      const prefs = (patient.med_time_notif_prefs ?? {}) as Record<string, boolean>
+
+      for (const slot of slots) {
+        if (prefs[slot] === false) continue
+        if (await hasTakenMed(patientId, slot, today)) continue
+
+        await sendPush(
+          patient.push_token,
+          '💊 약을 아직 안 드셨어요',
+          `${MEAL_LABELS[slot]} 약을 아직 드시지 않으셨어요.`,
+          { type: 'missed_medication_first', mealTime: slot },
+        )
+        sent++
+      }
+    }
+  }
+
+  // ── 3. 2차 미복용 알림 (+20분) — 환자 + 보호자 ───────────────────
+  const { data: meds20 } = await supabase.rpc('get_meds_at_time', { target_time: time20 })
+
+  if (meds20?.length) {
+    const toNotify20: Map<string, Set<string>> = new Map()
+    for (const row of meds20) {
+      if (!toNotify20.has(row.patient_id)) toNotify20.set(row.patient_id, new Set())
+      toNotify20.get(row.patient_id)!.add(row.meal_time)
+    }
+
+    for (const [patientId, slots] of toNotify20.entries()) {
+      const { data: patient } = await supabase
+        .from('users')
+        .select('push_token, notification_enabled, med_time_notif_prefs, patient_group_id')
+        .eq('id', patientId)
+        .single()
+
+      if (!patient?.notification_enabled) continue
+
+      const prefs = (patient.med_time_notif_prefs ?? {}) as Record<string, boolean>
+
+      for (const slot of slots) {
+        if (prefs[slot] === false) continue
+        if (await hasTakenMed(patientId, slot, today)) continue
+
+        // 환자에게 2차 알림
+        if (patient.push_token) {
+          await sendPush(
+            patient.push_token,
+            '💊 약을 안 드셨어요',
+            `${MEAL_LABELS[slot]} 약을 아직 안 드셨어요.`,
+            { type: 'missed_medication_second', mealTime: slot },
+          )
+          sent++
+        }
+
+        // 보호자에게 알림
+        if (patient.patient_group_id) {
+          await sendCaregiverMissed(patientId, patient.patient_group_id, slot)
+        }
+      }
+    }
+  }
+
+  return new Response(JSON.stringify({ sent, time: currentTime, time10, time20 }), {
     headers: { 'Content-Type': 'application/json' },
   })
 })
