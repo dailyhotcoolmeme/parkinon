@@ -2309,9 +2309,9 @@ const styles = StyleSheet.create({
     marginTop: 3,
   },
   notifNotice: {
-    fontSize: 13,
+    fontSize: 15,
     color: Colors.danger,
-    marginTop: 4,
+    marginTop: 2,
   },
   medTimeNote: {
     fontSize: 14,
