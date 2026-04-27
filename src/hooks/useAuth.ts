@@ -59,8 +59,7 @@ WebBrowser.maybeCompleteAuthSession();
 
 // ─── Auth 딥링크 처리 유틸 ──────────────────────────────────────────────────
 async function processAuthUrl(url: string): Promise<void> {
-  console.log('[useAuth] ===== processAuthUrl 시작 =====');
-  console.log('[useAuth] 전체 URL:', url);
+  console.log('[useAuth] Auth URL 처리 시작:', url.substring(0, 80));
 
   // fragment 방식 (access_token + refresh_token)
   const fragmentStr = url.split('#')[1] ?? '';
@@ -68,43 +67,33 @@ async function processAuthUrl(url: string): Promise<void> {
   const accessToken = fragmentParams.get('access_token');
   const refreshToken = fragmentParams.get('refresh_token');
 
-  console.log('[useAuth] fragment 토큰 확인:', { hasAccessToken: !!accessToken, hasRefreshToken: !!refreshToken });
-
   if (accessToken && refreshToken) {
-    console.log('[useAuth] fragment 토큰 발견 → setSession 호출');
-    const { data, error } = await supabase.auth.setSession({ access_token: accessToken, refresh_token: refreshToken });
+    console.log('[useAuth] fragment 토큰 발견 → setSession');
+    const { error } = await supabase.auth.setSession({ access_token: accessToken, refresh_token: refreshToken });
     if (error) {
-      console.error('[useAuth] setSession 오류:', error.message, error);
+      console.error('[useAuth] setSession 오류:', error.message);
       throw new Error(`세션 설정 실패: ${error.message}`);
     }
-    console.log('[useAuth] setSession 성공 ✅ 사용자 ID:', data?.user?.id);
+    console.log('[useAuth] setSession 성공');
   } else {
     // PKCE 방식 (code 파라미터)
     const parsed = Linking.parse(url);
     const code = parsed.queryParams?.code as string | undefined;
-    console.log('[useAuth] PKCE 모드 - code 있음:', !!code);
-    console.log('[useAuth] queryParams:', Object.keys(parsed.queryParams ?? {}));
+    console.log('[useAuth] PKCE code 있음:', !!code);
 
     if (code) {
-      console.log('[useAuth] exchangeCodeForSession 호출');
-      const { data, error } = await supabase.auth.exchangeCodeForSession(url);
+      const { error } = await supabase.auth.exchangeCodeForSession(url);
       if (error) {
-        console.error('[useAuth] exchangeCodeForSession 오류:', error.message, error.status, error);
+        console.error('[useAuth] exchangeCodeForSession 오류:', error.message, error.status);
         throw new Error(`코드 교환 실패: ${error.message}`);
       }
-      console.log('[useAuth] exchangeCodeForSession 성공 ✅ 사용자 ID:', data?.user?.id);
+      console.log('[useAuth] exchangeCodeForSession 성공');
     } else {
-      // 파라미터 전체 출력하여 디버깅
-      const allParams = { ...parsed.queryParams };
-      const errorMsg = 'Auth URL에서 토큰/코드 없음';
+      const errorMsg = 'Auth URL에서 토큰/코드 없음. 파라미터: ' + Object.keys(parsed.queryParams ?? {}).join(', ');
       console.error('[useAuth]', errorMsg);
-      console.error('[useAuth] 전체 queryParams:', JSON.stringify(allParams, null, 2));
-      console.error('[useAuth] fragment:', fragmentStr);
-      throw new Error(`${errorMsg}. 파라미터: ${Object.keys(allParams).join(', ')}`);
+      throw new Error(errorMsg);
     }
   }
-
-  console.log('[useAuth] ===== processAuthUrl 완료 =====');
 
   // Android: 카카오 로그인 후 남아있는 브라우저 창 닫기
   if (Platform.OS === 'android') {
@@ -377,26 +366,17 @@ export function useAuthProvider(): UseAuthReturn {
       // → 리다이렉트 URL을 직접 캡처하므로 브라우저가 자동으로 닫힘
       console.log('[useAuth] openAuthSessionAsync(Custom Tab) 사용');
       const result = await WebBrowser.openAuthSessionAsync(data.url, REDIRECT_TO);
-      console.log('[useAuth] 카카오 Custom Tab 결과 type:', result.type);
-      console.log('[useAuth] 카카오 Custom Tab 결과 url:', result.type === 'success' ? result.url?.substring(0, 100) : 'N/A');
+      console.log('[useAuth] 카카오 Custom Tab 결과:', result.type);
 
-      // result.url이 있으면 인증 성공으로 간주 (type이 dismiss여도 URL이 있으면 처리)
       if (result.type === 'success' && result.url) {
-        console.log('[useAuth] success 케이스 - URL 처리 시작');
+        console.log('[useAuth] 카카오 success URL 직접 처리');
         await processAuthUrl(result.url);
-      } else if (result.type === 'dismiss' && (result as any).url) {
-        // Samsung 등 일부 Android에서 인증 성공 후에도 dismiss로 반환되는 케이스
-        console.log('[useAuth] dismiss지만 URL 있음 - 인증 성공으로 처리');
-        await processAuthUrl((result as any).url);
       } else if (result.type === 'cancel') {
         console.log('[useAuth] 사용자가 카카오 로그인 취소');
         throw new Error('로그인이 취소되었습니다.');
       } else if (result.type === 'dismiss') {
-        console.log('[useAuth] 사용자가 카카오 로그인 창 닫음 (URL 없음)');
+        console.log('[useAuth] 사용자가 카카오 로그인 창 닫음');
         throw new Error('로그인 창이 닫혔습니다.');
-      } else {
-        console.error('[useAuth] 예상치 못한 result.type:', result.type);
-        throw new Error('로그인 처리 실패: 알 수 없는 상태');
       }
     } catch (err) {
       console.error('[useAuth] signInWithKakao 오류:', err);
