@@ -37,11 +37,19 @@ Deno.serve(async (req: Request) => {
     }
 
     // 요청 바디 파싱
-    const { patient_id, push_token, notif_settings } = await req.json()
+    const { patient_id, push_token, meal_time, notif_settings } = await req.json()
 
     if (!patient_id || !push_token || !Array.isArray(notif_settings)) {
       return new Response(JSON.stringify({ error: 'Invalid request body' }), {
         status: 400,
+        headers: { ...CORS_HEADERS, 'Content-Type': 'application/json' },
+      })
+    }
+
+    // 취침약은 약효 추적 알림 없음 (야간 수면 방해 방지)
+    if (meal_time === 'bedtime') {
+      return new Response(JSON.stringify({ queued: 0, skipped: 'bedtime' }), {
+        status: 200,
         headers: { ...CORS_HEADERS, 'Content-Type': 'application/json' },
       })
     }

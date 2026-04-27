@@ -214,6 +214,7 @@ export function useMedication(): UseMedicationReturn {
               body: {
                 patient_id: patientId,
                 push_token: user.push_token,
+                meal_time: mealTime,
                 notif_settings: medNotifs.map((n) => ({ minutes: n.minutes, enabled: n.enabled })),
               },
             });
