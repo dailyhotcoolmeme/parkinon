@@ -60,9 +60,7 @@ WebBrowser.maybeCompleteAuthSession();
 // ─── Auth 딥링크 처리 유틸 ──────────────────────────────────────────────────
 async function processAuthUrl(url: string): Promise<void> {
   console.log('[useAuth] ===== processAuthUrl 시작 =====');
-  console.log('[useAuth] 전체 URL 길이:', url.length);
-  console.log('[useAuth] URL 앞 150자:', url.substring(0, 150));
-  console.log('[useAuth] URL scheme:', url.split(':')[0]);
+  console.log('[useAuth] 전체 URL:', url);
 
   // fragment 방식 (access_token + refresh_token)
   const fragmentStr = url.split('#')[1] ?? '';
@@ -70,75 +68,49 @@ async function processAuthUrl(url: string): Promise<void> {
   const accessToken = fragmentParams.get('access_token');
   const refreshToken = fragmentParams.get('refresh_token');
 
-  console.log('[useAuth] fragment 토큰 확인:', {
-    hasAccessToken: !!accessToken,
-    hasRefreshToken: !!refreshToken,
-    accessTokenLength: accessToken?.length || 0,
-  });
+  console.log('[useAuth] fragment 토큰 확인:', { hasAccessToken: !!accessToken, hasRefreshToken: !!refreshToken });
 
   if (accessToken && refreshToken) {
-    console.log('[useAuth] ✅ fragment 토큰 발견 → setSession 호출');
-    try {
-      const { data, error } = await supabase.auth.setSession({
-        access_token: accessToken,
-        refresh_token: refreshToken
-      });
-      if (error) {
-        console.error('[useAuth] ❌ setSession 오류:', error.message);
-        console.error('[useAuth] 오류 상세:', JSON.stringify(error, null, 2));
-        throw new Error(`세션 설정 실패: ${error.message}`);
-      }
-      console.log('[useAuth] ✅ setSession 성공 - 사용자 ID:', data?.user?.id);
-      console.log('[useAuth] ===== processAuthUrl 완료 (fragment 방식) =====');
-    } catch (err: any) {
-      console.error('[useAuth] ❌ setSession 예외:', err?.message || err);
-      throw err;
+    console.log('[useAuth] fragment 토큰 발견 → setSession 호출');
+    const { data, error } = await supabase.auth.setSession({ access_token: accessToken, refresh_token: refreshToken });
+    if (error) {
+      console.error('[useAuth] setSession 오류:', error.message, error);
+      throw new Error(`세션 설정 실패: ${error.message}`);
     }
+    console.log('[useAuth] setSession 성공 ✅ 사용자 ID:', data?.user?.id);
   } else {
     // PKCE 방식 (code 파라미터)
     const parsed = Linking.parse(url);
     const code = parsed.queryParams?.code as string | undefined;
     console.log('[useAuth] PKCE 모드 - code 있음:', !!code);
-    console.log('[useAuth] queryParams 키 목록:', Object.keys(parsed.queryParams ?? {}));
+    console.log('[useAuth] queryParams:', Object.keys(parsed.queryParams ?? {}));
 
     if (code) {
-      console.log('[useAuth] ✅ code 발견 → exchangeCodeForSession 호출');
-      console.log('[useAuth] code 길이:', code.length);
-      try {
-        const { data, error } = await supabase.auth.exchangeCodeForSession(url);
-        if (error) {
-          console.error('[useAuth] ❌ exchangeCodeForSession 오류:', error.message);
-          console.error('[useAuth] 오류 status:', error.status);
-          console.error('[useAuth] 오류 상세:', JSON.stringify(error, null, 2));
-          throw new Error(`코드 교환 실패: ${error.message}`);
-        }
-        console.log('[useAuth] ✅ exchangeCodeForSession 성공 - 사용자 ID:', data?.user?.id);
-        console.log('[useAuth] ===== processAuthUrl 완료 (PKCE 방식) =====');
-      } catch (err: any) {
-        console.error('[useAuth] ❌ exchangeCodeForSession 예외:', err?.message || err);
-        throw err;
+      console.log('[useAuth] exchangeCodeForSession 호출');
+      const { data, error } = await supabase.auth.exchangeCodeForSession(url);
+      if (error) {
+        console.error('[useAuth] exchangeCodeForSession 오류:', error.message, error.status, error);
+        throw new Error(`코드 교환 실패: ${error.message}`);
       }
+      console.log('[useAuth] exchangeCodeForSession 성공 ✅ 사용자 ID:', data?.user?.id);
     } else {
       // 파라미터 전체 출력하여 디버깅
       const allParams = { ...parsed.queryParams };
-      const errorMsg = 'Auth URL에서 토큰/코드 없음 - 인증 실패';
-      console.error('[useAuth] ❌', errorMsg);
+      const errorMsg = 'Auth URL에서 토큰/코드 없음';
+      console.error('[useAuth]', errorMsg);
       console.error('[useAuth] 전체 queryParams:', JSON.stringify(allParams, null, 2));
-      console.error('[useAuth] fragment 내용:', fragmentStr);
-      console.error('[useAuth] URL path:', parsed.path);
-      console.error('[useAuth] URL hostname:', parsed.hostname);
-      throw new Error(`${errorMsg}. 받은 파라미터: ${Object.keys(allParams).join(', ') || '없음'}`);
+      console.error('[useAuth] fragment:', fragmentStr);
+      throw new Error(`${errorMsg}. 파라미터: ${Object.keys(allParams).join(', ')}`);
     }
   }
+
+  console.log('[useAuth] ===== processAuthUrl 완료 =====');
 
   // Android: 카카오 로그인 후 남아있는 브라우저 창 닫기
   if (Platform.OS === 'android') {
     try {
-      console.log('[useAuth] Android - dismissBrowser 호출');
       await WebBrowser.dismissBrowser();
-    } catch (e) {
-      console.log('[useAuth] dismissBrowser 오류 (무시):', e);
-    }
+    } catch {}
   }
 }
 
@@ -293,18 +265,11 @@ export function useAuthProvider(): UseAuthReturn {
     const { data: { subscription } } = supabase.auth.onAuthStateChange(
       async (event, session) => {
         if (!mounted) return;
-        console.log('[useAuth] ===== onAuthStateChange =====');
-        console.log('[useAuth] event:', event);
-        console.log('[useAuth] session 존재:', !!session);
-        console.log('[useAuth] user 존재:', !!session?.user);
+        console.log('[useAuth] onAuthStateChange:', event);
         if (session?.user) {
-          console.log('[useAuth] ✅ 세션 감지 - user ID:', session.user.id);
-          console.log('[useAuth] loadUserProfile 호출 시작');
           // access_token을 직접 전달 → dbFetch에서 추가 getSession 호출 없이 바로 사용
           await loadUserProfile(session.user.id, session.user.user_metadata, session.access_token);
-          console.log('[useAuth] ✅ loadUserProfile 완료');
         } else {
-          console.log('[useAuth] ⚠️ 세션 없음 - user null 설정');
           setUser(null);
           setLoading(false);
         }
@@ -324,30 +289,18 @@ export function useAuthProvider(): UseAuthReturn {
   // Custom Tab 내에서 딥링크가 캡처되어 여기에 중복 도착하지 않음
   useEffect(() => {
     const subscription = Linking.addEventListener('url', ({ url }) => {
-      console.log('[useAuth] ===== 글로벌 Linking URL 수신 =====');
-      console.log('[useAuth] URL 앞 100자:', url.substring(0, 100));
+      console.log('[useAuth] 글로벌 Linking URL 수신:', url.substring(0, 80));
       if (isAuthUrl(url)) {
-        console.log('[useAuth] ✅ auth URL 감지 - processAuthUrl 호출 (글로벌 핸들러)');
-        processAuthUrl(url).catch((err) => {
-          console.error('[useAuth] ❌ 글로벌 핸들러 processAuthUrl 오류:', err?.message || err);
-        });
-      } else {
-        console.log('[useAuth] ⚠️ auth URL 아님 - 무시');
+        processAuthUrl(url);
       }
     });
 
     // 앱이 딥링크로 시작된 경우 (cold start)
     Linking.getInitialURL().then((url) => {
       if (url) {
-        console.log('[useAuth] ===== getInitialURL (cold start) =====');
-        console.log('[useAuth] URL 앞 100자:', url.substring(0, 100));
+        console.log('[useAuth] getInitialURL:', url.substring(0, 80));
         if (isAuthUrl(url)) {
-          console.log('[useAuth] ✅ auth URL 감지 - processAuthUrl 호출 (cold start)');
-          processAuthUrl(url).catch((err) => {
-            console.error('[useAuth] ❌ cold start processAuthUrl 오류:', err?.message || err);
-          });
-        } else {
-          console.log('[useAuth] ⚠️ auth URL 아님 - 무시');
+          processAuthUrl(url);
         }
       }
     });
@@ -405,7 +358,7 @@ export function useAuthProvider(): UseAuthReturn {
   // → 구글 로그인과 동일하게 openAuthSessionAsync 방식으로 통일.
   const signInWithKakao = useCallback(async () => {
     try {
-      console.log('[useAuth] ===== signInWithKakao 시작 =====');
+      console.log('[useAuth] signInWithKakao 시작');
       const { data, error } = await supabase.auth.signInWithOAuth({
         provider: 'kakao',
         options: {
@@ -420,55 +373,33 @@ export function useAuthProvider(): UseAuthReturn {
         throw new Error(errorMsg);
       }
 
-      console.log('[useAuth] OAuth URL 생성 완료, 길이:', data.url.length);
-
       // Android / iOS 모두 openAuthSessionAsync(Custom Tab) 사용
       // → 리다이렉트 URL을 직접 캡처하므로 브라우저가 자동으로 닫힘
-      console.log('[useAuth] openAuthSessionAsync(Custom Tab) 호출 시작');
+      console.log('[useAuth] openAuthSessionAsync(Custom Tab) 사용');
       const result = await WebBrowser.openAuthSessionAsync(data.url, REDIRECT_TO);
-      console.log('[useAuth] ===== Custom Tab 결과 =====');
-      console.log('[useAuth] result.type:', result.type);
-      console.log('[useAuth] result.url 존재:', !!(result as any).url);
-      if ((result as any).url) {
-        console.log('[useAuth] result.url 앞 100자:', (result as any).url.substring(0, 100));
-      }
+      console.log('[useAuth] 카카오 Custom Tab 결과 type:', result.type);
+      console.log('[useAuth] 카카오 Custom Tab 결과 url:', result.type === 'success' ? result.url?.substring(0, 100) : 'N/A');
 
       // result.url이 있으면 인증 성공으로 간주 (type이 dismiss여도 URL이 있으면 처리)
       if (result.type === 'success' && result.url) {
-        console.log('[useAuth] ✅ success 케이스 - processAuthUrl 호출');
+        console.log('[useAuth] success 케이스 - URL 처리 시작');
         await processAuthUrl(result.url);
-        console.log('[useAuth] ✅ processAuthUrl 완료 - 로그인 성공');
       } else if (result.type === 'dismiss' && (result as any).url) {
         // Samsung 등 일부 Android에서 인증 성공 후에도 dismiss로 반환되는 케이스
-        console.log('[useAuth] ✅ dismiss지만 URL 있음 - processAuthUrl 호출');
+        console.log('[useAuth] dismiss지만 URL 있음 - 인증 성공으로 처리');
         await processAuthUrl((result as any).url);
-        console.log('[useAuth] ✅ processAuthUrl 완료 - 로그인 성공');
       } else if (result.type === 'cancel') {
-        console.log('[useAuth] ❌ 사용자가 카카오 로그인 취소');
+        console.log('[useAuth] 사용자가 카카오 로그인 취소');
         throw new Error('로그인이 취소되었습니다.');
       } else if (result.type === 'dismiss') {
-        console.log('[useAuth] ❌ dismiss - URL 없음');
-        console.log('[useAuth] ⚠️ 글로벌 Linking 핸들러가 딥링크를 처리할 수 있으니 5초 대기...');
-        // URL 없이 dismiss된 경우: 글로벌 핸들러가 딥링크를 받을 수 있으므로
-        // 5초 대기 후 세션이 생성되지 않으면 실패로 간주
-        await new Promise((resolve) => setTimeout(resolve, 5000));
-        const { data: { session } } = await supabase.auth.getSession();
-        if (session) {
-          console.log('[useAuth] ✅ 글로벌 핸들러가 세션 생성 완료');
-          return;
-        } else {
-          console.log('[useAuth] ❌ 5초 후에도 세션 없음 - 로그인 실패');
-          throw new Error('로그인 창이 닫혔습니다. (인증 정보를 받지 못했습니다)');
-        }
+        console.log('[useAuth] 사용자가 카카오 로그인 창 닫음 (URL 없음)');
+        throw new Error('로그인 창이 닫혔습니다.');
       } else {
-        console.error('[useAuth] ❌ 예상치 못한 result.type:', result.type);
+        console.error('[useAuth] 예상치 못한 result.type:', result.type);
         throw new Error('로그인 처리 실패: 알 수 없는 상태');
       }
-
-      console.log('[useAuth] ===== signInWithKakao 완료 =====');
     } catch (err) {
-      console.error('[useAuth] ===== signInWithKakao 오류 =====');
-      console.error('[useAuth] 오류 상세:', err);
+      console.error('[useAuth] signInWithKakao 오류:', err);
       throw err;
     }
   }, []);

@@ -8,7 +8,6 @@ import {
   Image,
   AppState,
   Linking,
-  Alert,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useNavigation } from '@react-navigation/native';
@@ -93,19 +92,11 @@ export function LoginScreen() {
     try {
       oauthStarted.current = true;
       setSigning(true);
-      console.log('[LoginScreen] ===== 카카오 로그인 시작 =====');
+      console.log('[LoginScreen] 카카오 로그인 시작');
       await signInWithKakao();
-      console.log('[LoginScreen] ===== 카카오 로그인 완료 =====');
-      // signInWithKakao가 정상 완료되었으면 processAuthUrl도 성공했다는 뜻
-      // onAuthStateChange가 세션을 감지하여 user가 설정될 것임
-    } catch (err: any) {
-      console.error('[LoginScreen] ===== 카카오 로그인 오류 =====');
-      console.error('[LoginScreen] 오류 내용:', err?.message || err);
-
-      // 사용자에게 명확한 피드백 제공
-      const errorMessage = err?.message || '카카오 로그인 중 오류가 발생했습니다.';
-      Alert.alert('로그인 실패', errorMessage);
-
+      console.log('[LoginScreen] 카카오 로그인 완료');
+    } catch (err) {
+      console.error('[LoginScreen] 카카오 로그인 오류:', err);
       oauthStarted.current = false;
       setSigning(false);
       if (signingTimeoutRef.current) {
@@ -119,16 +110,11 @@ export function LoginScreen() {
     try {
       oauthStarted.current = true;
       setSigning(true);
-      console.log('[LoginScreen] ===== 구글 로그인 시작 =====');
+      console.log('[LoginScreen] 구글 로그인 시작');
       await signInWithGoogle();
-      console.log('[LoginScreen] ===== 구글 로그인 완료 =====');
-    } catch (err: any) {
-      console.error('[LoginScreen] ===== 구글 로그인 오류 =====');
-      console.error('[LoginScreen] 오류 내용:', err?.message || err);
-
-      const errorMessage = err?.message || '구글 로그인 중 오류가 발생했습니다.';
-      Alert.alert('로그인 실패', errorMessage);
-
+      console.log('[LoginScreen] 구글 로그인 완료');
+    } catch (err) {
+      console.error('[LoginScreen] 구글 로그인 오류:', err);
       oauthStarted.current = false;
       setSigning(false);
       if (signingTimeoutRef.current) {
