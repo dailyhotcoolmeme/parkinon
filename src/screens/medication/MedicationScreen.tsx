@@ -26,6 +26,7 @@ import { DatePickerModal } from '../../components/common/DatePickerModal';
 import { navigateTo } from '../../navigation/navigationRef';
 import { supabase } from '../../lib/supabase';
 import { useNotificationBadge } from '../../context/NotificationBadgeContext';
+import { HistoryTimeline } from '../../components/common/HistoryTimeline';
 
 const WINDOW_HEIGHT = Dimensions.get('window').height;
 const TOP_BAR_H = 56;
@@ -176,11 +177,13 @@ export function MedicationScreen() {
   const activeStatus = isToday ? todayStatus : (dateLogStatus ?? { morning: null, lunch: null, dinner: null, bedtime: null });
 
   const [patientName, setPatientName] = useState('환자');
+  const [patientId, setPatientId] = useState<string | null>(null);
 
   useEffect(() => {
     if (!user) return;
     if (user.role === 'patient') {
       setPatientName(user.name);
+      setPatientId(user.id);
       // 환자 본인의 meal_schedules 로드
       supabase
         .from('users')
@@ -198,7 +201,7 @@ export function MedicationScreen() {
     // 보호자인 경우 환자 정보 로드
     supabase
       .from('patient_group_members')
-      .select('users(name, meal_schedules)')
+      .select('user_id, users(name, meal_schedules)')
       .eq('group_id', user.patient_group_id)
       .eq('role', 'patient')
       .single()
@@ -208,6 +211,7 @@ export function MedicationScreen() {
         if (userInfo?.meal_schedules) {
           setUserMealSchedules(userInfo.meal_schedules as Record<string, string>);
         }
+        if ((data as any)?.user_id) setPatientId((data as any).user_id);
       });
   }, [user]);
 
@@ -369,6 +373,9 @@ export function MedicationScreen() {
             </View>
           ))}
         </View>
+
+        {/* 과거 기록 보기 타임라인 */}
+        <HistoryTimeline type="medication" patientId={patientId} />
       </ScrollView>
 
       <MealTimeModal

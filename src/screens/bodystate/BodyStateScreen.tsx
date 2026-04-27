@@ -23,6 +23,7 @@ import { navigateTo } from '../../navigation/navigationRef';
 import { supabase } from '../../lib/supabase';
 import { useNotificationBadge } from '../../context/NotificationBadgeContext';
 import { useSettings } from '../../context/SettingsContext';
+import { HistoryTimeline } from '../../components/common/HistoryTimeline';
 
 const WINDOW_HEIGHT = Dimensions.get('window').height;
 const TOP_BAR_H = 56;
@@ -190,20 +191,26 @@ export function BodyStateScreen() {
       : 'caregiver_same';
 
   const [patientName, setPatientName] = useState('환자');
+  const [patientId, setPatientId] = useState<string | null>(null);
 
   useEffect(() => {
     if (!user) return;
-    if (user.role === 'patient') { setPatientName(user.name); return; }
+    if (user.role === 'patient') {
+      setPatientName(user.name);
+      setPatientId(user.id);
+      return;
+    }
     if (!user.patient_group_id) return;
     supabase
       .from('patient_group_members')
-      .select('users(name)')
+      .select('user_id, users(name)')
       .eq('group_id', user.patient_group_id)
       .eq('role', 'patient')
       .single()
       .then(({ data }) => {
         const name = (data?.users as any)?.name;
         if (name) setPatientName(name);
+        if ((data as any)?.user_id) setPatientId((data as any).user_id);
       });
   }, [user]);
 
@@ -374,6 +381,9 @@ export function BodyStateScreen() {
             })
           )}
         </View>
+
+        {/* 과거 기록 보기 타임라인 */}
+        <HistoryTimeline type="bodystate" patientId={patientId} />
       </ScrollView>
 
       <CaregiverConfirmModal

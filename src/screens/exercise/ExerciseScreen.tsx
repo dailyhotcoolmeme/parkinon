@@ -24,6 +24,7 @@ import { useAuth } from '../../context/AuthContext';
 import { CaregiverConfirmModal } from '../../components/common/CaregiverConfirmModal';
 import { supabase } from '../../lib/supabase';
 import { useNotificationBadge } from '../../context/NotificationBadgeContext';
+import { HistoryTimeline } from '../../components/common/HistoryTimeline';
 
 type Nav = NativeStackNavigationProp<ExerciseStackParamList, 'ExerciseMain'>;
 
@@ -68,6 +69,7 @@ export function ExerciseScreen() {
   const [dateLoading, setDateLoading] = useState(false);
   const [showCaregiverConfirm, setShowCaregiverConfirm] = useState(false);
   const [patientName, setPatientName] = useState('환자');
+  const [patientId, setPatientId] = useState<string | null>(null);
   const { unreadCount } = useNotificationBadge();
 
   const userRole: 'patient' | 'caregiver_no_patient' | 'caregiver_same' | 'caregiver_separate' =
@@ -81,17 +83,22 @@ export function ExerciseScreen() {
 
   useEffect(() => {
     if (!user) return;
-    if (user.role === 'patient') { setPatientName(user.name); return; }
+    if (user.role === 'patient') {
+      setPatientName(user.name);
+      setPatientId(user.id);
+      return;
+    }
     if (!user.patient_group_id) return;
     supabase
       .from('patient_group_members')
-      .select('users(name)')
+      .select('user_id, users(name)')
       .eq('group_id', user.patient_group_id)
       .eq('role', 'patient')
       .single()
       .then(({ data }) => {
         const name = (data?.users as any)?.name;
         if (name) setPatientName(name);
+        if ((data as any)?.user_id) setPatientId((data as any).user_id);
       });
   }, [user]);
 
@@ -243,6 +250,9 @@ export function ExerciseScreen() {
             ))
           )}
         </View>
+
+        {/* 과거 기록 보기 타임라인 */}
+        <HistoryTimeline type="exercise" patientId={patientId} />
       </ScrollView>
       <DatePickerModal
         visible={showDatePicker}
