@@ -1165,6 +1165,9 @@ export function SettingsScreen() {
               <Text style={styles.cardHeaderSub}>
                 약 복용 후 컨디션을 기록해요
               </Text>
+              <Text style={styles.notifNotice}>
+                취침약은 약효 추적 알림을 보내지 않아요
+              </Text>
             </View>
           </View>
 
@@ -1216,8 +1219,6 @@ export function SettingsScreen() {
               </View>
             </View>
           ))}
-
-          <Text style={styles.notifNotice}>※ 취침약 복용 후에는 약효 추적 알림을 보내지 않아요</Text>
 
           <TouchableOpacity
             activeOpacity={0.7}
@@ -2308,11 +2309,9 @@ const styles = StyleSheet.create({
     marginTop: 3,
   },
   notifNotice: {
-    fontSize: 14,
-    color: Colors.textHint,
-    paddingHorizontal: 20,
-    paddingTop: 4,
-    paddingBottom: 8,
+    fontSize: 13,
+    color: Colors.danger,
+    marginTop: 4,
   },
   medTimeNote: {
     fontSize: 14,
