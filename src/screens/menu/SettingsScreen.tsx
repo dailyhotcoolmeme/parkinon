@@ -1053,7 +1053,7 @@ export function SettingsScreen() {
             <Ionicons name="alarm-outline" size={24} color={Colors.primary} style={styles.cardHeaderIcon} />
             <View style={styles.cardHeaderText}>
               <Text style={styles.cardHeaderTitle}>약 복용 시간 알림</Text>
-              <Text style={styles.cardHeaderSub}>정해진 시간에 약 드실 시간을 알려드려요</Text>
+              <Text style={styles.cardHeaderSub}>설정한 시간에 맞춰 약 복용 알림을 보내요</Text>
             </View>
           </View>
           {MED_TIME_SLOTS.filter(slot => activeMedSlots.includes(slot.key as MedTimeSlotKey)).map((slot) => {
