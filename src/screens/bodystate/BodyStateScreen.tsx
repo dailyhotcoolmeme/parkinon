@@ -180,11 +180,14 @@ export function BodyStateScreen() {
     }, [loadVideoLogs, loadDateLogs, isToday, refresh])
   );
 
-  // 환자는 항상 활성화. 보호자만 residence_type 체크.
-  // residence_type === null(정보 없음)이면 함께거주로 기본값 처리.
-  const userRole = user?.role === 'caregiver'
-    ? (user.residence_type === 'separate' ? 'caregiver_separate' : 'caregiver_same') // 'together' 또는 null → 함께거주 취급
-    : 'patient';
+  const userRole: 'patient' | 'caregiver_no_patient' | 'caregiver_same' | 'caregiver_separate' =
+    user?.role !== 'caregiver'
+      ? 'patient'
+      : !user.patient_group_id
+      ? 'caregiver_no_patient'
+      : user.residence_type === 'separate'
+      ? 'caregiver_separate'
+      : 'caregiver_same';
 
   const [patientName, setPatientName] = useState('환자');
 
@@ -292,9 +295,13 @@ export function BodyStateScreen() {
           <TouchableOpacity
             style={[
               styles.mainButton,
-              userRole === 'caregiver_separate' && styles.mainButtonDisabled,
+              (userRole === 'caregiver_no_patient' || userRole === 'caregiver_separate') && styles.mainButtonDisabled,
             ]}
             onPress={() => {
+              if (userRole === 'caregiver_no_patient') {
+                Alert.alert('환자 연동 필요', '환자와 먼저 연동해야\n대신 기록할 수 있어요.');
+                return;
+              }
               if (userRole === 'caregiver_separate') {
                 Alert.alert('대신 입력 불가', '함께 거주하지 않아\n대신 기록이 불가능해요.');
                 return;

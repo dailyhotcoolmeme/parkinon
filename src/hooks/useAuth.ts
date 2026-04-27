@@ -46,7 +46,7 @@ export type AuthUser = UserProfile;
 export interface UseAuthReturn {
   user: UserProfile | null;
   loading: boolean;
-  signInWithKakao: () => Promise<void>;
+  signInWithKakao: () => Promise<boolean>;
   signInWithGoogle: () => Promise<void>;
   signOut: () => Promise<void>;
   refreshUser: () => Promise<void>;
@@ -329,13 +329,19 @@ export function useAuthProvider(): UseAuthReturn {
   }, []);
 
   // ─── 카카오 로그인 ────────────────────────────────────────────────────────
-  // openAuthSessionAsync(Custom Tab)으로 열기 → OAuth 완료 후 리다이렉트 URL
-  // 직접 캡처 → processAuthUrl 호출 → dismissBrowser()로 탭 닫힘 보장
+  // Linking.openURL로 외부 브라우저(Chrome)에서 열기
   //
-  // 이전에 Linking.openURL을 사용했으나, 외부 브라우저는 WebBrowser 컨텍스트와
-  // 무관하므로 dismissBrowser()가 작동하지 않아 브라우저가 닫히지 않는 버그 발생.
-  // → 구글 로그인과 동일하게 openAuthSessionAsync 방식으로 통일.
-  const signInWithKakao = useCallback(async () => {
+  // openAuthSessionAsync를 썼을 때의 문제:
+  //   카카오 앱이 설치된 경우, OAuth 페이지가 카카오 앱으로 리다이렉트하면서
+  //   Chrome Custom Tab이 닫혀버림 → openAuthSessionAsync가 'cancel' 반환
+  //   → 콜백 URL을 전혀 받지 못하고 로그인 실패
+  //
+  // Linking.openURL 방식:
+  //   Chrome 외부 브라우저로 열기 → 카카오 앱 통해 인증 완료 후
+  //   parkinon://auth/callback 딥링크 발생 → Linking.addEventListener가 처리
+  //
+  // 반환값: true = 딥링크 대기 중 (signing 유지), false = 즉시 실패 (signing 초기화)
+  const signInWithKakao = useCallback(async (): Promise<boolean> => {
     try {
       console.log('[useAuth] signInWithKakao 시작');
       const { data, error } = await supabase.auth.signInWithOAuth({
@@ -349,22 +355,18 @@ export function useAuthProvider(): UseAuthReturn {
       if (error || !data?.url) {
         console.error('[useAuth] signInWithOAuth 오류:', error?.message);
         Alert.alert('로그인 오류', '카카오 로그인을 시작할 수 없습니다. 네트워크 연결을 확인해주세요.');
-        return;
+        return false;
       }
 
-      // Android / iOS 모두 openAuthSessionAsync(Custom Tab) 사용
-      // → 리다이렉트 URL을 직접 캡처하므로 브라우저가 자동으로 닫힘
-      console.log('[useAuth] openAuthSessionAsync(Custom Tab) 사용');
-      const result = await WebBrowser.openAuthSessionAsync(data.url, REDIRECT_TO);
-      console.log('[useAuth] 카카오 Custom Tab 결과:', result.type);
-
-      if (result.type === 'success' && result.url) {
-        console.log('[useAuth] 카카오 success URL 직접 처리');
-        await processAuthUrl(result.url);
-      }
-      // result.type === 'cancel' / 'dismiss': 사용자가 취소 → 아무 처리 안 함
+      // 외부 브라우저로 OAuth URL 열기
+      // 인증 완료 후 parkinon://auth/callback 딥링크는 Linking.addEventListener가 수신
+      console.log('[useAuth] Linking.openURL로 카카오 OAuth 열기');
+      await Linking.openURL(data.url);
+      return true; // 딥링크 대기 중 — signing 상태는 LoginScreen의 AppState 리스너가 관리
     } catch (err) {
       console.error('[useAuth] signInWithKakao 오류:', err);
+      Alert.alert('로그인 오류', '오류가 발생했습니다. 다시 시도해주세요.');
+      return false;
     }
   }, []);
 

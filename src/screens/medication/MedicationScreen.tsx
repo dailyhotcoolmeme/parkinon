@@ -211,14 +211,14 @@ export function MedicationScreen() {
       });
   }, [user]);
 
-  // 환자는 항상 활성화. 보호자만 residence_type 체크.
-  // residence_type === null(정보 없음)이면 함께거주로 기본값 처리.
-  const userRole: 'patient' | 'caregiver_same' | 'caregiver_separate' =
+  const userRole: 'patient' | 'caregiver_no_patient' | 'caregiver_same' | 'caregiver_separate' =
     user?.role !== 'caregiver'
       ? 'patient'
+      : !user.patient_group_id
+      ? 'caregiver_no_patient'   // 환자 미연동 → 전면 비활성
       : user.residence_type === 'separate'
       ? 'caregiver_separate'
-      : 'caregiver_same'; // 'together' 또는 null → 함께거주 취급
+      : 'caregiver_same';
 
   const handleMealTimeSelect = async (mealTime: MealTime) => {
     setShowMealTimeModal(false);
@@ -290,11 +290,15 @@ export function MedicationScreen() {
           <TouchableOpacity
             style={[
               styles.mainButton,
-              (userRole === 'caregiver_separate' || !isToday || allNonBedtimeTaken) && styles.mainButtonDisabled,
+              (userRole === 'caregiver_no_patient' || userRole === 'caregiver_separate' || !isToday || allNonBedtimeTaken) && styles.mainButtonDisabled,
             ]}
             onPress={() => {
               if (!isToday) return;
               if (allNonBedtimeTaken) return;
+              if (userRole === 'caregiver_no_patient') {
+                Alert.alert('환자 연동 필요', '환자와 먼저 연동해야\n대신 기록할 수 있어요.');
+                return;
+              }
               if (userRole === 'caregiver_separate') {
                 Alert.alert('대신 입력 불가', '함께 거주하지 않아\n대신 기록이 불가능해요.');
                 return;
@@ -315,10 +319,13 @@ export function MedicationScreen() {
             </View>
           </TouchableOpacity>
 
+          {userRole === 'caregiver_no_patient' && (
+            <Text style={styles.caregiverNotice}>환자와 연동 후 기록할 수 있어요</Text>
+          )}
           {userRole === 'caregiver_separate' && (
             <Text style={styles.caregiverNotice}>같이 계신 경우에만 대신 입력할 수 있어요</Text>
           )}
-          {!isToday && userRole !== 'caregiver_separate' && (
+          {!isToday && userRole !== 'caregiver_separate' && userRole !== 'caregiver_no_patient' && (
             <Text style={styles.caregiverNotice}>오늘 날짜에서만 복용 기록을 입력할 수 있어요</Text>
           )}
           {allNonBedtimeTaken && (

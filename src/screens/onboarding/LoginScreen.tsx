@@ -91,10 +91,14 @@ export function LoginScreen() {
   const handleKakaoLogin = async () => {
     oauthStarted.current = true;
     setSigning(true);
-    await signInWithKakao();
-    // 성공 시 useEffect([user, loading])에서도 처리됨 — 취소/실패 시 즉시 복구
-    oauthStarted.current = false;
-    setSigning(false);
+    const waitingForDeepLink = await signInWithKakao();
+    if (!waitingForDeepLink) {
+      // signInWithOAuth 자체 실패 — 즉시 초기화
+      oauthStarted.current = false;
+      setSigning(false);
+    }
+    // waitingForDeepLink=true: 외부 브라우저+카카오 앱에서 인증 중
+    // → AppState listener(60s 타임아웃) or useEffect([user,loading])에서 처리
   };
 
   const handleGoogleLogin = async () => {
