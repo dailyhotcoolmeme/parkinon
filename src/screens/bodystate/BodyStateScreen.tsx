@@ -67,6 +67,26 @@ function getPeriod(isoString: string): string {
   return '취침';
 }
 
+function labelToMinutes(label: string): number | null {
+  if (label === 'after_medication') return 0;
+  const match = label.match(/^(\d+)min_after$/);
+  if (match) return parseInt(match[1], 10);
+  return null;
+}
+
+function labelToDeltaText(label: string): string {
+  if (label === 'after_medication') return '직후';
+  const match = label.match(/^(\d+)min_after$/);
+  if (match) {
+    const min = parseInt(match[1], 10);
+    if (min < 60) return `+${min}분`;
+    const h = Math.floor(min / 60);
+    const rem = min % 60;
+    return rem === 0 ? `+${h}시간` : `+${h}시간 ${rem}분`;
+  }
+  return label;
+}
+
 // 기본 라벨 (동적 생성 실패 시 폴백용)
 const DEFAULT_TRIGGER_LABEL: Record<string, string> = {
   after_medication: '복용 직후',
@@ -125,6 +145,8 @@ export function BodyStateScreen() {
   const [triggerMedTime, setTriggerMedTime] = useState<Date | null>(null);
   const [triggerModalSelected, setTriggerModalSelected] = useState<string | null>(null);
   const [pendingTriggeredBy, setPendingTriggeredBy] = useState<'notification' | 'manual'>('manual');
+  const [showPreRecordInfo, setShowPreRecordInfo] = useState(false);
+  const [preRecordMessage, setPreRecordMessage] = useState('');
   const navigation = useNavigation<any>();
   const route = useRoute<any>();
   const insets = useSafeAreaInsets();
@@ -357,14 +379,39 @@ export function BodyStateScreen() {
       trigger_time_label: pendingTriggerLabel ?? undefined,
     }, pendingTriggeredBy);
     if (success) {
+      const savedLabel = pendingTriggerLabel; // state 초기화 전 캡처
       setPendingTriggerLabel(null);
       setPendingTriggeredBy('manual');
       setHistoryRefreshKey(k => k + 1);
-      // route params 초기화 (다음 진입 시 재사용 방지)
       if (route.params?.triggerMinutes != null) {
         navigation.setParams({ triggerMinutes: null });
       }
       setShowFlow(false);
+
+      // 사전 기록 시 예약 알림 큐 취소 (0분 즉시 알림은 이미 발송됐을 가능성 높아 제외)
+      const intervalMin = savedLabel ? labelToMinutes(savedLabel) : null;
+      if (intervalMin != null && intervalMin > 0 && patientId) {
+        try {
+          const { data: queueItems } = await supabase
+            .from('effect_tracking_queue')
+            .select('id')
+            .eq('patient_id', patientId)
+            .eq('interval_minutes', intervalMin)
+            .is('sent_at', null);
+          if (queueItems && queueItems.length > 0) {
+            await supabase
+              .from('effect_tracking_queue')
+              .delete()
+              .in('id', queueItems.map((q: any) => q.id));
+            const period = getPeriod(new Date().toISOString());
+            const delta = labelToDeltaText(savedLabel!);
+            setPreRecordMessage(
+              `${period}약 복용 ${delta} 후 몸상태 기록을 미리 남기셨어요.\n\n사전에 설정된 알림은 보내지 않을게요.`
+            );
+            setShowPreRecordInfo(true);
+          }
+        } catch {}
+      }
     } else {
       Alert.alert('저장 실패', '몸상태 기록 저장에 실패했어요. 다시 시도해주세요.');
     }
@@ -498,6 +545,11 @@ export function BodyStateScreen() {
         selectedDate={selectedDate}
         onSelect={setSelectedDate}
         onClose={() => setShowDatePicker(false)}
+      />
+      <PreRecordInfoModal
+        visible={showPreRecordInfo}
+        message={preRecordMessage}
+        onClose={() => setShowPreRecordInfo(false)}
       />
       <TriggerSelectModal
         visible={showTriggerSelect}
@@ -867,4 +919,62 @@ const tsStyles = StyleSheet.create({
   },
   confirmBtnDisabled: { backgroundColor: Colors.textHint },
   confirmBtnText: { fontSize: 20, fontWeight: '800', color: Colors.white },
+});
+
+// ─── PreRecordInfoModal ───────────────────────────────────────────────────────
+
+function PreRecordInfoModal({ visible, message, onClose }: { visible: boolean; message: string; onClose: () => void }) {
+  if (!visible) return null;
+  return (
+    <Modal visible={visible} transparent animationType="fade" statusBarTranslucent onRequestClose={onClose}>
+      <View style={piStyles.overlay}>
+        <View style={piStyles.card}>
+          <Text style={piStyles.icon}>🔕</Text>
+          <Text style={piStyles.title}>알림 취소 안내</Text>
+          <Text style={piStyles.message}>{message}</Text>
+          <TouchableOpacity style={piStyles.closeBtn} onPress={onClose} activeOpacity={0.85}>
+            <Text style={piStyles.closeBtnText}>닫기</Text>
+          </TouchableOpacity>
+        </View>
+      </View>
+    </Modal>
+  );
+}
+
+const piStyles = StyleSheet.create({
+  overlay: {
+    flex: 1,
+    backgroundColor: 'rgba(0,0,0,0.5)',
+    justifyContent: 'center',
+    alignItems: 'center',
+    paddingHorizontal: 32,
+  },
+  card: {
+    backgroundColor: Colors.white,
+    borderRadius: 24,
+    padding: 32,
+    width: '100%',
+    alignItems: 'center',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 6 },
+    shadowOpacity: 0.2,
+    shadowRadius: 16,
+    elevation: 10,
+  },
+  icon: { fontSize: 40, marginBottom: 12 },
+  title: { fontSize: 22, fontWeight: '800', color: Colors.text, marginBottom: 16 },
+  message: {
+    fontSize: 18,
+    color: Colors.text,
+    lineHeight: 28,
+    textAlign: 'center',
+    marginBottom: 28,
+  },
+  closeBtn: {
+    backgroundColor: Colors.primary,
+    borderRadius: 14,
+    paddingVertical: 14,
+    paddingHorizontal: 48,
+  },
+  closeBtnText: { fontSize: 18, fontWeight: '700', color: Colors.white },
 });
