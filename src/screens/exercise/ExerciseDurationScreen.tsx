@@ -6,6 +6,7 @@ import {
   StyleSheet,
   ScrollView,
   Alert,
+  Modal,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useNavigation, useRoute } from '@react-navigation/native';
@@ -16,6 +17,8 @@ import { PrimaryButton } from '../../components/common/PrimaryButton';
 import type { ExerciseStackParamList } from '../../navigation/ExerciseNavigator';
 import { useExercise } from '../../hooks/useExercise';
 import { useNotificationBadge } from '../../context/NotificationBadgeContext';
+import { useAuth } from '../../context/AuthContext';
+import { supabase } from '../../lib/supabase';
 
 type Nav = NativeStackNavigationProp<ExerciseStackParamList, 'ExerciseDuration'>;
 type RouteProps = NativeStackScreenProps<ExerciseStackParamList, 'ExerciseDuration'>['route'];
@@ -33,6 +36,115 @@ function formatDuration(min: number): string {
   return m > 0 ? `${h}시간 ${m}분` : `${h}시간`;
 }
 
+// ─── NextNotifInfo 타입 (ExerciseDurationScreen 전용) ───────────────────────
+
+interface ExNextNotifInfo {
+  label: string;
+  timeStr: string;
+  minutesLeft: number;
+}
+
+function exFormatTimeHHMM(date: Date): string {
+  const h = date.getHours();
+  const m = date.getMinutes();
+  const ampm = h < 12 ? '오전' : '오후';
+  const hour = h % 12 === 0 ? 12 : h % 12;
+  return `${ampm} ${hour}:${m.toString().padStart(2, '0')}`;
+}
+
+const EX_MEAL_TIME_KO: Record<string, string> = {
+  morning: '아침약', lunch: '점심약', dinner: '저녁약', bedtime: '취침약',
+};
+const EX_DEFAULT_MEAL_TIMES: Record<string, string> = {
+  morning: '08:00', lunch: '12:00', dinner: '18:00', bedtime: '22:00',
+};
+
+async function fetchExerciseNextNotif(patientId: string): Promise<ExNextNotifInfo | null> {
+  try {
+    const now = new Date();
+    let candidates: Array<{ minutesLeft: number; label: string; sendAt: Date }> = [];
+
+    // 1) 약효추적 큐
+    const { data: queueRows } = await supabase
+      .from('effect_tracking_queue')
+      .select('send_at, interval_minutes, meal_time')
+      .eq('patient_id', patientId)
+      .is('sent_at', null)
+      .gt('send_at', now.toISOString())
+      .order('send_at', { ascending: true })
+      .limit(1);
+
+    if (queueRows && queueRows.length > 0) {
+      const row = queueRows[0];
+      const sendAt = new Date(row.send_at);
+      const minutesLeft = Math.round((sendAt.getTime() - now.getTime()) / 60000);
+      const intervalMin: number = row.interval_minutes ?? 0;
+      const mealKo = row.meal_time ? (EX_MEAL_TIME_KO[row.meal_time] ?? '') : '';
+      let intervalLabel: string;
+      if (intervalMin === 0) intervalLabel = '복용 직후';
+      else if (intervalMin < 60) intervalLabel = `복용 후 ${intervalMin}분`;
+      else {
+        const h = Math.floor(intervalMin / 60);
+        const rem = intervalMin % 60;
+        intervalLabel = rem === 0 ? `복용 후 ${h}시간` : `복용 후 ${h}시간 ${rem}분`;
+      }
+      const label = mealKo ? `${mealKo} ${intervalLabel} 약효추적` : `${intervalLabel} 약효추적`;
+      candidates.push({ minutesLeft, label, sendAt });
+    }
+
+    // 2) meal_schedules + exercise_notif_prefs
+    const { data: userData } = await supabase
+      .from('users')
+      .select('meal_schedules, exercise_notif_prefs')
+      .eq('id', patientId)
+      .single();
+
+    const mealSchedules: Record<string, string> = (userData?.meal_schedules as Record<string, string>) ?? EX_DEFAULT_MEAL_TIMES;
+    const MEAL_LABELS: Record<string, string> = {
+      morning: '다음 아침약 복용', lunch: '다음 점심약 복용',
+      dinner: '다음 저녁약 복용', bedtime: '다음 취침약 복용',
+    };
+    for (const key of ['morning', 'lunch', 'dinner', 'bedtime']) {
+      const timeStr = mealSchedules[key] ?? EX_DEFAULT_MEAL_TIMES[key];
+      const [h, m] = timeStr.split(':').map(Number);
+      const scheduled = new Date(now);
+      scheduled.setHours(h, m, 0, 0);
+      if (scheduled > now) {
+        const minutesLeft = Math.round((scheduled.getTime() - now.getTime()) / 60000);
+        candidates.push({ minutesLeft, label: MEAL_LABELS[key], sendAt: scheduled });
+        break;
+      }
+    }
+
+    // 3) 운동 알림 (exercise_notif_prefs)
+    const exercisePrefs = userData?.exercise_notif_prefs as Array<{
+      id: string; ampm: '오전' | '오후'; hour: number; minute: number; enabled: boolean;
+    }> | null;
+    if (exercisePrefs && exercisePrefs.length > 0) {
+      for (const ep of exercisePrefs) {
+        if (!ep.enabled) continue;
+        let hour = ep.hour;
+        if (ep.ampm === '오후' && hour !== 12) hour += 12;
+        if (ep.ampm === '오전' && hour === 12) hour = 0;
+        const scheduled = new Date(now);
+        scheduled.setHours(hour, ep.minute, 0, 0);
+        if (scheduled > now) {
+          const minutesLeft = Math.round((scheduled.getTime() - now.getTime()) / 60000);
+          candidates.push({ minutesLeft, label: '운동 알림', sendAt: scheduled });
+        }
+      }
+    }
+
+    if (candidates.length === 0) return null;
+    candidates.sort((a, b) => a.minutesLeft - b.minutesLeft);
+    const best = candidates[0];
+    if (best.minutesLeft <= 0) return null;
+    return { label: best.label, timeStr: exFormatTimeHHMM(best.sendAt), minutesLeft: best.minutesLeft };
+  } catch {
+    return null;
+  }
+}
+
 export function ExerciseDurationScreen() {
   const navigation = useNavigation<Nav>();
   const route = useRoute<RouteProps>();
@@ -41,6 +153,11 @@ export function ExerciseDurationScreen() {
   const [saving, setSaving] = useState(false);
   const { saveExercise } = useExercise();
   const { unreadCount } = useNotificationBadge();
+  const { user } = useAuth();
+  const [showNextNotifModal, setShowNextNotifModal] = useState(false);
+  const [nextNotifInfo, setNextNotifInfo] = useState<ExNextNotifInfo | null>(null);
+  const [savedExerciseName, setSavedExerciseName] = useState('');
+  const [savedDuration, setSavedDuration] = useState(0);
 
   const handleSave = async () => {
     if (!selected) {
@@ -51,6 +168,20 @@ export function ExerciseDurationScreen() {
     const success = await saveExercise(exerciseName, selected);
     setSaving(false);
     if (success) {
+      setSavedExerciseName(exerciseName);
+      setSavedDuration(selected);
+
+      // 다음 예정 알림 조회
+      const patientId = user?.role === 'patient' ? user?.id : null;
+      if (patientId) {
+        const info = await fetchExerciseNextNotif(patientId);
+        if (info) {
+          setNextNotifInfo(info);
+          setShowNextNotifModal(true);
+          return; // 모달 닫힌 후 navigation.popToTop() 실행
+        }
+      }
+      // 알림 없으면 바로 완료 알림
       Alert.alert(
         '저장 완료',
         `${exerciseName} ${formatDuration(selected)}을 기록했어요! 👏`,
@@ -98,9 +229,119 @@ export function ExerciseDurationScreen() {
       <View style={styles.bottom}>
         <PrimaryButton title={saving ? '저장 중...' : '저장하기'} onPress={handleSave} disabled={!selected || saving} />
       </View>
+
+      <ExNextNotifModal
+        visible={showNextNotifModal}
+        info={nextNotifInfo}
+        exerciseName={savedExerciseName}
+        duration={savedDuration}
+        onClose={() => {
+          setShowNextNotifModal(false);
+          navigation.popToTop();
+        }}
+      />
     </SafeAreaView>
   );
 }
+
+// ─── ExNextNotifModal ─────────────────────────────────────────────────────────
+
+function ExNextNotifModal({
+  visible, info, exerciseName, duration, onClose,
+}: {
+  visible: boolean;
+  info: ExNextNotifInfo | null;
+  exerciseName: string;
+  duration: number;
+  onClose: () => void;
+}) {
+  if (!visible || !info) return null;
+
+  let minutesText: string;
+  if (info.minutesLeft < 60) {
+    minutesText = `${info.minutesLeft}분`;
+  } else {
+    const h = Math.floor(info.minutesLeft / 60);
+    const rem = info.minutesLeft % 60;
+    minutesText = rem === 0 ? `${h}시간` : `${h}시간 ${rem}분`;
+  }
+
+  return (
+    <Modal visible={visible} transparent animationType="fade" statusBarTranslucent onRequestClose={onClose}>
+      <View style={exNnStyles.overlay}>
+        <View style={exNnStyles.card}>
+          <Text style={exNnStyles.saveIcon}>👏</Text>
+          <Text style={exNnStyles.saveText}>
+            {exerciseName} {formatDuration(duration)} 기록 완료!
+          </Text>
+
+          <View style={exNnStyles.divider} />
+
+          <Text style={exNnStyles.icon}>🔔</Text>
+          <Text style={exNnStyles.title}>다음 알림 예고</Text>
+
+          <View style={exNnStyles.labelPill}>
+            <Text style={exNnStyles.labelPillText}>{info.label}</Text>
+          </View>
+
+          <Text style={exNnStyles.timeText}>{info.timeStr}</Text>
+
+          <Text style={exNnStyles.subText}>
+            지금부터 약 {minutesText} 후에{'\n'}알림을 보내드릴게요
+          </Text>
+
+          <TouchableOpacity style={exNnStyles.closeBtn} onPress={onClose} activeOpacity={0.85}>
+            <Text style={exNnStyles.closeBtnText}>확인</Text>
+          </TouchableOpacity>
+        </View>
+      </View>
+    </Modal>
+  );
+}
+
+const exNnStyles = StyleSheet.create({
+  overlay: {
+    flex: 1,
+    backgroundColor: 'rgba(0,0,0,0.5)',
+    justifyContent: 'center',
+    alignItems: 'center',
+    paddingHorizontal: 32,
+  },
+  card: {
+    backgroundColor: Colors.white,
+    borderRadius: 24,
+    padding: 32,
+    width: '100%',
+    alignItems: 'center',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 6 },
+    shadowOpacity: 0.2,
+    shadowRadius: 16,
+    elevation: 10,
+  },
+  saveIcon: { fontSize: 36, marginBottom: 8 },
+  saveText: { fontSize: 18, fontWeight: '700', color: Colors.text, marginBottom: 16, textAlign: 'center' },
+  divider: { width: '100%', height: 1, backgroundColor: Colors.border, marginBottom: 20 },
+  icon: { fontSize: 36, marginBottom: 8 },
+  title: { fontSize: 20, fontWeight: '800', color: Colors.text, marginBottom: 16 },
+  labelPill: {
+    backgroundColor: '#FF6B00',
+    borderRadius: 24,
+    paddingHorizontal: 20,
+    paddingVertical: 10,
+    marginBottom: 14,
+  },
+  labelPillText: { fontSize: 17, fontWeight: '700', color: '#fff', textAlign: 'center' },
+  timeText: { fontSize: 28, fontWeight: '800', color: '#FF6B00', marginBottom: 14 },
+  subText: { fontSize: 17, color: Colors.textSub, lineHeight: 26, textAlign: 'center', marginBottom: 24 },
+  closeBtn: {
+    backgroundColor: Colors.primary,
+    borderRadius: 14,
+    paddingVertical: 14,
+    paddingHorizontal: 48,
+  },
+  closeBtnText: { fontSize: 18, fontWeight: '700', color: Colors.white },
+});
 
 const styles = StyleSheet.create({
   safe: { flex: 1, backgroundColor: Colors.background },

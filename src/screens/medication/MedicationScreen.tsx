@@ -118,7 +118,7 @@ export function MedicationScreen() {
   const [showPreMedInfo, setShowPreMedInfo] = useState(false);
   const [preMedMessage, setPreMedMessage] = useState('');
   const [showNextNotifModal, setShowNextNotifModal] = useState(false);
-  const [nextNotifMessage, setNextNotifMessage] = useState('');
+  const [nextNotifInfo, setNextNotifInfo] = useState<NextNotifInfo | null>(null);
 
   // 온보딩 완료 후 홈 최초 진입 시 알림 설정 팝업 1회 표시
   useEffect(() => {
@@ -267,9 +267,9 @@ export function MedicationScreen() {
 
     // 다음 예정 알림 조회 후 팝업 표시
     if (patientId) {
-      fetchNextNotifMessage(patientId).then((msg) => {
-        if (msg) {
-          setNextNotifMessage(msg);
+      fetchNextNotifMessage(patientId).then((info) => {
+        if (info) {
+          setNextNotifInfo(info);
           setShowNextNotifModal(true);
         }
       });
@@ -546,7 +546,7 @@ export function MedicationScreen() {
       />
       <NextNotifModal
         visible={showNextNotifModal}
-        message={nextNotifMessage}
+        info={nextNotifInfo}
         onClose={() => setShowNextNotifModal(false)}
       />
       {/* 온보딩 완료 후 최초 진입 시 알림 설정 팝업 */}
@@ -652,14 +652,37 @@ const styles = StyleSheet.create({
   cardBadgeTextIncomplete: { color: Colors.textSub },
 });
 
-// ─── fetchNextNotifMessage ────────────────────────────────────────────────────
-// 기록 완료 후 다음 예정 알림 메시지를 반환합니다.
-// effect_tracking_queue (약효추적) 와 meal_schedules (식사 알림) 중 더 가까운 것 선택.
+// ─── NextNotifInfo 타입 ───────────────────────────────────────────────────────
 
-async function fetchNextNotifMessage(patientId: string): Promise<string | null> {
+interface NextNotifInfo {
+  label: string;      // 알림 종류 (예: "아침약 복용 후 30분 약효추적")
+  timeStr: string;    // 구체적 시간 (예: "오전 9:30")
+  minutesLeft: number; // 남은 분
+}
+
+// ─── fetchNextNotifMessage ────────────────────────────────────────────────────
+// 기록 완료 후 다음 예정 알림 정보를 반환합니다.
+// effect_tracking_queue (약효추적), meal_schedules (식사 알림), exercise_notif_prefs (운동 알림) 중 가장 가까운 것 선택.
+
+function formatTimeHHMM(date: Date): string {
+  const h = date.getHours();
+  const m = date.getMinutes();
+  const ampm = h < 12 ? '오전' : '오후';
+  const hour = h % 12 === 0 ? 12 : h % 12;
+  return `${ampm} ${hour}:${m.toString().padStart(2, '0')}`;
+}
+
+const MEAL_TIME_KO: Record<string, string> = {
+  morning: '아침약',
+  lunch: '점심약',
+  dinner: '저녁약',
+  bedtime: '취침약',
+};
+
+async function fetchNextNotifMessage(patientId: string): Promise<NextNotifInfo | null> {
   try {
     const now = new Date();
-    let candidates: Array<{ minutesLeft: number; label: string }> = [];
+    let candidates: Array<{ minutesLeft: number; label: string; sendAt: Date }> = [];
 
     // 1) 약효추적 큐에서 미발송 + 미래 항목 중 가장 가까운 것
     const { data: queueRows } = await supabase
@@ -676,20 +699,24 @@ async function fetchNextNotifMessage(patientId: string): Promise<string | null> 
       const sendAt = new Date(row.send_at);
       const minutesLeft = Math.round((sendAt.getTime() - now.getTime()) / 60000);
       const intervalMin: number = row.interval_minutes ?? 0;
-      let label = '약효추적';
-      if (intervalMin > 0 && intervalMin < 60) label = `복용 후 ${intervalMin}분 약효추적`;
-      else if (intervalMin >= 60) {
+      const mealKo = row.meal_time ? (MEAL_TIME_KO[row.meal_time] ?? '') : '';
+
+      let intervalLabel: string;
+      if (intervalMin === 0) intervalLabel = '복용 직후';
+      else if (intervalMin < 60) intervalLabel = `복용 후 ${intervalMin}분`;
+      else {
         const h = Math.floor(intervalMin / 60);
         const rem = intervalMin % 60;
-        label = rem === 0 ? `복용 후 ${h}시간 약효추적` : `복용 후 ${h}시간 ${rem}분 약효추적`;
+        intervalLabel = rem === 0 ? `복용 후 ${h}시간` : `복용 후 ${h}시간 ${rem}분`;
       }
-      candidates.push({ minutesLeft, label });
+      const label = mealKo ? `${mealKo} ${intervalLabel} 약효추적` : `${intervalLabel} 약효추적`;
+      candidates.push({ minutesLeft, label, sendAt });
     }
 
-    // 2) meal_schedules에서 현재 시각 이후 다음 식사 알림
+    // 2) meal_schedules에서 현재 시각 이후 다음 식사 알림 + exercise_notif_prefs 운동 알림
     const { data: userData } = await supabase
       .from('users')
-      .select('meal_schedules')
+      .select('meal_schedules, exercise_notif_prefs')
       .eq('id', patientId)
       .single();
 
@@ -701,10 +728,10 @@ async function fetchNextNotifMessage(patientId: string): Promise<string | null> 
     };
 
     const MEAL_LABELS: Record<string, string> = {
-      morning: '아침약 복용',
-      lunch: '점심약 복용',
-      dinner: '저녁약 복용',
-      bedtime: '취침약 복용',
+      morning: '다음 아침약 복용',
+      lunch: '다음 점심약 복용',
+      dinner: '다음 저녁약 복용',
+      bedtime: '다음 취침약 복용',
     };
 
     for (const key of ['morning', 'lunch', 'dinner', 'bedtime']) {
@@ -714,8 +741,27 @@ async function fetchNextNotifMessage(patientId: string): Promise<string | null> 
       scheduled.setHours(h, m, 0, 0);
       if (scheduled > now) {
         const minutesLeft = Math.round((scheduled.getTime() - now.getTime()) / 60000);
-        candidates.push({ minutesLeft, label: MEAL_LABELS[key] });
+        candidates.push({ minutesLeft, label: MEAL_LABELS[key], sendAt: scheduled });
         break; // 가장 가까운 한 개만
+      }
+    }
+
+    // 3) 운동 알림 (exercise_notif_prefs) — 오늘 이후 가장 가까운 운동 알림 시간
+    const exercisePrefs = userData?.exercise_notif_prefs as Array<{
+      id: string; ampm: '오전' | '오후'; hour: number; minute: number; enabled: boolean;
+    }> | null;
+    if (exercisePrefs && exercisePrefs.length > 0) {
+      for (const ep of exercisePrefs) {
+        if (!ep.enabled) continue;
+        let hour = ep.hour;
+        if (ep.ampm === '오후' && hour !== 12) hour += 12;
+        if (ep.ampm === '오전' && hour === 12) hour = 0;
+        const scheduled = new Date(now);
+        scheduled.setHours(hour, ep.minute, 0, 0);
+        if (scheduled > now) {
+          const minutesLeft = Math.round((scheduled.getTime() - now.getTime()) / 60000);
+          candidates.push({ minutesLeft, label: '운동 알림', sendAt: scheduled });
+        }
       }
     }
 
@@ -727,16 +773,11 @@ async function fetchNextNotifMessage(patientId: string): Promise<string | null> 
 
     if (best.minutesLeft <= 0) return null;
 
-    let timeText: string;
-    if (best.minutesLeft < 60) {
-      timeText = `${best.minutesLeft}분`;
-    } else {
-      const h = Math.floor(best.minutesLeft / 60);
-      const rem = best.minutesLeft % 60;
-      timeText = rem === 0 ? `${h}시간` : `${h}시간 ${rem}분`;
-    }
-
-    return `${timeText} 후에 ${best.label} 알림을 보내드릴게요`;
+    return {
+      label: best.label,
+      timeStr: formatTimeHHMM(best.sendAt),
+      minutesLeft: best.minutesLeft,
+    };
   } catch {
     return null;
   }
@@ -744,15 +785,38 @@ async function fetchNextNotifMessage(patientId: string): Promise<string | null> 
 
 // ─── NextNotifModal ───────────────────────────────────────────────────────────
 
-function NextNotifModal({ visible, message, onClose }: { visible: boolean; message: string; onClose: () => void }) {
-  if (!visible) return null;
+function NextNotifModal({ visible, info, onClose }: { visible: boolean; info: NextNotifInfo | null; onClose: () => void }) {
+  if (!visible || !info) return null;
+
+  let minutesText: string;
+  if (info.minutesLeft < 60) {
+    minutesText = `${info.minutesLeft}분`;
+  } else {
+    const h = Math.floor(info.minutesLeft / 60);
+    const rem = info.minutesLeft % 60;
+    minutesText = rem === 0 ? `${h}시간` : `${h}시간 ${rem}분`;
+  }
+
   return (
     <Modal visible={visible} transparent animationType="fade" statusBarTranslucent onRequestClose={onClose}>
       <View style={nnStyles.overlay}>
         <View style={nnStyles.card}>
           <Text style={nnStyles.icon}>🔔</Text>
           <Text style={nnStyles.title}>다음 알림 예고</Text>
-          <Text style={nnStyles.message}>{message}</Text>
+
+          {/* 알림 종류 — 오렌지 배경 pill */}
+          <View style={nnStyles.labelPill}>
+            <Text style={nnStyles.labelPillText}>{info.label}</Text>
+          </View>
+
+          {/* 구체적 시간 — 크게 */}
+          <Text style={nnStyles.timeText}>{info.timeStr}</Text>
+
+          {/* 서브텍스트 */}
+          <Text style={nnStyles.subText}>
+            지금부터 약 {minutesText} 후에{'\n'}알림을 보내드릴게요
+          </Text>
+
           <TouchableOpacity style={nnStyles.closeBtn} onPress={onClose} activeOpacity={0.85}>
             <Text style={nnStyles.closeBtnText}>확인</Text>
           </TouchableOpacity>
@@ -783,11 +847,30 @@ const nnStyles = StyleSheet.create({
     elevation: 10,
   },
   icon: { fontSize: 40, marginBottom: 12 },
-  title: { fontSize: 22, fontWeight: '800', color: Colors.text, marginBottom: 16 },
-  message: {
-    fontSize: 18,
-    color: Colors.text,
-    lineHeight: 28,
+  title: { fontSize: 22, fontWeight: '800', color: Colors.text, marginBottom: 20 },
+  labelPill: {
+    backgroundColor: '#FF6B00',
+    borderRadius: 24,
+    paddingHorizontal: 20,
+    paddingVertical: 10,
+    marginBottom: 16,
+  },
+  labelPillText: {
+    fontSize: 17,
+    fontWeight: '700',
+    color: '#fff',
+    textAlign: 'center',
+  },
+  timeText: {
+    fontSize: 28,
+    fontWeight: '800',
+    color: '#FF6B00',
+    marginBottom: 16,
+  },
+  subText: {
+    fontSize: 17,
+    color: Colors.textSub,
+    lineHeight: 26,
     textAlign: 'center',
     marginBottom: 28,
   },
