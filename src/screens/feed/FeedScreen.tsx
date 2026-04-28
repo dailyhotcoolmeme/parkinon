@@ -15,6 +15,8 @@ import type { FeedStackParamList } from '../../navigation/FeedNavigator';
 import { supabase } from '../../lib/supabase';
 import { useNotificationBadge } from '../../context/NotificationBadgeContext';
 import { navigateTo } from '../../navigation/navigationRef';
+import { CenterToast } from '../../components/common/CenterToast';
+import { useToast } from '../../hooks/useToast';
 
 type Nav = NativeStackNavigationProp<FeedStackParamList, 'FeedMain'>;
 type IoniconName = React.ComponentProps<typeof Ionicons>['name'];
@@ -96,6 +98,7 @@ type MainTab = 'all' | 'bookmarks' | 'mine';
 export function FeedScreen() {
   const navigation = useNavigation<Nav>();
   const { unreadCount } = useNotificationBadge();
+  const { toastMsg, toastVisible, showToast } = useToast();
   const scrollY = useRef(new Animated.Value(0)).current;
   const lastScrollY = useRef(0);
   const [fabExpanded, setFabExpanded] = useState(true);
@@ -180,10 +183,12 @@ export function FeedScreen() {
     if (currentlyBookmarked) {
       await supabase.from('post_bookmarks').delete()
         .eq('user_id', session.user.id).eq('post_id', postId);
+      showToast('즐겨찾기를 해제했어요');
     } else {
       await supabase.from('post_bookmarks').insert({ user_id: session.user.id, post_id: postId });
+      showToast('즐겨찾기에 추가했어요 ⭐');
     }
-  }, []);
+  }, [showToast]);
 
   const fetchPosts = useCallback(async (reset = true, overrideSearch?: string, overrideCategory?: string, overrideTab?: MainTab) => {
     if (reset) {
@@ -554,6 +559,7 @@ export function FeedScreen() {
           {fabExpanded && <Text style={styles.fabText}>글쓰기</Text>}
         </TouchableOpacity>
       </View>
+      <CenterToast message={toastMsg} visible={toastVisible} />
     </SafeAreaView>
   );
 }

@@ -30,6 +30,8 @@ import { ImageGalleryViewer } from '../../components/common/ImageGalleryViewer';
 import type { FeedStackParamList } from '../../navigation/FeedNavigator';
 import { supabase } from '../../lib/supabase';
 import { useAuth } from '../../context/AuthContext';
+import { CenterToast } from '../../components/common/CenterToast';
+import { useToast } from '../../hooks/useToast';
 
 type RouteProps = NativeStackScreenProps<FeedStackParamList, 'PostDetail'>['route'];
 type NavProp = NativeStackNavigationProp<FeedStackParamList>;
@@ -102,6 +104,7 @@ export function PostDetailScreen() {
   const navigation = useNavigation<NavProp>();
   const { post } = route.params;
   const { user } = useAuth();
+  const { toastMsg, toastVisible, showToast } = useToast();
 
   const isOwner = !!(user && post.authorId && user.id === post.authorId);
 
@@ -248,9 +251,11 @@ export function PostDetailScreen() {
     setIsBookmarked(next);
     if (next) {
       await supabase.from('post_bookmarks').insert({ user_id: user.id, post_id: post.id });
+      showToast('즐겨찾기에 추가했어요 ⭐');
     } else {
       await supabase.from('post_bookmarks').delete()
         .eq('user_id', user.id).eq('post_id', post.id);
+      showToast('즐겨찾기를 해제했어요');
     }
   };
 
@@ -308,6 +313,7 @@ export function PostDetailScreen() {
           .from('post_likes')
           .upsert({ post_id: post.id, user_id: user.id }, { onConflict: 'post_id,user_id' });
         if (error) throw error;
+        showToast('좋아요를 눌렀어요 ❤️');
       } else {
         const { error } = await supabase
           .from('post_likes')
@@ -315,6 +321,7 @@ export function PostDetailScreen() {
           .eq('post_id', post.id)
           .eq('user_id', user.id);
         if (error) throw error;
+        showToast('좋아요를 취소했어요');
       }
       // DB 트리거(sync_post_like_count)가 like_count를 자동 계산하므로
       // 클라이언트 계산값 대신 DB 실제 값으로 동기화
@@ -629,6 +636,7 @@ export function PostDetailScreen() {
           </View>
         </ScrollView>
       </KeyboardAvoidingView>
+      <CenterToast message={toastMsg} visible={toastVisible} />
     </SafeAreaView>
   );
 }
