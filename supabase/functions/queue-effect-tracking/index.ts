@@ -82,6 +82,7 @@ Deno.serve(async (req: Request) => {
     const rows = validItems.map((n) => ({
       patient_id,
       push_token,
+      meal_time: meal_time ?? null,
       interval_minutes: n.minutes,
       send_at: new Date(now + n.minutes * 60 * 1000).toISOString(),
       sent_at: null,

@@ -11,6 +11,21 @@ const INTERVAL_LABELS: Record<number, string> = {
   120: '2시간 후',
 }
 
+const MEAL_LABELS: Record<string, string> = {
+  morning: '아침약',
+  lunch: '점심약',
+  dinner: '저녁약',
+  bedtime: '취침약',
+}
+
+function getIntervalLabel(minutes: number): string {
+  if (INTERVAL_LABELS[minutes]) return INTERVAL_LABELS[minutes]
+  if (minutes < 60) return `${minutes}분 후`
+  const h = Math.floor(minutes / 60)
+  const rem = minutes % 60
+  return rem === 0 ? `${h}시간 후` : `${h}시간 ${rem}분 후`
+}
+
 async function sendPush(to: string, title: string, body: string, data: Record<string, unknown>): Promise<boolean> {
   const res = await fetch('https://exp.host/--/api/v2/push/send', {
     method: 'POST',
@@ -61,13 +76,17 @@ Deno.serve(async (_req: Request) => {
       continue
     }
 
-    const label = INTERVAL_LABELS[item.interval_minutes] ?? `${item.interval_minutes}분 후`
+    const label = getIntervalLabel(item.interval_minutes)
+    const mealLabel = item.meal_time ? MEAL_LABELS[item.meal_time] ?? '' : ''
+    const bodyText = mealLabel
+      ? `${mealLabel} 복용 ${label} 몸 상태를 기록해보세요.`
+      : `약 복용 ${label} 몸 상태를 기록해보세요.`
 
     const ok = await sendPush(
       item.push_token,
       '😊 몸 상태는 어때요?',
-      `약 복용 ${label} 몸 상태를 기록해보세요.`,
-      { type: 'effect_tracking', minutes: item.interval_minutes },
+      bodyText,
+      { type: 'effect_tracking', minutes: item.interval_minutes, meal_time: item.meal_time ?? null },
     )
 
     if (ok) {
@@ -75,8 +94,8 @@ Deno.serve(async (_req: Request) => {
         user_id: item.patient_id,
         type: 'effect_tracking',
         title: '😊 몸 상태는 어때요?',
-        body: `약 복용 ${label} 몸 상태를 기록해보세요.`,
-        data: { type: 'effect_tracking', minutes: item.interval_minutes },
+        body: bodyText,
+        data: { type: 'effect_tracking', minutes: item.interval_minutes, meal_time: item.meal_time ?? null },
         read_at: null,
       })
       processed++

@@ -87,6 +87,11 @@ function labelToDeltaText(label: string): string {
   return label;
 }
 
+// 식사 구분 → 한국어 (실제 med_logs meal_time 기반)
+const MEAL_KO: Record<string, string> = {
+  morning: '아침', lunch: '점심', dinner: '저녁', bedtime: '취침',
+};
+
 // 기본 라벨 (동적 생성 실패 시 폴백용)
 const DEFAULT_TRIGGER_LABEL: Record<string, string> = {
   after_medication: '복용 직후',
@@ -196,10 +201,13 @@ export function BodyStateScreen() {
         if (!showFlow) {
           AsyncStorage.getItem('parkinon_last_medication')
             .then(raw => {
-              const medTime = raw ? new Date(JSON.parse(raw).taken_at) : null;
-              openFlowWithDuplicateCheck(label, medTime);
+              if (!raw) { openFlowWithDuplicateCheck(label, null, null); return; }
+              const parsed = JSON.parse(raw);
+              const medTime = parsed.taken_at ? new Date(parsed.taken_at) : null;
+              const mealTime = parsed.meal_time ?? null;
+              openFlowWithDuplicateCheck(label, medTime, mealTime);
             })
-            .catch(() => openFlowWithDuplicateCheck(label, null));
+            .catch(() => openFlowWithDuplicateCheck(label, null, null));
         }
       }
     }, [route.params?.triggerMinutes])
@@ -280,12 +288,13 @@ export function BodyStateScreen() {
   };
 
   // 같은 시간대 배지가 오늘 이미 있으면 확인 후 팝업 오픈
-  const openFlowWithDuplicateCheck = (labelKey: string, medTime: Date | null) => {
+  // mealTimeKey: 실제 med_logs.meal_time ('morning'|'lunch'|'dinner'|'bedtime')
+  const openFlowWithDuplicateCheck = (labelKey: string, medTime: Date | null, mealTimeKey: string | null) => {
     const hasDuplicate = activeLogs.some((log: any) => log.trigger_time_label === labelKey);
     if (hasDuplicate) {
       const labelDisplay = getTriggerLabel(labelKey);
-      const period = medTime ? getPeriod(medTime.toISOString()) : null;
-      const periodText = period ? `${period}약 복용 ` : '';
+      const periodKo = mealTimeKey ? MEAL_KO[mealTimeKey] : (medTime ? getPeriod(medTime.toISOString()) : null);
+      const periodText = periodKo ? `${periodKo}약 복용 ` : '';
       Alert.alert(
         '중복 기록 확인',
         `오늘 ${periodText}'${labelDisplay}' 기록이 이미 있어요.\n한 번 더 기록하시겠어요?`,
@@ -328,7 +337,8 @@ export function BodyStateScreen() {
     }
 
     try {
-      const { taken_at } = JSON.parse(raw);
+      const parsed = JSON.parse(raw);
+      const { taken_at, meal_time: storedMealTime } = parsed;
       const medTime = new Date(taken_at);
       const elapsedMin = (Date.now() - medTime.getTime()) / 60000;
 
@@ -342,10 +352,11 @@ export function BodyStateScreen() {
       if (closest && closestDiff <= 20) {
         // ±20분 이내 → 자동 배정
         setPendingTriggerLabel(closest.labelKey);
-        openFlowWithDuplicateCheck(closest.labelKey, medTime);
+        openFlowWithDuplicateCheck(closest.labelKey, medTime, storedMealTime ?? null);
       } else {
         // 20분 초과 → 기록 불가 안내
-        const period = getPeriod(medTime.toISOString());
+        const periodKo = storedMealTime ? (MEAL_KO[storedMealTime] ?? getPeriod(medTime.toISOString())) : getPeriod(medTime.toISOString());
+        const period = periodKo;
         const elapsedRound = Math.round(elapsedMin);
         let elapsedText: string;
         if (elapsedRound < 60) {
@@ -429,10 +440,17 @@ export function BodyStateScreen() {
               .from('effect_tracking_queue')
               .delete()
               .in('id', queueItems.map((q: any) => q.id));
-            const period = getPeriod(new Date().toISOString());
+            let periodKo = getPeriod(new Date().toISOString());
+            try {
+              const raw = await AsyncStorage.getItem('parkinon_last_medication');
+              if (raw) {
+                const { meal_time } = JSON.parse(raw);
+                if (meal_time && MEAL_KO[meal_time]) periodKo = MEAL_KO[meal_time];
+              }
+            } catch {}
             const delta = labelToDeltaText(savedLabel!);
             setPreRecordMessage(
-              `${period}약 복용 ${delta} 후 몸상태 기록을 미리 남기셨어요.\n\n사전에 설정된 알림은 보내지 않을게요.`
+              `${periodKo}약 복용 ${delta} 후 몸상태 기록을 미리 남기셨어요.\n\n사전에 설정된 알림은 보내지 않을게요.`
             );
             setShowPreRecordInfo(true);
           }
@@ -587,7 +605,7 @@ export function BodyStateScreen() {
           if (!triggerModalSelected) return;
           setPendingTriggerLabel(triggerModalSelected);
           setShowTriggerSelect(false);
-          openFlowWithDuplicateCheck(triggerModalSelected, triggerMedTime);
+          openFlowWithDuplicateCheck(triggerModalSelected, triggerMedTime, null);
         }}
         onDismiss={() => setShowTriggerSelect(false)}
       />
