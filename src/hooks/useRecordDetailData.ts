@@ -214,7 +214,7 @@ const MEAL_LABELS: Record<string, string> = {
   morning: '아침약', lunch: '점심약', dinner: '저녁약', bedtime: '취침약',
 };
 const MEAL_COLORS: Record<string, string> = {
-  morning: '#F44336', lunch: '#4CAF50', dinner: '#2196F3', bedtime: '#9C27B0',
+  morning: '#F44336', lunch: '#4CAF50', dinner: '#2196F3', bedtime: '#FF9800',
 };
 const TRIGGER_COLORS = ['#F44336', '#4CAF50', '#2196F3', '#FF9800', '#9C27B0', '#607D8B'];
 
