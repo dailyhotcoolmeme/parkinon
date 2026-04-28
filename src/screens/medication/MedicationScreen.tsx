@@ -308,9 +308,9 @@ export function MedicationScreen() {
       : { id: mt, label: defaultInfo.label, time: timeStr, taken: false };
   });
 
-  // 오늘 모든 시간대 복용 완료 여부 (아침/점심/저녁 기준 — 취침은 모달에 없으므로 제외)
-  const NON_BEDTIME_SLOTS: MealTime[] = ['morning', 'lunch', 'dinner'];
-  const allNonBedtimeTaken = isToday && NON_BEDTIME_SLOTS.every(
+  // 오늘 모든 시간대(아침/점심/저녁/취침) 복용 완료 여부
+  const ALL_MEAL_SLOTS: MealTime[] = ['morning', 'lunch', 'dinner', 'bedtime'];
+  const allSlotsTaken = isToday && ALL_MEAL_SLOTS.every(
     (mt) => !!(activeStatus as any)[mt]
   );
 
@@ -339,11 +339,11 @@ export function MedicationScreen() {
           <TouchableOpacity
             style={[
               styles.mainButton,
-              (userRole === 'caregiver_no_patient' || userRole === 'caregiver_separate' || !isToday || allNonBedtimeTaken) && styles.mainButtonDisabled,
+              (userRole === 'caregiver_no_patient' || userRole === 'caregiver_separate' || !isToday || allSlotsTaken) && styles.mainButtonDisabled,
             ]}
             onPress={() => {
               if (!isToday) return;
-              if (allNonBedtimeTaken) return;
+              if (allSlotsTaken) return;
               if (userRole === 'caregiver_no_patient') {
                 Alert.alert('환자 연동 필요', '환자와 먼저 연동해야\n대신 기록할 수 있어요.');
                 return;
@@ -363,7 +363,7 @@ export function MedicationScreen() {
             <View style={styles.mainButtonInner}>
               <Ionicons name="medkit" size={40} color={Colors.white} />
               <Text style={styles.mainButtonText}>
-                {allNonBedtimeTaken ? '오늘 복용 완료 ✓' : '약 먹었어요'}
+                {allSlotsTaken ? '오늘 복용 완료 ✓' : '약 먹었어요'}
               </Text>
             </View>
           </TouchableOpacity>
@@ -377,7 +377,7 @@ export function MedicationScreen() {
           {!isToday && userRole !== 'caregiver_separate' && userRole !== 'caregiver_no_patient' && (
             <Text style={styles.caregiverNotice}>오늘 날짜에서만 복용 기록을 입력할 수 있어요</Text>
           )}
-          {allNonBedtimeTaken && (
+          {allSlotsTaken && (
             <Text style={styles.caregiverNotice}>아침·점심·저녁 약을 모두 복용했어요</Text>
           )}
         </View>
