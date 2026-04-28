@@ -28,6 +28,7 @@ Notifications.setNotificationChannelAsync('default', {
 function AppInner() {
   const appState = useRef<AppStateStatus>(AppState.currentState);
   const { saveNotification } = useNotificationBadge();
+  const handledNotifIds = useRef<Set<string>>(new Set());
 
   // 앱 시작 시마다 push_token DB 갱신 (세션이 있는 경우 무조건 시도)
   useEffect(() => {
@@ -70,6 +71,10 @@ function AppInner() {
   const lastResponse = Notifications.useLastNotificationResponse();
   useEffect(() => {
     if (!lastResponse) return;
+    const notifId = lastResponse.notification.request.identifier;
+    if (handledNotifIds.current.has(notifId)) return;
+    handledNotifIds.current.add(notifId);
+
     const content = lastResponse.notification.request.content;
     const data = (content.data ?? {}) as Record<string, any>;
     const type = data?.type as string | undefined;
@@ -124,6 +129,10 @@ function AppInner() {
 
     // 알림 탭 핸들러 (앱이 열려있거나 백그라운드에서 탭할 때)
     const notifSubscription = Notifications.addNotificationResponseReceivedListener((response) => {
+      const notifId = response.notification.request.identifier;
+      if (handledNotifIds.current.has(notifId)) return;
+      handledNotifIds.current.add(notifId);
+
       const content = response.notification.request.content;
       const data = (content.data ?? {}) as Record<string, any>;
       const type = data?.type;

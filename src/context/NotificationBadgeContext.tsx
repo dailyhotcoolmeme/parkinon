@@ -109,7 +109,20 @@ export function NotificationBadgeProvider({ children }: { children: React.ReactN
             setUnreadCount((prev) => Math.max(0, prev - 1));
             return;
           }
-          // 서버 미기록 알림 탭 — 읽음 상태로 새 record 삽입 (뱃지 증가 없음)
+          // 서버 미기록 알림 탭 — 5분 내 동일 알림 있으면 중복 삽입 방지
+          const since5m = new Date(Date.now() - 5 * 60 * 1000).toISOString();
+          const { data: recentAny } = await supabase
+            .from('notification_logs')
+            .select('id')
+            .eq('user_id', user.id)
+            .eq('type', type)
+            .eq('title', title)
+            .gte('created_at', since5m)
+            .limit(1)
+            .maybeSingle();
+          if (recentAny) return;
+
+          // 읽음 상태로 새 record 삽입 (뱃지 증가 없음)
           const { data: { session } } = await supabase.auth.getSession();
           await fetch(`${SUPA_URL}/rest/v1/notification_logs`, {
             method: 'POST',
