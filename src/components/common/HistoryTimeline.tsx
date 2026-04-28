@@ -20,6 +20,7 @@ type TimelineType = 'medication' | 'bodystate' | 'exercise';
 interface HistoryTimelineProps {
   type: TimelineType;
   patientId: string | null;
+  refreshKey?: number;
 }
 
 interface TimelineEntry {
@@ -77,7 +78,7 @@ const MEAL_TIME_KO: Record<string, string> = {
 
 const PAGE_SIZE = 14;
 
-export function HistoryTimeline({ type, patientId }: HistoryTimelineProps) {
+export function HistoryTimeline({ type, patientId, refreshKey }: HistoryTimelineProps) {
   const { user } = useAuth();
 
   const [expanded, setExpanded] = useState(false);
@@ -188,6 +189,22 @@ export function HistoryTimeline({ type, patientId }: HistoryTimelineProps) {
     setInitialLoaded(true);
     setLoading(false);
   }, [initialLoaded, fetchEarliestDate, fetchAllLogs]);
+
+  // 외부에서 refreshKey가 바뀌면 즉시 데이터 갱신
+  useEffect(() => {
+    if (!refreshKey) return;
+    if (expanded && initialLoaded) {
+      fetchEarliestDate().then(earliest => {
+        const target = earliest ?? todayStr;
+        if (earliest && earliest !== earliestDate) setEarliestDate(earliest);
+        fetchAllLogs(target);
+      });
+    } else {
+      // 아직 열려있지 않으면 다음 열 때 새로 로드하도록 초기화
+      setInitialLoaded(false);
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [refreshKey]);
 
   const dateList: string[] = earliestDate
     ? buildDateRange(todayStr, earliestDate, displayCount)

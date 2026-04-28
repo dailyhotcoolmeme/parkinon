@@ -104,6 +104,7 @@ export function BodyStateScreen() {
   const [videoLogs, setVideoLogs] = useState<any[]>([]);
   const [dateLogs, setDateLogs] = useState<any[]>([]);
   const [pendingTriggerLabel, setPendingTriggerLabel] = useState<string | null>(null);
+  const [historyRefreshKey, setHistoryRefreshKey] = useState(0);
   const navigation = useNavigation<any>();
   const route = useRoute<any>();
   const insets = useSafeAreaInsets();
@@ -267,6 +268,7 @@ export function BodyStateScreen() {
     }, pendingTriggerLabel ? 'notification' : 'manual');
     if (success) {
       setPendingTriggerLabel(null);
+      setHistoryRefreshKey(k => k + 1);
       // route params 초기화 (다음 진입 시 재사용 방지)
       if (route.params?.triggerMinutes != null) {
         navigation.setParams({ triggerMinutes: null });
@@ -383,7 +385,7 @@ export function BodyStateScreen() {
         </View>
 
         {/* 과거 기록 보기 타임라인 */}
-        <HistoryTimeline type="bodystate" patientId={patientId} />
+        <HistoryTimeline type="bodystate" patientId={patientId} refreshKey={historyRefreshKey} />
       </ScrollView>
 
       <CaregiverConfirmModal
@@ -410,6 +412,14 @@ export function BodyStateScreen() {
   );
 }
 
+function scoreEmoji(s: number): string {
+  if (s >= 5) return '😄';
+  if (s >= 4) return '😊';
+  if (s >= 3) return '😐';
+  if (s >= 2) return '😟';
+  return '😢';
+}
+
 function scoreColor(s: number): string {
   if (s >= 4) return '#2E7D32';
   if (s === 3) return '#E65100';
@@ -417,54 +427,53 @@ function scoreColor(s: number): string {
 }
 
 function RecordRow({ record, isLast }: { record: BodyRecord; isLast: boolean }) {
+  const sep = <Text style={{ fontSize: 16, color: '#CCC', marginHorizontal: 6 }}>|</Text>;
   return (
     <View style={{
       paddingHorizontal: 18,
-      paddingVertical: 16,
+      paddingVertical: 14,
       borderBottomWidth: isLast ? 0 : 1,
       borderBottomColor: '#F0F0F0',
     }}>
-      {/* 트리거 라벨 + 시간 */}
-      <View style={{ flexDirection: 'row', justifyContent: 'space-between', marginBottom: 14, alignItems: 'center' }}>
-        <Text style={{ fontSize: 18, fontWeight: '700', color: '#333' }}>
-          {record.trigger}
-        </Text>
-        <Text style={{ fontSize: 16, color: '#999' }}>{record.time}</Text>
+      {/* 트리거 배지 + 시간 */}
+      <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 10 }}>
+        <View style={{
+          backgroundColor: 'rgba(255,107,53,0.12)',
+          borderRadius: 20,
+          paddingHorizontal: 12,
+          paddingVertical: 4,
+        }}>
+          <Text style={{ fontSize: 15, fontWeight: '700', color: Colors.primary }}>
+            {record.trigger}
+          </Text>
+        </View>
+        <Text style={{ fontSize: 15, color: '#999' }}>{record.time}</Text>
       </View>
 
-      {/* 점수 항목들 — 가로 나열 */}
-      <View style={{ flexDirection: 'row', flexWrap: 'wrap' }}>
-        {/* 몸상태 */}
-        <View style={{ alignItems: 'center', marginRight: 28 }}>
-          <Text style={{ fontSize: 15, color: '#888', marginBottom: 6 }}>몸상태</Text>
-          <Text style={{ fontSize: 22, fontWeight: '700', color: scoreColor(record.bodyScore) }}>
-            {record.bodyScore}점
-          </Text>
-        </View>
-        {/* 기분 */}
-        <View style={{ alignItems: 'center', marginRight: 28 }}>
-          <Text style={{ fontSize: 15, color: '#888', marginBottom: 6 }}>기분</Text>
-          <Text style={{ fontSize: 22, fontWeight: '700', color: scoreColor(record.moodScore) }}>
-            {record.moodScore}점
-          </Text>
-        </View>
-        {/* 수면 (있는 경우만) */}
+      {/* 점수 한 줄 — 이모지 + 점수 | 구분 */}
+      <View style={{ flexDirection: 'row', alignItems: 'center', flexWrap: 'wrap' }}>
+        <Text style={{ fontSize: 16, color: scoreColor(record.bodyScore) }}>
+          몸상태 {scoreEmoji(record.bodyScore)} {record.bodyScore}점
+        </Text>
+        {sep}
+        <Text style={{ fontSize: 16, color: scoreColor(record.moodScore) }}>
+          기분 {scoreEmoji(record.moodScore)} {record.moodScore}점
+        </Text>
         {record.sleepScore !== undefined && (
-          <View style={{ alignItems: 'center', marginRight: 28 }}>
-            <Text style={{ fontSize: 15, color: '#888', marginBottom: 6 }}>수면</Text>
-            <Text style={{ fontSize: 22, fontWeight: '700', color: scoreColor(record.sleepScore) }}>
-              {record.sleepScore}점
+          <>
+            {sep}
+            <Text style={{ fontSize: 16, color: scoreColor(record.sleepScore) }}>
+              수면 {scoreEmoji(record.sleepScore)} {record.sleepScore}점
             </Text>
-          </View>
+          </>
         )}
-        {/* 변비 (있는 경우만) */}
         {record.constipation !== undefined && (
-          <View style={{ alignItems: 'center', marginRight: 28 }}>
-            <Text style={{ fontSize: 15, color: '#888', marginBottom: 6 }}>변비</Text>
-            <Text style={{ fontSize: 22, fontWeight: '700', color: record.constipation ? '#B71C1C' : '#2E7D32' }}>
-              {record.constipation ? '있음' : '없음'}
+          <>
+            {sep}
+            <Text style={{ fontSize: 16, color: record.constipation ? '#B71C1C' : '#2E7D32' }}>
+              변비 {record.constipation ? '있음' : '없음'}
             </Text>
-          </View>
+          </>
         )}
       </View>
     </View>
