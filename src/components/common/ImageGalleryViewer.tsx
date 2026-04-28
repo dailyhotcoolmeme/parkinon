@@ -16,6 +16,8 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 
 const { width: SCREEN_WIDTH, height: SCREEN_HEIGHT } = Dimensions.get('window');
+const CONTENT_PADDING = 20;
+const IMAGE_WIDTH = SCREEN_WIDTH - CONTENT_PADDING * 2;
 
 interface Props {
   urls: string[];
@@ -48,7 +50,7 @@ export function ImageGalleryViewer({ urls }: Props) {
   };
 
   const handleThumbnailScroll = (e: NativeSyntheticEvent<NativeScrollEvent>) => {
-    const pageIdx = Math.round(e.nativeEvent.contentOffset.x / SCREEN_WIDTH);
+    const pageIdx = Math.round(e.nativeEvent.contentOffset.x / IMAGE_WIDTH);
     setCurrentIndex(pageIdx);
   };
 
@@ -169,17 +171,18 @@ const styles = StyleSheet.create({
   galleryWrap: {
     position: 'relative',
     marginTop: 16,
-    marginHorizontal: -20,
   },
   mediaScroll: {},
   mediaPage: {
-    width: SCREEN_WIDTH,
+    width: IMAGE_WIDTH,
     alignItems: 'center',
   },
   mediaImage: {
-    width: SCREEN_WIDTH,
-    height: SCREEN_WIDTH * 0.85,
+    width: IMAGE_WIDTH,
+    height: IMAGE_WIDTH * 0.85,
     backgroundColor: '#E0E0E0',
+    borderRadius: 12,
+    overflow: 'hidden',
   },
   inlineDotsRow: {
     flexDirection: 'row',
