@@ -50,6 +50,14 @@ const DEFAULT_MEAL_TIME_LABELS: Record<MealTime, { label: string; time: string }
   bedtime: { label: '취침', time: '오후 10:00' },
 };
 
+// 시간 비교용 HH:MM 기본값
+const DEFAULT_MEAL_TIMES: Record<MealTime, string> = {
+  morning: '08:00',
+  lunch: '12:00',
+  dinner: '18:00',
+  bedtime: '22:00',
+};
+
 function formatTakenAt(isoString: string): string {
   const d = new Date(isoString);
   const h = d.getHours();
@@ -106,6 +114,8 @@ export function MedicationScreen() {
   const [selectedDate, setSelectedDate] = useState(new Date());
   const [showDatePicker, setShowDatePicker] = useState(false);
   const [showNotifOnboarding, setShowNotifOnboarding] = useState(false);
+  const [showPreMedInfo, setShowPreMedInfo] = useState(false);
+  const [preMedMessage, setPreMedMessage] = useState('');
 
   // 온보딩 완료 후 홈 최초 진입 시 알림 설정 팝업 1회 표시
   useEffect(() => {
@@ -226,11 +236,25 @@ export function MedicationScreen() {
 
   const handleMealTimeSelect = async (mealTime: MealTime) => {
     setShowMealTimeModal(false);
+    const nowForCheck = new Date();
     const success = await takeMedication(mealTime);
     if (!success) {
       Alert.alert('저장 실패', medError ?? '복용 기록 저장에 실패했어요. 다시 시도해 주세요.');
       return;
     }
+
+    // 예정 알림 시간보다 일찍 기록한 경우 → 안내 팝업
+    const schedStr = userMealSchedules?.[mealTime] ?? DEFAULT_MEAL_TIMES[mealTime];
+    const [schedH, schedM] = schedStr.split(':').map(Number);
+    const schedMinutes = schedH * 60 + schedM;
+    const nowMinutes = nowForCheck.getHours() * 60 + nowForCheck.getMinutes();
+    if (nowMinutes < schedMinutes) {
+      const label = DEFAULT_MEAL_TIME_LABELS[mealTime].label;
+      const formattedTime = formatMealTime(schedStr);
+      setPreMedMessage(`${label}약 복용 기록을 미리 남기셨어요.\n알림 시간(${formattedTime})에 알림이 가지 않을게요.`);
+      setShowPreMedInfo(true);
+    }
+
     setSelectedMealTime(mealTime);
     setTimeout(() => {
       setShowBodyStateSuggest(true);
@@ -472,6 +496,11 @@ export function MedicationScreen() {
         onSelect={setSelectedDate}
         onClose={() => setShowDatePicker(false)}
       />
+      <PreMedInfoModal
+        visible={showPreMedInfo}
+        message={preMedMessage}
+        onClose={() => setShowPreMedInfo(false)}
+      />
       {/* 온보딩 완료 후 최초 진입 시 알림 설정 팝업 */}
       <NotificationOnboardingModal
         visible={showNotifOnboarding}
@@ -573,4 +602,62 @@ const styles = StyleSheet.create({
   cardBadgeIncomplete: { backgroundColor: 'transparent', borderWidth: 1, borderColor: Colors.border },
   cardBadgeText: { fontSize: 16, fontWeight: '700', color: Colors.white },
   cardBadgeTextIncomplete: { color: Colors.textSub },
+});
+
+// ─── PreMedInfoModal ──────────────────────────────────────────────────────────
+
+function PreMedInfoModal({ visible, message, onClose }: { visible: boolean; message: string; onClose: () => void }) {
+  if (!visible) return null;
+  return (
+    <Modal visible={visible} transparent animationType="fade" statusBarTranslucent onRequestClose={onClose}>
+      <View style={pmStyles.overlay}>
+        <View style={pmStyles.card}>
+          <Text style={pmStyles.icon}>🔕</Text>
+          <Text style={pmStyles.title}>알림 취소 안내</Text>
+          <Text style={pmStyles.message}>{message}</Text>
+          <TouchableOpacity style={pmStyles.closeBtn} onPress={onClose} activeOpacity={0.85}>
+            <Text style={pmStyles.closeBtnText}>닫기</Text>
+          </TouchableOpacity>
+        </View>
+      </View>
+    </Modal>
+  );
+}
+
+const pmStyles = StyleSheet.create({
+  overlay: {
+    flex: 1,
+    backgroundColor: 'rgba(0,0,0,0.5)',
+    justifyContent: 'center',
+    alignItems: 'center',
+    paddingHorizontal: 32,
+  },
+  card: {
+    backgroundColor: Colors.white,
+    borderRadius: 24,
+    padding: 32,
+    width: '100%',
+    alignItems: 'center',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 6 },
+    shadowOpacity: 0.2,
+    shadowRadius: 16,
+    elevation: 10,
+  },
+  icon: { fontSize: 40, marginBottom: 12 },
+  title: { fontSize: 22, fontWeight: '800', color: Colors.text, marginBottom: 16 },
+  message: {
+    fontSize: 18,
+    color: Colors.text,
+    lineHeight: 28,
+    textAlign: 'center',
+    marginBottom: 28,
+  },
+  closeBtn: {
+    backgroundColor: Colors.primary,
+    borderRadius: 14,
+    paddingVertical: 14,
+    paddingHorizontal: 48,
+  },
+  closeBtnText: { fontSize: 18, fontWeight: '700', color: Colors.white },
 });
