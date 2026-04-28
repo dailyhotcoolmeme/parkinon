@@ -7,6 +7,7 @@ import {
   StyleSheet,
   Dimensions,
   Alert,
+  Modal,
 } from 'react-native';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useNavigation, useRoute, useFocusEffect } from '@react-navigation/native';
@@ -120,6 +121,10 @@ export function BodyStateScreen() {
   const [dateLogs, setDateLogs] = useState<any[]>([]);
   const [pendingTriggerLabel, setPendingTriggerLabel] = useState<string | null>(null);
   const [historyRefreshKey, setHistoryRefreshKey] = useState(0);
+  const [showTriggerSelect, setShowTriggerSelect] = useState(false);
+  const [triggerMedTime, setTriggerMedTime] = useState<Date | null>(null);
+  const [triggerModalSelected, setTriggerModalSelected] = useState<string | null>(null);
+  const [pendingTriggeredBy, setPendingTriggeredBy] = useState<'notification' | 'manual'>('manual');
   const navigation = useNavigation<any>();
   const route = useRoute<any>();
   const insets = useSafeAreaInsets();
@@ -158,29 +163,14 @@ export function BodyStateScreen() {
     loadDateLogs();
   }, [loadVideoLogs, loadDateLogs]);
 
-  // 알림 탭 진입 또는 시간 기반 trigger_time_label 결정
+  // 알림 탭 진입 시 trigger_time_label 자동 설정
   useFocusEffect(
     React.useCallback(() => {
       const triggerMinutes = route.params?.triggerMinutes;
-
       if (triggerMinutes != null) {
-        // 알림 탭으로 진입한 경우
+        setPendingTriggeredBy('notification');
         setPendingTriggerLabel(minutesToLabel(triggerMinutes));
         if (!showFlow) setShowFlow(true);
-      } else {
-        // 시간 기반 자동 감지
-        AsyncStorage.getItem('parkinon_last_medication').then((raw) => {
-          if (!raw) return;
-          const { taken_at } = JSON.parse(raw);
-          const elapsedMin = (Date.now() - new Date(taken_at).getTime()) / 60000;
-          if (elapsedMin >= 15 && elapsedMin < 60) {
-            setPendingTriggerLabel('30min_after');
-          } else if (elapsedMin >= 90 && elapsedMin < 180) {
-            setPendingTriggerLabel('2hour_after');
-          } else {
-            setPendingTriggerLabel(null);
-          }
-        }).catch(() => {});
       }
     }, [route.params?.triggerMinutes])
   );
@@ -259,6 +249,63 @@ export function BodyStateScreen() {
     return label;
   };
 
+  // 활성화된 medNotifs 인터벌 목록 (복용 직후 포함)
+  const getEnabledIntervals = (): Array<{ minutes: number; labelKey: string; labelDisplay: string }> => {
+    const result: Array<{ minutes: number; labelKey: string; labelDisplay: string }> = [
+      { minutes: 0, labelKey: 'after_medication', labelDisplay: '복용 직후' },
+    ];
+    for (const notif of medNotifs) {
+      if (notif.enabled && notif.minutes > 0) {
+        const key = minutesToLabel(notif.minutes);
+        result.push({ minutes: notif.minutes, labelKey: key, labelDisplay: getTriggerLabel(key) });
+      }
+    }
+    return result;
+  };
+
+  // 버튼 탭 시 약 복용 시간 기반으로 트리거 라벨 자동 감지 or 모달 표시
+  const handleOpenBodyState = async () => {
+    setPendingTriggeredBy('manual');
+    const intervals = getEnabledIntervals();
+    let raw: string | null = null;
+    try { raw = await AsyncStorage.getItem('parkinon_last_medication'); } catch {}
+
+    if (!raw) {
+      setTriggerMedTime(null);
+      setTriggerModalSelected(intervals[0]?.labelKey ?? null);
+      setShowTriggerSelect(true);
+      return;
+    }
+
+    try {
+      const { taken_at } = JSON.parse(raw);
+      const medTime = new Date(taken_at);
+      const elapsedMin = (Date.now() - medTime.getTime()) / 60000;
+
+      let closest: typeof intervals[0] | null = null;
+      let closestDiff = Infinity;
+      for (const interval of intervals) {
+        const diff = Math.abs(elapsedMin - interval.minutes);
+        if (diff < closestDiff) { closestDiff = diff; closest = interval; }
+      }
+
+      if (closest && closestDiff <= 20) {
+        // ±20분 이내 → 자동 배정
+        setPendingTriggerLabel(closest.labelKey);
+        setShowFlow(true);
+      } else {
+        // 20분 초과 → 사용자 선택 모달
+        setTriggerMedTime(medTime);
+        setTriggerModalSelected(closest?.labelKey ?? intervals[0]?.labelKey ?? null);
+        setShowTriggerSelect(true);
+      }
+    } catch {
+      setTriggerMedTime(null);
+      setTriggerModalSelected(intervals[0]?.labelKey ?? null);
+      setShowTriggerSelect(true);
+    }
+  };
+
   // DB 로그 → BodyRecord 변환
   const records: BodyRecord[] = activeLogs.map((log) => ({
     id: log.id,
@@ -280,9 +327,10 @@ export function BodyStateScreen() {
       sleep_quality: record.sleepScore,
       constipation: record.constipation,
       trigger_time_label: pendingTriggerLabel ?? undefined,
-    }, pendingTriggerLabel ? 'notification' : 'manual');
+    }, pendingTriggeredBy);
     if (success) {
       setPendingTriggerLabel(null);
+      setPendingTriggeredBy('manual');
       setHistoryRefreshKey(k => k + 1);
       // route params 초기화 (다음 진입 시 재사용 방지)
       if (route.params?.triggerMinutes != null) {
@@ -333,7 +381,7 @@ export function BodyStateScreen() {
               if (userRole === 'caregiver_same') {
                 setShowCaregiverConfirm(true);
               } else {
-                setShowFlow(true);
+                handleOpenBodyState();
               }
             }}
             activeOpacity={0.85}
@@ -406,7 +454,7 @@ export function BodyStateScreen() {
       <CaregiverConfirmModal
         visible={showCaregiverConfirm}
         patientName={patientName}
-        onConfirm={() => { setShowCaregiverConfirm(false); setShowFlow(true); }}
+        onConfirm={() => { setShowCaregiverConfirm(false); handleOpenBodyState(); }}
         onCancel={() => setShowCaregiverConfirm(false)}
       />
       <BodyStatePopupFlow
@@ -422,6 +470,20 @@ export function BodyStateScreen() {
         selectedDate={selectedDate}
         onSelect={setSelectedDate}
         onClose={() => setShowDatePicker(false)}
+      />
+      <TriggerSelectModal
+        visible={showTriggerSelect}
+        medTime={triggerMedTime}
+        options={getEnabledIntervals()}
+        selected={triggerModalSelected}
+        onSelect={setTriggerModalSelected}
+        onConfirm={() => {
+          if (!triggerModalSelected) return;
+          setPendingTriggerLabel(triggerModalSelected);
+          setShowTriggerSelect(false);
+          setShowFlow(true);
+        }}
+        onDismiss={() => setShowTriggerSelect(false)}
       />
     </SafeAreaView>
   );
@@ -629,4 +691,152 @@ const styles = StyleSheet.create({
     color: Colors.textSub,
     textAlign: 'center',
   },
+});
+
+// ─── TriggerSelectModal ───────────────────────────────────────────────────────
+
+interface TriggerSelectOption {
+  minutes: number;
+  labelKey: string;
+  labelDisplay: string;
+}
+
+interface TriggerSelectModalProps {
+  visible: boolean;
+  medTime: Date | null;
+  options: TriggerSelectOption[];
+  selected: string | null;
+  onSelect: (labelKey: string) => void;
+  onConfirm: () => void;
+  onDismiss: () => void;
+}
+
+function TriggerSelectModal({ visible, medTime, options, selected, onSelect, onConfirm, onDismiss }: TriggerSelectModalProps) {
+  if (!visible) return null;
+
+  const now = new Date();
+  const elapsedMin = medTime ? Math.round((now.getTime() - medTime.getTime()) / 60000) : null;
+  const elapsedText = elapsedMin !== null
+    ? elapsedMin < 60
+      ? `약 ${elapsedMin}분 경과`
+      : `약 ${Math.floor(elapsedMin / 60)}시간 ${elapsedMin % 60}분 경과`
+    : null;
+
+  return (
+    <Modal visible={visible} transparent animationType="slide" statusBarTranslucent onRequestClose={onDismiss}>
+      <View style={tsStyles.overlay}>
+        <TouchableOpacity style={tsStyles.backdrop} activeOpacity={1} onPress={onDismiss} />
+        <View style={tsStyles.sheet}>
+          <View style={tsStyles.header}>
+            <Text style={tsStyles.title}>약효 추적 시간대 선택</Text>
+            <TouchableOpacity onPress={onDismiss} hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}>
+              <Ionicons name="close" size={26} color={Colors.textSub} />
+            </TouchableOpacity>
+          </View>
+
+          {medTime ? (
+            <View style={tsStyles.medInfo}>
+              <Text style={tsStyles.medTimeText}>{formatTime(medTime.toISOString())}에 약을 복용하셨어요</Text>
+              {elapsedText && <Text style={tsStyles.elapsedText}>{elapsedText}</Text>}
+            </View>
+          ) : (
+            <View style={tsStyles.medInfo}>
+              <Text style={tsStyles.medTimeText}>약 복용 시간 기록이 없어요{'\n'}해당 약효 시간대를 선택해주세요</Text>
+            </View>
+          )}
+
+          <View style={tsStyles.optionsList}>
+            {options.map((opt) => {
+              const isSel = selected === opt.labelKey;
+              return (
+                <TouchableOpacity
+                  key={opt.labelKey}
+                  style={[tsStyles.optionRow, isSel && tsStyles.optionRowSelected]}
+                  onPress={() => onSelect(opt.labelKey)}
+                  activeOpacity={0.7}
+                >
+                  <View style={[tsStyles.radio, isSel && tsStyles.radioSelected]}>
+                    {isSel && <View style={tsStyles.radioDot} />}
+                  </View>
+                  <Text style={[tsStyles.optionLabel, isSel && tsStyles.optionLabelSelected]}>
+                    {opt.labelDisplay}
+                  </Text>
+                </TouchableOpacity>
+              );
+            })}
+          </View>
+
+          <TouchableOpacity
+            style={[tsStyles.confirmBtn, !selected && tsStyles.confirmBtnDisabled]}
+            onPress={onConfirm}
+            disabled={!selected}
+            activeOpacity={0.85}
+          >
+            <Text style={tsStyles.confirmBtnText}>기록하기</Text>
+          </TouchableOpacity>
+        </View>
+      </View>
+    </Modal>
+  );
+}
+
+const tsStyles = StyleSheet.create({
+  overlay: { flex: 1, justifyContent: 'flex-end' },
+  backdrop: { ...StyleSheet.absoluteFillObject, backgroundColor: 'rgba(0,0,0,0.5)' },
+  sheet: {
+    backgroundColor: Colors.white,
+    borderTopLeftRadius: 24,
+    borderTopRightRadius: 24,
+    padding: 24,
+    paddingBottom: 44,
+  },
+  header: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 20,
+  },
+  title: { fontSize: 22, fontWeight: '800', color: Colors.text },
+  medInfo: {
+    backgroundColor: Colors.background,
+    borderRadius: 14,
+    padding: 16,
+    marginBottom: 20,
+  },
+  medTimeText: { fontSize: 18, fontWeight: '600', color: Colors.text, lineHeight: 26 },
+  elapsedText: { fontSize: 16, color: Colors.textSub, marginTop: 4 },
+  optionsList: { gap: 10, marginBottom: 24 },
+  optionRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingHorizontal: 18,
+    paddingVertical: 16,
+    borderRadius: 14,
+    borderWidth: 2,
+    borderColor: Colors.border,
+    backgroundColor: Colors.white,
+    gap: 14,
+  },
+  optionRowSelected: { borderColor: Colors.primary, backgroundColor: 'rgba(255,138,101,0.06)' },
+  radio: {
+    width: 24,
+    height: 24,
+    borderRadius: 12,
+    borderWidth: 2,
+    borderColor: Colors.textHint,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  radioSelected: { borderColor: Colors.primary },
+  radioDot: { width: 12, height: 12, borderRadius: 6, backgroundColor: Colors.primary },
+  optionLabel: { fontSize: 20, color: Colors.text, fontWeight: '600' },
+  optionLabelSelected: { color: Colors.primary, fontWeight: '700' },
+  confirmBtn: {
+    backgroundColor: Colors.primary,
+    borderRadius: 16,
+    paddingVertical: 18,
+    alignItems: 'center',
+  },
+  confirmBtnDisabled: { backgroundColor: Colors.textHint },
+  confirmBtnText: { fontSize: 20, fontWeight: '800', color: Colors.white },
 });
