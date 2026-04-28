@@ -430,8 +430,24 @@ export function useRecordDetailData(type: ItemKey, period: Period): UseRecordDet
         // bodyState 또는 mood: 시간대별
         const field: 'body_state' | 'mood' = type === 'bodyState' ? 'body_state' : 'mood';
 
-        // 존재하는 trigger_time_label 수집 후 분 수 기준 오름차순 정렬
-        const allLabels = new Set<string>();
+        // 사용자가 설정한 med_notif_prefs 로드 → 설정된 인터벌 기준으로 슬롯 구성
+        let configuredLabels: string[] = ['after_medication'];
+        try {
+          const { data: userPrefs } = await supabase
+            .from('users')
+            .select('med_notif_prefs')
+            .eq('id', patientId)
+            .single();
+          const prefs = (userPrefs?.med_notif_prefs ?? []) as Array<{ minutes: number; enabled: boolean }>;
+          const enabledLabels = prefs
+            .filter(n => n.enabled && n.minutes > 0)
+            .sort((a, b) => a.minutes - b.minutes)
+            .map(n => `${n.minutes}min_after`);
+          configuredLabels = ['after_medication', ...enabledLabels];
+        } catch {}
+
+        // 데이터에 있는 라벨도 추가 (설정 변경 전 기록 포함)
+        const allLabels = new Set<string>(configuredLabels);
         for (const log of onOffLogs) {
           if (log.triggered_by === 'notification' && log.trigger_time_label) {
             allLabels.add(log.trigger_time_label);
