@@ -11,8 +11,8 @@ const INTERVAL_LABELS: Record<number, string> = {
   120: '2시간 후',
 }
 
-async function sendPush(to: string, title: string, body: string, data: Record<string, unknown>) {
-  await fetch('https://exp.host/--/api/v2/push/send', {
+async function sendPush(to: string, title: string, body: string, data: Record<string, unknown>): Promise<boolean> {
+  const res = await fetch('https://exp.host/--/api/v2/push/send', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({
@@ -25,6 +25,10 @@ async function sendPush(to: string, title: string, body: string, data: Record<st
       channelId: 'default',
     }),
   })
+  const result = await res.json()
+  const ok = result?.data?.status === 'ok'
+  console.log('[process-queue sendPush]', JSON.stringify({ to: to.slice(0, 30), status: result?.data?.status, result }))
+  return ok
 }
 
 Deno.serve(async (_req: Request) => {
@@ -46,19 +50,22 @@ Deno.serve(async (_req: Request) => {
   for (const item of pending) {
     const label = INTERVAL_LABELS[item.interval_minutes] ?? `${item.interval_minutes}분 후`
 
-    await sendPush(
+    const ok = await sendPush(
       item.push_token,
       '😊 몸 상태는 어때요?',
       `약 복용 ${label} 몸 상태를 기록해보세요.`,
       { type: 'effect_tracking', minutes: item.interval_minutes },
     )
 
-    await supabase
-      .from('effect_tracking_queue')
-      .update({ sent_at: now.toISOString() })
-      .eq('id', item.id)
-
-    processed++
+    if (ok) {
+      await supabase
+        .from('effect_tracking_queue')
+        .update({ sent_at: now.toISOString() })
+        .eq('id', item.id)
+      processed++
+    } else {
+      console.error('[process-queue] push 실패 — sent_at 미설정, 재시도 대기:', item.id)
+    }
   }
 
   return new Response(JSON.stringify({ processed }), { headers: { 'Content-Type': 'application/json' } })

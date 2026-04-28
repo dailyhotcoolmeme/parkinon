@@ -1553,29 +1553,6 @@ export function SettingsScreen() {
           </View>
         )}
 
-        {/* ── Card: 알림 토큰 재등록 (모든 사용자) ── */}
-        <View style={[styles.card, styles.cardMarginTop, { marginTop: 24 }]}>
-          <View style={styles.cardHeader}>
-            <Ionicons
-              name="refresh-circle-outline"
-              size={24}
-              color={Colors.primary}
-              style={styles.cardHeaderIcon}
-            />
-            <View style={styles.cardHeaderText}>
-              <Text style={styles.cardHeaderTitle}>알림 토큰 재등록</Text>
-              <Text style={styles.cardHeaderSub}>약 복용 알림이 안 오면 누르세요</Text>
-            </View>
-          </View>
-          <TouchableOpacity
-            activeOpacity={0.7}
-            style={styles.refreshTokenButton}
-            onPress={handleRefreshPushToken}
-          >
-            <Ionicons name="notifications-outline" size={20} color={Colors.primary} style={{ marginRight: 8 }} />
-            <Text style={styles.refreshTokenButtonText}>알림 토큰 재등록</Text>
-          </TouchableOpacity>
-        </View>
       </ScrollView>
 
       {/* 배터리 최적화 안내 모달 */}
