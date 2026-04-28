@@ -1,10 +1,6 @@
 /**
  * HistoryTimeline.tsx
  * 약복용 / 몸상태 / 운동 화면 하단 "과거 기록 보기" 타임라인 컴포넌트
- *
- * - 오늘부터 최초 기록 날짜까지 하루도 빠짐없이 표시
- * - 기본 14일 표시 → "더보기" 버튼으로 14일씩 추가
- * - 가운데 세로줄 기반 타임라인 레이아웃
  */
 import React, { useState, useCallback, useEffect } from 'react';
 import {
@@ -27,26 +23,24 @@ interface HistoryTimelineProps {
 }
 
 interface TimelineEntry {
-  time: string;   // HH:MM
-  content: string;
+  time: string;    // HH:MM
+  content: string; // 약복용/운동: 한 줄 내용 | 몸상태: 몸상태 N점  기분 N점
+  content2?: string; // 몸상태 전용 두 번째 줄: 수면 N점  변비 있음/없음
 }
 
 interface DayData {
-  dateStr: string;   // YYYY-MM-DD
+  dateStr: string;
   entries: TimelineEntry[];
 }
 
-// ISO 문자열 → KST HH:MM 변환
 function toKSTTime(isoString: string): string {
   const d = new Date(isoString);
-  // getHours()는 로컬 시간 기준이므로, KST 오프셋 명시
   const kst = new Date(d.getTime() + 9 * 60 * 60 * 1000);
-  const utcH = kst.getUTCHours();
-  const utcM = kst.getUTCMinutes();
-  return `${String(utcH).padStart(2, '0')}:${String(utcM).padStart(2, '0')}`;
+  const h = String(kst.getUTCHours()).padStart(2, '0');
+  const m = String(kst.getUTCMinutes()).padStart(2, '0');
+  return `${h}:${m}`;
 }
 
-// YYYY-MM-DD → 월.일(요일) 형식
 function formatDateLabel(dateStr: string): string {
   const [y, m, d] = dateStr.split('-').map(Number);
   const date = new Date(y, m - 1, d);
@@ -54,14 +48,12 @@ function formatDateLabel(dateStr: string): string {
   return `${m}.${d}(${dayNames[date.getDay()]})`;
 }
 
-// KST 기준 오늘 날짜 문자열 반환
 function getKSTTodayStr(): string {
   const now = new Date();
   const kst = new Date(now.getTime() + 9 * 60 * 60 * 1000);
   return kst.toISOString().slice(0, 10);
 }
 
-// 날짜 목록 생성 (오늘부터 earliestDate까지, 최신순)
 function buildDateRange(todayStr: string, earliestStr: string, limit: number): string[] {
   const result: string[] = [];
   const today = new Date(todayStr);
@@ -97,76 +89,48 @@ export function HistoryTimeline({ type, patientId }: HistoryTimelineProps) {
 
   const todayStr = getKSTTodayStr();
 
-  // 최초 기록 날짜 조회
   const fetchEarliestDate = useCallback(async (): Promise<string | null> => {
     if (!patientId) return null;
-
     try {
       if (type === 'medication') {
         const { data } = await supabase
-          .from('med_logs')
-          .select('taken_at')
-          .eq('patient_id', patientId)
-          .order('taken_at', { ascending: true })
-          .limit(1)
-          .single();
+          .from('med_logs').select('taken_at').eq('patient_id', patientId)
+          .order('taken_at', { ascending: true }).limit(1).single();
         if (data?.taken_at) {
-          const kst = new Date(new Date(data.taken_at).getTime() + 9 * 60 * 60 * 1000);
-          return kst.toISOString().slice(0, 10);
+          return new Date(new Date(data.taken_at).getTime() + 9 * 60 * 60 * 1000).toISOString().slice(0, 10);
         }
       } else if (type === 'bodystate') {
         const { data } = await supabase
-          .from('on_off_logs')
-          .select('logged_at')
-          .eq('patient_id', patientId)
-          .order('logged_at', { ascending: true })
-          .limit(1)
-          .single();
+          .from('on_off_logs').select('logged_at').eq('patient_id', patientId)
+          .order('logged_at', { ascending: true }).limit(1).single();
         if (data?.logged_at) {
-          const kst = new Date(new Date(data.logged_at).getTime() + 9 * 60 * 60 * 1000);
-          return kst.toISOString().slice(0, 10);
+          return new Date(new Date(data.logged_at).getTime() + 9 * 60 * 60 * 1000).toISOString().slice(0, 10);
         }
       } else if (type === 'exercise') {
         const { data } = await supabase
-          .from('exercise_logs')
-          .select('logged_at')
-          .eq('patient_id', patientId)
-          .order('logged_at', { ascending: true })
-          .limit(1)
-          .single();
+          .from('exercise_logs').select('logged_at').eq('patient_id', patientId)
+          .order('logged_at', { ascending: true }).limit(1).single();
         if (data?.logged_at) {
-          const kst = new Date(new Date(data.logged_at).getTime() + 9 * 60 * 60 * 1000);
-          return kst.toISOString().slice(0, 10);
+          return new Date(new Date(data.logged_at).getTime() + 9 * 60 * 60 * 1000).toISOString().slice(0, 10);
         }
       }
-    } catch {
-      // 기록 없음
-    }
+    } catch {}
     return null;
   }, [patientId, type]);
 
-  // 날짜 범위 전체 데이터 한 번에 조회
   const fetchAllLogs = useCallback(async (earliest: string) => {
     if (!patientId) return;
-
     const { start: rangeStart } = getKSTDayRange(earliest);
     const { end: rangeEnd } = getKSTDayRange(todayStr);
-
     const newMap: Record<string, TimelineEntry[]> = {};
 
     try {
       if (type === 'medication') {
         const { data } = await supabase
-          .from('med_logs')
-          .select('taken_at, meal_time')
-          .eq('patient_id', patientId)
-          .gte('taken_at', rangeStart)
-          .lte('taken_at', rangeEnd)
-          .order('taken_at', { ascending: false });
-
+          .from('med_logs').select('taken_at, meal_time').eq('patient_id', patientId)
+          .gte('taken_at', rangeStart).lte('taken_at', rangeEnd).order('taken_at', { ascending: false });
         (data ?? []).forEach((row: any) => {
-          const kstDate = new Date(new Date(row.taken_at).getTime() + 9 * 60 * 60 * 1000)
-            .toISOString().slice(0, 10);
+          const kstDate = new Date(new Date(row.taken_at).getTime() + 9 * 60 * 60 * 1000).toISOString().slice(0, 10);
           if (!newMap[kstDate]) newMap[kstDate] = [];
           newMap[kstDate].push({
             time: toKSTTime(row.taken_at),
@@ -175,39 +139,31 @@ export function HistoryTimeline({ type, patientId }: HistoryTimelineProps) {
         });
       } else if (type === 'bodystate') {
         const { data } = await supabase
-          .from('on_off_logs')
-          .select('logged_at, body_state, mood, sleep_quality, constipation')
-          .eq('patient_id', patientId)
-          .gte('logged_at', rangeStart)
-          .lte('logged_at', rangeEnd)
+          .from('on_off_logs').select('logged_at, body_state, mood, sleep_quality, constipation')
+          .eq('patient_id', patientId).gte('logged_at', rangeStart).lte('logged_at', rangeEnd)
           .order('logged_at', { ascending: false });
-
         (data ?? []).forEach((row: any) => {
-          const kstDate = new Date(new Date(row.logged_at).getTime() + 9 * 60 * 60 * 1000)
-            .toISOString().slice(0, 10);
+          const kstDate = new Date(new Date(row.logged_at).getTime() + 9 * 60 * 60 * 1000).toISOString().slice(0, 10);
           if (!newMap[kstDate]) newMap[kstDate] = [];
-          const lines: string[] = [];
-          if (row.body_state != null) lines.push(`몸상태 ${row.body_state}점`);
-          if (row.mood != null) lines.push(`기분 ${row.mood}점`);
-          if (row.sleep_quality != null) lines.push(`수면 ${row.sleep_quality}점`);
-          if (row.constipation != null) lines.push(`변비 ${row.constipation}`);
+          const line1: string[] = [];
+          if (row.body_state != null) line1.push(`몸상태 ${row.body_state}점`);
+          if (row.mood != null) line1.push(`기분 ${row.mood}점`);
+          const line2: string[] = [];
+          if (row.sleep_quality != null) line2.push(`수면 ${row.sleep_quality}점`);
+          if (row.constipation != null) line2.push(`변비 ${row.constipation}`);
           newMap[kstDate].push({
             time: toKSTTime(row.logged_at),
-            content: lines.join('\n') || '기록',
+            content: line1.join('  ') || '기록',
+            content2: line2.length > 0 ? line2.join('  ') : undefined,
           });
         });
       } else if (type === 'exercise') {
         const { data } = await supabase
-          .from('exercise_logs')
-          .select('logged_at, exercise_type, duration_minutes')
-          .eq('patient_id', patientId)
-          .gte('logged_at', rangeStart)
-          .lte('logged_at', rangeEnd)
+          .from('exercise_logs').select('logged_at, exercise_type, duration_minutes')
+          .eq('patient_id', patientId).gte('logged_at', rangeStart).lte('logged_at', rangeEnd)
           .order('logged_at', { ascending: false });
-
         (data ?? []).forEach((row: any) => {
-          const kstDate = new Date(new Date(row.logged_at).getTime() + 9 * 60 * 60 * 1000)
-            .toISOString().slice(0, 10);
+          const kstDate = new Date(new Date(row.logged_at).getTime() + 9 * 60 * 60 * 1000).toISOString().slice(0, 10);
           if (!newMap[kstDate]) newMap[kstDate] = [];
           newMap[kstDate].push({
             time: toKSTTime(row.logged_at),
@@ -222,24 +178,17 @@ export function HistoryTimeline({ type, patientId }: HistoryTimelineProps) {
     setDayDataMap(newMap);
   }, [patientId, type, todayStr]);
 
-  // 펼쳤을 때 초기 데이터 로드
   const handleExpand = useCallback(async () => {
     setExpanded(true);
     if (initialLoaded) return;
     setLoading(true);
-
     const earliest = await fetchEarliestDate();
     setEarliestDate(earliest);
-
-    if (earliest) {
-      await fetchAllLogs(earliest);
-    }
-
+    if (earliest) await fetchAllLogs(earliest);
     setInitialLoaded(true);
     setLoading(false);
   }, [initialLoaded, fetchEarliestDate, fetchAllLogs]);
 
-  // 날짜 목록 계산
   const dateList: string[] = earliestDate
     ? buildDateRange(todayStr, earliestDate, displayCount)
     : buildDateRange(todayStr, todayStr, displayCount);
@@ -266,12 +215,7 @@ export function HistoryTimeline({ type, patientId }: HistoryTimelineProps) {
 
   return (
     <View style={styles.container}>
-      {/* 접기 버튼 */}
-      <TouchableOpacity
-        style={styles.toggleButton}
-        onPress={() => setExpanded(false)}
-        activeOpacity={0.8}
-      >
+      <TouchableOpacity style={styles.toggleButton} onPress={() => setExpanded(false)} activeOpacity={0.8}>
         <Text style={styles.toggleButtonText}>과거 기록 접기</Text>
         <Text style={styles.toggleArrow}>▲</Text>
       </TouchableOpacity>
@@ -296,28 +240,30 @@ export function HistoryTimeline({ type, patientId }: HistoryTimelineProps) {
 
                 return (
                   <View key={dateStr} style={styles.dayRow}>
-                    {/* 왼쪽: 날짜 텍스트 */}
+                    {/* 왼쪽: 날짜 — 동그라미 중심과 수평 정렬 */}
                     <View style={styles.dateCol}>
                       <Text style={styles.dateLabel}>{formatDateLabel(dateStr)}</Text>
                     </View>
 
                     {/* 가운데: 세로줄 + 원 */}
                     <View style={styles.lineCol}>
-                      {/* 위쪽 세로줄 (첫 번째 아이템은 없음) */}
                       <View style={[styles.lineTop, idx === 0 && styles.lineInvisible]} />
-                      {/* 원 */}
                       <View style={hasRecord ? styles.dotFilled : styles.dotEmpty} />
-                      {/* 아래쪽 세로줄 (마지막 아이템은 없음) */}
                       <View style={[styles.lineBottom, isLast && styles.lineInvisible]} />
                     </View>
 
-                    {/* 오른쪽: 기록 내용 */}
+                    {/* 오른쪽: 기록 — 첫 줄이 동그라미 중심과 수평 정렬 */}
                     <View style={styles.contentCol}>
                       {hasRecord ? (
                         entries.map((entry, eIdx) => (
-                          <View key={eIdx} style={styles.entryRow}>
+                          <View key={eIdx} style={[styles.entryRow, eIdx > 0 && styles.entryRowExtra]}>
                             <Text style={styles.entryTime}>{entry.time}</Text>
-                            <Text style={styles.entryContent}>{entry.content}</Text>
+                            <View style={styles.entryContentWrap}>
+                              <Text style={styles.entryContent}>{entry.content}</Text>
+                              {entry.content2 ? (
+                                <Text style={styles.entryContent2}>{entry.content2}</Text>
+                              ) : null}
+                            </View>
                           </View>
                         ))
                       ) : (
@@ -328,7 +274,6 @@ export function HistoryTimeline({ type, patientId }: HistoryTimelineProps) {
                 );
               })}
 
-              {/* 더보기 버튼 */}
               {hasMore && (
                 <TouchableOpacity
                   style={styles.moreButton}
@@ -346,10 +291,13 @@ export function HistoryTimeline({ type, patientId }: HistoryTimelineProps) {
   );
 }
 
+// lineTop 높이 = T, dot 중심 Y = T + 7
+// dateCol/contentCol paddingTop = T - 2 (폰트 중심 오프셋 보정)
+const LINE_TOP_H = 14;   // T
+const FIRST_ROW_PT = 12; // T - 2
+
 const styles = StyleSheet.create({
-  toggleWrap: {
-    paddingBottom: 32,
-  },
+  toggleWrap: { paddingBottom: 32 },
   toggleButton: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -368,43 +316,18 @@ const styles = StyleSheet.create({
     shadowOpacity: 0.05,
     shadowRadius: 3,
   },
-  toggleButtonText: {
-    fontSize: 18,
-    fontWeight: '600',
-    color: Colors.textSub,
-  },
-  toggleArrow: {
-    fontSize: 14,
-    color: Colors.textHint,
-  },
+  toggleButtonText: { fontSize: 18, fontWeight: '600', color: Colors.textSub },
+  toggleArrow: { fontSize: 14, color: Colors.textHint },
 
-  container: {
-    paddingBottom: 40,
-  },
+  container: { paddingBottom: 40 },
 
-  loadingWrap: {
-    alignItems: 'center',
-    paddingVertical: 32,
-    gap: 12,
-  },
-  loadingText: {
-    fontSize: 17,
-    color: Colors.textSub,
-  },
+  loadingWrap: { alignItems: 'center', paddingVertical: 32, gap: 12 },
+  loadingText: { fontSize: 17, color: Colors.textSub },
 
-  emptyWrap: {
-    alignItems: 'center',
-    paddingVertical: 32,
-  },
-  emptyText: {
-    fontSize: 18,
-    color: Colors.textHint,
-  },
+  emptyWrap: { alignItems: 'center', paddingVertical: 32 },
+  emptyText: { fontSize: 18, color: Colors.textHint },
 
-  timeline: {
-    paddingHorizontal: 16,
-    paddingTop: 8,
-  },
+  timeline: { paddingHorizontal: 16, paddingTop: 8 },
 
   dayRow: {
     flexDirection: 'row',
@@ -412,10 +335,10 @@ const styles = StyleSheet.create({
     minHeight: 48,
   },
 
-  // 날짜 컬럼 (왼쪽)
+  // 날짜 컬럼: paddingTop으로 첫 줄 중심을 dot 중심에 맞춤
   dateCol: {
     width: 80,
-    paddingTop: 16,
+    paddingTop: FIRST_ROW_PT,
     alignItems: 'flex-end',
     paddingRight: 8,
   },
@@ -425,7 +348,7 @@ const styles = StyleSheet.create({
     fontWeight: '500',
   },
 
-  // 세로줄 + 원 컬럼 (가운데)
+  // 세로줄 + 원 컬럼
   lineCol: {
     width: 28,
     alignItems: 'center',
@@ -433,7 +356,7 @@ const styles = StyleSheet.create({
   },
   lineTop: {
     width: 2,
-    height: 16,
+    height: LINE_TOP_H,
     backgroundColor: '#E0E0E0',
   },
   lineBottom: {
@@ -442,9 +365,7 @@ const styles = StyleSheet.create({
     minHeight: 14,
     backgroundColor: '#E0E0E0',
   },
-  lineInvisible: {
-    backgroundColor: 'transparent',
-  },
+  lineInvisible: { backgroundColor: 'transparent' },
   dotFilled: {
     width: 14,
     height: 14,
@@ -460,34 +381,51 @@ const styles = StyleSheet.create({
     backgroundColor: Colors.white,
   },
 
-  // 기록 내용 컬럼 (오른쪽)
+  // 기록 컬럼: paddingTop으로 첫 줄 중심을 dot 중심에 맞춤
   contentCol: {
     flex: 1,
     paddingLeft: 10,
-    paddingTop: 10,
+    paddingTop: FIRST_ROW_PT,
     paddingBottom: 12,
   },
+
+  // 각 기록 행: 시간 + 내용 수평 배치, flex-start로 상단 정렬
   entryRow: {
     flexDirection: 'row',
-    alignItems: 'center',
-    marginBottom: 6,
+    alignItems: 'flex-start',
     gap: 8,
   },
+  entryRowExtra: {
+    marginTop: 8,
+  },
+
   entryTime: {
     fontSize: 16,
     fontWeight: '600',
     color: Colors.text,
-    minWidth: 44,
+    minWidth: 46,
+    lineHeight: 22,
   },
-  entryContent: {
-    fontSize: 17,
-    color: Colors.text,
+  entryContentWrap: {
     flex: 1,
   },
+  entryContent: {
+    fontSize: 16,
+    color: Colors.text,
+    lineHeight: 22,
+  },
+  // 몸상태 두 번째 줄 (수면, 변비)
+  entryContent2: {
+    fontSize: 15,
+    color: '#999999',
+    marginTop: 2,
+    lineHeight: 20,
+  },
+
   emptyDay: {
     fontSize: 16,
     color: '#CCCCCC',
-    paddingTop: 2,
+    lineHeight: 22,
   },
 
   moreButton: {

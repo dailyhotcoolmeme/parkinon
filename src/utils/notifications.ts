@@ -500,8 +500,15 @@ export async function rescheduleAllNotifications(
     await Notifications.cancelAllScheduledNotificationsAsync();
     return;
   }
-  // 약 복용 알림 및 운동 알림 모두 서버 크론(send-medication-reminders)이 전담
-  // 로컬 스케줄링 제거 — 중복 발송 방지
+  // 서버 크론이 전담 — 이전에 등록된 exercise 로컬 알림 잔여분 취소
+  try {
+    const scheduled = await Notifications.getAllScheduledNotificationsAsync();
+    for (const n of scheduled) {
+      if (n.identifier.startsWith('exercise-')) {
+        await Notifications.cancelScheduledNotificationAsync(n.identifier);
+      }
+    }
+  } catch {}
 }
 
 /** 보호자에게 푸시 알림 전송 (Supabase Edge Function 경유) */

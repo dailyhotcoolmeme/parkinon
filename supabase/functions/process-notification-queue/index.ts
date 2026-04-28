@@ -48,6 +48,19 @@ Deno.serve(async (_req: Request) => {
   let processed = 0
 
   for (const item of pending) {
+    // Atomic claim: sent_at을 먼저 선점해 동시 실행 시 중복 처리 방지
+    const { data: claimed } = await supabase
+      .from('effect_tracking_queue')
+      .update({ sent_at: now.toISOString() })
+      .eq('id', item.id)
+      .is('sent_at', null)
+      .select('id')
+
+    if (!claimed || claimed.length === 0) {
+      console.log('[process-queue] 이미 처리된 항목 건너뜀:', item.id)
+      continue
+    }
+
     const label = INTERVAL_LABELS[item.interval_minutes] ?? `${item.interval_minutes}분 후`
 
     const ok = await sendPush(
@@ -58,10 +71,6 @@ Deno.serve(async (_req: Request) => {
     )
 
     if (ok) {
-      await supabase
-        .from('effect_tracking_queue')
-        .update({ sent_at: now.toISOString() })
-        .eq('id', item.id)
       await supabase.from('notification_logs').insert({
         user_id: item.patient_id,
         type: 'effect_tracking',
@@ -72,7 +81,12 @@ Deno.serve(async (_req: Request) => {
       })
       processed++
     } else {
-      console.error('[process-queue] push 실패 — sent_at 미설정, 재시도 대기:', item.id)
+      // 푸시 실패 → sent_at 초기화해 재시도 가능하게
+      await supabase
+        .from('effect_tracking_queue')
+        .update({ sent_at: null })
+        .eq('id', item.id)
+      console.error('[process-queue] push 실패 — sent_at 초기화, 재시도 대기:', item.id)
     }
   }
 
