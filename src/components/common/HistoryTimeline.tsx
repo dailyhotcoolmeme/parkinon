@@ -416,10 +416,10 @@ const styles = StyleSheet.create({
   },
   // 몸상태 두 번째 줄 (수면, 변비)
   entryContent2: {
-    fontSize: 15,
-    color: '#999999',
+    fontSize: 16,
+    color: Colors.text,
     marginTop: 2,
-    lineHeight: 20,
+    lineHeight: 22,
   },
 
   emptyDay: {
