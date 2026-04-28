@@ -53,8 +53,6 @@ export function ProfileEditScreen() {
   const [saving, setSaving] = useState(false);
   const [patientId, setPatientId] = useState<string | null>(null);
 
-  type Caregiver = { user_id: string; name: string; relation: string };
-  const [caregivers, setCaregivers] = useState<Caregiver[]>([]);
 
   const relEngToKor: Record<string, string> = {
     spouse: '배우자', child: '자녀', sibling: '형제/자매', other: '기타',
@@ -95,41 +93,6 @@ export function ProfileEditScreen() {
       setCohabiting(freshUser.residence_type === 'separate' ? 'apart' : 'together');
     }
 
-    if (user.role === 'patient') {
-      // 환자: 같은 그룹의 보호자 목록 조회
-      const groupId = freshUser?.patient_group_id ?? user.patient_group_id ?? null;
-      let resolvedGroupId: string | null = groupId;
-
-      if (!resolvedGroupId) {
-        const { data: myMember } = await supabase
-          .from('patient_group_members')
-          .select('group_id')
-          .eq('user_id', user.id)
-          .maybeSingle();
-        resolvedGroupId = myMember?.group_id ?? null;
-      }
-
-      if (resolvedGroupId) {
-        const { data: cgMembers } = await supabase
-          .from('patient_group_members')
-          .select('user_id, user:users(name, caregiver_relation)')
-          .eq('group_id', resolvedGroupId)
-          .eq('role', 'caregiver');
-
-        const relMap: Record<string, string> = {
-          spouse: '배우자', child: '자녀', sibling: '형제/자매', other: '기타',
-        };
-        setCaregivers(
-          (cgMembers ?? []).map((m: any) => ({
-            user_id: m.user_id,
-            name: m.user?.name ?? '보호자',
-            relation: relMap[m.user?.caregiver_relation ?? ''] ?? '보호자',
-          }))
-        );
-      } else {
-        setCaregivers([]);
-      }
-    }
 
     if (user.role === 'caregiver') {
       // patient_group_id 우선, 없으면 patient_group_members 직접 쿼리
@@ -381,28 +344,6 @@ export function ProfileEditScreen() {
               <Text style={styles.pickerText}>{diagnosisYear}년</Text>
               <Ionicons name="chevron-down" size={22} color={Colors.textSub} />
             </TouchableOpacity>
-          </View>
-        )}
-
-        {/* 연동된 보호자 (환자 전용, 읽기 전용) */}
-        {isPatient && caregivers.length >= 0 && (
-          <View style={styles.card}>
-            <View style={styles.sectionHeader}>
-              <Ionicons name="people-outline" size={22} color={Colors.primary} />
-              <Text style={styles.sectionTitle}>연동된 보호자</Text>
-            </View>
-
-            {caregivers.length === 0 ? (
-              <Text style={styles.caregiverEmptyText}>연동된 보호자가 없어요</Text>
-            ) : (
-              caregivers.map((cg) => (
-                <View key={cg.user_id} style={styles.caregiverRow}>
-                  <Ionicons name="person-outline" size={22} color={Colors.textSub} />
-                  <Text style={styles.caregiverName}>{cg.name}</Text>
-                  <Text style={styles.caregiverRelation}>{cg.relation}</Text>
-                </View>
-              ))
-            )}
           </View>
         )}
 
@@ -782,33 +723,6 @@ const styles = StyleSheet.create({
     fontSize: 16,
     color: '#92400E',
     lineHeight: 22,
-  },
-
-  // Caregiver list (read-only, patient view)
-  caregiverRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 12,
-    paddingVertical: 14,
-    borderBottomWidth: 1,
-    borderBottomColor: Colors.border,
-  },
-  caregiverName: {
-    flex: 1,
-    fontSize: 20,
-    fontWeight: '600',
-    color: Colors.text,
-  },
-  caregiverRelation: {
-    fontSize: 18,
-    color: Colors.textSub,
-    fontWeight: '500',
-  },
-  caregiverEmptyText: {
-    fontSize: 18,
-    color: Colors.textHint,
-    textAlign: 'center',
-    paddingVertical: 12,
   },
 
   // Save button
