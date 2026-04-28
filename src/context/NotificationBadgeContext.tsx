@@ -73,26 +73,28 @@ export function NotificationBadgeProvider({ children }: { children: React.ReactN
     ) => {
       if (!user?.id) return;
       try {
-        // 60초 내 동일 type+title 중복 체크 — OTA 리로드/포그라운드+탭 이중 저장 방지
-        const since = new Date(Date.now() - 60 * 1000).toISOString();
-        const { data: existing } = await supabase
-          .from('notification_logs')
-          .select('id, read_at')
-          .eq('user_id', user.id)
-          .eq('type', type)
-          .eq('title', title)
-          .gte('created_at', since)
-          .limit(1)
-          .maybeSingle();
+        const SUPA_URL = process.env.EXPO_PUBLIC_SUPABASE_URL!;
+        const SUPA_KEY = process.env.EXPO_PUBLIC_SUPABASE_ANON_KEY!;
 
-        if (existing) {
-          // 이미 저장된 알림 — 미읽 상태인데 탭(readAt 있음)이면 읽음 처리만
-          if (readAt && !existing.read_at) {
+        if (readAt) {
+          // 탭한 경우 — 24시간 내 미읽음 동일 알림 찾아 읽음 처리
+          const since24h = new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString();
+          const { data: unread } = await supabase
+            .from('notification_logs')
+            .select('id, read_at')
+            .eq('user_id', user.id)
+            .eq('type', type)
+            .eq('title', title)
+            .gte('created_at', since24h)
+            .is('read_at', null)
+            .order('created_at', { ascending: false })
+            .limit(1)
+            .maybeSingle();
+
+          if (unread) {
             const { data: { session } } = await supabase.auth.getSession();
-            const SUPA_URL = process.env.EXPO_PUBLIC_SUPABASE_URL!;
-            const SUPA_KEY = process.env.EXPO_PUBLIC_SUPABASE_ANON_KEY!;
             await fetch(
-              `${SUPA_URL}/rest/v1/notification_logs?id=eq.${existing.id}`,
+              `${SUPA_URL}/rest/v1/notification_logs?id=eq.${unread.id}`,
               {
                 method: 'PATCH',
                 headers: {
@@ -105,7 +107,36 @@ export function NotificationBadgeProvider({ children }: { children: React.ReactN
               },
             );
             setUnreadCount((prev) => Math.max(0, prev - 1));
+            return;
           }
+          // 서버 미기록 알림 탭 — 읽음 상태로 새 record 삽입 (뱃지 증가 없음)
+          const { data: { session } } = await supabase.auth.getSession();
+          await fetch(`${SUPA_URL}/rest/v1/notification_logs`, {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+              'apikey': SUPA_KEY,
+              'Authorization': `Bearer ${session?.access_token ?? ''}`,
+              'Prefer': 'return=minimal',
+            },
+            body: JSON.stringify({ user_id: user.id, type, title, body, data, read_at: readAt }),
+          });
+          return;
+        }
+
+        // 포그라운드 수신 — 60초 내 중복 체크 후 미읽음 insert
+        const since = new Date(Date.now() - 60 * 1000).toISOString();
+        const { data: existing } = await supabase
+          .from('notification_logs')
+          .select('id')
+          .eq('user_id', user.id)
+          .eq('type', type)
+          .eq('title', title)
+          .gte('created_at', since)
+          .limit(1)
+          .maybeSingle();
+
+        if (existing) {
           return;
         }
 
