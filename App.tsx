@@ -27,7 +27,7 @@ Notifications.setNotificationChannelAsync('default', {
 // 알림 리스너는 NotificationBadgeProvider 내부에서 접근해야 context를 쓸 수 있음
 function AppInner() {
   const appState = useRef<AppStateStatus>(AppState.currentState);
-  const { saveNotification } = useNotificationBadge();
+  const { saveNotification, refreshBadge } = useNotificationBadge();
   const handledNotifIds = useRef<Set<string>>(new Set());
 
   // 앱 시작 시마다 push_token DB 갱신 (세션이 있는 경우 무조건 시도)
@@ -86,6 +86,9 @@ function AppInner() {
       data,
       new Date().toISOString(),
     );
+
+    // 알림 탭 진입 시 배지를 DB 실제 미읽음 수로 동기화
+    refreshBadge();
 
     // navigation이 준비될 때까지 폴링 후 이동 (앱 콜드 스타트 시 nav 초기화 지연 대응)
     const tryNavigate = (retryCount = 0) => {
@@ -148,6 +151,9 @@ function AppInner() {
         data,
         new Date().toISOString(),
       );
+
+      // 알림 탭 진입 시 배지를 DB 실제 미읽음 수로 동기화
+      refreshBadge();
 
       if (type === 'medication_reminder' || type === 'missed_medication') {
         navigateTo('Main', {

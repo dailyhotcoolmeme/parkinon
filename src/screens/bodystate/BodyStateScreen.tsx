@@ -152,6 +152,8 @@ export function BodyStateScreen() {
   const [pendingTriggeredBy, setPendingTriggeredBy] = useState<'notification' | 'manual'>('manual');
   const [showPreRecordInfo, setShowPreRecordInfo] = useState(false);
   const [preRecordMessage, setPreRecordMessage] = useState('');
+  const [showNextNotifModal, setShowNextNotifModal] = useState(false);
+  const [nextNotifMessage, setNextNotifMessage] = useState('');
   const navigation = useNavigation<any>();
   const route = useRoute<any>();
   const insets = useSafeAreaInsets();
@@ -445,6 +447,16 @@ export function BodyStateScreen() {
       }
       setShowFlow(false);
 
+      // 다음 예정 알림 조회 후 팝업 표시
+      if (patientId) {
+        fetchNextNotifMessage(patientId).then((msg) => {
+          if (msg) {
+            setNextNotifMessage(msg);
+            setShowNextNotifModal(true);
+          }
+        });
+      }
+
       // 사전 기록 시 예약 알림 큐 취소 (0분 즉시 알림은 이미 발송됐을 가능성 높아 제외)
       const intervalMin = savedLabel ? labelToMinutes(savedLabel) : null;
       if (intervalMin != null && intervalMin > 0 && patientId) {
@@ -617,6 +629,11 @@ export function BodyStateScreen() {
         visible={showPreRecordInfo}
         message={preRecordMessage}
         onClose={() => setShowPreRecordInfo(false)}
+      />
+      <NextNotifModal
+        visible={showNextNotifModal}
+        message={nextNotifMessage}
+        onClose={() => setShowNextNotifModal(false)}
       />
       <TriggerSelectModal
         visible={showTriggerSelect}
@@ -986,6 +1003,154 @@ const tsStyles = StyleSheet.create({
   },
   confirmBtnDisabled: { backgroundColor: Colors.textHint },
   confirmBtnText: { fontSize: 20, fontWeight: '800', color: Colors.white },
+});
+
+// ─── fetchNextNotifMessage ────────────────────────────────────────────────────
+// 기록 완료 후 다음 예정 알림 메시지를 반환합니다.
+
+const DEFAULT_MEAL_TIMES_BS: Record<string, string> = {
+  morning: '08:00',
+  lunch: '12:00',
+  dinner: '18:00',
+  bedtime: '22:00',
+};
+
+async function fetchNextNotifMessage(patientId: string): Promise<string | null> {
+  try {
+    const now = new Date();
+    let candidates: Array<{ minutesLeft: number; label: string }> = [];
+
+    // 1) 약효추적 큐에서 미발송 + 미래 항목 중 가장 가까운 것
+    const { data: queueRows } = await supabase
+      .from('effect_tracking_queue')
+      .select('send_at, interval_minutes, meal_time')
+      .eq('patient_id', patientId)
+      .is('sent_at', null)
+      .gt('send_at', now.toISOString())
+      .order('send_at', { ascending: true })
+      .limit(1);
+
+    if (queueRows && queueRows.length > 0) {
+      const row = queueRows[0];
+      const sendAt = new Date(row.send_at);
+      const minutesLeft = Math.round((sendAt.getTime() - now.getTime()) / 60000);
+      const intervalMin: number = row.interval_minutes ?? 0;
+      let label = '약효추적';
+      if (intervalMin > 0 && intervalMin < 60) label = `복용 후 ${intervalMin}분 약효추적`;
+      else if (intervalMin >= 60) {
+        const h = Math.floor(intervalMin / 60);
+        const rem = intervalMin % 60;
+        label = rem === 0 ? `복용 후 ${h}시간 약효추적` : `복용 후 ${h}시간 ${rem}분 약효추적`;
+      }
+      candidates.push({ minutesLeft, label });
+    }
+
+    // 2) meal_schedules에서 현재 시각 이후 다음 식사 알림
+    const { data: userData } = await supabase
+      .from('users')
+      .select('meal_schedules')
+      .eq('id', patientId)
+      .single();
+
+    const mealSchedules: Record<string, string> = (userData?.meal_schedules as Record<string, string>) ?? DEFAULT_MEAL_TIMES_BS;
+
+    const MEAL_LABELS: Record<string, string> = {
+      morning: '아침약 복용',
+      lunch: '점심약 복용',
+      dinner: '저녁약 복용',
+      bedtime: '취침약 복용',
+    };
+
+    for (const key of ['morning', 'lunch', 'dinner', 'bedtime']) {
+      const timeStr = mealSchedules[key] ?? DEFAULT_MEAL_TIMES_BS[key];
+      const [h, m] = timeStr.split(':').map(Number);
+      const scheduled = new Date(now);
+      scheduled.setHours(h, m, 0, 0);
+      if (scheduled > now) {
+        const minutesLeft = Math.round((scheduled.getTime() - now.getTime()) / 60000);
+        candidates.push({ minutesLeft, label: MEAL_LABELS[key] });
+        break;
+      }
+    }
+
+    if (candidates.length === 0) return null;
+
+    candidates.sort((a, b) => a.minutesLeft - b.minutesLeft);
+    const best = candidates[0];
+
+    if (best.minutesLeft <= 0) return null;
+
+    let timeText: string;
+    if (best.minutesLeft < 60) {
+      timeText = `${best.minutesLeft}분`;
+    } else {
+      const h = Math.floor(best.minutesLeft / 60);
+      const rem = best.minutesLeft % 60;
+      timeText = rem === 0 ? `${h}시간` : `${h}시간 ${rem}분`;
+    }
+
+    return `${timeText} 후에 ${best.label} 알림을 보내드릴게요`;
+  } catch {
+    return null;
+  }
+}
+
+// ─── NextNotifModal ───────────────────────────────────────────────────────────
+
+function NextNotifModal({ visible, message, onClose }: { visible: boolean; message: string; onClose: () => void }) {
+  if (!visible) return null;
+  return (
+    <Modal visible={visible} transparent animationType="fade" statusBarTranslucent onRequestClose={onClose}>
+      <View style={nnStyles.overlay}>
+        <View style={nnStyles.card}>
+          <Text style={nnStyles.icon}>🔔</Text>
+          <Text style={nnStyles.title}>다음 알림 예고</Text>
+          <Text style={nnStyles.message}>{message}</Text>
+          <TouchableOpacity style={nnStyles.closeBtn} onPress={onClose} activeOpacity={0.85}>
+            <Text style={nnStyles.closeBtnText}>확인</Text>
+          </TouchableOpacity>
+        </View>
+      </View>
+    </Modal>
+  );
+}
+
+const nnStyles = StyleSheet.create({
+  overlay: {
+    flex: 1,
+    backgroundColor: 'rgba(0,0,0,0.5)',
+    justifyContent: 'center',
+    alignItems: 'center',
+    paddingHorizontal: 32,
+  },
+  card: {
+    backgroundColor: Colors.white,
+    borderRadius: 24,
+    padding: 32,
+    width: '100%',
+    alignItems: 'center',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 6 },
+    shadowOpacity: 0.2,
+    shadowRadius: 16,
+    elevation: 10,
+  },
+  icon: { fontSize: 40, marginBottom: 12 },
+  title: { fontSize: 22, fontWeight: '800', color: Colors.text, marginBottom: 16 },
+  message: {
+    fontSize: 18,
+    color: Colors.text,
+    lineHeight: 28,
+    textAlign: 'center',
+    marginBottom: 28,
+  },
+  closeBtn: {
+    backgroundColor: Colors.primary,
+    borderRadius: 14,
+    paddingVertical: 14,
+    paddingHorizontal: 48,
+  },
+  closeBtnText: { fontSize: 18, fontWeight: '700', color: Colors.white },
 });
 
 // ─── PreRecordInfoModal ───────────────────────────────────────────────────────
