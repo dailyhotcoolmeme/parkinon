@@ -196,21 +196,27 @@ export function BodyStateScreen() {
       const triggerMinutes = route.params?.triggerMinutes;
       if (triggerMinutes != null) {
         const label = minutesToLabel(triggerMinutes);
+        // 알림 데이터에 meal_time이 있으면 우선 사용, 없으면 AsyncStorage 조회
+        const paramMealTime = (route.params as any)?.triggerMealTime ?? null;
         setPendingTriggeredBy('notification');
         setPendingTriggerLabel(label);
         if (!showFlow) {
-          AsyncStorage.getItem('parkinon_last_medication')
-            .then(raw => {
-              if (!raw) { openFlowWithDuplicateCheck(label, null, null); return; }
-              const parsed = JSON.parse(raw);
-              const medTime = parsed.taken_at ? new Date(parsed.taken_at) : null;
-              const mealTime = parsed.meal_time ?? null;
-              openFlowWithDuplicateCheck(label, medTime, mealTime);
-            })
-            .catch(() => openFlowWithDuplicateCheck(label, null, null));
+          if (paramMealTime) {
+            openFlowWithDuplicateCheck(label, null, paramMealTime);
+          } else {
+            AsyncStorage.getItem('parkinon_last_medication')
+              .then(raw => {
+                if (!raw) { openFlowWithDuplicateCheck(label, null, null); return; }
+                const parsed = JSON.parse(raw);
+                const medTime = parsed.taken_at ? new Date(parsed.taken_at) : null;
+                const mealTime = parsed.meal_time ?? null;
+                openFlowWithDuplicateCheck(label, medTime, mealTime);
+              })
+              .catch(() => openFlowWithDuplicateCheck(label, null, null));
+          }
         }
       }
-    }, [route.params?.triggerMinutes])
+    }, [route.params?.triggerMinutes, (route.params as any)?.triggerMealTime])
   );
 
   // 화면 포커스 시 오늘 기록 갱신
@@ -394,26 +400,40 @@ export function BodyStateScreen() {
   };
 
   // DB 로그 → BodyRecord 변환
-  const records: BodyRecord[] = activeLogs.map((log) => ({
-    id: log.id,
-    time: formatTime(log.logged_at),
-    period: getPeriod(log.logged_at),
-    trigger: (log.trigger_time_label && getTriggerLabel(log.trigger_time_label))
-      || (log.triggered_by === 'notification' ? '알림' : '직접 입력'),
-    triggeredBy: log.triggered_by ?? 'manual',
-    bodyScore: log.body_state ?? 3,
-    moodScore: log.mood ?? 3,
-    sleepScore: log.sleep_quality ?? undefined,
-    constipation: log.constipation ?? undefined,
-  }));
+  const records: BodyRecord[] = activeLogs.map((log: any) => {
+    const mealTimeKo = log.medication_meal_time ? MEAL_KO[log.medication_meal_time] : null;
+    return {
+      id: log.id,
+      time: formatTime(log.logged_at),
+      period: mealTimeKo ?? getPeriod(log.logged_at),
+      trigger: (log.trigger_time_label && getTriggerLabel(log.trigger_time_label))
+        || (log.triggered_by === 'notification' ? '알림' : '직접 입력'),
+      triggeredBy: log.triggered_by ?? 'manual',
+      bodyScore: log.body_state ?? 3,
+      moodScore: log.mood ?? 3,
+      sleepScore: log.sleep_quality ?? undefined,
+      constipation: log.constipation ?? undefined,
+    };
+  });
 
   const handleSaveRecord = async (record: { bodyScore: number; moodScore: number; sleepScore?: number; constipation?: boolean }) => {
+    // AsyncStorage에서 meal_time 읽기
+    let medicationMealTime: string | undefined;
+    try {
+      const raw = await AsyncStorage.getItem('parkinon_last_medication');
+      if (raw) {
+        const { meal_time } = JSON.parse(raw);
+        if (meal_time) medicationMealTime = meal_time;
+      }
+    } catch {}
+
     const success = await saveBodyState({
       body_state: record.bodyScore,
       mood: record.moodScore,
       sleep_quality: record.sleepScore,
       constipation: record.constipation,
       trigger_time_label: pendingTriggerLabel ?? undefined,
+      medication_meal_time: medicationMealTime,
     }, pendingTriggeredBy);
     if (success) {
       const savedLabel = pendingTriggerLabel; // state 초기화 전 캡처
@@ -429,12 +449,15 @@ export function BodyStateScreen() {
       const intervalMin = savedLabel ? labelToMinutes(savedLabel) : null;
       if (intervalMin != null && intervalMin > 0 && patientId) {
         try {
-          const { data: queueItems } = await supabase
+          let query = supabase
             .from('effect_tracking_queue')
             .select('id')
             .eq('patient_id', patientId)
             .eq('interval_minutes', intervalMin)
             .is('sent_at', null);
+          // meal_time이 있으면 같은 식사 알림만 취소 (다른 식사 추적 보존)
+          if (medicationMealTime) query = (query as any).eq('meal_time', medicationMealTime);
+          const { data: queueItems } = await query;
           if (queueItems && queueItems.length > 0) {
             await supabase
               .from('effect_tracking_queue')

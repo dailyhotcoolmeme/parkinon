@@ -102,9 +102,12 @@ function AppInner() {
           params: { autoOpen: true, mealTime: data?.mealTime ?? null },
         });
       } else if (type === 'effect_tracking') {
-        navigateTo('Main', { screen: 'BodyStateTab', params: { triggerMinutes: data?.minutes ?? null } });
+        navigateTo('Main', {
+          screen: 'BodyStateTab',
+          params: { triggerMinutes: data?.minutes ?? null, triggerMealTime: data?.meal_time ?? null },
+        });
       } else if (type === 'exercise_reminder') {
-        navigateTo('Main', { screen: 'Exercise' });
+        navigateTo('Main', { screen: 'Exercise', params: { screen: 'ExerciseRecord' } });
       } else if (type) {
         navigateTo('Main');
       }
@@ -152,9 +155,12 @@ function AppInner() {
           params: { autoOpen: true, mealTime: data?.mealTime ?? null },
         });
       } else if (type === 'effect_tracking') {
-        navigateTo('Main', { screen: 'BodyStateTab', params: { triggerMinutes: data?.minutes ?? null } });
+        navigateTo('Main', {
+          screen: 'BodyStateTab',
+          params: { triggerMinutes: data?.minutes ?? null, triggerMealTime: data?.meal_time ?? null },
+        });
       } else if (type === 'exercise_reminder') {
-        navigateTo('Main', { screen: 'Exercise' });
+        navigateTo('Main', { screen: 'Exercise', params: { screen: 'ExerciseRecord' } });
       } else {
         navigateTo('Main');
       }

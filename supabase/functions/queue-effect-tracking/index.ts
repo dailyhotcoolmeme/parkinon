@@ -60,11 +60,12 @@ Deno.serve(async (req: Request) => {
       Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!
     )
 
-    // 기존 미발송 항목 삭제 (중복 방지)
+    // 같은 meal_time의 미발송 항목만 삭제 (다른 식사의 추적 알림은 유지)
     await serviceClient
       .from('effect_tracking_queue')
       .delete()
       .eq('patient_id', patient_id)
+      .eq('meal_time', meal_time)
       .is('sent_at', null)
 
     // enabled: true 이고 minutes > 0 인 항목만 처리

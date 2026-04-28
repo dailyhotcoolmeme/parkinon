@@ -24,6 +24,7 @@ export interface BodyStateInput {
   sleep_quality?: number; // 1~5
   constipation?: boolean;
   trigger_time_label?: string; // 'after_medication' | '30min_after' | '2hour_after'
+  medication_meal_time?: string; // 'morning' | 'lunch' | 'dinner' | 'bedtime'
 }
 
 export interface UseBodyStateReturn {
@@ -125,6 +126,7 @@ export function useBodyState(): UseBodyStateReturn {
       if (data.sleep_quality !== undefined) insertData.sleep_quality = data.sleep_quality;
       if (data.constipation !== undefined) insertData.constipation = data.constipation;
       if (data.trigger_time_label !== undefined) insertData.trigger_time_label = data.trigger_time_label;
+      if (data.medication_meal_time !== undefined) insertData.medication_meal_time = data.medication_meal_time;
 
       const { error: insertError } = await supabase
         .from('on_off_logs')
