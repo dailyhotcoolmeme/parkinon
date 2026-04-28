@@ -234,8 +234,7 @@ export function MedicationScreen() {
       ? 'caregiver_separate'
       : 'caregiver_same';
 
-  const handleMealTimeSelect = async (mealTime: MealTime) => {
-    setShowMealTimeModal(false);
+  const proceedSave = async (mealTime: MealTime) => {
     const nowForCheck = new Date();
     const success = await takeMedication(mealTime);
     if (!success) {
@@ -259,6 +258,28 @@ export function MedicationScreen() {
     setTimeout(() => {
       setShowBodyStateSuggest(true);
     }, 400);
+  };
+
+  const handleMealTimeSelect = (mealTime: MealTime) => {
+    setShowMealTimeModal(false);
+
+    // 이미 기록이 있으면 덮어쓰기 확인
+    const existingLog = (activeStatus as any)[mealTime];
+    if (existingLog) {
+      const label = DEFAULT_MEAL_TIME_LABELS[mealTime].label;
+      const takenAtStr = formatTakenAt(existingLog.taken_at);
+      Alert.alert(
+        '이미 기록이 있어요',
+        `${label}약 복용 기록(${takenAtStr})이 이미 있어요.\n새 기록으로 덮어쓰시겠어요?`,
+        [
+          { text: '취소', style: 'cancel' },
+          { text: '덮어쓰기', onPress: () => proceedSave(mealTime) },
+        ],
+      );
+      return;
+    }
+
+    proceedSave(mealTime);
   };
 
   const handleBodyStateSave = async (record: { bodyScore: number; moodScore: number; sleepScore?: number; constipation?: boolean }) => {
