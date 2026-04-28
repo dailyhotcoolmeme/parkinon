@@ -24,9 +24,31 @@ interface HistoryTimelineProps {
 }
 
 interface TimelineEntry {
-  time: string;    // HH:MM
-  content: string; // 약복용/운동: 한 줄 내용 | 몸상태: 몸상태 N점  기분 N점
-  content2?: string; // 몸상태 전용 두 번째 줄: 수면 N점  변비 있음/없음
+  time: string;
+  content: string;
+  content2?: string;
+  tag?: string;  // 몸상태 전용: "(저녁약 +30분)" 형태
+}
+
+function getPeriodKo(isoString: string): string {
+  const h = new Date(isoString).getHours();
+  if (h < 11) return '아침';
+  if (h < 15) return '점심';
+  if (h < 20) return '저녁';
+  return '취침';
+}
+
+function triggerToTag(label: string): string {
+  if (label === 'after_medication') return '+즉시';
+  const match = label.match(/^(\d+)min_after$/);
+  if (match) {
+    const min = parseInt(match[1], 10);
+    if (min < 60) return `+${min}분`;
+    const h = Math.floor(min / 60);
+    const rem = min % 60;
+    return rem === 0 ? `+${h}시간` : `+${h}시간 ${rem}분`;
+  }
+  return '';
 }
 
 interface DayData {
@@ -140,7 +162,7 @@ export function HistoryTimeline({ type, patientId, refreshKey }: HistoryTimeline
         });
       } else if (type === 'bodystate') {
         const { data } = await supabase
-          .from('on_off_logs').select('logged_at, body_state, mood, sleep_quality, constipation')
+          .from('on_off_logs').select('logged_at, body_state, mood, sleep_quality, constipation, trigger_time_label')
           .eq('patient_id', patientId).gte('logged_at', rangeStart).lte('logged_at', rangeEnd)
           .order('logged_at', { ascending: false });
         (data ?? []).forEach((row: any) => {
@@ -152,10 +174,14 @@ export function HistoryTimeline({ type, patientId, refreshKey }: HistoryTimeline
           const line2: string[] = [];
           if (row.sleep_quality != null) line2.push(`수면 ${row.sleep_quality}점`);
           if (row.constipation != null) line2.push(`변비 ${row.constipation}`);
+          const period = getPeriodKo(row.logged_at);
+          const delta = row.trigger_time_label ? triggerToTag(row.trigger_time_label) : '';
+          const tag = delta ? `(${period}약 ${delta})` : undefined;
           newMap[kstDate].push({
             time: toKSTTime(row.logged_at),
             content: line1.join('  ') || '기록',
             content2: line2.length > 0 ? line2.join('  ') : undefined,
+            tag,
           });
         });
       } else if (type === 'exercise') {
@@ -279,6 +305,9 @@ export function HistoryTimeline({ type, patientId, refreshKey }: HistoryTimeline
                               <Text style={styles.entryContent}>{entry.content}</Text>
                               {entry.content2 ? (
                                 <Text style={styles.entryContent2}>{entry.content2}</Text>
+                              ) : null}
+                              {entry.tag ? (
+                                <Text style={styles.entryTag}>{entry.tag}</Text>
                               ) : null}
                             </View>
                           </View>
@@ -431,12 +460,17 @@ const styles = StyleSheet.create({
     color: Colors.text,
     lineHeight: 22,
   },
-  // 몸상태 두 번째 줄 (수면, 변비)
   entryContent2: {
     fontSize: 16,
     color: Colors.text,
     marginTop: 2,
     lineHeight: 22,
+  },
+  entryTag: {
+    fontSize: 14,
+    color: Colors.textHint,
+    marginTop: 3,
+    lineHeight: 20,
   },
 
   emptyDay: {
