@@ -1,4 +1,4 @@
-import React, { useRef, useEffect, useMemo } from 'react';
+import React, { useRef, useEffect } from 'react';
 import {
   View,
   Text,
@@ -11,35 +11,40 @@ import { Ionicons } from '@expo/vector-icons';
 import { Colors } from '../../constants/colors';
 
 type MealTime = 'morning' | 'lunch' | 'dinner' | 'bedtime';
-
-/** 현재 시각 기준으로 기본 추천 시간대를 반환 */
-function getDefaultMealTime(): MealTime {
-  const h = new Date().getHours();
-  if (h < 11) return 'morning';
-  if (h < 15) return 'lunch';
-  return 'dinner';
-}
 type IoniconName = React.ComponentProps<typeof Ionicons>['name'];
 
 interface Props {
   visible: boolean;
   onSelect: (mealTime: MealTime) => void;
   onClose: () => void;
+  mealSchedules?: Record<string, string> | null;
+  notifPrefs?: Record<string, boolean> | null;
 }
 
-const MEAL_OPTIONS: { id: MealTime; label: string; icon: IoniconName; time: string; color: string }[] = [
-  { id: 'morning',  label: '아침 약',  icon: 'sunny-outline',        time: '오전 8:00',  color: '#FF9800' },
-  { id: 'lunch',    label: '점심 약',  icon: 'partly-sunny-outline', time: '오후 12:00', color: '#4CAF50' },
-  { id: 'dinner',   label: '저녁 약',  icon: 'moon-outline',         time: '오후 6:00',  color: '#3F51B5' },
-  { id: 'bedtime',  label: '취침 약',  icon: 'bed-outline',          time: '오후 10:00', color: '#7C4DFF' },
+function formatMealTime(timeStr: string): string {
+  const [h, m] = timeStr.split(':').map(Number);
+  const ampm = h < 12 ? '오전' : '오후';
+  const hour = h % 12 === 0 ? 12 : h % 12;
+  return `${ampm} ${hour}:${m.toString().padStart(2, '0')}`;
+}
+
+const MEAL_DEFAULT_TIMES: Record<MealTime, string> = {
+  morning: '08:00',
+  lunch:   '12:00',
+  dinner:  '18:00',
+  bedtime: '22:00',
+};
+
+const MEAL_OPTIONS: { id: MealTime; label: string; icon: IoniconName; color: string }[] = [
+  { id: 'morning', label: '아침 약', icon: 'sunny-outline',        color: '#FF9800' },
+  { id: 'lunch',   label: '점심 약', icon: 'partly-sunny-outline', color: '#4CAF50' },
+  { id: 'dinner',  label: '저녁 약', icon: 'moon-outline',         color: '#3F51B5' },
+  { id: 'bedtime', label: '취침 약', icon: 'bed-outline',          color: '#7C4DFF' },
 ];
 
-export function MealTimeModal({ visible, onSelect, onClose }: Props) {
+export function MealTimeModal({ visible, onSelect, onClose, mealSchedules, notifPrefs }: Props) {
   const fadeAnim = useRef(new Animated.Value(0)).current;
   const slideAnim = useRef(new Animated.Value(80)).current;
-
-  // 현재 시간 기준 추천 시간대 (모달 열릴 때마다 계산)
-  const suggestedMealTime = useMemo(() => getDefaultMealTime(), [visible]);
 
   useEffect(() => {
     if (visible) {
@@ -66,31 +71,35 @@ export function MealTimeModal({ visible, onSelect, onClose }: Props) {
 
           <View style={styles.optionList}>
             {MEAL_OPTIONS.map((opt, i) => {
-              const isSuggested = opt.id === suggestedMealTime;
+              const notifOn = !notifPrefs || notifPrefs[opt.id] !== false;
+              const rawTime = mealSchedules?.[opt.id] ?? MEAL_DEFAULT_TIMES[opt.id];
+              const displayTime = formatMealTime(rawTime);
+              const iconColor = notifOn ? opt.color : '#AAAAAA';
+
               return (
                 <TouchableOpacity
                   key={opt.id}
                   style={[
                     styles.optionRow,
                     i < MEAL_OPTIONS.length - 1 && styles.optionRowBorder,
-                    isSuggested && styles.optionRowSuggested,
+                    !notifOn && styles.optionRowDim,
                   ]}
                   onPress={() => onSelect(opt.id)}
                   activeOpacity={0.75}
                 >
-                  <View style={[styles.iconCircle, { backgroundColor: opt.color + '22' }]}>
-                    <Ionicons name={opt.icon} size={30} color={opt.color} />
+                  <View style={[styles.iconCircle, { backgroundColor: iconColor + '22' }]}>
+                    <Ionicons name={opt.icon} size={30} color={iconColor} />
                   </View>
                   <View style={styles.optionText}>
-                    <Text style={styles.optionLabel}>{opt.label}</Text>
-                    <Text style={styles.optionTime}>{opt.time}</Text>
+                    <Text style={[styles.optionLabel, !notifOn && styles.dimText]}>{opt.label}</Text>
+                    <Text style={[styles.optionTime, !notifOn && styles.dimText]}>{displayTime}</Text>
                   </View>
-                  {isSuggested ? (
-                    <View style={styles.suggestedBadge}>
-                      <Text style={styles.suggestedBadgeText}>추천</Text>
-                    </View>
-                  ) : (
+                  {notifOn ? (
                     <Ionicons name="chevron-forward" size={22} color={Colors.textHint} />
+                  ) : (
+                    <View style={styles.noNotifBadge}>
+                      <Text style={styles.noNotifBadgeText}>알림 없음</Text>
+                    </View>
                   )}
                 </TouchableOpacity>
               );
@@ -158,14 +167,7 @@ const styles = StyleSheet.create({
     gap: 16,
   },
   optionRowBorder: { borderBottomWidth: 1, borderBottomColor: Colors.border },
-  optionRowSuggested: { backgroundColor: Colors.primary + '0D' },
-  suggestedBadge: {
-    backgroundColor: Colors.primary,
-    borderRadius: 10,
-    paddingHorizontal: 12,
-    paddingVertical: 4,
-  },
-  suggestedBadgeText: { fontSize: 15, fontWeight: '700', color: Colors.white },
+  optionRowDim: { backgroundColor: '#F8F8F8' },
   iconCircle: {
     width: 58,
     height: 58,
@@ -175,7 +177,15 @@ const styles = StyleSheet.create({
   },
   optionText: { flex: 1 },
   optionLabel: { fontSize: 22, fontWeight: '700', color: Colors.text, marginBottom: 3 },
-  optionTime: { fontSize: 17, color: Colors.textSub },
+  optionTime:  { fontSize: 17, color: Colors.textSub },
+  dimText: { color: '#AAAAAA' },
+  noNotifBadge: {
+    backgroundColor: '#EEEEEE',
+    borderRadius: 10,
+    paddingHorizontal: 12,
+    paddingVertical: 5,
+  },
+  noNotifBadgeText: { fontSize: 14, fontWeight: '600', color: '#888888' },
   closeBtn: {
     flexDirection: 'row',
     alignItems: 'center',

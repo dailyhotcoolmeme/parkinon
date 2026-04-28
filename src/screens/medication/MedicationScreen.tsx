@@ -105,6 +105,7 @@ export function MedicationScreen() {
 
   // users.meal_schedules 기반 시간 표시 (약 없을 때 사용)
   const [userMealSchedules, setUserMealSchedules] = useState<Record<string, string> | null>(null);
+  const [notifPrefs, setNotifPrefs] = useState<Record<string, boolean> | null>(null);
 
   const [showCaregiverConfirm, setShowCaregiverConfirm] = useState(false);
   const [showMealTimeModal, setShowMealTimeModal] = useState(false);
@@ -197,12 +198,15 @@ export function MedicationScreen() {
       // 환자 본인의 meal_schedules 로드
       supabase
         .from('users')
-        .select('meal_schedules')
+        .select('meal_schedules, med_time_notif_prefs')
         .eq('id', user.id)
         .single()
         .then(({ data }) => {
           if (data?.meal_schedules) {
             setUserMealSchedules(data.meal_schedules as Record<string, string>);
+          }
+          if (data?.med_time_notif_prefs) {
+            setNotifPrefs(data.med_time_notif_prefs as Record<string, boolean>);
           }
         });
       return;
@@ -211,7 +215,7 @@ export function MedicationScreen() {
     // 보호자인 경우 환자 정보 로드
     supabase
       .from('patient_group_members')
-      .select('user_id, users(name, meal_schedules)')
+      .select('user_id, users(name, meal_schedules, med_time_notif_prefs)')
       .eq('group_id', user.patient_group_id)
       .eq('role', 'patient')
       .single()
@@ -220,6 +224,9 @@ export function MedicationScreen() {
         if (userInfo?.name) setPatientName(userInfo.name);
         if (userInfo?.meal_schedules) {
           setUserMealSchedules(userInfo.meal_schedules as Record<string, string>);
+        }
+        if (userInfo?.med_time_notif_prefs) {
+          setNotifPrefs(userInfo.med_time_notif_prefs as Record<string, boolean>);
         }
         if ((data as any)?.user_id) setPatientId((data as any).user_id);
       });
@@ -427,6 +434,8 @@ export function MedicationScreen() {
         visible={showMealTimeModal}
         onSelect={handleMealTimeSelect}
         onClose={() => setShowMealTimeModal(false)}
+        mealSchedules={userMealSchedules}
+        notifPrefs={notifPrefs}
       />
       <CaregiverConfirmModal
         visible={showCaregiverConfirm}
