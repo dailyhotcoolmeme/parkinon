@@ -34,6 +34,17 @@ function subtractMinutes(hhmm: string, minutes: number): string {
   return `${String(Math.floor(safeTotal / 60)).padStart(2, '0')}:${String(safeTotal % 60).padStart(2, '0')}`
 }
 
+async function logNotification(userId: string, type: string, title: string, body: string, data: Record<string, unknown>) {
+  await supabase.from('notification_logs').insert({
+    user_id: userId,
+    type,
+    title,
+    body,
+    data,
+    read_at: null,
+  })
+}
+
 async function hasTakenMed(patientId: string, slot: string, today: string): Promise<boolean> {
   const { data: logs } = await supabase
     .from('med_logs')
@@ -116,6 +127,7 @@ Deno.serve(async (_req: Request) => {
           `${MEAL_LABELS[slot]} 약을 드실 시간이에요.`,
           { type: 'medication_reminder', mealTime: slot },
         )
+        await logNotification(patientId, 'medication_reminder', '💊 약 드실 시간이에요', `${MEAL_LABELS[slot]} 약을 드실 시간이에요.`, { type: 'medication_reminder', mealTime: slot })
         sent++
       }
     }
@@ -152,6 +164,7 @@ Deno.serve(async (_req: Request) => {
           `${MEAL_LABELS[slot]} 약을 아직 드시지 않으셨어요.`,
           { type: 'missed_medication_first', mealTime: slot },
         )
+        await logNotification(patientId, 'missed_medication', '💊 약을 아직 안 드셨어요', `${MEAL_LABELS[slot]} 약을 아직 드시지 않으셨어요.`, { type: 'missed_medication_first', mealTime: slot })
         sent++
       }
     }
@@ -190,6 +203,7 @@ Deno.serve(async (_req: Request) => {
             `${MEAL_LABELS[slot]} 약을 아직 안 드셨어요.`,
             { type: 'missed_medication_second', mealTime: slot },
           )
+          await logNotification(patientId, 'missed_medication', '💊 약을 안 드셨어요', `${MEAL_LABELS[slot]} 약을 아직 안 드셨어요.`, { type: 'missed_medication_second', mealTime: slot })
           sent++
         }
 
@@ -228,6 +242,7 @@ Deno.serve(async (_req: Request) => {
         '오늘 운동 기록을 남겨보세요.',
         { type: 'exercise_reminder' },
       )
+      await logNotification(patient.id, 'exercise_reminder', '🏃 운동할 시간이에요!', '오늘 운동 기록을 남겨보세요.', { type: 'exercise_reminder' })
       sent++
     }
   }

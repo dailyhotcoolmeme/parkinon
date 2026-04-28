@@ -62,6 +62,14 @@ Deno.serve(async (_req: Request) => {
         .from('effect_tracking_queue')
         .update({ sent_at: now.toISOString() })
         .eq('id', item.id)
+      await supabase.from('notification_logs').insert({
+        user_id: item.patient_id,
+        type: 'effect_tracking',
+        title: '😊 몸 상태는 어때요?',
+        body: `약 복용 ${label} 몸 상태를 기록해보세요.`,
+        data: { type: 'effect_tracking', minutes: item.interval_minutes },
+        read_at: null,
+      })
       processed++
     } else {
       console.error('[process-queue] push 실패 — sent_at 미설정, 재시도 대기:', item.id)
