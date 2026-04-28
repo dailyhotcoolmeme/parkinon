@@ -58,6 +58,46 @@ const { width: SCREEN_WIDTH } = Dimensions.get('window');
 
 // ─── Data model ───────────────────────────────────────────────────────────────
 
+const SLOT_ORDER: MedTimeSlotKey[] = ['morning', 'lunch', 'dinner', 'bedtime'];
+const SLOT_LABELS: Record<string, string> = { morning: '아침', lunch: '점심', dinner: '저녁', bedtime: '취침' };
+
+function timeHHMMtoMinutes(hhmm: string): number {
+  const [h, m] = hhmm.split(':').map(Number);
+  return h * 60 + m;
+}
+
+function checkMealGapConflict(
+  minutes: number,
+  slotTimes: Record<string, string>,
+  activeSlots: MedTimeSlotKey[],
+): { conflict: boolean; minGap: number; conflictPair: string } {
+  const ordered = SLOT_ORDER.filter(s => activeSlots.includes(s));
+  if (ordered.length < 2) return { conflict: false, minGap: Infinity, conflictPair: '' };
+
+  let minGap = Infinity;
+  let conflictPair = '';
+
+  for (let i = 0; i < ordered.length - 1; i++) {
+    const curr = ordered[i];
+    const next = ordered[i + 1];
+    const gap = timeHHMMtoMinutes(slotTimes[next] ?? '12:00') - timeHHMMtoMinutes(slotTimes[curr] ?? '08:00');
+    if (gap > 0 && gap < minGap) {
+      minGap = gap;
+      conflictPair = `${SLOT_LABELS[curr]}(${slotTimes[curr]})~${SLOT_LABELS[next]}(${slotTimes[next]})`;
+    }
+  }
+
+  return { conflict: minutes >= minGap, minGap, conflictPair };
+}
+
+function formatMinutes(minutes: number): string {
+  const h = Math.floor(minutes / 60);
+  const m = minutes % 60;
+  if (h > 0 && m > 0) return `${h}시간 ${m}분`;
+  if (h > 0) return `${h}시간`;
+  return `${m}분`;
+}
+
 const MED_TIME_OPTIONS = [0, 10, 30, 60, 90, 120, 180, 240];
 const EXERCISE_HOURS = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12];
 const EXERCISE_MINUTES = [0, 10, 20, 30, 40, 50];
@@ -620,6 +660,15 @@ export function SettingsScreen() {
       closePatientPicker();
       return;
     }
+    const { conflict, minGap, conflictPair } = checkMealGapConflict(patientSelectedMinutes, patientMedSlotTimes, patientActiveMedSlots);
+    if (conflict) {
+      Alert.alert(
+        '약 복용 시간과 겹쳐요',
+        `${conflictPair} 간격이 ${formatMinutes(minGap)}이에요.\n약효추적 알림은 ${formatMinutes(minGap - 1)} 이하로 설정해주세요.`,
+      );
+      closePatientPicker();
+      return;
+    }
     const next = editingPatientMedId
       ? [...patientMedNotifs.map(n => n.id === editingPatientMedId ? { ...n, minutes: patientSelectedMinutes } : n)]
           .sort((a, b) => a.minutes - b.minutes)
@@ -734,6 +783,14 @@ export function SettingsScreen() {
       : medNotifs.some(n => n.minutes === selectedMinutes);
     if (isDuplicate) {
       Alert.alert('중복된 알림', '이미 같은 시간의 알림이 있어요.');
+      return;
+    }
+    const { conflict, minGap, conflictPair } = checkMealGapConflict(selectedMinutes, medSlotTimes, activeMedSlots);
+    if (conflict) {
+      Alert.alert(
+        '약 복용 시간과 겹쳐요',
+        `${conflictPair} 간격이 ${formatMinutes(minGap)}이에요.\n약효추적 알림은 ${formatMinutes(minGap - 1)} 이하로 설정해주세요.`,
+      );
       return;
     }
     if (editingMedId) {
