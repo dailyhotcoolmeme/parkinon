@@ -157,12 +157,12 @@ export function HistoryTimeline({ type, patientId, refreshKey }: HistoryTimeline
           if (!newMap[kstDate]) newMap[kstDate] = [];
           newMap[kstDate].push({
             time: toKSTTime(row.taken_at),
-            content: MEAL_TIME_KO[row.meal_time] ?? row.meal_time,
+            content: `${MEAL_TIME_KO[row.meal_time] ?? row.meal_time}약 복용`,
           });
         });
       } else if (type === 'bodystate') {
         const { data } = await supabase
-          .from('on_off_logs').select('logged_at, body_state, mood, sleep_quality, constipation, trigger_time_label')
+          .from('on_off_logs').select('logged_at, body_state, mood, sleep_quality, constipation, trigger_time_label, medication_meal_time')
           .eq('patient_id', patientId).gte('logged_at', rangeStart).lte('logged_at', rangeEnd)
           .order('logged_at', { ascending: false });
         (data ?? []).forEach((row: any) => {
@@ -174,7 +174,10 @@ export function HistoryTimeline({ type, patientId, refreshKey }: HistoryTimeline
           const line2: string[] = [];
           if (row.sleep_quality != null) line2.push(`수면 ${row.sleep_quality}점`);
           if (row.constipation != null) line2.push(`변비 ${row.constipation}`);
-          const period = getPeriodKo(row.logged_at);
+          // medication_meal_time이 있으면 실제 복용 약 기준, 없으면 시간대 추론
+          const period = row.medication_meal_time
+            ? (MEAL_TIME_KO[row.medication_meal_time] ?? getPeriodKo(row.logged_at))
+            : getPeriodKo(row.logged_at);
           const delta = row.trigger_time_label ? triggerToTag(row.trigger_time_label) : '';
           const tag = delta ? `(${period}약 ${delta})` : undefined;
           newMap[kstDate].push({
