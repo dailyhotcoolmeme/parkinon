@@ -171,7 +171,14 @@ export function BodyStateScreen() {
         const label = minutesToLabel(triggerMinutes);
         setPendingTriggeredBy('notification');
         setPendingTriggerLabel(label);
-        if (!showFlow) openFlowWithDuplicateCheck(label);
+        if (!showFlow) {
+          AsyncStorage.getItem('parkinon_last_medication')
+            .then(raw => {
+              const medTime = raw ? new Date(JSON.parse(raw).taken_at) : null;
+              openFlowWithDuplicateCheck(label, medTime);
+            })
+            .catch(() => openFlowWithDuplicateCheck(label, null));
+        }
       }
     }, [route.params?.triggerMinutes])
   );
@@ -251,13 +258,15 @@ export function BodyStateScreen() {
   };
 
   // 같은 시간대 배지가 오늘 이미 있으면 확인 후 팝업 오픈
-  const openFlowWithDuplicateCheck = (labelKey: string) => {
+  const openFlowWithDuplicateCheck = (labelKey: string, medTime: Date | null) => {
     const hasDuplicate = activeLogs.some((log: any) => log.trigger_time_label === labelKey);
     if (hasDuplicate) {
       const labelDisplay = getTriggerLabel(labelKey);
+      const period = medTime ? getPeriod(medTime.toISOString()) : null;
+      const periodText = period ? `${period}약 복용 ` : '';
       Alert.alert(
         '중복 기록 확인',
-        `오늘 '${labelDisplay}' 기록이 이미 있어요.\n한 번 더 기록하시겠어요?`,
+        `오늘 ${periodText}'${labelDisplay}' 기록이 이미 있어요.\n한 번 더 기록하시겠어요?`,
         [
           { text: '취소', style: 'cancel' },
           { text: '기록하기', onPress: () => setShowFlow(true) },
@@ -311,7 +320,7 @@ export function BodyStateScreen() {
       if (closest && closestDiff <= 20) {
         // ±20분 이내 → 자동 배정
         setPendingTriggerLabel(closest.labelKey);
-        openFlowWithDuplicateCheck(closest.labelKey);
+        openFlowWithDuplicateCheck(closest.labelKey, medTime);
       } else {
         // 20분 초과 → 사용자 선택 모달
         setTriggerMedTime(medTime);
@@ -500,7 +509,7 @@ export function BodyStateScreen() {
           if (!triggerModalSelected) return;
           setPendingTriggerLabel(triggerModalSelected);
           setShowTriggerSelect(false);
-          openFlowWithDuplicateCheck(triggerModalSelected);
+          openFlowWithDuplicateCheck(triggerModalSelected, triggerMedTime);
         }}
         onDismiss={() => setShowTriggerSelect(false)}
       />
