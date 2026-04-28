@@ -1554,7 +1554,7 @@ export function SettingsScreen() {
         )}
 
         {/* ── Card: 알림 토큰 재등록 (모든 사용자) ── */}
-        <View style={[styles.card, styles.cardMarginTop]}>
+        <View style={[styles.card, styles.cardMarginTop, { marginTop: 24 }]}>
           <View style={styles.cardHeader}>
             <Ionicons
               name="refresh-circle-outline"

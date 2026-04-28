@@ -176,7 +176,7 @@ export function HistoryTimeline({ type, patientId }: HistoryTimelineProps) {
       } else if (type === 'bodystate') {
         const { data } = await supabase
           .from('on_off_logs')
-          .select('logged_at, body_state, mood')
+          .select('logged_at, body_state, mood, sleep_quality, constipation')
           .eq('patient_id', patientId)
           .gte('logged_at', rangeStart)
           .lte('logged_at', rangeEnd)
@@ -186,12 +186,14 @@ export function HistoryTimeline({ type, patientId }: HistoryTimelineProps) {
           const kstDate = new Date(new Date(row.logged_at).getTime() + 9 * 60 * 60 * 1000)
             .toISOString().slice(0, 10);
           if (!newMap[kstDate]) newMap[kstDate] = [];
-          const parts: string[] = [];
-          if (row.body_state != null) parts.push(`몸상태 ${row.body_state}점`);
-          if (row.mood != null) parts.push(`기분 ${row.mood}점`);
+          const lines: string[] = [];
+          if (row.body_state != null) lines.push(`몸상태 ${row.body_state}점`);
+          if (row.mood != null) lines.push(`기분 ${row.mood}점`);
+          if (row.sleep_quality != null) lines.push(`수면 ${row.sleep_quality}점`);
+          if (row.constipation != null) lines.push(`변비 ${row.constipation}`);
           newMap[kstDate].push({
             time: toKSTTime(row.logged_at),
-            content: parts.join(' · ') || '기록',
+            content: lines.join('\n') || '기록',
           });
         });
       } else if (type === 'exercise') {
@@ -346,7 +348,6 @@ export function HistoryTimeline({ type, patientId }: HistoryTimelineProps) {
 
 const styles = StyleSheet.create({
   toggleWrap: {
-    paddingHorizontal: 16,
     paddingBottom: 32,
   },
   toggleButton: {
@@ -414,7 +415,7 @@ const styles = StyleSheet.create({
   // 날짜 컬럼 (왼쪽)
   dateCol: {
     width: 80,
-    paddingTop: 14,
+    paddingTop: 16,
     alignItems: 'flex-end',
     paddingRight: 8,
   },
@@ -432,7 +433,7 @@ const styles = StyleSheet.create({
   },
   lineTop: {
     width: 2,
-    height: 14,
+    height: 16,
     backgroundColor: '#E0E0E0',
   },
   lineBottom: {
@@ -463,7 +464,7 @@ const styles = StyleSheet.create({
   contentCol: {
     flex: 1,
     paddingLeft: 10,
-    paddingTop: 6,
+    paddingTop: 10,
     paddingBottom: 12,
   },
   entryRow: {
