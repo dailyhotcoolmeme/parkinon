@@ -168,9 +168,10 @@ export function BodyStateScreen() {
     React.useCallback(() => {
       const triggerMinutes = route.params?.triggerMinutes;
       if (triggerMinutes != null) {
+        const label = minutesToLabel(triggerMinutes);
         setPendingTriggeredBy('notification');
-        setPendingTriggerLabel(minutesToLabel(triggerMinutes));
-        if (!showFlow) setShowFlow(true);
+        setPendingTriggerLabel(label);
+        if (!showFlow) openFlowWithDuplicateCheck(label);
       }
     }, [route.params?.triggerMinutes])
   );
@@ -249,6 +250,24 @@ export function BodyStateScreen() {
     return label;
   };
 
+  // 같은 시간대 배지가 오늘 이미 있으면 확인 후 팝업 오픈
+  const openFlowWithDuplicateCheck = (labelKey: string) => {
+    const hasDuplicate = activeLogs.some((log: any) => log.trigger_time_label === labelKey);
+    if (hasDuplicate) {
+      const labelDisplay = getTriggerLabel(labelKey);
+      Alert.alert(
+        '중복 기록 확인',
+        `오늘 '${labelDisplay}' 기록이 이미 있어요.\n한 번 더 기록하시겠어요?`,
+        [
+          { text: '취소', style: 'cancel' },
+          { text: '기록하기', onPress: () => setShowFlow(true) },
+        ],
+      );
+    } else {
+      setShowFlow(true);
+    }
+  };
+
   // 활성화된 medNotifs 인터벌 목록 (복용 직후 포함)
   const getEnabledIntervals = (): Array<{ minutes: number; labelKey: string; labelDisplay: string }> => {
     const result: Array<{ minutes: number; labelKey: string; labelDisplay: string }> = [
@@ -292,7 +311,7 @@ export function BodyStateScreen() {
       if (closest && closestDiff <= 20) {
         // ±20분 이내 → 자동 배정
         setPendingTriggerLabel(closest.labelKey);
-        setShowFlow(true);
+        openFlowWithDuplicateCheck(closest.labelKey);
       } else {
         // 20분 초과 → 사용자 선택 모달
         setTriggerMedTime(medTime);
@@ -481,7 +500,7 @@ export function BodyStateScreen() {
           if (!triggerModalSelected) return;
           setPendingTriggerLabel(triggerModalSelected);
           setShowTriggerSelect(false);
-          setShowFlow(true);
+          openFlowWithDuplicateCheck(triggerModalSelected);
         }}
         onDismiss={() => setShowTriggerSelect(false)}
       />
