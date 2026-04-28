@@ -35,8 +35,10 @@ export interface SummarySlot {
   current: number;
   prev: number;
   unit: string;
-  // 시간대별 항목용
+  // 시간대별 항목용 (bodyState/mood)
   timeSlots?: Record<string, { current: number; prev: number }>;
+  // 약복용 식사 시간대별
+  mealTimeSlots?: Record<string, { current: number; prev: number }>;
 }
 
 export interface UseRecordDetailDataReturn {
@@ -45,6 +47,8 @@ export interface UseRecordDetailDataReturn {
   trendSeries: TrendSeries | null;
   // 시간대별 트렌드 (bodyState/mood)
   timeSeriesMap: TimeSeriesMap | null;
+  // 약복용 식사 시간대별 트렌드
+  mealTimeSeriesMap: TimeSeriesMap | null;
   loading: boolean;
   error: string | null;
   refresh: () => Promise<void>;
@@ -124,7 +128,7 @@ function quarterLabel(quartersAgo: number): string {
 
 // ── 집계 함수 ─────────────────────────────────────────────────────────────────
 
-type MedLogRow = Pick<Database['public']['Tables']['med_logs']['Row'], 'id' | 'taken_at'>;
+type MedLogRow = Pick<Database['public']['Tables']['med_logs']['Row'], 'id' | 'taken_at' | 'meal_time'>;
 type OnOffRow = Pick<
   Database['public']['Tables']['on_off_logs']['Row'],
   'body_state' | 'mood' | 'sleep_quality' | 'constipation' | 'triggered_by' | 'trigger_time_label' | 'logged_at'
@@ -178,11 +182,48 @@ function timeSlotAvg(
 
 // ── 훅 ───────────────────────────────────────────────────────────────────────
 
+// trigger_time_label → 분 수 (정렬용)
+function parseLabelMinutes(label: string): number {
+  if (label === 'after_medication') return 0;
+  const minMatch = label.match(/^(\d+)min_after$/);
+  if (minMatch) return parseInt(minMatch[1], 10);
+  const hourMatch = label.match(/^(\d+)hour_after$/);
+  if (hourMatch) return parseInt(hourMatch[1], 10) * 60;
+  return Infinity;
+}
+
+// trigger_time_label → 표시 문자열 (동적)
+export function triggerLabelToDisplay(label: string): string {
+  if (label === 'after_medication') return '복용 직후';
+  const minMatch = label.match(/^(\d+)min_after$/);
+  if (minMatch) {
+    const mins = parseInt(minMatch[1], 10);
+    const h = Math.floor(mins / 60);
+    const m = mins % 60;
+    if (h > 0 && m > 0) return `${h}시간 ${m}분 후`;
+    if (h > 0) return `${h}시간 후`;
+    return `${mins}분 후`;
+  }
+  const hourMatch = label.match(/^(\d+)hour_after$/);
+  if (hourMatch) return `${hourMatch[1]}시간 후`;
+  return label;
+}
+
+const MEAL_ORDER = ['morning', 'lunch', 'dinner', 'bedtime'] as const;
+const MEAL_LABELS: Record<string, string> = {
+  morning: '아침약', lunch: '점심약', dinner: '저녁약', bedtime: '취침약',
+};
+const MEAL_COLORS: Record<string, string> = {
+  morning: '#F44336', lunch: '#4CAF50', dinner: '#2196F3', bedtime: '#9C27B0',
+};
+const TRIGGER_COLORS = ['#F44336', '#4CAF50', '#2196F3', '#FF9800', '#9C27B0', '#607D8B'];
+
 export function useRecordDetailData(type: ItemKey, period: Period): UseRecordDetailDataReturn {
   const { user } = useAuth();
   const [summarySlot, setSummarySlot] = useState<SummarySlot | null>(null);
   const [trendSeries, setTrendSeries] = useState<TrendSeries | null>(null);
   const [timeSeriesMap, setTimeSeriesMap] = useState<TimeSeriesMap | null>(null);
+  const [mealTimeSeriesMap, setMealTimeSeriesMap] = useState<TimeSeriesMap | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -251,7 +292,7 @@ export function useRecordDetailData(type: ItemKey, period: Period): UseRecordDet
       if (type === 'medication') {
         const { data } = await supabase
           .from('med_logs')
-          .select('id, taken_at')
+          .select('id, taken_at, meal_time')
           .eq('patient_id', patientId)
           .gte('taken_at', totalStart)
           .lte('taken_at', totalEnd);
@@ -296,34 +337,49 @@ export function useRecordDetailData(type: ItemKey, period: Period): UseRecordDet
       }
 
       // ── 구간별 집계 ────────────────────────────────────────────────────────
-      // trigger_time_label 순서
-      const TIME_ORDER = ['after_medication', '30min_after', '2hour_after'];
-      const TIME_COLORS: Record<string, string> = {
-        after_medication: '#F44336',
-        '30min_after': '#4CAF50',
-        '2hour_after': '#2196F3',
-      };
-      const TRIGGER_LABEL_TO_DISPLAY: Record<string, string> = {
-        after_medication: '복용 직후',
-        '30min_after': '30분 후',
-        '2hour_after': '2시간 후',
-      };
 
       if (type === 'medication') {
+        const currLogs = filterMed(medLogs, currRange.start, currRange.end);
+        const prevLogs = filterMed(medLogs, prevRange.start, prevRange.end);
+
         const points: TrendPoint[] = ranges.map(r => ({
           value: medRate(filterMed(medLogs, r.start, r.end), r.start, r.end),
           label: r.label,
         }));
-        const currLogs = filterMed(medLogs, currRange.start, currRange.end);
-        const prevLogs = filterMed(medLogs, prevRange.start, prevRange.end);
+
+        // 식사 시간대별 분류
+        const activeMeals = new Set<string>();
+        for (const log of medLogs) { if (log.meal_time) activeMeals.add(log.meal_time); }
+        const sortedMeals = MEAL_ORDER.filter(m => activeMeals.has(m));
+
+        const mealTimeSlots: Record<string, { current: number; prev: number }> = {};
+        for (const meal of sortedMeals) {
+          mealTimeSlots[meal] = {
+            current: currLogs.filter(l => l.meal_time === meal).length,
+            prev: prevLogs.filter(l => l.meal_time === meal).length,
+          };
+        }
+
+        const mealTSM: TimeSeriesMap = {};
+        for (const meal of sortedMeals) {
+          const color = MEAL_COLORS[meal] ?? '#607D8B';
+          const mealPoints = ranges.map(r => ({
+            value: filterMed(medLogs, r.start, r.end).filter(l => l.meal_time === meal).length,
+            label: r.label,
+          }));
+          const maxVal = Math.max(...mealPoints.map(p => p.value), 1);
+          mealTSM[meal] = { points: mealPoints, unit: '회', max: maxVal, color };
+        }
 
         setSummarySlot({
           current: medRate(currLogs, currRange.start, currRange.end),
           prev: medRate(prevLogs, prevRange.start, prevRange.end),
           unit: '%',
+          mealTimeSlots: sortedMeals.length > 0 ? mealTimeSlots : undefined,
         });
         setTrendSeries({ points, unit: '%', max: 100, color: '#4CAF50' });
         setTimeSeriesMap(null);
+        setMealTimeSeriesMap(sortedMeals.length > 0 ? mealTSM : null);
 
       } else if (type === 'sleep') {
         const points: TrendPoint[] = ranges.map(r => ({
@@ -336,6 +392,7 @@ export function useRecordDetailData(type: ItemKey, period: Period): UseRecordDet
         setSummarySlot({ current: curr, prev, unit: '점' });
         setTrendSeries({ points, unit: '점', max: 5, color: '#9C27B0' });
         setTimeSeriesMap(null);
+        setMealTimeSeriesMap(null);
 
       } else if (type === 'constipation') {
         const points: TrendPoint[] = ranges.map(r => ({
@@ -349,6 +406,7 @@ export function useRecordDetailData(type: ItemKey, period: Period): UseRecordDet
         setSummarySlot({ current: curr, prev, unit: '일' });
         setTrendSeries({ points, unit: '일', max: maxVal, color: '#FF9800' });
         setTimeSeriesMap(null);
+        setMealTimeSeriesMap(null);
 
       } else if (type === 'exercise') {
         const points: TrendPoint[] = ranges.map(r => ({
@@ -366,23 +424,22 @@ export function useRecordDetailData(type: ItemKey, period: Period): UseRecordDet
         });
         setTrendSeries({ points, unit: '회', max: maxVal, color: '#FF5722' });
         setTimeSeriesMap(null);
+        setMealTimeSeriesMap(null);
 
       } else {
         // bodyState 또는 mood: 시간대별
         const field: 'body_state' | 'mood' = type === 'bodyState' ? 'body_state' : 'mood';
 
-        // 존재하는 trigger_time_label 수집
+        // 존재하는 trigger_time_label 수집 후 분 수 기준 오름차순 정렬
         const allLabels = new Set<string>();
         for (const log of onOffLogs) {
           if (log.triggered_by === 'notification' && log.trigger_time_label) {
             allLabels.add(log.trigger_time_label);
           }
         }
-        // 순서 정렬
-        const sortedLabels = [
-          ...TIME_ORDER.filter(l => allLabels.has(l)),
-          ...Array.from(allLabels).filter(l => !TIME_ORDER.includes(l)),
-        ];
+        const sortedLabels = Array.from(allLabels).sort(
+          (a, b) => parseLabelMinutes(a) - parseLabelMinutes(b),
+        );
 
         // 현황 카드용
         const currAvg = timeSlotAvg(filterOnOff(onOffLogs, currRange.start, currRange.end), field);
@@ -405,22 +462,18 @@ export function useRecordDetailData(type: ItemKey, period: Period): UseRecordDet
           timeSlots,
         });
 
-        // 트렌드: 시간대별 시리즈
+        // 트렌드: 시간대별 시리즈 (동적 색상 팔레트)
         const tsmResult: TimeSeriesMap = {};
-        for (const label of sortedLabels) {
-          const color = TIME_COLORS[label] ?? '#607D8B';
+        sortedLabels.forEach((label, idx) => {
+          const color = TRIGGER_COLORS[idx % TRIGGER_COLORS.length];
           const points: TrendPoint[] = ranges.map(r => {
             const avg = timeSlotAvg(filterOnOff(onOffLogs, r.start, r.end), field);
             return { value: avg[label] ?? 0, label: r.label };
           });
-          tsmResult[label] = {
-            points,
-            unit: '점',
-            max: 5,
-            color,
-          };
-        }
+          tsmResult[label] = { points, unit: '점', max: 5, color };
+        });
         setTimeSeriesMap(tsmResult);
+        setMealTimeSeriesMap(null);
         setTrendSeries(null);
       }
     } catch (err: any) {
@@ -437,5 +490,5 @@ export function useRecordDetailData(type: ItemKey, period: Period): UseRecordDet
     }
   }, [user, fetchData]);
 
-  return { summarySlot, trendSeries, timeSeriesMap, loading, error, refresh: fetchData };
+  return { summarySlot, trendSeries, timeSeriesMap, mealTimeSeriesMap, loading, error, refresh: fetchData };
 }

@@ -39,16 +39,11 @@ const itemMeta: Record<string, { icon: IoniconName; label: string }> = {
   exercise: { icon: 'fitness-outline', label: '운동' },
 };
 
-// trigger_time_label → 사람이 읽기 좋은 표시 라벨
-const TRIGGER_LABEL_TO_DISPLAY: Record<string, string> = {
-  after_medication: '복용 직후',
-  '30min_after': '30분 후',
-  '2hour_after': '2시간 후',
-};
+import { triggerLabelToDisplay } from '../../hooks/useRecordDetailData';
 
-function triggerLabelToDisplay(label: string): string {
-  return TRIGGER_LABEL_TO_DISPLAY[label] ?? label;
-}
+const MEAL_LABELS: Record<string, string> = {
+  morning: '아침약', lunch: '점심약', dinner: '저녁약', bedtime: '취침약',
+};
 
 const VISIBLE_COUNT = 4;
 const BAR_MAX_HEIGHT = 100;
@@ -191,9 +186,10 @@ export function RecordDetailScreen() {
   const meta = itemMeta[type];
   const prevLabel = prevLabels[period];
   const isTimeItem = type === 'bodyState' || type === 'mood';
+  const isMedItem = type === 'medication';
 
   // 실제 Supabase 데이터
-  const { summarySlot, trendSeries, timeSeriesMap, loading, error } = useRecordDetailData(
+  const { summarySlot, trendSeries, timeSeriesMap, mealTimeSeriesMap, loading, error } = useRecordDetailData(
     type as any,
     period,
   );
@@ -276,6 +272,35 @@ export function RecordDetailScreen() {
             </View>
           )}
 
+          {/* 약복용 식사 시간대별 현황 */}
+          {isMedItem && summarySlot?.mealTimeSlots && Object.keys(summarySlot.mealTimeSlots).length > 0 && (
+            <View style={styles.card}>
+              <View style={styles.cardTitleRow}>
+                <Ionicons name="time-outline" size={24} color={Colors.primary} />
+                <Text style={styles.cardSubTitle}>시간대별 복용 현황</Text>
+              </View>
+              {Object.entries(summarySlot.mealTimeSlots).map(([meal, vals], i) => {
+                const color = TIME_COLORS_PALETTE[i % TIME_COLORS_PALETTE.length];
+                return (
+                  <View key={meal} style={[styles.timeSlot, { borderLeftColor: color }]}>
+                    <Text style={styles.timeSlotLabel}>{MEAL_LABELS[meal] ?? meal}</Text>
+                    <View style={styles.timeSlotRow}>
+                      <Text style={[styles.timeSlotValue, { color }]}>
+                        {vals.current > 0 ? `${vals.current}회` : '-'}
+                      </Text>
+                      {vals.current > 0 && (
+                        <ArrowBadge curr={vals.current} prev={vals.prev} size={22} />
+                      )}
+                      <Text style={styles.timeSlotPrev}>
+                        {prevLabel} {vals.prev > 0 ? `${vals.prev}회` : '기록 없음'}
+                      </Text>
+                    </View>
+                  </View>
+                );
+              })}
+            </View>
+          )}
+
           {/* 시간대별 현황 카드 */}
           {isTimeItem && summarySlot?.timeSlots && (
             <View style={styles.card}>
@@ -351,6 +376,23 @@ export function RecordDetailScreen() {
               />
             </View>
           )}
+
+          {/* 약복용 시간대별 트렌드 */}
+          {isMedItem && mealTimeSeriesMap && Object.entries(mealTimeSeriesMap).map(([meal, series], i) => (
+            <View key={meal} style={styles.card}>
+              <View style={styles.trendTitleRow}>
+                <View style={[styles.trendDot, { backgroundColor: series.color }]} />
+                <Text style={styles.trendTitle}>{MEAL_LABELS[meal] ?? meal} 트렌드</Text>
+              </View>
+              <BarChart
+                values={series.points.map(p => p.value)}
+                labels={series.points.map(p => p.label)}
+                color={series.color}
+                max={series.max}
+                unit={series.unit}
+              />
+            </View>
+          ))}
         </ScrollView>
       )}
     </SafeAreaView>
