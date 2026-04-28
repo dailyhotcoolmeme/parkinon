@@ -444,7 +444,7 @@ function scoreColor(s: number): string {
 function RecordRow({ record, isLast }: { record: BodyRecord; isLast: boolean }) {
   const badgeBg = PERIOD_BADGE_BG[record.period] ?? 'rgba(0,0,0,0.08)';
   const badgeText = PERIOD_BADGE_TEXT[record.period] ?? '#333';
-  const sep = <Text style={{ fontSize: 17, color: '#CCC', marginHorizontal: 6 }}>|</Text>;
+  const sep = <Text style={{ fontSize: 17, color: '#CCC', marginHorizontal: 10 }}>|</Text>;
   return (
     <View style={{
       paddingHorizontal: 18,
@@ -470,17 +470,17 @@ function RecordRow({ record, isLast }: { record: BodyRecord; isLast: boolean }) 
       {/* 점수 한 줄 — 이모지 + 점수 | 구분 */}
       <View style={{ flexDirection: 'row', alignItems: 'center', flexWrap: 'wrap' }}>
         <Text style={{ fontSize: 18, color: scoreColor(record.bodyScore) }}>
-          몸상태 {scoreEmoji(record.bodyScore)} {record.bodyScore}점
+          몸상태 {record.bodyScore}점 {scoreEmoji(record.bodyScore)}
         </Text>
         {sep}
         <Text style={{ fontSize: 18, color: scoreColor(record.moodScore) }}>
-          기분 {scoreEmoji(record.moodScore)} {record.moodScore}점
+          기분 {record.moodScore}점 {scoreEmoji(record.moodScore)}
         </Text>
         {record.sleepScore !== undefined && (
           <>
             {sep}
             <Text style={{ fontSize: 18, color: scoreColor(record.sleepScore) }}>
-              수면 {scoreEmoji(record.sleepScore)} {record.sleepScore}점
+              수면 {record.sleepScore}점 {scoreEmoji(record.sleepScore)}
             </Text>
           </>
         )}
