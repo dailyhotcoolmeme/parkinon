@@ -87,6 +87,21 @@ const PERIOD_ICON: Record<string, string> = {
   '취침': '💤',
 };
 
+// 배지 배경: 섹션 색상의 연한 버전
+const PERIOD_BADGE_BG: Record<string, string> = {
+  '아침': 'rgba(255,138,101,0.15)',
+  '점심': 'rgba(76,175,80,0.15)',
+  '저녁': 'rgba(21,101,192,0.15)',
+  '취침': 'rgba(124,77,255,0.15)',
+};
+// 배지 텍스트: 섹션 색상보다 진한 버전
+const PERIOD_BADGE_TEXT: Record<string, string> = {
+  '아침': '#BF360C',
+  '점심': '#1B5E20',
+  '저녁': '#0D47A1',
+  '취침': '#4527A0',
+};
+
 // KST(UTC+9) 기준 날짜 문자열 반환 — UTC 사용 시 오후 11시 이후 날짜 오류 방지
 function toLocalDateString(date: Date): string {
   const kstOffset = 9 * 60 * 60 * 1000;
@@ -427,42 +442,44 @@ function scoreColor(s: number): string {
 }
 
 function RecordRow({ record, isLast }: { record: BodyRecord; isLast: boolean }) {
-  const sep = <Text style={{ fontSize: 16, color: '#CCC', marginHorizontal: 6 }}>|</Text>;
+  const badgeBg = PERIOD_BADGE_BG[record.period] ?? 'rgba(0,0,0,0.08)';
+  const badgeText = PERIOD_BADGE_TEXT[record.period] ?? '#333';
+  const sep = <Text style={{ fontSize: 17, color: '#CCC', marginHorizontal: 6 }}>|</Text>;
   return (
     <View style={{
       paddingHorizontal: 18,
-      paddingVertical: 14,
+      paddingVertical: 16,
       borderBottomWidth: isLast ? 0 : 1,
       borderBottomColor: '#F0F0F0',
     }}>
       {/* 트리거 배지 + 시간 */}
-      <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 10 }}>
+      <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 }}>
         <View style={{
-          backgroundColor: 'rgba(255,107,53,0.12)',
+          backgroundColor: badgeBg,
           borderRadius: 20,
-          paddingHorizontal: 12,
-          paddingVertical: 4,
+          paddingHorizontal: 14,
+          paddingVertical: 5,
         }}>
-          <Text style={{ fontSize: 15, fontWeight: '700', color: Colors.primary }}>
+          <Text style={{ fontSize: 17, fontWeight: '700', color: badgeText }}>
             {record.trigger}
           </Text>
         </View>
-        <Text style={{ fontSize: 15, color: '#999' }}>{record.time}</Text>
+        <Text style={{ fontSize: 16, color: '#999' }}>{record.time}</Text>
       </View>
 
       {/* 점수 한 줄 — 이모지 + 점수 | 구분 */}
       <View style={{ flexDirection: 'row', alignItems: 'center', flexWrap: 'wrap' }}>
-        <Text style={{ fontSize: 16, color: scoreColor(record.bodyScore) }}>
+        <Text style={{ fontSize: 18, color: scoreColor(record.bodyScore) }}>
           몸상태 {scoreEmoji(record.bodyScore)} {record.bodyScore}점
         </Text>
         {sep}
-        <Text style={{ fontSize: 16, color: scoreColor(record.moodScore) }}>
+        <Text style={{ fontSize: 18, color: scoreColor(record.moodScore) }}>
           기분 {scoreEmoji(record.moodScore)} {record.moodScore}점
         </Text>
         {record.sleepScore !== undefined && (
           <>
             {sep}
-            <Text style={{ fontSize: 16, color: scoreColor(record.sleepScore) }}>
+            <Text style={{ fontSize: 18, color: scoreColor(record.sleepScore) }}>
               수면 {scoreEmoji(record.sleepScore)} {record.sleepScore}점
             </Text>
           </>
@@ -470,7 +487,7 @@ function RecordRow({ record, isLast }: { record: BodyRecord; isLast: boolean }) 
         {record.constipation !== undefined && (
           <>
             {sep}
-            <Text style={{ fontSize: 16, color: record.constipation ? '#B71C1C' : '#2E7D32' }}>
+            <Text style={{ fontSize: 18, color: record.constipation ? '#B71C1C' : '#2E7D32' }}>
               변비 {record.constipation ? '있음' : '없음'}
             </Text>
           </>
