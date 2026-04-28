@@ -10,7 +10,7 @@ const MEAL_LABELS: Record<string, string> = {
 }
 
 async function sendPush(to: string, title: string, body: string, data: Record<string, unknown>) {
-  await fetch('https://exp.host/--/api/v2/push/send', {
+  const res = await fetch('https://exp.host/--/api/v2/push/send', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({
@@ -23,6 +23,8 @@ async function sendPush(to: string, title: string, body: string, data: Record<st
       channelId: 'default',
     }),
   })
+  const result = await res.json()
+  console.log('[sendPush]', JSON.stringify({ to: to.slice(0, 30), title, status: res.status, result }))
 }
 
 function subtractMinutes(hhmm: string, minutes: number): string {
@@ -196,6 +198,37 @@ Deno.serve(async (_req: Request) => {
           await sendCaregiverMissed(patientId, patient.patient_group_id, slot)
         }
       }
+    }
+  }
+
+  // ── 4. 운동 알림 ────────────────────────────────────────────────
+  const { data: allPatients } = await supabase
+    .from('users')
+    .select('id, push_token, notification_enabled, exercise_notif_prefs')
+    .eq('role', 'patient')
+    .eq('notification_enabled', true)
+    .not('push_token', 'is', null)
+
+  for (const patient of allPatients ?? []) {
+    if (!patient.push_token) continue
+    const prefs = (patient.exercise_notif_prefs ?? []) as Array<{
+      id: string; ampm: string; hour: number; minute: number; enabled: boolean
+    }>
+    for (const pref of prefs) {
+      if (!pref.enabled) continue
+      // ampm + hour → 24시간 KST HH:MM 변환
+      let h = pref.hour
+      if (pref.ampm === '오후' && h !== 12) h += 12
+      if (pref.ampm === '오전' && h === 12) h = 0
+      const target = `${String(h).padStart(2, '0')}:${String(pref.minute).padStart(2, '0')}`
+      if (target !== currentTime) continue
+      await sendPush(
+        patient.push_token,
+        '🏃 운동할 시간이에요!',
+        '오늘 운동 기록을 남겨보세요.',
+        { type: 'exercise_reminder' },
+      )
+      sent++
     }
   }
 

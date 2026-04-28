@@ -500,9 +500,8 @@ export async function rescheduleAllNotifications(
     await Notifications.cancelAllScheduledNotificationsAsync();
     return;
   }
-  // 약 복용 알림은 서버 크론(send-medication-reminders)이 전담
-  // scheduleMedicationReminders() 호출 제거 — 중복 발송 방지
-  await scheduleExerciseReminders(exerciseNotifs);
+  // 약 복용 알림 및 운동 알림 모두 서버 크론(send-medication-reminders)이 전담
+  // 로컬 스케줄링 제거 — 중복 발송 방지
 }
 
 /** 보호자에게 푸시 알림 전송 (Supabase Edge Function 경유) */
