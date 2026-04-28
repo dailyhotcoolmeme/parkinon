@@ -344,10 +344,36 @@ export function BodyStateScreen() {
         setPendingTriggerLabel(closest.labelKey);
         openFlowWithDuplicateCheck(closest.labelKey, medTime);
       } else {
-        // 20분 초과 → 사용자 선택 모달
-        setTriggerMedTime(medTime);
-        setTriggerModalSelected(closest?.labelKey ?? intervals[0]?.labelKey ?? null);
-        setShowTriggerSelect(true);
+        // 20분 초과 → 기록 불가 안내
+        const period = getPeriod(medTime.toISOString());
+        const elapsedRound = Math.round(elapsedMin);
+        let elapsedText: string;
+        if (elapsedRound < 60) {
+          elapsedText = `${elapsedRound}분`;
+        } else {
+          const h = Math.floor(elapsedRound / 60);
+          const rem = elapsedRound % 60;
+          elapsedText = rem === 0 ? `${h}시간` : `${h}시간 ${rem}분`;
+        }
+
+        // 다음 기록 가능 시간대 계산
+        const futureIntervals = intervals
+          .filter(iv => iv.minutes - elapsedMin > 20)
+          .sort((a, b) => a.minutes - b.minutes);
+        let nextMsg: string;
+        if (futureIntervals.length > 0) {
+          const next = futureIntervals[0];
+          const minsLeft = Math.ceil(next.minutes - 20 - elapsedMin);
+          nextMsg = `다음 기록 가능: ${next.labelDisplay} (약 ${minsLeft}분 후)`;
+        } else {
+          nextMsg = '오늘 기록 가능한 시간대가 모두 지났어요.';
+        }
+
+        Alert.alert(
+          '지금은 기록할 수 없어요',
+          `${period}약 복용 후 약 ${elapsedText}이 경과했어요.\n\n약효 추적 기록은 설정된 시간대의 ±20분 이내에만 기록할 수 있어요. 정확한 시간에 기록해야 의미 있는 데이터가 됩니다.\n\n${nextMsg}`,
+          [{ text: '확인' }],
+        );
       }
     } catch {
       setTriggerMedTime(null);
