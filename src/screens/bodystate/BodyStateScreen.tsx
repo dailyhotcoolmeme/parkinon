@@ -455,17 +455,9 @@ export function BodyStateScreen() {
       }
       setShowFlow(false);
 
-      // 다음 예정 알림 조회 후 팝업 표시
-      if (patientId) {
-        fetchNextNotifMessage(patientId).then((info) => {
-          if (info) {
-            setNextNotifInfo(info);
-            setShowNextNotifModal(true);
-          }
-        });
-      }
-
-      // 사전 기록 시 예약 알림 큐 취소 (0분 즉시 알림은 이미 발송됐을 가능성 높아 제외)
+      // 사전 기록 시 예약 알림 큐 취소 먼저 실행 (0분 즉시 알림은 이미 발송됐을 가능성 높아 제외)
+      // ⚠️ 큐 삭제를 먼저 await 완료한 후 fetchNextNotifMessage 호출해야
+      //    취소 예정 항목이 "다음 알림"으로 표시되는 버그를 방지할 수 있음
       const intervalMin = savedLabel ? labelToMinutes(savedLabel) : null;
       if (intervalMin != null && intervalMin > 0 && patientId) {
         try {
@@ -497,7 +489,19 @@ export function BodyStateScreen() {
             );
             setShowPreRecordInfo(true);
           }
-        } catch {}
+        } catch (queueErr) {
+          console.error('[handleSaveRecord] 큐 삭제 오류:', queueErr);
+        }
+      }
+
+      // 큐 삭제 완료 후 다음 예정 알림 조회 → 팝업 표시
+      if (patientId) {
+        fetchNextNotifMessage(patientId).then((info) => {
+          if (info) {
+            setNextNotifInfo(info);
+            setShowNextNotifModal(true);
+          }
+        });
       }
     } else {
       Alert.alert('저장 실패', '몸상태 기록 저장에 실패했어요. 다시 시도해주세요.');
