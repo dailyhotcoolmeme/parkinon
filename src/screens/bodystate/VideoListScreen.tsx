@@ -108,34 +108,24 @@ interface VideoPreviewProps {
 }
 
 function VideoPreview({ uri, isPlaying, onPreviewPress }: VideoPreviewProps) {
-  const playerRef = useRef<any>(null);
   const player = useVideoPlayer({ uri }, p => {
-    playerRef.current = p;
     p.muted = true;
     p.loop = false;
   });
 
   useEffect(() => {
     if (!isPlaying) {
-      try {
-        if (playerRef.current) {
-          playerRef.current.pause();
-        }
-      } catch (_) {}
+      try { player.pause(); } catch (_) {}
       return;
     }
-
     const timer = setTimeout(() => {
       try {
-        if (playerRef.current) {
-          playerRef.current.currentTime = 0;
-          playerRef.current.play();
-        }
+        player.currentTime = 0;
+        player.play();
       } catch (err) {
-        console.log('[VideoPreview] play error:', err);
+        console.error('[VideoPreview] play error:', err);
       }
-    }, 500);
-
+    }, 600);
     return () => clearTimeout(timer);
   }, [isPlaying]);
 
@@ -217,7 +207,6 @@ function VideoCard({ item, onPress, onDelete, previewingId, onPreviewPress }: Vi
       >
         <Text style={cardStyles.dateText}>{formatDateLabel(item.logged_at)}</Text>
         <Text style={cardStyles.timeText}>{formatTime(item.logged_at)}</Text>
-        <Text style={cardStyles.fullscreenHint}>탭하면 전체화면으로 재생돼요</Text>
       </TouchableOpacity>
       <TouchableOpacity
         style={cardStyles.deleteBtn}
@@ -260,7 +249,6 @@ const cardStyles = StyleSheet.create({
   info: { flex: 1, gap: 4, justifyContent: 'center' },
   dateText: { fontSize: 20, fontWeight: '700', color: Colors.text },
   timeText: { fontSize: 18, color: Colors.textSub, fontWeight: '500' },
-  fullscreenHint: { fontSize: 13, color: Colors.textHint, marginTop: 2 },
   deleteBtn: { padding: 8, flexShrink: 0 },
 });
 
@@ -405,6 +393,14 @@ function VideoPlayerModal({ url, onClose }: VideoPlayerModalProps) {
           />
         )}
 
+        {/* 로딩 오버레이: 영상 duration이 0이면 아직 로딩 중 */}
+        {durationMs === 0 && url && (
+          <View style={playerStyles.loadingOverlay}>
+            <ActivityIndicator size="large" color={Colors.white} />
+            <Text style={playerStyles.loadingText}>영상 불러오는 중...</Text>
+          </View>
+        )}
+
         {/* 재생/정지 오버레이 */}
         <TouchableOpacity
           style={playerStyles.playOverlay}
@@ -514,6 +510,20 @@ const playerStyles = StyleSheet.create({
     top: 52,
     right: 20,
     zIndex: 10,
+  },
+  loadingOverlay: {
+    position: 'absolute',
+    top: 0, left: 0, right: 0, bottom: 0,
+    backgroundColor: 'rgba(0,0,0,0.7)',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 16,
+    zIndex: 20,
+  },
+  loadingText: {
+    color: Colors.white,
+    fontSize: 18,
+    fontWeight: '600',
   },
 });
 

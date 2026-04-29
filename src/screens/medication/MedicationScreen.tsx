@@ -383,7 +383,7 @@ export function MedicationScreen() {
             <View style={styles.mainButtonInner}>
               <Ionicons name="medkit" size={40} color={Colors.white} />
               <Text style={styles.mainButtonText}>
-                {allSlotsTaken ? '오늘 복용 완료 ✓' : '약 먹었어요'}
+                {allSlotsTaken ? '오늘 복용 완료 ✓' : '약복용 기록하기'}
               </Text>
             </View>
           </TouchableOpacity>

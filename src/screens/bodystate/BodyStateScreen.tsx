@@ -542,7 +542,7 @@ export function BodyStateScreen() {
           >
             <View style={styles.mainButtonInner}>
               <Ionicons name="happy" size={40} color={Colors.white} />
-              <Text style={styles.mainButtonText}>몸상태 기록하기</Text>
+              <Text style={styles.mainButtonText}>몸상태·기분상태 기록하기</Text>
             </View>
           </TouchableOpacity>
 
