@@ -51,25 +51,16 @@ async function uploadToR2(
   timeoutMs?: number,
   onProgress?: (percent: number) => void,
 ): Promise<string> {
-  const SUPABASE_URL = process.env.EXPO_PUBLIC_SUPABASE_URL!;
-  const ANON_KEY = process.env.EXPO_PUBLIC_SUPABASE_ANON_KEY!;
-
-  // presigned URL 발급
-  const res = await fetch(`${SUPABASE_URL}/functions/v1/r2-upload`, {
-    method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-      'Authorization': `Bearer ${ANON_KEY}`,
-    },
-    body: JSON.stringify({ key, contentType: mimeType }),
+  // presigned URL 발급 — 사용자 세션 토큰으로 인증
+  const { data: invokeData, error: invokeError } = await supabase.functions.invoke('r2-upload', {
+    body: { key, contentType: mimeType },
   });
 
-  if (!res.ok) {
-    const errText = await res.text();
-    throw new Error(`presigned URL 발급 실패 (${res.status}): ${errText}`);
+  if (invokeError) {
+    throw new Error(`presigned URL 발급 실패: ${invokeError.message}`);
   }
 
-  const { presignedUrl, publicUrl } = await res.json();
+  const { presignedUrl, publicUrl } = invokeData;
 
   // R2에 직접 PUT — XMLHttpRequest로 upload progress 추적
   const fileInfo = await FileSystem.getInfoAsync(localUri);

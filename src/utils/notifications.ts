@@ -367,7 +367,6 @@ export async function requestPermissionsAndSaveToken(
     }
 
     console.log('[notifications] DB 저장 시작 → userId:', userId);
-    console.log('[notifications] push_token:', token);
 
     const res = await fetch(`${SUPABASE_URL}/rest/v1/users?id=eq.${userId}`, {
       method: 'PATCH',

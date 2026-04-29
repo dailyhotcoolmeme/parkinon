@@ -1,5 +1,6 @@
 import { S3Client, PutObjectCommand } from 'npm:@aws-sdk/client-s3@3';
 import { getSignedUrl } from 'npm:@aws-sdk/s3-request-presigner@3';
+import { createClient } from 'npm:@supabase/supabase-js@2';
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
@@ -12,6 +13,29 @@ Deno.serve(async (req) => {
   }
 
   try {
+    // 인증 검증 — 로그인된 사용자만 presigned URL 발급
+    const authHeader = req.headers.get('Authorization');
+    if (!authHeader) {
+      return new Response(
+        JSON.stringify({ error: '인증이 필요합니다.' }),
+        { status: 401, headers: { ...corsHeaders, 'Content-Type': 'application/json' } },
+      );
+    }
+
+    const supabase = createClient(
+      Deno.env.get('SUPABASE_URL')!,
+      Deno.env.get('SUPABASE_ANON_KEY')!,
+      { global: { headers: { Authorization: authHeader } } },
+    );
+
+    const { data: { user }, error: authError } = await supabase.auth.getUser();
+    if (authError || !user) {
+      return new Response(
+        JSON.stringify({ error: '인증이 필요합니다.' }),
+        { status: 401, headers: { ...corsHeaders, 'Content-Type': 'application/json' } },
+      );
+    }
+
     const R2_ENDPOINT = Deno.env.get('R2_ENDPOINT');
     const R2_ACCESS_KEY_ID = Deno.env.get('R2_ACCESS_KEY_ID');
     const R2_SECRET_ACCESS_KEY = Deno.env.get('R2_SECRET_ACCESS_KEY');
