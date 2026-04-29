@@ -29,7 +29,8 @@ Deno.serve(async (req) => {
     )
 
     // 1. users 테이블 데이터 삭제 (CASCADE로 연관 데이터 함께 삭제)
-    await supabaseAdmin.from('users').delete().eq('id', user.id)
+    const { error: usersDeleteError } = await supabaseAdmin.from('users').delete().eq('id', user.id)
+    if (usersDeleteError) throw usersDeleteError
 
     // 2. Auth 계정 삭제
     const { error: deleteError } = await supabaseAdmin.auth.admin.deleteUser(user.id)
