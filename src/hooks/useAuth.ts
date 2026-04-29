@@ -1,13 +1,6 @@
 /**
  * useAuth.ts
- * 카카오 OAuth (직접 카카오 OAuth + kakao-auth Edge Function) 기반 인증 훅
- *
- * 흐름:
- *  1. 카카오 OAuth URL 직접 생성 (Supabase 프록시 우회)
- *  2. expo-web-browser openAuthSessionAsync로 카카오 인가 페이지 열기
- *  3. parkinon://auth/kakao 딥링크로 code 획득
- *  4. kakao-auth Edge Function 호출 → magic link token 수신
- *  5. supabase.auth.verifyOtp → 세션 발급 → onAuthStateChange 발동
+ * Supabase OAuth 기반 인증 훅
  *
  * NOTE: 컴포넌트에서 직접 import하지 말 것.
  * useAuth()는 src/context/AuthContext.tsx 에서 import 하세요.
@@ -23,10 +16,6 @@ import { registerMissedMedCheckTask, requestPermissionsAndSaveToken } from '../u
 
 // ─── 딥링크 redirect URI ────────────────────────────────────────────────────
 const REDIRECT_TO = 'parkinon://auth/callback';
-
-// ─── 카카오 직접 OAuth 설정 ──────────────────────────────────────────────────
-const KAKAO_REST_API_KEY = process.env.EXPO_PUBLIC_KAKAO_REST_API_KEY!;
-const KAKAO_REDIRECT_URI = 'parkinon://auth/kakao';
 
 // ─── 타입 ────────────────────────────────────────────────────────────────────
 export interface UserProfile {
@@ -355,75 +344,44 @@ export function useAuthProvider(): UseAuthReturn {
     }
   }, [loadUserProfile]);
 
-  // ─── 카카오 로그인 (직접 카카오 OAuth) ──────────────────────────────────────
-  // 전략:
-  //   1. 카카오 OAuth URL 직접 생성 (Supabase 프록시 우회)
-  //   2. openAuthSessionAsync로 브라우저 열기 → code 획득
-  //   3. kakao-auth Edge Function: code → magic link token
-  //   4. verifyOtp → 세션 발급 → onAuthStateChange 자동 발동
-  //
-  // 반환값: true = verifyOtp 완료 (onAuthStateChange 대기 중), false = 실패/취소
+  // ─── 카카오 로그인 (Supabase OAuth) ──────────────────────────────────────
+  // 반환값: true = 인증 진행 중 (AppState 리스너 대기), false = 즉시 실패/취소
   const signInWithKakao = useCallback(async (): Promise<boolean> => {
     try {
-      console.log('[useAuth] signInWithKakao 시작 (직접 카카오 OAuth)');
+      console.log('[useAuth] signInWithKakao 시작');
+      const { data, error } = await supabase.auth.signInWithOAuth({
+        provider: 'kakao',
+        options: {
+          redirectTo: REDIRECT_TO,
+          skipBrowserRedirect: true,
+          scopes: 'profile_nickname profile_image account_email',
+        },
+      });
 
-      // 카카오 직접 OAuth URL (Supabase 프록시 우회)
-      const kakaoAuthUrl =
-        `https://kauth.kakao.com/oauth/authorize` +
-        `?client_id=${encodeURIComponent(KAKAO_REST_API_KEY)}` +
-        `&redirect_uri=${encodeURIComponent(KAKAO_REDIRECT_URI)}` +
-        `&response_type=code` +
-        `&scope=profile_nickname,profile_image,account_email`;
+      if (error || !data?.url) {
+        console.error('[useAuth] signInWithOAuth 오류:', error?.message);
+        Alert.alert('로그인 오류', '카카오 로그인을 시작할 수 없습니다. 네트워크 연결을 확인해주세요.');
+        return false;
+      }
 
       console.log('[useAuth] openAuthSessionAsync로 카카오 OAuth 열기');
-      const result = await WebBrowser.openAuthSessionAsync(kakaoAuthUrl, KAKAO_REDIRECT_URI);
+      const result = await WebBrowser.openAuthSessionAsync(data.url, REDIRECT_TO, {
+        showInRecents: false,
+      });
       console.log('[useAuth] openAuthSessionAsync 결과:', result.type);
 
-      if (result.type !== 'success' || !result.url) {
-        console.log('[useAuth] 카카오 로그인 취소 또는 실패:', result.type);
+      if (result.type === 'success' && result.url) {
+        // Custom Tab에서 콜백 URL을 직접 수신한 경우
+        await processAuthUrl(result.url, loadUserProfile);
+        return true;
+      } else if (result.type === 'cancel') {
+        // 카카오 앱으로 전환된 경우: AppState 리스너가 복귀 시 처리
+        console.log('[useAuth] Custom Tab cancel — 카카오 앱 인증 후 딥링크/세션 대기 중');
+        return true;
+      } else {
+        console.log('[useAuth] 사용자가 로그인 취소');
         return false;
       }
-
-      // URL에서 code 추출
-      const parsed = Linking.parse(result.url);
-      const code = parsed.queryParams?.code as string | undefined;
-      if (!code) {
-        console.error('[useAuth] 카카오 콜백 URL에서 code 없음:', result.url);
-        Alert.alert('로그인 실패', '카카오 인증 코드를 받지 못했습니다. 다시 시도해주세요.');
-        return false;
-      }
-
-      console.log('[useAuth] 카카오 code 수신, Edge Function 호출');
-
-      // kakao-auth Edge Function: code → magic link token
-      const { data: edgeData, error: edgeError } = await supabase.functions.invoke('kakao-auth', {
-        body: { code },
-      });
-
-      if (edgeError || !edgeData?.token) {
-        console.error('[useAuth] kakao-auth Edge Function 오류:', edgeError, edgeData);
-        Alert.alert('로그인 실패', '카카오 로그인 처리 중 오류가 발생했습니다. 다시 시도해주세요.');
-        return false;
-      }
-
-      console.log('[useAuth] magic link token 수신, verifyOtp 호출');
-
-      // magic link token으로 Supabase 세션 발급 → onAuthStateChange 자동 발동
-      const { error: verifyError } = await supabase.auth.verifyOtp({
-        email: edgeData.email,
-        token: edgeData.token,
-        type: 'magiclink',
-      });
-
-      if (verifyError) {
-        console.error('[useAuth] verifyOtp 오류:', verifyError);
-        Alert.alert('로그인 실패', '카카오 로그인 처리 중 오류가 발생했습니다. 다시 시도해주세요.');
-        return false;
-      }
-
-      console.log('[useAuth] verifyOtp 성공 → onAuthStateChange 대기 중');
-      // onAuthStateChange → loadUserProfile → setUser → setSigning(false) (LoginScreen useEffect)
-      return true;
     } catch (err) {
       console.error('[useAuth] signInWithKakao 오류:', err);
       Alert.alert('로그인 오류', '오류가 발생했습니다. 다시 시도해주세요.');
