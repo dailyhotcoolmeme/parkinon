@@ -523,7 +523,10 @@ export function MedicationScreen() {
               onPress={() => {
                 setShowBodyStateSuggest(false);
                 // BodyState 화면으로 이동 — 거기서 기록 완료 후 NextNotif 팝업 자체 표시
-                navigateTo('BodyState', {});
+                navigateTo('BodyState', {
+                  triggerMinutes: 0,
+                  triggerMealTime: selectedMealTime,
+                });
               }}
               style={{
                 backgroundColor: '#FF6B35',
