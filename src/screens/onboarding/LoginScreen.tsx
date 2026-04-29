@@ -17,6 +17,7 @@ import type { OnboardingStackParamList } from '../../navigation/OnboardingNaviga
 import { AntDesign } from '@expo/vector-icons';
 import { Colors } from '../../constants/colors';
 import { useAuth } from '../../context/AuthContext';
+import { supabase } from '../../lib/supabase';
 
 const TERMS_URL = 'https://parkinon-terms.dailyhotcoolmeme.workers.dev';
 const PRIVACY_URL = 'https://parkinon-privacy.dailyhotcoolmeme.workers.dev';
@@ -31,18 +32,43 @@ export function LoginScreen() {
   const kakaoStarted = oauthStarted; // 하위 호환
   const signingTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
-  // 앱이 포그라운드로 돌아올 때 카카오 인증 대기 중이면 로딩 유지
-  // 단, 포그라운드 복귀 후 60초 내에 로그인이 완료되지 않으면 자동 해제
+  // 앱이 포그라운드로 돌아올 때 카카오 인증 대기 중이면 세션 직접 확인
+  // 카카오 앱 → 파킨온 앱으로 복귀 시 Linking 이벤트가 오지 않는 경우를 커버
   useEffect(() => {
-    const sub = AppState.addEventListener('change', (state) => {
+    const sub = AppState.addEventListener('change', async (state) => {
       if (state === 'active' && kakaoStarted.current) {
         setSigning(true);
-        // 60초 타임아웃: 카카오 취소 또는 실패 시 버튼 자동 복구
-        if (signingTimeoutRef.current) clearTimeout(signingTimeoutRef.current);
-        signingTimeoutRef.current = setTimeout(() => {
-          kakaoStarted.current = false;
-          setSigning(false);
-        }, 60000);
+        // 딥링크 처리 시간 대기 후 세션 직접 확인 (Linking 이벤트가 먼저 처리될 수 있음)
+        await new Promise(r => setTimeout(r, 1500));
+        // kakaoStarted가 이미 완료된 경우(user 설정 후 false로 바뀐 경우) 스킵
+        if (!kakaoStarted.current) return;
+        try {
+          const { data: { session } } = await supabase.auth.getSession();
+          if (session?.user) {
+            // 세션이 있으면 onAuthStateChange가 곧 발동하거나 이미 발동했을 것
+            // 60초 타임아웃을 짧게(10초)로 줄여서 user 설정을 기다림
+            console.log('[LoginScreen] AppState active: 세션 확인됨, user 대기 중');
+            if (signingTimeoutRef.current) clearTimeout(signingTimeoutRef.current);
+            signingTimeoutRef.current = setTimeout(() => {
+              // 10초 후에도 user가 안 오면 스피너 해제 (비정상 상황)
+              kakaoStarted.current = false;
+              setSigning(false);
+            }, 10000);
+          } else {
+            // 세션 없음: 카카오 취소 또는 실패 → 스피너 즉시 해제
+            console.log('[LoginScreen] AppState active: 세션 없음, 로그인 취소');
+            kakaoStarted.current = false;
+            setSigning(false);
+          }
+        } catch (e) {
+          console.error('[LoginScreen] AppState active 세션 확인 오류:', e);
+          // 오류 시 60초 타임아웃으로 자동 복구
+          if (signingTimeoutRef.current) clearTimeout(signingTimeoutRef.current);
+          signingTimeoutRef.current = setTimeout(() => {
+            kakaoStarted.current = false;
+            setSigning(false);
+          }, 60000);
+        }
       } else if (state === 'background') {
         // 백그라운드로 가면 타임아웃 취소 (아직 카카오 브라우저 중)
         if (signingTimeoutRef.current) {

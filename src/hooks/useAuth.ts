@@ -352,18 +352,14 @@ export function useAuthProvider(): UseAuthReturn {
   }, [loadUserProfile]);
 
   // ─── 카카오 로그인 ────────────────────────────────────────────────────────
-  // Linking.openURL로 외부 브라우저(Chrome)에서 열기
+  // 전략:
+  //   1차: openAuthSessionAsync (Chrome Custom Tab) 시도
+  //     - result.type === 'success': Custom Tab에서 콜백 URL 직접 수신 → processAuthUrl 처리
+  //     - result.type === 'cancel': 카카오 앱 설치 시 Custom Tab이 닫히는 경우
+  //       → AppState 리스너가 포그라운드 복귀를 감지하고 세션을 직접 확인
+  //   2차 fallback: AppState 'active' 시 getSession() 직접 확인 (LoginScreen에서 처리)
   //
-  // openAuthSessionAsync를 썼을 때의 문제:
-  //   카카오 앱이 설치된 경우, OAuth 페이지가 카카오 앱으로 리다이렉트하면서
-  //   Chrome Custom Tab이 닫혀버림 → openAuthSessionAsync가 'cancel' 반환
-  //   → 콜백 URL을 전혀 받지 못하고 로그인 실패
-  //
-  // Linking.openURL 방식:
-  //   Chrome 외부 브라우저로 열기 → 카카오 앱 통해 인증 완료 후
-  //   parkinon://auth/callback 딥링크 발생 → Linking.addEventListener가 처리
-  //
-  // 반환값: true = 딥링크 대기 중 (signing 유지), false = 즉시 실패 (signing 초기화)
+  // 반환값: true = 인증 진행 중 (signing 유지), false = 즉시 실패 (signing 초기화)
   const signInWithKakao = useCallback(async (): Promise<boolean> => {
     try {
       console.log('[useAuth] signInWithKakao 시작');
@@ -372,6 +368,7 @@ export function useAuthProvider(): UseAuthReturn {
         options: {
           redirectTo: REDIRECT_TO,
           skipBrowserRedirect: true,
+          scopes: 'profile_nickname profile_image account_email',
         },
       });
 
@@ -381,19 +378,36 @@ export function useAuthProvider(): UseAuthReturn {
         return false;
       }
 
-      // Chrome Custom Tab으로 OAuth URL 열기 (await 없이 fire-and-forget)
-      // - Linking.openURL 대비 장점: processAuthUrl에서 WebBrowser.dismissBrowser()로 탭 자동 닫기 가능
-      // - 카카오 앱 설치 시 카카오 앱으로 리다이렉트되어도 Custom Tab이 남아있어 닫기 가능
-      // - 인증 완료 후 parkinon://auth/callback 딥링크는 Linking.addEventListener가 수신
-      console.log('[useAuth] WebBrowser.openBrowserAsync로 카카오 OAuth 열기');
-      WebBrowser.openBrowserAsync(data.url).catch(() => {});
-      return true; // 딥링크 대기 중 — signing 상태는 LoginScreen의 AppState 리스너가 관리
+      console.log('[useAuth] openAuthSessionAsync로 카카오 OAuth 열기');
+      // openAuthSessionAsync: Chrome Custom Tab으로 열기
+      // 카카오 앱 설치 시 카카오 앱으로 리다이렉트되면 Custom Tab이 닫혀 'cancel' 반환됨
+      // 그 경우 LoginScreen의 AppState 리스너가 포그라운드 복귀 시 세션을 직접 확인
+      const result = await WebBrowser.openAuthSessionAsync(data.url, REDIRECT_TO, {
+        showInRecents: false,
+      });
+      console.log('[useAuth] openAuthSessionAsync 결과:', result.type);
+
+      if (result.type === 'success' && result.url) {
+        // Custom Tab에서 콜백 URL을 직접 수신한 경우 (카카오 웹 브라우저 로그인)
+        await processAuthUrl(result.url, loadUserProfile);
+        return true;
+      } else if (result.type === 'cancel') {
+        // 카카오 앱이 설치된 경우: Custom Tab → 카카오 앱 전환 → 파킨온 앱으로 복귀
+        // 이 시점에 Linking.addEventListener가 딥링크를 수신하거나
+        // LoginScreen의 AppState 리스너가 세션을 직접 확인
+        console.log('[useAuth] Custom Tab cancel — 카카오 앱 인증 후 딥링크/세션 대기 중');
+        return true; // signing 상태 유지 — LoginScreen AppState 리스너가 처리
+      } else {
+        // 사용자가 직접 닫은 경우
+        console.log('[useAuth] 사용자가 로그인 취소');
+        return false;
+      }
     } catch (err) {
       console.error('[useAuth] signInWithKakao 오류:', err);
       Alert.alert('로그인 오류', '오류가 발생했습니다. 다시 시도해주세요.');
       return false;
     }
-  }, []);
+  }, [loadUserProfile]);
 
   // 개발용 mock 로그인
   const devSignIn = useCallback(async () => {
