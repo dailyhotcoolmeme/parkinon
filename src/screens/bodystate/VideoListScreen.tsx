@@ -310,6 +310,8 @@ function VideoPlayerModal({ url, onClose }: VideoPlayerModalProps) {
   const [seekRatio, setSeekRatio] = useState(0);
   const [showControls, setShowControls] = useState(true);
   const sliderWidthRef = useRef(0);
+  const sliderXRef = useRef(0);
+  const sliderRef = useRef<View>(null);
   const positionRef = useRef(0);
   const durationRef = useRef(0);
   const isSeekingRef = useRef(false);
@@ -399,17 +401,17 @@ function VideoPlayerModal({ url, onClose }: VideoPlayerModalProps) {
       onPanResponderGrant: (evt) => {
         isSeekingRef.current = true;
         setIsSeeking(true);
-        const x = evt.nativeEvent.locationX;
+        const x = evt.nativeEvent.pageX - sliderXRef.current;
         const w = sliderWidthRef.current;
         if (w > 0) setSeekRatio(Math.min(Math.max(x / w, 0), 1));
       },
-      onPanResponderMove: (evt) => {
-        const x = evt.nativeEvent.locationX;
+      onPanResponderMove: (evt, gestureState) => {
+        const x = gestureState.moveX - sliderXRef.current;
         const w = sliderWidthRef.current;
         if (w > 0) setSeekRatio(Math.min(Math.max(x / w, 0), 1));
       },
-      onPanResponderRelease: (evt) => {
-        const x = evt.nativeEvent.locationX;
+      onPanResponderRelease: (evt, gestureState) => {
+        const x = gestureState.moveX - sliderXRef.current;
         const w = sliderWidthRef.current;
         if (w > 0) {
           const ratio = Math.min(Math.max(x / w, 0), 1);
@@ -505,8 +507,14 @@ function VideoPlayerModal({ url, onClose }: VideoPlayerModalProps) {
               <Text style={playerStyles.timeText}>{formatTimeMs(durationMs)}</Text>
             </View>
             <View
+              ref={sliderRef}
               style={playerStyles.sliderTrack}
-              onLayout={(e) => { sliderWidthRef.current = e.nativeEvent.layout.width; }}
+              onLayout={() => {
+                sliderRef.current?.measure((_x, _y, width, _height, pageX) => {
+                  sliderWidthRef.current = width;
+                  sliderXRef.current = pageX;
+                });
+              }}
               {...panResponder.panHandlers}
             >
               <View style={[playerStyles.sliderFill, { width: `${displayRatio * 100}%` }]} />
