@@ -141,9 +141,6 @@ export function FamilyInviteScreen() {
         throw new Error(`users 업데이트 실패: ${updateRes.status} ${errText}`);
       }
 
-      // DB 업데이트 성공 즉시 로컬 상태도 반영 (MenuScreen refreshUser 타이밍 문제 방지)
-      forceCompleteOnboarding();
-
       // 환자 본인 온보딩 완료 시: patient_groups 생성 + 자신을 멤버로 추가 (초대코드 저장)
       // joinGroupId가 없다는 것은 다른 그룹에 합류하지 않았다는 의미 = 자신이 그룹 생성자
       if (role === 'patient' && !joinGroupId && inviteCode) {
@@ -196,6 +193,9 @@ export function FamilyInviteScreen() {
           console.warn('[FamilyInviteScreen] patient_group_members 추가 오류 (계속 진행):', errText);
         }
       }
+
+      // 모든 DB INSERT 완료 후 로컬 상태 반영 (화면 전환은 여기서부터)
+      forceCompleteOnboarding();
 
       // 알림 설정 반영: 온보딩에서 설정한 값을 settings_med_notifs에 저장
       // onboarding_notifications 형식: { immediate: bool, after30: bool, after2h: bool }

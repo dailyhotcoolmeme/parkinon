@@ -239,6 +239,20 @@ export function useMedication(): UseMedicationReturn {
               .in('id', caregiverIds)
               .not('push_token', 'is', null);
 
+            // 환자 이름 조회
+            let patientName = '환자분';
+            if (user.role === 'patient') {
+              patientName = user.name || '환자분';
+            } else {
+              // 보호자인 경우 연동된 환자 이름 조회
+              const { data: patientRow } = await supabase
+                .from('users')
+                .select('name')
+                .eq('id', patientId)
+                .single();
+              if (patientRow?.name) patientName = patientRow.name;
+            }
+
             for (const cu of caregiverUsers ?? []) {
               if (!cu.push_token) continue;
               const prefs = (cu.caregiver_notif_prefs ?? {}) as Record<string, boolean>;
@@ -246,7 +260,7 @@ export function useMedication(): UseMedicationReturn {
               await sendCaregiverPush(
                 cu.push_token,
                 '💊 약을 드셨어요',
-                `환자분이 ${MEAL_TIME_LABELS[mealTime]} 약을 드셨어요.`,
+                `${patientName}님이 약을 드셨어요.`,
                 { type: 'caregiver_medication' },
               );
             }

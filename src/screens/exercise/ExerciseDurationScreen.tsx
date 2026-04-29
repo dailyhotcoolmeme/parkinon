@@ -212,7 +212,7 @@ export function ExerciseDurationScreen() {
       Alert.alert(
         '저장 완료',
         `${exerciseName} ${formatDuration(selected)}을 기록했어요! 👏`,
-        [{ text: '확인', onPress: () => navigation.popToTop() }],
+        [{ text: '확인', onPress: () => navigation.reset({ index: 0, routes: [{ name: 'ExerciseMain' }] }) }],
       );
     } else {
       Alert.alert('오류', '기록 저장에 실패했어요. 다시 시도해주세요.');
@@ -264,7 +264,7 @@ export function ExerciseDurationScreen() {
         duration={savedDuration}
         onClose={() => {
           setShowNextNotifModal(false);
-          navigation.popToTop();
+          navigation.reset({ index: 0, routes: [{ name: 'ExerciseMain' }] });
         }}
       />
     </SafeAreaView>

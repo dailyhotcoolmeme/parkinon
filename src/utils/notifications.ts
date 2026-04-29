@@ -124,7 +124,7 @@ TaskManager.defineTask(MISSED_MED_CHECK_TASK, async () => {
     // 환자 정보 확인
     const { data: userRow } = await supabase
       .from('users')
-      .select('role, patient_group_id, notification_enabled')
+      .select('role, patient_group_id, notification_enabled, name')
       .eq('id', session.user.id)
       .single();
 
@@ -172,6 +172,8 @@ TaskManager.defineTask(MISSED_MED_CHECK_TASK, async () => {
           .in('id', caregivers.map((c: any) => c.user_id))
           .not('push_token', 'is', null);
 
+        const patientName = userRow.name || '환자분';
+
         for (const cu of caregiverUsers ?? []) {
           if (!cu.push_token) continue;
           const prefs = (cu.caregiver_notif_prefs ?? {}) as Record<string, boolean>;
@@ -180,7 +182,7 @@ TaskManager.defineTask(MISSED_MED_CHECK_TASK, async () => {
               body: {
                 to: cu.push_token,
                 title: '💊 약을 안 드셨어요',
-                body: `환자분이 ${MEAL_TIME_LABELS_BG[targetMealTime]} 약을 아직 안 드셨어요.`,
+                body: `${patientName}님이 아직 약을 드시지 않으셨어요.`,
                 data: { type: 'caregiver_missed_med', mealTime: targetMealTime },
               },
             });

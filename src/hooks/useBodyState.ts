@@ -154,6 +154,20 @@ export function useBodyState(): UseBodyStateReturn {
               .in('id', caregiverIds)
               .not('push_token', 'is', null);
 
+            // 환자 이름 조회
+            let patientName = '환자분';
+            if (user.role === 'patient') {
+              patientName = user.name || '환자분';
+            } else {
+              // 보호자인 경우 연동된 환자 이름 조회
+              const { data: patientRow } = await supabase
+                .from('users')
+                .select('name')
+                .eq('id', patientId)
+                .single();
+              if (patientRow?.name) patientName = patientRow.name;
+            }
+
             for (const cu of caregiverUsers ?? []) {
               if (!cu.push_token) continue;
               const prefs = (cu.caregiver_notif_prefs ?? {}) as Record<string, boolean>;
@@ -162,7 +176,7 @@ export function useBodyState(): UseBodyStateReturn {
                 await sendCaregiverPush(
                   cu.push_token,
                   '😊 몸 상태를 기록했어요',
-                  '환자분이 몸 상태를 기록했어요.',
+                  `${patientName}님의 몸 상태가 기록됐어요.`,
                   { type: 'caregiver_body_state' },
                 );
               }
@@ -170,7 +184,7 @@ export function useBodyState(): UseBodyStateReturn {
                 await sendCaregiverPush(
                   cu.push_token,
                   '😄 기분을 기록했어요',
-                  '환자분이 기분을 기록했어요.',
+                  `${patientName}님의 기분이 기록됐어요.`,
                   { type: 'caregiver_mood' },
                 );
               }
@@ -178,7 +192,7 @@ export function useBodyState(): UseBodyStateReturn {
                 await sendCaregiverPush(
                   cu.push_token,
                   '😴 수면을 기록했어요',
-                  '환자분이 수면 상태를 기록했어요.',
+                  `${patientName}님의 수면 상태가 기록됐어요.`,
                   { type: 'caregiver_sleep' },
                 );
               }
@@ -186,7 +200,7 @@ export function useBodyState(): UseBodyStateReturn {
                 await sendCaregiverPush(
                   cu.push_token,
                   '🚽 변비를 기록했어요',
-                  '환자분이 변비 상태를 기록했어요.',
+                  `${patientName}님의 변비 상태가 기록됐어요.`,
                   { type: 'caregiver_constipation' },
                 );
               }
