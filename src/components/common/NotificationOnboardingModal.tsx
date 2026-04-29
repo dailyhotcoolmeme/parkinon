@@ -16,7 +16,6 @@ import {
   Animated,
   TouchableOpacity,
   Switch,
-  ScrollView,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import AsyncStorage from '@react-native-async-storage/async-storage';
@@ -40,7 +39,6 @@ interface PatientItem {
 
 const PATIENT_ITEMS: PatientItem[] = [
   { id: 'immediate', label: '복용 직후', desc: '약을 드신 직후 몸 상태를 확인해요' },
-  { id: 'after30',   label: '복용 30분 후', desc: '약이 흡수되는 시간에 확인해요' },
   { id: 'after2h',   label: '복용 2시간 후', desc: '약효가 나타나는 시간에 확인해요' },
   { id: 'exercise',  label: '운동 알림', desc: '매일 운동을 권장해드려요' },
 ];
@@ -71,13 +69,7 @@ interface Props {
 export function NotificationOnboardingModal({ isCaregiver, userId, visible, onClose }: Props) {
   const { setNotificationEnabled } = useSettings();
 
-  // 항목별 토글 상태 (기본 전체 ON)
-  const [patientEnabled, setPatientEnabled] = React.useState<Record<string, boolean>>(
-    () => Object.fromEntries(PATIENT_ITEMS.map(i => [i.id, true]))
-  );
-  const [caregiverEnabled, setCaregiverEnabled] = React.useState<Record<string, boolean>>(
-    () => Object.fromEntries(CAREGIVER_ITEMS.map(i => [i.id, true]))
-  );
+  // 항목 전체 항상 ON 고정 (사용자 변경 불가)
 
   // 애니메이션
   const fadeAnim = useRef(new Animated.Value(0)).current;
@@ -106,11 +98,7 @@ export function NotificationOnboardingModal({ isCaregiver, userId, visible, onCl
     // 1회 표시 완료 마킹
     await AsyncStorage.setItem(NOTIF_ONBOARDING_SHOWN_KEY, 'done').catch(() => {});
 
-    const enabledValues = isCaregiver
-      ? Object.values(caregiverEnabled)
-      : Object.values(patientEnabled);
-
-    const anyEnabled = enabledValues.some(Boolean);
+    const anyEnabled = true; // 항상 ON
 
     closeWithAnim(async () => {
       onClose();
@@ -146,7 +134,7 @@ export function NotificationOnboardingModal({ isCaregiver, userId, visible, onCl
                     'Content-Type': 'application/json',
                     Prefer: 'return=minimal',
                   },
-                  body: JSON.stringify({ caregiver_notif_prefs: caregiverEnabled }),
+                  body: JSON.stringify({ caregiver_notif_prefs: Object.fromEntries(CAREGIVER_ITEMS.map(i => [i.id, true])) }),
                 });
               }
             } catch (e) {
@@ -169,10 +157,6 @@ export function NotificationOnboardingModal({ isCaregiver, userId, visible, onCl
   };
 
   const items = isCaregiver ? CAREGIVER_ITEMS : PATIENT_ITEMS;
-  const enabled = isCaregiver ? caregiverEnabled : patientEnabled;
-  const setEnabled = isCaregiver ? setCaregiverEnabled : setPatientEnabled;
-
-  const anyEnabled = Object.values(enabled).some(Boolean);
 
   return (
     <Modal visible={visible} transparent animationType="none" onRequestClose={handleLater}>
@@ -198,28 +182,24 @@ export function NotificationOnboardingModal({ isCaregiver, userId, visible, onCl
           </View>
 
           {/* 알림 항목 목록 */}
-          <ScrollView
-            style={styles.listScroll}
-            contentContainerStyle={styles.listContent}
-            showsVerticalScrollIndicator={false}
-          >
+          <View style={styles.listContent}>
             {items.map((item) => (
-              <View key={item.id} style={[styles.itemRow, enabled[item.id] && styles.itemRowEnabled]}>
+              <View key={item.id} style={[styles.itemRow, styles.itemRowEnabled]}>
                 <View style={styles.itemText}>
-                  <Text style={[styles.itemLabel, enabled[item.id] && styles.itemLabelEnabled]}>
+                  <Text style={[styles.itemLabel, styles.itemLabelEnabled]}>
                     {item.label}
                   </Text>
                   <Text style={styles.itemDesc}>{item.desc}</Text>
                 </View>
                 <Switch
-                  value={enabled[item.id]}
-                  onValueChange={(v) => setEnabled(prev => ({ ...prev, [item.id]: v }))}
+                  value={true}
+                  onValueChange={() => {}}
                   trackColor={{ false: Colors.border, true: Colors.primary }}
                   thumbColor={Colors.white}
                 />
               </View>
             ))}
-          </ScrollView>
+          </View>
 
           {/* 사전 안내 박스 */}
           <View style={{
@@ -242,12 +222,10 @@ export function NotificationOnboardingModal({ isCaregiver, userId, visible, onCl
           <View style={styles.buttonArea}>
             <TouchableOpacity
               activeOpacity={0.85}
-              style={[styles.confirmBtn, !anyEnabled && styles.confirmBtnOutline]}
+              style={styles.confirmBtn}
               onPress={handleConfirm}
             >
-              <Text style={[styles.confirmBtnText, !anyEnabled && styles.confirmBtnTextOutline]}>
-                {anyEnabled ? '알림 허용하기' : '알림 없이 계속하기'}
-              </Text>
+              <Text style={styles.confirmBtnText}>알림 허용하기</Text>
             </TouchableOpacity>
             <TouchableOpacity activeOpacity={0.7} style={styles.laterBtn} onPress={handleLater}>
               <Text style={styles.laterBtnText}>나중에 설정할게요</Text>
@@ -314,9 +292,6 @@ const styles = StyleSheet.create({
   },
 
   // ── 항목 목록 ──
-  listScroll: {
-    flexShrink: 1,
-  },
   listContent: {
     paddingHorizontal: 20,
     gap: 10,
