@@ -353,26 +353,22 @@ export function VideoRecordScreen() {
             <TouchableOpacity
               style={styles.actionBtn}
               onPress={handleRecordVideo}
-              activeOpacity={0.8}
+              activeOpacity={0.85}
             >
-              <Ionicons name="camera-outline" size={36} color={Colors.primary} />
-              <View>
-                <Text style={styles.actionBtnLabel}>지금 촬영하기</Text>
-                <Text style={styles.actionBtnSub}>카메라로 바로 촬영해요</Text>
-              </View>
+              <Ionicons name="camera-outline" size={52} color="#fff" />
+              <Text style={styles.actionBtnLabel}>지금 촬영하기</Text>
+              <Text style={styles.actionBtnSub}>카메라로 바로 촬영해요</Text>
             </TouchableOpacity>
 
             {/* 갤러리 버튼 */}
             <TouchableOpacity
               style={styles.actionBtn}
               onPress={handlePickFromGallery}
-              activeOpacity={0.8}
+              activeOpacity={0.85}
             >
-              <Ionicons name="images-outline" size={36} color={Colors.primary} />
-              <View>
-                <Text style={styles.actionBtnLabel}>갤러리에서 선택하기</Text>
-                <Text style={styles.actionBtnSub}>저장된 영상을 불러와요</Text>
-              </View>
+              <Ionicons name="images-outline" size={52} color="#fff" />
+              <Text style={styles.actionBtnLabel}>갤러리에서 선택하기</Text>
+              <Text style={styles.actionBtnSub}>저장된 영상을 불러와요</Text>
             </TouchableOpacity>
           </View>
         )}
@@ -402,19 +398,18 @@ const styles = StyleSheet.create({
     padding: 20,
   },
 
-  // 영상 없을 때 중앙 레이아웃
+  // 영상 없을 때 레이아웃
   emptyCenter: {
     flex: 1,
-    justifyContent: 'center',
-    gap: 20,
-    paddingBottom: 40,
+    gap: 16,
+    paddingBottom: 8,
   },
   noticeRow: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
     flexWrap: 'wrap',
-    marginBottom: 12,
+    marginBottom: 4,
   },
   noticeRowText: {
     fontSize: 18,
@@ -532,27 +527,26 @@ const styles = StyleSheet.create({
     marginTop: 16,
   },
   actionBtn: {
-    flexDirection: 'row',
+    flex: 1,
     alignItems: 'center',
-    backgroundColor: Colors.white,
+    justifyContent: 'center',
+    backgroundColor: Colors.primary,
     borderRadius: 16,
-    padding: 20,
-    minHeight: 64,
-    gap: 16,
+    gap: 12,
     shadowColor: '#000',
-    shadowOffset: { width: 0, height: 1 },
-    shadowOpacity: 0.06,
-    shadowRadius: 4,
-    elevation: 2,
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.15,
+    shadowRadius: 8,
+    elevation: 6,
   },
   actionBtnLabel: {
-    fontSize: 18,
-    fontWeight: '700',
-    color: Colors.text,
-    marginBottom: 2,
+    fontSize: 24,
+    fontWeight: '800',
+    color: '#fff',
   },
   actionBtnSub: {
-    fontSize: 14,
-    color: Colors.textSub,
+    fontSize: 15,
+    color: 'rgba(255,255,255,0.8)',
+    fontWeight: '500',
   },
 });
