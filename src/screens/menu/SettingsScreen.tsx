@@ -159,6 +159,7 @@ export function SettingsScreen() {
   // 환자 알림 수정 (보호자용)
   const [showPatientNotifs, setShowPatientNotifs] = useState(false);
   const [patientId, setPatientId] = useState<string | null>(null);
+  const [linkedPatientName, setLinkedPatientName] = useState<string | null>(null);
   const [patientMedTimePrefs, setPatientMedTimePrefs] = useState<Record<string, boolean>>({
     morning: true, lunch: true, dinner: true, bedtime: true,
     missed_first: true, missed_second: true,
@@ -244,12 +245,13 @@ export function SettingsScreen() {
       if (!pid) return;
       setPatientId(pid);
 
-      // 2. 환자의 알림 설정 (med_time_notif_prefs + med_notif_prefs + exercise_notif_prefs + meal_schedules)
+      // 2. 환자의 알림 설정 (med_time_notif_prefs + med_notif_prefs + exercise_notif_prefs + meal_schedules + name)
       const { data: patientUser } = await supabase
         .from('users')
-        .select('med_time_notif_prefs, med_notif_prefs, exercise_notif_prefs, meal_schedules')
+        .select('med_time_notif_prefs, med_notif_prefs, exercise_notif_prefs, meal_schedules, name')
         .eq('id', pid)
         .single();
+      if (patientUser?.name) setLinkedPatientName(patientUser.name);
       if (patientUser?.med_time_notif_prefs) {
         setPatientMedTimePrefs(prev => ({ ...prev, ...patientUser.med_time_notif_prefs }));
       }
@@ -971,6 +973,10 @@ export function SettingsScreen() {
   const optionButtonWidth = (SCREEN_WIDTH - 72) / 2;
   const hourButtonWidth = (SCREEN_WIDTH - 88) / 4;
 
+  // 연결된 환자 이름으로 텍스트 내 "환자" 치환 (미연결 시 원문 그대로)
+  const pt = (text: string) =>
+    linkedPatientName ? text.replace(/환자/g, linkedPatientName) : text;
+
   // ─── Render ─────────────────────────────────────────────────────────────────
   return (
     <SafeAreaView edges={['top', 'bottom']} style={styles.safe}>
@@ -1371,16 +1377,16 @@ export function SettingsScreen() {
               <View style={styles.cardHeaderText}>
                 <Text style={styles.cardHeaderTitle}>보호자 알림</Text>
                 <Text style={styles.cardHeaderSub}>
-                  환자가 기록할 때 알림을 받아요
+                  {pt('환자가 기록할 때 알림을 받아요')}
                 </Text>
               </View>
             </View>
             {caregiverNotifs.map((notif) => (
               <View key={notif.id} style={styles.notifRow}>
                 <View style={styles.notifLeft}>
-                  <Text style={styles.notifTitle}>{notif.label}</Text>
+                  <Text style={styles.notifTitle}>{pt(notif.label)}</Text>
                   <Text style={styles.notifSub}>
-                    {notif.sub ?? `환자 ${notif.label} 알림을 받아요`}
+                    {pt(notif.sub ?? `환자 ${notif.label} 알림을 받아요`)}
                   </Text>
                 </View>
                 <Switch
@@ -1413,8 +1419,8 @@ export function SettingsScreen() {
                 style={styles.cardHeaderIcon}
               />
               <View style={styles.cardHeaderText}>
-                <Text style={styles.cardHeaderTitle}>환자 알림 수정</Text>
-                <Text style={styles.cardHeaderSub}>환자 대신 알림 설정을 변경해요</Text>
+                <Text style={styles.cardHeaderTitle}>{pt('환자 알림 수정')}</Text>
+                <Text style={styles.cardHeaderSub}>{pt('환자 대신 알림 설정을 변경해요')}</Text>
               </View>
               <Ionicons
                 name={showPatientNotifs ? 'chevron-up' : 'chevron-down'}
