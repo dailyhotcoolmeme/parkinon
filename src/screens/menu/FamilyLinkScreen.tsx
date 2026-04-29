@@ -372,7 +372,7 @@ export function FamilyLinkScreen() {
                 ) : (
                   <View style={styles.btnInner}>
                     <Ionicons name="add-circle-outline" size={24} color={Colors.white} />
-                    <Text style={styles.addFamilyBtnText}>가족 추가하기</Text>
+                    <Text style={styles.addFamilyBtnText}>가족 초대하기</Text>
                   </View>
                 )}
               </TouchableOpacity>
