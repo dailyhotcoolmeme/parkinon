@@ -333,7 +333,10 @@ function VideoPlayerModal({ url, onClose }: VideoPlayerModalProps) {
     seekRef.current = (sec: number) => {
       try {
         const wasPlaying = player.playing;
-        player.currentTime = sec;
+        // seekBy(delta)는 ExoPlayer 내부적으로 SEEK_TO_CLOSEST_SYNC 모드를 사용해
+        // 절대 위치 설정(currentTime =)보다 가장 가까운 키프레임으로 빠르게 이동함
+        const delta = sec - player.currentTime;
+        player.seekBy(delta);
         if (wasPlaying) {
           try { player.play(); } catch (_) {}
         }
