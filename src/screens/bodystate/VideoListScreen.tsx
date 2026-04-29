@@ -463,26 +463,37 @@ function VideoPlayerModal({ url, onClose }: VideoPlayerModalProps) {
           </View>
         )}
 
-        {/* 전체 화면 탭 감지 레이어 + 재생/정지 오버레이 */}
+        {/* 배경 탭 영역 - controls 토글만 담당 */}
         <TouchableOpacity
           style={playerStyles.playOverlay}
           onPress={() => {
             if (showControls) {
-              handleTogglePlay();
+              setShowControls(false);
+              if (hideTimerRef.current) clearTimeout(hideTimerRef.current);
             } else {
               triggerShowControls();
             }
           }}
           activeOpacity={1}
-        >
-          {showControls && (
+        />
+
+        {/* 가운데 재생/일시정지 버튼 - 재생 토글만 담당 */}
+        {showControls && (
+          <TouchableOpacity
+            style={playerStyles.centerPlayBtn}
+            onPress={() => {
+              handleTogglePlay();
+              triggerShowControls();
+            }}
+            activeOpacity={0.8}
+          >
             <Ionicons
               name={isPlaying ? 'pause-circle' : 'play-circle'}
               size={64}
               color="rgba(255,255,255,0.85)"
             />
-          )}
-        </TouchableOpacity>
+          </TouchableOpacity>
+        )}
 
         {/* 타임라인 슬라이더 */}
         {showControls && (
@@ -579,6 +590,12 @@ const playerStyles = StyleSheet.create({
     shadowOpacity: 0.3,
     shadowRadius: 3,
     elevation: 4,
+  },
+  centerPlayBtn: {
+    position: 'absolute',
+    zIndex: 6,
+    alignItems: 'center',
+    justifyContent: 'center',
   },
   closeBtn: {
     position: 'absolute',
