@@ -785,6 +785,29 @@ export function MedicationRegisterScreen() {
         return;
       }
 
+      // 보호자가 초대코드로 그룹에 참여한 경우 patient_group_members INSERT (나중에 등록하기 경로)
+      // FamilyInviteScreen을 거치지 않으므로 여기서 직접 처리
+      if (joinGroupIdVal) {
+        try {
+          const memberInsertRes = await fetch(`${SUPABASE_URL}/rest/v1/patient_group_members`, {
+            method: 'POST',
+            headers: { ...baseHeaders, 'Prefer': 'resolution=merge-duplicates,return=minimal' },
+            body: JSON.stringify({ group_id: joinGroupIdVal, user_id: userId, role: roleVal ?? 'caregiver' }),
+          });
+          if (!memberInsertRes.ok) {
+            const errText = await memberInsertRes.text();
+            console.warn('[MedicationRegisterScreen] patient_group_members INSERT 실패 (계속 진행):', errText);
+          }
+          await fetch(`${SUPABASE_URL}/rest/v1/users?id=eq.${userId}`, {
+            method: 'PATCH',
+            headers: { ...baseHeaders, 'Prefer': 'return=minimal' },
+            body: JSON.stringify({ patient_group_id: joinGroupIdVal }),
+          });
+        } catch (memberErr) {
+          console.warn('[MedicationRegisterScreen] patient_group_members 처리 예외 (계속 진행):', memberErr);
+        }
+      }
+
       // 환자인 경우 patient_groups가 없으면 생성 (나중에 등록하기 경로)
 
       if (roleVal === 'patient' && !joinGroupIdVal && inviteCodeVal) {
