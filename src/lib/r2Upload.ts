@@ -42,9 +42,15 @@ export interface UploadResult {
 /**
  * Presigned URL 방식으로 R2에 파일 직접 업로드
  * - Edge Function에서 presigned PUT URL 발급
- * - 순수 fetch로 로컬 파일을 blob으로 읽어 R2에 직접 PUT
+ * - XMLHttpRequest로 R2에 직접 PUT (upload progress 추적 가능)
  */
-async function uploadToR2(localUri: string, mimeType: string, key: string, timeoutMs?: number): Promise<string> {
+async function uploadToR2(
+  localUri: string,
+  mimeType: string,
+  key: string,
+  timeoutMs?: number,
+  onProgress?: (percent: number) => void,
+): Promise<string> {
   const SUPABASE_URL = process.env.EXPO_PUBLIC_SUPABASE_URL!;
   const ANON_KEY = process.env.EXPO_PUBLIC_SUPABASE_ANON_KEY!;
 
@@ -65,26 +71,57 @@ async function uploadToR2(localUri: string, mimeType: string, key: string, timeo
 
   const { presignedUrl, publicUrl } = await res.json();
 
-  // R2에 직접 PUT (legacy API 사용)
-  const uploadPromise = FileSystem.uploadAsync(presignedUrl, localUri, {
-    httpMethod: 'PUT',
-    uploadType: FileSystem.FileSystemUploadType.BINARY_CONTENT,
-    headers: { 'Content-Type': mimeType },
-  });
-
-  const result = timeoutMs
-    ? await Promise.race([
-        uploadPromise,
-        new Promise<never>((_, reject) =>
-          setTimeout(() => reject(new Error('UPLOAD_TIMEOUT')), timeoutMs)
-        ),
-      ])
-    : await uploadPromise;
-
-  const uploadResult = result as Awaited<typeof uploadPromise>;
-  if (uploadResult.status < 200 || uploadResult.status >= 300) {
-    throw new Error(`R2 업로드 실패: HTTP ${uploadResult.status} - ${uploadResult.body}`);
+  // R2에 직접 PUT — XMLHttpRequest로 upload progress 추적
+  const fileInfo = await FileSystem.getInfoAsync(localUri);
+  if (!fileInfo.exists) {
+    throw new Error('파일을 찾을 수 없어요.');
   }
+
+  await new Promise<void>((resolve, reject) => {
+    let timeoutId: ReturnType<typeof setTimeout> | null = null;
+
+    const xhr = new XMLHttpRequest();
+    xhr.open('PUT', presignedUrl);
+    xhr.setRequestHeader('Content-Type', mimeType);
+
+    xhr.upload.onprogress = (event) => {
+      if (event.lengthComputable && onProgress) {
+        const percent = Math.round((event.loaded / event.total) * 100);
+        onProgress(percent);
+      }
+    };
+
+    xhr.onload = () => {
+      if (timeoutId) clearTimeout(timeoutId);
+      if (xhr.status >= 200 && xhr.status < 300) {
+        resolve();
+      } else {
+        reject(new Error(`R2 업로드 실패: HTTP ${xhr.status} - ${xhr.responseText}`));
+      }
+    };
+
+    xhr.onerror = () => {
+      if (timeoutId) clearTimeout(timeoutId);
+      reject(new Error('R2 업로드 중 네트워크 오류가 발생했어요.'));
+    };
+
+    xhr.ontimeout = () => {
+      reject(new Error('UPLOAD_TIMEOUT'));
+    };
+
+    if (timeoutMs) {
+      timeoutId = setTimeout(() => {
+        xhr.abort();
+        reject(new Error('UPLOAD_TIMEOUT'));
+      }, timeoutMs);
+    }
+
+    // fetch blob from local URI and send
+    fetch(localUri)
+      .then((r) => r.blob())
+      .then((blob) => xhr.send(blob))
+      .catch(reject);
+  });
 
   return publicUrl;
 }
@@ -108,14 +145,15 @@ export async function uploadVideo(
   localUri: string,
   patientId: string,
   category: string = 'general',
-  timeoutMs?: number
+  timeoutMs?: number,
+  onProgress?: (percent: number) => void,
 ): Promise<UploadResult> {
   const yearMonth = getYearMonth();
   const uuid = generateUuid();
   const key = `parkinon/videos/${patientId}/${yearMonth}/${uuid}.mp4`;
   const expiresAt = calcExpiresAt();
 
-  const url = await uploadToR2(localUri, 'video/mp4', key, timeoutMs);
+  const url = await uploadToR2(localUri, 'video/mp4', key, timeoutMs, onProgress);
 
   return { url, key, expires_at: expiresAt };
 }
