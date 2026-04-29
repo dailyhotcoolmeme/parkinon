@@ -59,13 +59,6 @@ function formatTime(isoString: string): string {
   return `${ampm} ${hour}시 ${m.toString().padStart(2, '0')}분`;
 }
 
-function formatDuration(sec?: number | null): string {
-  if (!sec || sec <= 0) return '';
-  const m = Math.floor(sec / 60);
-  const s = sec % 60;
-  if (m > 0) return `${m}:${s.toString().padStart(2, '0')}`;
-  return `0:${s.toString().padStart(2, '0')}`;
-}
 
 function getSectionKey(isoString: string): string {
   const d = new Date(isoString);
@@ -105,10 +98,13 @@ interface VideoPreviewProps {
   uri: string;
   isPlaying: boolean;
   onPreviewPress: () => void;
+  durationSeconds?: number | null;
 }
 
-function VideoPreview({ uri, isPlaying, onPreviewPress }: VideoPreviewProps) {
-  const [remainingSec, setRemainingSec] = useState<number | null>(null);
+function VideoPreview({ uri, isPlaying, onPreviewPress, durationSeconds }: VideoPreviewProps) {
+  const [remainingSec, setRemainingSec] = useState<number | null>(
+    durationSeconds && durationSeconds > 0 ? durationSeconds : null
+  );
 
   const player = useVideoPlayer({ uri }, p => {
     p.muted = true;
@@ -118,7 +114,7 @@ function VideoPreview({ uri, isPlaying, onPreviewPress }: VideoPreviewProps) {
   useEffect(() => {
     if (!isPlaying) {
       try { player.pause(); } catch (_) {}
-      setRemainingSec(null);
+      // 재생 중단 시 남은 시간 유지 (null로 초기화하지 않음)
       return;
     }
     const timer = setTimeout(() => {
@@ -132,12 +128,9 @@ function VideoPreview({ uri, isPlaying, onPreviewPress }: VideoPreviewProps) {
     return () => clearTimeout(timer);
   }, [isPlaying]);
 
-  // 재생 중일 때 남은 시간 폴링
+  // 재생 중 폴링
   useEffect(() => {
-    if (!isPlaying) {
-      setRemainingSec(null);
-      return;
-    }
+    if (!isPlaying) return;
     const interval = setInterval(() => {
       try {
         const pos = player.currentTime ?? 0;
@@ -148,6 +141,20 @@ function VideoPreview({ uri, isPlaying, onPreviewPress }: VideoPreviewProps) {
       } catch (_) {}
     }, 500);
     return () => clearInterval(interval);
+  }, [isPlaying]);
+
+  // 재생이 처음 시작될 때 player에서 실제 duration 읽어서 초기화
+  useEffect(() => {
+    if (!isPlaying) return;
+    const t = setTimeout(() => {
+      try {
+        const dur = player.duration ?? 0;
+        if (dur > 0 && remainingSec === null) {
+          setRemainingSec(Math.ceil(dur));
+        }
+      } catch (_) {}
+    }, 700);
+    return () => clearTimeout(t);
   }, [isPlaying]);
 
   function formatRemaining(sec: number): string {
@@ -177,8 +184,8 @@ function VideoPreview({ uri, isPlaying, onPreviewPress }: VideoPreviewProps) {
         {!isPlaying && (
           <Ionicons name="play-circle" size={36} color="rgba(255,255,255,0.85)" />
         )}
-        {/* 재생 중일 때 우측 하단에 남은 시간 표시 */}
-        {isPlaying && remainingSec !== null && (
+        {/* 정지/재생 모두 남은 시간(또는 전체 길이) 표시 */}
+        {remainingSec !== null && (
           <View style={thumbStyles.countdownBadge}>
             <Text style={thumbStyles.countdownText}>{formatRemaining(remainingSec)}</Text>
           </View>
@@ -231,8 +238,6 @@ interface VideoCardProps {
 }
 
 function VideoCard({ item, onPress, onDelete, previewingId, onPreviewPress }: VideoCardProps) {
-  const durationText = formatDuration(item.duration_seconds);
-
   return (
     <View style={cardStyles.card}>
       {/* 썸네일: 탭 → 인라인 재생 */}
@@ -241,12 +246,8 @@ function VideoCard({ item, onPress, onDelete, previewingId, onPreviewPress }: Vi
           uri={item.r2_url}
           isPlaying={previewingId === item.id}
           onPreviewPress={() => onPreviewPress(item)}
+          durationSeconds={item.duration_seconds}
         />
-        {durationText !== '' && (
-          <View style={cardStyles.durationBadge}>
-            <Text style={cardStyles.durationText}>{durationText}</Text>
-          </View>
-        )}
       </View>
       {/* 텍스트 영역: 탭 → 전체화면 재생 */}
       <TouchableOpacity
@@ -285,16 +286,6 @@ const cardStyles = StyleSheet.create({
     elevation: 2,
   },
   thumb: { position: 'relative', flexShrink: 0 },
-  durationBadge: {
-    position: 'absolute',
-    bottom: 5,
-    right: 5,
-    backgroundColor: 'rgba(0,0,0,0.65)',
-    borderRadius: 4,
-    paddingHorizontal: 5,
-    paddingVertical: 2,
-  },
-  durationText: { color: Colors.white, fontSize: 12, fontWeight: '600' },
   info: { flex: 1, gap: 4, justifyContent: 'center' },
   dateText: { fontSize: 20, fontWeight: '700', color: Colors.text },
   timeText: { fontSize: 18, color: Colors.textSub, fontWeight: '500' },
