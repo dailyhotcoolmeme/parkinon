@@ -271,28 +271,28 @@ export function BodyStateScreen() {
 
   // medNotifs 기반 동적 라벨 생성
   const getTriggerLabel = (label: string): string => {
-    // 기본 라벨 체크
+    if (!label) return '';
     if (DEFAULT_TRIGGER_LABEL[label]) return DEFAULT_TRIGGER_LABEL[label];
-
-    // medNotifs 기반 동적 라벨 생성
-    // label 형식: "30min_after", "2hour_after" 등
     if (label === 'after_medication') return '복용 직후';
 
-    // medNotifs에서 해당 minutes 찾기
+    // "120min_after" 형식 — medNotifs 유무와 무관하게 변환
     const match = label.match(/^(\d+)min_after$/);
     if (match) {
       const minutes = parseInt(match[1], 10);
-      const notif = medNotifs.find(n => n.minutes === minutes);
-      if (notif) {
-        if (minutes < 60) return `복용 ${minutes}분 후`;
-        const hours = Math.floor(minutes / 60);
-        const remainMin = minutes % 60;
-        return remainMin === 0 ? `복용 ${hours}시간 후` : `복용 ${hours}시간 ${remainMin}분 후`;
-      }
+      if (minutes === 0) return '복용 직후';
+      if (minutes < 60) return `복용 ${minutes}분 후`;
+      const hours = Math.floor(minutes / 60);
+      const rem = minutes % 60;
+      return rem === 0 ? `복용 ${hours}시간 후` : `복용 ${hours}시간 ${rem}분 후`;
     }
 
-    // 폴백
-    return label;
+    // "2hour_after" 형식 폴백
+    const hourMatch = label.match(/^(\d+)hour_after$/);
+    if (hourMatch) {
+      return `복용 ${hourMatch[1]}시간 후`;
+    }
+
+    return '';
   };
 
   // 같은 시간대 배지가 오늘 이미 있으면 확인 후 팝업 오픈
