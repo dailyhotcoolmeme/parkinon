@@ -353,10 +353,16 @@ function VideoPlayerModal({ url, onClose }: VideoPlayerModalProps) {
           const pos = (player.currentTime ?? 0) * 1000;
           const dur = (player.duration ?? 0) * 1000;
           if (!isSeekingRef.current) {
-            setPositionMs(pos);
-            setDurationMs(dur);
-            positionRef.current = pos;
-            durationRef.current = dur;
+            // seek 직후 플레이어가 아직 이전 위치를 반환하는 경우 보정
+            const expectedMs = positionRef.current;
+            const diff = Math.abs(pos - expectedMs);
+            // 500ms 이상 차이나면 seek 중이므로 무시 (플레이어가 seek 완료 전)
+            if (diff < 500 || pos > expectedMs) {
+              setPositionMs(pos);
+              setDurationMs(dur);
+              positionRef.current = pos;
+              durationRef.current = dur;
+            }
           }
           const playing = player.playing ?? false;
           if (playing !== prevPlaying) {
@@ -424,8 +430,11 @@ function VideoPlayerModal({ url, onClose }: VideoPlayerModalProps) {
             player.currentTime = targetSec;
           } catch (_) {}
         }
-        isSeekingRef.current = false;
-        setIsSeeking(false);
+        // seek 완료 대기 후 폴링 재개 (race condition 방지)
+        setTimeout(() => {
+          isSeekingRef.current = false;
+          setIsSeeking(false);
+        }, 500);
       },
       onPanResponderTerminate: () => {
         isSeekingRef.current = false;
