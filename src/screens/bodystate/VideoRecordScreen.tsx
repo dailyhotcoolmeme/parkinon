@@ -22,6 +22,7 @@ import { useAuth } from '../../context/AuthContext';
 import { useBodyState } from '../../hooks/useBodyState';
 import { useNotificationBadge } from '../../context/NotificationBadgeContext';
 import { uploadVideo, saveMediaLog } from '../../lib/r2Upload';
+import { Video as VideoCompressor } from 'react-native-compressor';
 
 const { height: SCREEN_HEIGHT } = Dimensions.get('window');
 
@@ -160,18 +161,36 @@ export function VideoRecordScreen() {
     cancelledRef.current = false;
     setLoading(true);
     setUploadStage('compressing');
-    const uploadTimer = setTimeout(() => {
-      if (!cancelledRef.current) setUploadStage('uploading');
-    }, 3000);
     try {
       const patientId = await getPatientId();
       if (!patientId) {
         Alert.alert('오류', '연동된 환자 정보를 찾을 수 없어요.');
+        setUploadStage(null);
+        setLoading(false);
         return;
       }
 
-      const result = await uploadVideo(selectedVideo.uri, patientId, 'body_state', UPLOAD_TIMEOUT_MS);
-      clearTimeout(uploadTimer);
+      // 영상 압축 (720p H.264, ~1500kbps)
+      let videoUri = selectedVideo.uri;
+      try {
+        const compressed = await VideoCompressor.compress(
+          selectedVideo.uri,
+          {
+            compressionMethod: 'manual',
+            maxSize: 1280,
+            bitrate: 1500000,
+          },
+        );
+        videoUri = compressed;
+      } catch (compressErr) {
+        // 압축 실패 시 원본으로 fallback
+        console.warn('영상 압축 실패, 원본 사용:', compressErr);
+      }
+
+      if (cancelledRef.current) return;
+      setUploadStage('uploading');
+
+      const result = await uploadVideo(videoUri, patientId, 'body_state', UPLOAD_TIMEOUT_MS);
       if (cancelledRef.current) return;
 
       setUploadStage('saving');
@@ -189,7 +208,6 @@ export function VideoRecordScreen() {
         }
       }, 1500);
     } catch (e: any) {
-      clearTimeout(uploadTimer);
       if (cancelledRef.current) return;
       setUploadStage(null);
       if (e?.message === 'UPLOAD_TIMEOUT') {

@@ -3,7 +3,7 @@
     "name": "파킨온",
     "slug": "parkinon",
     "scheme": "parkinon",
-    "version": "1.0.0",
+    "version": "1.0.1",
     "orientation": "portrait",
     "icon": "./assets/icon.png",
     "userInterfaceStyle": "light",
@@ -20,7 +20,7 @@
     "android": {
       "googleServicesFile": "./google-services.json",
       "package": "com.ourmine.parkinon",
-      "versionCode": 1,
+      "versionCode": 2,
       "adaptiveIcon": {
         "foregroundImage": "./assets/adaptive-icon.png",
         "backgroundColor": "#4CAF50"
