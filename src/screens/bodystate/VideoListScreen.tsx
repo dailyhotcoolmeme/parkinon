@@ -135,7 +135,7 @@ function VideoPreview({ uri, isPlaying, onPreviewPress, durationSeconds }: Video
         const pos = player.currentTime ?? 0;
         const dur = player.duration ?? 0;
         if (dur > 0) {
-          setRemainingSec(Math.max(0, Math.ceil(dur - pos)));
+          setRemainingSec(Math.max(0, Math.round(dur - pos)));
         }
       } catch (_) {}
     }, 500);
