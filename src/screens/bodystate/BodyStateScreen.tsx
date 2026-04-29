@@ -132,6 +132,8 @@ export function BodyStateScreen() {
   const [preRecordMessage, setPreRecordMessage] = useState('');
   const [showNextNotifModal, setShowNextNotifModal] = useState(false);
   const [nextNotifInfo, setNextNotifInfo] = useState<NextNotifInfo | null>(null);
+  const [pendingMealTime, setPendingMealTime] = useState<string | null>(null);
+  const [hasBedtimeMedication, setHasBedtimeMedication] = useState(false);
   const navigation = useNavigation<any>();
   const route = useRoute<any>();
   const insets = useSafeAreaInsets();
@@ -229,6 +231,7 @@ export function BodyStateScreen() {
     if (user.role === 'patient') {
       setPatientName(user.name);
       setPatientId(user.id);
+      checkBedtimeMedication(user.id);
       return;
     }
     if (!user.patient_group_id) return;
@@ -241,9 +244,20 @@ export function BodyStateScreen() {
       .then(({ data }) => {
         const name = (data?.users as any)?.name;
         if (name) setPatientName(name);
-        if ((data as any)?.user_id) setPatientId((data as any).user_id);
+        const pid = (data as any)?.user_id;
+        if (pid) { setPatientId(pid); checkBedtimeMedication(pid); }
       });
   }, [user]);
+
+  const checkBedtimeMedication = async (pid: string) => {
+    const { data } = await supabase
+      .from('medications')
+      .select('id')
+      .eq('patient_id', pid)
+      .eq('meal_time', 'bedtime')
+      .limit(1);
+    setHasBedtimeMedication(!!(data && data.length > 0));
+  };
 
   // 표시할 로그: 오늘이면 todayLogs, 다른 날이면 dateLogs
   const activeLogs = isToday ? todayLogs : dateLogs;
@@ -254,6 +268,7 @@ export function BodyStateScreen() {
   // 같은 시간대 배지가 오늘 이미 있으면 확인 후 팝업 오픈
   // mealTimeKey: 실제 med_logs.meal_time ('morning'|'lunch'|'dinner'|'bedtime')
   const openFlowWithDuplicateCheck = (labelKey: string, medTime: Date | null, mealTimeKey: string | null) => {
+    setPendingMealTime(mealTimeKey);
     // mealTimeKey가 있는 경우 — label + meal_time 모두 일치할 때만 중복으로 처리
     // (예: 점심약 복용 직후 기록이 있어도 저녁약 복용 직후 기록은 허용)
     const hasDuplicate = activeLogs.some((log: any) => {
@@ -578,7 +593,10 @@ export function BodyStateScreen() {
         onSave={handleSaveRecord}
         onGoExercise={() => navigateTo('Exercise')}
         showSleep={todayLogs.length === 0}
-        showConstipation={false}
+        showConstipation={
+          pendingMealTime === 'bedtime' ||
+          (pendingMealTime === 'dinner' && !hasBedtimeMedication)
+        }
       />
       <DatePickerModal
         visible={showDatePicker}
