@@ -496,7 +496,7 @@ function UploadOverlay({
             /* 완료 상태 */
             <>
               <View style={ovStyles.checkCircle}>
-                <Text style={ovStyles.checkMark}>✓</Text>
+                <Ionicons name="checkmark-circle" size={80} color="#4CAF50" />
               </View>
               <Text style={ovStyles.stageTitleLarge}>저장 완료!</Text>
             </>
@@ -587,18 +587,9 @@ const ovStyles = StyleSheet.create({
 
   // 완료 체크마크
   checkCircle: {
-    width: 80,
-    height: 80,
-    borderRadius: 40,
-    backgroundColor: '#4CAF50',
     alignItems: 'center',
     justifyContent: 'center',
-  },
-  checkMark: {
-    fontSize: 44,
-    color: '#fff',
-    fontWeight: '700',
-    lineHeight: 52,
+    marginBottom: 4,
   },
   stageTitleLarge: {
     fontSize: 24,
