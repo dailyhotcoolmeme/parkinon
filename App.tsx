@@ -79,16 +79,14 @@ function AppInner() {
     const data = (content.data ?? {}) as Record<string, any>;
     const type = data?.type as string | undefined;
 
+    // 탭한 알림 읽음 처리 → 완료 후 배지 갱신
     saveNotification(
       type ?? '',
       content.title ?? '',
       content.body ?? '',
       data,
       new Date().toISOString(),
-    );
-
-    // 알림 탭 진입 시 배지를 DB 실제 미읽음 수로 동기화
-    refreshBadge();
+    ).then(() => refreshBadge());
 
     // navigation이 준비될 때까지 폴링 후 이동 (앱 콜드 스타트 시 nav 초기화 지연 대응)
     const tryNavigate = (retryCount = 0) => {
@@ -107,7 +105,10 @@ function AppInner() {
       } else if (type === 'effect_tracking') {
         navigateTo('Main', {
           screen: 'BodyStateTab',
-          params: { triggerMinutes: data?.minutes ?? null, triggerMealTime: data?.meal_time ?? null },
+          params: {
+            screen: 'BodyState',
+            params: { triggerMinutes: data?.minutes ?? null, triggerMealTime: data?.meal_time ?? null },
+          },
         });
       } else if (type === 'exercise_reminder') {
         navigateTo('Main', { screen: 'Exercise', params: { screen: 'ExerciseRecord' } });
@@ -143,17 +144,14 @@ function AppInner() {
       const data = (content.data ?? {}) as Record<string, any>;
       const type = data?.type;
 
-      // 탭한 알림 저장 (read_at = 현재 시각: 탭하는 순간 읽음 처리)
+      // 탭한 알림 저장 (read_at = 현재 시각: 탭하는 순간 읽음 처리) → 완료 후 배지 갱신
       saveNotification(
         type ?? '',
         content.title ?? '',
         content.body ?? '',
         data,
         new Date().toISOString(),
-      );
-
-      // 알림 탭 진입 시 배지를 DB 실제 미읽음 수로 동기화
-      refreshBadge();
+      ).then(() => refreshBadge());
 
       if (type === 'medication_reminder' || type === 'missed_medication') {
         navigateTo('Main', {
@@ -163,7 +161,10 @@ function AppInner() {
       } else if (type === 'effect_tracking') {
         navigateTo('Main', {
           screen: 'BodyStateTab',
-          params: { triggerMinutes: data?.minutes ?? null, triggerMealTime: data?.meal_time ?? null },
+          params: {
+            screen: 'BodyState',
+            params: { triggerMinutes: data?.minutes ?? null, triggerMealTime: data?.meal_time ?? null },
+          },
         });
       } else if (type === 'exercise_reminder') {
         navigateTo('Main', { screen: 'Exercise', params: { screen: 'ExerciseRecord' } });
