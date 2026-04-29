@@ -20,6 +20,7 @@ import { CaregiverConfirmModal } from '../../components/common/CaregiverConfirmM
 import { DatePickerModal } from '../../components/common/DatePickerModal';
 import { useAuth } from '../../context/AuthContext';
 import { useBodyState } from '../../hooks/useBodyState';
+import { triggerLabelToText, mealTimeToKorean, mealTimeToPeriod } from '../../utils/medUtils';
 import { navigateTo } from '../../navigation/navigationRef';
 import { supabase } from '../../lib/supabase';
 import { useNotificationBadge } from '../../context/NotificationBadgeContext';
@@ -74,30 +75,7 @@ function labelToMinutes(label: string): number | null {
   return null;
 }
 
-function labelToDeltaText(label: string): string {
-  if (label === 'after_medication') return '직후';
-  const match = label.match(/^(\d+)min_after$/);
-  if (match) {
-    const min = parseInt(match[1], 10);
-    if (min < 60) return `+${min}분`;
-    const h = Math.floor(min / 60);
-    const rem = min % 60;
-    return rem === 0 ? `+${h}시간` : `+${h}시간 ${rem}분`;
-  }
-  return label;
-}
 
-// 식사 구분 → 한국어 (실제 med_logs meal_time 기반)
-const MEAL_KO: Record<string, string> = {
-  morning: '아침', lunch: '점심', dinner: '저녁', bedtime: '취침',
-};
-
-// 기본 라벨 (동적 생성 실패 시 폴백용)
-const DEFAULT_TRIGGER_LABEL: Record<string, string> = {
-  after_medication: '복용 직후',
-  '30min_after': '복용 30분 후',
-  '2hour_after': '복용 2시간 후',
-};
 
 const PERIOD_COLOR: Record<string, string> = {
   '아침': '#FF8A65',
@@ -270,31 +248,8 @@ export function BodyStateScreen() {
   // 표시할 로그: 오늘이면 todayLogs, 다른 날이면 dateLogs
   const activeLogs = isToday ? todayLogs : dateLogs;
 
-  // medNotifs 기반 동적 라벨 생성
-  const getTriggerLabel = (label: string): string => {
-    if (!label) return '';
-    if (DEFAULT_TRIGGER_LABEL[label]) return DEFAULT_TRIGGER_LABEL[label];
-    if (label === 'after_medication') return '복용 직후';
-
-    // "120min_after" 형식 — medNotifs 유무와 무관하게 변환
-    const match = label.match(/^(\d+)min_after$/);
-    if (match) {
-      const minutes = parseInt(match[1], 10);
-      if (minutes === 0) return '복용 직후';
-      if (minutes < 60) return `복용 ${minutes}분 후`;
-      const hours = Math.floor(minutes / 60);
-      const rem = minutes % 60;
-      return rem === 0 ? `복용 ${hours}시간 후` : `복용 ${hours}시간 ${rem}분 후`;
-    }
-
-    // "2hour_after" 형식 폴백
-    const hourMatch = label.match(/^(\d+)hour_after$/);
-    if (hourMatch) {
-      return `복용 ${hourMatch[1]}시간 후`;
-    }
-
-    return '';
-  };
+  // trigger_time_label → 표시 텍스트 (공용 유틸 위임)
+  const getTriggerLabel = (label: string): string => triggerLabelToText(label);
 
   // 같은 시간대 배지가 오늘 이미 있으면 확인 후 팝업 오픈
   // mealTimeKey: 실제 med_logs.meal_time ('morning'|'lunch'|'dinner'|'bedtime')
@@ -309,7 +264,7 @@ export function BodyStateScreen() {
     });
     if (hasDuplicate) {
       const labelDisplay = getTriggerLabel(labelKey);
-      const periodKo = mealTimeKey ? MEAL_KO[mealTimeKey] : (medTime ? getPeriod(medTime.toISOString()) : null);
+      const periodKo = mealTimeKey ? mealTimeToPeriod(mealTimeKey) : (medTime ? getPeriod(medTime.toISOString()) : null);
       const periodText = periodKo ? `${periodKo}약 복용 ` : '';
       Alert.alert(
         '중복 기록 확인',
@@ -371,7 +326,7 @@ export function BodyStateScreen() {
         openFlowWithDuplicateCheck(closest.labelKey, medTime, storedMealTime ?? null);
       } else {
         // 20분 초과 → 기록 불가 안내
-        const periodKo = storedMealTime ? (MEAL_KO[storedMealTime] ?? getPeriod(medTime.toISOString())) : getPeriod(medTime.toISOString());
+        const periodKo = storedMealTime ? (mealTimeToPeriod(storedMealTime) || getPeriod(medTime.toISOString())) : getPeriod(medTime.toISOString());
         const period = periodKo;
         const elapsedRound = Math.round(elapsedMin);
         let elapsedText: string;
@@ -411,7 +366,7 @@ export function BodyStateScreen() {
 
   // DB 로그 → BodyRecord 변환
   const records: BodyRecord[] = activeLogs.map((log: any) => {
-    const mealTimeKo = log.medication_meal_time ? MEAL_KO[log.medication_meal_time] : null;
+    const mealTimeKo = log.medication_meal_time ? mealTimeToPeriod(log.medication_meal_time) : null;
     return {
       id: log.id,
       time: formatTime(log.logged_at),
@@ -491,10 +446,10 @@ export function BodyStateScreen() {
               const raw = await AsyncStorage.getItem('parkinon_last_medication');
               if (raw) {
                 const { meal_time } = JSON.parse(raw);
-                if (meal_time && MEAL_KO[meal_time]) periodKo = MEAL_KO[meal_time];
+                if (meal_time) { const p = mealTimeToPeriod(meal_time); if (p) periodKo = p; }
               }
             } catch {}
-            const delta = labelToDeltaText(savedLabel!);
+            const delta = triggerLabelToText(savedLabel!);
             setPreRecordMessage(
               `${periodKo}약 복용 ${delta} 후 몸상태 기록을 미리 남기셨어요.\n\n사전에 설정된 알림은 보내지 않을게요.`
             );
@@ -1032,12 +987,6 @@ function formatTimeHHMM_BS(date: Date): string {
   return `${ampm} ${hour}:${m.toString().padStart(2, '0')}`;
 }
 
-const MEAL_TIME_KO_BS: Record<string, string> = {
-  morning: '아침약',
-  lunch: '점심약',
-  dinner: '저녁약',
-  bedtime: '취침약',
-};
 
 async function fetchNextNotifMessage(patientId: string): Promise<NextNotifInfo | null> {
   try {
@@ -1059,7 +1008,7 @@ async function fetchNextNotifMessage(patientId: string): Promise<NextNotifInfo |
       const sendAt = new Date(row.send_at);
       const minutesLeft = Math.round((sendAt.getTime() - now.getTime()) / 60000);
       const intervalMin: number = row.interval_minutes ?? 0;
-      const mealKo = row.meal_time ? (MEAL_TIME_KO_BS[row.meal_time] ?? '') : '';
+      const mealKo = mealTimeToKorean(row.meal_time);
 
       let intervalLabel: string;
       if (intervalMin === 0) intervalLabel = '복용 직후';

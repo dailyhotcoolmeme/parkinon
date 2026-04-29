@@ -13,7 +13,7 @@ import {
 import { supabase } from '../../lib/supabase';
 import { useAuth } from '../../context/AuthContext';
 import { Colors } from '../../constants/colors';
-import { getKSTDayRange } from '../../utils/medUtils';
+import { getKSTDayRange, triggerLabelToTag, mealTimeToPeriod } from '../../utils/medUtils';
 
 type TimelineType = 'medication' | 'bodystate' | 'exercise';
 
@@ -38,22 +38,6 @@ function getPeriodKo(isoString: string): string {
   return '취침';
 }
 
-function triggerToTag(label: string): string {
-  if (label === 'after_medication') return '+즉시';
-  const minMatch = label.match(/^(\d+)min_after$/);
-  if (minMatch) {
-    const min = parseInt(minMatch[1], 10);
-    if (min < 60) return `+${min}분`;
-    const h = Math.floor(min / 60);
-    const rem = min % 60;
-    return rem === 0 ? `+${h}시간` : `+${h}시간 ${rem}분`;
-  }
-  const hourMatch = label.match(/^(\d+)hour_after$/);
-  if (hourMatch) {
-    return `+${hourMatch[1]}시간`;
-  }
-  return '';
-}
 
 interface DayData {
   dateStr: string;
@@ -95,12 +79,6 @@ function buildDateRange(todayStr: string, earliestStr: string, limit: number): s
   return result;
 }
 
-const MEAL_TIME_KO: Record<string, string> = {
-  morning: '아침',
-  lunch: '점심',
-  dinner: '저녁',
-  bedtime: '취침',
-};
 
 const PAGE_SIZE = 14;
 
@@ -161,7 +139,7 @@ export function HistoryTimeline({ type, patientId, refreshKey }: HistoryTimeline
           if (!newMap[kstDate]) newMap[kstDate] = [];
           newMap[kstDate].push({
             time: toKSTTime(row.taken_at),
-            content: `${MEAL_TIME_KO[row.meal_time] ?? row.meal_time}약 복용`,
+            content: `${mealTimeToPeriod(row.meal_time) || row.meal_time}약 복용`,
           });
         });
       } else if (type === 'bodystate') {
@@ -180,9 +158,9 @@ export function HistoryTimeline({ type, patientId, refreshKey }: HistoryTimeline
           if (row.constipation != null) line2.push(`변비 ${row.constipation}`);
           // medication_meal_time이 있으면 실제 복용 약 기준, 없으면 시간대 추론
           const period = row.medication_meal_time
-            ? (MEAL_TIME_KO[row.medication_meal_time] ?? getPeriodKo(row.logged_at))
+            ? (mealTimeToPeriod(row.medication_meal_time) || getPeriodKo(row.logged_at))
             : getPeriodKo(row.logged_at);
-          const delta = row.trigger_time_label ? triggerToTag(row.trigger_time_label) : '';
+          const delta = row.trigger_time_label ? triggerLabelToTag(row.trigger_time_label) : '';
           const tag = delta ? `(${period}약 ${delta})` : undefined;
           newMap[kstDate].push({
             time: toKSTTime(row.logged_at),

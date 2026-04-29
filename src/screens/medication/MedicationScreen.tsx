@@ -27,6 +27,7 @@ import { navigateTo } from '../../navigation/navigationRef';
 import { supabase } from '../../lib/supabase';
 import { useNotificationBadge } from '../../context/NotificationBadgeContext';
 import { HistoryTimeline } from '../../components/common/HistoryTimeline';
+import { mealTimeToKorean } from '../../utils/medUtils';
 
 const WINDOW_HEIGHT = Dimensions.get('window').height;
 const TOP_BAR_H = 56;
@@ -697,12 +698,6 @@ function formatTimeHHMM(date: Date): string {
   return `${ampm} ${hour}:${m.toString().padStart(2, '0')}`;
 }
 
-const MEAL_TIME_KO: Record<string, string> = {
-  morning: '아침약',
-  lunch: '점심약',
-  dinner: '저녁약',
-  bedtime: '취침약',
-};
 
 async function fetchNextNotifMessage(patientId: string): Promise<NextNotifInfo | null> {
   try {
@@ -724,7 +719,7 @@ async function fetchNextNotifMessage(patientId: string): Promise<NextNotifInfo |
       const sendAt = new Date(row.send_at);
       const minutesLeft = Math.round((sendAt.getTime() - now.getTime()) / 60000);
       const intervalMin: number = row.interval_minutes ?? 0;
-      const mealKo = row.meal_time ? (MEAL_TIME_KO[row.meal_time] ?? '') : '';
+      const mealKo = mealTimeToKorean(row.meal_time);
 
       let intervalLabel: string;
       if (intervalMin === 0) intervalLabel = '복용 직후';

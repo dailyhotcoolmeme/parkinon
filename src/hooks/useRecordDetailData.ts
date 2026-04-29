@@ -12,6 +12,7 @@ import { useState, useEffect, useCallback } from 'react';
 import { supabase } from '../lib/supabase';
 import { useAuth } from '../context/AuthContext';
 import type { Database } from '../types/database';
+import { triggerLabelToText, triggerLabelToMinutes } from '../utils/medUtils';
 
 type Period = '이번 주' | '이번 달' | '최근 3개월';
 type ItemKey = 'medication' | 'bodyState' | 'mood' | 'sleep' | 'constipation' | 'exercise';
@@ -182,31 +183,14 @@ function timeSlotAvg(
 
 // ── 훅 ───────────────────────────────────────────────────────────────────────
 
-// trigger_time_label → 분 수 (정렬용)
+// trigger_time_label → 분 수 (정렬용, 공용 유틸 위임)
 function parseLabelMinutes(label: string): number {
-  if (label === 'after_medication') return 0;
-  const minMatch = label.match(/^(\d+)min_after$/);
-  if (minMatch) return parseInt(minMatch[1], 10);
-  const hourMatch = label.match(/^(\d+)hour_after$/);
-  if (hourMatch) return parseInt(hourMatch[1], 10) * 60;
-  return Infinity;
+  return triggerLabelToMinutes(label);
 }
 
-// trigger_time_label → 표시 문자열 (동적)
+// trigger_time_label → 표시 문자열 (공용 유틸 위임, 하위 호환성 유지)
 export function triggerLabelToDisplay(label: string): string {
-  if (label === 'after_medication') return '복용 직후';
-  const minMatch = label.match(/^(\d+)min_after$/);
-  if (minMatch) {
-    const mins = parseInt(minMatch[1], 10);
-    const h = Math.floor(mins / 60);
-    const m = mins % 60;
-    if (h > 0 && m > 0) return `${h}시간 ${m}분 후`;
-    if (h > 0) return `${h}시간 후`;
-    return `${mins}분 후`;
-  }
-  const hourMatch = label.match(/^(\d+)hour_after$/);
-  if (hourMatch) return `${hourMatch[1]}시간 후`;
-  return label;
+  return triggerLabelToText(label) || label;
 }
 
 const MEAL_ORDER = ['morning', 'lunch', 'dinner', 'bedtime'] as const;

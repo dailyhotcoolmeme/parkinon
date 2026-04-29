@@ -17,6 +17,7 @@ import { MenuStackParamList } from '../../navigation/MenuNavigator';
 import { useRecordsData } from '../../hooks/useRecordsData';
 import { useNotificationBadge } from '../../context/NotificationBadgeContext';
 import { navigateTo } from '../../navigation/navigationRef';
+import { triggerLabelToText } from '../../utils/medUtils';
 
 type NavigationProp = StackNavigationProp<MenuStackParamList, 'Records'>;
 type IoniconName = React.ComponentProps<typeof Ionicons>['name'];
@@ -40,15 +41,9 @@ const ITEMS: { key: ItemKey; icon: IoniconName; label: string; accentColor: stri
   { key: 'exercise', icon: 'fitness-outline', label: '운동', accentColor: '#BF360C' },
 ];
 
-// trigger_time_label → minutesToLabel 역방향 변환 (표시용)
-const TRIGGER_LABEL_TO_DISPLAY: Record<string, string> = {
-  after_medication: '복용 직후',
-  '30min_after': '복용 30분 후',
-  '2hour_after': '복용 2시간 후',
-};
-
+// trigger_time_label → 표시용 텍스트 (공용 유틸 사용)
 function triggerLabelToDisplay(label: string): string {
-  return TRIGGER_LABEL_TO_DISPLAY[label] ?? label;
+  return triggerLabelToText(label) || label;
 }
 
 // Build rows of 2 from flat ITEMS list
