@@ -7,7 +7,7 @@ import type { OnboardingStackParamList } from '../../navigation/OnboardingNaviga
 import { Colors } from '../../constants/colors';
 import { PrimaryButton } from '../../components/common/PrimaryButton';
 
-const { width } = Dimensions.get('window');
+const SCREEN_WIDTH = Dimensions.get('window').width;
 
 const SLIDES = [
   {
@@ -36,8 +36,9 @@ export function OnboardingSlideScreen() {
 
   const handleNext = async () => {
     if (currentIndex < SLIDES.length - 1) {
-      flatListRef.current?.scrollToIndex({ index: currentIndex + 1 });
-      setCurrentIndex(currentIndex + 1);
+      const nextIndex = currentIndex + 1;
+      flatListRef.current?.scrollToIndex({ index: nextIndex, animated: true });
+      setTimeout(() => setCurrentIndex(nextIndex), 350);
     } else {
       await AsyncStorage.setItem('onboarding_slides_seen', '1');
       navigation.replace('Login');
@@ -63,6 +64,11 @@ export function OnboardingSlideScreen() {
         showsHorizontalScrollIndicator={false}
         scrollEnabled={false}
         keyExtractor={(_, i) => String(i)}
+        getItemLayout={(_, index) => ({
+          length: SCREEN_WIDTH,
+          offset: SCREEN_WIDTH * index,
+          index,
+        })}
         renderItem={({ item }) => (
           <View style={styles.slide}>
             <Text style={styles.icon}>{item.icon}</Text>
@@ -94,7 +100,7 @@ const styles = StyleSheet.create({
   skipBtn: { position: 'absolute', top: 56, right: 24, zIndex: 10, padding: 8 },
   skipText: { fontSize: 16, color: '#FFFFFF' },
   slide: {
-    width,
+    width: SCREEN_WIDTH,
     flex: 1,
     alignItems: 'center',
     justifyContent: 'center',
