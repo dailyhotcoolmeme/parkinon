@@ -152,7 +152,7 @@ export function HistoryTimeline({ type, patientId, refreshKey }: HistoryTimeline
           if (!newMap[kstDate]) newMap[kstDate] = [];
           const line1: string[] = [];
           if (row.body_state != null) line1.push(`몸상태 ${row.body_state}점`);
-          if (row.mood != null) line1.push(`기분 ${row.mood}점`);
+          if (row.mood != null) line1.push(`기분상태 ${row.mood}점`);
           const line2: string[] = [];
           if (row.sleep_quality != null) line2.push(`수면 ${row.sleep_quality}점`);
           if (row.constipation != null) line2.push(`변비 ${row.constipation}`);
@@ -164,8 +164,8 @@ export function HistoryTimeline({ type, patientId, refreshKey }: HistoryTimeline
           const tag = delta ? `(${period}약 ${delta})` : undefined;
           newMap[kstDate].push({
             time: toKSTTime(row.logged_at),
-            content: line1.join('  ') || '기록',
-            content2: line2.length > 0 ? line2.join('  ') : undefined,
+            content: line1.join(' | ') || '기록',
+            content2: line2.length > 0 ? line2.join(' | ') : undefined,
             tag,
           });
         });
