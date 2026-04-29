@@ -308,6 +308,7 @@ function VideoPlayerModal({ url, onClose }: VideoPlayerModalProps) {
   const [isPlaying, setIsPlaying] = useState(false);
   const [isSeeking, setIsSeeking] = useState(false);
   const [seekRatio, setSeekRatio] = useState(0);
+  const [buffering, setBuffering] = useState(false);
   const [showControls, setShowControls] = useState(true);
   const sliderWidthRef = useRef(0);
   const sliderXRef = useRef(0);
@@ -334,9 +335,7 @@ function VideoPlayerModal({ url, onClose }: VideoPlayerModalProps) {
         const wasPlaying = player.playing;
         player.currentTime = sec;
         if (wasPlaying) {
-          setTimeout(() => {
-            try { player.play(); } catch (_) {}
-          }, 150);
+          try { player.play(); } catch (_) {}
         }
       } catch (e) {
         console.error('[Seek]', e);
@@ -426,6 +425,7 @@ function VideoPlayerModal({ url, onClose }: VideoPlayerModalProps) {
       onPanResponderGrant: (evt) => {
         isSeekingRef.current = true;
         setIsSeeking(true);
+        setBuffering(true);
         const x = evt.nativeEvent.pageX - sliderXRef.current;
         const w = sliderWidthRef.current;
         if (w > 0) setSeekRatio(Math.min(Math.max(x / w, 0), 1));
@@ -445,7 +445,9 @@ function VideoPlayerModal({ url, onClose }: VideoPlayerModalProps) {
           const targetMs = targetSec * 1000;
           setPositionMs(targetMs);
           positionRef.current = targetMs;
+          setBuffering(true);
           seekRef.current(targetSec);
+          setTimeout(() => setBuffering(false), 1500);
         }
         // seek 완료 대기 후 폴링 재개 (race condition 방지)
         setTimeout(() => {
@@ -488,6 +490,14 @@ function VideoPlayerModal({ url, onClose }: VideoPlayerModalProps) {
           <View style={playerStyles.loadingOverlay}>
             <ActivityIndicator size="large" color={Colors.white} />
             <Text style={playerStyles.loadingText}>영상 불러오는 중...</Text>
+          </View>
+        )}
+
+        {/* seek 버퍼링 오버레이 */}
+        {buffering && durationMs > 0 && (
+          <View style={playerStyles.loadingOverlay}>
+            <ActivityIndicator size="large" color={Colors.white} />
+            <Text style={playerStyles.loadingText}>이동 중...</Text>
           </View>
         )}
 
