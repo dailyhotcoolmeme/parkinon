@@ -58,7 +58,12 @@ export interface UseAuthReturn {
 WebBrowser.maybeCompleteAuthSession();
 
 // ─── Auth 딥링크 처리 유틸 ──────────────────────────────────────────────────
-async function processAuthUrl(url: string): Promise<void> {
+// onAuthStateChangeFallback: exchangeCodeForSession 후 onAuthStateChange가 발동하지
+// 않을 경우를 대비해 loadUserProfile을 직접 호출할 수 있도록 콜백으로 전달
+async function processAuthUrl(
+  url: string,
+  onAuthStateChangeFallback?: (userId: string, userMeta?: Record<string, any>, accessToken?: string) => Promise<void>,
+): Promise<void> {
   console.log('[useAuth] Auth URL 처리 시작:', url.substring(0, 80));
 
   // fragment 방식 (access_token + refresh_token)
@@ -81,10 +86,26 @@ async function processAuthUrl(url: string): Promise<void> {
     console.log('[useAuth] PKCE code 있음:', !!code);
 
     if (code) {
-      const { error } = await supabase.auth.exchangeCodeForSession(code);
+      const { data, error } = await supabase.auth.exchangeCodeForSession(code);
       if (error) {
         console.error('[useAuth] exchangeCodeForSession 오류:', error.message, error.status);
         Alert.alert('로그인 실패', '카카오 로그인 처리 중 오류가 발생했습니다. 다시 시도해주세요.');
+        return;
+      }
+      // onAuthStateChange가 발동하지 않을 경우를 대비해 세션 직접 확인
+      if (data?.session?.user) {
+        console.log('[useAuth] exchangeCodeForSession 성공, onAuthStateChange 대기 중:', data.session.user.id);
+        // 300ms 대기 후 onAuthStateChange 발동 여부 확인
+        await new Promise(resolve => setTimeout(resolve, 300));
+        const { data: { session: currentSession } } = await supabase.auth.getSession();
+        if (currentSession?.user && onAuthStateChangeFallback) {
+          console.log('[useAuth] fallback 직접 처리 → loadUserProfile 호출');
+          await onAuthStateChangeFallback(
+            currentSession.user.id,
+            currentSession.user.user_metadata,
+            currentSession.access_token,
+          );
+        }
       }
     } else {
       console.error('[useAuth] Auth URL에서 토큰/코드 없음. 파라미터:', Object.keys(parsed.queryParams ?? {}));
@@ -277,7 +298,8 @@ export function useAuthProvider(): UseAuthReturn {
     const subscription = Linking.addEventListener('url', ({ url }) => {
       console.log('[useAuth] 글로벌 Linking URL 수신:', url.substring(0, 80));
       if (isAuthUrl(url)) {
-        processAuthUrl(url);
+        // loadUserProfile을 fallback으로 전달 — onAuthStateChange 미발동 시 스피너 무한 방지
+        processAuthUrl(url, loadUserProfile);
       }
     });
 
@@ -286,13 +308,13 @@ export function useAuthProvider(): UseAuthReturn {
       if (url) {
         console.log('[useAuth] getInitialURL:', url.substring(0, 80));
         if (isAuthUrl(url)) {
-          processAuthUrl(url);
+          processAuthUrl(url, loadUserProfile);
         }
       }
     });
 
     return () => subscription.remove();
-  }, []);
+  }, [loadUserProfile]);
 
   // ─── 구글 로그인 (Android 전용) ───────────────────────────────────────────
   // Chrome Custom Tab(openAuthSessionAsync)으로 열기
@@ -320,13 +342,14 @@ export function useAuthProvider(): UseAuthReturn {
 
       if (result.type === 'success' && result.url) {
         // Custom Tab에서 캡처한 URL을 processAuthUrl로 처리
-        await processAuthUrl(result.url);
+        // loadUserProfile을 fallback으로 전달 — onAuthStateChange 미발동 시 스피너 무한 방지
+        await processAuthUrl(result.url, loadUserProfile);
       }
       // result.type === 'cancel'이면 사용자가 취소한 것 → 아무 처리 안 함
     } catch (err) {
       console.error('[useAuth] signInWithGoogle 오류:', err);
     }
-  }, []);
+  }, [loadUserProfile]);
 
   // ─── 카카오 로그인 ────────────────────────────────────────────────────────
   // Linking.openURL로 외부 브라우저(Chrome)에서 열기
