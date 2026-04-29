@@ -231,7 +231,6 @@ export function BodyStateScreen() {
     if (user.role === 'patient') {
       setPatientName(user.name);
       setPatientId(user.id);
-      checkBedtimeMedication(user.id);
       return;
     }
     if (!user.patient_group_id) return;
@@ -245,19 +244,23 @@ export function BodyStateScreen() {
         const name = (data?.users as any)?.name;
         if (name) setPatientName(name);
         const pid = (data as any)?.user_id;
-        if (pid) { setPatientId(pid); checkBedtimeMedication(pid); }
+        if (pid) setPatientId(pid);
       });
   }, [user]);
 
-  const checkBedtimeMedication = async (pid: string) => {
-    const { data } = await supabase
-      .from('medications')
-      .select('id')
-      .eq('patient_id', pid)
-      .eq('meal_time', 'bedtime')
-      .limit(1);
-    setHasBedtimeMedication(!!(data && data.length > 0));
-  };
+  // 탭 포커스될 때마다 취침약 여부 재조회 — 세션 중 약 추가/삭제 즉시 반영
+  useFocusEffect(
+    useCallback(() => {
+      if (!patientId) return;
+      supabase
+        .from('medications')
+        .select('id')
+        .eq('patient_id', patientId)
+        .eq('meal_time', 'bedtime')
+        .limit(1)
+        .then(({ data }) => setHasBedtimeMedication(!!(data && data.length > 0)));
+    }, [patientId])
+  );
 
   // 표시할 로그: 오늘이면 todayLogs, 다른 날이면 dateLogs
   const activeLogs = isToday ? todayLogs : dateLogs;
