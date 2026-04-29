@@ -16,6 +16,7 @@ import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context'
 import { useFocusEffect, useNavigation } from '@react-navigation/native';
 import { Ionicons } from '@expo/vector-icons';
 import { VideoView, useVideoPlayer } from 'expo-video';
+import { navigateTo } from '../../navigation/navigationRef';
 import { Colors } from '../../constants/colors';
 import { TopBar } from '../../components/common/TopBar';
 import { supabase } from '../../lib/supabase';
@@ -811,11 +812,11 @@ export function VideoListScreen() {
           !fabExpanded && styles.fabCircle,
           { bottom: 28 + insets.bottom },
         ]}
-        onPress={() => navigation.navigate('VideoRecord')}
+        onPress={() => navigateTo('VideoRecord')}
         activeOpacity={0.85}
       >
         <Ionicons name="videocam-outline" size={24} color={Colors.white} />
-        {fabExpanded && <Text style={styles.fabText}>영상 기록하기</Text>}
+        {fabExpanded && <Text style={styles.fabText}>기록하기</Text>}
       </TouchableOpacity>
 
       <VideoPlayerModal url={playingUrl} onClose={() => setPlayingUrl(null)} />
