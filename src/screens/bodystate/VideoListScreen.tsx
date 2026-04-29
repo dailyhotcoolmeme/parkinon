@@ -130,26 +130,29 @@ function VideoPreview({ uri, isPlaying, onPreviewPress }: VideoPreviewProps) {
   }, [isPlaying]);
 
   return (
-    <TouchableOpacity activeOpacity={0.85} onPress={onPreviewPress}>
-      <View style={thumbStyles.container}>
-        <VideoView
-          player={player}
-          style={{ width: THUMB_WIDTH, height: THUMB_HEIGHT, borderRadius: 8 }}
-          nativeControls={false}
-          contentFit="cover"
-          allowsFullscreen={false}
-          allowsPictureInPicture={false}
-          surfaceType="textureView"
+    <View style={thumbStyles.container}>
+      <VideoView
+        player={player}
+        style={{ width: THUMB_WIDTH, height: THUMB_HEIGHT, borderRadius: 8 }}
+        nativeControls={false}
+        contentFit="cover"
+        allowsFullscreen={false}
+        allowsPictureInPicture={false}
+        surfaceType="textureView"
+        pointerEvents="none"
+      />
+      <TouchableOpacity
+        style={thumbStyles.overlay}
+        onPress={onPreviewPress}
+        activeOpacity={0.85}
+      >
+        <Ionicons
+          name={isPlaying ? 'pause-circle' : 'play-circle'}
+          size={36}
+          color="rgba(255,255,255,0.85)"
         />
-        <View style={thumbStyles.overlay}>
-          <Ionicons
-            name={isPlaying ? 'pause-circle' : 'play-circle'}
-            size={36}
-            color="rgba(255,255,255,0.85)"
-          />
-        </View>
-      </View>
-    </TouchableOpacity>
+      </TouchableOpacity>
+    </View>
   );
 }
 
