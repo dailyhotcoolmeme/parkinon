@@ -455,11 +455,12 @@ export function BodyStateScreen() {
       }
       setShowFlow(false);
 
-      // 사전 기록 시 예약 알림 큐 취소 먼저 실행 (0분 즉시 알림은 이미 발송됐을 가능성 높아 제외)
+      // 예약 알림 큐 취소 — trigger_time_label이 있는 경우 해당 interval의 미발송 큐 삭제
       // ⚠️ 큐 삭제를 먼저 await 완료한 후 fetchNextNotifMessage 호출해야
       //    취소 예정 항목이 "다음 알림"으로 표시되는 버그를 방지할 수 있음
+      // 수정: intervalMin > 0 조건 제거 — 0분(after_medication) 큐도 삭제 대상에 포함
       const intervalMin = savedLabel ? labelToMinutes(savedLabel) : null;
-      if (intervalMin != null && intervalMin > 0 && patientId) {
+      if (intervalMin != null && patientId) {
         try {
           let query = supabase
             .from('effect_tracking_queue')
