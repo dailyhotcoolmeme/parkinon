@@ -195,11 +195,8 @@ function VideoCard({ item, onPress, onDelete, previewingId, onPreviewPress }: Vi
   const durationText = formatDuration(item.duration_seconds);
 
   return (
-    <TouchableOpacity
-      style={cardStyles.card}
-      onPress={() => item.r2_url && onPress(item)}
-      activeOpacity={0.78}
-    >
+    <View style={cardStyles.card}>
+      {/* 썸네일: 탭 → 인라인 재생 */}
       <View style={cardStyles.thumb}>
         <VideoPreview
           uri={item.r2_url}
@@ -212,10 +209,16 @@ function VideoCard({ item, onPress, onDelete, previewingId, onPreviewPress }: Vi
           </View>
         )}
       </View>
-      <View style={cardStyles.info}>
+      {/* 텍스트 영역: 탭 → 전체화면 재생 */}
+      <TouchableOpacity
+        style={cardStyles.info}
+        onPress={() => item.r2_url && onPress(item)}
+        activeOpacity={0.7}
+      >
         <Text style={cardStyles.dateText}>{formatDateLabel(item.logged_at)}</Text>
         <Text style={cardStyles.timeText}>{formatTime(item.logged_at)}</Text>
-      </View>
+        <Text style={cardStyles.fullscreenHint}>탭하면 전체화면으로 재생돼요</Text>
+      </TouchableOpacity>
       <TouchableOpacity
         style={cardStyles.deleteBtn}
         onPress={() => onDelete(item)}
@@ -224,7 +227,7 @@ function VideoCard({ item, onPress, onDelete, previewingId, onPreviewPress }: Vi
       >
         <Ionicons name="trash-outline" size={22} color="#F44336" />
       </TouchableOpacity>
-    </TouchableOpacity>
+    </View>
   );
 }
 
@@ -243,7 +246,7 @@ const cardStyles = StyleSheet.create({
     shadowRadius: 4,
     elevation: 2,
   },
-  thumb: { position: 'relative' },
+  thumb: { position: 'relative', flexShrink: 0 },
   durationBadge: {
     position: 'absolute',
     bottom: 5,
@@ -254,11 +257,11 @@ const cardStyles = StyleSheet.create({
     paddingVertical: 2,
   },
   durationText: { color: Colors.white, fontSize: 12, fontWeight: '600' },
-  info: { flex: 1, gap: 4 },
+  info: { flex: 1, gap: 4, justifyContent: 'center' },
   dateText: { fontSize: 20, fontWeight: '700', color: Colors.text },
   timeText: { fontSize: 18, color: Colors.textSub, fontWeight: '500' },
-  durationInfo: { fontSize: 16, color: Colors.textHint, fontWeight: '500' },
-  deleteBtn: { padding: 8 },
+  fullscreenHint: { fontSize: 13, color: Colors.textHint, marginTop: 2 },
+  deleteBtn: { padding: 8, flexShrink: 0 },
 });
 
 // ── 풀스크린 플레이어 (expo-video) ───────────────────────────────────────────
@@ -599,12 +602,8 @@ export function VideoListScreen() {
 
   const handlePreviewPress = (item: VideoLog) => {
     if (previewTimerRef.current) clearTimeout(previewTimerRef.current);
-    if (previewingId === item.id) {
-      setPreviewingId(null);
-      return;
-    }
-    setPreviewingId(item.id);
-    previewTimerRef.current = setTimeout(() => setPreviewingId(null), 3000);
+    // 이미 재생 중이면 정지, 아니면 이 영상 재생 (다른 영상은 자동 정지)
+    setPreviewingId(prev => (prev === item.id ? null : item.id));
   };
 
   const handleDelete = (item: VideoLog) => {
