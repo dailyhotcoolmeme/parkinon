@@ -76,6 +76,15 @@ export function NotificationBadgeProvider({ children }: { children: React.ReactN
         const SUPA_URL = process.env.EXPO_PUBLIC_SUPABASE_URL!;
         const SUPA_KEY = process.env.EXPO_PUBLIC_SUPABASE_ANON_KEY!;
 
+        // push payload type → DB에 저장된 type 매핑
+        // 서버는 DB에 'missed_medication'으로 저장하지만 push payload에는
+        // 'missed_medication_first' / 'missed_medication_second'를 사용함
+        const PAYLOAD_TO_DB_TYPE: Record<string, string> = {
+          missed_medication_first: 'missed_medication',
+          missed_medication_second: 'missed_medication',
+        };
+        const dbType = PAYLOAD_TO_DB_TYPE[type] ?? type;
+
         if (readAt) {
           // 탭한 경우 — 24시간 내 미읽음 동일 알림 찾아 읽음 처리
           const since24h = new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString();
@@ -83,7 +92,7 @@ export function NotificationBadgeProvider({ children }: { children: React.ReactN
             .from('notification_logs')
             .select('id, read_at')
             .eq('user_id', user.id)
-            .eq('type', type)
+            .eq('type', dbType)
             .eq('title', title)
             .gte('created_at', since24h)
             .is('read_at', null)
@@ -115,7 +124,7 @@ export function NotificationBadgeProvider({ children }: { children: React.ReactN
             .from('notification_logs')
             .select('id')
             .eq('user_id', user.id)
-            .eq('type', type)
+            .eq('type', dbType)
             .eq('title', title)
             .gte('created_at', since5m)
             .limit(1)
@@ -132,7 +141,7 @@ export function NotificationBadgeProvider({ children }: { children: React.ReactN
               'Authorization': `Bearer ${session?.access_token ?? ''}`,
               'Prefer': 'return=minimal',
             },
-            body: JSON.stringify({ user_id: user.id, type, title, body, data, read_at: readAt }),
+            body: JSON.stringify({ user_id: user.id, type: dbType, title, body, data, read_at: readAt }),
           });
           return;
         }
@@ -143,7 +152,7 @@ export function NotificationBadgeProvider({ children }: { children: React.ReactN
           .from('notification_logs')
           .select('id')
           .eq('user_id', user.id)
-          .eq('type', type)
+          .eq('type', dbType)
           .eq('title', title)
           .gte('created_at', since)
           .limit(1)
@@ -169,7 +178,7 @@ export function NotificationBadgeProvider({ children }: { children: React.ReactN
               },
               body: JSON.stringify({
                 user_id: user.id,
-                type,
+                type: dbType,
                 title,
                 body,
                 data,

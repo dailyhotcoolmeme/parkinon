@@ -298,7 +298,14 @@ export function BodyStateScreen() {
   // 같은 시간대 배지가 오늘 이미 있으면 확인 후 팝업 오픈
   // mealTimeKey: 실제 med_logs.meal_time ('morning'|'lunch'|'dinner'|'bedtime')
   const openFlowWithDuplicateCheck = (labelKey: string, medTime: Date | null, mealTimeKey: string | null) => {
-    const hasDuplicate = activeLogs.some((log: any) => log.trigger_time_label === labelKey);
+    // mealTimeKey가 있는 경우 — label + meal_time 모두 일치할 때만 중복으로 처리
+    // (예: 점심약 복용 직후 기록이 있어도 저녁약 복용 직후 기록은 허용)
+    const hasDuplicate = activeLogs.some((log: any) => {
+      if (log.trigger_time_label !== labelKey) return false;
+      // mealTimeKey가 지정된 경우 medication_meal_time도 일치해야 중복
+      if (mealTimeKey && log.medication_meal_time && log.medication_meal_time !== mealTimeKey) return false;
+      return true;
+    });
     if (hasDuplicate) {
       const labelDisplay = getTriggerLabel(labelKey);
       const periodKo = mealTimeKey ? MEAL_KO[mealTimeKey] : (medTime ? getPeriod(medTime.toISOString()) : null);
@@ -592,7 +599,7 @@ export function BodyStateScreen() {
               <Text style={styles.emptySubText}>위 버튼을 눌러 기록해 보세요!</Text>
             </View>
           ) : (
-            ['아침', '점심', '저녁', '취침'].map(period => {
+            ['취침', '저녁', '점심', '아침'].map(period => {
               const periodRecords = records.filter(r => r.period === period);
               if (periodRecords.length === 0) return null;
               return (

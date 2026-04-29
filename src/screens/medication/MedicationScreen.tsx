@@ -101,7 +101,7 @@ export function MedicationScreen() {
   const { todayStatus, takeMedication, getMedLogs, error: medError, refresh } = useMedication();
   const { saveBodyState, todayLogs: bodyLogs } = useBodyState();
   const insets = useSafeAreaInsets();
-  const { unreadCount } = useNotificationBadge();
+  const { unreadCount, refreshBadge } = useNotificationBadge();
 
   // users.meal_schedules 기반 시간 표시 (약 없을 때 사용)
   const [userMealSchedules, setUserMealSchedules] = useState<Record<string, string> | null>(null);
@@ -135,6 +135,27 @@ export function MedicationScreen() {
   // App.tsx에서 navigation params { autoOpen: true, mealTime: '아침' } 전달
   useEffect(() => {
     if (!routeParams.autoOpen) return;
+
+    // 알림으로 진입 시 미읽음 약 복용 알림 읽음 처리 (안전망)
+    // saveNotification에서 type 불일치 등으로 읽음 처리가 안 된 경우 대비
+    (async () => {
+      try {
+        const { data: { user: authUser } } = await supabase.auth.getUser();
+        if (!authUser) return;
+        const since = new Date(Date.now() - 60 * 60 * 1000).toISOString(); // 1시간 이내
+        await supabase
+          .from('notification_logs')
+          .update({ read_at: new Date().toISOString() })
+          .eq('user_id', authUser.id)
+          .in('type', ['medication_reminder', 'missed_medication'])
+          .is('read_at', null)
+          .gte('created_at', since);
+        refreshBadge();
+      } catch (e) {
+        console.error('[MedicationScreen] 읽음 처리 오류:', e);
+      }
+    })();
+
     // 화면 전환 애니메이션 완료 후 모달 오픈
     const timer = setTimeout(() => {
       setShowMealTimeModal(true);
@@ -265,12 +286,13 @@ export function MedicationScreen() {
 
     setSelectedMealTime(mealTime);
 
-    // 다음 예정 알림 조회 후 팝업 표시
+    // 다음 예정 알림 조회 — 팝업은 바로 표시하지 않고 state만 저장
+    // (몸상태 팝업에서 "다음에 기록하기" 선택 시 nextNotif 팝업 표시)
     if (patientId) {
       fetchNextNotifMessage(patientId).then((info) => {
         if (info) {
           setNextNotifInfo(info);
-          setShowNextNotifModal(true);
+          // setShowNextNotifModal(true); ← 몸상태 팝업 이후로 이동
         }
       });
     }
@@ -504,7 +526,8 @@ export function MedicationScreen() {
             <TouchableOpacity
               onPress={() => {
                 setShowBodyStateSuggest(false);
-                setShowBodyStatePopup(true);
+                // BodyState 화면으로 이동 — 거기서 기록 완료 후 NextNotif 팝업 자체 표시
+                navigateTo('BodyState', {});
               }}
               style={{
                 backgroundColor: '#FF6B35',
@@ -518,7 +541,14 @@ export function MedicationScreen() {
               <Text style={{ color: '#fff', fontSize: 17, fontWeight: '700' }}>기록하기</Text>
             </TouchableOpacity>
             <TouchableOpacity
-              onPress={() => { setShowBodyStateSuggest(false); setSelectedMealTime(null); }}
+              onPress={() => {
+                setShowBodyStateSuggest(false);
+                setSelectedMealTime(null);
+                // 다음 알림 팝업 표시 (nextNotifInfo가 있을 때만)
+                if (nextNotifInfo) {
+                  setTimeout(() => setShowNextNotifModal(true), 300);
+                }
+              }}
               style={{ paddingVertical: 10, width: '100%', alignItems: 'center' }}
             >
               <Text style={{ color: '#999', fontSize: 16 }}>나중에</Text>
