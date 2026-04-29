@@ -100,14 +100,14 @@ function AppInner() {
       if (type === 'medication_reminder' || type === 'missed_medication') {
         navigateTo('Main', {
           screen: 'Medication',
-          params: { autoOpen: true, mealTime: data?.mealTime ?? null },
+          params: { autoOpen: Date.now(), mealTime: data?.mealTime ?? null },
         });
       } else if (type === 'effect_tracking') {
         navigateTo('Main', {
           screen: 'BodyStateTab',
           params: {
             screen: 'BodyState',
-            params: { triggerMinutes: data?.minutes ?? null, triggerMealTime: data?.meal_time ?? null },
+            params: { triggerMinutes: data?.minutes ?? null, triggerMealTime: data?.meal_time ?? null, triggerTs: Date.now() },
           },
         });
       } else if (type === 'exercise_reminder') {
@@ -156,14 +156,14 @@ function AppInner() {
       if (type === 'medication_reminder' || type === 'missed_medication') {
         navigateTo('Main', {
           screen: 'Medication',
-          params: { autoOpen: true, mealTime: data?.mealTime ?? null },
+          params: { autoOpen: Date.now(), mealTime: data?.mealTime ?? null },
         });
       } else if (type === 'effect_tracking') {
         navigateTo('Main', {
           screen: 'BodyStateTab',
           params: {
             screen: 'BodyState',
-            params: { triggerMinutes: data?.minutes ?? null, triggerMealTime: data?.meal_time ?? null },
+            params: { triggerMinutes: data?.minutes ?? null, triggerMealTime: data?.meal_time ?? null, triggerTs: Date.now() },
           },
         });
       } else if (type === 'exercise_reminder') {

@@ -91,7 +91,7 @@ function toLocalDateString(date: Date): string {
 }
 
 type MedicationRouteParams = {
-  autoOpen?: boolean;
+  autoOpen?: number | boolean;
   mealTime?: string | null;
 };
 
@@ -523,6 +523,7 @@ export function MedicationScreen() {
                 navigateTo('BodyState', {
                   triggerMinutes: 0,
                   triggerMealTime: selectedMealTime,
+                  triggerTs: Date.now(),
                 });
               }}
               style={{

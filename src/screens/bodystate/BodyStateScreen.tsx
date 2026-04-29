@@ -198,7 +198,7 @@ export function BodyStateScreen() {
           }
         }
       }
-    }, [route.params?.triggerMinutes, (route.params as any)?.triggerMealTime])
+    }, [route.params?.triggerMinutes, (route.params as any)?.triggerMealTime, (route.params as any)?.triggerTs])
   );
 
   // 화면 포커스 시 오늘 기록 갱신
