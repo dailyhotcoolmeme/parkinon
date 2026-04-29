@@ -42,6 +42,7 @@ export function VideoRecordScreen() {
   const [selectedVideo, setSelectedVideo] = useState<SelectedVideo | null>(null);
   const [loading, setLoading] = useState(false);
   const [uploadStage, setUploadStage] = useState<'compressing' | 'uploading' | 'saving' | null>(null);
+  const cancelledRef = useRef(false);
   const [isPlaying, setIsPlaying] = useState(false);
   const [currentTime, setCurrentTime] = useState(0);
   const [duration, setDuration] = useState(0);
@@ -146,12 +147,22 @@ export function VideoRecordScreen() {
     }
   };
 
+  const UPLOAD_TIMEOUT_MS = 180_000; // 3분 타임아웃
+
+  const handleCancelUpload = () => {
+    cancelledRef.current = true;
+    setUploadStage(null);
+    setLoading(false);
+  };
+
   const handleSave = async () => {
     if (!selectedVideo || !user) return;
+    cancelledRef.current = false;
     setLoading(true);
     setUploadStage('compressing');
-    // 3초 후 업로드 단계로 자동 전환 (압축→업로드 시뮬레이션)
-    const uploadTimer = setTimeout(() => setUploadStage('uploading'), 3000);
+    const uploadTimer = setTimeout(() => {
+      if (!cancelledRef.current) setUploadStage('uploading');
+    }, 3000);
     try {
       const patientId = await getPatientId();
       if (!patientId) {
@@ -159,21 +170,36 @@ export function VideoRecordScreen() {
         return;
       }
 
-      const result = await uploadVideo(selectedVideo.uri, patientId, 'body_state');
+      const result = await uploadVideo(selectedVideo.uri, patientId, 'body_state', UPLOAD_TIMEOUT_MS);
       clearTimeout(uploadTimer);
+      if (cancelledRef.current) return;
+
       setUploadStage('saving');
       await saveMediaLog(patientId, user.id, result.url, result.key, result.expires_at, 'video', 'body_state');
 
+      if (cancelledRef.current) return;
       setUploadStage(null);
       Alert.alert('저장 완료', '영상이 저장되었어요.', [
         { text: '확인', onPress: () => navigation.goBack() },
       ]);
     } catch (e: any) {
       clearTimeout(uploadTimer);
+      if (cancelledRef.current) return;
       setUploadStage(null);
-      Alert.alert('오류', e.message ?? '저장 중 문제가 생겼어요. 다시 시도해주세요.');
+      if (e?.message === 'UPLOAD_TIMEOUT') {
+        Alert.alert(
+          '업로드 시간 초과',
+          '네트워크가 느려서 저장에 실패했어요.\n와이파이 연결 후 다시 시도해주세요.',
+          [
+            { text: '다시 시도', onPress: handleSave },
+            { text: '취소', style: 'cancel' },
+          ]
+        );
+      } else {
+        Alert.alert('오류', e.message ?? '저장 중 문제가 생겼어요. 다시 시도해주세요.');
+      }
     } finally {
-      setLoading(false);
+      if (!cancelledRef.current) setLoading(false);
     }
   };
 
@@ -393,7 +419,7 @@ export function VideoRecordScreen() {
           </View>
         )}
       </View>
-      <UploadOverlay stage={uploadStage} />
+      <UploadOverlay stage={uploadStage} onCancel={handleCancelUpload} />
     </SafeAreaView>
   );
 }
@@ -401,7 +427,7 @@ export function VideoRecordScreen() {
 // ─── 업로드 로딩 오버레이 ─────────────────────────────────────────────────────
 
 const TIPS = [
-  { icon: '👨‍👩‍👧', title: '보호자에게 알림이 가요', desc: '가족이 함께 건강 상태를 확인할 수 있어요' },
+  { icon: '👨‍👩‍👧', title: '기록을 남기면 보호자도 알 수 있어요', desc: '가족이 함께 건강 상태를 확인할 수 있어요' },
   { icon: '📊', title: '꾸준한 기록이 힘이에요', desc: '약효 패턴은 반복 기록이 쌓여야 보여요' },
   { icon: '⏰', title: '정해진 시간에 기록해요', desc: '알림 시간에 맞춰 기록하면 더 정확해요' },
   { icon: '💊', title: '복용 직후 기록이 중요해요', desc: '약효 시작 시점을 정확히 파악할 수 있어요' },
@@ -415,33 +441,57 @@ const STAGES = [
   { key: 'saving',      label: '저장 중' },
 ] as const;
 
-function UploadOverlay({ stage }: { stage: 'compressing' | 'uploading' | 'saving' | null }) {
+function UploadOverlay({
+  stage,
+  onCancel,
+}: {
+  stage: 'compressing' | 'uploading' | 'saving' | null;
+  onCancel: () => void;
+}) {
   const [tipIndex, setTipIndex] = useState(0);
+  const [elapsed, setElapsed] = useState(0);
   const fadeAnim = useRef(new Animated.Value(1)).current;
 
+  // 팁 7초마다 전환
   useEffect(() => {
-    if (!stage) return;
-    const interval = setInterval(() => {
+    if (!stage) { setElapsed(0); return; }
+    const tipInterval = setInterval(() => {
       Animated.sequence([
-        Animated.timing(fadeAnim, { toValue: 0, duration: 300, useNativeDriver: true }),
-        Animated.timing(fadeAnim, { toValue: 1, duration: 400, useNativeDriver: true }),
+        Animated.timing(fadeAnim, { toValue: 0, duration: 400, useNativeDriver: true }),
+        Animated.timing(fadeAnim, { toValue: 1, duration: 500, useNativeDriver: true }),
       ]).start();
       setTipIndex(i => (i + 1) % TIPS.length);
-    }, 3500);
-    return () => clearInterval(interval);
+    }, 7000);
+    return () => clearInterval(tipInterval);
+  }, [stage]);
+
+  // 경과 시간 1초마다
+  useEffect(() => {
+    if (!stage) { setElapsed(0); return; }
+    const timer = setInterval(() => setElapsed(s => s + 1), 1000);
+    return () => clearInterval(timer);
   }, [stage]);
 
   if (!stage) return null;
 
   const currentStageIdx = STAGES.findIndex(s => s.key === stage);
   const tip = TIPS[tipIndex];
+  const elapsedStr = elapsed < 60
+    ? `${elapsed}초`
+    : `${Math.floor(elapsed / 60)}분 ${elapsed % 60}초`;
 
   return (
     <Modal transparent visible animationType="fade">
       <View style={ovStyles.backdrop}>
         <View style={ovStyles.card}>
+          {/* 타이틀 + 경과시간 */}
+          <View style={ovStyles.titleRow}>
+            <Text style={ovStyles.stageTitle}>영상을 저장하고 있어요</Text>
+            <Text style={ovStyles.stageTitle}> · {elapsedStr}</Text>
+          </View>
+          <Text style={ovStyles.stageTitle}>잠시만 기다려 주세요 😊</Text>
+
           {/* 에너지바 단계 표시 */}
-          <Text style={ovStyles.stageTitle}>영상을 저장하고 있어요</Text>
           <View style={ovStyles.stepsRow}>
             {STAGES.map((s, i) => {
               const done = i < currentStageIdx;
@@ -479,7 +529,10 @@ function UploadOverlay({ stage }: { stage: 'compressing' | 'uploading' | 'saving
             <Text style={ovStyles.tipDesc}>{tip.desc}</Text>
           </Animated.View>
 
-          <Text style={ovStyles.waitMsg}>잠시만 기다려 주세요 😊</Text>
+          {/* 취소 버튼 */}
+          <TouchableOpacity style={ovStyles.cancelBtn} onPress={onCancel}>
+            <Text style={ovStyles.cancelBtnText}>저장 취소</Text>
+          </TouchableOpacity>
         </View>
       </View>
     </Modal>
@@ -500,7 +553,11 @@ const ovStyles = StyleSheet.create({
     padding: 28,
     width: '100%',
     alignItems: 'center',
-    gap: 24,
+    gap: 20,
+  },
+  titleRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
   },
   stageTitle: {
     fontSize: 18,
@@ -527,12 +584,8 @@ const ovStyles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
   },
-  stepDotDone: {
-    backgroundColor: '#4CAF50',
-  },
-  stepDotActive: {
-    backgroundColor: '#4CAF50',
-  },
+  stepDotDone: { backgroundColor: '#4CAF50' },
+  stepDotActive: { backgroundColor: '#4CAF50' },
   stepPulse: {
     width: 12,
     height: 12,
@@ -561,9 +614,7 @@ const ovStyles = StyleSheet.create({
     marginHorizontal: 4,
     borderRadius: 2,
   },
-  stepLineFilled: {
-    backgroundColor: '#4CAF50',
-  },
+  stepLineFilled: { backgroundColor: '#4CAF50' },
 
   // 팁 카드
   tipCard: {
@@ -576,9 +627,7 @@ const ovStyles = StyleSheet.create({
     borderWidth: 1,
     borderColor: '#E8F5E9',
   },
-  tipIcon: {
-    fontSize: 40,
-  },
+  tipIcon: { fontSize: 40 },
   tipTitle: {
     fontSize: 17,
     fontWeight: '700',
@@ -591,9 +640,19 @@ const ovStyles = StyleSheet.create({
     textAlign: 'center',
     lineHeight: 20,
   },
-  waitMsg: {
-    fontSize: 14,
-    color: '#999',
+
+  // 취소 버튼
+  cancelBtn: {
+    paddingVertical: 12,
+    paddingHorizontal: 32,
+    borderRadius: 12,
+    borderWidth: 1.5,
+    borderColor: '#BDBDBD',
+  },
+  cancelBtnText: {
+    fontSize: 16,
+    color: '#888',
+    fontWeight: '600',
   },
 });
 
