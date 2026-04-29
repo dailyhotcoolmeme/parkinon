@@ -40,13 +40,17 @@ function getPeriodKo(isoString: string): string {
 
 function triggerToTag(label: string): string {
   if (label === 'after_medication') return '+즉시';
-  const match = label.match(/^(\d+)min_after$/);
-  if (match) {
-    const min = parseInt(match[1], 10);
+  const minMatch = label.match(/^(\d+)min_after$/);
+  if (minMatch) {
+    const min = parseInt(minMatch[1], 10);
     if (min < 60) return `+${min}분`;
     const h = Math.floor(min / 60);
     const rem = min % 60;
     return rem === 0 ? `+${h}시간` : `+${h}시간 ${rem}분`;
+  }
+  const hourMatch = label.match(/^(\d+)hour_after$/);
+  if (hourMatch) {
+    return `+${hourMatch[1]}시간`;
   }
   return '';
 }
