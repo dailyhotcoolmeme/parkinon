@@ -374,9 +374,10 @@ export function useAuthProvider(): UseAuthReturn {
         // Custom Tab에서 콜백 URL을 직접 수신한 경우
         await processAuthUrl(result.url, loadUserProfile);
         return true;
-      } else if (result.type === 'cancel') {
-        // 카카오 앱으로 전환된 경우: AppState 리스너가 복귀 시 처리
-        console.log('[useAuth] Custom Tab cancel — 카카오 앱 인증 후 딥링크/세션 대기 중');
+      } else if (result.type === 'cancel' || result.type === 'dismiss') {
+        // 카카오 앱으로 전환된 경우(cancel 또는 dismiss): AppState 리스너가 복귀 시 처리
+        // Android 기기에 따라 Custom Tab이 'cancel' 또는 'dismiss'를 반환할 수 있음
+        console.log('[useAuth] Custom Tab cancel/dismiss — 카카오 앱 인증 후 딥링크/세션 대기 중');
         return true;
       } else {
         console.log('[useAuth] 사용자가 로그인 취소');
