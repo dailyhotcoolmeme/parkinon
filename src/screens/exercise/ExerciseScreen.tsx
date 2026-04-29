@@ -72,10 +72,11 @@ export function ExerciseScreen() {
   const [patientId, setPatientId] = useState<string | null>(null);
   const { unreadCount } = useNotificationBadge();
 
+  // patient_group_id가 있어도 실제 환자 멤버가 없을 수 있으므로 patientId 기준으로 판단
   const userRole: 'patient' | 'caregiver_no_patient' | 'caregiver_same' | 'caregiver_separate' =
     user?.role !== 'caregiver'
       ? 'patient'
-      : !user.patient_group_id
+      : !patientId
       ? 'caregiver_no_patient'
       : user.residence_type === 'separate'
       ? 'caregiver_separate'

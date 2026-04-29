@@ -255,11 +255,12 @@ export function MedicationScreen() {
       });
   }, [user]);
 
+  // patient_group_id가 있어도 실제 환자 멤버가 없을 수 있으므로 patientId 기준으로 판단
   const userRole: 'patient' | 'caregiver_no_patient' | 'caregiver_same' | 'caregiver_separate' =
     user?.role !== 'caregiver'
       ? 'patient'
-      : !user.patient_group_id
-      ? 'caregiver_no_patient'   // 환자 미연동 → 전면 비활성
+      : !patientId
+      ? 'caregiver_no_patient'
       : user.residence_type === 'separate'
       ? 'caregiver_separate'
       : 'caregiver_same';

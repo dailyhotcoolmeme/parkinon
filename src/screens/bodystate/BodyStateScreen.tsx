@@ -233,17 +233,18 @@ export function BodyStateScreen() {
     }, [loadVideoLogs, loadDateLogs, isToday, refresh])
   );
 
+  const [patientName, setPatientName] = useState('환자');
+  const [patientId, setPatientId] = useState<string | null>(null);
+
+  // patient_group_id가 있어도 실제 환자 멤버가 없을 수 있으므로 patientId 기준으로 판단
   const userRole: 'patient' | 'caregiver_no_patient' | 'caregiver_same' | 'caregiver_separate' =
     user?.role !== 'caregiver'
       ? 'patient'
-      : !user.patient_group_id
+      : !patientId
       ? 'caregiver_no_patient'
       : user.residence_type === 'separate'
       ? 'caregiver_separate'
       : 'caregiver_same';
-
-  const [patientName, setPatientName] = useState('환자');
-  const [patientId, setPatientId] = useState<string | null>(null);
 
   useEffect(() => {
     if (!user) return;
