@@ -1,4 +1,4 @@
-import React, { useState, useRef } from 'react';
+import React, { useState, useRef, useEffect } from 'react';
 import {
   View,
   Text,
@@ -7,6 +7,8 @@ import {
   Alert,
   Dimensions,
   PanResponder,
+  Animated,
+  Modal,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import * as ImagePicker from 'expo-image-picker';
@@ -39,6 +41,7 @@ export function VideoRecordScreen() {
   const { unreadCount } = useNotificationBadge();
   const [selectedVideo, setSelectedVideo] = useState<SelectedVideo | null>(null);
   const [loading, setLoading] = useState(false);
+  const [uploadStage, setUploadStage] = useState<'compressing' | 'uploading' | 'saving' | null>(null);
   const [isPlaying, setIsPlaying] = useState(false);
   const [currentTime, setCurrentTime] = useState(0);
   const [duration, setDuration] = useState(0);
@@ -146,22 +149,28 @@ export function VideoRecordScreen() {
   const handleSave = async () => {
     if (!selectedVideo || !user) return;
     setLoading(true);
+    setUploadStage('compressing');
+    // 3초 후 업로드 단계로 자동 전환 (압축→업로드 시뮬레이션)
+    const uploadTimer = setTimeout(() => setUploadStage('uploading'), 3000);
     try {
-      // 보호자인 경우 환자 ID를 별도로 가져옴
       const patientId = await getPatientId();
       if (!patientId) {
         Alert.alert('오류', '연동된 환자 정보를 찾을 수 없어요.');
         return;
       }
 
-      // R2 업로드
       const result = await uploadVideo(selectedVideo.uri, patientId, 'body_state');
+      clearTimeout(uploadTimer);
+      setUploadStage('saving');
       await saveMediaLog(patientId, user.id, result.url, result.key, result.expires_at, 'video', 'body_state');
 
+      setUploadStage(null);
       Alert.alert('저장 완료', '영상이 저장되었어요.', [
         { text: '확인', onPress: () => navigation.goBack() },
       ]);
     } catch (e: any) {
+      clearTimeout(uploadTimer);
+      setUploadStage(null);
       Alert.alert('오류', e.message ?? '저장 중 문제가 생겼어요. 다시 시도해주세요.');
     } finally {
       setLoading(false);
@@ -384,9 +393,209 @@ export function VideoRecordScreen() {
           </View>
         )}
       </View>
+      <UploadOverlay stage={uploadStage} />
     </SafeAreaView>
   );
 }
+
+// ─── 업로드 로딩 오버레이 ─────────────────────────────────────────────────────
+
+const TIPS = [
+  { icon: '👨‍👩‍👧', title: '보호자에게 알림이 가요', desc: '가족이 함께 건강 상태를 확인할 수 있어요' },
+  { icon: '📊', title: '꾸준한 기록이 힘이에요', desc: '약효 패턴은 반복 기록이 쌓여야 보여요' },
+  { icon: '⏰', title: '정해진 시간에 기록해요', desc: '알림 시간에 맞춰 기록하면 더 정확해요' },
+  { icon: '💊', title: '복용 직후 기록이 중요해요', desc: '약효 시작 시점을 정확히 파악할 수 있어요' },
+  { icon: '🏃', title: '몸 상태가 좋으면 운동도 해봐요', desc: '파킨슨엔 꾸준한 운동이 큰 도움이 돼요' },
+  { icon: '🎯', title: '기록할수록 정확해져요', desc: '데이터가 쌓일수록 의미 있는 분석이 가능해요' },
+];
+
+const STAGES = [
+  { key: 'compressing', label: '압축 중' },
+  { key: 'uploading',   label: '업로드 중' },
+  { key: 'saving',      label: '저장 중' },
+] as const;
+
+function UploadOverlay({ stage }: { stage: 'compressing' | 'uploading' | 'saving' | null }) {
+  const [tipIndex, setTipIndex] = useState(0);
+  const fadeAnim = useRef(new Animated.Value(1)).current;
+
+  useEffect(() => {
+    if (!stage) return;
+    const interval = setInterval(() => {
+      Animated.sequence([
+        Animated.timing(fadeAnim, { toValue: 0, duration: 300, useNativeDriver: true }),
+        Animated.timing(fadeAnim, { toValue: 1, duration: 400, useNativeDriver: true }),
+      ]).start();
+      setTipIndex(i => (i + 1) % TIPS.length);
+    }, 3500);
+    return () => clearInterval(interval);
+  }, [stage]);
+
+  if (!stage) return null;
+
+  const currentStageIdx = STAGES.findIndex(s => s.key === stage);
+  const tip = TIPS[tipIndex];
+
+  return (
+    <Modal transparent visible animationType="fade">
+      <View style={ovStyles.backdrop}>
+        <View style={ovStyles.card}>
+          {/* 에너지바 단계 표시 */}
+          <Text style={ovStyles.stageTitle}>영상을 저장하고 있어요</Text>
+          <View style={ovStyles.stepsRow}>
+            {STAGES.map((s, i) => {
+              const done = i < currentStageIdx;
+              const active = i === currentStageIdx;
+              return (
+                <React.Fragment key={s.key}>
+                  <View style={ovStyles.stepItem}>
+                    <View style={[
+                      ovStyles.stepDot,
+                      done && ovStyles.stepDotDone,
+                      active && ovStyles.stepDotActive,
+                    ]}>
+                      {done ? (
+                        <Text style={ovStyles.stepCheck}>✓</Text>
+                      ) : active ? (
+                        <View style={ovStyles.stepPulse} />
+                      ) : null}
+                    </View>
+                    <Text style={[ovStyles.stepLabel, active && ovStyles.stepLabelActive]}>
+                      {s.label}
+                    </Text>
+                  </View>
+                  {i < STAGES.length - 1 && (
+                    <View style={[ovStyles.stepLine, (done || active) && ovStyles.stepLineFilled]} />
+                  )}
+                </React.Fragment>
+              );
+            })}
+          </View>
+
+          {/* 팁 카드 */}
+          <Animated.View style={[ovStyles.tipCard, { opacity: fadeAnim }]}>
+            <Text style={ovStyles.tipIcon}>{tip.icon}</Text>
+            <Text style={ovStyles.tipTitle}>{tip.title}</Text>
+            <Text style={ovStyles.tipDesc}>{tip.desc}</Text>
+          </Animated.View>
+
+          <Text style={ovStyles.waitMsg}>잠시만 기다려 주세요 😊</Text>
+        </View>
+      </View>
+    </Modal>
+  );
+}
+
+const ovStyles = StyleSheet.create({
+  backdrop: {
+    flex: 1,
+    backgroundColor: 'rgba(0,0,0,0.6)',
+    justifyContent: 'center',
+    alignItems: 'center',
+    padding: 28,
+  },
+  card: {
+    backgroundColor: '#fff',
+    borderRadius: 24,
+    padding: 28,
+    width: '100%',
+    alignItems: 'center',
+    gap: 24,
+  },
+  stageTitle: {
+    fontSize: 18,
+    fontWeight: '700',
+    color: '#222',
+  },
+
+  // 에너지바
+  stepsRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    width: '100%',
+    paddingHorizontal: 8,
+  },
+  stepItem: {
+    alignItems: 'center',
+    gap: 6,
+  },
+  stepDot: {
+    width: 32,
+    height: 32,
+    borderRadius: 16,
+    backgroundColor: '#E0E0E0',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  stepDotDone: {
+    backgroundColor: '#4CAF50',
+  },
+  stepDotActive: {
+    backgroundColor: '#4CAF50',
+  },
+  stepPulse: {
+    width: 12,
+    height: 12,
+    borderRadius: 6,
+    backgroundColor: '#fff',
+  },
+  stepCheck: {
+    color: '#fff',
+    fontSize: 16,
+    fontWeight: '700',
+  },
+  stepLabel: {
+    fontSize: 12,
+    color: '#999',
+    fontWeight: '500',
+  },
+  stepLabelActive: {
+    color: '#4CAF50',
+    fontWeight: '700',
+  },
+  stepLine: {
+    flex: 1,
+    height: 3,
+    backgroundColor: '#E0E0E0',
+    marginBottom: 18,
+    marginHorizontal: 4,
+    borderRadius: 2,
+  },
+  stepLineFilled: {
+    backgroundColor: '#4CAF50',
+  },
+
+  // 팁 카드
+  tipCard: {
+    backgroundColor: '#F8FFF8',
+    borderRadius: 16,
+    padding: 20,
+    width: '100%',
+    alignItems: 'center',
+    gap: 8,
+    borderWidth: 1,
+    borderColor: '#E8F5E9',
+  },
+  tipIcon: {
+    fontSize: 40,
+  },
+  tipTitle: {
+    fontSize: 17,
+    fontWeight: '700',
+    color: '#222',
+    textAlign: 'center',
+  },
+  tipDesc: {
+    fontSize: 14,
+    color: '#666',
+    textAlign: 'center',
+    lineHeight: 20,
+  },
+  waitMsg: {
+    fontSize: 14,
+    color: '#999',
+  },
+});
 
 const styles = StyleSheet.create({
   safeArea: {
