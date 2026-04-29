@@ -338,70 +338,55 @@ export function VideoRecordScreen() {
             </TouchableOpacity>
           </View>
         ) : (
-          <TouchableOpacity
-            style={styles.emptyArea}
-            onPress={() => {
-              Alert.alert(
-                '영상 선택',
-                '영상을 어떻게 준비할까요?',
-                [
-                  { text: '지금 촬영하기', onPress: handleRecordVideo },
-                  { text: '갤러리에서 선택', onPress: handlePickFromGallery },
-                  { text: '취소', style: 'cancel' },
-                ],
-              );
-            }}
-            activeOpacity={0.7}
-          >
-            <Ionicons name="videocam-outline" size={64} color={Colors.textHint} />
-            <Text style={styles.emptyTitle}>영상을 선택해주세요</Text>
-            <Text style={styles.emptyDesc}>여기를 탭하면 선택할 수 있어요</Text>
-            <Text style={styles.emptyDescSub}>최대 2분까지 기록할 수 있어요</Text>
-          </TouchableOpacity>
+          /* 영상 없을 때: 안내 문구 + 버튼을 화면 중앙에 표시 */
+          <View style={styles.emptyCenter}>
+            {/* 2분 제한 강조 안내 문구 */}
+            <View style={styles.noticeRow}>
+              <Text style={styles.noticeRowText}>최대 </Text>
+              <View style={styles.noticePill}>
+                <Text style={styles.noticePillText}>2분</Text>
+              </View>
+              <Text style={styles.noticeRowText}> 이내 영상만 등록할 수 있어요</Text>
+            </View>
+
+            {/* 촬영하기 버튼 */}
+            <TouchableOpacity
+              style={styles.actionBtn}
+              onPress={handleRecordVideo}
+              activeOpacity={0.8}
+            >
+              <Ionicons name="camera-outline" size={36} color={Colors.primary} />
+              <View>
+                <Text style={styles.actionBtnLabel}>지금 촬영하기</Text>
+                <Text style={styles.actionBtnSub}>카메라로 바로 촬영해요</Text>
+              </View>
+            </TouchableOpacity>
+
+            {/* 갤러리 버튼 */}
+            <TouchableOpacity
+              style={styles.actionBtn}
+              onPress={handlePickFromGallery}
+              activeOpacity={0.8}
+            >
+              <Ionicons name="images-outline" size={36} color={Colors.primary} />
+              <View>
+                <Text style={styles.actionBtnLabel}>갤러리에서 선택하기</Text>
+                <Text style={styles.actionBtnSub}>저장된 영상을 불러와요</Text>
+              </View>
+            </TouchableOpacity>
+          </View>
         )}
 
-        {/* 버튼 영역 */}
-        <View style={styles.buttonArea}>
-          {!selectedVideo ? (
-            <>
-              <TouchableOpacity
-                style={styles.actionBtn}
-                onPress={handleRecordVideo}
-                activeOpacity={0.8}
-              >
-                <Ionicons name="camera-outline" size={36} color={Colors.primary} />
-                <View>
-                  <Text style={styles.actionBtnLabel}>지금 촬영하기</Text>
-                  <Text style={styles.actionBtnSub}>카메라로 바로 촬영해요</Text>
-                </View>
-              </TouchableOpacity>
-
-              <TouchableOpacity
-                style={styles.actionBtn}
-                onPress={handlePickFromGallery}
-                activeOpacity={0.8}
-              >
-                <Ionicons name="images-outline" size={36} color={Colors.primary} />
-                <View>
-                  <Text style={styles.actionBtnLabel}>갤러리에서 선택하기</Text>
-                  <Text style={styles.actionBtnSub}>저장된 영상을 불러와요</Text>
-                </View>
-              </TouchableOpacity>
-
-              <View style={styles.notice}>
-                <Text style={styles.noticeText}>
-                  최대 2분까지 기록할 수 있어요
-                </Text>
-              </View>
-            </>
-          ) : (
+        {/* 버튼 영역 - 영상 있을 때만 저장 버튼 표시 */}
+        {selectedVideo && (
+          <View style={styles.buttonArea}>
             <PrimaryButton
               title="저장하기"
               onPress={handleSave}
               loading={loading}
             />
-          )}
-        </View>
+          </View>
+        )}
       </View>
     </SafeAreaView>
   );
@@ -415,34 +400,38 @@ const styles = StyleSheet.create({
   container: {
     flex: 1,
     padding: 20,
-    justifyContent: 'space-between',
   },
 
-  // 미리보기 없을 때
-  emptyArea: {
-    height: SCREEN_HEIGHT * 0.4,
+  // 영상 없을 때 중앙 레이아웃
+  emptyCenter: {
+    flex: 1,
+    justifyContent: 'center',
+    gap: 20,
+    paddingBottom: 40,
+  },
+  noticeRow: {
+    flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
-    backgroundColor: Colors.white,
-    borderRadius: 20,
-    marginBottom: 24,
-    borderWidth: 2,
-    borderColor: Colors.border,
-    borderStyle: 'dashed',
-    gap: 14,
+    flexWrap: 'wrap',
+    marginBottom: 12,
   },
-  emptyTitle: {
-    fontSize: 20,
-    fontWeight: '700',
+  noticeRowText: {
+    fontSize: 18,
+    fontWeight: '600',
     color: Colors.text,
   },
-  emptyDesc: {
-    fontSize: 16,
-    color: Colors.textSub,
+  noticePill: {
+    backgroundColor: '#FF6B00',
+    borderRadius: 20,
+    paddingHorizontal: 12,
+    paddingVertical: 3,
+    marginHorizontal: 2,
   },
-  emptyDescSub: {
-    fontSize: 14,
-    color: Colors.textHint,
+  noticePillText: {
+    fontSize: 18,
+    fontWeight: '700',
+    color: '#fff',
   },
 
   // 미리보기 있을 때
@@ -537,9 +526,10 @@ const styles = StyleSheet.create({
     elevation: 3,
   },
 
-  // 액션 버튼
+  // 저장 버튼 영역 (영상 있을 때만)
   buttonArea: {
     gap: 12,
+    marginTop: 16,
   },
   actionBtn: {
     flexDirection: 'row',
@@ -547,6 +537,7 @@ const styles = StyleSheet.create({
     backgroundColor: Colors.white,
     borderRadius: 16,
     padding: 20,
+    minHeight: 64,
     gap: 16,
     shadowColor: '#000',
     shadowOffset: { width: 0, height: 1 },
@@ -561,15 +552,7 @@ const styles = StyleSheet.create({
     marginBottom: 2,
   },
   actionBtnSub: {
-    fontSize: 13,
-    color: Colors.textSub,
-  },
-  notice: {
-    alignItems: 'center',
-    paddingVertical: 8,
-  },
-  noticeText: {
     fontSize: 14,
-    color: Colors.textHint,
+    color: Colors.textSub,
   },
 });
