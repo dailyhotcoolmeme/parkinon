@@ -1645,7 +1645,10 @@ export function SettingsScreen() {
                 }}
                 activeOpacity={0.8}
               >
-                <Text style={styles.batteryDoneBtnText}>해제 완료했어요 ✓</Text>
+                <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
+                  <Ionicons name="checkmark-circle" size={20} color="#FFFFFF" />
+                  <Text style={styles.batteryDoneBtnText}>해제 완료했어요</Text>
+                </View>
               </TouchableOpacity>
               <TouchableOpacity style={styles.batteryModalCancelBtn} onPress={() => setShowBatteryModal(false)} activeOpacity={0.7}>
                 <Text style={styles.batteryModalCancelText}>닫기</Text>

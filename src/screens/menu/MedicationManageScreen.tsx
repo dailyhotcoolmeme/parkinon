@@ -742,7 +742,7 @@ function SlotEditBottomSheet({ visible, slot, medications, onClose, onSave }: Sl
                       activeOpacity={0.8}
                     >
                       <View style={[seBsStyles.checkbox, checked && seBsStyles.checkboxChecked]}>
-                        {checked && <Text style={seBsStyles.checkmark}>✓</Text>}
+                        {checked && <Ionicons name="checkmark" size={14} color={Colors.white} />}
                       </View>
                       {med.drugInfo?.itemImage ? (
                         <Image source={{ uri: med.drugInfo.itemImage }} style={seBsStyles.medImg} resizeMode="contain" />
@@ -774,7 +774,7 @@ function SlotEditBottomSheet({ visible, slot, medications, onClose, onSave }: Sl
                           activeOpacity={0.8}
                         >
                           <View style={[seBsStyles.checkbox, added && seBsStyles.checkboxChecked]}>
-                            {added && <Text style={seBsStyles.checkmark}>✓</Text>}
+                            {added && <Ionicons name="checkmark" size={14} color={Colors.white} />}
                           </View>
                           {med.drugInfo?.itemImage ? (
                             <Image source={{ uri: med.drugInfo.itemImage }} style={seBsStyles.medImg} resizeMode="contain" />
@@ -882,7 +882,6 @@ const seBsStyles = StyleSheet.create({
     backgroundColor: Colors.white,
   },
   checkboxChecked: { backgroundColor: Colors.primary, borderColor: Colors.primary },
-  checkmark: { fontSize: 18, color: Colors.white, fontWeight: '700' },
   medImg: { width: 40, height: 40, borderRadius: 6, backgroundColor: '#F5F5F5' },
   medEmoji: { fontSize: 28, width: 40, textAlign: 'center' },
   medTextGroup: { flex: 1 },
@@ -1802,7 +1801,7 @@ export function MedicationManageScreen() {
                     alignItems: 'center', justifyContent: 'center',
                     marginRight: 12,
                   }}>
-                    {med.checked && <Text style={{ color: '#fff', fontSize: 14, fontWeight: '700' }}>✓</Text>}
+                    {med.checked && <Ionicons name="checkmark" size={14} color="#fff" />}
                   </View>
 
                   {/* 약 이미지 */}

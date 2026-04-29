@@ -523,7 +523,7 @@ function UploadOverlay({
                           active && ovStyles.stepDotActive,
                         ]}>
                           {done ? (
-                            <Text style={ovStyles.stepCheck}>✓</Text>
+                            <Ionicons name="checkmark" size={16} color="#fff" />
                           ) : active ? (
                             <View style={ovStyles.stepPulse} />
                           ) : null}
@@ -624,11 +624,6 @@ const ovStyles = StyleSheet.create({
     height: 12,
     borderRadius: 6,
     backgroundColor: '#fff',
-  },
-  stepCheck: {
-    color: '#fff',
-    fontSize: 16,
-    fontWeight: '700',
   },
   stepLabel: {
     fontSize: 13,

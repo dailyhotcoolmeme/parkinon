@@ -20,6 +20,7 @@ import type { OnboardingStackParamList } from '../../navigation/OnboardingNaviga
 import { Colors } from '../../constants/colors';
 import { PrimaryButton } from '../../components/common/PrimaryButton';
 import { useAuth } from '../../context/AuthContext';
+import { Ionicons } from '@expo/vector-icons';
 
 type Nav = StackNavigationProp<OnboardingStackParamList, 'CaregiverInfo'>;
 type RouteType = RouteProp<OnboardingStackParamList, 'CaregiverInfo'>;
@@ -257,7 +258,7 @@ export function CaregiverInfoScreen() {
                     <Text style={[pickerStyles.yearText, item === birthYear && pickerStyles.yearTextSelected]}>
                       {item}년
                     </Text>
-                    {item === birthYear && <Text style={pickerStyles.checkMark}>✓</Text>}
+                    {item === birthYear && <Ionicons name="checkmark" size={18} color="#4CAF50" />}
                   </TouchableOpacity>
                 )}
               />
@@ -355,5 +356,4 @@ const pickerStyles = StyleSheet.create({
   yearItemSelected: { backgroundColor: '#E8F5E9', borderRadius: 8 },
   yearText: { fontSize: 18, color: Colors.text },
   yearTextSelected: { color: '#4CAF50', fontWeight: '700' },
-  checkMark: { fontSize: 18, color: '#4CAF50', fontWeight: '700' },
 });
