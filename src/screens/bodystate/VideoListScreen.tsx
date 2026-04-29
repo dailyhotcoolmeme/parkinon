@@ -316,6 +316,8 @@ function VideoPlayerModal({ url, onClose }: VideoPlayerModalProps) {
   const durationRef = useRef(0);
   const isSeekingRef = useRef(false);
   const hideTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  // stale closure 방지: PanResponder가 최신 player를 참조하도록 seekRef 사용
+  const seekRef = useRef<(sec: number) => void>(() => {});
 
   const player = useVideoPlayer(url ? { uri: url } : null, p => {
     if (url) {
@@ -324,6 +326,17 @@ function VideoPlayerModal({ url, onClose }: VideoPlayerModalProps) {
       p.play();
     }
   });
+
+  // player 또는 url이 바뀔 때마다 seekRef 갱신 (stale closure 방지)
+  useEffect(() => {
+    seekRef.current = (sec: number) => {
+      try {
+        player.currentTime = sec;
+      } catch (e) {
+        console.error('[Seek]', e);
+      }
+    };
+  }, [player, url]);
 
   const triggerShowControls = () => {
     setShowControls(true);
@@ -426,9 +439,7 @@ function VideoPlayerModal({ url, onClose }: VideoPlayerModalProps) {
           const targetMs = targetSec * 1000;
           setPositionMs(targetMs);
           positionRef.current = targetMs;
-          try {
-            player.currentTime = targetSec;
-          } catch (_) {}
+          seekRef.current(targetSec);
         }
         // seek 완료 대기 후 폴링 재개 (race condition 방지)
         setTimeout(() => {
