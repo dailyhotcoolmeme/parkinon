@@ -108,6 +108,8 @@ interface VideoPreviewProps {
 }
 
 function VideoPreview({ uri, isPlaying, onPreviewPress }: VideoPreviewProps) {
+  const [remainingSec, setRemainingSec] = useState<number | null>(null);
+
   const player = useVideoPlayer({ uri }, p => {
     p.muted = true;
     p.loop = false;
@@ -116,6 +118,7 @@ function VideoPreview({ uri, isPlaying, onPreviewPress }: VideoPreviewProps) {
   useEffect(() => {
     if (!isPlaying) {
       try { player.pause(); } catch (_) {}
+      setRemainingSec(null);
       return;
     }
     const timer = setTimeout(() => {
@@ -128,6 +131,30 @@ function VideoPreview({ uri, isPlaying, onPreviewPress }: VideoPreviewProps) {
     }, 600);
     return () => clearTimeout(timer);
   }, [isPlaying]);
+
+  // 재생 중일 때 남은 시간 폴링
+  useEffect(() => {
+    if (!isPlaying) {
+      setRemainingSec(null);
+      return;
+    }
+    const interval = setInterval(() => {
+      try {
+        const pos = player.currentTime ?? 0;
+        const dur = player.duration ?? 0;
+        if (dur > 0) {
+          setRemainingSec(Math.max(0, Math.ceil(dur - pos)));
+        }
+      } catch (_) {}
+    }, 500);
+    return () => clearInterval(interval);
+  }, [isPlaying]);
+
+  function formatRemaining(sec: number): string {
+    const m = Math.floor(sec / 60);
+    const s = sec % 60;
+    return `${m}:${s.toString().padStart(2, '0')}`;
+  }
 
   return (
     <View style={thumbStyles.container}>
@@ -146,11 +173,16 @@ function VideoPreview({ uri, isPlaying, onPreviewPress }: VideoPreviewProps) {
         onPress={onPreviewPress}
         activeOpacity={0.85}
       >
-        <Ionicons
-          name={isPlaying ? 'pause-circle' : 'play-circle'}
-          size={36}
-          color="rgba(255,255,255,0.85)"
-        />
+        {/* 정지 상태일 때만 play 아이콘 표시 */}
+        {!isPlaying && (
+          <Ionicons name="play-circle" size={36} color="rgba(255,255,255,0.85)" />
+        )}
+        {/* 재생 중일 때 우측 하단에 남은 시간 표시 */}
+        {isPlaying && remainingSec !== null && (
+          <View style={thumbStyles.countdownBadge}>
+            <Text style={thumbStyles.countdownText}>{formatRemaining(remainingSec)}</Text>
+          </View>
+        )}
       </TouchableOpacity>
     </View>
   );
@@ -171,6 +203,20 @@ const thumbStyles = StyleSheet.create({
     borderRadius: 8,
     alignItems: 'center',
     justifyContent: 'center',
+  },
+  countdownBadge: {
+    position: 'absolute',
+    bottom: 6,
+    right: 6,
+    backgroundColor: 'rgba(0,0,0,0.65)',
+    borderRadius: 4,
+    paddingHorizontal: 6,
+    paddingVertical: 2,
+  },
+  countdownText: {
+    color: '#fff',
+    fontSize: 13,
+    fontWeight: '700',
   },
 });
 
