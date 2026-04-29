@@ -146,14 +146,13 @@ export async function uploadVideo(
   patientId: string,
   category: string = 'general',
   timeoutMs?: number,
-  onProgress?: (percent: number) => void,
 ): Promise<UploadResult> {
   const yearMonth = getYearMonth();
   const uuid = generateUuid();
   const key = `parkinon/videos/${patientId}/${yearMonth}/${uuid}.mp4`;
   const expiresAt = calcExpiresAt();
 
-  const url = await uploadToR2(localUri, 'video/mp4', key, timeoutMs, onProgress);
+  const url = await uploadToR2(localUri, 'video/mp4', key, timeoutMs);
 
   return { url, key, expires_at: expiresAt };
 }

@@ -41,8 +41,7 @@ export function VideoRecordScreen() {
   const { unreadCount } = useNotificationBadge();
   const [selectedVideo, setSelectedVideo] = useState<SelectedVideo | null>(null);
   const [loading, setLoading] = useState(false);
-  const [uploadStage, setUploadStage] = useState<'compressing' | 'uploading' | 'done' | null>(null);
-  const [uploadProgress, setUploadProgress] = useState(0);
+  const [uploadStage, setUploadStage] = useState<'compressing' | 'uploading' | 'saving' | 'done' | null>(null);
   const cancelledRef = useRef(false);
   const [isPlaying, setIsPlaying] = useState(false);
   const [currentTime, setCurrentTime] = useState(0);
@@ -153,7 +152,6 @@ export function VideoRecordScreen() {
   const handleCancelUpload = () => {
     cancelledRef.current = true;
     setUploadStage(null);
-    setUploadProgress(0);
     setLoading(false);
   };
 
@@ -161,55 +159,39 @@ export function VideoRecordScreen() {
     if (!selectedVideo || !user) return;
     cancelledRef.current = false;
     setLoading(true);
-    setUploadProgress(0);
     setUploadStage('compressing');
-
+    const uploadTimer = setTimeout(() => {
+      if (!cancelledRef.current) setUploadStage('uploading');
+    }, 3000);
     try {
       const patientId = await getPatientId();
       if (!patientId) {
-        setUploadStage(null);
-        setUploadProgress(0);
         Alert.alert('오류', '연동된 환자 정보를 찾을 수 없어요.');
         return;
       }
 
-      const result = await uploadVideo(
-        selectedVideo.uri,
-        patientId,
-        'body_state',
-        UPLOAD_TIMEOUT_MS,
-        (percent) => {
-          if (!cancelledRef.current) {
-            // 업로드 progress: 70% ~ 95% 구간에 매핑
-            const mapped = 70 + Math.round(percent * 0.25);
-            setUploadProgress(mapped);
-          }
-        },
-      );
-
+      const result = await uploadVideo(selectedVideo.uri, patientId, 'body_state', UPLOAD_TIMEOUT_MS);
+      clearTimeout(uploadTimer);
       if (cancelledRef.current) return;
 
-      // DB 저장 (빠름) — 바로 완료 전환
+      setUploadStage('saving');
       await saveMediaLog(patientId, user.id, result.url, result.key, result.expires_at, 'video', 'body_state', selectedVideo.duration);
 
       if (cancelledRef.current) return;
-
-      setUploadProgress(100);
       setUploadStage('done');
 
       // 1.5초 후 자동 닫힘 및 화면 이동
       setTimeout(() => {
         if (!cancelledRef.current) {
           setUploadStage(null);
-          setUploadProgress(0);
           setLoading(false);
           navigation.replace('VideoList');
         }
       }, 1500);
     } catch (e: any) {
+      clearTimeout(uploadTimer);
       if (cancelledRef.current) return;
       setUploadStage(null);
-      setUploadProgress(0);
       if (e?.message === 'UPLOAD_TIMEOUT') {
         Alert.alert(
           '업로드 시간 초과',
@@ -226,40 +208,6 @@ export function VideoRecordScreen() {
       if (!cancelledRef.current && uploadStage !== 'done') setLoading(false);
     }
   };
-
-  // 압축 단계 진행 바 관리 — compressing 시 추정 타이머로 0→70%
-  const compressionTimerRef = useRef<ReturnType<typeof setInterval> | null>(null);
-  useEffect(() => {
-    if (uploadStage === 'compressing') {
-      const videoDurationSec = selectedVideo?.duration ?? 10;
-      const compressDurationMs = Math.max(videoDurationSec * 800, 3000);
-      const stepMs = 100;
-      const totalSteps = compressDurationMs / stepMs;
-      let step = 0;
-      compressionTimerRef.current = setInterval(() => {
-        step++;
-        const percent = Math.min(Math.round((step / totalSteps) * 70), 70);
-        setUploadProgress(percent);
-        if (percent >= 70 && compressionTimerRef.current) {
-          clearInterval(compressionTimerRef.current);
-          compressionTimerRef.current = null;
-          // 압축 완료 추정 → 업로드 단계로 전환
-          if (!cancelledRef.current) setUploadStage('uploading');
-        }
-      }, stepMs);
-    } else {
-      if (compressionTimerRef.current) {
-        clearInterval(compressionTimerRef.current);
-        compressionTimerRef.current = null;
-      }
-    }
-    return () => {
-      if (compressionTimerRef.current) {
-        clearInterval(compressionTimerRef.current);
-        compressionTimerRef.current = null;
-      }
-    };
-  }, [uploadStage]);
 
   // 타임라인용 mm:ss 포맷
   const formatTime = (ms: number): string => {
@@ -477,45 +425,68 @@ export function VideoRecordScreen() {
           </View>
         )}
       </View>
-      <UploadOverlay stage={uploadStage} progress={uploadProgress} onCancel={handleCancelUpload} />
+      <UploadOverlay stage={uploadStage} onCancel={handleCancelUpload} />
     </SafeAreaView>
   );
 }
 
 // ─── 업로드 로딩 오버레이 ─────────────────────────────────────────────────────
 
+const TIPS = [
+  { icon: '👨‍👩‍👧', title: '기록을 남기면 보호자도 알 수 있어요', desc: '가족이 함께 건강 상태를 확인할 수 있어요' },
+  { icon: '📊', title: '꾸준한 기록이 힘이에요', desc: '약효 패턴은 반복 기록이 쌓여야 보여요' },
+  { icon: '⏰', title: '정해진 시간에 기록해요', desc: '알림 시간에 맞춰 기록하면 더 정확해요' },
+  { icon: '💊', title: '복용 직후 기록이 중요해요', desc: '약효 시작 시점을 정확히 파악할 수 있어요' },
+  { icon: '🏃', title: '몸 상태가 좋으면 운동도 해봐요', desc: '파킨슨엔 꾸준한 운동이 큰 도움이 돼요' },
+  { icon: '🎯', title: '기록할수록 정확해져요', desc: '데이터가 쌓일수록 의미 있는 분석이 가능해요' },
+];
+
+const STAGES = [
+  { key: 'compressing', label: '압축 중' },
+  { key: 'uploading',   label: '업로드 중' },
+  { key: 'saving',      label: '저장 중' },
+  { key: 'done',        label: '완료' },
+] as const;
+
 function UploadOverlay({
   stage,
-  progress,
   onCancel,
 }: {
-  stage: 'compressing' | 'uploading' | 'done' | null;
-  progress: number;
+  stage: 'compressing' | 'uploading' | 'saving' | 'done' | null;
   onCancel: () => void;
 }) {
-  const barAnim = useRef(new Animated.Value(0)).current;
-  const barWidthRef = useRef(0);
+  const [tipIndex, setTipIndex] = useState(0);
+  const [elapsed, setElapsed] = useState(0);
+  const fadeAnim = useRef(new Animated.Value(1)).current;
 
-  // 진행 바 Animated.Value → progress에 맞게 애니메이션
+  // 팁 7초마다 전환
   useEffect(() => {
-    Animated.timing(barAnim, {
-      toValue: progress,
-      duration: 300,
-      useNativeDriver: false,
-    }).start();
-  }, [progress]);
+    if (!stage) { setElapsed(0); return; }
+    const tipInterval = setInterval(() => {
+      Animated.sequence([
+        Animated.timing(fadeAnim, { toValue: 0, duration: 400, useNativeDriver: true }),
+        Animated.timing(fadeAnim, { toValue: 1, duration: 500, useNativeDriver: true }),
+      ]).start();
+      setTipIndex(i => (i + 1) % TIPS.length);
+    }, 7000);
+    return () => clearInterval(tipInterval);
+  }, [stage]);
+
+  // 경과 시간 1초마다
+  useEffect(() => {
+    if (!stage) { setElapsed(0); return; }
+    const timer = setInterval(() => setElapsed(s => s + 1), 1000);
+    return () => clearInterval(timer);
+  }, [stage]);
 
   if (!stage) return null;
 
   const isDone = stage === 'done';
-
-  const stageLabel = stage === 'compressing'
-    ? '압축 중...'
-    : stage === 'uploading'
-    ? '업로드 중...'
-    : '저장 완료!';
-
-  const subLabel = isDone ? '' : '잠시만 기다려 주세요';
+  const currentStageIdx = STAGES.findIndex(s => s.key === stage);
+  const tip = TIPS[tipIndex];
+  const elapsedStr = elapsed < 60
+    ? `${elapsed}초`
+    : `${Math.floor(elapsed / 60)}분 ${elapsed % 60}초`;
 
   return (
     <Modal transparent visible animationType="fade">
@@ -527,41 +498,54 @@ function UploadOverlay({
               <View style={ovStyles.checkCircle}>
                 <Text style={ovStyles.checkMark}>✓</Text>
               </View>
-              <Text style={ovStyles.stageTitleLarge}>{stageLabel}</Text>
+              <Text style={ovStyles.stageTitleLarge}>저장 완료!</Text>
             </>
           ) : (
-            /* 진행 중 상태 */
             <>
-              {/* 스피너 아이콘 */}
-              <View style={ovStyles.spinnerWrap}>
-                <Ionicons name="cloud-upload-outline" size={48} color="#FF6B00" />
+              {/* 타이틀 + 경과시간 */}
+              <View style={ovStyles.titleRow}>
+                <Text style={ovStyles.stageTitle}>영상을 저장하고 있어요</Text>
+                <Text style={ovStyles.stageTitle}> · {elapsedStr}</Text>
+              </View>
+              <Text style={ovStyles.stageTitle}>잠시만 기다려 주세요 😊</Text>
+
+              {/* 에너지바 단계 표시 */}
+              <View style={ovStyles.stepsRow}>
+                {STAGES.map((s, i) => {
+                  const done = i < currentStageIdx;
+                  const active = i === currentStageIdx;
+                  return (
+                    <React.Fragment key={s.key}>
+                      <View style={ovStyles.stepItem}>
+                        <View style={[
+                          ovStyles.stepDot,
+                          done && ovStyles.stepDotDone,
+                          active && ovStyles.stepDotActive,
+                        ]}>
+                          {done ? (
+                            <Text style={ovStyles.stepCheck}>✓</Text>
+                          ) : active ? (
+                            <View style={ovStyles.stepPulse} />
+                          ) : null}
+                        </View>
+                        <Text style={[ovStyles.stepLabel, active && ovStyles.stepLabelActive]}>
+                          {s.label}
+                        </Text>
+                      </View>
+                      {i < STAGES.length - 1 && (
+                        <View style={[ovStyles.stepLine, (done || active) && ovStyles.stepLineFilled]} />
+                      )}
+                    </React.Fragment>
+                  );
+                })}
               </View>
 
-              {/* 단계 텍스트 */}
-              <Text style={ovStyles.stageTitleLarge}>{stageLabel}</Text>
-              <Text style={ovStyles.subLabel}>{subLabel}</Text>
-
-              {/* 진행 바 + 퍼센트 */}
-              <View
-                style={ovStyles.barContainer}
-                onLayout={(e) => { barWidthRef.current = e.nativeEvent.layout.width; }}
-              >
-                <View style={ovStyles.barTrack}>
-                  <Animated.View
-                    style={[
-                      ovStyles.barFill,
-                      {
-                        width: barAnim.interpolate({
-                          inputRange: [0, 100],
-                          outputRange: ['0%', '100%'],
-                          extrapolate: 'clamp',
-                        }),
-                      },
-                    ]}
-                  />
-                </View>
-                <Text style={ovStyles.percentText}>{Math.round(progress)}%</Text>
-              </View>
+              {/* 팁 카드 */}
+              <Animated.View style={[ovStyles.tipCard, { opacity: fadeAnim }]}>
+                <Text style={ovStyles.tipIcon}>{tip.icon}</Text>
+                <Text style={ovStyles.tipTitle}>{tip.title}</Text>
+                <Text style={ovStyles.tipDesc}>{tip.desc}</Text>
+              </Animated.View>
 
               {/* 취소 버튼 */}
               <TouchableOpacity style={ovStyles.cancelBtn} onPress={onCancel}>
@@ -586,11 +570,19 @@ const ovStyles = StyleSheet.create({
   card: {
     backgroundColor: '#fff',
     borderRadius: 24,
-    paddingVertical: 40,
-    paddingHorizontal: 28,
+    padding: 28,
     width: '100%',
     alignItems: 'center',
-    gap: 24,
+    gap: 20,
+  },
+  titleRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
+  stageTitle: {
+    fontSize: 20,
+    fontWeight: '700',
+    color: '#222',
   },
 
   // 완료 체크마크
@@ -608,59 +600,93 @@ const ovStyles = StyleSheet.create({
     fontWeight: '700',
     lineHeight: 52,
   },
-
-  // 스피너 아이콘 영역
-  spinnerWrap: {
-    width: 80,
-    height: 80,
-    borderRadius: 40,
-    backgroundColor: '#FFF3EB',
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-
-  // 단계 텍스트 (대형)
   stageTitleLarge: {
-    fontSize: 22,
+    fontSize: 24,
     fontWeight: '700',
     color: '#222',
     textAlign: 'center',
   },
-  subLabel: {
-    fontSize: 18,
+
+  // 에너지바
+  stepsRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    width: '100%',
+    paddingHorizontal: 8,
+  },
+  stepItem: {
+    alignItems: 'center',
+    gap: 6,
+  },
+  stepDot: {
+    width: 32,
+    height: 32,
+    borderRadius: 16,
+    backgroundColor: '#E0E0E0',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  stepDotDone: { backgroundColor: '#4CAF50' },
+  stepDotActive: { backgroundColor: '#4CAF50' },
+  stepPulse: {
+    width: 12,
+    height: 12,
+    borderRadius: 6,
+    backgroundColor: '#fff',
+  },
+  stepCheck: {
+    color: '#fff',
+    fontSize: 16,
+    fontWeight: '700',
+  },
+  stepLabel: {
+    fontSize: 13,
+    color: '#999',
+    fontWeight: '500',
+  },
+  stepLabelActive: {
+    color: '#4CAF50',
+    fontWeight: '700',
+  },
+  stepLine: {
+    flex: 1,
+    height: 3,
+    backgroundColor: '#E0E0E0',
+    marginBottom: 18,
+    marginHorizontal: 4,
+    borderRadius: 2,
+  },
+  stepLineFilled: { backgroundColor: '#4CAF50' },
+
+  // 팁 카드
+  tipCard: {
+    backgroundColor: '#F8FFF8',
+    borderRadius: 16,
+    padding: 20,
+    width: '100%',
+    alignItems: 'center',
+    gap: 8,
+    borderWidth: 1,
+    borderColor: '#E8F5E9',
+  },
+  tipIcon: { fontSize: 40 },
+  tipTitle: {
+    fontSize: 20,
+    fontWeight: '700',
+    color: '#222',
+    textAlign: 'center',
+  },
+  tipDesc: {
+    fontSize: 16,
     color: '#666',
     textAlign: 'center',
-    marginTop: -12,
-  },
-
-  // 진행 바
-  barContainer: {
-    width: '100%',
-    gap: 10,
-    alignItems: 'flex-end',
-  },
-  barTrack: {
-    width: '100%',
-    height: 14,
-    backgroundColor: '#E0E0E0',
-    borderRadius: 7,
-    overflow: 'hidden',
-  },
-  barFill: {
-    height: '100%',
-    backgroundColor: '#FF6B00',
-    borderRadius: 7,
-  },
-  percentText: {
-    fontSize: 18,
-    fontWeight: '700',
-    color: '#FF6B00',
+    lineHeight: 22,
   },
 
   // 취소 버튼
   cancelBtn: {
-    paddingVertical: 14,
-    paddingHorizontal: 36,
+    paddingVertical: 12,
+    paddingHorizontal: 32,
     borderRadius: 12,
     borderWidth: 1.5,
     borderColor: '#BDBDBD',
