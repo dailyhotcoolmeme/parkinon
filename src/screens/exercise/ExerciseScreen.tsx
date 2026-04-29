@@ -363,7 +363,7 @@ const styles = StyleSheet.create({
   emptyText: { fontSize: 20, fontWeight: '700', color: Colors.textSub },
   emptySubText: { fontSize: 17, color: Colors.textHint, textAlign: 'center', lineHeight: 26 },
   caregiverNotice: {
-    marginTop: 14,
+    marginTop: 0,
     fontSize: 14,
     color: Colors.textSub,
     textAlign: 'center',
