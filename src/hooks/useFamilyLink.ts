@@ -310,22 +310,27 @@ export function useFamilyLink(): UseFamilyLinkReturn {
       const currentGroupId = freshUser?.patient_group_id ?? user.patient_group_id;
 
       if (currentGroupId && currentGroupId !== group.id) {
-        // 기존 그룹의 멤버 수 확인
-        const { count: memberCount } = await supabase
+        // 기존 그룹에 실제 환자가 있는지 확인 (환자:보호자 = 1:N 구조)
+        // 환자가 있으면 → 연동 해제 확인 필요
+        // 환자 없이 보호자만 있는 솔로/임시 그룹이면 → 그냥 이동
+        const { data: patientInGroup } = await supabase
           .from('patient_group_members')
-          .select('id', { count: 'exact', head: true })
-          .eq('group_id', currentGroupId);
+          .select('id')
+          .eq('group_id', currentGroupId)
+          .eq('role', 'patient')
+          .limit(1)
+          .maybeSingle();
 
-        if ((memberCount ?? 0) > 1) {
-          // ── 다른 멤버도 있는 경우 → 화면에서 확인 Alert 처리 필요 ──
+        if (patientInGroup) {
+          // ── 기존 그룹에 환자가 있는 경우 → 확인 Alert 필요 ──
           return {
             success: false,
             needsConfirm: true,
-            message: '기존 가족 연결을 끊고 새로 연동하시겠습니까?',
+            message: '현재 연동된 환자가 있어요. 기존 연동을 끊고 새로 연동하시겠어요?',
           };
         }
 
-        // ── 솔로 그룹인 경우 → 기존 그룹과 멤버십 삭제 후 새 그룹 합류 ──
+        // ── 환자 없는 임시 그룹인 경우 → 기존 그룹 정리 후 새 그룹 합류 ──
         return await _doJoin(group.id, currentGroupId, true);
       }
 
