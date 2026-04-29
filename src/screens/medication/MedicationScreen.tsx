@@ -415,9 +415,6 @@ export function MedicationScreen() {
           {!isToday && userRole !== 'caregiver_separate' && userRole !== 'caregiver_no_patient' && (
             <Text style={styles.caregiverNotice}>오늘 날짜에서만 복용 기록을 입력할 수 있어요</Text>
           )}
-          {allSlotsTaken && (
-            <Text style={styles.caregiverNotice}>아침·점심·저녁 약을 모두 복용했어요</Text>
-          )}
         </View>
 
         {/* 오늘 복용 현황 */}
