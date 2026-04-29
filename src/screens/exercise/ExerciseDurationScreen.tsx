@@ -93,17 +93,20 @@ async function fetchExerciseNextNotif(patientId: string): Promise<ExNextNotifInf
     }
 
     // 2) meal_schedules + exercise_notif_prefs
-    const { data: userData } = await supabase
+    const { data: userData, error: userError } = await supabase
       .from('users')
       .select('meal_schedules, exercise_notif_prefs')
       .eq('id', patientId)
       .single();
+
+    if (userError) console.error('[fetchExerciseNextNotif] userData error:', userError);
 
     const mealSchedules: Record<string, string> = (userData?.meal_schedules as Record<string, string>) ?? EX_DEFAULT_MEAL_TIMES;
     const MEAL_LABELS: Record<string, string> = {
       morning: '다음 아침약 복용', lunch: '다음 점심약 복용',
       dinner: '다음 저녁약 복용', bedtime: '다음 취침약 복용',
     };
+    let foundMeal = false;
     for (const key of ['morning', 'lunch', 'dinner', 'bedtime']) {
       const timeStr = mealSchedules[key] ?? EX_DEFAULT_MEAL_TIMES[key];
       const [h, m] = timeStr.split(':').map(Number);
@@ -112,8 +115,20 @@ async function fetchExerciseNextNotif(patientId: string): Promise<ExNextNotifInf
       if (scheduled > now) {
         const minutesLeft = Math.round((scheduled.getTime() - now.getTime()) / 60000);
         candidates.push({ minutesLeft, label: MEAL_LABELS[key], sendAt: scheduled });
+        foundMeal = true;
         break;
       }
+    }
+
+    // 오늘 식사 시간이 모두 지난 경우 내일 아침 폴백
+    if (!foundMeal) {
+      const tomorrowMorning = new Date(now);
+      tomorrowMorning.setDate(tomorrowMorning.getDate() + 1);
+      const morningStr = mealSchedules['morning'] ?? EX_DEFAULT_MEAL_TIMES['morning'];
+      const [mh, mm] = morningStr.split(':').map(Number);
+      tomorrowMorning.setHours(mh, mm, 0, 0);
+      const minutesLeft = Math.round((tomorrowMorning.getTime() - now.getTime()) / 60000);
+      candidates.push({ minutesLeft, label: '내일 아침약 복용', sendAt: tomorrowMorning });
     }
 
     // 3) 운동 알림 (exercise_notif_prefs)
@@ -135,12 +150,24 @@ async function fetchExerciseNextNotif(patientId: string): Promise<ExNextNotifInf
       }
     }
 
-    if (candidates.length === 0) return null;
+    // 최후 폴백: candidates가 비어있으면 내일 아침 08:00
+    if (candidates.length === 0) {
+      const tomorrow = new Date(now);
+      tomorrow.setDate(tomorrow.getDate() + 1);
+      tomorrow.setHours(8, 0, 0, 0);
+      return {
+        label: '내일 아침약 복용',
+        timeStr: exFormatTimeHHMM(tomorrow),
+        minutesLeft: Math.round((tomorrow.getTime() - now.getTime()) / 60000),
+      };
+    }
+
     candidates.sort((a, b) => a.minutesLeft - b.minutesLeft);
     const best = candidates[0];
-    if (best.minutesLeft <= 0) return null;
+    if (best.minutesLeft < 1) return null;
     return { label: best.label, timeStr: exFormatTimeHHMM(best.sendAt), minutesLeft: best.minutesLeft };
-  } catch {
+  } catch (e) {
+    console.error('[fetchExerciseNextNotif] error:', e);
     return null;
   }
 }

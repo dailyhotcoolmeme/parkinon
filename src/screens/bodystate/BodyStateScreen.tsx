@@ -1074,11 +1074,13 @@ async function fetchNextNotifMessage(patientId: string): Promise<NextNotifInfo |
     }
 
     // 2) meal_schedules에서 현재 시각 이후 다음 식사 알림 + exercise_notif_prefs 운동 알림
-    const { data: userData } = await supabase
+    const { data: userData, error: userError } = await supabase
       .from('users')
       .select('meal_schedules, exercise_notif_prefs')
       .eq('id', patientId)
       .single();
+
+    if (userError) console.error('[fetchNextNotifMessage] userData error:', userError);
 
     const mealSchedules: Record<string, string> = (userData?.meal_schedules as Record<string, string>) ?? DEFAULT_MEAL_TIMES_BS;
 
@@ -1089,6 +1091,7 @@ async function fetchNextNotifMessage(patientId: string): Promise<NextNotifInfo |
       bedtime: '다음 취침약 복용',
     };
 
+    let foundMeal = false;
     for (const key of ['morning', 'lunch', 'dinner', 'bedtime']) {
       const timeStr = mealSchedules[key] ?? DEFAULT_MEAL_TIMES_BS[key];
       const [h, m] = timeStr.split(':').map(Number);
@@ -1097,8 +1100,20 @@ async function fetchNextNotifMessage(patientId: string): Promise<NextNotifInfo |
       if (scheduled > now) {
         const minutesLeft = Math.round((scheduled.getTime() - now.getTime()) / 60000);
         candidates.push({ minutesLeft, label: MEAL_LABELS[key], sendAt: scheduled });
+        foundMeal = true;
         break;
       }
+    }
+
+    // 오늘 식사 시간이 모두 지난 경우 내일 아침 폴백
+    if (!foundMeal) {
+      const tomorrowMorning = new Date(now);
+      tomorrowMorning.setDate(tomorrowMorning.getDate() + 1);
+      const morningStr = mealSchedules['morning'] ?? DEFAULT_MEAL_TIMES_BS['morning'];
+      const [mh, mm] = morningStr.split(':').map(Number);
+      tomorrowMorning.setHours(mh, mm, 0, 0);
+      const minutesLeft = Math.round((tomorrowMorning.getTime() - now.getTime()) / 60000);
+      candidates.push({ minutesLeft, label: '내일 아침약 복용', sendAt: tomorrowMorning });
     }
 
     // 3) 운동 알림 (exercise_notif_prefs) — 오늘 이후 가장 가까운 운동 알림 시간
@@ -1120,19 +1135,30 @@ async function fetchNextNotifMessage(patientId: string): Promise<NextNotifInfo |
       }
     }
 
-    if (candidates.length === 0) return null;
+    // 최후 폴백: candidates가 비어있으면 내일 아침 08:00
+    if (candidates.length === 0) {
+      const tomorrow = new Date(now);
+      tomorrow.setDate(tomorrow.getDate() + 1);
+      tomorrow.setHours(8, 0, 0, 0);
+      return {
+        label: '내일 아침약 복용',
+        timeStr: formatTimeHHMM_BS(tomorrow),
+        minutesLeft: Math.round((tomorrow.getTime() - now.getTime()) / 60000),
+      };
+    }
 
     candidates.sort((a, b) => a.minutesLeft - b.minutesLeft);
     const best = candidates[0];
 
-    if (best.minutesLeft <= 0) return null;
+    if (best.minutesLeft < 1) return null;
 
     return {
       label: best.label,
       timeStr: formatTimeHHMM_BS(best.sendAt),
       minutesLeft: best.minutesLeft,
     };
-  } catch {
+  } catch (e) {
+    console.error('[fetchNextNotifMessage] error:', e);
     return null;
   }
 }
