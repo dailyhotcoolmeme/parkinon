@@ -383,17 +383,8 @@ export function MedicationScreen() {
               styles.mainButton,
               (userRole === 'caregiver_no_patient' || userRole === 'caregiver_separate' || !isToday || allSlotsTaken) && styles.mainButtonDisabled,
             ]}
+            disabled={userRole === 'caregiver_no_patient' || userRole === 'caregiver_separate' || !isToday || allSlotsTaken}
             onPress={() => {
-              if (!isToday) return;
-              if (allSlotsTaken) return;
-              if (userRole === 'caregiver_no_patient') {
-                Alert.alert('환자 연동 필요', '환자와 먼저 연동해야\n대신 기록할 수 있어요.');
-                return;
-              }
-              if (userRole === 'caregiver_separate') {
-                Alert.alert('대신 입력 불가', '함께 거주하지 않아\n대신 기록이 불가능해요.');
-                return;
-              }
               if (userRole === 'caregiver_same') {
                 setShowCaregiverConfirm(true);
               } else {
