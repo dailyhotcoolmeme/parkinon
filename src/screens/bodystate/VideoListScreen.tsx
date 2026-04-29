@@ -307,10 +307,12 @@ function VideoPlayerModal({ url, onClose }: VideoPlayerModalProps) {
   const [isPlaying, setIsPlaying] = useState(false);
   const [isSeeking, setIsSeeking] = useState(false);
   const [seekRatio, setSeekRatio] = useState(0);
+  const [showControls, setShowControls] = useState(true);
   const sliderWidthRef = useRef(0);
   const positionRef = useRef(0);
   const durationRef = useRef(0);
   const isSeekingRef = useRef(false);
+  const hideTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const player = useVideoPlayer(url ? { uri: url } : null, p => {
     if (url) {
@@ -320,6 +322,14 @@ function VideoPlayerModal({ url, onClose }: VideoPlayerModalProps) {
     }
   });
 
+  const triggerShowControls = () => {
+    setShowControls(true);
+    if (hideTimerRef.current) clearTimeout(hideTimerRef.current);
+    if (player.playing) {
+      hideTimerRef.current = setTimeout(() => setShowControls(false), 3000);
+    }
+  };
+
   // 재생 위치 폴링 (expo-video는 timeUpdate 이벤트 지원)
   useEffect(() => {
     if (!url) return;
@@ -327,10 +337,12 @@ function VideoPlayerModal({ url, onClose }: VideoPlayerModalProps) {
     setDurationMs(0);
     setIsSeeking(false);
     setSeekRatio(0);
+    setShowControls(true);
     positionRef.current = 0;
     durationRef.current = 0;
     isSeekingRef.current = false;
 
+    let prevPlaying = false;
     let intervalId: ReturnType<typeof setInterval> | null = null;
     intervalId = setInterval(() => {
       try {
@@ -343,13 +355,27 @@ function VideoPlayerModal({ url, onClose }: VideoPlayerModalProps) {
             positionRef.current = pos;
             durationRef.current = dur;
           }
-          setIsPlaying(player.playing ?? false);
+          const playing = player.playing ?? false;
+          if (playing !== prevPlaying) {
+            setIsPlaying(playing);
+            if (playing) {
+              // 재생 시작 → 3초 후 컨트롤 숨김
+              if (hideTimerRef.current) clearTimeout(hideTimerRef.current);
+              hideTimerRef.current = setTimeout(() => setShowControls(false), 3000);
+            } else {
+              // 일시정지 → 컨트롤 항상 표시
+              if (hideTimerRef.current) clearTimeout(hideTimerRef.current);
+              setShowControls(true);
+            }
+            prevPlaying = playing;
+          }
         }
       } catch (_) {}
     }, 250);
 
     return () => {
       if (intervalId) clearInterval(intervalId);
+      if (hideTimerRef.current) clearTimeout(hideTimerRef.current);
     };
   }, [url]);
 
@@ -436,36 +462,46 @@ function VideoPlayerModal({ url, onClose }: VideoPlayerModalProps) {
           </View>
         )}
 
-        {/* 재생/정지 오버레이 */}
+        {/* 전체 화면 탭 감지 레이어 + 재생/정지 오버레이 */}
         <TouchableOpacity
-          style={playerStyles.playOverlay}
-          onPress={handleTogglePlay}
-          activeOpacity={0.7}
+          style={[playerStyles.playOverlay, { top: 0, bottom: 0, left: 0, right: 0, marginTop: 0 }]}
+          onPress={() => {
+            if (showControls) {
+              handleTogglePlay();
+            } else {
+              triggerShowControls();
+            }
+          }}
+          activeOpacity={1}
         >
-          <Ionicons
-            name={isPlaying ? 'pause-circle' : 'play-circle'}
-            size={64}
-            color="rgba(255,255,255,0.85)"
-          />
+          {showControls && (
+            <Ionicons
+              name={isPlaying ? 'pause-circle' : 'play-circle'}
+              size={64}
+              color="rgba(255,255,255,0.85)"
+            />
+          )}
         </TouchableOpacity>
 
         {/* 타임라인 슬라이더 */}
-        <View style={playerStyles.timelineContainer}>
-          <View style={playerStyles.timeRow}>
-            <Text style={playerStyles.timeText}>
-              {formatTimeMs(isSeeking ? seekRatio * durationMs : positionMs)}
-            </Text>
-            <Text style={playerStyles.timeText}>{formatTimeMs(durationMs)}</Text>
+        {showControls && (
+          <View style={playerStyles.timelineContainer}>
+            <View style={playerStyles.timeRow}>
+              <Text style={playerStyles.timeText}>
+                {formatTimeMs(isSeeking ? seekRatio * durationMs : positionMs)}
+              </Text>
+              <Text style={playerStyles.timeText}>{formatTimeMs(durationMs)}</Text>
+            </View>
+            <View
+              style={playerStyles.sliderTrack}
+              onLayout={(e) => { sliderWidthRef.current = e.nativeEvent.layout.width; }}
+              {...panResponder.panHandlers}
+            >
+              <View style={[playerStyles.sliderFill, { width: `${displayRatio * 100}%` }]} />
+              <View style={[playerStyles.sliderHandle, { left: `${displayRatio * 100}%` }]} />
+            </View>
           </View>
-          <View
-            style={playerStyles.sliderTrack}
-            onLayout={(e) => { sliderWidthRef.current = e.nativeEvent.layout.width; }}
-            {...panResponder.panHandlers}
-          >
-            <View style={[playerStyles.sliderFill, { width: `${displayRatio * 100}%` }]} />
-            <View style={[playerStyles.sliderHandle, { left: `${displayRatio * 100}%` }]} />
-          </View>
-        </View>
+        )}
 
         <TouchableOpacity style={playerStyles.closeBtn} onPress={onClose} activeOpacity={0.8}>
           <Ionicons name="close-circle" size={40} color="rgba(255,255,255,0.9)" />
