@@ -119,7 +119,6 @@ function VideoPreview({ uri, isPlaying, onPreviewPress, durationSeconds }: Video
     }
     const timer = setTimeout(() => {
       try {
-        player.currentTime = 0;
         player.play();
       } catch (err) {
         console.error('[VideoPreview] play error:', err);
@@ -141,20 +140,6 @@ function VideoPreview({ uri, isPlaying, onPreviewPress, durationSeconds }: Video
       } catch (_) {}
     }, 500);
     return () => clearInterval(interval);
-  }, [isPlaying]);
-
-  // 재생이 처음 시작될 때 player에서 실제 duration 읽어서 초기화
-  useEffect(() => {
-    if (!isPlaying) return;
-    const t = setTimeout(() => {
-      try {
-        const dur = player.duration ?? 0;
-        if (dur > 0 && remainingSec === null) {
-          setRemainingSec(Math.ceil(dur));
-        }
-      } catch (_) {}
-    }, 700);
-    return () => clearTimeout(t);
   }, [isPlaying]);
 
   function formatRemaining(sec: number): string {
