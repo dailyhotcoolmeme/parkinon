@@ -156,6 +156,9 @@ export function MedicationScreen() {
       }
     })();
 
+    // 따로 거주 보호자 / 연동 환자 없는 보호자는 바텀시트 차단
+    if (userRole === 'caregiver_separate' || userRole === 'caregiver_no_patient') return;
+
     // 화면 전환 애니메이션 완료 후 모달 오픈
     const timer = setTimeout(() => {
       setShowMealTimeModal(true);

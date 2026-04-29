@@ -169,6 +169,12 @@ export function useMedication(): UseMedicationReturn {
   ): Promise<boolean> => {
     if (!user) return false;
 
+    // 따로 거주하는 보호자는 약 복용 기록 불가 (UI 우회 방어)
+    if (user.role === 'caregiver' && user.residence_type === 'separate') {
+      setError('따로 거주하는 보호자는 약 복용을 기록할 수 없어요.');
+      return false;
+    }
+
     setLoading(true);
     setError(null);
 

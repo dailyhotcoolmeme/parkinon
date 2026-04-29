@@ -411,6 +411,28 @@ export function useAuthProvider(): UseAuthReturn {
   // 로그아웃
   const signOut = useCallback(async () => {
     setLoading(true);
+
+    // 로그아웃 전 push_token 초기화 (다른 계정에 알림이 가는 것 방지)
+    try {
+      const { data: sessionData } = await supabase.auth.getSession();
+      const userId = sessionData?.session?.user?.id;
+      const accessToken = sessionData?.session?.access_token;
+      if (userId && accessToken) {
+        await fetch(`${SUPABASE_URL}/rest/v1/users?id=eq.${userId}`, {
+          method: 'PATCH',
+          headers: {
+            'apikey': SUPABASE_ANON_KEY,
+            'Authorization': `Bearer ${accessToken}`,
+            'Content-Type': 'application/json',
+            'Prefer': 'return=minimal',
+          },
+          body: JSON.stringify({ push_token: null }),
+        });
+      }
+    } catch (e) {
+      console.warn('[signOut] push_token 초기화 실패:', e);
+    }
+
     await supabase.auth.signOut();
     // 계정 전환 시 이전 계정의 로컬 알림이 남지 않도록 전체 취소
     try {
