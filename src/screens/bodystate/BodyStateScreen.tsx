@@ -423,32 +423,24 @@ export function BodyStateScreen() {
       }
 
       // 2-2. 큐 삭제 (await — fetchNextNotifMessage보다 반드시 먼저 완료되어야 함)
-      // ⚠️ intervalMin > 0 조건 제거 — 0분(after_medication) 큐도 삭제 대상에 포함
+      // SELECT+DELETE를 단일 DELETE+select로 합쳐 네트워크 왕복 1회 절감
       const intervalMin = savedLabel ? labelToMinutes(savedLabel) : null;
       if (intervalMin != null && savedPatientId) {
         try {
           let query = supabase
             .from('effect_tracking_queue')
-            .select('id')
+            .delete()
             .eq('patient_id', savedPatientId)
             .eq('interval_minutes', intervalMin)
             .is('sent_at', null);
-          // meal_time이 있으면 같은 식사 알림만 취소 (다른 식사 추적 보존)
           if (savedMealTime) query = (query as any).eq('meal_time', savedMealTime);
-          const { data: queueItems } = await query;
-          if (queueItems && queueItems.length > 0) {
-            await supabase
-              .from('effect_tracking_queue')
-              .delete()
-              .in('id', queueItems.map((q: any) => q.id));
+          const { data: deletedItems } = await (query as any).select();
+          if (deletedItems && deletedItems.length > 0) {
             let periodKo = getPeriod(new Date().toISOString());
-            try {
-              const raw = await AsyncStorage.getItem('parkinon_last_medication');
-              if (raw) {
-                const { meal_time } = JSON.parse(raw);
-                if (meal_time) { const p = mealTimeToPeriod(meal_time); if (p) periodKo = p; }
-              }
-            } catch {}
+            if (savedMealTime) {
+              const p = mealTimeToPeriod(savedMealTime);
+              if (p) periodKo = p;
+            }
             const delta = triggerLabelToText(savedLabel!);
             setPreRecordMessage(
               `${periodKo}약 복용 ${delta} 후 몸상태 기록을 미리 남기셨어요.\n\n사전에 설정된 알림은 보내지 않을게요.`

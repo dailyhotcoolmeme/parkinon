@@ -192,21 +192,20 @@ export function ExerciseDurationScreen() {
       return;
     }
     setSaving(true);
-    const success = await saveExercise(exerciseName, selected);
+    // 저장과 다음 알림 조회를 병렬 실행 (서로 독립적)
+    const patientId = user?.role === 'patient' ? user?.id : null;
+    const [success, info] = await Promise.all([
+      saveExercise(exerciseName, selected),
+      patientId ? fetchExerciseNextNotif(patientId) : Promise.resolve(null),
+    ]);
     setSaving(false);
     if (success) {
       setSavedExerciseName(exerciseName);
       setSavedDuration(selected);
-
-      // 다음 예정 알림 조회
-      const patientId = user?.role === 'patient' ? user?.id : null;
-      if (patientId) {
-        const info = await fetchExerciseNextNotif(patientId);
-        if (info) {
-          setNextNotifInfo(info);
-          setShowNextNotifModal(true);
-          return; // 모달 닫힌 후 navigation.popToTop() 실행
-        }
+      if (info) {
+        setNextNotifInfo(info);
+        setShowNextNotifModal(true);
+        return;
       }
       // 알림 없으면 바로 완료 알림
       Alert.alert(

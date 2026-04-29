@@ -304,7 +304,7 @@ export function MedicationScreen() {
 
     setTimeout(() => {
       setShowBodyStateSuggest(true);
-    }, 400);
+    }, 100);
   };
 
   const handleMealTimeSelect = (mealTime: MealTime) => {
@@ -542,7 +542,7 @@ export function MedicationScreen() {
                 setSelectedMealTime(null);
                 // 다음 알림 팝업 표시 (nextNotifInfo가 있을 때만)
                 if (nextNotifInfo) {
-                  setTimeout(() => setShowNextNotifModal(true), 300);
+                  setShowNextNotifModal(true);
                 }
               }}
               style={{ paddingVertical: 10, width: '100%', alignItems: 'center' }}
