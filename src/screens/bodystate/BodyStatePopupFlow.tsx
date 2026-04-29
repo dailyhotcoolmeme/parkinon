@@ -349,7 +349,7 @@ const styles = StyleSheet.create({
 
   contentWrap: { paddingHorizontal: 16, paddingTop: 12 },
   stepDesc: { fontSize: 17, color: Colors.textSub, marginBottom: 16, lineHeight: 24 },
-  scoreScroll: { maxHeight: SCREEN_HEIGHT * 0.46 },
+  scoreScroll: { maxHeight: SCREEN_HEIGHT * 0.55 },
 
   constipationCol: { gap: 14, marginTop: 4, paddingBottom: 8 },
   constipationBtn: {

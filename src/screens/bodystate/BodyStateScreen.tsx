@@ -437,23 +437,31 @@ export function BodyStateScreen() {
       }
     } catch {}
 
-    const success = await saveBodyState({
+    // UI 즉시 닫기 (저장 완료를 기다리지 않음)
+    const savedLabel = pendingTriggerLabel; // state 초기화 전 캡처
+    const savedTriggeredBy = pendingTriggeredBy;
+    const savedMealTime = medicationMealTime;
+    setPendingTriggerLabel(null);
+    setPendingTriggeredBy('manual');
+    setHistoryRefreshKey(k => k + 1);
+    if (route.params?.triggerMinutes != null) {
+      navigation.setParams({ triggerMinutes: null });
+    }
+    setShowFlow(false);
+
+    // 저장 + 후처리는 백그라운드에서 실행
+    saveBodyState({
       body_state: record.bodyScore,
       mood: record.moodScore,
       sleep_quality: record.sleepScore,
       constipation: record.constipation,
-      trigger_time_label: pendingTriggerLabel ?? undefined,
-      medication_meal_time: medicationMealTime,
-    }, pendingTriggeredBy);
-    if (success) {
-      const savedLabel = pendingTriggerLabel; // state 초기화 전 캡처
-      setPendingTriggerLabel(null);
-      setPendingTriggeredBy('manual');
-      setHistoryRefreshKey(k => k + 1);
-      if (route.params?.triggerMinutes != null) {
-        navigation.setParams({ triggerMinutes: null });
+      trigger_time_label: savedLabel ?? undefined,
+      medication_meal_time: savedMealTime,
+    }, savedTriggeredBy).then(async (success) => {
+      if (!success) {
+        Alert.alert('저장 실패', '몸상태 기록 저장에 실패했어요. 다시 시도해주세요.');
+        return;
       }
-      setShowFlow(false);
 
       // 예약 알림 큐 취소 — trigger_time_label이 있는 경우 해당 interval의 미발송 큐 삭제
       // ⚠️ 큐 삭제를 먼저 await 완료한 후 fetchNextNotifMessage 호출해야
@@ -469,7 +477,7 @@ export function BodyStateScreen() {
             .eq('interval_minutes', intervalMin)
             .is('sent_at', null);
           // meal_time이 있으면 같은 식사 알림만 취소 (다른 식사 추적 보존)
-          if (medicationMealTime) query = (query as any).eq('meal_time', medicationMealTime);
+          if (savedMealTime) query = (query as any).eq('meal_time', savedMealTime);
           const { data: queueItems } = await query;
           if (queueItems && queueItems.length > 0) {
             await supabase
@@ -504,9 +512,7 @@ export function BodyStateScreen() {
           }
         });
       }
-    } else {
-      Alert.alert('저장 실패', '몸상태 기록 저장에 실패했어요. 다시 시도해주세요.');
-    }
+    }).catch(console.error);
   };
 
   return (
