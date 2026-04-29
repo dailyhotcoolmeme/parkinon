@@ -176,15 +176,15 @@ export function useBodyState(): UseBodyStateReturn {
                 await sendCaregiverPush(
                   cu.push_token,
                   '😊 몸 상태를 기록했어요',
-                  `${patientName}님의 몸 상태가 기록됐어요.`,
+                  `${patientName}님이 몸 상태를 기록했어요. (${data.body_state}점)`,
                   { type: 'caregiver_body_state' },
                 );
               }
               if (data.mood !== undefined && prefs.mood !== false) {
                 await sendCaregiverPush(
                   cu.push_token,
-                  '😄 기분을 기록했어요',
-                  `${patientName}님의 기분이 기록됐어요.`,
+                  '😄 기분 상태를 기록했어요',
+                  `${patientName}님이 기분 상태를 기록했어요. (${data.mood}점)`,
                   { type: 'caregiver_mood' },
                 );
               }
