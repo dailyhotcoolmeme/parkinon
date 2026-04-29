@@ -215,9 +215,6 @@ function VideoCard({ item, onPress, onDelete, previewingId, onPreviewPress }: Vi
       <View style={cardStyles.info}>
         <Text style={cardStyles.dateText}>{formatDateLabel(item.logged_at)}</Text>
         <Text style={cardStyles.timeText}>{formatTime(item.logged_at)}</Text>
-        {durationText !== '' && (
-          <Text style={cardStyles.durationInfo}>{durationText}</Text>
-        )}
       </View>
       <TouchableOpacity
         style={cardStyles.deleteBtn}

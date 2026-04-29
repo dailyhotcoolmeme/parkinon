@@ -180,7 +180,7 @@ export function VideoRecordScreen() {
       if (cancelledRef.current) return;
       setUploadStage(null);
       Alert.alert('저장 완료', '영상이 저장되었어요.', [
-        { text: '확인', onPress: () => navigation.goBack() },
+        { text: '확인', onPress: () => navigation.replace('VideoList') },
       ]);
     } catch (e: any) {
       clearTimeout(uploadTimer);
