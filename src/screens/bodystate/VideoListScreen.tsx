@@ -464,7 +464,7 @@ function VideoPlayerModal({ url, onClose }: VideoPlayerModalProps) {
 
         {/* 전체 화면 탭 감지 레이어 + 재생/정지 오버레이 */}
         <TouchableOpacity
-          style={[playerStyles.playOverlay, { top: 0, bottom: 0, left: 0, right: 0, marginTop: 0 }]}
+          style={playerStyles.playOverlay}
           onPress={() => {
             if (showControls) {
               handleTogglePlay();
@@ -524,9 +524,12 @@ const playerStyles = StyleSheet.create({
   },
   playOverlay: {
     position: 'absolute',
-    alignSelf: 'center',
-    top: '50%',
-    marginTop: -32,
+    top: 0,
+    bottom: 0,
+    left: 0,
+    right: 0,
+    alignItems: 'center',
+    justifyContent: 'center',
     zIndex: 5,
   },
   timelineContainer: {
