@@ -812,7 +812,7 @@ export function VideoListScreen() {
           !fabExpanded && styles.fabCircle,
           { bottom: 28 + insets.bottom },
         ]}
-        onPress={() => navigateTo('VideoRecord')}
+        onPress={() => navigateTo('BodyStateTab', { screen: 'VideoRecord' })}
         activeOpacity={0.85}
       >
         <Ionicons name="videocam-outline" size={24} color={Colors.white} />
