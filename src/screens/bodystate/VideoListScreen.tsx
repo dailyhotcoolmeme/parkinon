@@ -12,7 +12,7 @@ import {
   Alert,
   PanResponder,
 } from 'react-native';
-import { SafeAreaView } from 'react-native-safe-area-context';
+import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useFocusEffect, useNavigation } from '@react-navigation/native';
 import { Ionicons } from '@expo/vector-icons';
 import { VideoView, useVideoPlayer } from 'expo-video';
@@ -612,6 +612,7 @@ const FILTERS: { key: FilterType; label: string }[] = [
 
 export function VideoListScreen() {
   const navigation = useNavigation<any>();
+  const insets = useSafeAreaInsets();
   const { unreadCount } = useNotificationBadge();
   const [filter, setFilter] = useState<FilterType>('all');
   const [sections, setSections] = useState<SectionData[]>([]);
@@ -619,6 +620,18 @@ export function VideoListScreen() {
   const [playingUrl, setPlayingUrl] = useState<string | null>(null);
   const [previewingId, setPreviewingId] = useState<string | null>(null);
   const previewTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const [fabExpanded, setFabExpanded] = useState(true);
+  const lastScrollY = useRef(0);
+
+  const handleScroll = (event: any) => {
+    const currentY = event.nativeEvent.contentOffset.y;
+    if (currentY > lastScrollY.current && currentY > 60) {
+      setFabExpanded(false);
+    } else if (currentY < lastScrollY.current) {
+      setFabExpanded(true);
+    }
+    lastScrollY.current = currentY;
+  };
 
   const fetchVideos = useCallback(async (f: FilterType) => {
     setLoading(true);
@@ -771,6 +784,8 @@ export function VideoListScreen() {
           contentContainerStyle={styles.listContent}
           showsVerticalScrollIndicator={false}
           removeClippedSubviews={false}
+          onScroll={handleScroll}
+          scrollEventThrottle={16}
           renderSectionHeader={({ section }) => (
             <View style={styles.sectionHeader}>
               <Text style={styles.sectionHeaderText}>{section.title}</Text>
@@ -789,6 +804,19 @@ export function VideoListScreen() {
           stickySectionHeadersEnabled={false}
         />
       )}
+
+      <TouchableOpacity
+        style={[
+          styles.fab,
+          !fabExpanded && styles.fabCircle,
+          { bottom: 28 + insets.bottom },
+        ]}
+        onPress={() => navigation.navigate('VideoRecord')}
+        activeOpacity={0.85}
+      >
+        <Ionicons name="videocam-outline" size={24} color={Colors.white} />
+        {fabExpanded && <Text style={styles.fabText}>영상 기록하기</Text>}
+      </TouchableOpacity>
 
       <VideoPlayerModal url={playingUrl} onClose={() => setPlayingUrl(null)} />
     </SafeAreaView>
@@ -834,4 +862,34 @@ const styles = StyleSheet.create({
   },
   emptyTitle: { fontSize: 20, fontWeight: '700', color: Colors.textSub },
   emptyDesc: { fontSize: 17, color: Colors.textHint },
+  fab: {
+    position: 'absolute',
+    right: 20,
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: Colors.primary,
+    borderRadius: 30,
+    paddingVertical: 15,
+    paddingHorizontal: 22,
+    gap: 8,
+    elevation: 6,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 3 },
+    shadowOpacity: 0.2,
+    shadowRadius: 6,
+    zIndex: 100,
+  },
+  fabCircle: {
+    width: 60,
+    height: 60,
+    paddingVertical: 0,
+    paddingHorizontal: 0,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  fabText: {
+    fontSize: 17,
+    fontWeight: '700',
+    color: Colors.white,
+  },
 });
