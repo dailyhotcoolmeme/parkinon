@@ -137,6 +137,7 @@ export function PostDetailScreen() {
   const [replyingTo, setReplyingTo] = useState<string | null>(null);
   const [submittingComment, setSubmittingComment] = useState(false);
   const [mediaUrls, setMediaUrls] = useState<string[]>([]);
+  const [deleting, setDeleting] = useState(false);
 
   // 수정하기
   const handleEdit = () => {
@@ -163,6 +164,7 @@ export function PostDetailScreen() {
           text: '삭제',
           style: 'destructive',
           onPress: async () => {
+            setDeleting(true);
             try {
               const { error } = await supabase
                 .from('posts')
@@ -175,6 +177,8 @@ export function PostDetailScreen() {
             } catch (e: any) {
               Alert.alert('오류', e.message ?? '삭제 중 문제가 생겼어요. 다시 시도해주세요.');
               console.error('[PostDetail] handleDelete 오류:', e);
+            } finally {
+              setDeleting(false);
             }
           },
         },
@@ -637,6 +641,12 @@ export function PostDetailScreen() {
         </ScrollView>
       </KeyboardAvoidingView>
       <CenterToast message={toastMsg} visible={toastVisible} />
+      {deleting && (
+        <View style={styles.deletingOverlay}>
+          <ActivityIndicator size="large" color={Colors.white} />
+          <Text style={styles.deletingText}>삭제 중...</Text>
+        </View>
+      )}
     </SafeAreaView>
   );
 }
@@ -815,4 +825,20 @@ const styles = StyleSheet.create({
   },
   commentSubmitDisabled: { backgroundColor: Colors.border },
   commentSubmitText: { fontSize: 15, fontWeight: '700', color: Colors.white },
+
+  // ── 삭제 중 오버레이 ──
+  deletingOverlay: {
+    position: 'absolute',
+    top: 0, left: 0, right: 0, bottom: 0,
+    backgroundColor: 'rgba(0,0,0,0.45)',
+    alignItems: 'center',
+    justifyContent: 'center',
+    zIndex: 999,
+    gap: 16,
+  },
+  deletingText: {
+    color: '#ffffff',
+    fontSize: 18,
+    fontWeight: '600',
+  },
 });

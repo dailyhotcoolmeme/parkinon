@@ -635,6 +635,7 @@ export function VideoListScreen() {
   const [filter, setFilter] = useState<FilterType>('all');
   const [sections, setSections] = useState<SectionData[]>([]);
   const [loading, setLoading] = useState(false);
+  const [deleting, setDeleting] = useState(false);
   const [playingUrl, setPlayingUrl] = useState<string | null>(null);
   const [previewingId, setPreviewingId] = useState<string | null>(null);
   const previewTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -732,6 +733,7 @@ export function VideoListScreen() {
           text: '삭제',
           style: 'destructive',
           onPress: async () => {
+            setDeleting(true);
             try {
               if (item.r2_key) {
                 // R2 파일 + DB 행을 Edge Function으로 함께 삭제
@@ -753,6 +755,8 @@ export function VideoListScreen() {
             } catch (e) {
               console.error('[VideoListScreen] 삭제 오류:', e);
               Alert.alert('삭제 실패', '영상 삭제에 실패했어요. 다시 시도해 주세요.');
+            } finally {
+              setDeleting(false);
             }
           },
         },
@@ -836,6 +840,13 @@ export function VideoListScreen() {
         {fabExpanded && <Text style={styles.fabText}>기록하기</Text>}
       </TouchableOpacity>
 
+      {deleting && (
+        <View style={styles.deletingOverlay}>
+          <ActivityIndicator size="large" color={Colors.white} />
+          <Text style={styles.deletingText}>삭제 중...</Text>
+        </View>
+      )}
+
       <VideoPlayerModal url={playingUrl} onClose={() => setPlayingUrl(null)} />
     </SafeAreaView>
   );
@@ -909,5 +920,19 @@ const styles = StyleSheet.create({
     fontSize: 17,
     fontWeight: '700',
     color: Colors.white,
+  },
+  deletingOverlay: {
+    position: 'absolute',
+    top: 0, left: 0, right: 0, bottom: 0,
+    backgroundColor: 'rgba(0,0,0,0.45)',
+    alignItems: 'center',
+    justifyContent: 'center',
+    zIndex: 999,
+    gap: 16,
+  },
+  deletingText: {
+    color: Colors.white,
+    fontSize: 18,
+    fontWeight: '600',
   },
 });
