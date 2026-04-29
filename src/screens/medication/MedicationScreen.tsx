@@ -703,11 +703,11 @@ async function fetchNextNotifMessage(patientId: string): Promise<NextNotifInfo |
 
       let intervalLabel: string;
       if (intervalMin === 0) intervalLabel = '복용 직후';
-      else if (intervalMin < 60) intervalLabel = `복용 후 ${intervalMin}분`;
+      else if (intervalMin < 60) intervalLabel = `복용 ${intervalMin}분 후`;
       else {
         const h = Math.floor(intervalMin / 60);
         const rem = intervalMin % 60;
-        intervalLabel = rem === 0 ? `복용 후 ${h}시간` : `복용 후 ${h}시간 ${rem}분`;
+        intervalLabel = rem === 0 ? `복용 ${h}시간 후` : `복용 ${h}시간 ${rem}분 후`;
       }
       const label = mealKo ? `${mealKo} ${intervalLabel} 약효추적` : `${intervalLabel} 약효추적`;
       candidates.push({ minutesLeft, label, sendAt });

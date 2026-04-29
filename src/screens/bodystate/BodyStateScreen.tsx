@@ -95,8 +95,8 @@ const MEAL_KO: Record<string, string> = {
 // 기본 라벨 (동적 생성 실패 시 폴백용)
 const DEFAULT_TRIGGER_LABEL: Record<string, string> = {
   after_medication: '복용 직후',
-  '30min_after': '30분 후',
-  '2hour_after': '2시간 후',
+  '30min_after': '복용 30분 후',
+  '2hour_after': '복용 2시간 후',
 };
 
 const PERIOD_COLOR: Record<string, string> = {
@@ -284,10 +284,10 @@ export function BodyStateScreen() {
       const minutes = parseInt(match[1], 10);
       const notif = medNotifs.find(n => n.minutes === minutes);
       if (notif) {
-        if (minutes < 60) return `복용 후 ${minutes}분`;
+        if (minutes < 60) return `복용 ${minutes}분 후`;
         const hours = Math.floor(minutes / 60);
         const remainMin = minutes % 60;
-        return remainMin === 0 ? `복용 후 ${hours}시간` : `복용 후 ${hours}시간 ${remainMin}분`;
+        return remainMin === 0 ? `복용 ${hours}시간 후` : `복용 ${hours}시간 ${remainMin}분 후`;
       }
     }
 
@@ -1063,11 +1063,11 @@ async function fetchNextNotifMessage(patientId: string): Promise<NextNotifInfo |
 
       let intervalLabel: string;
       if (intervalMin === 0) intervalLabel = '복용 직후';
-      else if (intervalMin < 60) intervalLabel = `복용 후 ${intervalMin}분`;
+      else if (intervalMin < 60) intervalLabel = `복용 ${intervalMin}분 후`;
       else {
         const h = Math.floor(intervalMin / 60);
         const rem = intervalMin % 60;
-        intervalLabel = rem === 0 ? `복용 후 ${h}시간` : `복용 후 ${h}시간 ${rem}분`;
+        intervalLabel = rem === 0 ? `복용 ${h}시간 후` : `복용 ${h}시간 ${rem}분 후`;
       }
       const label = mealKo ? `${mealKo} ${intervalLabel} 약효추적` : `${intervalLabel} 약효추적`;
       candidates.push({ minutesLeft, label, sendAt });

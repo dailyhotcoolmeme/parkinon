@@ -43,8 +43,8 @@ const ITEMS: { key: ItemKey; icon: IoniconName; label: string; accentColor: stri
 // trigger_time_label → minutesToLabel 역방향 변환 (표시용)
 const TRIGGER_LABEL_TO_DISPLAY: Record<string, string> = {
   after_medication: '복용 직후',
-  '30min_after': '30분 후',
-  '2hour_after': '2시간 후',
+  '30min_after': '복용 30분 후',
+  '2hour_after': '복용 2시간 후',
 };
 
 function triggerLabelToDisplay(label: string): string {
