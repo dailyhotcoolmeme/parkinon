@@ -175,7 +175,7 @@ export function VideoRecordScreen() {
       if (cancelledRef.current) return;
 
       setUploadStage('saving');
-      await saveMediaLog(patientId, user.id, result.url, result.key, result.expires_at, 'video', 'body_state');
+      await saveMediaLog(patientId, user.id, result.url, result.key, result.expires_at, 'video', 'body_state', selectedVideo.duration);
 
       if (cancelledRef.current) return;
       setUploadStage(null);

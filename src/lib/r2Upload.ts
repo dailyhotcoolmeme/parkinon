@@ -169,7 +169,8 @@ export async function saveMediaLog(
   key: string,
   expiresAt: string,
   mediaType: 'video' | 'photo',
-  category: string
+  category: string,
+  durationSeconds?: number
 ): Promise<void> {
   const { error } = await supabase.from('media_logs').insert({
     patient_id: patientId,
@@ -180,6 +181,7 @@ export async function saveMediaLog(
     media_type: mediaType,
     category: category as 'body_state' | 'exercise',
     logged_at: new Date().toISOString(),
+    ...(durationSeconds != null ? { duration_seconds: Math.round(durationSeconds) } : {}),
   });
 
   if (error) {
