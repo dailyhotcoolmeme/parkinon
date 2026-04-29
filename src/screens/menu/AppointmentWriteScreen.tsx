@@ -457,7 +457,7 @@ export function AppointmentWriteScreen() {
 
   if (isLoading) {
     return (
-      <SafeAreaView style={styles.container} edges={['top']}>
+      <SafeAreaView style={styles.container} edges={['top', 'bottom']}>
         <TopBar
           title={appointmentId ? '일정 수정' : '진료 일정 등록'}
           showBack

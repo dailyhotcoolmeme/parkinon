@@ -869,6 +869,7 @@ interface TriggerSelectModalProps {
 }
 
 function TriggerSelectModal({ visible, medTime, options, selected, onSelect, onConfirm, onDismiss }: TriggerSelectModalProps) {
+  const insets = useSafeAreaInsets();
   if (!visible) return null;
 
   const now = new Date();
@@ -883,7 +884,7 @@ function TriggerSelectModal({ visible, medTime, options, selected, onSelect, onC
     <Modal visible={visible} transparent animationType="slide" statusBarTranslucent onRequestClose={onDismiss}>
       <View style={tsStyles.overlay}>
         <TouchableOpacity style={tsStyles.backdrop} activeOpacity={1} onPress={onDismiss} />
-        <View style={tsStyles.sheet}>
+        <View style={[tsStyles.sheet, { paddingBottom: Math.max(44, 24 + insets.bottom) }]}>
           <View style={tsStyles.header}>
             <Text style={tsStyles.title}>약효 추적 시간대 선택</Text>
             <TouchableOpacity onPress={onDismiss} hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}>

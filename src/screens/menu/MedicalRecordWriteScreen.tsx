@@ -546,7 +546,7 @@ export function MedicalRecordWriteScreen() {
 
   if (isLoadingEdit) {
     return (
-      <SafeAreaView style={styles.container} edges={['top']}>
+      <SafeAreaView style={styles.container} edges={['top', 'bottom']}>
         <TopBar
           title={recordId ? '진료 기록 수정' : '진료 기록 추가'}
           showBack

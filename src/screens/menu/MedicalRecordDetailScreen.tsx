@@ -151,7 +151,7 @@ export function MedicalRecordDetailScreen() {
   const changeOrder: MedMed['change_type'][] = ['added', 'changed', 'unchanged', 'removed'];
 
   return (
-    <SafeAreaView style={styles.container} edges={['top']}>
+    <SafeAreaView style={styles.container} edges={['top', 'bottom']}>
       <TopBar
         title="진료 기록 상세"
         showBack

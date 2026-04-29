@@ -13,7 +13,7 @@ import {
   Animated,
   Share,
 } from 'react-native';
-import { SafeAreaView } from 'react-native-safe-area-context';
+import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useFocusEffect, useNavigation } from '@react-navigation/native';
 import { Ionicons } from '@expo/vector-icons';
 import { TopBar } from '../../components/common/TopBar';
@@ -33,6 +33,7 @@ const RELATION_MAP: Record<string, string> = {
 
 export function FamilyLinkScreen() {
   const navigation = useNavigation<any>();
+  const insets = useSafeAreaInsets();
   const { user } = useAuth();
   const { generateInviteCode, joinByCode, joinByCodeForce, getGroupMembers, leaveGroup, loading, error: familyLinkError } = useFamilyLink();
   const { unreadCount } = useNotificationBadge();
@@ -405,7 +406,7 @@ export function FamilyLinkScreen() {
           onPress={closeSheet}
         />
         <Animated.View
-          style={[styles.sheet, { transform: [{ translateY: sheetY }] }]}
+          style={[styles.sheet, { transform: [{ translateY: sheetY }], paddingBottom: Math.max(36, 20 + insets.bottom) }]}
         >
           {/* 드래그 핸들 */}
           <View {...panResponder.panHandlers} style={styles.sheetHandle}>

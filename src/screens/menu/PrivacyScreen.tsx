@@ -12,7 +12,7 @@ export function PrivacyScreen() {
   const navigation = useNavigation<any>();
   const { unreadCount } = useNotificationBadge();
   return (
-    <SafeAreaView style={styles.safeArea} edges={['top']}>
+    <SafeAreaView style={styles.safeArea} edges={['top', 'bottom']}>
       <TopBar
         title="개인정보처리방침"
         showBack

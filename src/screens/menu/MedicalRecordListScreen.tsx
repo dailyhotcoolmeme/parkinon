@@ -178,7 +178,7 @@ export function MedicalRecordListScreen() {
   };
 
   return (
-    <SafeAreaView style={styles.container} edges={['top']}>
+    <SafeAreaView style={styles.container} edges={['top', 'bottom']}>
       <TopBar
         title="진료 기록"
         showBack

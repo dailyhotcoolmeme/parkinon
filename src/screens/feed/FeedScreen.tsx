@@ -5,7 +5,7 @@ import {
   NativeSyntheticEvent, NativeScrollEvent, ActivityIndicator, Image,
   TextInput,
 } from 'react-native';
-import { SafeAreaView } from 'react-native-safe-area-context';
+import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useNavigation, useFocusEffect } from '@react-navigation/native';
 import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { Ionicons } from '@expo/vector-icons';
@@ -97,6 +97,7 @@ type MainTab = 'all' | 'bookmarks' | 'mine';
 
 export function FeedScreen() {
   const navigation = useNavigation<Nav>();
+  const insets = useSafeAreaInsets();
   const { unreadCount } = useNotificationBadge();
   const { toastMsg, toastVisible, showToast } = useToast();
   const scrollY = useRef(new Animated.Value(0)).current;
@@ -551,7 +552,7 @@ export function FeedScreen() {
 
         {/* 플로팅 글쓰기 버튼 */}
         <TouchableOpacity
-          style={[styles.fab, !fabExpanded && styles.fabCircle]}
+          style={[styles.fab, !fabExpanded && styles.fabCircle, { bottom: 28 + insets.bottom }]}
           onPress={() => navigation.navigate('PostWrite')}
           activeOpacity={0.85}
         >

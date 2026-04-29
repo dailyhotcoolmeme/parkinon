@@ -208,7 +208,7 @@ export function MenuScreen() {
   };
 
   return (
-    <SafeAreaView style={styles.safeArea} edges={['top']}>
+    <SafeAreaView style={styles.safeArea} edges={['top', 'bottom']}>
       <TopBar
         showParkinon
         showBell

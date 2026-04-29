@@ -730,7 +730,7 @@ export function VideoListScreen() {
   };
 
   return (
-    <SafeAreaView style={styles.safeArea} edges={['top']}>
+    <SafeAreaView style={styles.safeArea} edges={['top', 'bottom']}>
       <TopBar
         title="영상 기록"
         showBack

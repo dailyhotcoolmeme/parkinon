@@ -254,7 +254,7 @@ export function ProfileEditScreen() {
   };
 
   return (
-    <SafeAreaView style={styles.safeArea} edges={['top']}>
+    <SafeAreaView style={styles.safeArea} edges={['top', 'bottom']}>
       <TopBar
         title="프로필 수정"
         showBack

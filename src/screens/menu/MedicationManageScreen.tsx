@@ -1402,7 +1402,7 @@ export function MedicationManageScreen() {
 
   if (isLoading) {
     return (
-      <SafeAreaView style={styles.safeArea} edges={['top']}>
+      <SafeAreaView style={styles.safeArea} edges={['top', 'bottom']}>
         <TopBar
           title="약 관리"
           showBack

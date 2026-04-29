@@ -275,7 +275,7 @@ export function NotificationHistoryScreen() {
   // ── 로딩 ─────────────────────────────────
   if (loading) {
     return (
-      <SafeAreaView style={styles.flex} edges={['top']}>
+      <SafeAreaView style={styles.flex} edges={['top', 'bottom']}>
         <TopBar title="알림 내역" showBack rightComponent={rightComponent} />
         <View style={styles.loadingContainer}>
           <ActivityIndicator size="large" color={Colors.primary} />

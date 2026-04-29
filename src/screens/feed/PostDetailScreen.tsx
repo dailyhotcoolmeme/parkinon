@@ -414,7 +414,7 @@ export function PostDetailScreen() {
   const categoryColor = CATEGORY_COLORS[categoryLabel] ?? CATEGORY_COLORS['자유수다'];
 
   return (
-    <SafeAreaView style={styles.safe} edges={['top']}>
+    <SafeAreaView style={styles.safe} edges={['top', 'bottom']}>
       <TopBar
         title="글 보기"
         showBack

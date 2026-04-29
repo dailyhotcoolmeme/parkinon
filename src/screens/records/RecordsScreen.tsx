@@ -188,7 +188,7 @@ export function RecordsScreen() {
   const medDiff = summary ? summary.medication.current - summary.medication.prev : 0;
 
   return (
-    <SafeAreaView style={styles.safeArea} edges={['top']}>
+    <SafeAreaView style={styles.safeArea} edges={['top', 'bottom']}>
       <TopBar
         title="기록 보기"
         showBack

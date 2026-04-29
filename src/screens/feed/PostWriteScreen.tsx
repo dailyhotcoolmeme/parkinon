@@ -253,7 +253,7 @@ export function PostWriteScreen() {
   };
 
   return (
-    <SafeAreaView style={styles.safe} edges={['top']}>
+    <SafeAreaView style={styles.safe} edges={['top', 'bottom']}>
       <TopBar
         title={isEditMode ? '글 수정' : '글쓰기'}
         showBack
