@@ -437,43 +437,45 @@ export function BodyStateScreen() {
       }
     } catch {}
 
-    // UI 즉시 닫기 (저장 완료를 기다리지 않음)
+    // 1. UI 즉시 닫기 (저장 완료를 기다리지 않음)
     const savedLabel = pendingTriggerLabel; // state 초기화 전 캡처
     const savedTriggeredBy = pendingTriggeredBy;
     const savedMealTime = medicationMealTime;
+    const savedPatientId = patientId; // 클로저 캡처 — 비동기 처리 중 state 변경 방지
+    setShowFlow(false);
     setPendingTriggerLabel(null);
     setPendingTriggeredBy('manual');
     setHistoryRefreshKey(k => k + 1);
     if (route.params?.triggerMinutes != null) {
       navigation.setParams({ triggerMinutes: null });
     }
-    setShowFlow(false);
 
-    // 저장 + 후처리는 백그라운드에서 실행
-    saveBodyState({
-      body_state: record.bodyScore,
-      mood: record.moodScore,
-      sleep_quality: record.sleepScore,
-      constipation: record.constipation,
-      trigger_time_label: savedLabel ?? undefined,
-      medication_meal_time: savedMealTime,
-    }, savedTriggeredBy).then(async (success) => {
+    // 2. 저장 + 큐 삭제 + 다음 알림 팝업 — await 체인으로 순서 보장
+    (async () => {
+      // 2-1. 저장
+      const success = await saveBodyState({
+        body_state: record.bodyScore,
+        mood: record.moodScore,
+        sleep_quality: record.sleepScore,
+        constipation: record.constipation,
+        trigger_time_label: savedLabel ?? undefined,
+        medication_meal_time: savedMealTime,
+      }, savedTriggeredBy);
+
       if (!success) {
         Alert.alert('저장 실패', '몸상태 기록 저장에 실패했어요. 다시 시도해주세요.');
         return;
       }
 
-      // 예약 알림 큐 취소 — trigger_time_label이 있는 경우 해당 interval의 미발송 큐 삭제
-      // ⚠️ 큐 삭제를 먼저 await 완료한 후 fetchNextNotifMessage 호출해야
-      //    취소 예정 항목이 "다음 알림"으로 표시되는 버그를 방지할 수 있음
-      // 수정: intervalMin > 0 조건 제거 — 0분(after_medication) 큐도 삭제 대상에 포함
+      // 2-2. 큐 삭제 (await — fetchNextNotifMessage보다 반드시 먼저 완료되어야 함)
+      // ⚠️ intervalMin > 0 조건 제거 — 0분(after_medication) 큐도 삭제 대상에 포함
       const intervalMin = savedLabel ? labelToMinutes(savedLabel) : null;
-      if (intervalMin != null && patientId) {
+      if (intervalMin != null && savedPatientId) {
         try {
           let query = supabase
             .from('effect_tracking_queue')
             .select('id')
-            .eq('patient_id', patientId)
+            .eq('patient_id', savedPatientId)
             .eq('interval_minutes', intervalMin)
             .is('sent_at', null);
           // meal_time이 있으면 같은 식사 알림만 취소 (다른 식사 추적 보존)
@@ -503,16 +505,15 @@ export function BodyStateScreen() {
         }
       }
 
-      // 큐 삭제 완료 후 다음 예정 알림 조회 → 팝업 표시
-      if (patientId) {
-        fetchNextNotifMessage(patientId).then((info) => {
-          if (info) {
-            setNextNotifInfo(info);
-            setShowNextNotifModal(true);
-          }
-        });
+      // 2-3. 큐 삭제 완료 후 다음 예정 알림 조회 → 팝업 표시
+      if (savedPatientId) {
+        const info = await fetchNextNotifMessage(savedPatientId);
+        if (info) {
+          setNextNotifInfo(info);
+          setShowNextNotifModal(true);
+        }
       }
-    }).catch(console.error);
+    })().catch(console.error);
   };
 
   return (
