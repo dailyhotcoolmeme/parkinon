@@ -553,28 +553,29 @@ export function BodyStateScreen() {
             <Text style={styles.caregiverNotice}>같이 계신 경우에만 대신 입력할 수 있어요</Text>
           )}
 
-          <TouchableOpacity
-            style={styles.outlineButton}
-            onPress={() => navigation.navigate('VideoRecord')}
-            activeOpacity={0.85}
-          >
-            <View style={styles.outlineButtonInner}>
-              <Ionicons name="film-outline" size={24} color={Colors.primary} />
-              <Text style={styles.outlineButtonText}>영상 기록하기</Text>
-            </View>
-          </TouchableOpacity>
-
-          {videoLogs.length > 0 && (
+          <View style={styles.videoButtonRow}>
             <TouchableOpacity
-              style={styles.videoHistoryButton}
-              onPress={() => navigation.navigate('VideoList')}
-              activeOpacity={0.80}
+              style={styles.outlineButton}
+              onPress={() => navigation.navigate('VideoRecord')}
+              activeOpacity={0.85}
             >
-              <Ionicons name="albums-outline" size={20} color={Colors.textSub} />
-              <Text style={styles.videoHistoryText}>저장된 영상 보기</Text>
-              <Ionicons name="chevron-forward" size={18} color={Colors.textHint} />
+              <View style={styles.outlineButtonInner}>
+                <Ionicons name="film-outline" size={24} color={Colors.primary} />
+                <Text style={styles.outlineButtonText}>영상 기록하기</Text>
+              </View>
             </TouchableOpacity>
-          )}
+
+            <TouchableOpacity
+              style={styles.outlineButton}
+              onPress={() => navigation.navigate('VideoList')}
+              activeOpacity={0.85}
+            >
+              <View style={styles.outlineButtonInner}>
+                <Ionicons name="albums-outline" size={24} color={Colors.primary} />
+                <Text style={styles.outlineButtonText}>저장 영상 보기</Text>
+              </View>
+            </TouchableOpacity>
+          </View>
 
         </View>
 
@@ -809,10 +810,15 @@ const styles = StyleSheet.create({
   mainButtonInner: { alignItems: 'center', gap: 12 },
   mainButtonText: { fontSize: 26, fontWeight: '800', color: Colors.white },
 
+  videoButtonRow: {
+    flexDirection: 'row',
+    gap: 10,
+    width: '100%',
+  },
   outlineButton: {
+    flex: 1,
     backgroundColor: Colors.white,
     borderRadius: 16,
-    width: '100%',
     height: 70,
     alignItems: 'center',
     justifyContent: 'center',
@@ -821,26 +827,6 @@ const styles = StyleSheet.create({
   },
   outlineButtonInner: { flexDirection: 'row', alignItems: 'center', gap: 10 },
   outlineButtonText: { fontSize: 18, fontWeight: '700', color: Colors.primary },
-
-  videoHistoryButton: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    width: '100%',
-    minHeight: 56,
-    backgroundColor: Colors.white,
-    borderRadius: 12,
-    paddingHorizontal: 16,
-    gap: 8,
-    marginTop: 10,
-    borderWidth: 1,
-    borderColor: Colors.border,
-  },
-  videoHistoryText: {
-    flex: 1,
-    fontSize: 17,
-    fontWeight: '600',
-    color: Colors.textSub,
-  },
 
   records: { paddingHorizontal: 16, paddingBottom: 40 },
   sectionHeader: { flexDirection: 'row', alignItems: 'center', marginBottom: 20, gap: 8 },

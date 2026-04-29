@@ -25,7 +25,7 @@ const SCREEN_WIDTH = Dimensions.get('window').width;
 const THUMB_WIDTH = 120;
 const THUMB_HEIGHT = Math.round(THUMB_WIDTH * (9 / 16));
 
-type FilterType = 'all' | 'this_month' | 'last_3_months';
+type FilterType = 'all' | 'this_week' | 'this_month' | 'last_3_months';
 
 interface VideoLog {
   id: string;
@@ -80,6 +80,16 @@ function groupBySections(logs: VideoLog[]): SectionData[] {
 function getFilterRange(filter: FilterType): { start: string; end: string } | null {
   const now = new Date();
   if (filter === 'all') return null;
+  if (filter === 'this_week') {
+    const dayOfWeek = now.getDay(); // 0=일, 1=월 ...
+    const monday = new Date(now);
+    monday.setDate(now.getDate() - (dayOfWeek === 0 ? 6 : dayOfWeek - 1));
+    monday.setHours(0, 0, 0, 0);
+    const sunday = new Date(monday);
+    sunday.setDate(monday.getDate() + 6);
+    sunday.setHours(23, 59, 59, 999);
+    return { start: monday.toISOString(), end: sunday.toISOString() };
+  }
   if (filter === 'this_month') {
     return {
       start: new Date(now.getFullYear(), now.getMonth(), 1).toISOString(),
@@ -556,6 +566,7 @@ const playerStyles = StyleSheet.create({
 
 const FILTERS: { key: FilterType; label: string }[] = [
   { key: 'all', label: '전체' },
+  { key: 'this_week', label: '이번 주' },
   { key: 'this_month', label: '이번 달' },
   { key: 'last_3_months', label: '최근 3개월' },
 ];
