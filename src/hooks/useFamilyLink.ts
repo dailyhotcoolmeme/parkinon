@@ -487,9 +487,11 @@ export function useFamilyLink(): UseFamilyLinkReturn {
 
   // ─────────────────────────────────────────────────────────────────────────
   // leaveGroup
-  // - disconnect_family_group RPC를 호출하여 그룹 전체 삭제
-  //   (그룹 내 모든 멤버의 patient_group_id를 null로 초기화 + 그룹 삭제)
-  // - 상대방(파트너)의 연동도 함께 해제됨
+  // - 나 혼자만 그룹에서 나가기 (그룹 전체 해체가 아님)
+  // - 내 patient_group_members 행만 삭제
+  // - 내 users.patient_group_id = null 설정
+  // - 남은 멤버가 0명이면 빈 그룹도 삭제
+  // - 다른 멤버는 영향 없음
   // ─────────────────────────────────────────────────────────────────────────
   const leaveGroup = useCallback(async (): Promise<boolean> => {
     if (!user?.patient_group_id) return false;
@@ -500,22 +502,47 @@ export function useFamilyLink(): UseFamilyLinkReturn {
     const groupId = user.patient_group_id;
 
     try {
-      // disconnect_family_group RPC 호출
-      // - 내부에서 그룹 멤버 전체의 patient_group_id를 null로 초기화
-      // - patient_groups 삭제 (CASCADE로 patient_group_members도 삭제)
-      // - SECURITY DEFINER 함수이므로 RLS 우회하여 상대방 레코드도 처리 가능
-      const rpcHeaders = await buildHeaders('return=minimal');
-      const rpcRes = await fetch(
-        `${SUPABASE_URL}/rest/v1/rpc/disconnect_family_group`,
+      // 1) 내 patient_group_members 행만 삭제
+      const delMemberHeaders = await buildHeaders('return=minimal');
+      const delMemberRes = await fetch(
+        `${SUPABASE_URL}/rest/v1/patient_group_members` +
+          `?group_id=eq.${encodeURIComponent(groupId)}` +
+          `&user_id=eq.${encodeURIComponent(user.id)}`,
+        { method: 'DELETE', headers: delMemberHeaders }
+      );
+      if (!delMemberRes.ok) {
+        const errText = await delMemberRes.text();
+        throw new Error(`멤버십 삭제 실패 (HTTP ${delMemberRes.status}): ${errText}`);
+      }
+
+      // 2) 내 users.patient_group_id = null 설정
+      const patchUserHeaders = await buildHeaders('return=minimal');
+      const patchUserRes = await fetch(
+        `${SUPABASE_URL}/rest/v1/users?id=eq.${encodeURIComponent(user.id)}`,
         {
-          method: 'POST',
-          headers: rpcHeaders,
-          body: JSON.stringify({ p_group_id: groupId }),
+          method: 'PATCH',
+          headers: patchUserHeaders,
+          body: JSON.stringify({ patient_group_id: null }),
         }
       );
-      if (!rpcRes.ok) {
-        const errText = await rpcRes.text();
-        throw new Error(`가족 연결 해제 실패 (HTTP ${rpcRes.status}): ${errText}`);
+      if (!patchUserRes.ok) {
+        const errText = await patchUserRes.text();
+        throw new Error(`사용자 업데이트 실패 (HTTP ${patchUserRes.status}): ${errText}`);
+      }
+
+      // 3) 그룹에 남은 멤버 수 확인
+      const { count } = await supabase
+        .from('patient_group_members')
+        .select('id', { count: 'exact', head: true })
+        .eq('group_id', groupId);
+
+      // 4) 남은 멤버가 0명이면 빈 그룹도 삭제
+      if ((count ?? 0) === 0) {
+        const delGroupHeaders = await buildHeaders('return=minimal');
+        await fetch(
+          `${SUPABASE_URL}/rest/v1/patient_groups?id=eq.${encodeURIComponent(groupId)}`,
+          { method: 'DELETE', headers: delGroupHeaders }
+        );
       }
 
       await refreshUser();
