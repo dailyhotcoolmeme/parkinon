@@ -331,7 +331,13 @@ function VideoPlayerModal({ url, onClose }: VideoPlayerModalProps) {
   useEffect(() => {
     seekRef.current = (sec: number) => {
       try {
+        const wasPlaying = player.playing;
         player.currentTime = sec;
+        if (wasPlaying) {
+          setTimeout(() => {
+            try { player.play(); } catch (_) {}
+          }, 150);
+        }
       } catch (e) {
         console.error('[Seek]', e);
       }
