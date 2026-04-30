@@ -107,6 +107,10 @@ function AppInner() {
         });
         notificationIntentManager.emit({ mealTime: data?.mealTime ?? null });
       } else if (type === 'effect_tracking') {
+        AsyncStorage.setItem('pendingBodyStateNotif', JSON.stringify({
+          triggerMinutes: data?.minutes ?? null,
+          triggerMealTime: data?.meal_time ?? null,
+        }));
         navigateTo('Main', {
           screen: 'BodyStateTab',
           params: {
@@ -165,6 +169,10 @@ function AppInner() {
         });
         notificationIntentManager.emit({ mealTime: data?.mealTime ?? null });
       } else if (type === 'effect_tracking') {
+        AsyncStorage.setItem('pendingBodyStateNotif', JSON.stringify({
+          triggerMinutes: data?.minutes ?? null,
+          triggerMealTime: data?.meal_time ?? null,
+        }));
         navigateTo('Main', {
           screen: 'BodyStateTab',
           params: {

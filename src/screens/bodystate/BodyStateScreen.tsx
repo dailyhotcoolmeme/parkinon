@@ -201,6 +201,36 @@ export function BodyStateScreen() {
     }, [route.params?.triggerMinutes, (route.params as any)?.triggerMealTime, (route.params as any)?.triggerTs])
   );
 
+  // 약효 추적 알림 탭 → 몸상태 팝업 열기 (AsyncStorage 방식 — 콜드스타트 대응)
+  useFocusEffect(
+    useCallback(() => {
+      AsyncStorage.getItem('pendingBodyStateNotif').then((value) => {
+        if (!value) return;
+        AsyncStorage.removeItem('pendingBodyStateNotif');
+        try {
+          const { triggerMinutes, triggerMealTime } = JSON.parse(value);
+          if (triggerMinutes == null) return;
+          const label = minutesToLabel(triggerMinutes);
+          setPendingTriggeredBy('notification');
+          setPendingTriggerLabel(label);
+          if (triggerMealTime) {
+            openFlowWithDuplicateCheck(label, null, triggerMealTime);
+          } else {
+            AsyncStorage.getItem('parkinon_last_medication')
+              .then(raw => {
+                if (!raw) { openFlowWithDuplicateCheck(label, null, null); return; }
+                const parsed = JSON.parse(raw);
+                const medTime = parsed.taken_at ? new Date(parsed.taken_at) : null;
+                const mealTime = parsed.meal_time ?? null;
+                openFlowWithDuplicateCheck(label, medTime, mealTime);
+              })
+              .catch(() => openFlowWithDuplicateCheck(label, null, null));
+          }
+        } catch {}
+      });
+    }, [])
+  );
+
   // 화면 포커스 시 오늘 기록 갱신
   useFocusEffect(
     useCallback(() => {
