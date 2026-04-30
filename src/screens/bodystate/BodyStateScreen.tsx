@@ -134,6 +134,7 @@ export function BodyStateScreen() {
   const [nextNotifInfo, setNextNotifInfo] = useState<NextNotifInfo | null>(null);
   const [pendingMealTime, setPendingMealTime] = useState<string | null>(null);
   const [hasBedtimeMedication, setHasBedtimeMedication] = useState(false);
+  const [bedtimeRefreshTick, setBedtimeRefreshTick] = useState(0);
   const hasBedtimeLoadedRef = useRef(false);
   const pendingFlowArgsRef = useRef<{ label: string; medTime: Date | null; mealTimeKey: string | null } | null>(null);
   const navigation = useNavigation<any>();
@@ -173,6 +174,14 @@ export function BodyStateScreen() {
     loadVideoLogs();
     loadDateLogs();
   }, [loadVideoLogs, loadDateLogs]);
+
+  // 포커스 시 stale 팝업 args 초기화 — 알림 useFocusEffect보다 반드시 먼저 실행되어야 함
+  useFocusEffect(
+    useCallback(() => {
+      hasBedtimeLoadedRef.current = false;
+      pendingFlowArgsRef.current = null;
+    }, [])
+  );
 
   // 알림 탭 진입 시 trigger_time_label 자동 설정
   useFocusEffect(
@@ -280,32 +289,33 @@ export function BodyStateScreen() {
       });
   }, [user]);
 
-  // 탭 포커스될 때마다 취침약 여부 재조회 — 세션 중 약 추가/삭제 즉시 반영
+  // 포커스 시 취침약 재조회 트리거 (patientId 확보된 경우만)
   useFocusEffect(
     useCallback(() => {
-      hasBedtimeLoadedRef.current = false;
-      pendingFlowArgsRef.current = null;
-      if (!patientId) {
-        hasBedtimeLoadedRef.current = true;
-        return;
-      }
-      supabase
-        .from('medications')
-        .select('id')
-        .eq('patient_id', patientId)
-        .eq('meal_time', 'bedtime')
-        .limit(1)
-        .then(({ data }) => {
-          setHasBedtimeMedication(!!(data && data.length > 0));
-          hasBedtimeLoadedRef.current = true;
-          if (pendingFlowArgsRef.current) {
-            const args = pendingFlowArgsRef.current;
-            pendingFlowArgsRef.current = null;
-            openFlowLatestRef.current(args.label, args.medTime, args.mealTimeKey);
-          }
-        });
+      if (patientId) setBedtimeRefreshTick(t => t + 1);
     }, [patientId])
   );
+
+  // 취침약 여부 실제 조회 — useEffect로 patientId 확보 후 실행 보장
+  useEffect(() => {
+    if (!patientId) return;
+    hasBedtimeLoadedRef.current = false;
+    supabase
+      .from('medications')
+      .select('id')
+      .eq('patient_id', patientId)
+      .eq('meal_time', 'bedtime')
+      .limit(1)
+      .then(({ data }) => {
+        setHasBedtimeMedication(!!(data && data.length > 0));
+        hasBedtimeLoadedRef.current = true;
+        if (pendingFlowArgsRef.current) {
+          const args = pendingFlowArgsRef.current;
+          pendingFlowArgsRef.current = null;
+          openFlowLatestRef.current(args.label, args.medTime, args.mealTimeKey);
+        }
+      });
+  }, [patientId, bedtimeRefreshTick]);
 
   // 표시할 로그: 오늘이면 todayLogs, 다른 날이면 dateLogs
   const activeLogs = isToday ? todayLogs : dateLogs;
