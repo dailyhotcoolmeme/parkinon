@@ -549,12 +549,12 @@ export function MedicationScreen() {
             <TouchableOpacity
               onPress={() => {
                 setShowBodyStateSuggest(false);
-                // BodyState 화면으로 이동 — 거기서 기록 완료 후 NextNotif 팝업 자체 표시
-                navigateTo('BodyState', {
+                // AsyncStorage에 저장 후 이동 — route.params 방식은 탭 네비게이터에서 불안정
+                AsyncStorage.setItem('pendingBodyStateNotif', JSON.stringify({
                   triggerMinutes: 0,
                   triggerMealTime: selectedMealTime,
-                  triggerTs: Date.now(),
-                });
+                })).catch(() => {});
+                navigateTo('BodyState');
               }}
               style={{
                 backgroundColor: '#FF6B35',
