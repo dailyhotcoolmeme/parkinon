@@ -304,7 +304,7 @@ export function BodyStateScreen() {
       .from('medications')
       .select('id')
       .eq('patient_id', patientId)
-      .eq('meal_time', 'bedtime')
+      .contains('meal_times', ['bedtime'])
       .limit(1)
       .then(({ data }) => {
         setHasBedtimeMedication(!!(data && data.length > 0));
