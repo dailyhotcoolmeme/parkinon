@@ -119,6 +119,7 @@ function AppInner() {
           },
         });
       } else if (type === 'exercise_reminder') {
+        AsyncStorage.setItem('pendingExerciseNotif', 'true');
         navigateTo('Main', { screen: 'Exercise', params: { screen: 'ExerciseRecord' } });
       } else if (type) {
         navigateTo('Main');
@@ -181,6 +182,7 @@ function AppInner() {
           },
         });
       } else if (type === 'exercise_reminder') {
+        AsyncStorage.setItem('pendingExerciseNotif', 'true');
         navigateTo('Main', { screen: 'Exercise', params: { screen: 'ExerciseRecord' } });
       } else {
         navigateTo('Main');

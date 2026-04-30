@@ -20,6 +20,7 @@ import type { ExerciseStackParamList } from '../../navigation/ExerciseNavigator'
 import { useExercise } from '../../hooks/useExercise';
 import { DatePickerModal } from '../../components/common/DatePickerModal';
 import { navigateTo } from '../../navigation/navigationRef';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useAuth } from '../../context/AuthContext';
 import { CaregiverConfirmModal } from '../../components/common/CaregiverConfirmModal';
 import { supabase } from '../../lib/supabase';
@@ -134,6 +135,18 @@ export function ExerciseScreen() {
     React.useCallback(() => {
       loadLogsForDate(selectedDate);
     }, [loadLogsForDate, selectedDate])
+  );
+
+  // 운동 알림 탭 → pendingExerciseNotif 확인 후 자동으로 ExerciseRecord 이동
+  useFocusEffect(
+    React.useCallback(() => {
+      AsyncStorage.getItem('pendingExerciseNotif').then((val) => {
+        if (val === 'true' && userRole === 'patient') {
+          AsyncStorage.removeItem('pendingExerciseNotif');
+          navigation.navigate('ExerciseRecord');
+        }
+      });
+    }, [navigation, userRole])
   );
 
   // error 발생 시 Alert
