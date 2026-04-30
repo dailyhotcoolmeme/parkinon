@@ -231,26 +231,42 @@ export function SettingsScreen() {
     } catch {}
   };
 
+  // supabase-js New Architecture hang 방지용 timeout 유틸
+  function withTimeout<T>(promise: Promise<T>, ms: number): Promise<T> {
+    return Promise.race([
+      promise,
+      new Promise<T>((_, reject) =>
+        setTimeout(() => reject(new Error(`supabase query timeout after ${ms}ms`)), ms)
+      ),
+    ]);
+  }
+
   const loadPatientNotifPrefs = React.useCallback(async () => {
     if (!user || !isCaregiver || !user.patient_group_id) return;
     try {
       // 1. 환자 ID 조회
-      const { data: memberData } = await supabase
-        .from('patient_group_members')
-        .select('user_id')
-        .eq('group_id', user.patient_group_id)
-        .eq('role', 'patient')
-        .single();
+      const { data: memberData } = await withTimeout(
+        supabase
+          .from('patient_group_members')
+          .select('user_id')
+          .eq('group_id', user.patient_group_id)
+          .eq('role', 'patient')
+          .single(),
+        5000
+      );
       const pid = memberData?.user_id;
       if (!pid) return;
       setPatientId(pid);
 
       // 2. 환자의 알림 설정 (med_time_notif_prefs + med_notif_prefs + exercise_notif_prefs + meal_schedules + name)
-      const { data: patientUser } = await supabase
-        .from('users')
-        .select('med_time_notif_prefs, med_notif_prefs, exercise_notif_prefs, meal_schedules, name')
-        .eq('id', pid)
-        .single();
+      const { data: patientUser } = await withTimeout(
+        supabase
+          .from('users')
+          .select('med_time_notif_prefs, med_notif_prefs, exercise_notif_prefs, meal_schedules, name')
+          .eq('id', pid)
+          .single(),
+        5000
+      );
       if (patientUser?.name) {
         setLinkedPatientName(patientUser.name);
       } else {
@@ -276,11 +292,14 @@ export function SettingsScreen() {
       }
 
       // 3. 환자의 활성 약 슬롯 + 복용 시간
-      const { data: meds } = await supabase
-        .from('medications')
-        .select('meal_times, meal_schedules')
-        .eq('patient_id', pid)
-        .eq('is_active', true);
+      const { data: meds } = await withTimeout(
+        supabase
+          .from('medications')
+          .select('meal_times, meal_schedules')
+          .eq('patient_id', pid)
+          .eq('is_active', true),
+        5000
+      );
       if (meds?.length) {
         const earliest: Record<string, string> = {};
         const activeSlots = new Set<string>();
