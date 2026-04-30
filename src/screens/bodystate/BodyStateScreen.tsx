@@ -399,7 +399,7 @@ export function BodyStateScreen() {
       if (closest && closestDiff <= 20) {
         // ±20분 이내 → 자동 배정
         setPendingTriggerLabel(closest.labelKey);
-        openFlowWithDuplicateCheck(closest.labelKey, medTime, storedMealTime ?? null);
+        openFlowOrPend(closest.labelKey, medTime, storedMealTime ?? null);
       } else {
         // 20분 초과 → 기록 불가 안내
         const periodKo = storedMealTime ? (mealTimeToPeriod(storedMealTime) || getPeriod(medTime.toISOString())) : getPeriod(medTime.toISOString());
@@ -685,7 +685,7 @@ export function BodyStateScreen() {
           if (!triggerModalSelected) return;
           setPendingTriggerLabel(triggerModalSelected);
           setShowTriggerSelect(false);
-          openFlowWithDuplicateCheck(triggerModalSelected, triggerMedTime, null);
+          openFlowOrPend(triggerModalSelected, triggerMedTime, null);
         }}
         onDismiss={() => setShowTriggerSelect(false)}
       />
