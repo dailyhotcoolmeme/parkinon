@@ -241,12 +241,16 @@ export function SettingsScreen() {
     ]);
   }
 
-  const loadPatientNotifPrefs = React.useCallback(async () => {
+  const loadPatientNotifPrefs = React.useCallback(async (externalToken?: string) => {
     if (!user || !isCaregiver || !user.patient_group_id) return;
     try {
       // supabase-js New Architecture hang 방지 → raw fetch 사용
-      const { data: { session } } = await supabase.auth.getSession();
-      const accessToken = session?.access_token ?? '';
+      // externalToken: useFocusEffect에서 이미 getSession()을 호출했으면 그 토큰을 그대로 사용
+      let accessToken = externalToken ?? '';
+      if (!accessToken) {
+        const { data: { session } } = await supabase.auth.getSession();
+        accessToken = session?.access_token ?? '';
+      }
       const headers: Record<string, string> = {
         'apikey': SUPABASE_ANON_KEY,
         'Authorization': `Bearer ${accessToken}`,
@@ -532,8 +536,8 @@ export function SettingsScreen() {
           }
           // 3. 약 복용 시간 알림 설정 로드
           await loadMedTimePrefs();
-          // 4. 환자 알림 설정 로드 (보호자만)
-          await loadPatientNotifPrefs();
+          // 4. 환자 알림 설정 로드 (보호자만) - 이미 얻은 session 토큰 재사용
+          await loadPatientNotifPrefs(session?.access_token);
           // 5. 환자(본인)의 med_notif_prefs, exercise_notif_prefs DB에서 재로드
           //    보호자가 DB를 수정했을 수 있으므로 포커스마다 최신값 반영
           if (!isCaregiver && session?.user) {
