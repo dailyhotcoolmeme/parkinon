@@ -1,5 +1,5 @@
 import React, { useEffect, useRef } from 'react';
-import { AppState, AppStateStatus, DeviceEventEmitter, StatusBar } from 'react-native';
+import { AppState, AppStateStatus, StatusBar } from 'react-native';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 import { AuthProvider } from './src/context/AuthContext';
@@ -11,6 +11,7 @@ import { navigateTo } from './src/navigation/navigationRef';
 import * as Updates from 'expo-updates';
 import { supabase } from './src/lib/supabase';
 import { requestPermissionsAndSaveToken } from './src/utils/notifications';
+import { notificationIntentManager } from './src/utils/NotificationIntentManager';
 
 // Android 알림 채널 — MAX 중요도 (Doze 모드에서도 즉시 표시)
 Notifications.setNotificationChannelAsync('default', {
@@ -102,7 +103,7 @@ function AppInner() {
           screen: 'Medication',
           params: { autoOpen: Date.now(), mealTime: data?.mealTime ?? null },
         });
-        DeviceEventEmitter.emit('openMedModal', { mealTime: data?.mealTime ?? null });
+        notificationIntentManager.emit({ mealTime: data?.mealTime ?? null });
       } else if (type === 'effect_tracking') {
         navigateTo('Main', {
           screen: 'BodyStateTab',
@@ -159,7 +160,7 @@ function AppInner() {
           screen: 'Medication',
           params: { autoOpen: Date.now(), mealTime: data?.mealTime ?? null },
         });
-        DeviceEventEmitter.emit('openMedModal', { mealTime: data?.mealTime ?? null });
+        notificationIntentManager.emit({ mealTime: data?.mealTime ?? null });
       } else if (type === 'effect_tracking') {
         navigateTo('Main', {
           screen: 'BodyStateTab',

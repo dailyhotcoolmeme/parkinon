@@ -8,7 +8,6 @@ import {
   Dimensions,
   Alert,
   Modal,
-  DeviceEventEmitter,
 } from 'react-native';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useFocusEffect, useRoute, RouteProp } from '@react-navigation/native';
@@ -29,6 +28,7 @@ import { supabase } from '../../lib/supabase';
 import { useNotificationBadge } from '../../context/NotificationBadgeContext';
 import { HistoryTimeline } from '../../components/common/HistoryTimeline';
 import { mealTimeToKorean } from '../../utils/medUtils';
+import { notificationIntentManager } from '../../utils/NotificationIntentManager';
 
 const WINDOW_HEIGHT = Dimensions.get('window').height;
 const TOP_BAR_H = 56;
@@ -170,21 +170,17 @@ export function MedicationScreen() {
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [routeParams.autoOpen]);
 
-  // DeviceEventEmitter 기반 알림 탭 → 모달 열기 (route.params 우회)
+  // NotificationIntentManager 기반 알림 탭 → 모달 열기 (콜드 스타트 레이스 컨디션 해결)
   const openMedModalRef = useRef(false);
   useEffect(() => {
-    const sub = DeviceEventEmitter.addListener('openMedModal', ({ mealTime }: { mealTime: string | null }) => {
+    const unsubscribe = notificationIntentManager.subscribe(({ mealTime }) => {
       if (openMedModalRef.current) return;
       openMedModalRef.current = true;
-      setTimeout(() => {
-        openMedModalRef.current = false;
-      }, 2000);
-      if (mealTime) {
-        setSelectedMealTime(mealTime as MealTime);
-      }
+      setTimeout(() => { openMedModalRef.current = false; }, 2000);
+      if (mealTime) setSelectedMealTime(mealTime as MealTime);
       setTimeout(() => setShowMealTimeModal(true), 100);
     });
-    return () => sub.remove();
+    return unsubscribe;
   }, []);
 
   // 날짜별 복용 현황 (날짜 선택 시 사용)
