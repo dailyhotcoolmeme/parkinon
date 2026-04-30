@@ -9,7 +9,12 @@ import {
   AppState,
   Linking,
   Alert,
+  Platform,
 } from 'react-native';
+import * as AppleAuthentication from 'expo-apple-authentication';
+
+// 애플 개발자 계정 승인 후 OTA로 true로 변경
+const APPLE_LOGIN_ENABLED = false;
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useNavigation } from '@react-navigation/native';
 import type { StackNavigationProp } from '@react-navigation/stack';
@@ -141,6 +146,29 @@ export function LoginScreen() {
     setSigning(false);
   };
 
+  const handleAppleLogin = async () => {
+    if (!APPLE_LOGIN_ENABLED) return;
+    try {
+      setSigning(true);
+      const credential = await AppleAuthentication.signInAsync({
+        requestedScopes: [
+          AppleAuthentication.AppleAuthenticationScope.FULL_NAME,
+          AppleAuthentication.AppleAuthenticationScope.EMAIL,
+        ],
+      });
+      const { error } = await supabase.auth.signInWithIdToken({
+        provider: 'apple',
+        token: credential.identityToken!,
+      });
+      if (error) throw error;
+    } catch (e: any) {
+      if (e.code !== 'ERR_REQUEST_CANCELED') {
+        Alert.alert('로그인 오류', '애플 로그인에 실패했습니다.');
+      }
+      setSigning(false);
+    }
+  };
+
   return (
     <SafeAreaView style={styles.container}>
       <View style={styles.content}>
@@ -163,6 +191,26 @@ export function LoginScreen() {
             </>
           )}
         </TouchableOpacity>
+
+        {Platform.OS === 'ios' && (
+          <TouchableOpacity
+            style={[styles.appleBtn, (signing || !APPLE_LOGIN_ENABLED) && styles.appleBtnDisabled]}
+            onPress={handleAppleLogin}
+            activeOpacity={0.85}
+            disabled={signing || !APPLE_LOGIN_ENABLED}
+          >
+            {signing ? (
+              <ActivityIndicator color="#fff" />
+            ) : (
+              <>
+                <AntDesign name="apple1" size={26} color={APPLE_LOGIN_ENABLED ? '#fff' : '#aaa'} />
+                <Text style={[styles.appleText, !APPLE_LOGIN_ENABLED && styles.appleTextDisabled]}>
+                  Apple로 시작하기
+                </Text>
+              </>
+            )}
+          </TouchableOpacity>
+        )}
 
         <TouchableOpacity
           style={[styles.googleBtn, signing && styles.kakaoBtnDisabled]}
@@ -280,6 +328,28 @@ const styles = StyleSheet.create({
     color: Colors.white,
     opacity: 1,
     textDecorationLine: 'underline',
+  },
+  appleBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: '#000000',
+    borderRadius: 12,
+    minHeight: 60,
+    gap: 10,
+    marginBottom: 16,
+  },
+  appleBtnDisabled: {
+    backgroundColor: '#1a1a1a',
+    opacity: 0.5,
+  },
+  appleText: {
+    fontSize: 18,
+    fontWeight: '700',
+    color: '#ffffff',
+  },
+  appleTextDisabled: {
+    color: '#aaaaaa',
   },
   googleBtn: {
     flexDirection: 'row',

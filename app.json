@@ -77,7 +77,8 @@
         {
           "kakaoAppKey": "a46e187c314536d5fd4ef610710479ab"
         }
-      ]
+      ],
+      "expo-apple-authentication"
     ],
     "runtimeVersion": {
       "policy": "appVersion"
