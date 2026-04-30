@@ -345,7 +345,14 @@ export function useAuthProvider(): UseAuthReturn {
   }, [loadUserProfile]);
 
   // ─── 카카오 로그인 (Supabase OAuth) ──────────────────────────────────────
-  // 반환값: true = 인증 진행 중 (AppState 리스너 대기), false = 즉시 실패/취소
+  // 반환값: true = 인증 진행 중 (Linking 리스너 대기), false = 즉시 실패/취소
+  //
+  // [openAuthSessionAsync → openBrowserAsync 변경 이유]
+  // openAuthSessionAsync는 카카오 앱이 열리는 순간 Chrome Custom Tab을 강제로 닫음.
+  // 카카오 앱이 auth 완료 후 Supabase callback URL을 Chrome에 전달하려 해도
+  // Chrome이 이미 없어서 콜백이 소실됨 → Supabase /callback 로그 미기록.
+  // openBrowserAsync는 Chrome Custom Tab을 백그라운드에 유지하므로
+  // 카카오→Chrome→Supabase callback→parkinon:// 딥링크 체인이 완성됨.
   const signInWithKakao = useCallback(async (): Promise<boolean> => {
     try {
       console.log('[useAuth] signInWithKakao 시작');
@@ -364,25 +371,27 @@ export function useAuthProvider(): UseAuthReturn {
         return false;
       }
 
-      console.log('[useAuth] openAuthSessionAsync로 카카오 OAuth 열기');
-      const result = await WebBrowser.openAuthSessionAsync(data.url, REDIRECT_TO, {
-        showInRecents: false,
-      });
-      console.log('[useAuth] openAuthSessionAsync 결과:', result.type);
+      console.log('[useAuth] openBrowserAsync로 카카오 OAuth 열기 (Custom Tab 유지)');
 
-      if (result.type === 'success' && result.url) {
-        // Custom Tab에서 콜백 URL을 직접 수신한 경우
-        await processAuthUrl(result.url, loadUserProfile);
-        return true;
-      } else if (result.type === 'cancel' || result.type === 'dismiss') {
-        // 카카오 앱으로 전환된 경우(cancel 또는 dismiss): AppState 리스너가 복귀 시 처리
-        // Android 기기에 따라 Custom Tab이 'cancel' 또는 'dismiss'를 반환할 수 있음
-        console.log('[useAuth] Custom Tab cancel/dismiss — 카카오 앱 인증 후 딥링크/세션 대기 중');
-        return true;
-      } else {
-        console.log('[useAuth] 사용자가 로그인 취소');
-        return false;
-      }
+      // auth 콜백 수신 여부 추적 — 취소(false) vs 인증완료(true) 구분
+      let authReceived = false;
+      const tempSub = Linking.addEventListener('url', ({ url }) => {
+        if (isAuthUrl(url)) authReceived = true;
+      });
+
+      // openBrowserAsync: Custom Tab을 백그라운드에 유지 (닫지 않음)
+      // 카카오 앱 auth 완료 → Chrome Custom Tab이 Supabase callback 수신
+      // → parkinon:// intent 발생 → 글로벌 Linking.addEventListener 처리
+      const result = await WebBrowser.openBrowserAsync(data.url);
+      // 브라우저 닫힌 후 Linking 이벤트가 처리될 시간 대기
+      await new Promise(r => setTimeout(r, 800));
+      tempSub.remove();
+
+      console.log('[useAuth] openBrowserAsync 결과:', result.type, '| auth 수신:', authReceived);
+
+      // authReceived=true: Linking 리스너가 처리 중 → 스피너 유지 (true 반환)
+      // authReceived=false: 사용자 취소 → 스피너 해제 (false 반환)
+      return authReceived;
     } catch (err) {
       console.error('[useAuth] signInWithKakao 오류:', err);
       Alert.alert('로그인 오류', '오류가 발생했습니다. 다시 시도해주세요.');

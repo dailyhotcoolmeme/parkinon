@@ -56,10 +56,16 @@ export function LoginScreen() {
               setSigning(false);
             }, 10000);
           } else {
-            // 세션 없음: 카카오 취소 또는 실패 → 스피너 즉시 해제
-            console.log('[LoginScreen] AppState active: 세션 없음, 로그인 취소');
-            kakaoStarted.current = false;
-            setSigning(false);
+            // 세션 없음: 딥링크가 조금 늦게 도착할 수 있으므로 즉시 해제하지 않음
+            // signInWithKakao(openBrowserAsync)가 authReceived=false 반환 시 handleKakaoLogin이 해제함
+            console.log('[LoginScreen] AppState active: 세션 없음, 딥링크 추가 대기 중...');
+            if (signingTimeoutRef.current) clearTimeout(signingTimeoutRef.current);
+            signingTimeoutRef.current = setTimeout(() => {
+              if (!kakaoStarted.current) return;
+              console.log('[LoginScreen] 최종 타임아웃: 로그인 취소 처리');
+              kakaoStarted.current = false;
+              setSigning(false);
+            }, 25000);
           }
         } catch (e) {
           console.error('[LoginScreen] AppState active 세션 확인 오류:', e);
