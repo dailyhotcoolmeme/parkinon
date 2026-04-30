@@ -71,7 +71,13 @@
           "cameraPermission": "처방전 촬영 및 영상 기록을 위해 카메라 접근이 필요해요."
         }
       ],
-      "expo-video"
+      "expo-video",
+      [
+        "@react-native-seoul/kakao-login",
+        {
+          "kakaoAppKey": "a46e187c314536d5fd4ef610710479ab"
+        }
+      ]
     ],
     "runtimeVersion": {
       "policy": "appVersion"

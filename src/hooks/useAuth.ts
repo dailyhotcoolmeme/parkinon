@@ -11,6 +11,7 @@ import { Platform, Alert, AppState } from 'react-native';
 import * as WebBrowser from 'expo-web-browser';
 import * as Linking from 'expo-linking';
 import * as Notifications from 'expo-notifications';
+import KakaoLogin from '@react-native-seoul/kakao-login';
 import { supabase } from '../lib/supabase';
 import { registerMissedMedCheckTask, requestPermissionsAndSaveToken } from '../utils/notifications';
 
@@ -367,55 +368,43 @@ export function useAuthProvider(): UseAuthReturn {
     }
   }, [loadUserProfile]);
 
-  // ─── 카카오 로그인 (Supabase OAuth) ──────────────────────────────────────
-  // 반환값: true = 인증 진행 중 (Linking 리스너 대기), false = 즉시 실패/취소
-  //
-  // [openAuthSessionAsync → openBrowserAsync 변경 이유]
-  // openAuthSessionAsync는 카카오 앱이 열리는 순간 Chrome Custom Tab을 강제로 닫음.
-  // 카카오 앱이 auth 완료 후 Supabase callback URL을 Chrome에 전달하려 해도
-  // Chrome이 이미 없어서 콜백이 소실됨 → Supabase /callback 로그 미기록.
-  // openBrowserAsync는 Chrome Custom Tab을 백그라운드에 유지하므로
-  // 카카오→Chrome→Supabase callback→parkinon:// 딥링크 체인이 완성됨.
+  // ─── 카카오 로그인 (네이티브 SDK) ────────────────────────────────────────
   const signInWithKakao = useCallback(async (): Promise<boolean> => {
     try {
-      console.log('[useAuth] signInWithKakao 시작');
-      const { data, error } = await supabase.auth.signInWithOAuth({
-        provider: 'kakao',
-        options: {
-          redirectTo: REDIRECT_TO,
-          skipBrowserRedirect: true,
-          scopes: 'profile_nickname profile_image account_email',
-        },
+      console.log('[useAuth] signInWithKakao 시작 (네이티브 SDK)');
+      const token = await KakaoLogin.login();
+      console.log('[useAuth] 카카오 네이티브 로그인 성공, Edge Function 호출');
+
+      const { data, error } = await supabase.functions.invoke('kakao-auth', {
+        body: { access_token: token.accessToken },
       });
 
-      if (error || !data?.url) {
-        console.error('[useAuth] signInWithOAuth 오류:', error?.message);
-        Alert.alert('로그인 오류', '카카오 로그인을 시작할 수 없습니다. 네트워크 연결을 확인해주세요.');
+      if (error || !data?.email || !data?.token) {
+        console.error('[useAuth] kakao-auth Edge Function 오류:', error);
+        Alert.alert('로그인 오류', '카카오 로그인 처리 중 오류가 발생했습니다. 다시 시도해주세요.');
         return false;
       }
 
-      console.log('[useAuth] openBrowserAsync로 카카오 OAuth 열기 (Custom Tab 유지)');
-
-      // auth 콜백 수신 여부 추적 — 취소(false) vs 인증완료(true) 구분
-      let authReceived = false;
-      const tempSub = Linking.addEventListener('url', ({ url }) => {
-        if (isAuthUrl(url)) authReceived = true;
+      console.log('[useAuth] Edge Function 성공, verifyOtp 호출');
+      const { error: otpError } = await supabase.auth.verifyOtp({
+        email: data.email,
+        token: data.token,
+        type: 'email',
       });
 
-      // openBrowserAsync: Custom Tab을 백그라운드에 유지 (닫지 않음)
-      // 카카오 앱 auth 완료 → Chrome Custom Tab이 Supabase callback 수신
-      // → parkinon:// intent 발생 → 글로벌 Linking.addEventListener 처리
-      const result = await WebBrowser.openBrowserAsync(data.url);
-      // 브라우저 닫힌 후 Linking 이벤트가 처리될 시간 대기
-      await new Promise(r => setTimeout(r, 800));
-      tempSub.remove();
+      if (otpError) {
+        console.error('[useAuth] verifyOtp 오류:', otpError);
+        Alert.alert('로그인 오류', '인증 처리 중 오류가 발생했습니다. 다시 시도해주세요.');
+        return false;
+      }
 
-      console.log('[useAuth] openBrowserAsync 결과:', result.type, '| auth 수신:', authReceived);
-
-      // authReceived=true: Linking 리스너가 처리 중 → 스피너 유지 (true 반환)
-      // authReceived=false: 사용자 취소 → 스피너 해제 (false 반환)
-      return authReceived;
-    } catch (err) {
+      console.log('[useAuth] 카카오 로그인 완료');
+      return true;
+    } catch (err: any) {
+      if (err?.code === 'CANCELED' || err?.message?.includes('cancel')) {
+        console.log('[useAuth] 카카오 로그인 취소');
+        return false;
+      }
       console.error('[useAuth] signInWithKakao 오류:', err);
       Alert.alert('로그인 오류', '오류가 발생했습니다. 다시 시도해주세요.');
       return false;

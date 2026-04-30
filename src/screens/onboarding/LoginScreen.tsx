@@ -8,6 +8,7 @@ import {
   Image,
   AppState,
   Linking,
+  Alert,
 } from 'react-native';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useNavigation } from '@react-navigation/native';
@@ -124,14 +125,12 @@ export function LoginScreen() {
   const handleKakaoLogin = async () => {
     oauthStarted.current = true;
     setSigning(true);
-    const waitingForDeepLink = await signInWithKakao();
-    if (!waitingForDeepLink) {
-      // signInWithOAuth 자체 실패 — 즉시 초기화
+    const success = await signInWithKakao();
+    if (!success) {
       oauthStarted.current = false;
       setSigning(false);
     }
-    // waitingForDeepLink=true: 외부 브라우저+카카오 앱에서 인증 중
-    // → AppState listener(60s 타임아웃) or useEffect([user,loading])에서 처리
+    // success=true → onAuthStateChange → user 설정 → useEffect([user,loading])에서 처리
   };
 
   const handleGoogleLogin = async () => {
