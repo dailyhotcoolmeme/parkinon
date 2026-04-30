@@ -11,7 +11,7 @@ import {
   Modal,
   FlatList,
 } from 'react-native';
-import { SafeAreaView } from 'react-native-safe-area-context';
+import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useNavigation, useRoute } from '@react-navigation/native';
 import type { StackNavigationProp } from '@react-navigation/stack';
@@ -34,6 +34,7 @@ export function PatientInfoScreen() {
   const route = useRoute<RouteType>();
   const step = route.params?.step ?? 1;
   const { user, signOut } = useAuth();
+  const { bottom: bottomInset } = useSafeAreaInsets();
 
   const [name, setName] = useState('');
   const [birthYear, setBirthYear] = useState('');
@@ -179,7 +180,7 @@ export function PatientInfoScreen() {
         </ScrollView>
 
         {/* 하단 버튼 */}
-        <View style={styles.bottomArea}>
+        <View style={[styles.bottomArea, { paddingBottom: 40 + bottomInset }]}>
           <PrimaryButton title={step < TOTAL_STEPS ? '다음으로' : '완료'} onPress={handleNext} disabled={!canProceed()} />
           <TouchableOpacity style={styles.closeBtn} onPress={signOut}>
             <Text style={styles.closeBtnText}>닫기</Text>
@@ -291,7 +292,7 @@ const styles = StyleSheet.create({
   genderBtnSelected: { borderColor: Colors.primary, backgroundColor: Colors.light },
   genderText: { fontSize: 20, fontWeight: '700', color: Colors.textSub },
   genderTextSelected: { color: Colors.dark },
-  bottomArea: { paddingHorizontal: 24, paddingBottom: 40, gap: 12 },
+  bottomArea: { paddingHorizontal: 24, gap: 12 },
   closeBtn: {
     minHeight: 56, borderRadius: 12, borderWidth: 1,
     borderColor: Colors.border, backgroundColor: Colors.white,

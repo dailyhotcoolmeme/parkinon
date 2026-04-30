@@ -9,7 +9,7 @@ import {
   Alert,
   ActivityIndicator,
 } from 'react-native';
-import { SafeAreaView } from 'react-native-safe-area-context';
+import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useNavigation } from '@react-navigation/native';
 import type { StackNavigationProp } from '@react-navigation/stack';
@@ -35,6 +35,7 @@ export function FamilyInviteScreen() {
   const [inviteCode, setInviteCode] = useState('');
   const [userName, setUserName] = useState('');
   const [isSaving, setIsSaving] = useState(false);
+  const { bottom: bottomInset } = useSafeAreaInsets();
 
   useEffect(() => {
     initCode();
@@ -327,7 +328,7 @@ export function FamilyInviteScreen() {
         </View>
       </ScrollView>
 
-      <View style={styles.bottomArea}>
+      <View style={[styles.bottomArea, { paddingBottom: 40 + bottomInset }]}>
         <TouchableOpacity
           style={[styles.kakaoBtn, isSaving && styles.disabledBtn]}
           onPress={handleKakaoShare}
@@ -470,7 +471,6 @@ const styles = StyleSheet.create({
   },
   bottomArea: {
     paddingHorizontal: 24,
-    paddingBottom: 40,
     gap: 12,
   },
   kakaoBtn: {

@@ -7,7 +7,7 @@ import {
   ScrollView,
   Switch,
 } from 'react-native';
-import { SafeAreaView } from 'react-native-safe-area-context';
+import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useNavigation } from '@react-navigation/native';
 import type { StackNavigationProp } from '@react-navigation/stack';
@@ -31,6 +31,7 @@ export function NotificationSetupScreen() {
   const navigation = useNavigation<Nav>();
   const { signOut, user } = useAuth();
   const { exerciseNotifs } = useSettings();
+  const { bottom: bottomInset } = useSafeAreaInsets();
 
   const [options, setOptions] = useState<NotifOption[]>([
     {
@@ -125,7 +126,7 @@ export function NotificationSetupScreen() {
         )}
       </ScrollView>
 
-      <View style={styles.bottomArea}>
+      <View style={[styles.bottomArea, { paddingBottom: 40 + bottomInset }]}>
         <PrimaryButton
           title={enabledCount > 0 ? `알림 받을게요 (${enabledCount}개)` : '알림 없이 계속할게요'}
           onPress={handleConfirm}
@@ -240,7 +241,6 @@ const styles = StyleSheet.create({
   },
   bottomArea: {
     paddingHorizontal: 24,
-    paddingBottom: 40,
     gap: 12,
   },
   closeBtn: {

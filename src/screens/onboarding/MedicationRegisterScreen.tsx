@@ -13,7 +13,7 @@ import {
   Modal,
   Image,
 } from 'react-native';
-import { SafeAreaView } from 'react-native-safe-area-context';
+import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useNavigation } from '@react-navigation/native';
 import type { StackNavigationProp } from '@react-navigation/stack';
@@ -724,6 +724,7 @@ export function MedicationRegisterScreen() {
   const navigation = useNavigation<Nav>();
   const { forceCompleteOnboarding } = useAuth();
   const [mode, setMode] = useState<Mode>('home');
+  const { bottom: bottomInset } = useSafeAreaInsets();
 
   // "나중에 등록하기" — DB onboarding_done 업데이트 후 메인으로
   // supabase-js PostgREST는 새 아키텍처에서 hang → 직접 fetch 사용
@@ -1358,7 +1359,7 @@ export function MedicationRegisterScreen() {
             )}
           </ScrollView>
 
-          <View style={styles.bottomArea}>
+          <View style={[styles.bottomArea, { paddingBottom: 40 + bottomInset }]}>
             <PrimaryButton
               title={medications.length > 0 ? `다음으로 (${medications.length}개 등록)` : '다음으로'}
               onPress={handleNext}
@@ -1418,7 +1419,7 @@ export function MedicationRegisterScreen() {
         </View>
       </View>
 
-      <View style={styles.bottomArea}>
+      <View style={[styles.bottomArea, { paddingBottom: 40 + bottomInset }]}>
         <Text style={{ fontSize: 18, color: Colors.textSub, textAlign: 'center', marginBottom: 12 }}>약은 나중에 등록하셔도 되요</Text>
         <TouchableOpacity style={styles.closeBtn} onPress={handleCompleteOnboarding}>
           <Text style={styles.closeBtnText}>나중에 등록하기</Text>
@@ -1773,7 +1774,6 @@ const styles = StyleSheet.create({
   },
   bottomArea: {
     paddingHorizontal: 24,
-    paddingBottom: 40,
     gap: 12,
   },
   closeBtn: {

@@ -9,7 +9,7 @@ import {
   AppState,
   Linking,
 } from 'react-native';
-import { SafeAreaView } from 'react-native-safe-area-context';
+import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useNavigation } from '@react-navigation/native';
 import type { StackNavigationProp } from '@react-navigation/stack';
 import AsyncStorage from '@react-native-async-storage/async-storage';
@@ -29,6 +29,7 @@ export function LoginScreen() {
   const { user, loading, signInWithKakao, signInWithGoogle, devSignIn } = useAuth();
   const [signing, setSigning] = useState(false);
   const oauthStarted = useRef(false);
+  const { bottom: bottomInset } = useSafeAreaInsets();
   const kakaoStarted = oauthStarted; // 하위 호환
   const signingTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
@@ -141,7 +142,7 @@ export function LoginScreen() {
         <Image source={require('../../../assets/parkinon-logo.png')} style={styles.logoImage} />
       </View>
 
-      <View style={styles.bottomArea}>
+      <View style={[styles.bottomArea, { paddingBottom: 40 + bottomInset }]}>
         <TouchableOpacity
           style={[styles.kakaoBtn, signing && styles.kakaoBtnDisabled]}
           onPress={handleKakaoLogin}
@@ -238,7 +239,6 @@ const styles = StyleSheet.create({
   },
   bottomArea: {
     paddingHorizontal: 24,
-    paddingBottom: 40,
   },
   kakaoBtn: {
     flexDirection: 'row',

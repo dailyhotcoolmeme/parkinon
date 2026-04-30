@@ -6,7 +6,7 @@ import {
   TouchableOpacity,
   Alert,
 } from 'react-native';
-import { SafeAreaView } from 'react-native-safe-area-context';
+import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useNavigation } from '@react-navigation/native';
 import type { StackNavigationProp } from '@react-navigation/stack';
@@ -37,6 +37,7 @@ export function RoleSelectScreen() {
   const { signOut } = useAuth();
   const [selectedRole, setSelectedRole] = useState<RoleKey | null>(null);
   const [loading, setLoading] = useState(false);
+  const { bottom: bottomInset } = useSafeAreaInsets();
 
   const handleConfirm = async () => {
     if (!selectedRole) return;
@@ -138,7 +139,7 @@ export function RoleSelectScreen() {
       </View>
 
       {/* 하단 버튼 영역 */}
-      <View style={styles.bottomArea}>
+      <View style={[styles.bottomArea, { paddingBottom: 40 + bottomInset }]}>
         <PrimaryButton
           title="다음으로"
           onPress={handleConfirm}
@@ -262,7 +263,6 @@ const styles = StyleSheet.create({
   },
   bottomArea: {
     paddingHorizontal: 24,
-    paddingBottom: 40,
     gap: 12,
   },
   closeBtn: {

@@ -6,6 +6,7 @@ import type { StackNavigationProp } from '@react-navigation/stack';
 import type { OnboardingStackParamList } from '../../navigation/OnboardingNavigator';
 import { Colors } from '../../constants/colors';
 import { PrimaryButton } from '../../components/common/PrimaryButton';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 const SCREEN_WIDTH = Dimensions.get('window').width;
 
@@ -33,6 +34,7 @@ export function OnboardingSlideScreen() {
   const navigation = useNavigation<Nav>();
   const [currentIndex, setCurrentIndex] = useState(0);
   const flatListRef = useRef<FlatList>(null);
+  const { bottom: bottomInset } = useSafeAreaInsets();
 
   const handleNext = async () => {
     if (currentIndex < SLIDES.length - 1) {
@@ -84,7 +86,7 @@ export function OnboardingSlideScreen() {
         ))}
       </View>
 
-      <View style={styles.btnWrapper}>
+      <View style={[styles.btnWrapper, { paddingBottom: 40 + bottomInset }]}>
         <PrimaryButton
           title={currentIndex < SLIDES.length - 1 ? '다음' : '시작하기'}
           onPress={handleNext}
@@ -112,5 +114,5 @@ const styles = StyleSheet.create({
   dots: { flexDirection: 'row', justifyContent: 'center', gap: 8, marginBottom: 24 },
   dot: { width: 8, height: 8, borderRadius: 4, backgroundColor: 'rgba(255, 255, 255, 0.4)' },
   dotActive: { backgroundColor: '#FFFFFF', width: 24 },
-  btnWrapper: { paddingHorizontal: 24, paddingBottom: 40 },
+  btnWrapper: { paddingHorizontal: 24 },
 });
