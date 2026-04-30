@@ -20,8 +20,8 @@ import { Colors } from '../../constants/colors';
 import { useAuth } from '../../context/AuthContext';
 import { supabase } from '../../lib/supabase';
 
-const TERMS_URL = 'https://parkinon-terms.dailyhotcoolmeme.workers.dev';
-const PRIVACY_URL = 'https://parkinon-privacy.dailyhotcoolmeme.workers.dev';
+const TERMS_URL = 'https://parkinon-terms.pages.dev';
+const PRIVACY_URL = 'https://parkinon-privacy.pages.dev';
 
 type Nav = StackNavigationProp<OnboardingStackParamList, 'Login'>;
 
