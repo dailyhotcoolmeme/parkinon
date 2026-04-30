@@ -12,6 +12,7 @@ import * as Updates from 'expo-updates';
 import { supabase } from './src/lib/supabase';
 import { requestPermissionsAndSaveToken } from './src/utils/notifications';
 import { notificationIntentManager } from './src/utils/NotificationIntentManager';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 
 // Android 알림 채널 — MAX 중요도 (Doze 모드에서도 즉시 표시)
 Notifications.setNotificationChannelAsync('default', {
@@ -99,6 +100,7 @@ function AppInner() {
         return;
       }
       if (type === 'medication_reminder' || type === 'missed_medication') {
+        AsyncStorage.setItem('pendingMedNotif', JSON.stringify({ mealTime: data?.mealTime ?? null }));
         navigateTo('Main', {
           screen: 'Medication',
           params: { autoOpen: Date.now(), mealTime: data?.mealTime ?? null },
@@ -156,6 +158,7 @@ function AppInner() {
       ).then(() => refreshBadge());
 
       if (type === 'medication_reminder' || type === 'missed_medication') {
+        AsyncStorage.setItem('pendingMedNotif', JSON.stringify({ mealTime: data?.mealTime ?? null }));
         navigateTo('Main', {
           screen: 'Medication',
           params: { autoOpen: Date.now(), mealTime: data?.mealTime ?? null },

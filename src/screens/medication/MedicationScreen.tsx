@@ -159,7 +159,8 @@ export function MedicationScreen() {
     })();
 
     // 따로 거주 보호자 / 연동 환자 없는 보호자는 바텀시트 차단
-    if (userRole === 'caregiver_separate' || userRole === 'caregiver_no_patient') return;
+    // ⚠️ 주석 처리: patientId 비동기 로드 전 userRole이 잘못 계산돼 modal 오픈이 막힘 (AsyncStorage useFocusEffect 방식으로 대체)
+    // if (userRole === 'caregiver_separate' || userRole === 'caregiver_no_patient') return;
 
     // 화면 전환 애니메이션 완료 후 모달 오픈
     const timer = setTimeout(() => {
@@ -197,6 +198,21 @@ export function MedicationScreen() {
         setDateLogStatus(null);
       }
     }, [refresh, isToday])
+  );
+
+  // 알림 탭 → 모달 열기 (AsyncStorage 방식, 가장 신뢰할 수 있는 방식 — 레이스 컨디션 완전 제거)
+  useFocusEffect(
+    useCallback(() => {
+      AsyncStorage.getItem('pendingMedNotif').then((value) => {
+        if (!value) return;
+        AsyncStorage.removeItem('pendingMedNotif');
+        try {
+          const { mealTime } = JSON.parse(value);
+          if (mealTime) setSelectedMealTime(mealTime as MealTime);
+          setTimeout(() => setShowMealTimeModal(true), 300);
+        } catch {}
+      });
+    }, [])
   );
 
   // 날짜 변경 시 해당 날짜 로그 조회
