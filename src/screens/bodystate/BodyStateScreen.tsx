@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useRef } from 'react';
 import {
   View,
   Text,
@@ -134,6 +134,8 @@ export function BodyStateScreen() {
   const [nextNotifInfo, setNextNotifInfo] = useState<NextNotifInfo | null>(null);
   const [pendingMealTime, setPendingMealTime] = useState<string | null>(null);
   const [hasBedtimeMedication, setHasBedtimeMedication] = useState(false);
+  const hasBedtimeLoadedRef = useRef(false);
+  const pendingFlowArgsRef = useRef<{ label: string; medTime: Date | null; mealTimeKey: string | null } | null>(null);
   const navigation = useNavigation<any>();
   const route = useRoute<any>();
   const insets = useSafeAreaInsets();
@@ -184,17 +186,17 @@ export function BodyStateScreen() {
         setPendingTriggerLabel(label);
         if (!showFlow) {
           if (paramMealTime) {
-            openFlowWithDuplicateCheck(label, null, paramMealTime);
+            openFlowOrPend(label, null, paramMealTime);
           } else {
             AsyncStorage.getItem('parkinon_last_medication')
               .then(raw => {
-                if (!raw) { openFlowWithDuplicateCheck(label, null, null); return; }
+                if (!raw) { openFlowOrPend(label, null, null); return; }
                 const parsed = JSON.parse(raw);
                 const medTime = parsed.taken_at ? new Date(parsed.taken_at) : null;
                 const mealTime = parsed.meal_time ?? null;
-                openFlowWithDuplicateCheck(label, medTime, mealTime);
+                openFlowOrPend(label, medTime, mealTime);
               })
-              .catch(() => openFlowWithDuplicateCheck(label, null, null));
+              .catch(() => openFlowOrPend(label, null, null));
           }
         }
       }
@@ -214,17 +216,17 @@ export function BodyStateScreen() {
           setPendingTriggeredBy('notification');
           setPendingTriggerLabel(label);
           if (triggerMealTime) {
-            openFlowWithDuplicateCheck(label, null, triggerMealTime);
+            openFlowOrPend(label, null, triggerMealTime);
           } else {
             AsyncStorage.getItem('parkinon_last_medication')
               .then(raw => {
-                if (!raw) { openFlowWithDuplicateCheck(label, null, null); return; }
+                if (!raw) { openFlowOrPend(label, null, null); return; }
                 const parsed = JSON.parse(raw);
                 const medTime = parsed.taken_at ? new Date(parsed.taken_at) : null;
                 const mealTime = parsed.meal_time ?? null;
-                openFlowWithDuplicateCheck(label, medTime, mealTime);
+                openFlowOrPend(label, medTime, mealTime);
               })
-              .catch(() => openFlowWithDuplicateCheck(label, null, null));
+              .catch(() => openFlowOrPend(label, null, null));
           }
         } catch {}
       });
@@ -281,14 +283,27 @@ export function BodyStateScreen() {
   // 탭 포커스될 때마다 취침약 여부 재조회 — 세션 중 약 추가/삭제 즉시 반영
   useFocusEffect(
     useCallback(() => {
-      if (!patientId) return;
+      hasBedtimeLoadedRef.current = false;
+      pendingFlowArgsRef.current = null;
+      if (!patientId) {
+        hasBedtimeLoadedRef.current = true;
+        return;
+      }
       supabase
         .from('medications')
         .select('id')
         .eq('patient_id', patientId)
         .eq('meal_time', 'bedtime')
         .limit(1)
-        .then(({ data }) => setHasBedtimeMedication(!!(data && data.length > 0)));
+        .then(({ data }) => {
+          setHasBedtimeMedication(!!(data && data.length > 0));
+          hasBedtimeLoadedRef.current = true;
+          if (pendingFlowArgsRef.current) {
+            const args = pendingFlowArgsRef.current;
+            pendingFlowArgsRef.current = null;
+            openFlowLatestRef.current(args.label, args.medTime, args.mealTimeKey);
+          }
+        });
     }, [patientId])
   );
 
@@ -325,6 +340,19 @@ export function BodyStateScreen() {
     } else {
       setShowFlow(true);
     }
+  };
+
+  // openFlowWithDuplicateCheck 최신 참조 유지 (비동기 콜백에서 stale closure 방지)
+  const openFlowLatestRef = useRef(openFlowWithDuplicateCheck);
+  useEffect(() => { openFlowLatestRef.current = openFlowWithDuplicateCheck; });
+
+  // hasBedtimeMedication 로드 완료 전 팝업 오픈 방지 헬퍼
+  const openFlowOrPend = (label: string, medTime: Date | null, mealTimeKey: string | null) => {
+    if (!hasBedtimeLoadedRef.current) {
+      pendingFlowArgsRef.current = { label, medTime, mealTimeKey };
+      return;
+    }
+    openFlowWithDuplicateCheck(label, medTime, mealTimeKey);
   };
 
   // 활성화된 medNotifs 인터벌 목록 (복용 직후 포함)
