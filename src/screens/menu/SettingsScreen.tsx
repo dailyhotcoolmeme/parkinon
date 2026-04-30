@@ -251,7 +251,11 @@ export function SettingsScreen() {
         .select('med_time_notif_prefs, med_notif_prefs, exercise_notif_prefs, meal_schedules, name')
         .eq('id', pid)
         .single();
-      if (patientUser?.name) setLinkedPatientName(patientUser.name);
+      if (patientUser?.name) {
+        setLinkedPatientName(patientUser.name);
+      } else {
+        console.warn('[SettingsScreen] 환자 name이 없음:', patientUser);
+      }
       if (patientUser?.med_time_notif_prefs) {
         setPatientMedTimePrefs(prev => ({ ...prev, ...patientUser.med_time_notif_prefs }));
       }
@@ -304,7 +308,9 @@ export function SettingsScreen() {
         setPatientMedSlotTimes(defaultTimes);
         setPatientActiveMedSlots(['morning', 'lunch', 'dinner', 'bedtime']);
       }
-    } catch {}
+    } catch (e) {
+      console.error('[SettingsScreen] 환자 정보 로드 오류:', e);
+    }
   }, [user, isCaregiver]);
 
   const togglePatientMedTimeSlot = async (slot: string) => {
