@@ -244,29 +244,35 @@ export function SettingsScreen() {
   const loadPatientNotifPrefs = React.useCallback(async () => {
     if (!user || !isCaregiver || !user.patient_group_id) return;
     try {
-      // 1. 환자 ID 조회
-      const { data: memberData } = await withTimeout(
-        supabase
-          .from('patient_group_members')
-          .select('user_id')
-          .eq('group_id', user.patient_group_id)
-          .eq('role', 'patient')
-          .single(),
-        5000
+      // supabase-js New Architecture hang 방지 → raw fetch 사용
+      const { data: { session } } = await supabase.auth.getSession();
+      const accessToken = session?.access_token ?? '';
+      const headers: Record<string, string> = {
+        'apikey': SUPABASE_ANON_KEY,
+        'Authorization': `Bearer ${accessToken}`,
+      };
+
+      // 1. 환자 ID 조회 (raw fetch)
+      const pgRes = await fetch(
+        `${SUPABASE_URL}/rest/v1/patient_group_members?group_id=eq.${user.patient_group_id}&role=eq.patient&select=user_id&limit=1`,
+        { headers }
       );
-      const pid = memberData?.user_id;
-      if (!pid) return;
+      const pgData = await pgRes.json();
+      const pid = pgData[0]?.user_id;
+      if (!pid) {
+        console.warn('[SettingsScreen] 환자 ID 없음, pgData:', pgData);
+        return;
+      }
       setPatientId(pid);
 
-      // 2. 환자의 알림 설정 (med_time_notif_prefs + med_notif_prefs + exercise_notif_prefs + meal_schedules + name)
-      const { data: patientUser } = await withTimeout(
-        supabase
-          .from('users')
-          .select('med_time_notif_prefs, med_notif_prefs, exercise_notif_prefs, meal_schedules, name')
-          .eq('id', pid)
-          .single(),
-        5000
+      // 2. 환자의 알림 설정 + 이름 (raw fetch)
+      const userRes = await fetch(
+        `${SUPABASE_URL}/rest/v1/users?id=eq.${pid}&select=med_time_notif_prefs,med_notif_prefs,exercise_notif_prefs,meal_schedules,name&limit=1`,
+        { headers }
       );
+      const userData = await userRes.json();
+      const patientUser = userData[0];
+
       if (patientUser?.name) {
         setLinkedPatientName(patientUser.name);
       } else {
@@ -291,16 +297,14 @@ export function SettingsScreen() {
         ]);
       }
 
-      // 3. 환자의 활성 약 슬롯 + 복용 시간
-      const { data: meds } = await withTimeout(
-        supabase
-          .from('medications')
-          .select('meal_times, meal_schedules')
-          .eq('patient_id', pid)
-          .eq('is_active', true),
-        5000
+      // 3. 환자의 활성 약 슬롯 + 복용 시간 (raw fetch)
+      const medsRes = await fetch(
+        `${SUPABASE_URL}/rest/v1/medications?patient_id=eq.${pid}&is_active=eq.true&select=meal_times,meal_schedules`,
+        { headers }
       );
-      if (meds?.length) {
+      const meds = await medsRes.json();
+
+      if (Array.isArray(meds) && meds.length > 0) {
         const earliest: Record<string, string> = {};
         const activeSlots = new Set<string>();
         for (const med of meds) {
