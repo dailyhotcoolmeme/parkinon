@@ -1,5 +1,5 @@
 import React, { useEffect, useRef } from 'react';
-import { AppState, AppStateStatus, StatusBar } from 'react-native';
+import { AppState, AppStateStatus, DeviceEventEmitter, StatusBar } from 'react-native';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 import { AuthProvider } from './src/context/AuthContext';
@@ -102,6 +102,7 @@ function AppInner() {
           screen: 'Medication',
           params: { autoOpen: Date.now(), mealTime: data?.mealTime ?? null },
         });
+        DeviceEventEmitter.emit('openMedModal', { mealTime: data?.mealTime ?? null });
       } else if (type === 'effect_tracking') {
         navigateTo('Main', {
           screen: 'BodyStateTab',
@@ -158,6 +159,7 @@ function AppInner() {
           screen: 'Medication',
           params: { autoOpen: Date.now(), mealTime: data?.mealTime ?? null },
         });
+        DeviceEventEmitter.emit('openMedModal', { mealTime: data?.mealTime ?? null });
       } else if (type === 'effect_tracking') {
         navigateTo('Main', {
           screen: 'BodyStateTab',

@@ -1,4 +1,4 @@
-import React, { useState, useCallback, useEffect } from 'react';
+import React, { useState, useCallback, useEffect, useRef } from 'react';
 import {
   View,
   Text,
@@ -8,6 +8,7 @@ import {
   Dimensions,
   Alert,
   Modal,
+  DeviceEventEmitter,
 } from 'react-native';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useFocusEffect, useRoute, RouteProp } from '@react-navigation/native';
@@ -168,6 +169,23 @@ export function MedicationScreen() {
   // routeParams 객체 참조가 바뀌어도 autoOpen 값 기준으로만 실행
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [routeParams.autoOpen]);
+
+  // DeviceEventEmitter 기반 알림 탭 → 모달 열기 (route.params 우회)
+  const openMedModalRef = useRef(false);
+  useEffect(() => {
+    const sub = DeviceEventEmitter.addListener('openMedModal', ({ mealTime }: { mealTime: string | null }) => {
+      if (openMedModalRef.current) return;
+      openMedModalRef.current = true;
+      setTimeout(() => {
+        openMedModalRef.current = false;
+      }, 2000);
+      if (mealTime) {
+        setSelectedMealTime(mealTime as MealTime);
+      }
+      setTimeout(() => setShowMealTimeModal(true), 100);
+    });
+    return () => sub.remove();
+  }, []);
 
   // 날짜별 복용 현황 (날짜 선택 시 사용)
   const [dateLogStatus, setDateLogStatus] = useState<Record<string, any> | null>(null);
