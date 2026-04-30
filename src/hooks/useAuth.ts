@@ -7,7 +7,7 @@
  * 이 파일의 useAuthProvider()는 AuthProvider 내부에서만 사용합니다.
  */
 import { useState, useEffect, useCallback } from 'react';
-import { Platform, Alert } from 'react-native';
+import { Platform, Alert, AppState } from 'react-native';
 import * as WebBrowser from 'expo-web-browser';
 import * as Linking from 'expo-linking';
 import * as Notifications from 'expo-notifications';
@@ -288,25 +288,48 @@ export function useAuthProvider(): UseAuthReturn {
   // 구글 로그인은 openAuthSessionAsync(Custom Tab)으로 처리하므로
   // Custom Tab 내에서 딥링크가 캡처되어 여기에 중복 도착하지 않음
   useEffect(() => {
+    const lastProcessedUrl = { current: null as string | null };
+
+    const handleUrl = (url: string) => {
+      if (!isAuthUrl(url)) return;
+      if (url === lastProcessedUrl.current) return;
+      lastProcessedUrl.current = url;
+      console.log('[useAuth] auth URL 처리:', url.substring(0, 80));
+      processAuthUrl(url, loadUserProfile);
+    };
+
     const subscription = Linking.addEventListener('url', ({ url }) => {
       console.log('[useAuth] 글로벌 Linking URL 수신:', url.substring(0, 80));
-      if (isAuthUrl(url)) {
-        // loadUserProfile을 fallback으로 전달 — onAuthStateChange 미발동 시 스피너 무한 방지
-        processAuthUrl(url, loadUserProfile);
-      }
+      handleUrl(url);
     });
 
     // 앱이 딥링크로 시작된 경우 (cold start)
     Linking.getInitialURL().then((url) => {
       if (url) {
-        console.log('[useAuth] getInitialURL:', url.substring(0, 80));
-        if (isAuthUrl(url)) {
-          processAuthUrl(url, loadUserProfile);
-        }
+        console.log('[useAuth] getInitialURL (cold start):', url.substring(0, 80));
+        handleUrl(url);
       }
     });
 
-    return () => subscription.remove();
+    // New Architecture 폴백: AppState active 시 getInitialURL 직접 확인
+    // Expo New Architecture에서 Linking.addEventListener가 onNewIntent 딥링크에서
+    // 발화하지 않는 버그를 우회 — getInitialURL()은 현재 Intent data를 직접 읽음
+    const appStateSub = AppState.addEventListener('change', async (state) => {
+      if (state === 'active') {
+        try {
+          const url = await Linking.getInitialURL();
+          if (url) {
+            console.log('[useAuth] AppState active - getInitialURL:', url.substring(0, 80));
+            handleUrl(url);
+          }
+        } catch (_) {}
+      }
+    });
+
+    return () => {
+      subscription.remove();
+      appStateSub.remove();
+    };
   }, [loadUserProfile]);
 
   // ─── 구글 로그인 (Android 전용) ───────────────────────────────────────────
