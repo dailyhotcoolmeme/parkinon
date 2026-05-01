@@ -17,7 +17,9 @@ serve(async (req: Request) => {
   }
 
   try {
-    const { access_token } = await req.json();
+    const body = await req.json();
+    // 앱에서 { token: KakaoAccessToken } 또는 { access_token: string } 형식으로 전송
+    const access_token = body.access_token ?? body.token?.accessToken;
     if (!access_token) {
       return new Response(JSON.stringify({ error: 'access_token이 없습니다.' }), {
         status: 400,
