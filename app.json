@@ -76,14 +76,14 @@
         "@react-native-seoul/kakao-login",
         {
           "kakaoAppKey": "a46e187c314536d5fd4ef610710479ab",
-          "kotlinVersion": "2.0.21"
+          "kotlinVersion": "2.1.20"
         }
       ],
       [
         "expo-build-properties",
         {
           "android": {
-            "kotlinVersion": "2.0.21"
+            "kotlinVersion": "2.1.20"
           }
         }
       ]
