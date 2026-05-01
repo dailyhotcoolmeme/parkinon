@@ -11,6 +11,7 @@ import { Platform, Alert, AppState } from 'react-native';
 import * as WebBrowser from 'expo-web-browser';
 import * as Linking from 'expo-linking';
 import * as Notifications from 'expo-notifications';
+import { login as kakaoLogin } from '@react-native-seoul/kakao-login';
 import { supabase } from '../lib/supabase';
 import { registerMissedMedCheckTask, requestPermissionsAndSaveToken } from '../utils/notifications';
 
@@ -367,46 +368,71 @@ export function useAuthProvider(): UseAuthReturn {
     }
   }, [loadUserProfile]);
 
-  // ─── 카카오 로그인 (Supabase OAuth) ──────────────────────────────────────
-  // 반환값: true = 인증 진행 중/완료 (스피너 유지, AppState 리스너가 세션 확인),
-  //         false = 즉시 실패
-  // 구조는 signInWithGoogle과 동일 — Chrome Custom Tab(openAuthSessionAsync)으로 열기
+  // ─── 카카오 로그인 (네이티브 SDK) ─────────────────────────────────────────
+  // @react-native-seoul/kakao-login SDK로 카카오톡 앱/카카오 계정 로그인 →
+  // accessToken을 Edge Function(kakao-auth)에 전달 →
+  // magic link token_hash로 verifyOtp → Supabase 세션 발급
   const signInWithKakao = useCallback(async (): Promise<boolean> => {
     try {
-      console.log('[useAuth] signInWithKakao 시작 (Supabase OAuth)');
-      const { data, error } = await supabase.auth.signInWithOAuth({
-        provider: 'kakao',
-        options: {
-          redirectTo: REDIRECT_TO,
-          skipBrowserRedirect: true,
-          scopes: 'profile_nickname profile_image account_email',
-        },
-      });
+      console.log('[useAuth] signInWithKakao 시작 (Native SDK)');
 
-      if (error || !data?.url) {
-        console.error('[useAuth] signInWithOAuth(kakao) 오류:', error?.message);
-        Alert.alert('로그인 오류', '카카오 로그인을 시작할 수 없습니다. 네트워크 연결을 확인해주세요.');
+      // 1) SDK로 카카오 로그인 (카톡 앱 또는 카카오 계정 웹뷰)
+      const tokenResult = await kakaoLogin();
+      console.log('[useAuth] SDK 로그인 성공, accessToken 획득');
+
+      // 2) Edge Function 호출 → magic link 발급
+      const { data, error } = await supabase.functions.invoke('kakao-auth', {
+        body: { kakaoAccessToken: tokenResult.accessToken },
+      });
+      if (error) {
+        console.error('[useAuth] kakao-auth 호출 오류:', error.message);
+        throw error;
+      }
+      if (!data?.action_link) {
+        console.error('[useAuth] action_link 없음:', data);
+        throw new Error('action_link 없음');
+      }
+
+      // 3) action_link에서 token_hash 파싱 → verifyOtp로 세션 생성
+      const url = new URL(data.action_link);
+      const tokenHash = url.searchParams.get('token');
+      if (!tokenHash) {
+        console.error('[useAuth] action_link에서 token 파싱 실패:', data.action_link.substring(0, 100));
+        throw new Error('token 파싱 실패');
+      }
+
+      const { data: verifyData, error: verifyError } = await supabase.auth.verifyOtp({
+        type: 'magiclink',
+        token_hash: tokenHash,
+      });
+      if (verifyError) {
+        console.error('[useAuth] verifyOtp 오류:', verifyError.message);
+        throw verifyError;
+      }
+
+      if (verifyData.user) {
+        console.log('[useAuth] verifyOtp 성공, 프로필 로드:', verifyData.user.id);
+        // onAuthStateChange가 자동 발동하지만, 만약 안 될 경우를 대비해 직접도 호출
+        // (onAuthStateChange가 발동하면 setUser가 두 번 호출되지만 같은 데이터라 문제 없음)
+        await loadUserProfile(
+          verifyData.user.id,
+          verifyData.user.user_metadata,
+          verifyData.session?.access_token,
+        );
+      }
+      return true;
+    } catch (err: any) {
+      const msg = err?.message ?? String(err);
+      console.error('[useAuth] signInWithKakao 오류:', msg);
+      // 사용자 취소는 에러 알림 표시하지 않음
+      const lower = msg.toLowerCase();
+      if (
+        lower.includes('cancel') ||
+        lower.includes('user cancelled') ||
+        lower.includes('user canceled')
+      ) {
         return false;
       }
-
-      // Chrome Custom Tab으로 열기 → OAuth 완료 후 딥링크 감지 시 탭 자동 닫힘
-      console.log('[useAuth] Kakao - openAuthSessionAsync(Custom Tab) 사용');
-      const result = await WebBrowser.openAuthSessionAsync(data.url, REDIRECT_TO);
-      console.log('[useAuth] Kakao Custom Tab 결과:', result.type);
-
-      if (result.type === 'success' && result.url) {
-        // Custom Tab에서 캡처한 URL을 processAuthUrl로 처리
-        // loadUserProfile을 fallback으로 전달 — onAuthStateChange 미발동 시 스피너 무한 방지
-        await processAuthUrl(result.url, loadUserProfile);
-        return true;
-      }
-
-      // result.type === 'cancel'인 경우: 카카오 앱 전환 등으로 Custom Tab이 닫혔을 수 있음.
-      // 글로벌 Linking 리스너 + LoginScreen AppState 리스너가 세션을 처리할 수 있도록
-      // 스피너를 유지(true 반환)
-      return true;
-    } catch (err) {
-      console.error('[useAuth] signInWithKakao 오류:', err);
       Alert.alert('로그인 오류', '오류가 발생했습니다. 다시 시도해주세요.');
       return false;
     }

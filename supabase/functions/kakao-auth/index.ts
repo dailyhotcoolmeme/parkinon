@@ -1,130 +1,111 @@
-// Supabase Edge Function: kakao-auth (네이티브 SDK용)
-// 카카오 액세스토큰 → Supabase 세션 발급
-import { serve } from 'https://deno.land/std@0.177.0/http/server.ts';
-import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
-
-const SUPABASE_URL = Deno.env.get('SUPABASE_URL')!;
-const SUPABASE_SERVICE_ROLE_KEY = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!;
+import { createClient } from 'https://esm.sh/@supabase/supabase-js@2'
+import { serve } from 'https://deno.land/std@0.168.0/http/server.ts'
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
 };
 
-serve(async (req: Request) => {
-  if (req.method === 'OPTIONS') {
-    return new Response('ok', { headers: corsHeaders });
-  }
+serve(async (req) => {
+  if (req.method === 'OPTIONS') return new Response('ok', { headers: corsHeaders });
 
   try {
-    const body = await req.json();
-    // 앱에서 { token: KakaoAccessToken } 또는 { access_token: string } 형식으로 전송
-    const access_token = body.access_token ?? body.token?.accessToken;
-    if (!access_token) {
-      return new Response(JSON.stringify({ error: 'access_token이 없습니다.' }), {
-        status: 400,
-        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-      });
-    }
+    const { kakaoAccessToken } = await req.json();
+    if (!kakaoAccessToken) throw new Error('kakaoAccessToken 누락');
 
-    // 1단계: 카카오 API로 사용자 정보 조회
-    const userRes = await fetch('https://kapi.kakao.com/v2/user/me', {
-      headers: { Authorization: `Bearer ${access_token}` },
+    // 1) 카카오 토큰 검증 + 프로필 조회
+    const kakaoRes = await fetch('https://kapi.kakao.com/v2/user/me', {
+      headers: { Authorization: `Bearer ${kakaoAccessToken}` },
     });
-
-    if (!userRes.ok) {
-      const errBody = await userRes.text();
-      console.error('카카오 사용자 조회 실패:', errBody);
-      return new Response(JSON.stringify({ error: '카카오 사용자 조회 실패' }), {
-        status: 400,
-        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-      });
+    if (!kakaoRes.ok) {
+      const text = await kakaoRes.text();
+      throw new Error(`카카오 토큰 검증 실패: ${kakaoRes.status} ${text}`);
     }
-
-    const kakaoUser = await userRes.json();
+    const kakaoUser = await kakaoRes.json();
     const kakaoId = String(kakaoUser.id);
-    const kakaoNickname = kakaoUser.kakao_account?.profile?.nickname ?? null;
-    const kakaoEmail = `kakao_${kakaoId}@parkinon.app`;
+    const kakaoEmail = kakaoUser.kakao_account?.email ?? null;
+    const nickname = kakaoUser.kakao_account?.profile?.nickname ?? '사용자';
+    const profileImageUrl = kakaoUser.kakao_account?.profile?.profile_image_url ?? null;
 
-    const adminClient = createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY, {
-      auth: { autoRefreshToken: false, persistSession: false },
-    });
+    const supabaseAdmin = createClient(
+      Deno.env.get('SUPABASE_URL')!,
+      Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!,
+      { auth: { autoRefreshToken: false, persistSession: false } }
+    );
 
-    // 2단계: public.users에서 kakao_id로 기존 유저 조회 (listUsers 대신)
-    const { data: existingProfile } = await adminClient
+    // 2) public.users에서 kakao_id로 직접 조회 (admin.listUsers 절대 사용 X)
+    //    select 컬럼은 'id'만 — email 컬럼 없음
+    const { data: existingPublicUser, error: lookupErr } = await supabaseAdmin
       .from('users')
       .select('id')
       .eq('kakao_id', kakaoId)
       .maybeSingle();
+    if (lookupErr) throw new Error(`users 조회 오류: ${lookupErr.message}`);
 
     let authUserId: string;
+    let authEmail: string;
 
-    if (existingProfile) {
-      authUserId = existingProfile.id;
+    if (existingPublicUser) {
+      // 기존 유저: auth.admin.getUserById로 email 조회 (단일 조회 — 안전)
+      authUserId = existingPublicUser.id;
+      const { data: authUserData, error: getUserErr } = await supabaseAdmin.auth.admin.getUserById(authUserId);
+      if (getUserErr || !authUserData?.user?.email) {
+        throw new Error(`auth user 조회 실패: ${getUserErr?.message ?? 'email 없음'}`);
+      }
+      authEmail = authUserData.user.email;
     } else {
-      // 신규 유저: auth.users 생성
-      const { data: newAuthUser, error: createErr } = await adminClient.auth.admin.createUser({
-        email: kakaoEmail,
+      // 신규 유저: createUser + public.users insert
+      authEmail = kakaoEmail ?? `kakao_${kakaoId}@parkinon.local`;
+
+      const { data: createData, error: createErr } = await supabaseAdmin.auth.admin.createUser({
+        email: authEmail,
         email_confirm: true,
         user_metadata: {
-          kakao_id: kakaoId,
-          kakao_nickname: kakaoNickname,
           provider: 'kakao',
-          full_name: kakaoNickname,
+          provider_id: kakaoId,
+          sub: kakaoId,
+          nickname,
+          profile_image_url: profileImageUrl
         },
       });
-
-      if (createErr || !newAuthUser?.user) {
-        console.error('auth 유저 생성 실패:', createErr);
-        return new Response(JSON.stringify({ error: 'auth 유저 생성 실패' }), {
-          status: 500,
-          headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-        });
+      if (createErr) {
+        throw new Error(`auth user 생성 실패: ${createErr.message}`);
       }
+      authUserId = createData.user!.id;
 
-      authUserId = newAuthUser.user.id;
-
-      // public.users 삽입
-      await adminClient.from('users').insert({
+      // public.users insert — 실제 스키마에 맞춰 NOT NULL 컬럼 모두 채움 + email 컬럼 없음
+      const { error: insertErr } = await supabaseAdmin.from('users').insert({
         id: authUserId,
         kakao_id: kakaoId,
-        name: kakaoNickname ?? '파킨온 사용자',
-        role: 'patient',
+        name: nickname,
+        role: 'patient',           // 임시 default — onboarding에서 변경 가능
         onboarding_done: false,
         notification_enabled: true,
-        patient_group_id: null,
       });
+      if (insertErr) {
+        // insert 실패 시 auth user 정리 (일관성 유지)
+        await supabaseAdmin.auth.admin.deleteUser(authUserId);
+        throw new Error(`public.users insert 실패: ${insertErr.message}`);
+      }
     }
 
-    // 3단계: 매직링크 토큰 발급
-    const { data: linkData, error: linkErr } = await adminClient.auth.admin.generateLink({
+    // 3) magic link 생성 → 클라이언트가 verifyOtp로 세션 발급
+    const { data: linkData, error: linkErr } = await supabaseAdmin.auth.admin.generateLink({
       type: 'magiclink',
-      email: kakaoEmail,
+      email: authEmail,
+      options: { redirectTo: 'parkinon://auth/callback' },
     });
-
-    if (linkErr || !linkData?.properties?.hashed_token) {
-      console.error('매직링크 생성 실패:', linkErr);
-      return new Response(JSON.stringify({ error: '세션 발급 실패' }), {
-        status: 500,
-        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-      });
-    }
+    if (linkErr) throw new Error(`magic link 생성 실패: ${linkErr.message}`);
 
     return new Response(
-      JSON.stringify({
-        email: kakaoEmail,
-        token: linkData.properties.hashed_token,
-      }),
-      {
-        status: 200,
-        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-      }
+      JSON.stringify({ action_link: linkData.properties.action_link }),
+      { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
     );
-  } catch (err) {
-    console.error('Edge Function 오류:', err);
-    return new Response(JSON.stringify({ error: '서버 내부 오류', detail: String(err) }), {
-      status: 500,
-      headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-    });
+  } catch (err: any) {
+    console.error('[kakao-auth] 오류:', err?.message || err);
+    return new Response(
+      JSON.stringify({ error: err?.message ?? 'Unknown error' }),
+      { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+    );
   }
 });
