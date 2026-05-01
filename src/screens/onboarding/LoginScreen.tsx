@@ -183,7 +183,10 @@ export function LoginScreen() {
           disabled={signing}
         >
           {signing ? (
-            <ActivityIndicator color="#3C1E1E" />
+            <>
+              <ActivityIndicator color="#3C1E1E" />
+              <Text style={styles.kakaoText}>로그인 중...</Text>
+            </>
           ) : (
             <>
               <Image source={require('../../../assets/kakao_logo.png')} style={styles.kakaoIcon} />
@@ -200,7 +203,10 @@ export function LoginScreen() {
             disabled={signing || !APPLE_LOGIN_ENABLED}
           >
             {signing ? (
-              <ActivityIndicator color="#fff" />
+              <>
+                <ActivityIndicator color="#fff" />
+                <Text style={styles.appleText}>로그인 중...</Text>
+              </>
             ) : (
               <>
                 <AntDesign name="apple1" size={26} color={APPLE_LOGIN_ENABLED ? '#fff' : '#aaa'} />
@@ -219,7 +225,10 @@ export function LoginScreen() {
           disabled={signing}
         >
           {signing ? (
-            <ActivityIndicator color="#444" />
+            <>
+              <ActivityIndicator color="#444" />
+              <Text style={styles.googleText}>로그인 중...</Text>
+            </>
           ) : (
             <>
               <AntDesign name="google" size={24} color="#DB4437" />
