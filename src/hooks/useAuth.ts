@@ -11,7 +11,6 @@ import { Platform, Alert, AppState } from 'react-native';
 import * as WebBrowser from 'expo-web-browser';
 import * as Linking from 'expo-linking';
 import * as Notifications from 'expo-notifications';
-import KakaoLogin from '@react-native-seoul/kakao-login';
 import { supabase } from '../lib/supabase';
 import { registerMissedMedCheckTask, requestPermissionsAndSaveToken } from '../utils/notifications';
 
@@ -368,43 +367,45 @@ export function useAuthProvider(): UseAuthReturn {
     }
   }, [loadUserProfile]);
 
-  // ─── 카카오 로그인 (네이티브 SDK) ────────────────────────────────────────
+  // ─── 카카오 로그인 (Supabase OAuth) ──────────────────────────────────────
+  // 반환값: true = 인증 진행 중/완료 (스피너 유지, AppState 리스너가 세션 확인),
+  //         false = 즉시 실패
+  // 구조는 signInWithGoogle과 동일 — Chrome Custom Tab(openAuthSessionAsync)으로 열기
   const signInWithKakao = useCallback(async (): Promise<boolean> => {
     try {
-      console.log('[useAuth] signInWithKakao 시작 (네이티브 SDK)');
-      const token = await KakaoLogin.login();
-      console.log('[useAuth] 카카오 네이티브 로그인 성공, Edge Function 호출');
-
-      const { data, error } = await supabase.functions.invoke('kakao-auth', {
-        body: { access_token: token.accessToken },
+      console.log('[useAuth] signInWithKakao 시작 (Supabase OAuth)');
+      const { data, error } = await supabase.auth.signInWithOAuth({
+        provider: 'kakao',
+        options: {
+          redirectTo: REDIRECT_TO,
+          skipBrowserRedirect: true,
+          scopes: 'profile_nickname profile_image account_email',
+        },
       });
 
-      if (error || !data?.email || !data?.token) {
-        console.error('[useAuth] kakao-auth Edge Function 오류:', error);
-        Alert.alert('로그인 오류', '카카오 로그인 처리 중 오류가 발생했습니다. 다시 시도해주세요.');
+      if (error || !data?.url) {
+        console.error('[useAuth] signInWithOAuth(kakao) 오류:', error?.message);
+        Alert.alert('로그인 오류', '카카오 로그인을 시작할 수 없습니다. 네트워크 연결을 확인해주세요.');
         return false;
       }
 
-      console.log('[useAuth] Edge Function 성공, verifyOtp 호출');
-      const { error: otpError } = await supabase.auth.verifyOtp({
-        email: data.email,
-        token: data.token,
-        type: 'email',
-      });
+      // Chrome Custom Tab으로 열기 → OAuth 완료 후 딥링크 감지 시 탭 자동 닫힘
+      console.log('[useAuth] Kakao - openAuthSessionAsync(Custom Tab) 사용');
+      const result = await WebBrowser.openAuthSessionAsync(data.url, REDIRECT_TO);
+      console.log('[useAuth] Kakao Custom Tab 결과:', result.type);
 
-      if (otpError) {
-        console.error('[useAuth] verifyOtp 오류:', otpError);
-        Alert.alert('로그인 오류', '인증 처리 중 오류가 발생했습니다. 다시 시도해주세요.');
-        return false;
+      if (result.type === 'success' && result.url) {
+        // Custom Tab에서 캡처한 URL을 processAuthUrl로 처리
+        // loadUserProfile을 fallback으로 전달 — onAuthStateChange 미발동 시 스피너 무한 방지
+        await processAuthUrl(result.url, loadUserProfile);
+        return true;
       }
 
-      console.log('[useAuth] 카카오 로그인 완료');
+      // result.type === 'cancel'인 경우: 카카오 앱 전환 등으로 Custom Tab이 닫혔을 수 있음.
+      // 글로벌 Linking 리스너 + LoginScreen AppState 리스너가 세션을 처리할 수 있도록
+      // 스피너를 유지(true 반환)
       return true;
-    } catch (err: any) {
-      if (err?.code === 'CANCELED' || err?.message?.includes('cancel')) {
-        console.log('[useAuth] 카카오 로그인 취소');
-        return false;
-      }
+    } catch (err) {
       console.error('[useAuth] signInWithKakao 오류:', err);
       Alert.alert('로그인 오류', '오류가 발생했습니다. 다시 시도해주세요.');
       return false;
