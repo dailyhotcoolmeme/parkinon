@@ -1727,6 +1727,9 @@ export function MedicationManageScreen() {
             </View>
           )}
 
+          {/* ── 약관리 과거 기록 보기 ── */}
+          <MedicationHistoryTimeline patientId={targetPatientId} />
+
           <View style={{ height: 80 }} />
         </ScrollView>
       </KeyboardAvoidingView>
@@ -1865,6 +1868,297 @@ export function MedicationManageScreen() {
     </SafeAreaView>
   );
 }
+
+// ─── 약관리 과거 기록 보기 타임라인 ──────────────────────────────────────────────
+
+const MED_SLOT_ORDER: TimeSlot[] = ['morning', 'lunch', 'dinner', 'bedtime'];
+const MED_SLOT_LABELS: Record<TimeSlot, string> = {
+  morning: '아침약',
+  lunch: '점심약',
+  dinner: '저녁약',
+  bedtime: '취침약',
+};
+
+function medHistoryDateLabel(dateStr: string): string {
+  const [y, m, d] = dateStr.split('-').map(Number);
+  const date = new Date(y, m - 1, d);
+  const dayNames = ['일', '월', '화', '수', '목', '금', '토'];
+  return `${m}.${d}(${dayNames[date.getDay()]})`;
+}
+
+function medHistoryKSTDate(isoString: string): string {
+  const d = new Date(isoString);
+  const kst = new Date(d.getTime() + 9 * 60 * 60 * 1000);
+  return kst.toISOString().slice(0, 10);
+}
+
+const MH_PAGE_SIZE = 14;
+
+interface MedicationHistoryEntry {
+  dateStr: string;
+  slots: Partial<Record<TimeSlot, string[]>>; // slot -> med names
+}
+
+function MedicationHistoryTimeline({ patientId }: { patientId: string | null }) {
+  const [expanded, setExpanded] = useState(false);
+  const [loading, setLoading] = useState(false);
+  const [initialLoaded, setInitialLoaded] = useState(false);
+  const [entries, setEntries] = useState<MedicationHistoryEntry[]>([]);
+  const [displayCount, setDisplayCount] = useState(MH_PAGE_SIZE);
+
+  const fetchHistory = useCallback(async () => {
+    if (!patientId) return;
+    setLoading(true);
+    try {
+      // 모든 활성/비활성 medications를 created_at 기준으로 조회
+      const { data, error } = await supabase
+        .from('medications')
+        .select('name, dosage, meal_times, created_at')
+        .eq('patient_id', patientId)
+        .order('created_at', { ascending: false });
+
+      if (error) throw error;
+      if (!data || data.length === 0) {
+        setEntries([]);
+        return;
+      }
+
+      // created_at 날짜별로 그룹핑
+      const dateMap: Record<string, Partial<Record<TimeSlot, string[]>>> = {};
+      (data as any[]).forEach(row => {
+        const dateStr = medHistoryKSTDate(row.created_at);
+        if (!dateMap[dateStr]) dateMap[dateStr] = {};
+        const medName = row.dosage ? `${row.name} ${row.dosage}` : row.name;
+        const mealTimes: TimeSlot[] = (row.meal_times ?? []) as TimeSlot[];
+        mealTimes.forEach(slot => {
+          if (!dateMap[dateStr][slot]) dateMap[dateStr][slot] = [];
+          dateMap[dateStr][slot]!.push(medName);
+        });
+      });
+
+      // 날짜 내림차순 정렬 후 entries 생성
+      const sortedDates = Object.keys(dateMap).sort((a, b) => b.localeCompare(a));
+      setEntries(sortedDates.map(dateStr => ({ dateStr, slots: dateMap[dateStr] })));
+    } catch (err) {
+      console.error('[MedicationHistoryTimeline] 오류:', err);
+    } finally {
+      setLoading(false);
+    }
+  }, [patientId]);
+
+  const handleExpand = useCallback(async () => {
+    setExpanded(true);
+    if (initialLoaded) return;
+    await fetchHistory();
+    setInitialLoaded(true);
+  }, [initialLoaded, fetchHistory]);
+
+  const visibleEntries = entries.slice(0, displayCount);
+  const hasMore = entries.length > displayCount;
+
+  if (!expanded) {
+    return (
+      <View style={mhStyles.toggleWrap}>
+        <TouchableOpacity style={mhStyles.toggleButton} onPress={handleExpand} activeOpacity={0.8}>
+          <Text style={mhStyles.toggleButtonText}>과거 기록 보기</Text>
+          <Text style={mhStyles.toggleArrow}>▼</Text>
+        </TouchableOpacity>
+      </View>
+    );
+  }
+
+  return (
+    <View style={mhStyles.container}>
+      <TouchableOpacity style={mhStyles.toggleButton} onPress={() => setExpanded(false)} activeOpacity={0.8}>
+        <Text style={mhStyles.toggleButtonText}>과거 기록 접기</Text>
+        <Text style={mhStyles.toggleArrow}>▲</Text>
+      </TouchableOpacity>
+
+      {loading ? (
+        <View style={mhStyles.loadingWrap}>
+          <ActivityIndicator size="large" color={Colors.primary} />
+          <Text style={mhStyles.loadingText}>기록을 불러오는 중...</Text>
+        </View>
+      ) : entries.length === 0 ? (
+        <View style={mhStyles.emptyWrap}>
+          <Text style={mhStyles.emptyText}>아직 기록이 없어요</Text>
+        </View>
+      ) : (
+        <View style={mhStyles.timeline}>
+          {visibleEntries.map((entry, idx) => {
+            const isLast = idx === visibleEntries.length - 1;
+            // 표시할 슬롯 텍스트 조합
+            const slotParts = MED_SLOT_ORDER
+              .filter(slot => entry.slots[slot] && entry.slots[slot]!.length > 0)
+              .map(slot => `${MED_SLOT_LABELS[slot]} ${entry.slots[slot]!.join(', ')}`);
+            const hasRecord = slotParts.length > 0;
+
+            return (
+              <View key={entry.dateStr} style={mhStyles.dayRow}>
+                {/* 왼쪽: 날짜 */}
+                <View style={mhStyles.dateCol}>
+                  <Text style={mhStyles.dateLabel}>{medHistoryDateLabel(entry.dateStr)}</Text>
+                </View>
+
+                {/* 가운데: 세로줄 + 원 */}
+                <View style={mhStyles.lineCol}>
+                  <View style={[mhStyles.lineTop, idx === 0 && mhStyles.lineInvisible]} />
+                  <View style={mhStyles.dotFilled} />
+                  <View style={[mhStyles.lineBottom, isLast && mhStyles.lineInvisible]} />
+                </View>
+
+                {/* 오른쪽: 약 목록 */}
+                <View style={mhStyles.contentCol}>
+                  {hasRecord ? (
+                    slotParts.map((part, pIdx) => (
+                      <Text key={pIdx} style={[mhStyles.slotText, pIdx > 0 && mhStyles.slotTextExtra]}>
+                        {part}
+                      </Text>
+                    ))
+                  ) : (
+                    <Text style={mhStyles.emptyDay}>기록 없음</Text>
+                  )}
+                </View>
+              </View>
+            );
+          })}
+
+          {hasMore && (
+            <TouchableOpacity
+              style={mhStyles.moreButton}
+              onPress={() => setDisplayCount(c => c + MH_PAGE_SIZE)}
+              activeOpacity={0.8}
+            >
+              <Text style={mhStyles.moreButtonText}>더보기 (14개 추가)</Text>
+            </TouchableOpacity>
+          )}
+        </View>
+      )}
+    </View>
+  );
+}
+
+const MH_LINE_TOP_H = 14;
+const MH_FIRST_ROW_PT = 12;
+
+const mhStyles = StyleSheet.create({
+  toggleWrap: { paddingBottom: 32 },
+  toggleButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    minHeight: 56,
+    backgroundColor: Colors.white,
+    borderRadius: 14,
+    borderWidth: 1,
+    borderColor: Colors.border,
+    gap: 8,
+    marginBottom: 8,
+    elevation: 1,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.05,
+    shadowRadius: 3,
+  },
+  toggleButtonText: { fontSize: 18, fontWeight: '600', color: Colors.textSub },
+  toggleArrow: { fontSize: 14, color: Colors.textHint },
+
+  container: { paddingBottom: 40 },
+
+  loadingWrap: { alignItems: 'center', paddingVertical: 32, gap: 12 },
+  loadingText: { fontSize: 17, color: Colors.textSub },
+
+  emptyWrap: { alignItems: 'center', paddingVertical: 32 },
+  emptyText: { fontSize: 18, color: Colors.textHint },
+
+  timeline: { paddingTop: 8 },
+
+  dayRow: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    minHeight: 48,
+  },
+
+  dateCol: {
+    width: 80,
+    paddingTop: MH_FIRST_ROW_PT,
+    alignItems: 'flex-end',
+    paddingRight: 8,
+  },
+  dateLabel: {
+    fontSize: 15,
+    color: '#888888',
+    fontWeight: '500',
+  },
+
+  lineCol: {
+    width: 28,
+    alignItems: 'center',
+    flexDirection: 'column',
+  },
+  lineTop: {
+    width: 2,
+    height: MH_LINE_TOP_H,
+    backgroundColor: '#E0E0E0',
+  },
+  lineBottom: {
+    width: 2,
+    flex: 1,
+    minHeight: 14,
+    backgroundColor: '#E0E0E0',
+  },
+  lineInvisible: { backgroundColor: 'transparent' },
+  dotFilled: {
+    width: 14,
+    height: 14,
+    borderRadius: 7,
+    backgroundColor: '#4CAF50',
+  },
+
+  contentCol: {
+    flex: 1,
+    paddingLeft: 10,
+    paddingTop: MH_FIRST_ROW_PT,
+    paddingBottom: 12,
+  },
+
+  slotText: {
+    fontSize: 16,
+    color: Colors.text,
+    lineHeight: 22,
+  },
+  slotTextExtra: {
+    marginTop: 4,
+  },
+
+  emptyDay: {
+    fontSize: 16,
+    color: '#CCCCCC',
+    lineHeight: 22,
+  },
+
+  moreButton: {
+    alignItems: 'center',
+    justifyContent: 'center',
+    minHeight: 56,
+    marginTop: 8,
+    marginBottom: 8,
+    backgroundColor: Colors.white,
+    borderRadius: 14,
+    borderWidth: 1,
+    borderColor: Colors.border,
+    elevation: 1,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.05,
+    shadowRadius: 3,
+  },
+  moreButtonText: {
+    fontSize: 18,
+    fontWeight: '600',
+    color: Colors.primary,
+  },
+});
 
 // ─── 스타일 ───────────────────────────────────────────────────────────────────
 
