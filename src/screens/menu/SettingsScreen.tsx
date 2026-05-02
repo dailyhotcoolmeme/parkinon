@@ -991,11 +991,20 @@ export function SettingsScreen() {
   const openBatterySettings = async () => {
     setShowBatteryModal(false);
     try {
+      // 앱 배터리 세부 설정 페이지로 직접 이동
+      const packageName =
+        (Constants.expoConfig?.android?.package as string | undefined) ?? 'com.ourmine.parkinon';
       await Linking.openURL(
-        'intent:#Intent;action=android.settings.IGNORE_BATTERY_OPTIMIZATION_SETTINGS;end'
+        `intent:#Intent;action=android.settings.APPLICATION_DETAILS_SETTINGS;data=package:${packageName};end`
       );
     } catch {
-      await Linking.openSettings();
+      try {
+        await Linking.openURL(
+          'intent:#Intent;action=android.settings.IGNORE_BATTERY_OPTIMIZATION_SETTINGS;end'
+        );
+      } catch {
+        await Linking.openSettings();
+      }
     }
   };
 
@@ -1669,11 +1678,15 @@ export function SettingsScreen() {
               <Text style={styles.batteryModalTitle}>알림이 늦게 올 수 있어요</Text>
               <Text style={styles.batteryModalBody}>
                 안드로이드 배터리 최적화 기능으로 인해 알림이 제때 도착하지 않을 수 있어요.{'\n\n'}
-                아래 버튼을 눌러 파킨온을 배터리 최적화에서 제외해 주세요.{'\n\n'}
-                <Text style={{ fontWeight: '700' }}>설정 열기 → 파킨온 → 제한 없음</Text>
+                아래 순서대로 설정해 주세요.{'\n\n'}
+                <Text
+                  style={{ fontWeight: '700', color: '#1565C0', textDecorationLine: 'underline' }}
+                  onPress={openBatterySettings}
+                >설정열기</Text>
+                <Text style={{ fontWeight: '700' }}> → 배터리 → 제한없음 선택.</Text>
               </Text>
               <TouchableOpacity style={styles.batteryModalBtn} onPress={openBatterySettings} activeOpacity={0.8}>
-                <Text style={styles.batteryModalBtnText}>배터리 최적화 설정 열기</Text>
+                <Text style={styles.batteryModalBtnText}>설정 열기</Text>
               </TouchableOpacity>
               <TouchableOpacity
                 style={styles.batteryDoneBtn}

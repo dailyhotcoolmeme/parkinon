@@ -431,13 +431,22 @@ export function useRecordDetailData(type: ItemKey, period: Period): UseRecordDet
         } catch {}
 
         // 데이터에 있는 라벨도 추가 (설정 변경 전 기록 포함)
+        // 분 수(parseLabelMinutes) 기준으로 중복 제거: 같은 분 수를 가진 라벨은 하나만 유지
         const allLabels = new Set<string>(configuredLabels);
         for (const log of onOffLogs) {
           if (log.triggered_by === 'notification' && log.trigger_time_label) {
             allLabels.add(log.trigger_time_label);
           }
         }
-        const sortedLabels = Array.from(allLabels).sort(
+        // 분 수 기준 중복 제거: 같은 시간대를 나타내는 서로 다른 라벨 형식 통일
+        const minutesMap = new Map<number, string>();
+        for (const label of allLabels) {
+          const mins = parseLabelMinutes(label);
+          if (!minutesMap.has(mins)) {
+            minutesMap.set(mins, label);
+          }
+        }
+        const sortedLabels = Array.from(minutesMap.values()).sort(
           (a, b) => parseLabelMinutes(a) - parseLabelMinutes(b),
         );
 

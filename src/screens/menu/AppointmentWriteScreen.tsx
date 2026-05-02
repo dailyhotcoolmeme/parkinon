@@ -38,10 +38,13 @@ const ITEM_H = 58;
 const NOW = new Date();
 const CUR_YEAR = NOW.getFullYear();
 
-const PICKER_YEARS = Array.from({ length: 5 }, (_, i) => CUR_YEAR - 1 + i);
+const PICKER_YEARS = Array.from({ length: 5 }, (_, i) => CUR_YEAR + i);
 const PICKER_MONTHS = Array.from({ length: 12 }, (_, i) => i + 1);
 const PICKER_HOURS = Array.from({ length: 24 }, (_, i) => i);
 const PICKER_MINUTES = Array.from({ length: 12 }, (_, i) => i * 5);
+
+// 오늘 날짜 (시간 제거)
+const TODAY = new Date(NOW.getFullYear(), NOW.getMonth(), NOW.getDate());
 
 const DAYS_KR = ['일', '월', '화', '수', '목', '금', '토'];
 
@@ -151,7 +154,38 @@ function DatePickerModal({
   onConfirm: () => void;
   onClose: () => void;
 }) {
-  const days = Array.from({ length: getDaysInMonth(year, month) }, (_, i) => i + 1);
+  // 선택 가능한 월 목록: 올해면 오늘 월 이후만, 그 외 전체
+  const availableMonths = year === TODAY.getFullYear()
+    ? PICKER_MONTHS.filter(m => m >= TODAY.getMonth() + 1)
+    : PICKER_MONTHS;
+
+  // 선택 가능한 일 목록: 올해·이번달이면 오늘 일 이후만, 그 외 전체
+  const allDays = Array.from({ length: getDaysInMonth(year, month) }, (_, i) => i + 1);
+  const days = (year === TODAY.getFullYear() && month === TODAY.getMonth() + 1)
+    ? allDays.filter(d => d >= TODAY.getDate())
+    : allDays;
+
+  // 연도 변경 시 월/일이 과거로 내려가지 않도록 보정
+  const handleYearChange = (y: number) => {
+    onYearChange(y);
+    if (y === TODAY.getFullYear()) {
+      const minMonth = TODAY.getMonth() + 1;
+      if (month < minMonth) {
+        onMonthChange(minMonth);
+        onDayChange(TODAY.getDate());
+      } else if (month === minMonth && day < TODAY.getDate()) {
+        onDayChange(TODAY.getDate());
+      }
+    }
+  };
+
+  // 월 변경 시 day가 availableMonths에서 벗어나지 않도록 보정
+  const handleMonthChange = (m: number) => {
+    onMonthChange(m);
+    if (year === TODAY.getFullYear() && m === TODAY.getMonth() + 1 && day < TODAY.getDate()) {
+      onDayChange(TODAY.getDate());
+    }
+  };
 
   return (
     <Modal visible={visible} transparent animationType="slide">
@@ -167,7 +201,7 @@ function DatePickerModal({
               <PickerCol
                 data={PICKER_YEARS}
                 selected={year}
-                onSelect={onYearChange}
+                onSelect={handleYearChange}
                 suffix="년"
                 fontSize={19}
               />
@@ -177,9 +211,9 @@ function DatePickerModal({
             <View style={{ flex: 3 }}>
               <Text style={mpStyles.colHeader}>월</Text>
               <PickerCol
-                data={PICKER_MONTHS}
+                data={availableMonths}
                 selected={month}
-                onSelect={onMonthChange}
+                onSelect={handleMonthChange}
                 suffix="월"
                 fontSize={19}
               />
@@ -372,7 +406,16 @@ export function AppointmentWriteScreen() {
 
   const confirmDate = () => {
     const maxDay = getDaysInMonth(tmpYear, tmpMonth);
-    setSelYear(tmpYear); setSelMonth(tmpMonth); setSelDay(Math.min(tmpDay, maxDay));
+    let safeDay = Math.min(tmpDay, maxDay);
+    // 과거 날짜 최종 방어: 오늘 이전이면 오늘로 보정
+    const chosen = new Date(tmpYear, tmpMonth - 1, safeDay);
+    if (chosen < TODAY) {
+      setSelYear(TODAY.getFullYear());
+      setSelMonth(TODAY.getMonth() + 1);
+      setSelDay(TODAY.getDate());
+    } else {
+      setSelYear(tmpYear); setSelMonth(tmpMonth); setSelDay(safeDay);
+    }
     setShowDatePicker(false);
   };
 
