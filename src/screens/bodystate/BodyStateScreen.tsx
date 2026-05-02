@@ -164,6 +164,9 @@ export function BodyStateScreen() {
   const [bedtimeRefreshTick, setBedtimeRefreshTick] = useState(0);
   const hasBedtimeLoadedRef = useRef(false);
   const pendingFlowArgsRef = useRef<{ label: string; medTime: Date | null; mealTimeKey: string | null } | null>(null);
+  // 회귀 수정: route.params triggerTs dedupe — 같은 ts는 한 번만 처리
+  // (다른 탭 갔다 복귀 시 stale params로 인한 중복 발화 방지)
+  const processedTriggerTsRef = useRef<number | null>(null);
   const navigation = useNavigation<any>();
   const route = useRoute<any>();
   const insets = useSafeAreaInsets();
@@ -215,6 +218,16 @@ export function BodyStateScreen() {
     React.useCallback(() => {
       const triggerMinutes = route.params?.triggerMinutes;
       if (triggerMinutes != null) {
+        // 회귀 수정: triggerTs dedupe — 같은 ts는 두 번 처리하지 않음
+        // (탭 전환 후 복귀 시 stale params로 useFocusEffect가 재발화해 Alert 반복되는 문제)
+        const triggerTs = (route.params as any)?.triggerTs ?? null;
+        if (triggerTs != null && processedTriggerTsRef.current === triggerTs) {
+          return;
+        }
+        if (triggerTs != null) {
+          processedTriggerTsRef.current = triggerTs;
+        }
+
         const label = minutesToLabel(triggerMinutes);
         // 알림 데이터에 meal_time이 있으면 우선 사용, 없으면 AsyncStorage 조회
         const paramMealTime = (route.params as any)?.triggerMealTime ?? null;
@@ -233,6 +246,10 @@ export function BodyStateScreen() {
               .catch(() => openFlowOrPend(label, null, null));
           }
         }
+
+        // 처리 직후 route.params 비움 — 다음 포커스 진입 시 stale 재발화 방지
+        // (handleSaveRecord 성공 시에만 비우는 기존 로직은 사용자가 취소/다른 탭 이동 시 stale 잔존)
+        navigation.setParams({ triggerMinutes: null, triggerMealTime: null, triggerTs: null });
       }
     }, [route.params?.triggerMinutes, (route.params as any)?.triggerMealTime, (route.params as any)?.triggerTs])
   );
@@ -359,17 +376,12 @@ export function BodyStateScreen() {
       return true;
     });
     if (hasDuplicate) {
-      const labelDisplay = getTriggerLabel(labelKey);
-      const periodKo = mealTimeKey ? mealTimeToPeriod(mealTimeKey) : (medTime ? getPeriod(medTime.toISOString()) : null);
-      const periodText = periodKo ? `${periodKo}약 복용 ` : '';
-      Alert.alert(
-        '중복 기록 확인',
-        `오늘 ${periodText}'${labelDisplay}' 기록이 이미 있어요.\n한 번 더 기록하시겠어요?`,
-        [
-          { text: '취소', style: 'cancel' },
-          { text: '기록하기', onPress: () => setShowFlow(true) },
-        ],
-      );
+      // 회귀 수정: Alert 대신 TriggerSelectModal로 fallback (handleOpenBodyState와 일관)
+      // 사용자가 다른 시간대 trigger를 선택하거나 자연스럽게 닫을 수 있게 함.
+      // 기존 Alert은 useFocusEffect 재발화 시 매번 떠서 회귀 버그의 원인이 됨.
+      setTriggerMedTime(medTime);
+      setTriggerModalSelected(labelKey);
+      setShowTriggerSelect(true);
     } else {
       setShowFlow(true);
     }
