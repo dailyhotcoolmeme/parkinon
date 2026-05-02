@@ -2412,7 +2412,7 @@ const styles = StyleSheet.create({
   dualBtnRow: {
     flexDirection: 'row',
     gap: 12,
-    marginBottom: 16,
+    marginBottom: 40,
   },
   // 약 직접 등록 버튼 (outline)
   addRegisterBtn: {
