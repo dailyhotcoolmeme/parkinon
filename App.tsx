@@ -1,4 +1,4 @@
-import React, { useEffect, useRef } from 'react';
+import React, { useCallback, useEffect, useRef } from 'react';
 import { AppState, AppStateStatus, StatusBar } from 'react-native';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
@@ -69,65 +69,127 @@ function AppInner() {
     checkForUpdates();
   }, []);
 
-  // 앱이 종료된 상태에서 알림 탭 → 앱 실행 시 lastNotificationResponse 처리
-  const lastResponse = Notifications.useLastNotificationResponse();
-  useEffect(() => {
-    if (!lastResponse) return;
-    const notifId = lastResponse.notification.request.identifier;
-    if (handledNotifIds.current.has(notifId)) return;
-    handledNotifIds.current.add(notifId);
+  // 알림 응답 공통 핸들러 — useLastNotificationResponse(콜드스타트)와
+  // addNotificationResponseReceivedListener(워밍/포그라운드)에서 동일하게 호출.
+  // - dedupe (handledNotifIds Set)
+  // - 알림 읽음 저장 + 배지 갱신
+  // - AsyncStorage write를 await로 보장 후 navigateTo (race 방지)
+  // - 페이로드 키 호환: mealTime(camel) || meal_time(snake)
+  const handleNotificationResponse = useCallback(
+    async (
+      response: Notifications.NotificationResponse,
+      isColdStart: boolean,
+    ) => {
+      const notifId = response.notification.request.identifier;
+      if (handledNotifIds.current.has(notifId)) return;
+      handledNotifIds.current.add(notifId);
 
-    const content = lastResponse.notification.request.content;
-    const data = (content.data ?? {}) as Record<string, any>;
-    const type = data?.type as string | undefined;
+      const content = response.notification.request.content;
+      const data = (content.data ?? {}) as Record<string, any>;
+      const type = data?.type as string | undefined;
 
-    // 탭한 알림 읽음 처리 → 완료 후 배지 갱신
-    saveNotification(
-      type ?? '',
-      content.title ?? '',
-      content.body ?? '',
-      data,
-      new Date().toISOString(),
-    ).then(() => refreshBadge());
+      // 페이로드 키 호환 처리
+      // - medication_reminder / missed_medication: 'mealTime' (camelCase) 사용
+      // - effect_tracking: 'meal_time' (snake_case) 사용
+      // 양쪽 다 받도록 fallback
+      const mealTime: string | null = data?.mealTime ?? data?.meal_time ?? null;
+      const triggerMinutes: number | null =
+        typeof data?.minutes === 'number' ? data.minutes : null;
 
-    // navigation이 준비될 때까지 폴링 후 이동 (앱 콜드 스타트 시 nav 초기화 지연 대응)
-    const tryNavigate = (retryCount = 0) => {
-      const { navigationRef: navRef } = require('./src/navigation/navigationRef');
-      if (!navRef.isReady()) {
-        if (retryCount < 20) {
-          setTimeout(() => tryNavigate(retryCount + 1), 100);
-        }
-        return;
+      // 탭한 알림 읽음 처리 → 배지 갱신 (await로 race 방지)
+      try {
+        await saveNotification(
+          type ?? '',
+          content.title ?? '',
+          content.body ?? '',
+          data,
+          new Date().toISOString(),
+        );
+        refreshBadge();
+      } catch (e) {
+        console.error('[App] saveNotification 실패:', e);
       }
+
+      // navigation이 준비될 때까지 폴링 (콜드스타트 nav 초기화 지연 대응)
+      const waitForNavReady = (): Promise<boolean> =>
+        new Promise((resolve) => {
+          const tryReady = (retryCount = 0) => {
+            const { navigationRef: navRef } = require('./src/navigation/navigationRef');
+            if (navRef.isReady()) {
+              resolve(true);
+              return;
+            }
+            if (retryCount >= 20) {
+              resolve(false);
+              return;
+            }
+            setTimeout(() => tryReady(retryCount + 1), 100);
+          };
+          tryReady();
+        });
+
+      if (isColdStart) {
+        const ready = await waitForNavReady();
+        if (!ready) return;
+      }
+
       if (type === 'medication_reminder' || type === 'missed_medication') {
-        AsyncStorage.setItem('pendingMedNotif', JSON.stringify({ mealTime: data?.mealTime ?? null }));
+        // AsyncStorage write 완료 보장 후 navigateTo (콜드스타트 fallback)
+        try {
+          await AsyncStorage.setItem(
+            'pendingMedNotif',
+            JSON.stringify({ mealTime }),
+          );
+        } catch {}
         navigateTo('Main', {
           screen: 'Medication',
-          params: { autoOpen: Date.now(), mealTime: data?.mealTime ?? null },
+          params: { autoOpen: Date.now(), mealTime },
         });
-        notificationIntentManager.emit({ mealTime: data?.mealTime ?? null });
+        notificationIntentManager.emit({ mealTime });
       } else if (type === 'effect_tracking') {
-        AsyncStorage.setItem('pendingBodyStateNotif', JSON.stringify({
-          triggerMinutes: data?.minutes ?? null,
-          triggerMealTime: data?.meal_time ?? null,
-        }));
+        try {
+          await AsyncStorage.setItem(
+            'pendingBodyStateNotif',
+            JSON.stringify({
+              triggerMinutes,
+              triggerMealTime: mealTime,
+            }),
+          );
+        } catch {}
         navigateTo('Main', {
           screen: 'BodyStateTab',
           params: {
             screen: 'BodyState',
-            params: { triggerMinutes: data?.minutes ?? null, triggerMealTime: data?.meal_time ?? null, triggerTs: Date.now() },
+            params: {
+              triggerMinutes,
+              triggerMealTime: mealTime,
+              triggerTs: Date.now(),
+            },
           },
         });
       } else if (type === 'exercise_reminder') {
-        AsyncStorage.setItem('pendingExerciseNotif', 'true');
-        navigateTo('Main', { screen: 'Exercise', params: { screen: 'ExerciseRecord' } });
+        try {
+          await AsyncStorage.setItem('pendingExerciseNotif', 'true');
+        } catch {}
+        navigateTo('Main', {
+          screen: 'Exercise',
+          params: { screen: 'ExerciseRecord' },
+        });
       } else if (type) {
         navigateTo('Main');
       }
-    };
-    tryNavigate();
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [lastResponse]);
+    },
+    [saveNotification, refreshBadge],
+  );
+
+  // 앱이 종료된 상태에서 알림 탭 → 앱 실행 시 lastNotificationResponse 처리
+  const lastResponse = Notifications.useLastNotificationResponse();
+  useEffect(() => {
+    if (!lastResponse) return;
+    handleNotificationResponse(lastResponse, true).catch((e) =>
+      console.error('[App] cold-start handler 실패:', e),
+    );
+  }, [lastResponse, handleNotificationResponse]);
 
   useEffect(() => {
     // 포그라운드 알림 수신 → 저장 (read_at = null: 미읽음)
@@ -145,48 +207,9 @@ function AppInner() {
 
     // 알림 탭 핸들러 (앱이 열려있거나 백그라운드에서 탭할 때)
     const notifSubscription = Notifications.addNotificationResponseReceivedListener((response) => {
-      const notifId = response.notification.request.identifier;
-      if (handledNotifIds.current.has(notifId)) return;
-      handledNotifIds.current.add(notifId);
-
-      const content = response.notification.request.content;
-      const data = (content.data ?? {}) as Record<string, any>;
-      const type = data?.type;
-
-      // 탭한 알림 저장 (read_at = 현재 시각: 탭하는 순간 읽음 처리) → 완료 후 배지 갱신
-      saveNotification(
-        type ?? '',
-        content.title ?? '',
-        content.body ?? '',
-        data,
-        new Date().toISOString(),
-      ).then(() => refreshBadge());
-
-      if (type === 'medication_reminder' || type === 'missed_medication') {
-        AsyncStorage.setItem('pendingMedNotif', JSON.stringify({ mealTime: data?.mealTime ?? null }));
-        navigateTo('Main', {
-          screen: 'Medication',
-          params: { autoOpen: Date.now(), mealTime: data?.mealTime ?? null },
-        });
-        notificationIntentManager.emit({ mealTime: data?.mealTime ?? null });
-      } else if (type === 'effect_tracking') {
-        AsyncStorage.setItem('pendingBodyStateNotif', JSON.stringify({
-          triggerMinutes: data?.minutes ?? null,
-          triggerMealTime: data?.meal_time ?? null,
-        }));
-        navigateTo('Main', {
-          screen: 'BodyStateTab',
-          params: {
-            screen: 'BodyState',
-            params: { triggerMinutes: data?.minutes ?? null, triggerMealTime: data?.meal_time ?? null, triggerTs: Date.now() },
-          },
-        });
-      } else if (type === 'exercise_reminder') {
-        AsyncStorage.setItem('pendingExerciseNotif', 'true');
-        navigateTo('Main', { screen: 'Exercise', params: { screen: 'ExerciseRecord' } });
-      } else {
-        navigateTo('Main');
-      }
+      handleNotificationResponse(response, false).catch((e) =>
+        console.error('[App] warm handler 실패:', e),
+      );
     });
 
     const appStateSubscription = AppState.addEventListener('change', (nextAppState: AppStateStatus) => {
@@ -198,7 +221,7 @@ function AppInner() {
       notifSubscription.remove();
       appStateSubscription.remove();
     };
-  }, [saveNotification]);
+  }, [saveNotification, handleNotificationResponse]);
 
   return (
     <SettingsProvider>

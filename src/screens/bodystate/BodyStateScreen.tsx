@@ -113,6 +113,33 @@ function toLocalDateString(date: Date): string {
   return kst.toISOString().slice(0, 10);
 }
 
+// parkinon_last_medication 읽기 + 만료 체크 (만료 시 삭제 + null 반환)
+// → stale 데이터로 인한 잘못된 자동 트리거 추정 방지
+async function readValidLastMedication(): Promise<
+  { taken_at: string; meal_time: string | null } | null
+> {
+  try {
+    const raw = await AsyncStorage.getItem('parkinon_last_medication');
+    if (!raw) return null;
+    const parsed = JSON.parse(raw);
+    if (parsed?.expires_at) {
+      const exp = new Date(parsed.expires_at).getTime();
+      if (Number.isFinite(exp) && exp <= Date.now()) {
+        // 만료 → 삭제하여 다음 호출부터 null
+        await AsyncStorage.removeItem('parkinon_last_medication').catch(() => {});
+        return null;
+      }
+    }
+    if (!parsed?.taken_at) return null;
+    return {
+      taken_at: parsed.taken_at,
+      meal_time: parsed.meal_time ?? null,
+    };
+  } catch {
+    return null;
+  }
+}
+
 export function BodyStateScreen() {
   const { user } = useAuth();
   const { todayLogs, saveBodyState, fetchVideoLogs, getBodyStateLogs, refresh } = useBodyState();
@@ -197,13 +224,11 @@ export function BodyStateScreen() {
           if (paramMealTime) {
             openFlowOrPend(label, null, paramMealTime);
           } else {
-            AsyncStorage.getItem('parkinon_last_medication')
-              .then(raw => {
-                if (!raw) { openFlowOrPend(label, null, null); return; }
-                const parsed = JSON.parse(raw);
+            readValidLastMedication()
+              .then((parsed) => {
+                if (!parsed) { openFlowOrPend(label, null, null); return; }
                 const medTime = parsed.taken_at ? new Date(parsed.taken_at) : null;
-                const mealTime = parsed.meal_time ?? null;
-                openFlowOrPend(label, medTime, mealTime);
+                openFlowOrPend(label, medTime, parsed.meal_time);
               })
               .catch(() => openFlowOrPend(label, null, null));
           }
@@ -227,13 +252,11 @@ export function BodyStateScreen() {
           if (triggerMealTime) {
             openFlowOrPend(label, null, triggerMealTime);
           } else {
-            AsyncStorage.getItem('parkinon_last_medication')
-              .then(raw => {
-                if (!raw) { openFlowOrPend(label, null, null); return; }
-                const parsed = JSON.parse(raw);
+            readValidLastMedication()
+              .then((parsed) => {
+                if (!parsed) { openFlowOrPend(label, null, null); return; }
                 const medTime = parsed.taken_at ? new Date(parsed.taken_at) : null;
-                const mealTime = parsed.meal_time ?? null;
-                openFlowOrPend(label, medTime, mealTime);
+                openFlowOrPend(label, medTime, parsed.meal_time);
               })
               .catch(() => openFlowOrPend(label, null, null));
           }
@@ -383,10 +406,10 @@ export function BodyStateScreen() {
   const handleOpenBodyState = async () => {
     setPendingTriggeredBy('manual');
     const intervals = getEnabledIntervals();
-    let raw: string | null = null;
-    try { raw = await AsyncStorage.getItem('parkinon_last_medication'); } catch {}
+    // 만료된 last medication은 자동으로 null 반환 (readValidLastMedication에서 처리)
+    const parsed = await readValidLastMedication();
 
-    if (!raw) {
+    if (!parsed) {
       setTriggerMedTime(null);
       setTriggerModalSelected(intervals[0]?.labelKey ?? null);
       setShowTriggerSelect(true);
@@ -394,7 +417,6 @@ export function BodyStateScreen() {
     }
 
     try {
-      const parsed = JSON.parse(raw);
       const { taken_at, meal_time: storedMealTime } = parsed;
       const medTime = new Date(taken_at);
       const elapsedMin = (Date.now() - medTime.getTime()) / 60000;
@@ -407,7 +429,21 @@ export function BodyStateScreen() {
       }
 
       if (closest && closestDiff <= 20) {
-        // ±20분 이내 → 자동 배정
+        // ±20분 이내 → 자동 배정 후보
+        // 단, 같은 (label + meal_time) 기록이 오늘 이미 있으면
+        // 자동 추정으로 잘못된 "중복?" Alert이 뜨는 것을 방지하기 위해
+        // TriggerSelectModal을 띄워 사용자가 직접 선택하도록 위임
+        const alreadyLogged = todayLogs.some((log: any) => {
+          if (log.trigger_time_label !== closest!.labelKey) return false;
+          if (storedMealTime && log.medication_meal_time && log.medication_meal_time !== storedMealTime) return false;
+          return true;
+        });
+        if (alreadyLogged) {
+          setTriggerMedTime(medTime);
+          setTriggerModalSelected(closest.labelKey);
+          setShowTriggerSelect(true);
+          return;
+        }
         setPendingTriggerLabel(closest.labelKey);
         openFlowOrPend(closest.labelKey, medTime, storedMealTime ?? null);
       } else {
@@ -468,14 +504,11 @@ export function BodyStateScreen() {
   });
 
   const handleSaveRecord = async (record: { bodyScore: number; moodScore: number; sleepScore?: number; constipation?: boolean }) => {
-    // AsyncStorage에서 meal_time 읽기
+    // AsyncStorage에서 meal_time 읽기 (만료된 경우 자동 무시)
     let medicationMealTime: string | undefined;
     try {
-      const raw = await AsyncStorage.getItem('parkinon_last_medication');
-      if (raw) {
-        const { meal_time } = JSON.parse(raw);
-        if (meal_time) medicationMealTime = meal_time;
-      }
+      const validMed = await readValidLastMedication();
+      if (validMed?.meal_time) medicationMealTime = validMed.meal_time;
     } catch {}
 
     // 1. UI 즉시 닫기 (저장 완료를 기다리지 않음)

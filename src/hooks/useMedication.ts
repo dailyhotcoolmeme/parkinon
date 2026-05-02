@@ -205,9 +205,21 @@ export function useMedication(): UseMedicationReturn {
       if (insertError) throw insertError;
 
       // 복용 시각 AsyncStorage 저장 (약효 추적 trigger_time_label 추론용)
+      // expires_at 추가: 마지막 약효추적 인터벌 + 30분 후 만료
+      // → 이전 복용 데이터가 stale 상태로 살아남아 잘못된 자동 추정 트리거 방지
+      const enabledIntervals = medNotifs
+        .filter((n) => n.enabled && n.minutes > 0)
+        .map((n) => n.minutes);
+      const lastIntervalMin =
+        enabledIntervals.length > 0 ? Math.max(...enabledIntervals) : 0;
+      const expiresAtMs = Date.now() + (lastIntervalMin + 30) * 60 * 1000;
       await AsyncStorage.setItem(
         'parkinon_last_medication',
-        JSON.stringify({ taken_at: new Date().toISOString(), meal_time: mealTime })
+        JSON.stringify({
+          taken_at: new Date().toISOString(),
+          meal_time: mealTime,
+          expires_at: new Date(expiresAtMs).toISOString(),
+        })
       ).catch(() => {});
 
       // DB INSERT 성공 후 알림 처리 (실패해도 전체 함수에 영향 없음)

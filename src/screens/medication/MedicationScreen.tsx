@@ -547,14 +547,30 @@ export function MedicationScreen() {
               약 복용 후 몸 상태를 기록하면{'\n'}약효 패턴을 더 잘 파악할 수 있어요.
             </Text>
             <TouchableOpacity
-              onPress={() => {
+              onPress={async () => {
+                const mealTimeForNav = selectedMealTime;
                 setShowBodyStateSuggest(false);
-                // AsyncStorage에 저장 후 이동 — route.params 방식은 탭 네비게이터에서 불안정
-                AsyncStorage.setItem('pendingBodyStateNotif', JSON.stringify({
-                  triggerMinutes: 0,
-                  triggerMealTime: selectedMealTime,
-                })).catch(() => {});
-                navigateTo('BodyState');
+                // AsyncStorage write 완료 보장 후 navigate — race condition 방지
+                // (BodyStateScreen useFocusEffect가 read 시점에 값이 있어야 함)
+                try {
+                  await AsyncStorage.setItem('pendingBodyStateNotif', JSON.stringify({
+                    triggerMinutes: 0,
+                    triggerMealTime: mealTimeForNav,
+                  }));
+                } catch {}
+                // 안전한 nested navigation: Main > BodyStateTab > BodyState
+                // route.params에도 직접 전달 (AsyncStorage 콜드스타트 fallback과 이중화)
+                navigateTo('Main', {
+                  screen: 'BodyStateTab',
+                  params: {
+                    screen: 'BodyState',
+                    params: {
+                      triggerMinutes: 0,
+                      triggerMealTime: mealTimeForNav,
+                      triggerTs: Date.now(),
+                    },
+                  },
+                });
               }}
               style={{
                 backgroundColor: '#FF6B35',
