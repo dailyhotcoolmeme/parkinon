@@ -81,8 +81,9 @@ function AppInner() {
       isColdStart: boolean,
     ) => {
       const notifId = response.notification.request.identifier;
+      // dedupe 검사만 먼저 수행. 등록은 navigate 성공 직후로 이동하여
+      // waitForNavReady 실패/예외 시 동일 알림 재시도가 가능하도록 함.
       if (handledNotifIds.current.has(notifId)) return;
-      handledNotifIds.current.add(notifId);
 
       const content = response.notification.request.content;
       const data = (content.data ?? {}) as Record<string, any>;
@@ -133,50 +134,58 @@ function AppInner() {
         if (!ready) return;
       }
 
-      if (type === 'medication_reminder' || type === 'missed_medication') {
-        // AsyncStorage write 완료 보장 후 navigateTo (콜드스타트 fallback)
-        try {
-          await AsyncStorage.setItem(
-            'pendingMedNotif',
-            JSON.stringify({ mealTime }),
-          );
-        } catch {}
-        navigateTo('Main', {
-          screen: 'Medication',
-          params: { autoOpen: Date.now(), mealTime },
-        });
-        notificationIntentManager.emit({ mealTime });
-      } else if (type === 'effect_tracking') {
-        try {
-          await AsyncStorage.setItem(
-            'pendingBodyStateNotif',
-            JSON.stringify({
-              triggerMinutes,
-              triggerMealTime: mealTime,
-            }),
-          );
-        } catch {}
-        navigateTo('Main', {
-          screen: 'BodyStateTab',
-          params: {
-            screen: 'BodyState',
+      try {
+        if (type === 'medication_reminder' || type === 'missed_medication') {
+          // AsyncStorage write 완료 보장 후 navigateTo (콜드스타트 fallback)
+          try {
+            await AsyncStorage.setItem(
+              'pendingMedNotif',
+              JSON.stringify({ mealTime }),
+            );
+          } catch {}
+          navigateTo('Main', {
+            screen: 'Medication',
+            params: { autoOpen: Date.now(), mealTime },
+          });
+          notificationIntentManager.emit({ mealTime });
+        } else if (type === 'effect_tracking') {
+          try {
+            await AsyncStorage.setItem(
+              'pendingBodyStateNotif',
+              JSON.stringify({
+                triggerMinutes,
+                triggerMealTime: mealTime,
+              }),
+            );
+          } catch {}
+          navigateTo('Main', {
+            screen: 'BodyStateTab',
             params: {
-              triggerMinutes,
-              triggerMealTime: mealTime,
-              triggerTs: Date.now(),
+              screen: 'BodyState',
+              params: {
+                triggerMinutes,
+                triggerMealTime: mealTime,
+                triggerTs: Date.now(),
+              },
             },
-          },
-        });
-      } else if (type === 'exercise_reminder') {
-        try {
-          await AsyncStorage.setItem('pendingExerciseNotif', 'true');
-        } catch {}
-        navigateTo('Main', {
-          screen: 'Exercise',
-          params: { screen: 'ExerciseRecord' },
-        });
-      } else if (type) {
-        navigateTo('Main');
+          });
+        } else if (type === 'exercise_reminder') {
+          // pendingExerciseNotif 플래그를 먼저 저장 후 Exercise 탭으로만 전환.
+          // ExerciseRecord 진입은 ExerciseScreen.useFocusEffect가 단일 경로로 처리한다.
+          // (nested initial-route navigate가 워밍 케이스에서 무시되는 race 회피)
+          try {
+            await AsyncStorage.setItem('pendingExerciseNotif', 'true');
+          } catch {}
+          navigateTo('Main', { screen: 'Exercise' });
+        } else if (type) {
+          navigateTo('Main');
+        }
+
+        // navigate 호출 성공 직후 dedupe 등록.
+        // 실패(throw) 시에는 등록되지 않으므로 다음 listener에서 재시도 가능.
+        handledNotifIds.current.add(notifId);
+      } catch (e) {
+        console.error('[App] navigate 실패, dedupe 미등록(재시도 허용):', e);
       }
     },
     [saveNotification, refreshBadge],

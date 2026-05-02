@@ -138,15 +138,24 @@ export function ExerciseScreen() {
   );
 
   // 운동 알림 탭 → pendingExerciseNotif 확인 후 자동으로 ExerciseRecord 이동
+  // - 환자 본인만 자동 진입 (보호자 same-house는 CaregiverConfirmModal로 별도 처리되어야 함)
+  // - 첫 포커스 시 user가 아직 미로드(null)면 분기 false → user 로드 후 deps 변경으로 재실행되어 동작
+  // - removeItem은 push 직후 → push 실패 시 다음 포커스에 재시도 가능
+  // - navigate → push: 이미 ExerciseRecord 스택에 있을 때 noop 되는 케이스 회피
   useFocusEffect(
     React.useCallback(() => {
+      if (user?.role !== 'patient') return;
       AsyncStorage.getItem('pendingExerciseNotif').then((val) => {
-        if (val === 'true' && userRole === 'patient') {
-          AsyncStorage.removeItem('pendingExerciseNotif');
-          navigation.navigate('ExerciseRecord');
+        if (val === 'true') {
+          try {
+            navigation.push('ExerciseRecord');
+            AsyncStorage.removeItem('pendingExerciseNotif').catch(() => {});
+          } catch (e) {
+            console.error('[ExerciseScreen] ExerciseRecord push 실패:', e);
+          }
         }
       });
-    }, [navigation, userRole])
+    }, [navigation, user])
   );
 
   // error 발생 시 Alert
