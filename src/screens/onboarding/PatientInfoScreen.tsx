@@ -213,6 +213,7 @@ function YearPickerModal({ visible, years, selected, onSelect, onClose }: {
   onSelect: (y: string) => void;
   onClose: () => void;
 }) {
+  const insets = useSafeAreaInsets();
   const flatListRef = useRef<FlatList<string>>(null);
 
   const handleLayout = () => {
@@ -228,7 +229,7 @@ function YearPickerModal({ visible, years, selected, onSelect, onClose }: {
     <Modal visible={visible} transparent animationType="slide">
       <View style={pickerStyles.container}>
         <TouchableOpacity style={pickerStyles.overlay} onPress={onClose} activeOpacity={1} />
-        <View style={pickerStyles.sheet}>
+        <View style={[pickerStyles.sheet, { paddingBottom: Math.max(40, insets.bottom + 20) }]}>
           <View style={pickerStyles.handle} />
           <Text style={pickerStyles.sheetTitle}>연도 선택</Text>
           <FlatList

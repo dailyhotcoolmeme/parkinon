@@ -12,7 +12,7 @@ import {
   NativeScrollEvent,
   Platform,
 } from 'react-native';
-import { SafeAreaView } from 'react-native-safe-area-context';
+import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 
 const { width: SCREEN_WIDTH, height: SCREEN_HEIGHT } = Dimensions.get('window');
@@ -24,6 +24,7 @@ interface Props {
 }
 
 export function ImageGalleryViewer({ urls }: Props) {
+  const insets = useSafeAreaInsets();
   const [modalVisible, setModalVisible] = useState(false);
   const [currentIndex, setCurrentIndex] = useState(0);
   const [fullscreenIndex, setFullscreenIndex] = useState(0);
@@ -149,7 +150,7 @@ export function ImageGalleryViewer({ urls }: Props) {
 
           {/* 하단 도트 인디케이터 */}
           {urls.length > 1 && (
-            <View style={styles.dotsRow}>
+            <View style={[styles.dotsRow, { bottom: insets.bottom + 16 }]}>
               {urls.map((_, idx) => (
                 <View
                   key={idx}
@@ -264,7 +265,6 @@ const styles = StyleSheet.create({
   },
   dotsRow: {
     position: 'absolute',
-    bottom: Platform.OS === 'ios' ? 60 : 32,
     left: 0,
     right: 0,
     flexDirection: 'row',

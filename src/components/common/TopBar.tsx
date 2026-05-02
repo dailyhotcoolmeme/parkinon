@@ -91,7 +91,7 @@ const styles = StyleSheet.create({
     borderBottomColor: Colors.border,
   },
   inner: {
-    height: 56,
+    minHeight: 56,
     flexDirection: 'row',
     alignItems: 'center',
     paddingHorizontal: 16,

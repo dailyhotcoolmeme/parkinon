@@ -14,7 +14,7 @@ import {
   Modal,
   FlatList,
 } from 'react-native';
-import { SafeAreaView } from 'react-native-safe-area-context';
+import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useNavigation, useRoute, RouteProp } from '@react-navigation/native';
 import { StackNavigationProp } from '@react-navigation/stack';
 import * as ImagePicker from 'expo-image-picker';
@@ -110,6 +110,7 @@ function DatePickerModal({
   onYearChange: (v: number) => void; onMonthChange: (v: number) => void;
   onDayChange: (v: number) => void; onConfirm: () => void; onClose: () => void;
 }) {
+  const insets = useSafeAreaInsets();
   // 오늘 이후 날짜 선택 불가
   const availableMonths = year === CUR_YEAR
     ? PICKER_MONTHS.filter(m => m <= CUR_MONTH)
@@ -123,7 +124,7 @@ function DatePickerModal({
     <Modal visible={visible} transparent animationType="slide">
       <View style={mpStyles.container}>
         <TouchableOpacity style={mpStyles.overlay} onPress={onClose} activeOpacity={1} />
-        <View style={mpStyles.sheet}>
+        <View style={[mpStyles.sheet, { paddingBottom: Math.max(40, insets.bottom + 20) }]}>
           <View style={mpStyles.handle} />
           <Text style={mpStyles.title}>날짜 선택</Text>
           <View style={mpStyles.colsRow}>
@@ -162,11 +163,12 @@ function TimePickerModal({
   onHourChange: (v: number) => void; onMinuteChange: (v: number) => void;
   onConfirm: () => void; onClose: () => void;
 }) {
+  const insets = useSafeAreaInsets();
   return (
     <Modal visible={visible} transparent animationType="slide">
       <View style={mpStyles.container}>
         <TouchableOpacity style={mpStyles.overlay} onPress={onClose} activeOpacity={1} />
-        <View style={mpStyles.sheet}>
+        <View style={[mpStyles.sheet, { paddingBottom: Math.max(40, insets.bottom + 20) }]}>
           <View style={mpStyles.handle} />
           <Text style={mpStyles.title}>시간 선택</Text>
           <View style={mpStyles.colsRow}>

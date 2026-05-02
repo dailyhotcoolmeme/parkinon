@@ -368,6 +368,7 @@ interface DrugInfoModalProps {
 }
 
 function DrugInfoModal({ drug, onClose }: DrugInfoModalProps) {
+  const insets = useSafeAreaInsets();
   if (!drug) return null;
 
   const info = drug.drugInfo;
@@ -385,7 +386,7 @@ function DrugInfoModal({ drug, onClose }: DrugInfoModalProps) {
         onPress={onClose}
       >
         <TouchableOpacity
-          style={drugModalStyles.sheet}
+          style={[drugModalStyles.sheet, { paddingBottom: Math.max(32, insets.bottom + 16) }]}
           activeOpacity={1}
           onPress={() => {}}
         >

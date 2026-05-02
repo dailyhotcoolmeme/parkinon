@@ -18,6 +18,7 @@ import {
   Switch,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import * as Notifications from 'expo-notifications';
 import { Colors } from '../../constants/colors';
@@ -68,6 +69,7 @@ interface Props {
 // ─── Component ────────────────────────────────────────────────────────────────
 export function NotificationOnboardingModal({ isCaregiver, userId, visible, onClose }: Props) {
   const { setNotificationEnabled } = useSettings();
+  const insets = useSafeAreaInsets();
 
   // 항목 전체 항상 ON 고정 (사용자 변경 불가)
 
@@ -164,7 +166,7 @@ export function NotificationOnboardingModal({ isCaregiver, userId, visible, onCl
         {/* 딤 탭으로 닫기 */}
         <TouchableOpacity style={StyleSheet.absoluteFill} activeOpacity={1} onPress={handleLater} />
 
-        <Animated.View style={[styles.sheet, { transform: [{ translateY: slideAnim }] }]}>
+        <Animated.View style={[styles.sheet, { paddingBottom: Math.max(40, insets.bottom + 24), transform: [{ translateY: slideAnim }] }]}>
           {/* 핸들 */}
           <View style={styles.handle} />
 

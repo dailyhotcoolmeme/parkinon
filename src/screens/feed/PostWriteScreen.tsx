@@ -260,7 +260,7 @@ export function PostWriteScreen() {
       <KeyboardAvoidingView
         style={styles.flex}
         behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
-        keyboardVerticalOffset={60}
+        keyboardVerticalOffset={Platform.select({ ios: 60, android: 0 })}
       >
         <ScrollView contentContainerStyle={styles.content} showsVerticalScrollIndicator={false}>
           {/* 글 유형 선택 */}

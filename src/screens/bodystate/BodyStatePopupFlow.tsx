@@ -10,6 +10,7 @@ import {
   Dimensions,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Colors } from '../../constants/colors';
 import { ScoreSelector } from '../../components/common/ScoreSelector';
 
@@ -71,6 +72,7 @@ export function BodyStatePopupFlow({
   showSleep = false,
   showConstipation = false,
 }: Props) {
+  const insets = useSafeAreaInsets();
   const [step, setStep] = useState<Step>('body');
   const [bodyScore, setBodyScore] = useState<number | null>(null);
   const [moodScore, setMoodScore] = useState<number | null>(null);
@@ -253,7 +255,7 @@ export function BodyStatePopupFlow({
   return (
     <Modal visible={visible} transparent animationType="none" onRequestClose={handleClose}>
       <Animated.View style={[styles.backdrop, { opacity: fadeAnim }]}>
-        <Animated.View style={[styles.sheet, { transform: [{ translateY: slideAnim }] }]}>
+        <Animated.View style={[styles.sheet, { paddingBottom: Math.max(24, insets.bottom + 12), transform: [{ translateY: slideAnim }] }]}>
           {/* 진행 도트 */}
           <View style={styles.header}>
             <View style={styles.dotRow}>

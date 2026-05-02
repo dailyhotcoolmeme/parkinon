@@ -34,7 +34,7 @@ export function OnboardingSlideScreen() {
   const navigation = useNavigation<Nav>();
   const [currentIndex, setCurrentIndex] = useState(0);
   const flatListRef = useRef<FlatList>(null);
-  const { bottom: bottomInset } = useSafeAreaInsets();
+  const { top: topInset, bottom: bottomInset } = useSafeAreaInsets();
 
   const handleNext = async () => {
     if (currentIndex < SLIDES.length - 1) {
@@ -54,7 +54,7 @@ export function OnboardingSlideScreen() {
 
   return (
     <View style={styles.container}>
-      <TouchableOpacity style={styles.skipBtn} onPress={handleSkip}>
+      <TouchableOpacity style={[styles.skipBtn, { top: topInset + 8 }]} onPress={handleSkip}>
         <Text style={styles.skipText}>건너뛰기</Text>
       </TouchableOpacity>
 
@@ -99,7 +99,7 @@ export function OnboardingSlideScreen() {
 
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: Colors.primary },
-  skipBtn: { position: 'absolute', top: 56, right: 24, zIndex: 10, padding: 8 },
+  skipBtn: { position: 'absolute', right: 24, zIndex: 10, padding: 8 },
   skipText: { fontSize: 16, color: '#FFFFFF' },
   slide: {
     width: SCREEN_WIDTH,

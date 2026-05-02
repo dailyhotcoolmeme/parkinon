@@ -13,7 +13,7 @@ import {
   Linking,
   AppState,
 } from 'react-native';
-import { SafeAreaView } from 'react-native-safe-area-context';
+import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useFocusEffect, useNavigation } from '@react-navigation/native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import * as Notifications from 'expo-notifications';
@@ -133,6 +133,7 @@ type MedTimeSlotKey = 'morning' | 'lunch' | 'dinner' | 'bedtime';
 export function SettingsScreen() {
   const { user } = useAuth();
   const navigation = useNavigation<StackNavigationProp<MenuStackParamList>>();
+  const insets = useSafeAreaInsets();
   const isCaregiver = user?.role === 'caregiver';
   const { unreadCount } = useNotificationBadge();
 
@@ -1726,7 +1727,7 @@ export function SettingsScreen() {
           <Animated.View
             style={[
               styles.sheet,
-              { transform: [{ translateY: slideAnim }] },
+              { paddingBottom: Math.max(32, insets.bottom + 16), transform: [{ translateY: slideAnim }] },
             ]}
           >
             {/* Handle bar */}
@@ -2067,7 +2068,7 @@ export function SettingsScreen() {
           <Animated.View
             style={[
               styles.sheet,
-              { transform: [{ translateY: patientSlideAnim }] },
+              { paddingBottom: Math.max(32, insets.bottom + 16), transform: [{ translateY: patientSlideAnim }] },
             ]}
           >
             {/* Handle bar */}

@@ -14,7 +14,7 @@ import {
   KeyboardAvoidingView,
   Platform,
 } from 'react-native';
-import { SafeAreaView } from 'react-native-safe-area-context';
+import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useNavigation, useRoute, RouteProp } from '@react-navigation/native';
 import { StackNavigationProp } from '@react-navigation/stack';
 import * as Notifications from 'expo-notifications';
@@ -154,6 +154,7 @@ function DatePickerModal({
   onConfirm: () => void;
   onClose: () => void;
 }) {
+  const insets = useSafeAreaInsets();
   // 선택 가능한 월 목록: 올해면 오늘 월 이후만, 그 외 전체
   const availableMonths = year === TODAY.getFullYear()
     ? PICKER_MONTHS.filter(m => m >= TODAY.getMonth() + 1)
@@ -191,7 +192,7 @@ function DatePickerModal({
     <Modal visible={visible} transparent animationType="slide">
       <View style={mpStyles.container}>
         <TouchableOpacity style={mpStyles.overlay} onPress={onClose} activeOpacity={1} />
-        <View style={mpStyles.sheet}>
+        <View style={[mpStyles.sheet, { paddingBottom: Math.max(40, insets.bottom + 20) }]}>
           <View style={mpStyles.handle} />
           <Text style={mpStyles.title}>날짜 선택</Text>
           <View style={mpStyles.colsRow}>
@@ -254,11 +255,12 @@ function TimePickerModal({
   onConfirm: () => void;
   onClose: () => void;
 }) {
+  const insets = useSafeAreaInsets();
   return (
     <Modal visible={visible} transparent animationType="slide">
       <View style={mpStyles.container}>
         <TouchableOpacity style={mpStyles.overlay} onPress={onClose} activeOpacity={1} />
-        <View style={mpStyles.sheet}>
+        <View style={[mpStyles.sheet, { paddingBottom: Math.max(40, insets.bottom + 20) }]}>
           <View style={mpStyles.handle} />
           <Text style={mpStyles.title}>시간 선택</Text>
           <View style={mpStyles.colsRow}>

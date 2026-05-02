@@ -15,7 +15,7 @@ import {
   PanResponder,
   Animated,
 } from 'react-native';
-import { SafeAreaView } from 'react-native-safe-area-context';
+import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useFocusEffect, useRoute, useNavigation } from '@react-navigation/native';
 import type { RouteProp } from '@react-navigation/native';
 import type { MenuStackParamList } from '../../navigation/MenuNavigator';
@@ -465,6 +465,7 @@ function stripHtml(html: string): string {
 }
 
 function DrugInfoModal({ drug, onClose }: { drug: Medication | null; onClose: () => void }) {
+  const insets = useSafeAreaInsets();
   const [easyInfo, setEasyInfo] = useState<{
     efficacy?: string;
     dosage?: string;
@@ -509,7 +510,7 @@ function DrugInfoModal({ drug, onClose }: { drug: Medication | null; onClose: ()
     <Modal visible transparent animationType="slide" onRequestClose={onClose}>
       <TouchableOpacity style={modalStyles.overlay} activeOpacity={1} onPress={onClose}>
         <Animated.View
-          style={[modalStyles.sheet, { transform: [{ translateY }] }]}
+          style={[modalStyles.sheet, { paddingBottom: Math.max(32, insets.bottom + 16), transform: [{ translateY }] }]}
           {...panResponder.panHandlers}
         >
           <TouchableOpacity activeOpacity={1} onPress={() => {}}>
@@ -621,6 +622,7 @@ interface SlotEditBottomSheetProps {
 }
 
 function SlotEditBottomSheet({ visible, slot, medications, onClose, onSave }: SlotEditBottomSheetProps) {
+  const insets = useSafeAreaInsets();
   // 이 시간대의 약들 (초기 체크 상태)
   const slotMeds = medications.filter(m => slot ? m.times.includes(slot.key) : false);
   // 다른 시간대에만 있는 약들 (추가 가능)
@@ -705,7 +707,7 @@ function SlotEditBottomSheet({ visible, slot, medications, onClose, onSave }: Sl
     <Modal visible={visible} transparent animationType="slide" onRequestClose={onClose}>
       <TouchableOpacity style={seBsStyles.overlay} activeOpacity={1} onPress={onClose}>
         <Animated.View
-          style={[seBsStyles.sheet, { transform: [{ translateY }] }]}
+          style={[seBsStyles.sheet, { paddingBottom: Math.max(32, insets.bottom + 16), transform: [{ translateY }] }]}
           {...panResponder.panHandlers}
         >
           <TouchableOpacity activeOpacity={1} onPress={() => {}} style={{ flex: 1, flexDirection: 'column' }}>

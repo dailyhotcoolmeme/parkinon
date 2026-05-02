@@ -85,7 +85,11 @@ export function MainNavigator() {
             </View>
           ),
           tabBarLabel: ({ focused }) => (
-            <Text style={[styles.tabLabel, focused ? styles.tabLabelActive : styles.tabLabelInactive]}>
+            <Text
+              allowFontScaling={false}
+              maxFontSizeMultiplier={1}
+              style={[styles.tabLabel, focused ? styles.tabLabelActive : styles.tabLabelInactive]}
+            >
               {item.label}
             </Text>
           ),

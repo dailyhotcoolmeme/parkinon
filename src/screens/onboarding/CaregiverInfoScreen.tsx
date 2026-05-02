@@ -233,7 +233,7 @@ export function CaregiverInfoScreen() {
         <Modal visible={showBirthPicker} transparent animationType="slide">
           <View style={pickerStyles.container}>
             <TouchableOpacity style={pickerStyles.overlay} onPress={() => setShowBirthPicker(false)} activeOpacity={1} />
-            <View style={pickerStyles.sheet}>
+            <View style={[pickerStyles.sheet, { paddingBottom: Math.max(40, bottomInset + 20) }]}>
               <View style={pickerStyles.handle} />
               <Text style={pickerStyles.sheetTitle}>출생연도 선택</Text>
               <FlatList

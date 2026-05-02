@@ -8,6 +8,7 @@ import {
   Animated,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Colors } from '../../constants/colors';
 
 type MealTime = 'morning' | 'lunch' | 'dinner' | 'bedtime';
@@ -43,6 +44,7 @@ const MEAL_OPTIONS: { id: MealTime; label: string; icon: IoniconName; color: str
 ];
 
 export function MealTimeModal({ visible, onSelect, onClose, mealSchedules, notifPrefs }: Props) {
+  const insets = useSafeAreaInsets();
   const fadeAnim = useRef(new Animated.Value(0)).current;
   const slideAnim = useRef(new Animated.Value(80)).current;
 
@@ -61,7 +63,7 @@ export function MealTimeModal({ visible, onSelect, onClose, mealSchedules, notif
   return (
     <Modal visible={visible} transparent animationType="none" onRequestClose={onClose}>
       <Animated.View style={[styles.backdrop, { opacity: fadeAnim }]}>
-        <Animated.View style={[styles.sheet, { transform: [{ translateY: slideAnim }] }]}>
+        <Animated.View style={[styles.sheet, { paddingBottom: Math.max(36, insets.bottom + 20), transform: [{ translateY: slideAnim }] }]}>
           <View style={styles.handleWrap}>
             <View style={styles.handleBar} />
           </View>
