@@ -63,6 +63,15 @@ interface Medication {
   drugInfo?: DrugInfo | null;
 }
 
+type ChangeType = 'added' | 'updated' | 'deleted';
+
+interface MedSnapshot {
+  id: string;
+  name: string;
+  dosage?: string | null;
+  meal_times: TimeSlot[];
+}
+
 // ─── API 함수 ─────────────────────────────────────────────────────────────────
 
 const CLAUDE_API_KEY = process.env.EXPO_PUBLIC_CLAUDE_API_KEY;
@@ -1129,7 +1138,14 @@ export function MedicationManageScreen() {
           schedules: (row.meal_schedules ?? {}) as MealSchedules,
           drugInfo: selected[i]?.drugInfo ?? null,
         }));
-        setMedications(prev => [...prev, ...dbMeds]);
+        setMedications(prev => {
+          const next = [...prev, ...dbMeds];
+          // 각 추가된 약에 대해 스냅샷 저장
+          dbMeds.forEach(m => {
+            saveMedicationHistory(targetPatientId!, m.id, 'added', next);
+          });
+          return next;
+        });
       } catch (e) {
         console.error('[OCR confirm] 저장 오류:', e);
         setMedications(prev => [...prev, ...selected]);
@@ -1172,6 +1188,32 @@ export function MedicationManageScreen() {
       setIsEditMfdsLoading(false);
     }
   };
+
+  // ── medication_history 스냅샷 저장 헬퍼 ────────────────────────────────────
+
+  const saveMedicationHistory = useCallback(async (
+    patientId: string,
+    changedMedicationId: string | null,
+    changeType: ChangeType,
+    allMedications: Medication[],
+  ) => {
+    try {
+      const snapshot: MedSnapshot[] = allMedications.map(m => ({
+        id: m.id,
+        name: m.name,
+        dosage: m.dosage ?? null,
+        meal_times: m.times,
+      }));
+      await supabase.from('medication_history').insert({
+        patient_id: patientId,
+        changed_medication_id: changedMedicationId,
+        change_type: changeType,
+        snapshot,
+      });
+    } catch (e) {
+      console.warn('[saveMedicationHistory] 이력 저장 실패:', e);
+    }
+  }, []);
 
   // ── 추가 ────────────────────────────────────────────────────────────────
 
@@ -1223,14 +1265,20 @@ export function MedicationManageScreen() {
         console.warn('[MedicationManageScreen] users.meal_schedules 업데이트 실패:', userError);
       }
 
-      setMedications(prev => [...prev, {
+      const newMed: Medication = {
         id: data.id,
         name: data.name,
         dosage: data.dosage ?? null,
         times: (data.meal_times ?? []) as TimeSlot[],
         schedules: (data.meal_schedules ?? {}) as MealSchedules,
         drugInfo: addDrugInfo ?? null,
-      }]);
+      };
+      setMedications(prev => {
+        const next = [...prev, newMed];
+        // 스냅샷 저장 (비동기, 실패해도 무시)
+        saveMedicationHistory(targetPatientId!, data.id, 'added', next);
+        return next;
+      });
       setAddName('');
       setAddDosage('');
       setAddTimes([]);
@@ -1266,11 +1314,18 @@ export function MedicationManageScreen() {
       finalSchedules[slot] = editSchedules[slot] ?? TIME_SLOTS.find(s => s.key === slot)?.defaultTime ?? '08:00';
     });
 
-    setMedications(prev => prev.map(m =>
-      m.id === savedId
-        ? { ...m, name: trimmed, dosage: editDosage.trim() || null, times: editTimes, schedules: finalSchedules, drugInfo: editDrugInfo }
-        : m
-    ));
+    setMedications(prev => {
+      const next = prev.map(m =>
+        m.id === savedId
+          ? { ...m, name: trimmed, dosage: editDosage.trim() || null, times: editTimes, schedules: finalSchedules, drugInfo: editDrugInfo }
+          : m
+      );
+      // 스냅샷 저장 (비동기, 실패해도 무시)
+      if (targetPatientId) {
+        saveMedicationHistory(targetPatientId, savedId, 'updated', next);
+      }
+      return next;
+    });
     setEditingId(null);
 
     try {
@@ -1331,7 +1386,14 @@ export function MedicationManageScreen() {
         text: '삭제',
         style: 'destructive',
         onPress: async () => {
-          setMedications(prev => prev.filter(m => m.id !== med.id));
+          setMedications(prev => {
+            const next = prev.filter(m => m.id !== med.id);
+            // 스냅샷 저장 (비동기, 실패해도 무시) - 삭제된 약도 포함한 최종 목록
+            if (targetPatientId) {
+              saveMedicationHistory(targetPatientId, med.id, 'deleted', next);
+            }
+            return next;
+          });
           try {
             const { error } = await supabase
               .from('medications')
@@ -1879,66 +1941,65 @@ const MED_SLOT_LABELS: Record<TimeSlot, string> = {
   bedtime: '취침약',
 };
 
-function medHistoryDateLabel(dateStr: string): string {
-  const [y, m, d] = dateStr.split('-').map(Number);
-  const date = new Date(y, m - 1, d);
-  const dayNames = ['일', '월', '화', '수', '목', '금', '토'];
-  return `${m}.${d}(${dayNames[date.getDay()]})`;
-}
+const CHANGE_TYPE_LABEL: Record<string, string> = {
+  added: '추가',
+  updated: '변경',
+  deleted: '삭제',
+};
 
-function medHistoryKSTDate(isoString: string): string {
+const CHANGE_TYPE_COLOR: Record<string, string> = {
+  added: '#1565C0',
+  updated: '#E65100',
+  deleted: '#B71C1C',
+};
+
+const CHANGE_TYPE_BG: Record<string, string> = {
+  added: '#E3F2FD',
+  updated: '#FFF3E0',
+  deleted: '#FFEBEE',
+};
+
+function medHistoryDateTimeLabel(isoString: string): string {
   const d = new Date(isoString);
   const kst = new Date(d.getTime() + 9 * 60 * 60 * 1000);
-  return kst.toISOString().slice(0, 10);
+  const m = kst.getMonth() + 1;
+  const day = kst.getDate();
+  const h = kst.getHours();
+  const min = kst.getMinutes();
+  const dayNames = ['일', '월', '화', '수', '목', '금', '토'];
+  return `${m}.${day}(${dayNames[kst.getDay()]}) ${String(h).padStart(2, '0')}:${String(min).padStart(2, '0')}`;
 }
 
-const MH_PAGE_SIZE = 14;
+const MH_PAGE_SIZE = 20;
 
-interface MedicationHistoryEntry {
-  dateStr: string;
-  slots: Partial<Record<TimeSlot, string[]>>; // slot -> med names
+interface HistoryRow {
+  id: string;
+  changed_at: string;
+  changed_medication_id: string | null;
+  change_type: string;
+  snapshot: MedSnapshot[];
 }
 
 function MedicationHistoryTimeline({ patientId }: { patientId: string | null }) {
   const [expanded, setExpanded] = useState(false);
   const [loading, setLoading] = useState(false);
   const [initialLoaded, setInitialLoaded] = useState(false);
-  const [entries, setEntries] = useState<MedicationHistoryEntry[]>([]);
+  const [rows, setRows] = useState<HistoryRow[]>([]);
   const [displayCount, setDisplayCount] = useState(MH_PAGE_SIZE);
 
   const fetchHistory = useCallback(async () => {
     if (!patientId) return;
     setLoading(true);
     try {
-      // 모든 활성/비활성 medications를 created_at 기준으로 조회
       const { data, error } = await supabase
-        .from('medications')
-        .select('name, dosage, meal_times, created_at')
+        .from('medication_history')
+        .select('id, changed_at, changed_medication_id, change_type, snapshot')
         .eq('patient_id', patientId)
-        .order('created_at', { ascending: false });
+        .order('changed_at', { ascending: false })
+        .limit(200);
 
       if (error) throw error;
-      if (!data || data.length === 0) {
-        setEntries([]);
-        return;
-      }
-
-      // created_at 날짜별로 그룹핑
-      const dateMap: Record<string, Partial<Record<TimeSlot, string[]>>> = {};
-      (data as any[]).forEach(row => {
-        const dateStr = medHistoryKSTDate(row.created_at);
-        if (!dateMap[dateStr]) dateMap[dateStr] = {};
-        const medName = row.dosage ? `${row.name} ${row.dosage}` : row.name;
-        const mealTimes: TimeSlot[] = (row.meal_times ?? []) as TimeSlot[];
-        mealTimes.forEach(slot => {
-          if (!dateMap[dateStr][slot]) dateMap[dateStr][slot] = [];
-          dateMap[dateStr][slot]!.push(medName);
-        });
-      });
-
-      // 날짜 내림차순 정렬 후 entries 생성
-      const sortedDates = Object.keys(dateMap).sort((a, b) => b.localeCompare(a));
-      setEntries(sortedDates.map(dateStr => ({ dateStr, slots: dateMap[dateStr] })));
+      setRows((data ?? []) as HistoryRow[]);
     } catch (err) {
       console.error('[MedicationHistoryTimeline] 오류:', err);
     } finally {
@@ -1953,8 +2014,8 @@ function MedicationHistoryTimeline({ patientId }: { patientId: string | null }) 
     setInitialLoaded(true);
   }, [initialLoaded, fetchHistory]);
 
-  const visibleEntries = entries.slice(0, displayCount);
-  const hasMore = entries.length > displayCount;
+  const visibleRows = rows.slice(0, displayCount);
+  const hasMore = rows.length > displayCount;
 
   if (!expanded) {
     return (
@@ -1979,27 +2040,30 @@ function MedicationHistoryTimeline({ patientId }: { patientId: string | null }) 
           <ActivityIndicator size="large" color={Colors.primary} />
           <Text style={mhStyles.loadingText}>기록을 불러오는 중...</Text>
         </View>
-      ) : entries.length === 0 ? (
+      ) : rows.length === 0 ? (
         <View style={mhStyles.emptyWrap}>
           <Text style={mhStyles.emptyText}>아직 기록이 없어요</Text>
+          <Text style={mhStyles.emptySubText}>약을 추가·수정·삭제하면 여기에 기록돼요</Text>
         </View>
       ) : (
         <View style={mhStyles.timeline}>
-          {visibleEntries.map((entry, idx) => {
-            const isLast = idx === visibleEntries.length - 1;
-            // 표시할 슬롯 텍스트 조합
-            const slotParts = MED_SLOT_ORDER
-              .filter(slot => entry.slots[slot] && entry.slots[slot]!.length > 0)
-              .map(slot => `${MED_SLOT_LABELS[slot]} ${entry.slots[slot]!.join(', ')}`);
-            const hasRecord = slotParts.length > 0;
+          {visibleRows.map((row, idx) => {
+            const isLast = idx === visibleRows.length - 1;
+            const changeLabel = CHANGE_TYPE_LABEL[row.change_type] ?? row.change_type;
+            const changeColor = CHANGE_TYPE_COLOR[row.change_type] ?? '#555';
+            const changeBg = CHANGE_TYPE_BG[row.change_type] ?? '#F5F5F5';
+
+            // snapshot에서 약 목록 그룹핑 (시간대별)
+            const slotMap: Partial<Record<TimeSlot, MedSnapshot[]>> = {};
+            (row.snapshot ?? []).forEach(med => {
+              (med.meal_times ?? []).forEach(slot => {
+                if (!slotMap[slot]) slotMap[slot] = [];
+                slotMap[slot]!.push(med);
+              });
+            });
 
             return (
-              <View key={entry.dateStr} style={mhStyles.dayRow}>
-                {/* 왼쪽: 날짜 */}
-                <View style={mhStyles.dateCol}>
-                  <Text style={mhStyles.dateLabel}>{medHistoryDateLabel(entry.dateStr)}</Text>
-                </View>
-
+              <View key={row.id} style={mhStyles.dayRow}>
                 {/* 가운데: 세로줄 + 원 */}
                 <View style={mhStyles.lineCol}>
                   <View style={[mhStyles.lineTop, idx === 0 && mhStyles.lineInvisible]} />
@@ -2007,16 +2071,64 @@ function MedicationHistoryTimeline({ patientId }: { patientId: string | null }) 
                   <View style={[mhStyles.lineBottom, isLast && mhStyles.lineInvisible]} />
                 </View>
 
-                {/* 오른쪽: 약 목록 */}
+                {/* 오른쪽: 날짜 + 변경 약 목록 */}
                 <View style={mhStyles.contentCol}>
-                  {hasRecord ? (
-                    slotParts.map((part, pIdx) => (
-                      <Text key={pIdx} style={[mhStyles.slotText, pIdx > 0 && mhStyles.slotTextExtra]}>
-                        {part}
-                      </Text>
-                    ))
-                  ) : (
-                    <Text style={mhStyles.emptyDay}>기록 없음</Text>
+                  {/* 날짜·시간 + 변경 유형 뱃지 */}
+                  <View style={mhStyles.headerRow}>
+                    <Text style={mhStyles.dateLabel}>{medHistoryDateTimeLabel(row.changed_at)}</Text>
+                    <View style={[mhStyles.changeBadge, { backgroundColor: changeBg }]}>
+                      <Text style={[mhStyles.changeBadgeText, { color: changeColor }]}>{changeLabel}</Text>
+                    </View>
+                  </View>
+
+                  {/* 시간대별 약 목록 */}
+                  {MED_SLOT_ORDER.map(slot => {
+                    const meds = slotMap[slot];
+                    if (!meds || meds.length === 0) return null;
+                    return (
+                      <View key={slot} style={mhStyles.slotGroup}>
+                        <Text style={mhStyles.slotLabel}>{MED_SLOT_LABELS[slot]}</Text>
+                        {meds.map(med => {
+                          const isChanged = med.id === row.changed_medication_id;
+                          return (
+                            <View key={med.id} style={mhStyles.medRow}>
+                              {isChanged && (
+                                <View style={[mhStyles.changeBadgeSmall, { backgroundColor: changeBg }]}>
+                                  <Text style={[mhStyles.changeBadgeSmallText, { color: changeColor }]}>{changeLabel}</Text>
+                                </View>
+                              )}
+                              <Text style={[
+                                mhStyles.medName,
+                                isChanged && mhStyles.medNameHighlight,
+                              ]}>
+                                {med.name}{med.dosage ? `  ${med.dosage}` : ''}
+                              </Text>
+                            </View>
+                          );
+                        })}
+                      </View>
+                    );
+                  })}
+
+                  {/* 삭제된 경우 삭제된 약도 별도 표시 */}
+                  {row.change_type === 'deleted' && row.changed_medication_id && (
+                    (() => {
+                      // snapshot에 없는 경우(삭제 후 목록) → 삭제된 약 표시
+                      const inSnapshot = (row.snapshot ?? []).some(m => m.id === row.changed_medication_id);
+                      if (inSnapshot) return null;
+                      return (
+                        <View style={mhStyles.deletedMedRow}>
+                          <View style={[mhStyles.changeBadgeSmall, { backgroundColor: CHANGE_TYPE_BG['deleted'] }]}>
+                            <Text style={[mhStyles.changeBadgeSmallText, { color: CHANGE_TYPE_COLOR['deleted'] }]}>삭제</Text>
+                          </View>
+                          <Text style={[mhStyles.medName, { color: CHANGE_TYPE_COLOR['deleted'] }]}>이 약이 삭제되었어요</Text>
+                        </View>
+                      );
+                    })()
+                  )}
+
+                  {row.snapshot?.length === 0 && (
+                    <Text style={mhStyles.emptyDay}>등록된 약 없음</Text>
                   )}
                 </View>
               </View>
@@ -2029,7 +2141,7 @@ function MedicationHistoryTimeline({ patientId }: { patientId: string | null }) 
               onPress={() => setDisplayCount(c => c + MH_PAGE_SIZE)}
               activeOpacity={0.8}
             >
-              <Text style={mhStyles.moreButtonText}>더보기 (14개 추가)</Text>
+              <Text style={mhStyles.moreButtonText}>더보기</Text>
             </TouchableOpacity>
           )}
         </View>
@@ -2038,8 +2150,8 @@ function MedicationHistoryTimeline({ patientId }: { patientId: string | null }) 
   );
 }
 
-const MH_LINE_TOP_H = 14;
-const MH_FIRST_ROW_PT = 12;
+const MH_LINE_TOP_H = 12;
+const MH_FIRST_ROW_PT = 10;
 
 const mhStyles = StyleSheet.create({
   toggleWrap: { paddingBottom: 32 },
@@ -2068,8 +2180,9 @@ const mhStyles = StyleSheet.create({
   loadingWrap: { alignItems: 'center', paddingVertical: 32, gap: 12 },
   loadingText: { fontSize: 17, color: Colors.textSub },
 
-  emptyWrap: { alignItems: 'center', paddingVertical: 32 },
+  emptyWrap: { alignItems: 'center', paddingVertical: 32, gap: 8 },
   emptyText: { fontSize: 18, color: Colors.textHint },
+  emptySubText: { fontSize: 15, color: Colors.textHint, textAlign: 'center' },
 
   timeline: { paddingTop: 8 },
 
@@ -2077,24 +2190,14 @@ const mhStyles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'flex-start',
     minHeight: 48,
-  },
-
-  dateCol: {
-    width: 80,
-    paddingTop: MH_FIRST_ROW_PT,
-    alignItems: 'flex-end',
-    paddingRight: 8,
-  },
-  dateLabel: {
-    fontSize: 15,
-    color: '#888888',
-    fontWeight: '500',
+    marginBottom: 4,
   },
 
   lineCol: {
-    width: 28,
+    width: 24,
     alignItems: 'center',
     flexDirection: 'column',
+    marginTop: MH_FIRST_ROW_PT,
   },
   lineTop: {
     width: 2,
@@ -2104,35 +2207,91 @@ const mhStyles = StyleSheet.create({
   lineBottom: {
     width: 2,
     flex: 1,
-    minHeight: 14,
+    minHeight: 20,
     backgroundColor: '#E0E0E0',
   },
   lineInvisible: { backgroundColor: 'transparent' },
   dotFilled: {
-    width: 14,
-    height: 14,
-    borderRadius: 7,
+    width: 12,
+    height: 12,
+    borderRadius: 6,
     backgroundColor: '#4CAF50',
   },
 
   contentCol: {
     flex: 1,
-    paddingLeft: 10,
+    paddingLeft: 12,
     paddingTop: MH_FIRST_ROW_PT,
-    paddingBottom: 12,
+    paddingBottom: 16,
+    borderBottomWidth: 1,
+    borderBottomColor: '#F0F0F0',
+    marginBottom: 4,
   },
 
-  slotText: {
+  headerRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    marginBottom: 10,
+    flexWrap: 'wrap',
+  },
+  dateLabel: {
+    fontSize: 14,
+    color: '#888888',
+    fontWeight: '500',
+  },
+  changeBadge: {
+    paddingHorizontal: 10,
+    paddingVertical: 3,
+    borderRadius: 20,
+  },
+  changeBadgeText: {
+    fontSize: 13,
+    fontWeight: '700',
+  },
+
+  slotGroup: {
+    marginBottom: 8,
+  },
+  slotLabel: {
+    fontSize: 13,
+    fontWeight: '600',
+    color: Colors.textSub,
+    marginBottom: 4,
+  },
+  medRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    paddingVertical: 3,
+  },
+  medName: {
     fontSize: 16,
     color: Colors.text,
-    lineHeight: 22,
+    flexShrink: 1,
   },
-  slotTextExtra: {
-    marginTop: 4,
+  medNameHighlight: {
+    fontWeight: '700',
+    color: Colors.text,
+  },
+  changeBadgeSmall: {
+    paddingHorizontal: 7,
+    paddingVertical: 2,
+    borderRadius: 10,
+  },
+  changeBadgeSmallText: {
+    fontSize: 12,
+    fontWeight: '700',
+  },
+  deletedMedRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    paddingVertical: 3,
   },
 
   emptyDay: {
-    fontSize: 16,
+    fontSize: 15,
     color: '#CCCCCC',
     lineHeight: 22,
   },
