@@ -34,7 +34,6 @@ const CATEGORIES: { id: string; icon: IoniconName; label: string }[] = [
   { id: 'chat', icon: 'chatbubble-outline', label: '자유' },
   { id: 'question', icon: 'help-circle-outline', label: '질문' },
   { id: 'info', icon: 'megaphone-outline', label: '정보' },
-  { id: 'exercise', icon: 'fitness-outline', label: '운동인증' },
   { id: 'cheer', icon: 'heart-circle-outline', label: '응원' },
 ];
 

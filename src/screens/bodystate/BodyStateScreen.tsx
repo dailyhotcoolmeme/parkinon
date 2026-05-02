@@ -574,9 +574,9 @@ export function BodyStateScreen() {
           <TouchableOpacity
             style={[
               styles.mainButton,
-              (userRole === 'caregiver_no_patient' || userRole === 'caregiver_separate') && styles.mainButtonDisabled,
+              (userRole === 'caregiver_no_patient' || userRole === 'caregiver_separate' || !isToday) && styles.mainButtonDisabled,
             ]}
-            disabled={userRole === 'caregiver_no_patient' || userRole === 'caregiver_separate'}
+            disabled={userRole === 'caregiver_no_patient' || userRole === 'caregiver_separate' || !isToday}
             onPress={() => {
               if (userRole === 'caregiver_same') {
                 setShowCaregiverConfirm(true);
@@ -598,16 +598,20 @@ export function BodyStateScreen() {
           {userRole === 'caregiver_separate' && (
             <Text style={styles.caregiverNotice}>같이 계신 경우에만 대신 입력할 수 있어요</Text>
           )}
+          {!isToday && userRole !== 'caregiver_separate' && userRole !== 'caregiver_no_patient' && (
+            <Text style={styles.caregiverNotice}>오늘 날짜에서만 기록할 수 있어요</Text>
+          )}
 
           <View style={styles.videoButtonRow}>
             <TouchableOpacity
-              style={styles.outlineButton}
-              onPress={() => navigation.navigate('VideoRecord')}
-              activeOpacity={0.85}
+              style={[styles.outlineButton, !isToday && styles.outlineButtonDisabled]}
+              onPress={() => { if (isToday) navigation.navigate('VideoRecord'); }}
+              activeOpacity={isToday ? 0.85 : 1}
+              disabled={!isToday}
             >
               <View style={styles.outlineButtonInner}>
-                <Ionicons name="film-outline" size={24} color={Colors.primary} />
-                <Text style={styles.outlineButtonText}>영상 기록하기</Text>
+                <Ionicons name="film-outline" size={24} color={isToday ? Colors.primary : '#BDBDBD'} />
+                <Text style={[styles.outlineButtonText, !isToday && styles.outlineButtonTextDisabled]}>영상 기록하기</Text>
               </View>
             </TouchableOpacity>
 
@@ -874,8 +878,12 @@ const styles = StyleSheet.create({
     borderWidth: 2,
     borderColor: Colors.primary,
   },
+  outlineButtonDisabled: {
+    borderColor: '#BDBDBD',
+  },
   outlineButtonInner: { flexDirection: 'row', alignItems: 'center', gap: 10 },
   outlineButtonText: { fontSize: 18, fontWeight: '700', color: Colors.primary },
+  outlineButtonTextDisabled: { color: '#BDBDBD' },
 
   records: { paddingHorizontal: 16, paddingBottom: 40 },
   sectionHeader: { flexDirection: 'row', alignItems: 'center', marginBottom: 20, gap: 8 },

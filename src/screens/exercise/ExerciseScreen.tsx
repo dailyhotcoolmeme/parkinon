@@ -183,8 +183,8 @@ export function ExerciseScreen() {
         {/* 버튼 영역 */}
         <View style={styles.centerBlock}>
           <TouchableOpacity
-            style={[styles.primaryBtn, (userRole === 'caregiver_no_patient' || userRole === 'caregiver_separate') && styles.primaryBtnDisabled]}
-            disabled={userRole === 'caregiver_no_patient' || userRole === 'caregiver_separate'}
+            style={[styles.primaryBtn, (userRole === 'caregiver_no_patient' || userRole === 'caregiver_separate' || !isToday(selectedDate)) && styles.primaryBtnDisabled]}
+            disabled={userRole === 'caregiver_no_patient' || userRole === 'caregiver_separate' || !isToday(selectedDate)}
             onPress={() => {
               if (userRole === 'caregiver_same') {
                 setShowCaregiverConfirm(true);
@@ -205,6 +205,9 @@ export function ExerciseScreen() {
           )}
           {userRole === 'caregiver_separate' && (
             <Text style={styles.caregiverNotice}>같이 계신 경우에만 대신 입력할 수 있어요</Text>
+          )}
+          {!isToday(selectedDate) && userRole !== 'caregiver_separate' && userRole !== 'caregiver_no_patient' && (
+            <Text style={styles.caregiverNotice}>오늘 날짜에서만 기록할 수 있어요</Text>
           )}
 
           <TouchableOpacity
