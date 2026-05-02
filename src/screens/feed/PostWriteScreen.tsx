@@ -407,8 +407,8 @@ const styles = StyleSheet.create({
   },
   categoryBtn: {
     flex: 1,
-    paddingVertical: 14,
-    borderRadius: 12,
+    height: 34,
+    borderRadius: 17,
     borderWidth: 1.5,
     borderColor: Colors.border,
     backgroundColor: Colors.white,
@@ -416,7 +416,6 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
     gap: 5,
-    minHeight: 56,
   },
   categoryBtnSelected: {
     borderColor: Colors.primary,
