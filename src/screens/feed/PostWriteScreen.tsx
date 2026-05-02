@@ -278,7 +278,7 @@ export function PostWriteScreen() {
               >
                 <Ionicons
                   name={cat.icon}
-                  size={28}
+                  size={20}
                   color={selectedCategory === cat.id ? Colors.primary : Colors.textSub}
                 />
                 <Text
@@ -412,10 +412,11 @@ const styles = StyleSheet.create({
     borderWidth: 1.5,
     borderColor: Colors.border,
     backgroundColor: Colors.white,
+    flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
-    gap: 6,
-    minHeight: 72,
+    gap: 5,
+    minHeight: 56,
   },
   categoryBtnSelected: {
     borderColor: Colors.primary,
