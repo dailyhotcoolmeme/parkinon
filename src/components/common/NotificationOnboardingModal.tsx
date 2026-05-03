@@ -206,9 +206,8 @@ function NotificationOnboardingModalContent({ isCaregiver, userId, visible, onCl
 
         {/* 스크롤 가능한 콘텐츠 영역 */}
         <ScrollView
-          showsVerticalScrollIndicator={false}
+          showsVerticalScrollIndicator={true}
           contentContainerStyle={{ paddingBottom: 8 }}
-          bounces={false}
         >
           {/* 헤더 */}
           <View style={styles.headerArea}>
