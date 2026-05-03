@@ -254,7 +254,7 @@ function NotificationOnboardingModalContent({ isCaregiver, userId, visible, onCl
             marginTop: 12,
             marginBottom: 4,
           }}>
-            <Text style={{ fontSize: 16, color: '#111111', lineHeight: 24 }}>
+            <Text style={{ fontSize: 16, color: '#111111', lineHeight: 26, includeFontPadding: true, textAlignVertical: 'center' }}>
               {'잠시 후 스마트폰이 알림 허용 여부를\n물어봐요. '}
               <Text style={{ fontWeight: '700', color: '#E65100' }}>"허용"</Text>
               {' 버튼을 눌러주세요.'}
@@ -322,16 +322,21 @@ const styles = StyleSheet.create({
   },
   title: {
     fontSize: 22,
+    lineHeight: 32,
     fontWeight: 'bold',
     color: Colors.text,
     textAlign: 'center',
     marginBottom: 8,
+    includeFontPadding: true,
+    textAlignVertical: 'center',
   },
   subtitle: {
     fontSize: 16,
     color: Colors.textSub,
     textAlign: 'center',
-    lineHeight: 24,
+    lineHeight: 26,
+    includeFontPadding: true,
+    textAlignVertical: 'center',
   },
 
   // ── 항목 목록 ──
@@ -346,10 +351,10 @@ const styles = StyleSheet.create({
     backgroundColor: Colors.background,
     borderRadius: 14,
     paddingHorizontal: 18,
-    paddingVertical: 14,
+    paddingVertical: 16,
     borderWidth: 2,
     borderColor: Colors.border,
-    minHeight: 72,
+    minHeight: 80,
   },
   itemRowEnabled: {
     borderColor: Colors.primary,
@@ -361,9 +366,12 @@ const styles = StyleSheet.create({
   },
   itemLabel: {
     fontSize: 18,
+    lineHeight: 28,
     fontWeight: '700',
     color: Colors.textSub,
     marginBottom: 3,
+    includeFontPadding: true,
+    textAlignVertical: 'center',
   },
   itemLabelEnabled: {
     color: Colors.text,
@@ -371,7 +379,9 @@ const styles = StyleSheet.create({
   itemDesc: {
     fontSize: 14,
     color: Colors.textSub,
-    lineHeight: 20,
+    lineHeight: 22,
+    includeFontPadding: true,
+    textAlignVertical: 'center',
   },
 
   // ── 버튼 영역 ──

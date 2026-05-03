@@ -290,12 +290,13 @@ const styles = StyleSheet.create({
     paddingBottom: 24,
   },
   choiceCard: {
-    flex: 1,
     flexDirection: 'row',
     alignItems: 'center',
     backgroundColor: Colors.white,
     borderRadius: 16,
-    padding: 20,
+    paddingHorizontal: 20,
+    paddingVertical: 22,
+    minHeight: 88,
     borderWidth: 2,
     borderColor: Colors.border,
     gap: 16,
@@ -306,16 +307,22 @@ const styles = StyleSheet.create({
   },
   choiceLabel: {
     fontSize: 18,
+    lineHeight: 28,
     fontWeight: '700',
     color: Colors.text,
     marginBottom: 4,
+    includeFontPadding: true,
+    textAlignVertical: 'center',
   },
   choiceLabelSelected: {
     color: Colors.dark,
   },
   choiceDesc: {
     fontSize: 14,
+    lineHeight: 21,
     color: Colors.textSub,
+    includeFontPadding: true,
+    textAlignVertical: 'center',
   },
   choiceDescSelected: {
     color: Colors.dark,
