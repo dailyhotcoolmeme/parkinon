@@ -7,7 +7,8 @@ import { ExerciseVideoScreen } from '../screens/exercise/ExerciseVideoScreen';
 import { ExerciseVideoPlayerScreen } from '../screens/exercise/ExerciseVideoPlayerScreen';
 
 export type ExerciseStackParamList = {
-  ExerciseMain: undefined;
+  // triggerTs: 알림 진입 시 ExerciseScreen에서 ExerciseRecord로 자동 push 트리거용
+  ExerciseMain: { triggerTs?: number } | undefined;
   ExerciseRecord: undefined;
   ExerciseDuration: { exerciseName: string };
   ExerciseVideo: undefined;

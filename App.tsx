@@ -31,6 +31,9 @@ function AppInner() {
   const appState = useRef<AppStateStatus>(AppState.currentState);
   const { saveNotification, refreshBadge } = useNotificationBadge();
   const handledNotifIds = useRef<Set<string>>(new Set());
+  // 멀티 알림 race 방지용 mutex 큐 — handleNotificationResponse를 직렬화한다.
+  // 두 알림이 거의 동시에 탭되어 두 navigateTo가 연속 호출되면 마지막만 살아남는 문제 회피.
+  const handlerQueueRef = useRef<Promise<void>>(Promise.resolve());
 
   // 앱 시작 시마다 push_token DB 갱신 (세션이 있는 경우 무조건 시도)
   useEffect(() => {
@@ -170,13 +173,20 @@ function AppInner() {
             },
           });
         } else if (type === 'exercise_reminder') {
-          // pendingExerciseNotif 플래그를 먼저 저장 후 Exercise 탭으로만 전환.
-          // ExerciseRecord 진입은 ExerciseScreen.useFocusEffect가 단일 경로로 처리한다.
-          // (nested initial-route navigate가 워밍 케이스에서 무시되는 race 회피)
+          // 이중 경로:
+          // 1) AsyncStorage 플래그(fallback) — 콜드스타트/예외 케이스 대비
+          // 2) nested navigate로 ExerciseRecord 직접 진입 — 약효추적과 동일한 패턴
+          // mutex 큐(handlerQueueRef)로 직렬화되므로 워밍 케이스에서도 안전.
           try {
             await AsyncStorage.setItem('pendingExerciseNotif', 'true');
           } catch {}
-          navigateTo('Main', { screen: 'Exercise' });
+          navigateTo('Main', {
+            screen: 'Exercise',
+            params: {
+              screen: 'ExerciseRecord',
+              params: { triggerTs: Date.now() },
+            },
+          });
         } else if (type) {
           navigateTo('Main');
         }
@@ -191,14 +201,31 @@ function AppInner() {
     [saveNotification, refreshBadge],
   );
 
+  // 알림 응답을 mutex 큐에 enqueue하여 직렬화한다.
+  // 두 알림이 거의 동시에 탭될 때 navigateTo가 연속 호출되면서
+  // 마지막 navigate만 살아남고 첫 번째 화면이 mount조차 안 되는 문제를 막는다.
+  // 각 핸들러 종료 후 350ms settle delay를 둬서 navigation/focus가 안정될 시간을 확보.
+  const enqueueHandler = useCallback(
+    (response: Notifications.NotificationResponse, isCold: boolean) => {
+      handlerQueueRef.current = handlerQueueRef.current
+        .then(async () => {
+          await handleNotificationResponse(response, isCold);
+          // settle delay — useFocusEffect/탭 전환이 완료될 시간 확보
+          await new Promise<void>((resolve) => setTimeout(resolve, 350));
+        })
+        .catch((e) => {
+          console.warn('[App] handler queue 처리 실패:', e);
+        });
+    },
+    [handleNotificationResponse],
+  );
+
   // 앱이 종료된 상태에서 알림 탭 → 앱 실행 시 lastNotificationResponse 처리
   const lastResponse = Notifications.useLastNotificationResponse();
   useEffect(() => {
     if (!lastResponse) return;
-    handleNotificationResponse(lastResponse, true).catch((e) =>
-      console.error('[App] cold-start handler 실패:', e),
-    );
-  }, [lastResponse, handleNotificationResponse]);
+    enqueueHandler(lastResponse, true);
+  }, [lastResponse, enqueueHandler]);
 
   useEffect(() => {
     // 포그라운드 알림 수신 → 저장 (read_at = null: 미읽음)
@@ -215,14 +242,30 @@ function AppInner() {
     });
 
     // 알림 탭 핸들러 (앱이 열려있거나 백그라운드에서 탭할 때)
+    // mutex 큐로 직렬화: 멀티 알림 동시 탭 race 방지
     const notifSubscription = Notifications.addNotificationResponseReceivedListener((response) => {
-      handleNotificationResponse(response, false).catch((e) =>
-        console.error('[App] warm handler 실패:', e),
-      );
+      enqueueHandler(response, false);
     });
 
     const appStateSubscription = AppState.addEventListener('change', (nextAppState: AppStateStatus) => {
+      const prev = appState.current;
       appState.current = nextAppState;
+      // background → active 전환 시 stale pendingExerciseNotif 안전망
+      // 다른 알림(약효추적/약복용)이 운동 알림보다 늦게 처리되어 Exercise 탭이 활성화되지
+      // 않은 채 영구 잔존하는 케이스 방지. 5초 후에도 ExerciseScreen이 처리하지 못했으면
+      // 자동 정리 (다음 정상 운동 알림 처리에 영향 주지 않도록).
+      if (prev !== 'active' && nextAppState === 'active') {
+        setTimeout(() => {
+          AsyncStorage.getItem('pendingExerciseNotif')
+            .then((val) => {
+              if (val === 'true') {
+                console.log('[App] stale pendingExerciseNotif 감지 → 자동 정리');
+                AsyncStorage.removeItem('pendingExerciseNotif').catch(() => {});
+              }
+            })
+            .catch(() => {});
+        }, 5000);
+      }
     });
 
     return () => {
@@ -230,7 +273,7 @@ function AppInner() {
       notifSubscription.remove();
       appStateSubscription.remove();
     };
-  }, [saveNotification, handleNotificationResponse]);
+  }, [saveNotification, enqueueHandler]);
 
   return (
     <SettingsProvider>

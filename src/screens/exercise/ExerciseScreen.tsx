@@ -10,9 +10,10 @@ import {
   Alert,
 } from 'react-native';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
-import { useNavigation } from '@react-navigation/native';
+import { useNavigation, useRoute } from '@react-navigation/native';
 import { useFocusEffect } from '@react-navigation/native';
 import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
+import type { RouteProp } from '@react-navigation/native';
 import { Ionicons } from '@expo/vector-icons';
 import { Colors } from '../../constants/colors';
 import { TopBar } from '../../components/common/TopBar';
@@ -28,6 +29,7 @@ import { useNotificationBadge } from '../../context/NotificationBadgeContext';
 import { HistoryTimeline } from '../../components/common/HistoryTimeline';
 
 type Nav = NativeStackNavigationProp<ExerciseStackParamList, 'ExerciseMain'>;
+type ExerciseMainRoute = RouteProp<ExerciseStackParamList, 'ExerciseMain'>;
 
 const WINDOW_HEIGHT = Dimensions.get('window').height;
 const TOP_BAR_H = 56;
@@ -61,7 +63,11 @@ function getDateLabel(date: Date): string {
 
 export function ExerciseScreen() {
   const navigation = useNavigation<Nav>();
+  const route = useRoute<ExerciseMainRoute>();
   const { user } = useAuth();
+  // 알림 진입 시 App.tsx의 nested navigate가 ExerciseMain의 route.params로 triggerTs를 넣어준다.
+  // 같은 triggerTs로는 한 번만 처리하기 위해 ref로 마지막 처리 ts 보관.
+  const lastHandledTriggerTsRef = React.useRef<number | null>(null);
   const { todayLogs, getTodayTotalMinutes, getExerciseLogs, loading, error, refresh } = useExercise();
   const insets = useSafeAreaInsets();
   const [selectedDate, setSelectedDate] = useState(new Date());
@@ -137,14 +143,33 @@ export function ExerciseScreen() {
     }, [loadLogsForDate, selectedDate])
   );
 
-  // 운동 알림 탭 → pendingExerciseNotif 확인 후 자동으로 ExerciseRecord 이동
-  // - 환자 본인만 자동 진입 (보호자 same-house는 CaregiverConfirmModal로 별도 처리되어야 함)
-  // - 첫 포커스 시 user가 아직 미로드(null)면 분기 false → user 로드 후 deps 변경으로 재실행되어 동작
-  // - removeItem은 push 직후 → push 실패 시 다음 포커스에 재시도 가능
-  // - navigate → push: 이미 ExerciseRecord 스택에 있을 때 noop 되는 케이스 회피
+  // 운동 알림 탭 → ExerciseRecord 자동 진입 (이중 경로)
+  // 우선순위:
+  //   1) route.params.triggerTs (App.tsx nested navigate가 직접 전달) — 빠르고 확실
+  //   2) AsyncStorage 'pendingExerciseNotif' fallback — 콜드스타트/race 대비
+  // 환자 본인만 자동 진입 (보호자 same-house는 CaregiverConfirmModal로 별도 처리)
+  // user가 아직 미로드(null)면 분기 false → user 로드 후 deps 변경으로 재실행
   useFocusEffect(
     React.useCallback(() => {
       if (user?.role !== 'patient') return;
+
+      const triggerTs = route.params?.triggerTs;
+      // 1) route.params 경로 — 같은 triggerTs는 한 번만 처리 (포커스 재진입 시 중복 방지)
+      if (typeof triggerTs === 'number' && triggerTs !== lastHandledTriggerTsRef.current) {
+        lastHandledTriggerTsRef.current = triggerTs;
+        try {
+          navigation.push('ExerciseRecord');
+          // route.params 소비 — 다음 포커스 진입 시 재실행 방지 (clean slate)
+          navigation.setParams({ triggerTs: undefined } as any);
+          // AsyncStorage 플래그도 함께 정리 (이중 처리 방지)
+          AsyncStorage.removeItem('pendingExerciseNotif').catch(() => {});
+        } catch (e) {
+          console.error('[ExerciseScreen] route.params 경로 push 실패:', e);
+        }
+        return;
+      }
+
+      // 2) AsyncStorage fallback 경로 — 기존 로직 유지
       AsyncStorage.getItem('pendingExerciseNotif').then((val) => {
         if (val === 'true') {
           try {
@@ -155,7 +180,7 @@ export function ExerciseScreen() {
           }
         }
       });
-    }, [navigation, user])
+    }, [navigation, user, route.params?.triggerTs])
   );
 
   // error 발생 시 Alert
