@@ -288,6 +288,22 @@ export function useMedication(): UseMedicationReturn {
         console.error('[useMedication] 알림 처리 실패 (복용 기록은 저장됨):', notifErr);
       }
 
+      // 약 복용 시점에 같은 사용자의 미읽음 약 알림(medication_reminder/missed_medication)
+      // 일괄 읽음 처리 → 종 아이콘 뱃지 즉시 감소
+      // 다른 타입(약효추적/운동/몸상태)은 건드리지 않음
+      try {
+        const nowIso = new Date().toISOString();
+        await supabase
+          .from('notification_logs')
+          .update({ read_at: nowIso })
+          .eq('user_id', user.id)
+          .in('type', ['medication_reminder', 'missed_medication'])
+          .is('read_at', null);
+      } catch (markReadErr) {
+        // 약 기록 자체는 이미 성공이므로 silent
+        console.error('[useMedication] 알림 읽음 처리 실패 (복용 기록은 저장됨):', markReadErr);
+      }
+
       // 오늘 현황 갱신
       await fetchTodayStatus();
       return true;
