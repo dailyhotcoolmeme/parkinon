@@ -140,11 +140,16 @@ export function MedicationScreen() {
 
     // 알림으로 진입 시 미읽음 약 복용 알림 읽음 처리 (안전망)
     // saveNotification에서 type 불일치 등으로 읽음 처리가 안 된 경우 대비
+    // cutoff: 오늘 KST 0시 (1~2시간 늦게 탭해도 안전망 작동하도록 확장)
     (async () => {
       try {
         const { data: { user: authUser } } = await supabase.auth.getUser();
         if (!authUser) return;
-        const since = new Date(Date.now() - 60 * 60 * 1000).toISOString(); // 1시간 이내
+        // 오늘 KST 0시(=UTC 전날 15:00) 기준 since 계산
+        const now = new Date();
+        const koreaToday = new Date(now.getTime() + 9 * 60 * 60 * 1000);
+        koreaToday.setUTCHours(0, 0, 0, 0);
+        const since = new Date(koreaToday.getTime() - 9 * 60 * 60 * 1000).toISOString();
         await supabase
           .from('notification_logs')
           .update({ read_at: new Date().toISOString() })
@@ -306,6 +311,10 @@ export function MedicationScreen() {
       Alert.alert('저장 실패', medError ?? '복용 기록 저장에 실패했어요. 다시 시도해 주세요.');
       return;
     }
+
+    // 약 기록 성공 → 종 아이콘 뱃지 즉시 갱신 (safety net)
+    // useMedication 훅 내부에서 이미 읽음 처리하지만 Context 카운트 동기화를 위해 한 번 더 호출
+    refreshBadge().catch(() => {});
 
     // 예정 알림 시간보다 일찍 기록한 경우 → 안내 팝업
     const schedStr = userMealSchedules?.[mealTime] ?? DEFAULT_MEAL_TIMES[mealTime];
