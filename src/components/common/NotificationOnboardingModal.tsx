@@ -16,9 +16,11 @@ import {
   Animated,
   TouchableOpacity,
   Switch,
+  ScrollView,
+  Platform,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
-import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { SafeAreaProvider, useSafeAreaInsets, initialWindowMetrics } from 'react-native-safe-area-context';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import * as Notifications from 'expo-notifications';
 import { Colors } from '../../constants/colors';
@@ -67,9 +69,32 @@ interface Props {
 }
 
 // ─── Component ────────────────────────────────────────────────────────────────
-export function NotificationOnboardingModal({ isCaregiver, userId, visible, onClose }: Props) {
+export function NotificationOnboardingModal(props: Props) {
+  // Android Modal은 별도 Window로 렌더링되어 부모의 SafeAreaProvider 컨텍스트를 받지 못함.
+  // → Modal 내부에 SafeAreaProvider를 다시 감싸서 useSafeAreaInsets()가 실제 nav bar inset을 반환하도록 함.
+  return (
+    <Modal
+      visible={props.visible}
+      transparent
+      animationType="none"
+      statusBarTranslucent
+      onRequestClose={() => props.onClose()}
+    >
+      <SafeAreaProvider initialMetrics={initialWindowMetrics}>
+        <NotificationOnboardingModalContent {...props} />
+      </SafeAreaProvider>
+    </Modal>
+  );
+}
+
+function NotificationOnboardingModalContent({ isCaregiver, userId, visible, onClose }: Props) {
   const { setNotificationEnabled } = useSettings();
   const insets = useSafeAreaInsets();
+  // Android에서 statusBarTranslucent=true면 status bar 영역도 콘텐츠 영역. 시트는 bottom 영역만 신경쓰면 됨.
+  // 단 inset.bottom이 0인 케이스(예: 일부 Android Modal 환경)에 대비해 fallback 추가.
+  const navBarFallback =
+    Platform.OS === 'android' && insets.bottom === 0 ? 24 : 0;
+  const bottomInset = insets.bottom + navBarFallback;
 
   // 항목 전체 항상 ON 고정 (사용자 변경 불가)
 
@@ -160,16 +185,31 @@ export function NotificationOnboardingModal({ isCaregiver, userId, visible, onCl
 
   const items = isCaregiver ? CAREGIVER_ITEMS : PATIENT_ITEMS;
 
+  // 시트 최대 높이: 화면의 90%에서 status bar 높이 제외. statusBarTranslucent로 인해 top inset도 고려.
   return (
-    <Modal visible={visible} transparent animationType="none" onRequestClose={handleLater}>
-      <Animated.View style={[styles.backdrop, { opacity: fadeAnim }]}>
-        {/* 딤 탭으로 닫기 */}
-        <TouchableOpacity style={StyleSheet.absoluteFill} activeOpacity={1} onPress={handleLater} />
+    <Animated.View style={[styles.backdrop, { opacity: fadeAnim }]}>
+      {/* 딤 탭으로 닫기 */}
+      <TouchableOpacity style={StyleSheet.absoluteFill} activeOpacity={1} onPress={handleLater} />
 
-        <Animated.View style={[styles.sheet, { paddingBottom: Math.max(40, insets.bottom + 24), transform: [{ translateY: slideAnim }] }]}>
-          {/* 핸들 */}
-          <View style={styles.handle} />
+      <Animated.View
+        style={[
+          styles.sheet,
+          {
+            // 시트 자체 패딩: 스크롤 가능한 콘텐츠 영역만. 하단 버튼은 sticky로 별도 처리.
+            transform: [{ translateY: slideAnim }],
+            maxHeight: '90%',
+          },
+        ]}
+      >
+        {/* 핸들 */}
+        <View style={styles.handle} />
 
+        {/* 스크롤 가능한 콘텐츠 영역 */}
+        <ScrollView
+          showsVerticalScrollIndicator={false}
+          contentContainerStyle={{ paddingBottom: 8 }}
+          bounces={false}
+        >
           {/* 헤더 */}
           <View style={styles.headerArea}>
             <View style={styles.iconCircle}>
@@ -211,7 +251,8 @@ export function NotificationOnboardingModal({ isCaregiver, userId, visible, onCl
             borderRadius: 8,
             padding: 14,
             marginHorizontal: 20,
-            marginBottom: 16,
+            marginTop: 12,
+            marginBottom: 4,
           }}>
             <Text style={{ fontSize: 16, color: '#111111', lineHeight: 24 }}>
               {'잠시 후 스마트폰이 알림 허용 여부를\n물어봐요. '}
@@ -219,23 +260,23 @@ export function NotificationOnboardingModal({ isCaregiver, userId, visible, onCl
               {' 버튼을 눌러주세요.'}
             </Text>
           </View>
+        </ScrollView>
 
-          {/* 버튼 영역 */}
-          <View style={styles.buttonArea}>
-            <TouchableOpacity
-              activeOpacity={0.85}
-              style={styles.confirmBtn}
-              onPress={handleConfirm}
-            >
-              <Text style={styles.confirmBtnText}>알림 허용하기</Text>
-            </TouchableOpacity>
-            <TouchableOpacity activeOpacity={0.7} style={styles.laterBtn} onPress={handleLater}>
-              <Text style={styles.laterBtnText}>나중에 설정할게요</Text>
-            </TouchableOpacity>
-          </View>
-        </Animated.View>
+        {/* 버튼 영역 — sticky (ScrollView 밖). nav bar 가림 방지를 위해 bottomInset + 16 패딩. */}
+        <View style={[styles.buttonArea, { paddingBottom: Math.max(16, bottomInset + 16) }]}>
+          <TouchableOpacity
+            activeOpacity={0.85}
+            style={styles.confirmBtn}
+            onPress={handleConfirm}
+          >
+            <Text style={styles.confirmBtnText}>알림 허용하기</Text>
+          </TouchableOpacity>
+          <TouchableOpacity activeOpacity={0.7} style={styles.laterBtn} onPress={handleLater}>
+            <Text style={styles.laterBtnText}>나중에 설정할게요</Text>
+          </TouchableOpacity>
+        </View>
       </Animated.View>
-    </Modal>
+    </Animated.View>
   );
 }
 
@@ -250,8 +291,8 @@ const styles = StyleSheet.create({
     backgroundColor: Colors.white,
     borderTopLeftRadius: 28,
     borderTopRightRadius: 28,
-    paddingBottom: 40,
     maxHeight: '90%',
+    overflow: 'hidden',
   },
   handle: {
     width: 40,
