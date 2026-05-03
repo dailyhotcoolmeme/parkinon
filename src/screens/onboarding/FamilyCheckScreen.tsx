@@ -183,7 +183,11 @@ export function FamilyCheckScreen() {
         </TouchableOpacity>
       </View>
 
-      <View style={styles.content}>
+      <ScrollView
+        style={styles.content}
+        contentContainerStyle={styles.contentScroll}
+        showsVerticalScrollIndicator={false}
+      >
         <Text style={styles.title}>
           가족 중에 파킨온을{'\n'}쓰고 있는 분이 계신가요?
         </Text>
@@ -216,7 +220,7 @@ export function FamilyCheckScreen() {
             );
           })}
         </View>
-      </View>
+      </ScrollView>
 
       {/* 하단 버튼 */}
       <View style={[styles.bottomArea, { paddingBottom: 40 + bottomInset }]}>
@@ -261,8 +265,11 @@ const styles = StyleSheet.create({
   },
   content: {
     flex: 1,
+  },
+  contentScroll: {
     paddingHorizontal: 24,
     paddingTop: 16,
+    paddingBottom: 220,
   },
   scrollContent: {
     paddingHorizontal: 24,
@@ -285,7 +292,6 @@ const styles = StyleSheet.create({
     textAlign: 'center',
   },
   btnGroup: {
-    flex: 1,
     gap: 14,
     paddingBottom: 24,
   },
