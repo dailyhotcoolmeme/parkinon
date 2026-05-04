@@ -11,7 +11,6 @@ import { navigateTo } from './src/navigation/navigationRef';
 import * as Updates from 'expo-updates';
 import { supabase } from './src/lib/supabase';
 import { requestPermissionsAndSaveToken } from './src/utils/notifications';
-import { notificationIntentManager } from './src/utils/NotificationIntentManager';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 
 // Android 알림 채널 — MAX 중요도 (Doze 모드에서도 즉시 표시)
@@ -150,7 +149,9 @@ function AppInner() {
             screen: 'Medication',
             params: { autoOpen: Date.now(), mealTime },
           });
-          notificationIntentManager.emit({ mealTime });
+          // NOTE: notificationIntentManager.emit 제거 — race + poison ref guard 원천이라
+          // PiP transition 중 모달이 손실되는 결함의 근본 원인. 약복용 trigger는
+          // route.params.autoOpen + AsyncStorage pendingMedNotif 2가지로 단순화.
         } else if (type === 'effect_tracking') {
           try {
             await AsyncStorage.setItem(

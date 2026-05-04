@@ -1,4 +1,4 @@
-import React, { useState, useCallback, useEffect, useRef } from 'react';
+import React, { useState, useCallback, useEffect } from 'react';
 import {
   View,
   Text,
@@ -8,6 +8,7 @@ import {
   Dimensions,
   Alert,
   Modal,
+  InteractionManager,
 } from 'react-native';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useFocusEffect, useRoute, RouteProp } from '@react-navigation/native';
@@ -28,7 +29,6 @@ import { supabase } from '../../lib/supabase';
 import { useNotificationBadge } from '../../context/NotificationBadgeContext';
 import { HistoryTimeline } from '../../components/common/HistoryTimeline';
 import { mealTimeToKorean } from '../../utils/medUtils';
-import { notificationIntentManager } from '../../utils/NotificationIntentManager';
 
 const WINDOW_HEIGHT = Dimensions.get('window').height;
 const TOP_BAR_H = 56;
@@ -168,26 +168,21 @@ export function MedicationScreen() {
     // if (userRole === 'caregiver_separate' || userRole === 'caregiver_no_patient') return;
 
     // 화면 전환 애니메이션 완료 후 모달 오픈
+    // PiP(YouTube) 환경 등 layout transition 중 첫 setShow가 손실되는 케이스 대비:
+    // false → rAF → true 패턴으로 강제 재mount 보장. InteractionManager로 PiP transition
+    // 완료 후 실행을 보장한다.
     const timer = setTimeout(() => {
-      setShowMealTimeModal(true);
+      InteractionManager.runAfterInteractions(() => {
+        setShowMealTimeModal(false);
+        requestAnimationFrame(() => {
+          setShowMealTimeModal(true);
+        });
+      });
     }, 400);
     return () => clearTimeout(timer);
   // routeParams 객체 참조가 바뀌어도 autoOpen 값 기준으로만 실행
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [routeParams.autoOpen]);
-
-  // NotificationIntentManager 기반 알림 탭 → 모달 열기 (콜드 스타트 레이스 컨디션 해결)
-  const openMedModalRef = useRef(false);
-  useEffect(() => {
-    const unsubscribe = notificationIntentManager.subscribe(({ mealTime }) => {
-      if (openMedModalRef.current) return;
-      openMedModalRef.current = true;
-      setTimeout(() => { openMedModalRef.current = false; }, 2000);
-      if (mealTime) setSelectedMealTime(mealTime as MealTime);
-      setTimeout(() => setShowMealTimeModal(true), 100);
-    });
-    return unsubscribe;
-  }, []);
 
   // 날짜별 복용 현황 (날짜 선택 시 사용)
   const [dateLogStatus, setDateLogStatus] = useState<Record<string, any> | null>(null);
@@ -214,7 +209,16 @@ export function MedicationScreen() {
         try {
           const { mealTime } = JSON.parse(value);
           if (mealTime) setSelectedMealTime(mealTime as MealTime);
-          setTimeout(() => setShowMealTimeModal(true), 300);
+          // PiP 등 layout transition 중 setShow가 손실되는 케이스 대비:
+          // false → rAF → true 패턴으로 강제 재mount 보장
+          setTimeout(() => {
+            InteractionManager.runAfterInteractions(() => {
+              setShowMealTimeModal(false);
+              requestAnimationFrame(() => {
+                setShowMealTimeModal(true);
+              });
+            });
+          }, 300);
         } catch {}
       });
     }, [])
