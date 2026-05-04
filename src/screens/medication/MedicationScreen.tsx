@@ -9,6 +9,7 @@ import {
   Alert,
   Modal,
 } from 'react-native';
+import { DeviceEventEmitter } from 'react-native';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useFocusEffect } from '@react-navigation/native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
@@ -141,44 +142,57 @@ export function MedicationScreen() {
     }, [refresh, isToday])
   );
 
+  // pending 알림 체크 — idempotent (read+remove 후 재호출해도 null이라 안전 종료)
+  const checkPendingMedNotif = useCallback(() => {
+    AsyncStorage.getItem('pendingMedNotif').then((value) => {
+      if (!value) return;
+      // 즉시 제거 (재발화 방지)
+      AsyncStorage.removeItem('pendingMedNotif').catch(() => {});
+      try {
+        const { mealTime } = JSON.parse(value);
+        if (mealTime) setSelectedMealTime(mealTime as MealTime);
+        setShowMealTimeModal(true);
+      } catch {}
+
+      // 미읽음 약 알림 읽음 처리 (오늘분만)
+      (async () => {
+        try {
+          const { data: { user: authUser } } = await supabase.auth.getUser();
+          if (!authUser) return;
+          const now = new Date();
+          const koreaToday = new Date(now.getTime() + 9 * 60 * 60 * 1000);
+          koreaToday.setUTCHours(0, 0, 0, 0);
+          const since = new Date(koreaToday.getTime() - 9 * 60 * 60 * 1000).toISOString();
+          await supabase
+            .from('notification_logs')
+            .update({ read_at: new Date().toISOString() })
+            .eq('user_id', authUser.id)
+            .in('type', ['medication_reminder', 'missed_medication'])
+            .is('read_at', null)
+            .gte('created_at', since);
+          refreshBadge();
+        } catch (e) {
+          console.error('[MedicationScreen] 알림 읽음 처리 오류:', e);
+        }
+      })();
+    }).catch(() => {});
+  }, [refreshBadge]);
+
   // 알림 탭 → 모달 열기 (단일 trigger 채널: AsyncStorage)
   // + 약 알림 일괄 읽음 처리 (배지 즉시 갱신)
   useFocusEffect(
     useCallback(() => {
-      AsyncStorage.getItem('pendingMedNotif').then((value) => {
-        if (!value) return;
-        // 즉시 제거 (재발화 방지)
-        AsyncStorage.removeItem('pendingMedNotif').catch(() => {});
-        try {
-          const { mealTime } = JSON.parse(value);
-          if (mealTime) setSelectedMealTime(mealTime as MealTime);
-          setShowMealTimeModal(true);
-        } catch {}
-
-        // 미읽음 약 알림 읽음 처리 (오늘분만)
-        (async () => {
-          try {
-            const { data: { user: authUser } } = await supabase.auth.getUser();
-            if (!authUser) return;
-            const now = new Date();
-            const koreaToday = new Date(now.getTime() + 9 * 60 * 60 * 1000);
-            koreaToday.setUTCHours(0, 0, 0, 0);
-            const since = new Date(koreaToday.getTime() - 9 * 60 * 60 * 1000).toISOString();
-            await supabase
-              .from('notification_logs')
-              .update({ read_at: new Date().toISOString() })
-              .eq('user_id', authUser.id)
-              .in('type', ['medication_reminder', 'missed_medication'])
-              .is('read_at', null)
-              .gte('created_at', since);
-            refreshBadge();
-          } catch (e) {
-            console.error('[MedicationScreen] 알림 읽음 처리 오류:', e);
-          }
-        })();
-      }).catch(() => {});
-    }, [refreshBadge])
+      checkPendingMedNotif();
+    }, [checkPendingMedNotif])
   );
+
+  // 같은 탭에 이미 있을 때 navigate 시 focus가 발화 안 되는 문제 대응:
+  // App.tsx가 navigateTo 직후 emit하는 강제 트리거 이벤트 수신.
+  // checkPendingMedNotif는 idempotent하므로 중복 실행되어도 안전.
+  useEffect(() => {
+    const sub = DeviceEventEmitter.addListener('pendingMedNotifCheck', checkPendingMedNotif);
+    return () => sub.remove();
+  }, [checkPendingMedNotif]);
 
   // 날짜 변경 시 해당 날짜 로그 조회
   useEffect(() => {

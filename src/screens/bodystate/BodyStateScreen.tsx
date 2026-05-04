@@ -9,6 +9,7 @@ import {
   Alert,
   Modal,
 } from 'react-native';
+import { DeviceEventEmitter } from 'react-native';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useNavigation, useFocusEffect } from '@react-navigation/native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
@@ -202,6 +203,33 @@ export function BodyStateScreen() {
     loadDateLogs();
   }, [loadVideoLogs, loadDateLogs]);
 
+  // 약효추적 알림 처리 — idempotent (read+remove 후 재호출해도 null이라 안전)
+  const checkPendingBodyStateNotif = useCallback(() => {
+    AsyncStorage.getItem('pendingBodyStateNotif').then((value) => {
+      if (!value) return;
+      // 즉시 제거 (재발화 방지)
+      AsyncStorage.removeItem('pendingBodyStateNotif').catch(() => {});
+      try {
+        const { triggerMinutes, triggerMealTime } = JSON.parse(value);
+        if (triggerMinutes == null) return;
+        const label = minutesToLabel(triggerMinutes);
+        setPendingTriggeredBy('notification');
+        setPendingTriggerLabel(label);
+        if (triggerMealTime) {
+          openFlowOrPend(label, null, triggerMealTime);
+        } else {
+          readValidLastMedication()
+            .then((parsed) => {
+              if (!parsed) { openFlowOrPend(label, null, null); return; }
+              const medTime = parsed.taken_at ? new Date(parsed.taken_at) : null;
+              openFlowOrPend(label, medTime, parsed.meal_time);
+            })
+            .catch(() => openFlowOrPend(label, null, null));
+        }
+      } catch {}
+    }).catch(() => {});
+  }, []);
+
   // 포커스 시 통합 처리: stale args 초기화 + 데이터 갱신 + 알림 처리(AsyncStorage 단일 채널)
   // route.params 경로 완전 제거 — App.tsx가 AsyncStorage에만 publish
   useFocusEffect(
@@ -216,32 +244,15 @@ export function BodyStateScreen() {
         loadDateLogs();
       }
 
-      // 약효추적 알림 처리
-      AsyncStorage.getItem('pendingBodyStateNotif').then((value) => {
-        if (!value) return;
-        // 즉시 제거 (재발화 방지)
-        AsyncStorage.removeItem('pendingBodyStateNotif').catch(() => {});
-        try {
-          const { triggerMinutes, triggerMealTime } = JSON.parse(value);
-          if (triggerMinutes == null) return;
-          const label = minutesToLabel(triggerMinutes);
-          setPendingTriggeredBy('notification');
-          setPendingTriggerLabel(label);
-          if (triggerMealTime) {
-            openFlowOrPend(label, null, triggerMealTime);
-          } else {
-            readValidLastMedication()
-              .then((parsed) => {
-                if (!parsed) { openFlowOrPend(label, null, null); return; }
-                const medTime = parsed.taken_at ? new Date(parsed.taken_at) : null;
-                openFlowOrPend(label, medTime, parsed.meal_time);
-              })
-              .catch(() => openFlowOrPend(label, null, null));
-          }
-        } catch {}
-      }).catch(() => {});
-    }, [loadVideoLogs, loadDateLogs, isToday, refresh])
+      checkPendingBodyStateNotif();
+    }, [loadVideoLogs, loadDateLogs, isToday, refresh, checkPendingBodyStateNotif])
   );
+
+  // 같은 탭에 이미 있을 때 navigate 시 focus 미발화 대응 — App.tsx가 emit
+  useEffect(() => {
+    const sub = DeviceEventEmitter.addListener('pendingBodyStateNotifCheck', checkPendingBodyStateNotif);
+    return () => sub.remove();
+  }, [checkPendingBodyStateNotif]);
 
   const [patientName, setPatientName] = useState('환자');
   const [patientId, setPatientId] = useState<string | null>(null);

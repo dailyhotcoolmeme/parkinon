@@ -8,6 +8,7 @@ import {
   Dimensions,
   ActivityIndicator,
   Alert,
+  DeviceEventEmitter,
 } from 'react-native';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useNavigation } from '@react-navigation/native';
@@ -137,25 +138,35 @@ export function ExerciseScreen() {
     }, [loadLogsForDate, selectedDate])
   );
 
+  // 운동 알림 탭 → ExerciseRecord 자동 진입 — idempotent
+  const checkPendingExerciseNotif = useCallback(() => {
+    if (!user) return;
+    if (user.role !== 'patient') return;
+    AsyncStorage.getItem('pendingExerciseNotif').then((val) => {
+      if (val !== 'true') return;
+      // 즉시 제거 → 동일 effect 재발화 시 중복 push 방지
+      AsyncStorage.removeItem('pendingExerciseNotif').catch(() => {});
+      try {
+        navigation.push('ExerciseRecord');
+      } catch (e) {
+        console.error('[ExerciseScreen] ExerciseRecord push 실패:', e);
+      }
+    }).catch(() => {});
+  }, [navigation, user]);
+
   // 운동 알림 탭 → ExerciseRecord 자동 진입 (단일 채널: AsyncStorage)
   // 환자 본인만 자동 진입. user 미로드 시 플래그 보존(다음 deps 변경 시 재실행).
   useFocusEffect(
     React.useCallback(() => {
-      if (!user) return;
-      if (user.role !== 'patient') return;
-
-      AsyncStorage.getItem('pendingExerciseNotif').then((val) => {
-        if (val !== 'true') return;
-        // 즉시 제거 → 동일 effect 재발화 시 중복 push 방지
-        AsyncStorage.removeItem('pendingExerciseNotif').catch(() => {});
-        try {
-          navigation.push('ExerciseRecord');
-        } catch (e) {
-          console.error('[ExerciseScreen] ExerciseRecord push 실패:', e);
-        }
-      }).catch(() => {});
-    }, [navigation, user])
+      checkPendingExerciseNotif();
+    }, [checkPendingExerciseNotif])
   );
+
+  // 같은 탭에 이미 있을 때 navigate 시 focus 미발화 대응 — App.tsx가 emit
+  useEffect(() => {
+    const sub = DeviceEventEmitter.addListener('pendingExerciseNotifCheck', checkPendingExerciseNotif);
+    return () => sub.remove();
+  }, [checkPendingExerciseNotif]);
 
   // error 발생 시 Alert
   React.useEffect(() => {

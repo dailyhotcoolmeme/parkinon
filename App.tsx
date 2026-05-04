@@ -1,5 +1,5 @@
 import React, { useCallback, useEffect, useRef } from 'react';
-import { AppState, AppStateStatus, StatusBar } from 'react-native';
+import { AppState, AppStateStatus, DeviceEventEmitter, StatusBar } from 'react-native';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 import { AuthProvider } from './src/context/AuthContext';
@@ -155,6 +155,8 @@ function AppInner() {
             );
           } catch {}
           navigateTo('Main', { screen: 'Medication' });
+          // 같은 탭에 이미 있을 때 useFocusEffect 미발화 대응 → 강제 트리거
+          DeviceEventEmitter.emit('pendingMedNotifCheck');
         } else if (type === 'effect_tracking') {
           try {
             await AsyncStorage.setItem(
@@ -169,6 +171,7 @@ function AppInner() {
             screen: 'BodyStateTab',
             params: { screen: 'BodyState' },
           });
+          DeviceEventEmitter.emit('pendingBodyStateNotifCheck');
         } else if (type === 'exercise_reminder') {
           try {
             await AsyncStorage.setItem('pendingExerciseNotif', 'true');
@@ -177,6 +180,7 @@ function AppInner() {
             screen: 'Exercise',
             params: { screen: 'ExerciseMain' },
           });
+          DeviceEventEmitter.emit('pendingExerciseNotifCheck');
         } else if (type) {
           navigateTo('Main');
         }
