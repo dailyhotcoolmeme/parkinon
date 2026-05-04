@@ -148,10 +148,15 @@ export function ExerciseScreen() {
   //   1) route.params.triggerTs (App.tsx nested navigate가 직접 전달) — 빠르고 확실
   //   2) AsyncStorage 'pendingExerciseNotif' fallback — 콜드스타트/race 대비
   // 환자 본인만 자동 진입 (보호자 same-house는 CaregiverConfirmModal로 별도 처리)
-  // user가 아직 미로드(null)면 분기 false → user 로드 후 deps 변경으로 재실행
+  // user가 아직 미로드(null)이면 즉시 처리하지 못하므로:
+  //  - route.params.triggerTs는 그대로 둬서 user 로드 deps 변경 시 재실행을 통해 처리
+  //  - AsyncStorage 플래그는 절대 삭제하지 않음 (early return 시 플래그 보존)
   useFocusEffect(
     React.useCallback(() => {
-      if (user?.role !== 'patient') return;
+      // user 로드 전에는 어떤 처리도 하지 않고 플래그/params를 보존한다.
+      // user 로드되면 이 effect가 deps(user) 변경으로 재실행됨.
+      if (!user) return;
+      if (user.role !== 'patient') return;
 
       const triggerTs = route.params?.triggerTs;
       // 1) route.params 경로 — 같은 triggerTs는 한 번만 처리 (포커스 재진입 시 중복 방지)
@@ -169,7 +174,7 @@ export function ExerciseScreen() {
         return;
       }
 
-      // 2) AsyncStorage fallback 경로 — 기존 로직 유지
+      // 2) AsyncStorage fallback 경로 — user 로드된 이후에만 소비
       AsyncStorage.getItem('pendingExerciseNotif').then((val) => {
         if (val === 'true') {
           try {

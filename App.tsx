@@ -181,10 +181,13 @@ function AppInner() {
           try {
             await AsyncStorage.setItem('pendingExerciseNotif', 'true');
           } catch {}
+          // triggerTs는 ExerciseMain(=ExerciseScreen)의 route.params로 들어가야
+          // useFocusEffect의 빠른 경로가 발화하여 navigation.push('ExerciseRecord')를 호출한다.
+          // 이전엔 inner=ExerciseRecord로 들어가서 ExerciseMain.params는 항상 비어있는 데드코드였음.
           navigateTo('Main', {
             screen: 'Exercise',
             params: {
-              screen: 'ExerciseRecord',
+              screen: 'ExerciseMain',
               params: { triggerTs: Date.now() },
             },
           });
@@ -253,8 +256,9 @@ function AppInner() {
       appState.current = nextAppState;
       // background → active 전환 시 stale pendingExerciseNotif 안전망
       // 다른 알림(약효추적/약복용)이 운동 알림보다 늦게 처리되어 Exercise 탭이 활성화되지
-      // 않은 채 영구 잔존하는 케이스 방지. 5초 후에도 ExerciseScreen이 처리하지 못했으면
-      // 자동 정리 (다음 정상 운동 알림 처리에 영향 주지 않도록).
+      // 않은 채 영구 잔존하는 케이스 방지. 15초 후에도 ExerciseScreen이 처리하지 못했으면
+      // 자동 정리. 콜드스타트 user/auth 로드 + 화면 transition + useFocusEffect 발화에
+      // 5초로는 부족해 race가 발생했음 → 15초로 충분한 여유 확보.
       if (prev !== 'active' && nextAppState === 'active') {
         setTimeout(() => {
           AsyncStorage.getItem('pendingExerciseNotif')
@@ -265,7 +269,7 @@ function AppInner() {
               }
             })
             .catch(() => {});
-        }, 5000);
+        }, 15000);
       }
     });
 
