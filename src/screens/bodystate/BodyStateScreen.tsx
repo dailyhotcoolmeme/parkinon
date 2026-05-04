@@ -208,7 +208,7 @@ export function BodyStateScreen() {
   // 포커스 시 stale 팝업 args 초기화 — 알림 useFocusEffect보다 반드시 먼저 실행되어야 함
   useFocusEffect(
     useCallback(() => {
-      hasBedtimeLoadedRef.current = false;
+      // hasBedtimeLoadedRef.current = false; ← 제거: cleanup이 pending flush를 영구 차단하던 회귀 원인
       pendingFlowArgsRef.current = null;
     }, [])
   );
