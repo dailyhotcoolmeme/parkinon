@@ -10,7 +10,7 @@ import {
   Modal,
 } from 'react-native';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
-import { useFocusEffect, useRoute, RouteProp } from '@react-navigation/native';
+import { useFocusEffect } from '@react-navigation/native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { Ionicons } from '@expo/vector-icons';
 import { Colors } from '../../constants/colors';
@@ -90,13 +90,7 @@ function toLocalDateString(date: Date): string {
   return kst.toISOString().slice(0, 10);
 }
 
-type MedicationRouteParams = {
-  mealTime?: string | null;
-};
-
 export function MedicationScreen() {
-  const route = useRoute<RouteProp<{ Medication: MedicationRouteParams }, 'Medication'>>();
-  const routeParams = (route.params ?? {}) as MedicationRouteParams;
   const { user } = useAuth();
   const { todayStatus, takeMedication, getMedLogs, error: medError, refresh } = useMedication();
   const { saveBodyState, todayLogs: bodyLogs } = useBodyState();
@@ -131,35 +125,6 @@ export function MedicationScreen() {
     }).catch(() => {});
   }, [user?.onboarding_done]);
 
-  // 알림 탭 진입 시 미읽음 약 복용 알림 읽음 처리 (안전망)
-  // 모달 trigger는 아래 useFocusEffect(pendingMedNotif) 단일 채널만 담당.
-  // 이전: route.params.autoOpen useEffect + useFocusEffect 두 경로가 동일 state를
-  // toggle하면서 race 발생 → 단일 채널로 통일.
-  useEffect(() => {
-    if (!routeParams.mealTime) return;
-    (async () => {
-      try {
-        const { data: { user: authUser } } = await supabase.auth.getUser();
-        if (!authUser) return;
-        const now = new Date();
-        const koreaToday = new Date(now.getTime() + 9 * 60 * 60 * 1000);
-        koreaToday.setUTCHours(0, 0, 0, 0);
-        const since = new Date(koreaToday.getTime() - 9 * 60 * 60 * 1000).toISOString();
-        await supabase
-          .from('notification_logs')
-          .update({ read_at: new Date().toISOString() })
-          .eq('user_id', authUser.id)
-          .in('type', ['medication_reminder', 'missed_medication'])
-          .is('read_at', null)
-          .gte('created_at', since);
-        refreshBadge();
-      } catch (e) {
-        console.error('[MedicationScreen] 읽음 처리 오류:', e);
-      }
-    })();
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [routeParams.mealTime]);
-
   // 날짜별 복용 현황 (날짜 선택 시 사용)
   const [dateLogStatus, setDateLogStatus] = useState<Record<string, any> | null>(null);
   const [dateLogsLoading, setDateLogsLoading] = useState(false);
@@ -176,21 +141,43 @@ export function MedicationScreen() {
     }, [refresh, isToday])
   );
 
-  // 알림 탭 → 모달 열기 (단일 trigger 채널)
-  // 단순화: InteractionManager + setShow(false→rAF→true) 패턴 모두 제거.
-  // 모달 state를 직접 true로 set만 한다. 멀티 알림 race는 App.tsx의 mutex 큐가 담당.
+  // 알림 탭 → 모달 열기 (단일 trigger 채널: AsyncStorage)
+  // + 약 알림 일괄 읽음 처리 (배지 즉시 갱신)
   useFocusEffect(
     useCallback(() => {
       AsyncStorage.getItem('pendingMedNotif').then((value) => {
         if (!value) return;
+        // 즉시 제거 (재발화 방지)
         AsyncStorage.removeItem('pendingMedNotif').catch(() => {});
         try {
           const { mealTime } = JSON.parse(value);
           if (mealTime) setSelectedMealTime(mealTime as MealTime);
           setShowMealTimeModal(true);
         } catch {}
+
+        // 미읽음 약 알림 읽음 처리 (오늘분만)
+        (async () => {
+          try {
+            const { data: { user: authUser } } = await supabase.auth.getUser();
+            if (!authUser) return;
+            const now = new Date();
+            const koreaToday = new Date(now.getTime() + 9 * 60 * 60 * 1000);
+            koreaToday.setUTCHours(0, 0, 0, 0);
+            const since = new Date(koreaToday.getTime() - 9 * 60 * 60 * 1000).toISOString();
+            await supabase
+              .from('notification_logs')
+              .update({ read_at: new Date().toISOString() })
+              .eq('user_id', authUser.id)
+              .in('type', ['medication_reminder', 'missed_medication'])
+              .is('read_at', null)
+              .gte('created_at', since);
+            refreshBadge();
+          } catch (e) {
+            console.error('[MedicationScreen] 알림 읽음 처리 오류:', e);
+          }
+        })();
       }).catch(() => {});
-    }, [])
+    }, [refreshBadge])
   );
 
   // 날짜 변경 시 해당 날짜 로그 조회

@@ -10,7 +10,7 @@ import {
   Modal,
 } from 'react-native';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
-import { useNavigation, useRoute, useFocusEffect } from '@react-navigation/native';
+import { useNavigation, useFocusEffect } from '@react-navigation/native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { Ionicons } from '@expo/vector-icons';
 import { Colors } from '../../constants/colors';
@@ -162,13 +162,10 @@ export function BodyStateScreen() {
   const [pendingMealTime, setPendingMealTime] = useState<string | null>(null);
   const [hasBedtimeMedication, setHasBedtimeMedication] = useState(false);
   const [bedtimeRefreshTick, setBedtimeRefreshTick] = useState(0);
+  // 취침약 로드 완료 전에 알림이 들어오면 잠시 보류했다가, 로드 완료 시 flush
   const hasBedtimeLoadedRef = useRef(false);
   const pendingFlowArgsRef = useRef<{ label: string; medTime: Date | null; mealTimeKey: string | null } | null>(null);
-  // 회귀 수정: route.params triggerTs dedupe — 같은 ts는 한 번만 처리
-  // (다른 탭 갔다 복귀 시 stale params로 인한 중복 발화 방지)
-  const processedTriggerTsRef = useRef<number | null>(null);
   const navigation = useNavigation<any>();
-  const route = useRoute<any>();
   const insets = useSafeAreaInsets();
   const { unreadCount } = useNotificationBadge();
   const { medNotifs } = useSettings();
@@ -205,61 +202,25 @@ export function BodyStateScreen() {
     loadDateLogs();
   }, [loadVideoLogs, loadDateLogs]);
 
-  // 포커스 시 stale 팝업 args 초기화 — 알림 useFocusEffect보다 반드시 먼저 실행되어야 함
+  // 포커스 시 통합 처리: stale args 초기화 + 데이터 갱신 + 알림 처리(AsyncStorage 단일 채널)
+  // route.params 경로 완전 제거 — App.tsx가 AsyncStorage에만 publish
   useFocusEffect(
     useCallback(() => {
-      // hasBedtimeLoadedRef.current = false; ← 제거: cleanup이 pending flush를 영구 차단하던 회귀 원인
       pendingFlowArgsRef.current = null;
-    }, [])
-  );
 
-  // 알림 탭 진입 시 trigger_time_label 자동 설정
-  useFocusEffect(
-    React.useCallback(() => {
-      const triggerMinutes = route.params?.triggerMinutes;
-      if (triggerMinutes != null) {
-        // 회귀 수정: triggerTs dedupe — 같은 ts는 두 번 처리하지 않음
-        // (탭 전환 후 복귀 시 stale params로 useFocusEffect가 재발화해 Alert 반복되는 문제)
-        const triggerTs = (route.params as any)?.triggerTs ?? null;
-        if (triggerTs != null && processedTriggerTsRef.current === triggerTs) {
-          return;
-        }
-        if (triggerTs != null) {
-          processedTriggerTsRef.current = triggerTs;
-        }
-
-        const label = minutesToLabel(triggerMinutes);
-        // 알림 데이터에 meal_time이 있으면 우선 사용, 없으면 AsyncStorage 조회
-        const paramMealTime = (route.params as any)?.triggerMealTime ?? null;
-        setPendingTriggeredBy('notification');
-        setPendingTriggerLabel(label);
-        if (!showFlow) {
-          if (paramMealTime) {
-            openFlowOrPend(label, null, paramMealTime);
-          } else {
-            readValidLastMedication()
-              .then((parsed) => {
-                if (!parsed) { openFlowOrPend(label, null, null); return; }
-                const medTime = parsed.taken_at ? new Date(parsed.taken_at) : null;
-                openFlowOrPend(label, medTime, parsed.meal_time);
-              })
-              .catch(() => openFlowOrPend(label, null, null));
-          }
-        }
-
-        // 처리 직후 route.params 비움 — 다음 포커스 진입 시 stale 재발화 방지
-        // (handleSaveRecord 성공 시에만 비우는 기존 로직은 사용자가 취소/다른 탭 이동 시 stale 잔존)
-        navigation.setParams({ triggerMinutes: null, triggerMealTime: null, triggerTs: null });
+      // 데이터 갱신
+      loadVideoLogs();
+      if (isToday) {
+        refresh();
+      } else {
+        loadDateLogs();
       }
-    }, [route.params?.triggerMinutes, (route.params as any)?.triggerMealTime, (route.params as any)?.triggerTs])
-  );
 
-  // 약효 추적 알림 탭 → 몸상태 팝업 열기 (AsyncStorage 방식 — 콜드스타트 대응)
-  useFocusEffect(
-    useCallback(() => {
+      // 약효추적 알림 처리
       AsyncStorage.getItem('pendingBodyStateNotif').then((value) => {
         if (!value) return;
-        AsyncStorage.removeItem('pendingBodyStateNotif');
+        // 즉시 제거 (재발화 방지)
+        AsyncStorage.removeItem('pendingBodyStateNotif').catch(() => {});
         try {
           const { triggerMinutes, triggerMealTime } = JSON.parse(value);
           if (triggerMinutes == null) return;
@@ -278,19 +239,7 @@ export function BodyStateScreen() {
               .catch(() => openFlowOrPend(label, null, null));
           }
         } catch {}
-      });
-    }, [])
-  );
-
-  // 화면 포커스 시 오늘 기록 갱신
-  useFocusEffect(
-    useCallback(() => {
-      loadVideoLogs();
-      if (isToday) {
-        refresh();
-      } else {
-        loadDateLogs();
-      }
+      }).catch(() => {});
     }, [loadVideoLogs, loadDateLogs, isToday, refresh])
   );
 
@@ -532,9 +481,6 @@ export function BodyStateScreen() {
     setPendingTriggerLabel(null);
     setPendingTriggeredBy('manual');
     setHistoryRefreshKey(k => k + 1);
-    if (route.params?.triggerMinutes != null) {
-      navigation.setParams({ triggerMinutes: null });
-    }
 
     // 2. 저장 + 큐 삭제 + 다음 알림 팝업 — await 체인으로 순서 보장
     (async () => {

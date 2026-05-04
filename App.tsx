@@ -140,22 +140,21 @@ function AppInner() {
         if (!ready) return;
       }
 
+      // ─── 알림 trigger 채널 통일 (2026-05 재설계) ───
+      // 모든 알림 타입은 "AsyncStorage 단일 채널"만 사용한다.
+      // App.tsx는 setItem(await) → navigateTo(탭만) → 끝.
+      // 화면 useFocusEffect가 AsyncStorage만 읽고 모달/스택 push.
+      // route.params(triggerMinutes/triggerMealTime/triggerTs)는 더 이상 사용하지 않는다.
+      // 이로써 두 채널 동시 publish로 인한 race가 원천 차단된다.
       try {
         if (type === 'medication_reminder' || type === 'missed_medication') {
-          // AsyncStorage write 완료 보장 후 navigateTo (콜드스타트 fallback)
           try {
             await AsyncStorage.setItem(
               'pendingMedNotif',
               JSON.stringify({ mealTime }),
             );
           } catch {}
-          navigateTo('Main', {
-            screen: 'Medication',
-            params: { mealTime },
-          });
-          // 약복용 trigger 채널 단일화: AsyncStorage pendingMedNotif → useFocusEffect 한 곳만.
-          // route.params.autoOpen, notificationIntentManager.emit, InteractionManager,
-          // setShow(false→rAF→true) 패턴 모두 제거 (race 원천 차단).
+          navigateTo('Main', { screen: 'Medication' });
         } else if (type === 'effect_tracking') {
           try {
             await AsyncStorage.setItem(
@@ -168,32 +167,15 @@ function AppInner() {
           } catch {}
           navigateTo('Main', {
             screen: 'BodyStateTab',
-            params: {
-              screen: 'BodyState',
-              params: {
-                triggerMinutes,
-                triggerMealTime: mealTime,
-                triggerTs: Date.now(),
-              },
-            },
+            params: { screen: 'BodyState' },
           });
         } else if (type === 'exercise_reminder') {
-          // 이중 경로:
-          // 1) AsyncStorage 플래그(fallback) — 콜드스타트/예외 케이스 대비
-          // 2) nested navigate로 ExerciseRecord 직접 진입 — 약효추적과 동일한 패턴
-          // mutex 큐(handlerQueueRef)로 직렬화되므로 워밍 케이스에서도 안전.
           try {
             await AsyncStorage.setItem('pendingExerciseNotif', 'true');
           } catch {}
-          // triggerTs는 ExerciseMain(=ExerciseScreen)의 route.params로 들어가야
-          // useFocusEffect의 빠른 경로가 발화하여 navigation.push('ExerciseRecord')를 호출한다.
-          // 이전엔 inner=ExerciseRecord로 들어가서 ExerciseMain.params는 항상 비어있는 데드코드였음.
           navigateTo('Main', {
             screen: 'Exercise',
-            params: {
-              screen: 'ExerciseMain',
-              params: { triggerTs: Date.now() },
-            },
+            params: { screen: 'ExerciseMain' },
           });
         } else if (type) {
           navigateTo('Main');
@@ -225,7 +207,8 @@ function AppInner() {
         .then(async () => {
           await handleNotificationResponse(response, isCold);
           // settle delay — useFocusEffect/탭 전환이 완료될 시간 확보
-          await new Promise<void>((resolve) => setTimeout(resolve, 350));
+          // 200ms로 단축: 단일 채널 단순화로 처리가 빨라져 350ms는 과함
+          await new Promise<void>((resolve) => setTimeout(resolve, 200));
         })
         .catch((e) => {
           console.warn('[App] handler queue 처리 실패:', e);
@@ -264,22 +247,22 @@ function AppInner() {
     const appStateSubscription = AppState.addEventListener('change', (nextAppState: AppStateStatus) => {
       const prev = appState.current;
       appState.current = nextAppState;
-      // background → active 전환 시 stale pendingExerciseNotif 안전망
-      // 다른 알림(약효추적/약복용)이 운동 알림보다 늦게 처리되어 Exercise 탭이 활성화되지
-      // 않은 채 영구 잔존하는 케이스 방지. 15초 후에도 ExerciseScreen이 처리하지 못했으면
-      // 자동 정리. 콜드스타트 user/auth 로드 + 화면 transition + useFocusEffect 발화에
-      // 5초로는 부족해 race가 발생했음 → 15초로 충분한 여유 확보.
+      // background → active 전환 시 stale pending 알림 플래그 안전망
+      // 60초 후에도 화면이 처리하지 못했다면 자동 정리.
+      // 약/몸상태/운동 모두 동일하게 적용. user/auth 로드 + transition 시간 충분히 확보.
       if (prev !== 'active' && nextAppState === 'active') {
         setTimeout(() => {
-          AsyncStorage.getItem('pendingExerciseNotif')
-            .then((val) => {
-              if (val === 'true') {
-                console.log('[App] stale pendingExerciseNotif 감지 → 자동 정리');
-                AsyncStorage.removeItem('pendingExerciseNotif').catch(() => {});
-              }
-            })
-            .catch(() => {});
-        }, 15000);
+          ['pendingExerciseNotif', 'pendingMedNotif', 'pendingBodyStateNotif'].forEach((key) => {
+            AsyncStorage.getItem(key)
+              .then((val) => {
+                if (val) {
+                  console.log(`[App] stale ${key} 감지 → 자동 정리`);
+                  AsyncStorage.removeItem(key).catch(() => {});
+                }
+              })
+              .catch(() => {});
+          });
+        }, 60000);
       }
     });
 
