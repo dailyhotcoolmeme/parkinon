@@ -8,7 +8,6 @@ import {
   Dimensions,
   Alert,
   Modal,
-  InteractionManager,
 } from 'react-native';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useFocusEffect, useRoute, RouteProp } from '@react-navigation/native';
@@ -92,7 +91,6 @@ function toLocalDateString(date: Date): string {
 }
 
 type MedicationRouteParams = {
-  autoOpen?: number | boolean;
   mealTime?: string | null;
 };
 
@@ -133,19 +131,16 @@ export function MedicationScreen() {
     }).catch(() => {});
   }, [user?.onboarding_done]);
 
-  // 알림 탭 진입 시 MealTimeModal 자동 오픈
-  // App.tsx에서 navigation params { autoOpen: true, mealTime: '아침' } 전달
+  // 알림 탭 진입 시 미읽음 약 복용 알림 읽음 처리 (안전망)
+  // 모달 trigger는 아래 useFocusEffect(pendingMedNotif) 단일 채널만 담당.
+  // 이전: route.params.autoOpen useEffect + useFocusEffect 두 경로가 동일 state를
+  // toggle하면서 race 발생 → 단일 채널로 통일.
   useEffect(() => {
-    if (!routeParams.autoOpen) return;
-
-    // 알림으로 진입 시 미읽음 약 복용 알림 읽음 처리 (안전망)
-    // saveNotification에서 type 불일치 등으로 읽음 처리가 안 된 경우 대비
-    // cutoff: 오늘 KST 0시 (1~2시간 늦게 탭해도 안전망 작동하도록 확장)
+    if (!routeParams.mealTime) return;
     (async () => {
       try {
         const { data: { user: authUser } } = await supabase.auth.getUser();
         if (!authUser) return;
-        // 오늘 KST 0시(=UTC 전날 15:00) 기준 since 계산
         const now = new Date();
         const koreaToday = new Date(now.getTime() + 9 * 60 * 60 * 1000);
         koreaToday.setUTCHours(0, 0, 0, 0);
@@ -162,27 +157,8 @@ export function MedicationScreen() {
         console.error('[MedicationScreen] 읽음 처리 오류:', e);
       }
     })();
-
-    // 따로 거주 보호자 / 연동 환자 없는 보호자는 바텀시트 차단
-    // ⚠️ 주석 처리: patientId 비동기 로드 전 userRole이 잘못 계산돼 modal 오픈이 막힘 (AsyncStorage useFocusEffect 방식으로 대체)
-    // if (userRole === 'caregiver_separate' || userRole === 'caregiver_no_patient') return;
-
-    // 화면 전환 애니메이션 완료 후 모달 오픈
-    // PiP(YouTube) 환경 등 layout transition 중 첫 setShow가 손실되는 케이스 대비:
-    // false → rAF → true 패턴으로 강제 재mount 보장. InteractionManager로 PiP transition
-    // 완료 후 실행을 보장한다.
-    const timer = setTimeout(() => {
-      InteractionManager.runAfterInteractions(() => {
-        setShowMealTimeModal(false);
-        requestAnimationFrame(() => {
-          setShowMealTimeModal(true);
-        });
-      });
-    }, 400);
-    return () => clearTimeout(timer);
-  // routeParams 객체 참조가 바뀌어도 autoOpen 값 기준으로만 실행
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [routeParams.autoOpen]);
+  }, [routeParams.mealTime]);
 
   // 날짜별 복용 현황 (날짜 선택 시 사용)
   const [dateLogStatus, setDateLogStatus] = useState<Record<string, any> | null>(null);
@@ -200,27 +176,20 @@ export function MedicationScreen() {
     }, [refresh, isToday])
   );
 
-  // 알림 탭 → 모달 열기 (AsyncStorage 방식, 가장 신뢰할 수 있는 방식 — 레이스 컨디션 완전 제거)
+  // 알림 탭 → 모달 열기 (단일 trigger 채널)
+  // 단순화: InteractionManager + setShow(false→rAF→true) 패턴 모두 제거.
+  // 모달 state를 직접 true로 set만 한다. 멀티 알림 race는 App.tsx의 mutex 큐가 담당.
   useFocusEffect(
     useCallback(() => {
       AsyncStorage.getItem('pendingMedNotif').then((value) => {
         if (!value) return;
-        AsyncStorage.removeItem('pendingMedNotif');
+        AsyncStorage.removeItem('pendingMedNotif').catch(() => {});
         try {
           const { mealTime } = JSON.parse(value);
           if (mealTime) setSelectedMealTime(mealTime as MealTime);
-          // PiP 등 layout transition 중 setShow가 손실되는 케이스 대비:
-          // false → rAF → true 패턴으로 강제 재mount 보장
-          setTimeout(() => {
-            InteractionManager.runAfterInteractions(() => {
-              setShowMealTimeModal(false);
-              requestAnimationFrame(() => {
-                setShowMealTimeModal(true);
-              });
-            });
-          }, 300);
+          setShowMealTimeModal(true);
         } catch {}
-      });
+      }).catch(() => {});
     }, [])
   );
 

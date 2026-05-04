@@ -29,7 +29,10 @@ Notifications.setNotificationChannelAsync('default', {
 function AppInner() {
   const appState = useRef<AppStateStatus>(AppState.currentState);
   const { saveNotification, refreshBadge } = useNotificationBadge();
-  const handledNotifIds = useRef<Set<string>>(new Set());
+  // notifId → 등록 timestamp. 60초 TTL — 화면이 모달을 못 띄웠을 때
+  // 사용자가 같은 알림 재탭하면 복구 가능하도록 안전망 도입.
+  const handledNotifIds = useRef<Map<string, number>>(new Map());
+  const DEDUPE_TTL_MS = 60_000;
   // 멀티 알림 race 방지용 mutex 큐 — handleNotificationResponse를 직렬화한다.
   // 두 알림이 거의 동시에 탭되어 두 navigateTo가 연속 호출되면 마지막만 살아남는 문제 회피.
   const handlerQueueRef = useRef<Promise<void>>(Promise.resolve());
@@ -85,7 +88,8 @@ function AppInner() {
       const notifId = response.notification.request.identifier;
       // dedupe 검사만 먼저 수행. 등록은 navigate 성공 직후로 이동하여
       // waitForNavReady 실패/예외 시 동일 알림 재시도가 가능하도록 함.
-      if (handledNotifIds.current.has(notifId)) return;
+      const prevTs = handledNotifIds.current.get(notifId);
+      if (prevTs && Date.now() - prevTs < DEDUPE_TTL_MS) return;
 
       const content = response.notification.request.content;
       const data = (content.data ?? {}) as Record<string, any>;
@@ -147,11 +151,11 @@ function AppInner() {
           } catch {}
           navigateTo('Main', {
             screen: 'Medication',
-            params: { autoOpen: Date.now(), mealTime },
+            params: { mealTime },
           });
-          // NOTE: notificationIntentManager.emit 제거 — race + poison ref guard 원천이라
-          // PiP transition 중 모달이 손실되는 결함의 근본 원인. 약복용 trigger는
-          // route.params.autoOpen + AsyncStorage pendingMedNotif 2가지로 단순화.
+          // 약복용 trigger 채널 단일화: AsyncStorage pendingMedNotif → useFocusEffect 한 곳만.
+          // route.params.autoOpen, notificationIntentManager.emit, InteractionManager,
+          // setShow(false→rAF→true) 패턴 모두 제거 (race 원천 차단).
         } else if (type === 'effect_tracking') {
           try {
             await AsyncStorage.setItem(
@@ -195,9 +199,15 @@ function AppInner() {
           navigateTo('Main');
         }
 
-        // navigate 호출 성공 직후 dedupe 등록.
+        // navigate 호출 성공 직후 dedupe 등록 (timestamp).
+        // 60초 TTL 후 자동 만료 → 화면이 모달을 못 띄웠을 때 재탭으로 복구 가능.
         // 실패(throw) 시에는 등록되지 않으므로 다음 listener에서 재시도 가능.
-        handledNotifIds.current.add(notifId);
+        handledNotifIds.current.set(notifId, Date.now());
+        // map이 무한히 커지지 않도록 TTL 만료된 entry 정리
+        const cutoff = Date.now() - DEDUPE_TTL_MS;
+        for (const [k, ts] of handledNotifIds.current) {
+          if (ts < cutoff) handledNotifIds.current.delete(k);
+        }
       } catch (e) {
         console.error('[App] navigate 실패, dedupe 미등록(재시도 허용):', e);
       }
