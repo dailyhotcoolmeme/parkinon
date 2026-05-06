@@ -6,6 +6,12 @@
  * - 하나라도 ON → Notifications.requestPermissionsAsync() 호출
  * - 전체 OFF → 권한 요청 없이 닫기
  * - AsyncStorage 'notif_onboarding_shown' 키로 1회만 표시
+ *
+ * [삼성 nav bar 가림 fix 재적용]
+ * - SafeAreaProvider initialMetrics 재주입 (Modal 내부에서 insets 0 반환되는 이슈 대응)
+ * - ScrollView로 콘텐츠 감싸 + 하단 버튼은 sticky
+ * - statusBarTranslucent={true}
+ * - SamsungOne 폰트 한글 ascender 클리핑 방지 (lineHeight + includeFontPadding + textAlignVertical)
  */
 import React, { useRef } from 'react';
 import {
@@ -16,9 +22,14 @@ import {
   Animated,
   TouchableOpacity,
   Switch,
+  ScrollView,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
-import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import {
+  SafeAreaProvider,
+  useSafeAreaInsets,
+  initialWindowMetrics,
+} from 'react-native-safe-area-context';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import * as Notifications from 'expo-notifications';
 import { Colors } from '../../constants/colors';
@@ -66,12 +77,12 @@ interface Props {
   onClose: () => void;
 }
 
-// ─── Component ────────────────────────────────────────────────────────────────
-export function NotificationOnboardingModal({ isCaregiver, userId, visible, onClose }: Props) {
+// ─── Inner Content (SafeAreaProvider 내부에서만 useSafeAreaInsets 사용) ───────
+function NotificationOnboardingModalContent({ isCaregiver, userId, visible, onClose }: Props) {
   const { setNotificationEnabled } = useSettings();
   const insets = useSafeAreaInsets();
-
-  // 항목 전체 항상 ON 고정 (사용자 변경 불가)
+  // 삼성 3버튼 nav bar(고정) 환경에서 insets.bottom이 0으로 잡히는 경우가 있어 fallback
+  const bottomInset = insets.bottom > 0 ? insets.bottom : 24;
 
   // 애니메이션
   const fadeAnim = useRef(new Animated.Value(0)).current;
@@ -97,7 +108,6 @@ export function NotificationOnboardingModal({ isCaregiver, userId, visible, onCl
 
   // ─── 확인 버튼 ──────────────────────────────────────────────────────────────
   const handleConfirm = async () => {
-    // 1회 표시 완료 마킹
     await AsyncStorage.setItem(NOTIF_ONBOARDING_SHOWN_KEY, 'done').catch(() => {});
 
     const anyEnabled = true; // 항상 ON
@@ -105,7 +115,6 @@ export function NotificationOnboardingModal({ isCaregiver, userId, visible, onCl
     closeWithAnim(async () => {
       onClose();
       if (anyEnabled) {
-        // 모달 닫힘 후 500ms 딜레이 → 시스템 알림 권한 요청
         await new Promise(resolve => setTimeout(resolve, 500));
         const { status: existing } = await Notifications.getPermissionsAsync();
         let finalStatus = existing;
@@ -116,14 +125,11 @@ export function NotificationOnboardingModal({ isCaregiver, userId, visible, onCl
         }
 
         if (finalStatus === 'granted') {
-          // 권한 허용됨 → DB notification_enabled = true
           await setNotificationEnabled(true);
-          // push_token DB 저장
           await requestPermissionsAndSaveToken(userId).catch((e) =>
             console.warn('[NotificationOnboardingModal] push_token 저장 오류:', e)
           );
 
-          // 보호자인 경우 caregiver_notif_prefs DB 저장
           if (isCaregiver) {
             try {
               const { data: { session } } = await supabase.auth.getSession();
@@ -144,9 +150,7 @@ export function NotificationOnboardingModal({ isCaregiver, userId, visible, onCl
             }
           }
         }
-        // denied 시 Alert 없이 조용히 종료
       } else {
-        // 전체 OFF → notification_enabled = false
         await setNotificationEnabled(false);
       }
     });
@@ -161,15 +165,20 @@ export function NotificationOnboardingModal({ isCaregiver, userId, visible, onCl
   const items = isCaregiver ? CAREGIVER_ITEMS : PATIENT_ITEMS;
 
   return (
-    <Modal visible={visible} transparent animationType="none" onRequestClose={handleLater}>
-      <Animated.View style={[styles.backdrop, { opacity: fadeAnim }]}>
-        {/* 딤 탭으로 닫기 */}
-        <TouchableOpacity style={StyleSheet.absoluteFill} activeOpacity={1} onPress={handleLater} />
+    <Animated.View style={[styles.backdrop, { opacity: fadeAnim }]}>
+      {/* 딤 탭으로 닫기 */}
+      <TouchableOpacity style={StyleSheet.absoluteFill} activeOpacity={1} onPress={handleLater} />
 
-        <Animated.View style={[styles.sheet, { paddingBottom: Math.max(40, insets.bottom + 24), transform: [{ translateY: slideAnim }] }]}>
-          {/* 핸들 */}
-          <View style={styles.handle} />
+      <Animated.View style={[styles.sheet, { transform: [{ translateY: slideAnim }] }]}>
+        {/* 핸들 */}
+        <View style={styles.handle} />
 
+        {/* 스크롤 가능한 콘텐츠 */}
+        <ScrollView
+          style={styles.scrollView}
+          contentContainerStyle={styles.scrollContent}
+          showsVerticalScrollIndicator={true}
+        >
           {/* 헤더 */}
           <View style={styles.headerArea}>
             <View style={styles.iconCircle}>
@@ -204,37 +213,54 @@ export function NotificationOnboardingModal({ isCaregiver, userId, visible, onCl
           </View>
 
           {/* 사전 안내 박스 */}
-          <View style={{
-            backgroundColor: '#FFF3E0',
-            borderLeftWidth: 4,
-            borderLeftColor: '#FF9800',
-            borderRadius: 8,
-            padding: 14,
-            marginHorizontal: 20,
-            marginBottom: 16,
-          }}>
-            <Text style={{ fontSize: 16, color: '#111111', lineHeight: 24 }}>
+          <View style={styles.noticeBox}>
+            <Text style={styles.noticeText}>
               {'잠시 후 스마트폰이 알림 허용 여부를\n물어봐요. '}
-              <Text style={{ fontWeight: '700', color: '#E65100' }}>"허용"</Text>
+              <Text style={styles.noticeStrong}>"허용"</Text>
               {' 버튼을 눌러주세요.'}
             </Text>
           </View>
+        </ScrollView>
 
-          {/* 버튼 영역 */}
-          <View style={styles.buttonArea}>
-            <TouchableOpacity
-              activeOpacity={0.85}
-              style={styles.confirmBtn}
-              onPress={handleConfirm}
-            >
-              <Text style={styles.confirmBtnText}>알림 허용하기</Text>
-            </TouchableOpacity>
-            <TouchableOpacity activeOpacity={0.7} style={styles.laterBtn} onPress={handleLater}>
-              <Text style={styles.laterBtnText}>나중에 설정할게요</Text>
-            </TouchableOpacity>
-          </View>
-        </Animated.View>
+        {/* 하단 sticky 버튼 영역 (ScrollView 밖) */}
+        <View
+          style={[
+            styles.buttonArea,
+            { paddingBottom: Math.max(16, bottomInset + 16) },
+          ]}
+        >
+          <TouchableOpacity
+            activeOpacity={0.85}
+            style={styles.confirmBtn}
+            onPress={handleConfirm}
+          >
+            <Text style={styles.confirmBtnText}>알림 허용하기</Text>
+          </TouchableOpacity>
+          <TouchableOpacity activeOpacity={0.7} style={styles.laterBtn} onPress={handleLater}>
+            <Text style={styles.laterBtnText}>나중에 설정할게요</Text>
+          </TouchableOpacity>
+        </View>
       </Animated.View>
+    </Animated.View>
+  );
+}
+
+// ─── Component ────────────────────────────────────────────────────────────────
+export function NotificationOnboardingModal(props: Props) {
+  return (
+    <Modal
+      visible={props.visible}
+      transparent
+      animationType="none"
+      statusBarTranslucent={true}
+      onRequestClose={() => {
+        AsyncStorage.setItem(NOTIF_ONBOARDING_SHOWN_KEY, 'done').catch(() => {});
+        props.onClose();
+      }}
+    >
+      <SafeAreaProvider initialMetrics={initialWindowMetrics}>
+        <NotificationOnboardingModalContent {...props} />
+      </SafeAreaProvider>
     </Modal>
   );
 }
@@ -250,7 +276,6 @@ const styles = StyleSheet.create({
     backgroundColor: Colors.white,
     borderTopLeftRadius: 28,
     borderTopRightRadius: 28,
-    paddingBottom: 40,
     maxHeight: '90%',
   },
   handle: {
@@ -261,6 +286,14 @@ const styles = StyleSheet.create({
     alignSelf: 'center',
     marginTop: 14,
     marginBottom: 4,
+  },
+
+  // ── ScrollView ──
+  scrollView: {
+    flexShrink: 1,
+  },
+  scrollContent: {
+    paddingBottom: 8,
   },
 
   // ── 헤더 ──
@@ -285,12 +318,17 @@ const styles = StyleSheet.create({
     color: Colors.text,
     textAlign: 'center',
     marginBottom: 8,
+    lineHeight: 32,
+    includeFontPadding: true,
+    textAlignVertical: 'center',
   },
   subtitle: {
     fontSize: 16,
     color: Colors.textSub,
     textAlign: 'center',
-    lineHeight: 24,
+    lineHeight: 26,
+    includeFontPadding: true,
+    textAlignVertical: 'center',
   },
 
   // ── 항목 목록 ──
@@ -305,10 +343,10 @@ const styles = StyleSheet.create({
     backgroundColor: Colors.background,
     borderRadius: 14,
     paddingHorizontal: 18,
-    paddingVertical: 14,
+    paddingVertical: 16,
     borderWidth: 2,
     borderColor: Colors.border,
-    minHeight: 72,
+    minHeight: 80,
   },
   itemRowEnabled: {
     borderColor: Colors.primary,
@@ -323,6 +361,9 @@ const styles = StyleSheet.create({
     fontWeight: '700',
     color: Colors.textSub,
     marginBottom: 3,
+    lineHeight: 28,
+    includeFontPadding: true,
+    textAlignVertical: 'center',
   },
   itemLabelEnabled: {
     color: Colors.text,
@@ -330,7 +371,32 @@ const styles = StyleSheet.create({
   itemDesc: {
     fontSize: 14,
     color: Colors.textSub,
-    lineHeight: 20,
+    lineHeight: 22,
+    includeFontPadding: true,
+    textAlignVertical: 'center',
+  },
+
+  // ── 안내 박스 ──
+  noticeBox: {
+    backgroundColor: '#FFF3E0',
+    borderLeftWidth: 4,
+    borderLeftColor: '#FF9800',
+    borderRadius: 8,
+    padding: 14,
+    marginHorizontal: 20,
+    marginTop: 12,
+    marginBottom: 8,
+  },
+  noticeText: {
+    fontSize: 16,
+    color: '#111111',
+    lineHeight: 26,
+    includeFontPadding: true,
+    textAlignVertical: 'center',
+  },
+  noticeStrong: {
+    fontWeight: '700',
+    color: '#E65100',
   },
 
   // ── 버튼 영역 ──
@@ -338,6 +404,9 @@ const styles = StyleSheet.create({
     paddingHorizontal: 20,
     paddingTop: 16,
     gap: 10,
+    backgroundColor: Colors.white,
+    borderTopWidth: 1,
+    borderTopColor: Colors.border,
   },
   confirmBtn: {
     height: 60,
@@ -355,6 +424,9 @@ const styles = StyleSheet.create({
     fontSize: 20,
     fontWeight: 'bold',
     color: Colors.white,
+    lineHeight: 28,
+    includeFontPadding: true,
+    textAlignVertical: 'center',
   },
   confirmBtnTextOutline: {
     color: Colors.primary,
@@ -372,5 +444,8 @@ const styles = StyleSheet.create({
     fontSize: 17,
     color: Colors.textSub,
     fontWeight: '600',
+    lineHeight: 24,
+    includeFontPadding: true,
+    textAlignVertical: 'center',
   },
 });
