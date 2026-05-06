@@ -257,11 +257,15 @@ export function BodyStateScreen() {
   // 약효 추적 알림 탭 → 몸상태 팝업 열기 (AsyncStorage 방식 — 콜드스타트 대응)
   useFocusEffect(
     useCallback(() => {
-      AsyncStorage.getItem('pendingBodyStateNotif').then((value) => {
+      AsyncStorage.getItem('pendingBodyStateNotif').then(async (value) => {
         if (!value) return;
-        AsyncStorage.removeItem('pendingBodyStateNotif');
+        // removeItem await 보장: stale 재트리거 방지
+        await AsyncStorage.removeItem('pendingBodyStateNotif');
         try {
-          const { triggerMinutes, triggerMealTime } = JSON.parse(value);
+          const parsed = JSON.parse(value);
+          // TTL 5분 초과 → stale 폐기
+          if (parsed?.ts && Date.now() - parsed.ts > 5 * 60 * 1000) return;
+          const { triggerMinutes, triggerMealTime } = parsed;
           if (triggerMinutes == null) return;
           const label = minutesToLabel(triggerMinutes);
           setPendingTriggeredBy('notification');

@@ -145,11 +145,12 @@ export function ExerciseScreen() {
   useFocusEffect(
     React.useCallback(() => {
       if (user?.role !== 'patient') return;
-      AsyncStorage.getItem('pendingExerciseNotif').then((val) => {
+      AsyncStorage.getItem('pendingExerciseNotif').then(async (val) => {
         if (val === 'true') {
+          // removeItem await 보장: stale 재트리거 방지
+          await AsyncStorage.removeItem('pendingExerciseNotif');
           try {
             navigation.push('ExerciseRecord');
-            AsyncStorage.removeItem('pendingExerciseNotif').catch(() => {});
           } catch (e) {
             console.error('[ExerciseScreen] ExerciseRecord push 실패:', e);
           }

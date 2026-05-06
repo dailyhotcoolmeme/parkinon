@@ -138,9 +138,11 @@ function AppInner() {
         if (type === 'medication_reminder' || type === 'missed_medication') {
           // AsyncStorage write 완료 보장 후 navigateTo (콜드스타트 fallback)
           try {
+            // cross-type stale cleanup: 다른 타입의 잔존 pending 키 제거
+            await AsyncStorage.multiRemove(['pendingBodyStateNotif', 'pendingExerciseNotif']);
             await AsyncStorage.setItem(
               'pendingMedNotif',
-              JSON.stringify({ mealTime }),
+              JSON.stringify({ mealTime, ts: Date.now() }),
             );
           } catch {}
           navigateTo('Main', {
@@ -150,11 +152,14 @@ function AppInner() {
           notificationIntentManager.emit({ mealTime });
         } else if (type === 'effect_tracking') {
           try {
+            // cross-type stale cleanup
+            await AsyncStorage.multiRemove(['pendingMedNotif', 'pendingExerciseNotif']);
             await AsyncStorage.setItem(
               'pendingBodyStateNotif',
               JSON.stringify({
                 triggerMinutes,
                 triggerMealTime: mealTime,
+                ts: Date.now(),
               }),
             );
           } catch {}
@@ -174,6 +179,8 @@ function AppInner() {
           // ExerciseRecord 진입은 ExerciseScreen.useFocusEffect가 단일 경로로 처리한다.
           // (nested initial-route navigate가 워밍 케이스에서 무시되는 race 회피)
           try {
+            // cross-type stale cleanup
+            await AsyncStorage.multiRemove(['pendingMedNotif', 'pendingBodyStateNotif']);
             await AsyncStorage.setItem('pendingExerciseNotif', 'true');
           } catch {}
           navigateTo('Main', { screen: 'Exercise' });

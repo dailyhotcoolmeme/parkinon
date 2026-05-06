@@ -208,11 +208,15 @@ export function MedicationScreen() {
   // 알림 탭 → 모달 열기 (AsyncStorage 방식, 가장 신뢰할 수 있는 방식 — 레이스 컨디션 완전 제거)
   useFocusEffect(
     useCallback(() => {
-      AsyncStorage.getItem('pendingMedNotif').then((value) => {
+      AsyncStorage.getItem('pendingMedNotif').then(async (value) => {
         if (!value) return;
-        AsyncStorage.removeItem('pendingMedNotif');
+        // removeItem await 보장: stale 재트리거 방지
+        await AsyncStorage.removeItem('pendingMedNotif');
         try {
-          const { mealTime } = JSON.parse(value);
+          const data = JSON.parse(value);
+          // TTL 5분 초과 → stale 폐기 (모달 표시 안 함)
+          if (data?.ts && Date.now() - data.ts > 5 * 60 * 1000) return;
+          const mealTime = data?.mealTime;
           if (mealTime) setSelectedMealTime(mealTime as MealTime);
           setTimeout(() => setShowMealTimeModal(true), 300);
         } catch {}
