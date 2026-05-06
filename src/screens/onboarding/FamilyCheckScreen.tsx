@@ -183,7 +183,10 @@ export function FamilyCheckScreen() {
         </TouchableOpacity>
       </View>
 
-      <View style={styles.content}>
+      <ScrollView
+        contentContainerStyle={styles.contentScroll}
+        keyboardShouldPersistTaps="handled"
+      >
         <Text style={styles.title}>
           가족 중에 파킨온을{'\n'}쓰고 있는 분이 계신가요?
         </Text>
@@ -216,7 +219,7 @@ export function FamilyCheckScreen() {
             );
           })}
         </View>
-      </View>
+      </ScrollView>
 
       {/* 하단 버튼 */}
       <View style={[styles.bottomArea, { paddingBottom: 40 + bottomInset }]}>
@@ -264,6 +267,11 @@ const styles = StyleSheet.create({
     paddingHorizontal: 24,
     paddingTop: 16,
   },
+  contentScroll: {
+    paddingHorizontal: 24,
+    paddingTop: 16,
+    paddingBottom: 220,
+  },
   scrollContent: {
     paddingHorizontal: 24,
     paddingTop: 16,
@@ -285,17 +293,17 @@ const styles = StyleSheet.create({
     textAlign: 'center',
   },
   btnGroup: {
-    flex: 1,
     gap: 14,
     paddingBottom: 24,
   },
   choiceCard: {
-    flex: 1,
+    minHeight: 88,
     flexDirection: 'row',
     alignItems: 'center',
     backgroundColor: Colors.white,
     borderRadius: 16,
-    padding: 20,
+    paddingHorizontal: 20,
+    paddingVertical: 22,
     borderWidth: 2,
     borderColor: Colors.border,
     gap: 16,
@@ -309,6 +317,9 @@ const styles = StyleSheet.create({
     fontWeight: '700',
     color: Colors.text,
     marginBottom: 4,
+    lineHeight: 28,
+    includeFontPadding: true,
+    textAlignVertical: 'center',
   },
   choiceLabelSelected: {
     color: Colors.dark,
@@ -316,6 +327,9 @@ const styles = StyleSheet.create({
   choiceDesc: {
     fontSize: 14,
     color: Colors.textSub,
+    lineHeight: 21,
+    includeFontPadding: true,
+    textAlignVertical: 'center',
   },
   choiceDescSelected: {
     color: Colors.dark,
