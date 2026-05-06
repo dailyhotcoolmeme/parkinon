@@ -315,6 +315,10 @@ export function MenuScreen() {
             <Ionicons name="chevron-forward" size={22} color={Colors.textHint} />
           </TouchableOpacity>
         </View>
+
+        <Text style={{ fontSize: 11, color: '#999', textAlign: 'center', marginTop: 16, marginBottom: 8 }}>
+          v.20260506-otatest
+        </Text>
       </ScrollView>
     </SafeAreaView>
   );
