@@ -78,7 +78,6 @@ export function BodyStatePopupFlow({
   const [moodScore, setMoodScore] = useState<number | null>(null);
   const [sleepScore, setSleepScore] = useState<number | null>(null);
   const [constipation, setConstipation] = useState<boolean | null>(null);
-  const [constipationSaving, setConstipationSaving] = useState(false);
 
   const bsRef = useRef<number | null>(null);
   const msRef = useRef<number | null>(null);
@@ -100,7 +99,6 @@ export function BodyStatePopupFlow({
       setMoodScore(null); msRef.current = null;
       setSleepScore(null); ssRef.current = null;
       setConstipation(null); cRef.current = null;
-      setConstipationSaving(false);
       slideAnim.setValue(80);
       contentSlide.setValue(0);
       contentOpacity.setValue(1);
@@ -169,13 +167,8 @@ export function BodyStatePopupFlow({
   };
 
   const handleConstipationSelect = (val: boolean) => {
-    if (constipationSaving) return; // 중복 저장 방지
+    // 즉시 저장 제거 — 선택만 강조, "완료" 버튼 탭 시 저장
     setConstipation(val); cRef.current = val;
-    setConstipationSaving(true);
-    setTimeout(() => {
-      advanceFrom('constipation');
-      setConstipationSaving(false);
-    }, 350);
   };
 
   const scoreForStep = () => {
@@ -296,17 +289,24 @@ export function BodyStatePopupFlow({
                 <Text style={styles.navBtnOutlineText}>닫기</Text>
               </TouchableOpacity>
             )}
-            <TouchableOpacity
-              style={[
-                styles.navBtnPrimary,
-                (scoreForStep() === null || step === 'constipation') && styles.navBtnPrimaryDisabled,
-              ]}
-              onPress={handleNextPress}
-              activeOpacity={0.8}
-              disabled={scoreForStep() === null || step === 'constipation'}
-            >
-              <Text style={styles.navBtnPrimaryText}>다음</Text>
-            </TouchableOpacity>
+            {(() => {
+              const isLastStep = currentIndex === orderedSteps.length - 1;
+              const hasSelection = step === 'constipation' ? constipation !== null : scoreForStep() !== null;
+              const disabled = !hasSelection;
+              return (
+                <TouchableOpacity
+                  style={[
+                    styles.navBtnPrimary,
+                    disabled && styles.navBtnPrimaryDisabled,
+                  ]}
+                  onPress={handleNextPress}
+                  activeOpacity={0.8}
+                  disabled={disabled}
+                >
+                  <Text style={styles.navBtnPrimaryText}>{isLastStep ? '완료' : '다음'}</Text>
+                </TouchableOpacity>
+              );
+            })()}
           </View>
         </Animated.View>
       </Animated.View>
