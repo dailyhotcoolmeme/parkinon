@@ -113,31 +113,66 @@ function toLocalDateString(date: Date): string {
   return kst.toISOString().slice(0, 10);
 }
 
-// parkinon_last_medication 읽기 + 만료 체크 (만료 시 삭제 + null 반환)
-// → stale 데이터로 인한 잘못된 자동 트리거 추정 방지
-async function readValidLastMedication(): Promise<
-  { taken_at: string; meal_time: string | null } | null
-> {
+// 오늘(KST) 가장 최근 med_log 직접 조회 — AsyncStorage stale 데이터 의존 제거
+async function fetchTodayLastMedLog(
+  patientId: string
+): Promise<{ taken_at: string; meal_time: string | null } | null> {
   try {
-    const raw = await AsyncStorage.getItem('parkinon_last_medication');
-    if (!raw) return null;
-    const parsed = JSON.parse(raw);
-    if (parsed?.expires_at) {
-      const exp = new Date(parsed.expires_at).getTime();
-      if (Number.isFinite(exp) && exp <= Date.now()) {
-        // 만료 → 삭제하여 다음 호출부터 null
-        await AsyncStorage.removeItem('parkinon_last_medication').catch(() => {});
-        return null;
-      }
-    }
-    if (!parsed?.taken_at) return null;
+    const kstOffset = 9 * 60 * 60 * 1000;
+    const nowKst = new Date(Date.now() + kstOffset);
+    const todayKstStart = new Date(
+      nowKst.getUTCFullYear(),
+      nowKst.getUTCMonth(),
+      nowKst.getUTCDate(),
+      0,
+      0,
+      0
+    );
+    // KST 0시 → UTC ISO
+    const startUtcIso = new Date(todayKstStart.getTime() - kstOffset).toISOString();
+
+    const { data, error } = await supabase
+      .from('med_logs')
+      .select('taken_at, meal_time')
+      .eq('patient_id', patientId)
+      .gte('taken_at', startUtcIso)
+      .order('taken_at', { ascending: false })
+      .limit(1)
+      .maybeSingle();
+
+    if (error || !data) return null;
     return {
-      taken_at: parsed.taken_at,
-      meal_time: parsed.meal_time ?? null,
+      taken_at: (data as any).taken_at,
+      meal_time: (data as any).meal_time ?? null,
     };
   } catch {
     return null;
   }
+}
+
+// 인터벌(분) → trigger_time_label 변환 (전역)
+function intervalMinutesToLabel(min: number): string {
+  if (min === 0) return 'after_medication';
+  if (min === 120) return '2hour_after';
+  return `${min}min_after`;
+}
+
+// 인터벌(분) → 사용자 표시 텍스트 (예: 0→'직후', 60→'1시간 후')
+function intervalMinutesToText(min: number): string {
+  if (min === 0) return '직후';
+  if (min < 60) return `${min}분 후`;
+  const h = Math.floor(min / 60);
+  const rem = min % 60;
+  return rem === 0 ? `${h}시간 후` : `${h}시간 ${rem}분 후`;
+}
+
+// 경과/잔여 분 → 자연스러운 한국어 표현
+function formatDurationKo(totalMin: number): string {
+  const m = Math.max(0, Math.round(totalMin));
+  if (m < 60) return `${m}분`;
+  const h = Math.floor(m / 60);
+  const rem = m % 60;
+  return rem === 0 ? `${h}시간` : `${h}시간 ${rem}분`;
 }
 
 export function BodyStateScreen() {
@@ -236,14 +271,16 @@ export function BodyStateScreen() {
         if (!showFlow) {
           if (paramMealTime) {
             openFlowOrPend(label, null, paramMealTime);
-          } else {
-            readValidLastMedication()
+          } else if (patientId) {
+            fetchTodayLastMedLog(patientId)
               .then((parsed) => {
                 if (!parsed) { openFlowOrPend(label, null, null); return; }
                 const medTime = parsed.taken_at ? new Date(parsed.taken_at) : null;
                 openFlowOrPend(label, medTime, parsed.meal_time);
               })
               .catch(() => openFlowOrPend(label, null, null));
+          } else {
+            openFlowOrPend(label, null, null);
           }
         }
 
@@ -251,7 +288,7 @@ export function BodyStateScreen() {
         // (handleSaveRecord 성공 시에만 비우는 기존 로직은 사용자가 취소/다른 탭 이동 시 stale 잔존)
         navigation.setParams({ triggerMinutes: null, triggerMealTime: null, triggerTs: null });
       }
-    }, [route.params?.triggerMinutes, (route.params as any)?.triggerMealTime, (route.params as any)?.triggerTs])
+    }, [route.params?.triggerMinutes, (route.params as any)?.triggerMealTime, (route.params as any)?.triggerTs, patientId])
   );
 
   // 약효 추적 알림 탭 → 몸상태 팝업 열기 (AsyncStorage 방식 — 콜드스타트 대응)
@@ -272,18 +309,20 @@ export function BodyStateScreen() {
           setPendingTriggerLabel(label);
           if (triggerMealTime) {
             openFlowOrPend(label, null, triggerMealTime);
-          } else {
-            readValidLastMedication()
+          } else if (patientId) {
+            fetchTodayLastMedLog(patientId)
               .then((parsed) => {
                 if (!parsed) { openFlowOrPend(label, null, null); return; }
                 const medTime = parsed.taken_at ? new Date(parsed.taken_at) : null;
                 openFlowOrPend(label, medTime, parsed.meal_time);
               })
               .catch(() => openFlowOrPend(label, null, null));
+          } else {
+            openFlowOrPend(label, null, null);
           }
         } catch {}
       });
-    }, [])
+    }, [patientId])
   );
 
   // 화면 포커스 시 오늘 기록 갱신
@@ -418,88 +457,149 @@ export function BodyStateScreen() {
     return result;
   };
 
-  // 버튼 탭 시 약 복용 시간 기반으로 트리거 라벨 자동 감지 or 모달 표시
-  const handleOpenBodyState = async () => {
-    setPendingTriggeredBy('manual');
-    const intervals = getEnabledIntervals();
-    // 만료된 last medication은 자동으로 null 반환 (readValidLastMedication에서 처리)
-    const parsed = await readValidLastMedication();
+  // 덮어쓸 기존 on_off_logs.id (덮어쓰기 모드 시 저장 직전에 setOverrideLogId로 설정)
+  const overrideLogIdRef = useRef<string | null>(null);
 
-    if (!parsed) {
-      setTriggerMedTime(null);
-      setTriggerModalSelected(intervals[0]?.labelKey ?? null);
-      setShowTriggerSelect(true);
+  // 버튼 탭 진입: 6개 케이스 처리 (사양 기반)
+  // 1) 오늘 약 복용 기록 없음 → 차단
+  // 2) ±20분 매칭 → 확인 팝업
+  // 3) 동률 → 이전(작은) 인터벌 우선
+  // 4/6) ±20분 벗어남 → 차단 + 다음 알림 안내
+  // 5) 같은 (meal_time × interval) 기록 존재 → 덮어쓰기 확인
+  const handleOpenBodyState = async () => {
+    if (!patientId) return;
+    setPendingTriggeredBy('manual');
+
+    // 1. 오늘 가장 최근 med_log 조회
+    const lastMedLog = await fetchTodayLastMedLog(patientId);
+
+    // 케이스 1: 약 복용 기록 없음
+    if (!lastMedLog || !lastMedLog.taken_at) {
+      Alert.alert(
+        '몸상태 기록 불가',
+        '약 복용 기록이 있어야 몸상태 기록을 남길 수 있어요.\n\n약을 드신 후 다시 시도해 주세요.',
+        [{ text: '확인' }],
+      );
       return;
     }
 
-    try {
-      const { taken_at, meal_time: storedMealTime } = parsed;
-      const medTime = new Date(taken_at);
-      const elapsedMin = (Date.now() - medTime.getTime()) / 60000;
+    // 2. 활성 인터벌 (분 단위 배열, 오름차순) — 복용 직후(0) 포함
+    const intervalsRaw = getEnabledIntervals();
+    const intervals = [...intervalsRaw]
+      .map(iv => iv.minutes)
+      .filter((v, i, a) => a.indexOf(v) === i)
+      .sort((a, b) => a - b);
 
-      let closest: typeof intervals[0] | null = null;
-      let closestDiff = Infinity;
-      for (const interval of intervals) {
-        const diff = Math.abs(elapsedMin - interval.minutes);
-        if (diff < closestDiff) { closestDiff = diff; closest = interval; }
+    if (intervals.length === 0) {
+      Alert.alert(
+        '몸상태 기록 불가',
+        '약효 추적 시간대가 설정되어 있지 않아요.\n\n설정 화면에서 알림 시간대를 먼저 설정해 주세요.',
+        [{ text: '확인' }],
+      );
+      return;
+    }
+
+    const takenAt = new Date(lastMedLog.taken_at);
+    const mealTime = lastMedLog.meal_time;
+    const now = new Date();
+    const elapsedMin = (now.getTime() - takenAt.getTime()) / 60000;
+
+    // 3. 가장 가까운 인터벌 매칭 (±20분, 동률 시 작은 인터벌 우선)
+    //    intervals를 오름차순으로 순회하며 더 작은 diff일 때만 갱신
+    //    (동률은 갱신 안 함 → 먼저 들어온 작은 값이 유지됨)
+    let closestInterval: number | null = null;
+    let closestDiff = Infinity;
+    for (const iv of intervals) {
+      const diff = Math.abs(elapsedMin - iv);
+      if (diff < closestDiff) {
+        closestDiff = diff;
+        closestInterval = iv;
       }
+    }
 
-      if (closest && closestDiff <= 20) {
-        // ±20분 이내 → 자동 배정 후보
-        // 단, 같은 (label + meal_time) 기록이 오늘 이미 있으면
-        // 자동 추정으로 잘못된 "중복?" Alert이 뜨는 것을 방지하기 위해
-        // TriggerSelectModal을 띄워 사용자가 직접 선택하도록 위임
-        const alreadyLogged = todayLogs.some((log: any) => {
-          if (log.trigger_time_label !== closest!.labelKey) return false;
-          if (storedMealTime && log.medication_meal_time && log.medication_meal_time !== storedMealTime) return false;
-          return true;
-        });
-        if (alreadyLogged) {
-          setTriggerMedTime(medTime);
-          setTriggerModalSelected(closest.labelKey);
-          setShowTriggerSelect(true);
-          return;
+    // 케이스 4 & 6: ±20분 벗어남
+    if (closestInterval === null || closestDiff > 20) {
+      // 다음 도래할 인터벌 시각 계산
+      let nextAt: Date | null = null;
+      for (const iv of intervals) {
+        const t = new Date(takenAt.getTime() + iv * 60000);
+        if (t.getTime() - now.getTime() > 20 * 60 * 1000 * -1 && t.getTime() > now.getTime()) {
+          // 미래 시점만
+          nextAt = t;
+          break;
         }
-        setPendingTriggerLabel(closest.labelKey);
-        openFlowOrPend(closest.labelKey, medTime, storedMealTime ?? null);
-      } else {
-        // 20분 초과 → 기록 불가 안내
-        const periodKo = storedMealTime ? (mealTimeToPeriod(storedMealTime) || getPeriod(medTime.toISOString())) : getPeriod(medTime.toISOString());
-        const period = periodKo;
-        const elapsedRound = Math.round(elapsedMin);
-        let elapsedText: string;
-        if (elapsedRound < 60) {
-          elapsedText = `${elapsedRound}분`;
-        } else {
-          const h = Math.floor(elapsedRound / 60);
-          const rem = elapsedRound % 60;
-          elapsedText = rem === 0 ? `${h}시간` : `${h}시간 ${rem}분`;
-        }
-
-        // 다음 기록 가능 시간대 계산
-        const futureIntervals = intervals
-          .filter(iv => iv.minutes - elapsedMin > 20)
-          .sort((a, b) => a.minutes - b.minutes);
-        let nextMsg: string;
-        if (futureIntervals.length > 0) {
-          const next = futureIntervals[0];
-          const minsLeft = Math.ceil(next.minutes - 20 - elapsedMin);
-          nextMsg = `다음 기록 가능: ${next.labelDisplay} (약 ${minsLeft}분 후)`;
-        } else {
-          nextMsg = '오늘 기록 가능한 시간대가 모두 지났어요.';
-        }
-
+      }
+      if (!nextAt) {
         Alert.alert(
-          '지금은 기록할 수 없어요',
-          `${period}약 복용 후 약 ${elapsedText}이 경과했어요.\n\n약효 추적 기록은 설정된 시간대의 ±20분 이내에만 기록할 수 있어요. 정확한 시간에 기록해야 의미 있는 데이터가 됩니다.\n\n${nextMsg}`,
+          '몸상태 기록 불가',
+          '약효 추적 가능 시간 범위를 벗어났어요.\n\n다음 약 복용 후 다시 기록해 주세요.',
+          [{ text: '확인' }],
+        );
+      } else {
+        const remainMin = (nextAt.getTime() - now.getTime()) / 60000;
+        Alert.alert(
+          '몸상태 기록 불가',
+          `약효 추적 가능 시간 범위를 벗어났어요.\n\n다음 알림 시간까지 ${formatDurationKo(remainMin)} 남았어요.\n그때부터 기록 가능해요.`,
           [{ text: '확인' }],
         );
       }
-    } catch {
-      setTriggerMedTime(null);
-      setTriggerModalSelected(intervals[0]?.labelKey ?? null);
-      setShowTriggerSelect(true);
+      return;
     }
+
+    // 4. 같은 (meal_time × interval) 이미 기록되어 있는지 확인
+    const labelKey = intervalMinutesToLabel(closestInterval);
+    const existing = todayLogs.find((log: any) => {
+      if (log.trigger_time_label !== labelKey) return false;
+      // mealTime이 있으면 동일해야 중복으로 처리 (없으면 label만으로 판단)
+      if (mealTime && log.medication_meal_time && log.medication_meal_time !== mealTime) return false;
+      if (mealTime && !log.medication_meal_time) return false;
+      return true;
+    });
+
+    const intervalText = intervalMinutesToText(closestInterval);
+    const mealLabel = mealTime ? mealTimeToKorean(mealTime) : '';
+    const elapsedText = formatDurationKo(elapsedMin);
+
+    if (existing) {
+      // 케이스 5: 이미 기록됨 → 덮어쓰기 확인
+      const targetLabel = mealLabel ? `${mealLabel}약 복용 ${intervalText}` : `복용 ${intervalText}`;
+      Alert.alert(
+        '이미 기록되어 있어요',
+        `${targetLabel}는 이미 기록되어 있어요.\n덮어쓸까요?`,
+        [
+          { text: '취소', style: 'cancel' },
+          {
+            text: '덮어쓰기',
+            onPress: () => {
+              overrideLogIdRef.current = (existing as any).id ?? null;
+              setPendingTriggerLabel(labelKey);
+              setPendingMealTime(mealTime ?? null);
+              openFlowOrPend(labelKey, takenAt, mealTime ?? null);
+            },
+          },
+        ],
+      );
+      return;
+    }
+
+    // 케이스 2: 정상 매칭 → 확인 팝업
+    const targetLabel = mealLabel ? `${mealLabel}약 복용 ${intervalText}` : `복용 ${intervalText}`;
+    Alert.alert(
+      '몸상태 기록',
+      `약 복용 후 ${elapsedText} 지났어요.\n\n일정한 약효 추적 기록을 위해\n가장 가까운 시간대인\n"${targetLabel}" 기록으로 남길게요.`,
+      [
+        { text: '취소', style: 'cancel' },
+        {
+          text: '기록하기',
+          onPress: () => {
+            overrideLogIdRef.current = null;
+            setPendingTriggerLabel(labelKey);
+            setPendingMealTime(mealTime ?? null);
+            openFlowOrPend(labelKey, takenAt, mealTime ?? null);
+          },
+        },
+      ],
+    );
   };
 
   // DB 로그 → BodyRecord 변환
@@ -520,18 +620,17 @@ export function BodyStateScreen() {
   });
 
   const handleSaveRecord = async (record: { bodyScore: number; moodScore: number; sleepScore?: number; constipation?: boolean }) => {
-    // AsyncStorage에서 meal_time 읽기 (만료된 경우 자동 무시)
-    let medicationMealTime: string | undefined;
-    try {
-      const validMed = await readValidLastMedication();
-      if (validMed?.meal_time) medicationMealTime = validMed.meal_time;
-    } catch {}
+    // pendingMealTime은 handleOpenBodyState 또는 알림 진입 흐름에서 이미 설정됨
+    // (medication_meal_time DB 컬럼에 저장될 값)
+    const medicationMealTime: string | undefined = pendingMealTime ?? undefined;
 
     // 1. UI 즉시 닫기 (저장 완료를 기다리지 않음)
     const savedLabel = pendingTriggerLabel; // state 초기화 전 캡처
     const savedTriggeredBy = pendingTriggeredBy;
     const savedMealTime = medicationMealTime;
     const savedPatientId = patientId; // 클로저 캡처 — 비동기 처리 중 state 변경 방지
+    const savedOverrideLogId = overrideLogIdRef.current; // 덮어쓰기 모드 캡처
+    overrideLogIdRef.current = null;
     setShowFlow(false);
     setPendingTriggerLabel(null);
     setPendingTriggeredBy('manual');
@@ -555,6 +654,17 @@ export function BodyStateScreen() {
       if (!success) {
         Alert.alert('저장 실패', '몸상태 기록 저장에 실패했어요. 다시 시도해주세요.');
         return;
+      }
+
+      // 2-1b. 덮어쓰기 모드: 기존 로그 삭제 (새 로그가 성공적으로 저장된 경우에만)
+      if (savedOverrideLogId) {
+        try {
+          await supabase.from('on_off_logs').delete().eq('id', savedOverrideLogId);
+          // 화면 갱신
+          await refresh();
+        } catch (overrideErr) {
+          console.error('[handleSaveRecord] 기존 로그 삭제 실패:', overrideErr);
+        }
       }
 
       // 2-2. 큐 삭제 (await — fetchNextNotifMessage보다 반드시 먼저 완료되어야 함)
