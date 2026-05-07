@@ -357,37 +357,53 @@ function AppInner() {
       );
     });
 
-    // Fallback 1: 콜드스타트 시 useLastNotificationResponse 누락 대비 명시 호출
+    // Fallback 1: 콜드스타트 시 useLastNotificationResponse 누락 대비 명시 호출 + 재시도/백오프
     // (영웅문#·삼성인터넷 등 무거운 앱과 함께 사용 시 listener race로 hook이 발화 안 하는 케이스)
+    // expo-notifications cold start race: 첫 호출 시 null 반환되는 케이스를 위한 재시도
+    // 시도 시점: 0ms, 500ms, 1500ms, 3000ms (총 4번)
     // dedupe(handledNotifIds)가 중복 처리 차단
+    let _coldStartCancelled = false;
     (async () => {
-      // 디버그: fallback 진입 로깅
       let _fbUserId: string | null = null;
       try {
         const { data: { session } } = await supabase.auth.getSession();
         _fbUserId = session?.user?.id ?? null;
       } catch {}
-      logNotificationEvent({
-        userId: _fbUserId,
-        event: 'fallback_cold_start_check',
-        payload: { stage: 'enter' },
-      }).catch(() => {});
-      try {
-        const response = await Notifications.getLastNotificationResponseAsync();
+
+      const intervals = [0, 500, 1500, 3000];
+      for (let i = 0; i < intervals.length; i++) {
+        if (_coldStartCancelled) return;
+        if (i > 0) {
+          await new Promise((r) => setTimeout(r, intervals[i] - intervals[i - 1]));
+        }
+        if (_coldStartCancelled) return;
+
+        const attempt = i + 1;
         logNotificationEvent({
           userId: _fbUserId,
-          event: 'fallback_cold_start_result',
-          payload: {
-            hasResponse: response !== null,
-            notifId: response?.notification?.request?.identifier ?? null,
-            type: response?.notification?.request?.content?.data?.type ?? null,
-          },
+          event: 'fallback_cold_start_check',
+          payload: { stage: 'enter', attempt },
         }).catch(() => {});
-        if (response) {
-          await handleNotificationResponse(response, true);
+
+        try {
+          const response = await Notifications.getLastNotificationResponseAsync();
+          logNotificationEvent({
+            userId: _fbUserId,
+            event: 'fallback_cold_start_result',
+            payload: {
+              attempt,
+              hasResponse: response !== null,
+              notifId: response?.notification?.request?.identifier ?? null,
+              type: response?.notification?.request?.content?.data?.type ?? null,
+            },
+          }).catch(() => {});
+          if (response) {
+            await handleNotificationResponse(response, true);
+            return;
+          }
+        } catch (e) {
+          // silent — 다음 시도로 넘어감
         }
-      } catch (e) {
-        console.error('[App] getLastNotificationResponseAsync fallback 실패:', e);
       }
     })();
 
@@ -432,6 +448,7 @@ function AppInner() {
     });
 
     return () => {
+      _coldStartCancelled = true;
       foregroundSubscription.remove();
       notifSubscription.remove();
       appStateSubscription.remove();
