@@ -284,8 +284,35 @@ function AppInner() {
       );
     });
 
-    const appStateSubscription = AppState.addEventListener('change', (nextAppState: AppStateStatus) => {
+    // Fallback 1: 콜드스타트 시 useLastNotificationResponse 누락 대비 명시 호출
+    // (영웅문#·삼성인터넷 등 무거운 앱과 함께 사용 시 listener race로 hook이 발화 안 하는 케이스)
+    // dedupe(handledNotifIds)가 중복 처리 차단
+    (async () => {
+      try {
+        const response = await Notifications.getLastNotificationResponseAsync();
+        if (response) {
+          await handleNotificationResponse(response, true);
+        }
+      } catch (e) {
+        console.error('[App] getLastNotificationResponseAsync fallback 실패:', e);
+      }
+    })();
+
+    const appStateSubscription = AppState.addEventListener('change', async (nextAppState: AppStateStatus) => {
+      const prev = appState.current;
       appState.current = nextAppState;
+      // Fallback 2: background → active 전환 시 마지막 알림 응답 재확인
+      // (백그라운드 listener가 race로 누락한 응답 회수, dedupe로 중복 차단)
+      if (prev !== 'active' && nextAppState === 'active') {
+        try {
+          const response = await Notifications.getLastNotificationResponseAsync();
+          if (response) {
+            await handleNotificationResponse(response, false);
+          }
+        } catch (e) {
+          console.error('[App] AppState active fallback 실패:', e);
+        }
+      }
     });
 
     return () => {
