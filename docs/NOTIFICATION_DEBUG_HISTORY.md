@@ -417,10 +417,157 @@ _최종 업데이트: 2026-05-02 — [이슈 20] expo-notifications listener rac
 
 ---
 
-## 현재 상태 (2026-05-07 KST)
+## [이슈 22] 약효추적 알림 미표시 - listener race 진단 (2026-05-07 09:00 KST, 보고)
 
-- ✅ fallback 작동 확인 (13시 케이스)
-- 🔍 일부 누락 케이스 원인 추가 데이터 필요 (12시 점심약 등)
-- 📊 다음 누락 케이스 발생 시 fallback_*_check / fallback_*_result 단계별 추적 가능
-- ⚠️ 디버그 로깅(`notification_debug_logs` 테이블 + App.tsx `logNotificationEvent` 호출들)은 임시. 진단 종료 후 제거 예정
+**보고:** 영웅문# 앱 실행 중 약효추적 알림 탭 → 팝업 안 뜸, 종 아이콘 1.
+
+**진단:**
+- `notification_debug_logs`에 `handler_enter` 0건 = 클라이언트 핸들러 자체 미발화
+- 원인: expo-notifications listener race (앱이 OS에 kill된 상태에서 알림 탭 시 cold start 응답 손실)
+
+**조치:** fallback 디버그 로깅 추가 (커밋 `5bea550`)
+
+**결과:** 다음 발생 시 fallback이 발화했는지 추적 가능
+
+---
+
+## [이슈 23] 점심약 알림 미표시 - OTA 적용 검증 필요 (2026-05-07 12:00 KST)
+
+**보고:** 알림 탭 → 팝업 안 뜸 (앱 실행 중인 거 없음).
+
+**진단:**
+- `handler_enter` 0건. fallback 발화 여부 DB로 확인 불가 (`5bea550` fallback에 logging 없었음)
+
+**조치:**
+- fallback 경로 4개 지점에 `logNotificationEvent` 추가 (커밋 `5bea550` 보강)
+- 부팅 시 번들 ID 로깅 (커밋 `821de76`)
+
+**결과:** OTA 적용 여부 추적 가능
+
+---
+
+## [이슈 24] 운동+약효추적 동시 알림 정상 작동 - fallback 검증 (2026-05-07 13:00 KST)
+
+**보고:** 두 알림 각각 탭 → 팝업 정상.
+
+**진단:**
+- `fallback_appstate_active_result.hasResponse=true` 발화로 handler 트리거 → navigate 성공
+
+**결과:** `5bea550` fallback 정상 작동 확인. 원래 listener는 race로 누락됐지만 fallback이 우회.
+
+---
+
+## [이슈 25] 약효추적 → 직접 메뉴 진입 시 trigger select modal UX 검토 (2026-05-07 14:00 KST)
+
+**보고:** 약효추적 기록 후 "기록하기" 버튼 누르면 trigger select modal이 떠서 헷갈림.
+
+**논의:**
+- meal_time × interval 조합 복잡도 → "약 복용 시간 기준 자동 매칭" UX로 단순화 결정
+- 사양 확정 (6개 케이스 명시), 추가 단순화 작업으로 이어짐 ([이슈 28] 참고)
+
+---
+
+## [이슈 26] 운동 알림 미표시 - OTA + cold start race (2026-05-07 17:07 KST)
+
+**보고:** 운동 알림 탭 → 팝업 안 뜸 + 약복용 페이지로 잘못 이동.
+
+**진단:**
+- app_boot 시점에 새 OTA 번들 적용 → cold start와 OTA reload 충돌로 알림 응답 손실 → 라우팅 안 됨 → 기본 화면(약복용 탭) 표시
+
+**결과:** expo-notifications + expo-updates 알려진 한계로 확인. 별도 fix 필요.
+
+---
+
+## [이슈 27] OTA 자동 재시작 패턴 도입 시도 → 철회 (2026-05-07 17~19 KST)
+
+**도입:** `OtaUpdateGate` 컴포넌트로 포그라운드 사용 중 모달 + 5초 카운트다운 + reload (커밋 `b61e428`).
+
+**철회:** 오너 의견 — 사용 중 강제 닫기는 부적절. 다른 앱들은 cold start에서만 깜빡임으로 적용.
+
+**조치:**
+- `OtaUpdateGate` 제거 + 기존 cold-start reload 복원 (커밋 `7f6e511`)
+- 백그라운드 30초+ 후 복귀 시 OTA 체크 (AppState active) 추가 (커밋 `bd407ab`)
+
+**결과:** OTA 적용 시점은 cold start 또는 30초+ 백그라운드 복귀 시. OTA 직후 첫 알림 1회 손실은 감수.
+
+**교훈:** 새 패턴 도입 전 오너의 UX 정책 (사용 중 강제 인터럽트 금지)과 충돌하지 않는지 먼저 확인할 것.
+
+---
+
+## [이슈 28] 몸상태 기록 진입 흐름 단순화 (2026-05-07 17~18 KST)
+
+**사양:** 약 복용 후 시간 기준 자동 매칭 + 6개 케이스 명시 처리.
+
+**조치:**
+- `handleOpenBodyState` 재작성, `parkinon_last_medication` AsyncStorage 의존 제거 (커밋 `c0a4ed9`)
+- 핵심: `med_logs` DB 직접 조회 + ±20분 자동 매칭 + 케이스별 차단/덮어쓰기/안내
+
+---
+
+## [이슈 29] 저녁약 알림 처리 후 약복용 메뉴 재진입 시 모달 재발생 (2026-05-07 18:00 KST)
+
+**보고:** 알림 탭 → 정상 처리 → 다른 탭 갔다 약복용 탭 복귀 → 약복용 모달 다시 뜸.
+
+**진단 (debug logs):**
+- 동일 notif_id에 `handler_enter` 4회, `setItem pendingMedNotif` **3회** 발생
+- dedupe 등록이 navigate 완료 후로 미뤄져 있어 핸들러 2/3이 `dedupe_check` 통과
+- 원인: dedupe race로 stale `pendingMedNotif` 잔존
+
+**조치:** dedupe 등록 시점을 handler 진입 직후로 이동 + 실패 시 unregister (커밋 `e76d0f9`).
+
+**검증:** 다음 운동 알림(20:00)에서 `handler_enter` 5번 중 4번 `blocked`로 차단됨, `setItem` 1번만 발생 → race 차단 성공.
+
+---
+
+## [이슈 30] 약효추적 → 직접 진입 시 ±20분 이내 매칭 confirmation popup UX 변경 (2026-05-07 19:00 KST)
+
+**보고:**
+- 약효추적 1시간 알림 race로 팝업 누락 → 직접 "기록하기" 버튼 누름 → 1h 2m 매칭 confirmation 팝업이 떠서 헷갈림 (오너: 이건 뜨면 안됨)
+- "저녁약약 복용" 오타 (mealLabel + "약" 중복)
+
+**사양 변경:** ±20분 이내 매칭이면 확인 alert 없이 즉시 입력 진입.
+
+**조치:** `BodyStateScreen.tsx` case 2 분기에서 `Alert` 제거 + 메시지 형식 정리 (커밋 `e76d0f9`).
+
+**결과:** ±20분 이내는 1탭으로 바로 입력 진입.
+
+---
+
+## [이슈 31] 운동 알림 정상 처리 후 종 뱃지 미감소 (2026-05-07 20:00 KST)
+
+**보고:** 운동 알림 탭 → 운동 기록 정상 → 종 아이콘 숫자 1 그대로.
+
+**진단:**
+- `useExercise.ts saveExercise`에 알림 `read_at` 업데이트 + `refreshBadge` 호출 누락 (`e2db671` 약복용 패치 시 운동 측 누락)
+- 비교: 약복용은 `takeMedication`에서 처리됨 (정상), 약효추적도 정상 동작
+
+**조치:**
+- `useExercise.ts`에 `type='exercise_reminder'` `read_at` 일괄 업데이트
+- `ExerciseDurationScreen`에서 `refreshBadge()` 호출 추가 (커밋 `4e8cd6e`)
+
+**결과:** 약복용/약효추적/운동 모두 종 뱃지 자동 감소 통일.
+
+---
+
+## 현재 상태 (2026-05-07 KST 마감)
+
+### 검증 완료 항목
+- ✅ dedupe race 차단 (`e76d0f9`) — 동일 notif_id에 handler 다중 진입 시 setItem 1번만 발생
+- ✅ fallback (`5bea550`) — `getLastNotificationResponseAsync` + AppState active로 listener race 우회
+- ✅ 약복용/약효추적/운동 모두 종 뱃지 자동 감소 (`4e8cd6e`)
+- ✅ stale `pendingMedNotif` 차단 (`4bc1551`) — TTL 5분 + cross-type cleanup
+- ✅ 몸상태 기록 진입 자동 매칭 (`c0a4ed9`, `e76d0f9`) — ±20분 이내 즉시 진입
+
+### OTA 적용 정책
+- cold start 시 자동 적용 (다른 앱 동일 패턴)
+- 백그라운드 30초+ 후 복귀 시 OTA 체크 + 적용 (`bd407ab`)
+- OTA 직후 첫 알림 1회 손실은 감수 (오너 결정)
+
+### 디버그 로깅
+- `notification_debug_logs` 테이블 + 11개 이벤트 + fallback 4개 이벤트 + app_boot
+- 향후 누락 케이스 발생 시 단계별 추적 가능
+
+### 알려진 한계
+- expo-notifications listener race (다른 앱에서 복귀 시 일부 케이스 누락) — fallback으로 대부분 우회
+- expo-updates + 알림 탭 cold start 충돌 (OTA 직후 1회) — UX 단순함을 위해 감수
 
