@@ -312,8 +312,28 @@ function AppInner() {
     // (영웅문#·삼성인터넷 등 무거운 앱과 함께 사용 시 listener race로 hook이 발화 안 하는 케이스)
     // dedupe(handledNotifIds)가 중복 처리 차단
     (async () => {
+      // 디버그: fallback 진입 로깅
+      let _fbUserId: string | null = null;
+      try {
+        const { data: { session } } = await supabase.auth.getSession();
+        _fbUserId = session?.user?.id ?? null;
+      } catch {}
+      logNotificationEvent({
+        userId: _fbUserId,
+        event: 'fallback_cold_start_check',
+        payload: { stage: 'enter' },
+      }).catch(() => {});
       try {
         const response = await Notifications.getLastNotificationResponseAsync();
+        logNotificationEvent({
+          userId: _fbUserId,
+          event: 'fallback_cold_start_result',
+          payload: {
+            hasResponse: response !== null,
+            notifId: response?.notification?.request?.identifier ?? null,
+            type: response?.notification?.request?.content?.data?.type ?? null,
+          },
+        }).catch(() => {});
         if (response) {
           await handleNotificationResponse(response, true);
         }
@@ -328,8 +348,31 @@ function AppInner() {
       // Fallback 2: background → active 전환 시 마지막 알림 응답 재확인
       // (백그라운드 listener가 race로 누락한 응답 회수, dedupe로 중복 차단)
       if (prev !== 'active' && nextAppState === 'active') {
+        // 디버그: fallback 진입 로깅
+        let _fbUserId: string | null = null;
+        try {
+          const { data: { session } } = await supabase.auth.getSession();
+          _fbUserId = session?.user?.id ?? null;
+        } catch {}
+        logNotificationEvent({
+          userId: _fbUserId,
+          event: 'fallback_appstate_active_check',
+          payload: {
+            fromState: prev,
+            toState: nextAppState,
+          },
+        }).catch(() => {});
         try {
           const response = await Notifications.getLastNotificationResponseAsync();
+          logNotificationEvent({
+            userId: _fbUserId,
+            event: 'fallback_appstate_active_result',
+            payload: {
+              hasResponse: response !== null,
+              notifId: response?.notification?.request?.identifier ?? null,
+              type: response?.notification?.request?.content?.data?.type ?? null,
+            },
+          }).catch(() => {});
           if (response) {
             await handleNotificationResponse(response, false);
           }
