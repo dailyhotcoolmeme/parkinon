@@ -388,3 +388,39 @@ dedupe만 단단하면 중복 fallback은 안전하다.
 ---
 
 _최종 업데이트: 2026-05-02 — [이슈 20] expo-notifications listener race fallback 추가_
+
+---
+
+## [검증 21] fallback (5bea550) 작동 확인 (2026-05-07 13:00)
+
+**보고:** 13:00 KST 운동 + 몸상태(약효추적) 알림 동시 도착 → 각각 탭 → **둘 다 팝업 정상 표시**.
+
+**디버그 로그 분석:**
+- 적용 번들: `019e0066-c28f-7bc9-877a-88ef08950aa2` (5bea550 OTA 번들), isEmbeddedLaunch=false
+- 부팅 시각: 12:34 KST (알림 28분 전), 그 후 background 유지
+- 알림 처리 경로:
+  - `addNotificationResponseReceivedListener` 단독 발화 **없음**
+  - `fallback_appstate_active_check` 발화 (background→active 감지)
+  - `fallback_appstate_active_result.hasResponse=true` (응답 획득)
+  - 이를 통해 `handler_enter` 발화 → branch_match → navigate 성공
+- handler_enter 6건, fallback_appstate_active_result hasResponse=true 3건
+- dedupe_check blocked=true 1건 (중복 안전 차단)
+
+**결론:**
+- **fallback (`getLastNotificationResponseAsync` + AppState active)가 의도대로 작동**
+- 원래 listener가 race로 누락된 응답을 fallback이 정확히 잡아냄
+- expo-notifications listener race를 우회하는 데 성공
+
+**한계:**
+- 12시 점심약 케이스에서는 fallback 로깅이 없어 (아직 5bea550 적용 전) 어느 단계에서 끊겼는지 미확인
+- `fallback_*` 로깅 추가 후 (이번 작업 5bea550) 다음 누락 케이스부터 정확한 단계별 추적 가능
+
+---
+
+## 현재 상태 (2026-05-07 KST)
+
+- ✅ fallback 작동 확인 (13시 케이스)
+- 🔍 일부 누락 케이스 원인 추가 데이터 필요 (12시 점심약 등)
+- 📊 다음 누락 케이스 발생 시 fallback_*_check / fallback_*_result 단계별 추적 가능
+- ⚠️ 디버그 로깅(`notification_debug_logs` 테이블 + App.tsx `logNotificationEvent` 호출들)은 임시. 진단 종료 후 제거 예정
+
