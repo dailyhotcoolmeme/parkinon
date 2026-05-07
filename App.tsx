@@ -14,7 +14,6 @@ import { requestPermissionsAndSaveToken } from './src/utils/notifications';
 import { notificationIntentManager } from './src/utils/NotificationIntentManager';
 import { logNotificationEvent } from './src/utils/notificationDebugLog';
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import { OtaUpdateGate } from './src/components/common/OtaUpdateGate';
 
 // Android 알림 채널 — MAX 중요도 (Doze 모드에서도 즉시 표시)
 Notifications.setNotificationChannelAsync('default', {
@@ -72,9 +71,7 @@ function AppInner() {
     })();
   }, []);
 
-  // 앱 시작 시 OTA 업데이트 체크 (다운로드만 수행)
-  // 실제 reloadAsync는 OtaUpdateGate가 useUpdates().isUpdatePending을 보고
-  // 5초 카운트다운 모달 노출 후 호출 → 알림 탭 race 차단
+  // 앱 시작 시 OTA 업데이트 체크 → 발견 시 즉시 reload (cold-start 깜빡임 패턴)
   useEffect(() => {
     async function checkForUpdates() {
       if (!__DEV__) {
@@ -84,7 +81,8 @@ function AppInner() {
           if (update.isAvailable) {
             console.log('[OTA] 업데이트 발견! 다운로드 중...');
             await Updates.fetchUpdateAsync();
-            console.log('[OTA] 다운로드 완료. OtaUpdateGate가 재시작 처리.');
+            console.log('[OTA] 다운로드 완료. 재시작합니다.');
+            await Updates.reloadAsync();
           } else {
             console.log('[OTA] 최신 버전입니다.');
           }
@@ -394,7 +392,6 @@ function AppInner() {
   return (
     <SettingsProvider>
       <RootNavigator />
-      <OtaUpdateGate />
     </SettingsProvider>
   );
 }
