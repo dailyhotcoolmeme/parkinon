@@ -47,6 +47,30 @@ function AppInner() {
     })();
   }, []);
 
+  // 부팅 시 OTA 번들 정보 로깅 (mount 시 1회 — 적용 검증용)
+  useEffect(() => {
+    (async () => {
+      try {
+        const { data: { session } } = await supabase.auth.getSession();
+        const userId = session?.user?.id ?? null;
+        if (!userId) return;
+        await logNotificationEvent({
+          userId,
+          event: 'app_boot',
+          payload: {
+            updateId: Updates.updateId,
+            runtimeVersion: Updates.runtimeVersion,
+            channel: Updates.channel,
+            isEmbeddedLaunch: Updates.isEmbeddedLaunch,
+            createdAt: Updates.createdAt?.toISOString() ?? null,
+          },
+        });
+      } catch {
+        // silent
+      }
+    })();
+  }, []);
+
   // 앱 시작 시 OTA 업데이트 체크
   useEffect(() => {
     async function checkForUpdates() {
