@@ -174,6 +174,19 @@ export function useExercise(): UseExerciseReturn {
         console.error('[useExercise] 보호자 푸시 실패 (기록은 저장됨):', notifErr);
       }
 
+      // 같은 시간대 미읽음 운동 알림 일괄 읽음 처리
+      try {
+        const now = new Date().toISOString();
+        await supabase
+          .from('notification_logs')
+          .update({ read_at: now })
+          .eq('user_id', user.id)
+          .eq('type', 'exercise_reminder')
+          .is('read_at', null);
+      } catch (e) {
+        // silent — 운동 기록 자체엔 영향 없음
+      }
+
       return true;
     } catch (err: any) {
       console.error('[useExercise] saveExercise 오류:', err);

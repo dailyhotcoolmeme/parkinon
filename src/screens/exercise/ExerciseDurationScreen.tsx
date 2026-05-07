@@ -179,7 +179,7 @@ export function ExerciseDurationScreen() {
   const [selected, setSelected] = useState<number | null>(null);
   const [saving, setSaving] = useState(false);
   const { saveExercise } = useExercise();
-  const { unreadCount } = useNotificationBadge();
+  const { unreadCount, refreshBadge } = useNotificationBadge();
   const { user } = useAuth();
   const [showNextNotifModal, setShowNextNotifModal] = useState(false);
   const [nextNotifInfo, setNextNotifInfo] = useState<ExNextNotifInfo | null>(null);
@@ -200,6 +200,7 @@ export function ExerciseDurationScreen() {
     ]);
     setSaving(false);
     if (success) {
+      refreshBadge().catch(() => {});
       setSavedExerciseName(exerciseName);
       setSavedDuration(selected);
       if (info) {
