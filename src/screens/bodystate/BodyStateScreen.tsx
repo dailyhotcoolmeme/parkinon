@@ -558,11 +558,11 @@ export function BodyStateScreen() {
 
     const intervalText = intervalMinutesToText(closestInterval);
     const mealLabel = mealTime ? mealTimeToKorean(mealTime) : '';
-    const elapsedText = formatDurationKo(elapsedMin);
 
     if (existing) {
       // 케이스 5: 이미 기록됨 → 덮어쓰기 확인
-      const targetLabel = mealLabel ? `${mealLabel}약 복용 ${intervalText}` : `복용 ${intervalText}`;
+      // 오타 수정: mealLabel이 이미 "저녁약" 형태이므로 추가 "약" 붙이지 않음
+      const targetLabel = mealLabel ? `${mealLabel} 복용 ${intervalText}` : `복용 ${intervalText}`;
       Alert.alert(
         '이미 기록되어 있어요',
         `${targetLabel}는 이미 기록되어 있어요.\n덮어쓸까요?`,
@@ -582,24 +582,12 @@ export function BodyStateScreen() {
       return;
     }
 
-    // 케이스 2: 정상 매칭 → 확인 팝업
-    const targetLabel = mealLabel ? `${mealLabel}약 복용 ${intervalText}` : `복용 ${intervalText}`;
-    Alert.alert(
-      '몸상태 기록',
-      `약 복용 후 ${elapsedText} 지났어요.\n\n일정한 약효 추적 기록을 위해\n가장 가까운 시간대인\n"${targetLabel}" 기록으로 남길게요.`,
-      [
-        { text: '취소', style: 'cancel' },
-        {
-          text: '기록하기',
-          onPress: () => {
-            overrideLogIdRef.current = null;
-            setPendingTriggerLabel(labelKey);
-            setPendingMealTime(mealTime ?? null);
-            openFlowOrPend(labelKey, takenAt, mealTime ?? null);
-          },
-        },
-      ],
-    );
+    // 케이스 2: 정상 매칭 → 확인 Alert 없이 즉시 진입
+    // (사용자가 ±20분 이내 약효추적 시간대에 들어와있으면 별도 확인 불필요)
+    overrideLogIdRef.current = null;
+    setPendingTriggerLabel(labelKey);
+    setPendingMealTime(mealTime ?? null);
+    openFlowOrPend(labelKey, takenAt, mealTime ?? null);
   };
 
   // DB 로그 → BodyRecord 변환

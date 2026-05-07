@@ -170,13 +170,17 @@ function AppInner() {
         data,
       });
 
-      // dedupe 검사만 먼저 수행. 등록은 navigate 성공 직후로 이동하여
-      // waitForNavReady 실패/예외 시 동일 알림 재시도가 가능하도록 함.
+      // dedupe race 차단: 등록을 handler 진입 직후(첫 await 전)로 이동.
+      // 기존엔 navigate 성공 후에만 등록 → cold + fallback 핸들러가 동시 실행되면
+      // 두 번째 핸들러가 dedupe_check 통과 → setItem/navigate 중복 발생.
+      // 등록 시점을 앞당기고, 처리 중 실패 시 unregister하여 재시도 가능 유지.
       if (handledNotifIds.current.has(notifId)) {
         log('dedupe_check', { blocked: true });
         return;
       }
       log('dedupe_check', { blocked: false });
+      handledNotifIds.current.add(notifId);
+      let dedupeRegistered = true;
 
       // 페이로드 키 호환 처리
       // - medication_reminder / missed_medication: 'mealTime' (camelCase) 사용
@@ -226,6 +230,11 @@ function AppInner() {
         const ready = await waitForNavReady();
         log('wait_nav_ready_done', { ready });
         if (!ready) {
+          // dedupe 해제 — 다음 시도(예: warm listener) 허용
+          if (dedupeRegistered) {
+            handledNotifIds.current.delete(notifId);
+            dedupeRegistered = false;
+          }
           log('handler_exit', { reason: 'nav_not_ready' });
           return;
         }
@@ -303,12 +312,15 @@ function AppInner() {
           log('branch_match', { branch: 'no_type' });
         }
 
-        // navigate 호출 성공 직후 dedupe 등록.
-        // 실패(throw) 시에는 등록되지 않으므로 다음 listener에서 재시도 가능.
-        handledNotifIds.current.add(notifId);
+        // 정상 처리 완료 — dedupe 등록은 handler_enter 직후에 이미 됨.
         log('handler_exit', { success: true });
       } catch (e: any) {
-        console.error('[App] navigate 실패, dedupe 미등록(재시도 허용):', e);
+        // 실패 시 dedupe 해제 → 다음 listener에서 재시도 가능
+        if (dedupeRegistered) {
+          handledNotifIds.current.delete(notifId);
+          dedupeRegistered = false;
+        }
+        console.error('[App] navigate 실패, dedupe 해제(재시도 허용):', e);
         log('handler_exit', { success: false, error: String(e?.message ?? e) });
       }
     },
