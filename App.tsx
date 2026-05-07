@@ -32,6 +32,8 @@ function AppInner() {
   const appState = useRef<AppStateStatus>(AppState.currentState);
   const { saveNotification, refreshBadge } = useNotificationBadge();
   const handledNotifIds = useRef<Set<string>>(new Set());
+  const backgroundEnteredAtRef = useRef<number | null>(null);
+  const otaInFlightRef = useRef(false);
 
   // 앱 시작 시마다 push_token DB 갱신 (세션이 있는 경우 무조건 시도)
   useEffect(() => {
@@ -92,6 +94,41 @@ function AppInner() {
       }
     }
     checkForUpdates();
+  }, []);
+
+  // 백그라운드 30초+ 후 active 복귀 시 OTA 체크 + 적용
+  useEffect(() => {
+    const sub = AppState.addEventListener('change', async (nextState) => {
+      if (nextState === 'background' || nextState === 'inactive') {
+        backgroundEnteredAtRef.current = Date.now();
+        return;
+      }
+
+      if (nextState === 'active') {
+        const enteredAt = backgroundEnteredAtRef.current;
+        backgroundEnteredAtRef.current = null;
+
+        // 백그라운드 30초 미만이면 skip
+        if (!enteredAt || Date.now() - enteredAt < 30 * 1000) return;
+
+        // 동시 호출 방지
+        if (otaInFlightRef.current) return;
+        otaInFlightRef.current = true;
+
+        try {
+          const update = await Updates.checkForUpdateAsync();
+          if (update.isAvailable) {
+            await Updates.fetchUpdateAsync();
+            await Updates.reloadAsync();
+          }
+        } catch {
+          // silent
+        } finally {
+          otaInFlightRef.current = false;
+        }
+      }
+    });
+    return () => sub.remove();
   }, []);
 
   // 알림 응답 공통 핸들러 — useLastNotificationResponse(콜드스타트)와
