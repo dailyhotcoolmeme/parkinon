@@ -363,15 +363,20 @@ function AppInner() {
     // 시도 시점: 0ms, 500ms, 1500ms, 3000ms (총 4번)
     // dedupe(handledNotifIds)가 중복 처리 차단
     let _coldStartCancelled = false;
-    (async () => {
-      let _fbUserId: string | null = null;
+    // userId resolution을 두 경로가 공유 (병렬 실행 위해 promise로)
+    const _fbUserIdPromise: Promise<string | null> = (async () => {
       try {
         const { data: { session } } = await supabase.auth.getSession();
-        _fbUserId = session?.user?.id ?? null;
-      } catch {}
+        return session?.user?.id ?? null;
+      } catch {
+        return null;
+      }
+    })();
 
+    // 경로 A: cold-start retry 루프 (0/500/1500/3000ms, 4회)
+    (async () => {
+      const _fbUserId = await _fbUserIdPromise;
       const intervals = [0, 500, 1500, 3000];
-      let allAttemptsNull = true;
       for (let i = 0; i < intervals.length; i++) {
         if (_coldStartCancelled) return;
         if (i > 0) {
@@ -399,7 +404,6 @@ function AppInner() {
             },
           }).catch(() => {});
           if (response) {
-            allAttemptsNull = false;
             await handleNotificationResponse(response, true);
             return;
           }
@@ -407,14 +411,15 @@ function AppInner() {
           // silent — 다음 시도로 넘어감
         }
       }
+    })();
 
+    // 경로 B (서버 폴백): cold-start retry와 병렬로 즉시 발사.
+    // 4.2초 retry 직렬 → 약 0.5초 단축 효과. 두 경로 모두 enqueue 시
+    // handledNotifIds(60s TTL) dedupe로 중복 처리 차단됨.
+    // notification_logs 최근 3분 이내 미읽음이 정확히 1건일 때만 처리.
+    (async () => {
+      const _fbUserId = await _fbUserIdPromise;
       if (_coldStartCancelled) return;
-
-      // Fallback 3 (서버 폴백): retry 4번 모두 hasResponse=false인 케이스 보강.
-      // expo-notifications가 OS 응답을 못 받은 경우 → notification_logs에서 최근
-      // 3분 이내 미읽음 알림이 정확히 1건일 때만 동일 처리 로직 호출.
-      // (0건/2건+은 ambiguous → silent skip — 잘못 라우팅 방지)
-      if (!allAttemptsNull) return;
       if (!_fbUserId) return;
 
       logNotificationEvent({
@@ -434,6 +439,7 @@ function AppInner() {
           .order('created_at', { ascending: false });
 
         if (error) throw error;
+        if (_coldStartCancelled) return;
 
         const count = rows?.length ?? 0;
         logNotificationEvent({
@@ -464,6 +470,7 @@ function AppInner() {
         }
 
         // 정확히 1건 → handleNotificationResponse와 동일 처리 (fake response 합성)
+        // cold-start retry가 먼저 같은 notifId를 처리한 경우 handledNotifIds dedupe로 차단
         const row = rows![0];
         const fakeResponse = {
           notification: {
