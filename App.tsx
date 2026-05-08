@@ -32,6 +32,10 @@ function AppInner() {
   const appState = useRef<AppStateStatus>(AppState.currentState);
   const { saveNotification, refreshBadge } = useNotificationBadge();
   const handledNotifIds = useRef<Set<string>>(new Set());
+  // 컨텐츠 기반 보조 dedupe: cold-start retry와 server_query가 다른 식별자를 가질 때
+  // 같은 알림이 두 번 처리되는 race를 차단. key: `${type}:${mealTime}:${minute_bucket}`
+  // value: 등록 시각 (TTL 만료 청소용)
+  const handledContentKeys = useRef<Map<string, number>>(new Map());
   const backgroundEnteredAtRef = useRef<number | null>(null);
   const otaInFlightRef = useRef(false);
 
@@ -175,11 +179,33 @@ function AppInner() {
       // 두 번째 핸들러가 dedupe_check 통과 → setItem/navigate 중복 발생.
       // 등록 시점을 앞당기고, 처리 중 실패 시 unregister하여 재시도 가능 유지.
       if (handledNotifIds.current.has(notifId)) {
-        log('dedupe_check', { blocked: true });
+        log('dedupe_check', { blocked: true, by: 'notifId' });
         return;
       }
-      log('dedupe_check', { blocked: false });
+
+      // 컨텐츠 기반 보조 dedupe (cold-start retry vs server_query 식별자 불일치 race)
+      // 30초 윈도우 내 같은 (type, mealTime) 알림은 한 번만 처리
+      const _mealTimeForKey: string =
+        (data?.mealTime ?? data?.meal_time ?? '') as string;
+      const _typeForKey: string = (type ?? 'unknown') as string;
+      const _minuteBucket = Math.floor(Date.now() / 30000);
+      const contentKey = `${_typeForKey}:${_mealTimeForKey}:${_minuteBucket}`;
+
+      // TTL 청소 (60초 초과 entry 제거 — 메모리 누수 방지)
+      const _now = Date.now();
+      for (const [k, ts] of handledContentKeys.current.entries()) {
+        if (_now - ts > 60000) handledContentKeys.current.delete(k);
+      }
+
+      if (handledContentKeys.current.has(contentKey)) {
+        log('dedupe_check', { blocked: true, by: 'contentKey', contentKey });
+        log('dedupe_content_key_blocked', { contentKey, notifId });
+        return;
+      }
+
+      log('dedupe_check', { blocked: false, contentKey });
       handledNotifIds.current.add(notifId);
+      handledContentKeys.current.set(contentKey, _now);
       let dedupeRegistered = true;
 
       // 페이로드 키 호환 처리
@@ -233,6 +259,7 @@ function AppInner() {
           // dedupe 해제 — 다음 시도(예: warm listener) 허용
           if (dedupeRegistered) {
             handledNotifIds.current.delete(notifId);
+            handledContentKeys.current.delete(contentKey);
             dedupeRegistered = false;
           }
           log('handler_exit', { reason: 'nav_not_ready' });
@@ -318,6 +345,7 @@ function AppInner() {
         // 실패 시 dedupe 해제 → 다음 listener에서 재시도 가능
         if (dedupeRegistered) {
           handledNotifIds.current.delete(notifId);
+          handledContentKeys.current.delete(contentKey);
           dedupeRegistered = false;
         }
         console.error('[App] navigate 실패, dedupe 해제(재시도 허용):', e);
@@ -472,11 +500,30 @@ function AppInner() {
         // 정확히 1건 → handleNotificationResponse와 동일 처리 (fake response 합성)
         // cold-start retry가 먼저 같은 notifId를 처리한 경우 handledNotifIds dedupe로 차단
         const row = rows![0];
+        // 식별자 통일 시도: data 컬럼에 FCM messageId가 있으면 cold-start retry와 일치시켜
+        // 첫 번째(notifId) dedupe로 차단되도록 함. 없으면 DB UUID fallback.
+        const _rowData = (row.data ?? {}) as Record<string, any>;
+        const _fcmId: string | null =
+          (_rowData?.messageId as string) ||
+          (_rowData?._messageId as string) ||
+          (_rowData?.fcmMessageId as string) ||
+          (_rowData?.fcmId as string) ||
+          null;
+        const _identifier = _fcmId || row.id;
+        logNotificationEvent({
+          userId: _fbUserId,
+          event: 'fallback_server_query_identifier',
+          payload: {
+            usedFcmId: !!_fcmId,
+            identifier: _identifier,
+            rowId: row.id,
+          },
+        }).catch(() => {});
         const fakeResponse = {
           notification: {
             date: Date.now(),
             request: {
-              identifier: row.id,
+              identifier: _identifier,
               content: {
                 title: row.title ?? '',
                 body: row.body ?? '',
