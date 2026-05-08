@@ -10,7 +10,7 @@ import {
   Modal,
 } from 'react-native';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
-import { useFocusEffect, useRoute, RouteProp } from '@react-navigation/native';
+import { useFocusEffect, useRoute, useNavigation, RouteProp } from '@react-navigation/native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { Ionicons } from '@expo/vector-icons';
 import { Colors } from '../../constants/colors';
@@ -98,7 +98,10 @@ type MedicationRouteParams = {
 
 export function MedicationScreen() {
   const route = useRoute<RouteProp<{ Medication: MedicationRouteParams }, 'Medication'>>();
+  const navigation = useNavigation<any>();
   const routeParams = (route.params ?? {}) as MedicationRouteParams;
+  // 동일 autoOpen 값으로 재진입 시 모달 재오픈 차단 (탭 이동 후 재마운트 방어)
+  const processedAutoOpenRef = useRef<number | boolean | null>(null);
   const { user } = useAuth();
   const { todayStatus, takeMedication, getMedLogs, error: medError, refresh } = useMedication();
   const { saveBodyState, todayLogs: bodyLogs } = useBodyState();
@@ -137,6 +140,9 @@ export function MedicationScreen() {
   // App.tsx에서 navigation params { autoOpen: true, mealTime: '아침' } 전달
   useEffect(() => {
     if (!routeParams.autoOpen) return;
+    // 같은 autoOpen 값으로 재진입(탭 재마운트 등) 시 무시
+    if (processedAutoOpenRef.current === routeParams.autoOpen) return;
+    processedAutoOpenRef.current = routeParams.autoOpen;
 
     // 알림으로 진입 시 미읽음 약 복용 알림 읽음 처리 (안전망)
     // saveNotification에서 type 불일치 등으로 읽음 처리가 안 된 경우 대비
@@ -170,6 +176,12 @@ export function MedicationScreen() {
     // 화면 전환 애니메이션 완료 후 모달 오픈
     const timer = setTimeout(() => {
       setShowMealTimeModal(true);
+      // routeParams 즉시 clear → 탭 이동 후 재진입 시 stale 값으로 재오픈되는 것 차단
+      try {
+        navigation.setParams({ autoOpen: undefined, mealTime: undefined });
+      } catch (e) {
+        console.warn('[MedicationScreen] setParams clear 실패:', e);
+      }
     }, 400);
     return () => clearTimeout(timer);
   // routeParams 객체 참조가 바뀌어도 autoOpen 값 기준으로만 실행
