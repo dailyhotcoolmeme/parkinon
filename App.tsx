@@ -371,6 +371,7 @@ function AppInner() {
       } catch {}
 
       const intervals = [0, 500, 1500, 3000];
+      let allAttemptsNull = true;
       for (let i = 0; i < intervals.length; i++) {
         if (_coldStartCancelled) return;
         if (i > 0) {
@@ -398,12 +399,95 @@ function AppInner() {
             },
           }).catch(() => {});
           if (response) {
+            allAttemptsNull = false;
             await handleNotificationResponse(response, true);
             return;
           }
         } catch (e) {
           // silent — 다음 시도로 넘어감
         }
+      }
+
+      if (_coldStartCancelled) return;
+
+      // Fallback 3 (서버 폴백): retry 4번 모두 hasResponse=false인 케이스 보강.
+      // expo-notifications가 OS 응답을 못 받은 경우 → notification_logs에서 최근
+      // 3분 이내 미읽음 알림이 정확히 1건일 때만 동일 처리 로직 호출.
+      // (0건/2건+은 ambiguous → silent skip — 잘못 라우팅 방지)
+      if (!allAttemptsNull) return;
+      if (!_fbUserId) return;
+
+      logNotificationEvent({
+        userId: _fbUserId,
+        event: 'fallback_server_query_check',
+        payload: { stage: 'enter' },
+      }).catch(() => {});
+
+      try {
+        const sinceIso = new Date(Date.now() - 3 * 60 * 1000).toISOString();
+        const { data: rows, error } = await supabase
+          .from('notification_logs')
+          .select('id, type, title, body, data, created_at')
+          .eq('user_id', _fbUserId)
+          .is('read_at', null)
+          .gte('created_at', sinceIso)
+          .order('created_at', { ascending: false });
+
+        if (error) throw error;
+
+        const count = rows?.length ?? 0;
+        logNotificationEvent({
+          userId: _fbUserId,
+          event: 'fallback_server_query_result',
+          payload: {
+            count,
+            type: rows?.[0]?.type ?? null,
+            notifId: rows?.[0]?.id ?? null,
+          },
+        }).catch(() => {});
+
+        if (count === 0) {
+          logNotificationEvent({
+            userId: _fbUserId,
+            event: 'fallback_server_query_skipped',
+            payload: { reason: 'no_match' },
+          }).catch(() => {});
+          return;
+        }
+        if (count > 1) {
+          logNotificationEvent({
+            userId: _fbUserId,
+            event: 'fallback_server_query_skipped',
+            payload: { reason: 'ambiguous', count },
+          }).catch(() => {});
+          return;
+        }
+
+        // 정확히 1건 → handleNotificationResponse와 동일 처리 (fake response 합성)
+        const row = rows![0];
+        const fakeResponse = {
+          notification: {
+            date: Date.now(),
+            request: {
+              identifier: row.id,
+              content: {
+                title: row.title ?? '',
+                body: row.body ?? '',
+                data: row.data ?? {},
+              },
+              trigger: null,
+            },
+          },
+          actionIdentifier: 'default',
+        } as unknown as Notifications.NotificationResponse;
+
+        await handleNotificationResponse(fakeResponse, true);
+      } catch (e) {
+        logNotificationEvent({
+          userId: _fbUserId,
+          event: 'fallback_server_query_skipped',
+          payload: { reason: 'error', error: String((e as any)?.message ?? e) },
+        }).catch(() => {});
       }
     })();
 
