@@ -13,6 +13,7 @@ import { supabase } from './src/lib/supabase';
 import { requestPermissionsAndSaveToken } from './src/utils/notifications';
 import { notificationIntentManager } from './src/utils/NotificationIntentManager';
 import { logNotificationEvent } from './src/utils/notificationDebugLog';
+import { isProcessed, markProcessed } from './src/utils/processedNotifIds';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 
 // Android 알림 채널 — MAX 중요도 (Doze 모드에서도 즉시 표시)
@@ -173,6 +174,34 @@ function AppInner() {
         body: content.body,
         data,
       });
+
+      // Freshness 체크: stale 알림 응답 차단 (어제 알림이 오늘 cold start에 잘못 트리거되는 케이스)
+      // expo-notifications가 getLastNotificationResponseAsync에서 과거 응답을 캐시 반환하는 결함 방어.
+      const _notifDateRaw: any = (response as any)?.notification?.date;
+      const _notifDateMs: number | null =
+        typeof _notifDateRaw === 'number'
+          ? _notifDateRaw
+          : _notifDateRaw
+          ? new Date(_notifDateRaw).getTime()
+          : null;
+      if (_notifDateMs && !Number.isNaN(_notifDateMs)) {
+        const ageMs = Date.now() - _notifDateMs;
+        if (ageMs > 5 * 60 * 1000) {
+          log('notification_too_old', {
+            ageMs,
+            notifDate: _notifDateMs,
+            notifId,
+          });
+          return;
+        }
+      }
+
+      // 영구 dedupe (AsyncStorage TTL 7일): 다른 세션 cold start에서 같은 notifId 재진입 차단.
+      // in-memory handledNotifIds Set은 프로세스 종료 시 사라지므로 보조 안전망.
+      if (await isProcessed(notifId)) {
+        log('persistent_dedupe_blocked', { notifId });
+        return;
+      }
 
       // dedupe race 차단: 등록을 handler 진입 직후(첫 await 전)로 이동.
       // 기존엔 navigate 성공 후에만 등록 → cold + fallback 핸들러가 동시 실행되면
@@ -340,6 +369,9 @@ function AppInner() {
         }
 
         // 정상 처리 완료 — dedupe 등록은 handler_enter 직후에 이미 됨.
+        // 영구 dedupe 마킹 (AsyncStorage, TTL 7일) — navigate 성공 후에만 기록하여
+        // 실패 시 재시도 가능하도록 유지.
+        markProcessed(notifId).catch(() => {});
         log('handler_exit', { success: true });
       } catch (e: any) {
         // 실패 시 dedupe 해제 → 다음 listener에서 재시도 가능
@@ -432,6 +464,30 @@ function AppInner() {
             },
           }).catch(() => {});
           if (response) {
+            // Freshness 1차 차단 (이중 안전망): 5분 이상 오래된 응답이면 handler 진입 자체를 막음.
+            const _rDateRaw: any = (response as any)?.notification?.date;
+            const _rDateMs: number | null =
+              typeof _rDateRaw === 'number'
+                ? _rDateRaw
+                : _rDateRaw
+                ? new Date(_rDateRaw).getTime()
+                : null;
+            if (_rDateMs && !Number.isNaN(_rDateMs)) {
+              const ageMs = Date.now() - _rDateMs;
+              if (ageMs > 5 * 60 * 1000) {
+                logNotificationEvent({
+                  userId: _fbUserId,
+                  event: 'notification_too_old',
+                  payload: {
+                    ageMs,
+                    notifDate: _rDateMs,
+                    notifId: response?.notification?.request?.identifier ?? null,
+                    source: 'cold_start_retry',
+                  },
+                }).catch(() => {});
+                return;
+              }
+            }
             await handleNotificationResponse(response, true);
             return;
           }
