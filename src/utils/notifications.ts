@@ -1,14 +1,13 @@
 /**
  * 알림 유틸리티
  * - 권한 요청 + Expo Push Token 저장
- * - 약 복용 예정 알림 (매일 반복)
+ * - 약 복용 예정 알림 (서버 cron 전담)
  * - 약효 추적 알림 (복용 후 n분)
  * - 운동 알림 (매일 반복)
- * - 미복용 체크 백그라운드 태스크
+ *
+ * 미복용 체크 로컬 알림은 서버 cron(send-medication-reminders)과 중복되어 제거됨.
  */
 import * as Notifications from 'expo-notifications';
-import * as TaskManager from 'expo-task-manager';
-import * as BackgroundFetch from 'expo-background-fetch';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import Constants from 'expo-constants';
 import { Platform } from 'react-native';
@@ -18,232 +17,12 @@ import type { MedNotif, ExerciseNotif } from '../context/SettingsContext';
 const SUPABASE_URL = process.env.EXPO_PUBLIC_SUPABASE_URL!;
 const SUPABASE_ANON_KEY = process.env.EXPO_PUBLIC_SUPABASE_ANON_KEY!;
 
-// ─── 미복용 체크 백그라운드 태스크 ─────────────────────────────────────────
-
-const MISSED_MED_CHECK_TASK = 'PARKINON_CHECK_MISSED_MEDS';
-
-const MEAL_TIME_LABELS_BG: Record<string, string> = {
-  morning: '아침',
-  lunch: '점심',
-  dinner: '저녁',
-  bedtime: '취침',
-};
-
-// 식사 시간 + 10분 후 재알림 체크 윈도우 (분, 자정 기준)
-const MEAL_REMIND_WINDOWS: Record<string, { from: number; to: number }> = {
-  morning: { from: 8 * 60 + 10, to: 8 * 60 + 19 },
-  lunch:   { from: 12 * 60 + 10, to: 12 * 60 + 19 },
-  dinner:  { from: 18 * 60 + 10, to: 18 * 60 + 19 },
-  bedtime: { from: 22 * 60 + 10, to: 22 * 60 + 19 },
-};
-
-// 식사 시간 + 20분 후부터 40분 내 체크 (분, 자정 기준)
-const MEAL_CHECK_WINDOWS: Record<string, { from: number; to: number }> = {
-  morning: { from: 8 * 60 + 20, to: 9 * 60 },
-  lunch:   { from: 12 * 60 + 20, to: 13 * 60 },
-  dinner:  { from: 18 * 60 + 20, to: 19 * 60 },
-  bedtime: { from: 22 * 60 + 20, to: 23 * 60 },
-};
-
-// 모듈 로드 시 태스크 정의 (TaskManager 요구사항)
-TaskManager.defineTask(MISSED_MED_CHECK_TASK, async () => {
-  try {
-    const now = new Date();
-    const minutesFromMidnight = now.getHours() * 60 + now.getMinutes();
-
-    const today = now.toISOString().split('T')[0];
-
-    // ── +10분 재알림 체크포인트 ──────────────────────────────────────
-    let remindMealTime: string | null = null;
-    for (const [mealTime, win] of Object.entries(MEAL_REMIND_WINDOWS)) {
-      if (minutesFromMidnight >= win.from && minutesFromMidnight <= win.to) {
-        remindMealTime = mealTime;
-        break;
-      }
-    }
-
-    if (remindMealTime) {
-      const remindDedupeKey = `med_remind_sent_${today}_${remindMealTime}`;
-      const alreadyReminded = await AsyncStorage.getItem(remindDedupeKey);
-
-      if (!alreadyReminded) {
-        const { data: { session } } = await supabase.auth.getSession();
-        if (session?.user) {
-          const { data: userRow } = await supabase
-            .from('users')
-            .select('role, notification_enabled')
-            .eq('id', session.user.id)
-            .single();
-
-          if (userRow?.role === 'patient' && userRow.notification_enabled) {
-            const { data: logs } = await supabase
-              .from('med_logs')
-              .select('id')
-              .eq('patient_id', session.user.id)
-              .eq('meal_time', remindMealTime)
-              .gte('taken_at', `${today}T00:00:00.000Z`)
-              .lte('taken_at', `${today}T23:59:59.999Z`)
-              .limit(1);
-
-            if (!logs || logs.length === 0) {
-              await AsyncStorage.setItem(remindDedupeKey, '1');
-              await Notifications.scheduleNotificationAsync({
-                content: {
-                  title: '💊 아직 복용 전이에요',
-                  body: `${MEAL_TIME_LABELS_BG[remindMealTime]} 약, 잊지 마세요!`,
-                  data: { type: 'medication_reminder', mealTime: remindMealTime },
-                },
-                trigger: null,
-              });
-              return BackgroundFetch.BackgroundFetchResult.NewData;
-            }
-          }
-        }
-      }
-    }
-
-    // ── +20분 최종 체크포인트 (환자 + 보호자 알림) ──────────────────
-    let targetMealTime: string | null = null;
-    for (const [mealTime, win] of Object.entries(MEAL_CHECK_WINDOWS)) {
-      if (minutesFromMidnight >= win.from && minutesFromMidnight <= win.to) {
-        targetMealTime = mealTime;
-        break;
-      }
-    }
-    if (!targetMealTime) return BackgroundFetch.BackgroundFetchResult.NoData;
-
-    // 중복 발송 방지
-    const dedupeKey = `missed_med_sent_${today}_${targetMealTime}`;
-    const alreadySent = await AsyncStorage.getItem(dedupeKey);
-    if (alreadySent) return BackgroundFetch.BackgroundFetchResult.NoData;
-
-    // 세션 확인
-    const { data: { session } } = await supabase.auth.getSession();
-    if (!session?.user) return BackgroundFetch.BackgroundFetchResult.NoData;
-
-    // 환자 정보 확인
-    const { data: userRow } = await supabase
-      .from('users')
-      .select('role, patient_group_id, notification_enabled, name')
-      .eq('id', session.user.id)
-      .single();
-
-    if (!userRow || userRow.role !== 'patient' || !userRow.notification_enabled) {
-      return BackgroundFetch.BackgroundFetchResult.NoData;
-    }
-
-    // 오늘 해당 시간대 복용 여부 확인
-    const { data: logs } = await supabase
-      .from('med_logs')
-      .select('id')
-      .eq('patient_id', session.user.id)
-      .eq('meal_time', targetMealTime)
-      .gte('taken_at', `${today}T00:00:00.000Z`)
-      .lte('taken_at', `${today}T23:59:59.999Z`)
-      .limit(1);
-
-    if (logs && logs.length > 0) return BackgroundFetch.BackgroundFetchResult.NoData;
-
-    // 중복 방지 마킹
-    await AsyncStorage.setItem(dedupeKey, '1');
-
-    // 환자에게 로컬 알림
-    await Notifications.scheduleNotificationAsync({
-      content: {
-        title: '💊 약을 아직 안 드셨어요',
-        body: `${MEAL_TIME_LABELS_BG[targetMealTime]} 약을 아직 드시지 않으셨어요.`,
-        data: { type: 'missed_medication', mealTime: targetMealTime },
-      },
-      trigger: null,
-    });
-
-    // 보호자에게 푸시
-    if (userRow.patient_group_id) {
-      const { data: caregivers } = await supabase
-        .from('patient_group_members')
-        .select('user_id')
-        .eq('group_id', userRow.patient_group_id)
-        .eq('role', 'caregiver');
-
-      if (caregivers?.length) {
-        const { data: caregiverUsers } = await supabase
-          .from('users')
-          .select('push_token, caregiver_notif_prefs')
-          .in('id', caregivers.map((c: any) => c.user_id))
-          .not('push_token', 'is', null);
-
-        const patientName = userRow.name || '환자분';
-
-        for (const cu of caregiverUsers ?? []) {
-          if (!cu.push_token) continue;
-          const prefs = (cu.caregiver_notif_prefs ?? {}) as Record<string, boolean>;
-          if (prefs.med_missed !== false) {
-            await supabase.functions.invoke('send-push', {
-              body: {
-                to: cu.push_token,
-                title: '💊 약을 안 드셨어요',
-                body: `${patientName}님이 아직 약을 드시지 않으셨어요.`,
-                data: { type: 'caregiver_missed_med', mealTime: targetMealTime },
-              },
-            });
-          }
-        }
-      }
-    }
-
-    return BackgroundFetch.BackgroundFetchResult.NewData;
-  } catch (e) {
-    console.error('[BackgroundFetch] 미복용 체크 오류:', e);
-    return BackgroundFetch.BackgroundFetchResult.Failed;
-  }
-});
-
 const MISSED_MED_REMIND_IDS_KEY = 'missedMedRemindNotifIds';
 
 /**
- * 미복용 체크 재알림 등록 — 약 복용 예정 시간 +10분 후 로컬 알림 스케줄.
- * 복용 완료 시 cancelMissedMedRemindNotif()로 취소해야 함.
- *
- * @param mealTime 식사 시간 키 ('morning' | 'lunch' | 'dinner' | 'bedtime')
- * @param delaySeconds 알림까지 대기 시간 (기본값: 600 = 10분)
+ * 특정 식사시간 미복용 재알림 취소 (복용 완료 시 호출).
+ * 과거 버전에서 등록된 잔여 로컬 알림을 정리하는 용도로만 보존.
  */
-export async function registerMissedMedCheckTask(
-  mealTime?: string,
-  delaySeconds: number = 600,
-): Promise<void> {
-  if (!mealTime) return;
-
-  const label = MEAL_TIME_LABELS_BG[mealTime] ?? mealTime;
-  const identifier = `missed-med-remind-${mealTime}`;
-
-  try {
-    // 기존 동일 식사시간 알림 취소 (중복 방지)
-    await Notifications.cancelScheduledNotificationAsync(identifier).catch(() => {});
-
-    await Notifications.scheduleNotificationAsync({
-      identifier,
-      content: {
-        title: '💊 아직 복용 전이에요',
-        body: `${label} 약, 잊지 마세요!`,
-        data: { type: 'medication_reminder', mealTime },
-      },
-      trigger: {
-        type: Notifications.SchedulableTriggerInputTypes.TIME_INTERVAL,
-        seconds: delaySeconds,
-      },
-    });
-
-    // 등록된 미복용 재알림 ID 목록 저장 (취소 시 사용)
-    const savedRaw = await AsyncStorage.getItem(MISSED_MED_REMIND_IDS_KEY).catch(() => null);
-    const savedIds: string[] = savedRaw ? JSON.parse(savedRaw) : [];
-    if (!savedIds.includes(identifier)) savedIds.push(identifier);
-    await AsyncStorage.setItem(MISSED_MED_REMIND_IDS_KEY, JSON.stringify(savedIds));
-  } catch (e) {
-    console.error('[notifications] 미복용 재알림 등록 실패:', e);
-  }
-}
-
-/** 특정 식사시간 미복용 재알림 취소 (복용 완료 시 호출) */
 export async function cancelMissedMedRemindNotif(mealTime: string): Promise<void> {
   const identifier = `missed-med-remind-${mealTime}`;
   try {

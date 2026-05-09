@@ -13,7 +13,7 @@ import * as Linking from 'expo-linking';
 import * as Notifications from 'expo-notifications';
 import { login as kakaoLogin } from '@react-native-seoul/kakao-login';
 import { supabase } from '../lib/supabase';
-import { registerMissedMedCheckTask, requestPermissionsAndSaveToken } from '../utils/notifications';
+import { requestPermissionsAndSaveToken } from '../utils/notifications';
 
 // ─── 딥링크 redirect URI ────────────────────────────────────────────────────
 const REDIRECT_TO = 'parkinon://auth/callback';
@@ -233,10 +233,6 @@ export function useAuthProvider(): UseAuthReturn {
               requestPermissionsAndSaveToken(userId, token).catch(console.error);
             }
           }).catch(console.error);
-        }
-        // 환자인 경우 미복용 체크 백그라운드 태스크 등록
-        if (rows[0].role === 'patient' && rows[0].notification_enabled) {
-          registerMissedMedCheckTask().catch(console.error);
         }
       }
     } catch (e) {
