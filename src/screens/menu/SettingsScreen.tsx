@@ -223,13 +223,19 @@ export function SettingsScreen() {
   }, [user, isCaregiver]);
 
   const toggleMedTimeSlot = async (slot: string) => {
-    const next = { ...medTimePrefs, [slot]: !medTimePrefs[slot] };
+    const prev = medTimePrefs;
+    const next = { ...prev, [slot]: !prev[slot] };
     setMedTimePrefs(next);
     try {
       // fetch API 직접 사용 (supabase-js New Architecture hang 우회)
       const { data: { session } } = await supabase.auth.getSession();
-      if (session?.access_token) await patchUser(user!.id, session.access_token, { med_time_notif_prefs: next });
-    } catch {}
+      if (!session?.access_token) throw new Error('세션이 만료되었어요');
+      await patchUser(user!.id, session.access_token, { med_time_notif_prefs: next });
+    } catch (e) {
+      console.error('[SettingsScreen] toggleMedTimeSlot 저장 실패:', e);
+      setMedTimePrefs(prev);
+      Alert.alert('저장 실패', '알림 설정을 저장하지 못했어요.\n인터넷 연결을 확인하고 다시 시도해주세요.');
+    }
   };
 
   // supabase-js New Architecture hang 방지용 timeout 유틸
@@ -343,13 +349,19 @@ export function SettingsScreen() {
 
   const togglePatientMedTimeSlot = async (slot: string) => {
     if (!patientId) return;
-    const next = { ...patientMedTimePrefs, [slot]: !patientMedTimePrefs[slot] };
+    const prev = patientMedTimePrefs;
+    const next = { ...prev, [slot]: !prev[slot] };
     setPatientMedTimePrefs(next);
     try {
       // fetch API 직접 사용 (supabase-js New Architecture hang 우회)
       const { data: { session } } = await supabase.auth.getSession();
-      if (session?.access_token) await patchUser(patientId, session.access_token, { med_time_notif_prefs: next });
-    } catch {}
+      if (!session?.access_token) throw new Error('세션이 만료되었어요');
+      await patchUser(patientId, session.access_token, { med_time_notif_prefs: next });
+    } catch (e) {
+      console.error('[SettingsScreen] togglePatientMedTimeSlot 저장 실패:', e);
+      setPatientMedTimePrefs(prev);
+      Alert.alert('저장 실패', '환자분 알림 설정을 저장하지 못했어요.\n인터넷 연결을 확인하고 다시 시도해주세요.');
+    }
   };
 
   // 보호자 알림 설정
