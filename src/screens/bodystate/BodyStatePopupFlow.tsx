@@ -370,6 +370,8 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
     backgroundColor: Colors.background,
+    zIndex: 100,
+    elevation: 100,
   },
   dotRow: { flexDirection: 'row', gap: 8, alignItems: 'center' },
   dot: { width: 8, height: 8, borderRadius: 4, backgroundColor: Colors.border },
