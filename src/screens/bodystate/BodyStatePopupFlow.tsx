@@ -8,6 +8,7 @@ import {
   Animated,
   ScrollView,
   Dimensions,
+  Alert,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -245,11 +246,27 @@ export function BodyStatePopupFlow({
     onClose();
   };
 
+  // 우상단 X — 1단계는 단순 닫기, 2단계 이후는 confirm
+  const handleTopClose = () => {
+    if (currentIndex === 0) {
+      onClose();
+      return;
+    }
+    Alert.alert(
+      '기록을 닫을까요?',
+      '기록 중인 내용이 있어요. 닫으면 저장되지 않아요.',
+      [
+        { text: '취소', style: 'cancel' },
+        { text: '닫기', style: 'destructive', onPress: () => onClose() },
+      ],
+    );
+  };
+
   return (
     <Modal visible={visible} transparent animationType="none" onRequestClose={handleClose}>
       <Animated.View style={[styles.backdrop, { opacity: fadeAnim }]}>
         <Animated.View style={[styles.sheet, { paddingBottom: Math.max(24, insets.bottom + 12), transform: [{ translateY: slideAnim }] }]}>
-          {/* 진행 도트 */}
+          {/* 진행 도트 + 우상단 닫기 */}
           <View style={styles.header}>
             <View style={styles.dotRow}>
               {orderedSteps.map((s, i) => (
@@ -267,6 +284,14 @@ export function BodyStatePopupFlow({
                 />
               ))}
             </View>
+            <TouchableOpacity
+              style={styles.topCloseBtn}
+              onPress={handleTopClose}
+              activeOpacity={0.7}
+              hitSlop={{ top: 12, bottom: 12, left: 12, right: 12 }}
+            >
+              <Ionicons name="close" size={26} color={Colors.textSub} />
+            </TouchableOpacity>
           </View>
 
           {/* 스텝 콘텐츠 (전환 애니메이션) */}
@@ -330,8 +355,21 @@ const styles = StyleSheet.create({
   },
   header: {
     alignItems: 'center',
+    justifyContent: 'center',
     paddingTop: 20,
     paddingBottom: 4,
+    position: 'relative',
+  },
+  topCloseBtn: {
+    position: 'absolute',
+    right: 12,
+    top: 12,
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: Colors.background,
   },
   dotRow: { flexDirection: 'row', gap: 8, alignItems: 'center' },
   dot: { width: 8, height: 8, borderRadius: 4, backgroundColor: Colors.border },

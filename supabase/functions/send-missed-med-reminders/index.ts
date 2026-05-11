@@ -37,7 +37,7 @@ Deno.serve(async (req: Request) => {
 
   const { data: patients } = await supabase
     .from('users')
-    .select('id, push_token, patient_group_id, med_time_notif_prefs')
+    .select('id, name, push_token, patient_group_id, med_time_notif_prefs')
     .eq('role', 'patient')
     .eq('notification_enabled', true)
     .not('push_token', 'is', null)
@@ -99,10 +99,12 @@ Deno.serve(async (req: Request) => {
           const prefs = (cu.caregiver_notif_prefs ?? {}) as Record<string, boolean>
           if (prefs.med_missed === false) continue
 
+          const patientName = (patient as any).name?.trim()
+          const subject = patientName ? `${patientName}님` : '환자분'
           await sendPush(
             cu.push_token,
             '💊 약을 안 드셨어요',
-            `환자분이 ${MEAL_LABELS[meal_time]} 약을 아직 안 드셨어요.`,
+            `${subject}이 ${MEAL_LABELS[meal_time]} 약을 아직 안 드셨어요.`,
             { type: 'caregiver_missed_med', mealTime: meal_time },
           )
           caregiverSent++

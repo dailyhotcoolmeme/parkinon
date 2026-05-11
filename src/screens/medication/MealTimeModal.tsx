@@ -1,4 +1,4 @@
-import React, { useRef, useEffect } from 'react';
+import React, { useRef, useEffect, useState } from 'react';
 import {
   View,
   Text,
@@ -47,9 +47,11 @@ export function MealTimeModal({ visible, onSelect, onClose, mealSchedules, notif
   const insets = useSafeAreaInsets();
   const fadeAnim = useRef(new Animated.Value(0)).current;
   const slideAnim = useRef(new Animated.Value(80)).current;
+  const [selected, setSelected] = useState<MealTime | null>(null);
 
   useEffect(() => {
     if (visible) {
+      setSelected(null);
       slideAnim.setValue(80);
       Animated.parallel([
         Animated.timing(fadeAnim, { toValue: 1, duration: 220, useNativeDriver: true }),
@@ -59,6 +61,11 @@ export function MealTimeModal({ visible, onSelect, onClose, mealSchedules, notif
       Animated.timing(fadeAnim, { toValue: 0, duration: 180, useNativeDriver: true }).start();
     }
   }, [visible]);
+
+  const handleSubmit = () => {
+    if (!selected) return;
+    onSelect(selected);
+  };
 
   return (
     <Modal visible={visible} transparent animationType="none" onRequestClose={onClose}>
@@ -77,6 +84,7 @@ export function MealTimeModal({ visible, onSelect, onClose, mealSchedules, notif
               const rawTime = mealSchedules?.[opt.id] ?? MEAL_DEFAULT_TIMES[opt.id];
               const displayTime = formatMealTime(rawTime);
               const iconColor = notifOn ? opt.color : '#AAAAAA';
+              const isSelected = selected === opt.id;
 
               return (
                 <TouchableOpacity
@@ -85,8 +93,9 @@ export function MealTimeModal({ visible, onSelect, onClose, mealSchedules, notif
                     styles.optionRow,
                     i < MEAL_OPTIONS.length - 1 && styles.optionRowBorder,
                     !notifOn && styles.optionRowDim,
+                    isSelected && styles.optionRowSelected,
                   ]}
-                  onPress={() => onSelect(opt.id)}
+                  onPress={() => setSelected(opt.id)}
                   activeOpacity={0.75}
                 >
                   <View style={[styles.iconCircle, { backgroundColor: iconColor + '22' }]}>
@@ -96,7 +105,9 @@ export function MealTimeModal({ visible, onSelect, onClose, mealSchedules, notif
                     <Text style={[styles.optionLabel, !notifOn && styles.dimText]}>{opt.label}</Text>
                     <Text style={[styles.optionTime, !notifOn && styles.dimText]}>{displayTime}</Text>
                   </View>
-                  {notifOn ? (
+                  {isSelected ? (
+                    <Ionicons name="checkmark-circle" size={28} color={Colors.primary} />
+                  ) : notifOn ? (
                     <Ionicons name="chevron-forward" size={22} color={Colors.textHint} />
                   ) : (
                     <View style={styles.noNotifBadge}>
@@ -108,10 +119,20 @@ export function MealTimeModal({ visible, onSelect, onClose, mealSchedules, notif
             })}
           </View>
 
-          <TouchableOpacity style={styles.closeBtn} onPress={onClose} activeOpacity={0.75}>
-            <Ionicons name="close-outline" size={22} color={Colors.textSub} />
-            <Text style={styles.closeText}>닫기</Text>
-          </TouchableOpacity>
+          <View style={styles.actionRow}>
+            <TouchableOpacity style={styles.closeBtn} onPress={onClose} activeOpacity={0.75}>
+              <Ionicons name="close-outline" size={22} color={Colors.textSub} />
+              <Text style={styles.closeText}>닫기</Text>
+            </TouchableOpacity>
+            <TouchableOpacity
+              style={[styles.submitBtn, !selected && styles.submitBtnDisabled]}
+              onPress={handleSubmit}
+              activeOpacity={0.8}
+              disabled={!selected}
+            >
+              <Text style={styles.submitText}>등록</Text>
+            </TouchableOpacity>
+          </View>
         </Animated.View>
       </Animated.View>
     </Modal>
@@ -170,6 +191,7 @@ const styles = StyleSheet.create({
   },
   optionRowBorder: { borderBottomWidth: 1, borderBottomColor: Colors.border },
   optionRowDim: { backgroundColor: '#F8F8F8' },
+  optionRowSelected: { backgroundColor: Colors.light },
   iconCircle: {
     width: 58,
     height: 58,
@@ -188,13 +210,19 @@ const styles = StyleSheet.create({
     paddingVertical: 5,
   },
   noNotifBadgeText: { fontSize: 14, fontWeight: '600', color: '#888888' },
+  actionRow: {
+    flexDirection: 'row',
+    gap: 12,
+    marginHorizontal: 16,
+    marginBottom: 4,
+  },
   closeBtn: {
+    flex: 1,
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
     gap: 8,
-    marginHorizontal: 16,
-    marginBottom: 4,
+    minHeight: 56,
     paddingVertical: 16,
     borderRadius: 14,
     backgroundColor: Colors.background,
@@ -202,4 +230,17 @@ const styles = StyleSheet.create({
     borderColor: Colors.border,
   },
   closeText: { fontSize: 18, color: Colors.textSub, fontWeight: '700' },
+  submitBtn: {
+    flex: 2,
+    alignItems: 'center',
+    justifyContent: 'center',
+    minHeight: 56,
+    paddingVertical: 16,
+    borderRadius: 14,
+    backgroundColor: Colors.primary,
+  },
+  submitBtnDisabled: {
+    backgroundColor: Colors.border,
+  },
+  submitText: { fontSize: 19, color: Colors.white, fontWeight: '800' },
 });

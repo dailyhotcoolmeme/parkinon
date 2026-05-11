@@ -66,6 +66,14 @@ async function sendCaregiverMissed(patientId: string, patientGroupId: string, sl
 
   if (!caregivers?.length) return
 
+  const { data: patientUser } = await supabase
+    .from('users')
+    .select('name')
+    .eq('id', patientId)
+    .single()
+  const patientName = patientUser?.name?.trim()
+  const subject = patientName ? `${patientName}님` : '환자분'
+
   const { data: caregiverUsers } = await supabase
     .from('users')
     .select('push_token, caregiver_notif_prefs')
@@ -79,7 +87,7 @@ async function sendCaregiverMissed(patientId: string, patientGroupId: string, sl
     await sendPush(
       cu.push_token,
       '⚠️ 약을 안 드셨어요',
-      `환자분이 ${MEAL_LABELS[slot]} 약을 아직 안 드셨어요.`,
+      `${subject}이 ${MEAL_LABELS[slot]} 약을 아직 안 드셨어요.`,
       { type: 'caregiver_missed_med', mealTime: slot },
     )
   }
