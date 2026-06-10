@@ -9,6 +9,7 @@ import {
   Platform,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
+import { Ionicons } from '@expo/vector-icons';
 import { useFocusEffect } from '@react-navigation/native';
 import { Audio } from 'expo-av';
 import notifee from '@notifee/react-native';
@@ -281,7 +282,7 @@ export function AlarmSoundSettingsScreen() {
                 const isTesting = testingId === item.id;
                 return (
                   <View key={item.id} style={styles.card}>
-                    {/* 헤더: 아이콘 + 이름 + 날짜 */}
+                    {/* 헤더: 아이콘 + 이름 + 날짜 + 우측 상단 수정/삭제(아이콘) */}
                     <View style={styles.cardHeader}>
                       <View style={styles.cardIcon}>
                         <Text style={styles.cardIconText}>🎙</Text>
@@ -293,6 +294,34 @@ export function AlarmSoundSettingsScreen() {
                         <Text style={styles.cardSub}>
                           {formatDate(item.created_at)}
                         </Text>
+                      </View>
+                      <View style={styles.headerActions}>
+                        <TouchableOpacity
+                          activeOpacity={0.7}
+                          hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+                          style={styles.iconBtn}
+                          onPress={() =>
+                            navigateTo('RecordSound', {
+                              editSoundId: item.id,
+                              editLabel: item.label?.trim() || DEFAULT_LABEL,
+                            })
+                          }
+                        >
+                          <Ionicons name="create-outline" size={22} color={Colors.textSub} />
+                        </TouchableOpacity>
+                        <TouchableOpacity
+                          activeOpacity={0.7}
+                          hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+                          style={styles.iconBtnDelete}
+                          onPress={() => handleDelete(item)}
+                          disabled={isDeleting}
+                        >
+                          {isDeleting ? (
+                            <ActivityIndicator size="small" color={Colors.danger} />
+                          ) : (
+                            <Ionicons name="trash-outline" size={22} color={Colors.danger} />
+                          )}
+                        </TouchableOpacity>
                       </View>
                     </View>
 
@@ -306,35 +335,6 @@ export function AlarmSoundSettingsScreen() {
                         {isPlaying ? '■ 멈추기' : '▶ 알림음 들어보기'}
                       </Text>
                     </TouchableOpacity>
-
-                    {/* 수정 + 삭제 (한 줄) */}
-                    <View style={styles.actsRow}>
-                      <TouchableOpacity
-                        style={[styles.actBtn, styles.editBtn]}
-                        onPress={() =>
-                          navigateTo('RecordSound', {
-                            editSoundId: item.id,
-                            editLabel: item.label?.trim() || DEFAULT_LABEL,
-                          })
-                        }
-                        activeOpacity={0.85}
-                      >
-                        <Text style={styles.editBtnText}>✏️ 수정</Text>
-                      </TouchableOpacity>
-
-                      <TouchableOpacity
-                        style={[styles.actBtn, styles.delBtn]}
-                        onPress={() => handleDelete(item)}
-                        activeOpacity={0.85}
-                        disabled={isDeleting}
-                      >
-                        {isDeleting ? (
-                          <ActivityIndicator color={Colors.danger} />
-                        ) : (
-                          <Text style={styles.delBtnText}>🗑 삭제</Text>
-                        )}
-                      </TouchableOpacity>
-                    </View>
 
                     {/* 실제 알림 테스트해보기 (보조, 점선 회색) */}
                     <TouchableOpacity
@@ -434,6 +434,18 @@ const styles = StyleSheet.create({
   },
   cardHeaderText: {
     flex: 1,
+  },
+  headerActions: {
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
+  iconBtn: {
+    marginLeft: 12,
+    padding: 4,
+  },
+  iconBtnDelete: {
+    marginLeft: 8,
+    padding: 4,
   },
   cardTitle: {
     fontSize: 21,
