@@ -277,7 +277,7 @@ const styles = StyleSheet.create({
   triggerValue: {
     fontSize: 17,
     fontWeight: '700',
-    color: Colors.primary,
+    color: Colors.dark,
     flexShrink: 1,
   },
 
