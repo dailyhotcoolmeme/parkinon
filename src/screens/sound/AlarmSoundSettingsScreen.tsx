@@ -459,22 +459,22 @@ const styles = StyleSheet.create({
     marginTop: 3,
   },
 
-  // 알림음 들어보기 (큰 버튼, 녹색)
+  // 알림음 들어보기 (심플 — 설정 행 스타일 차용)
   playBtn: {
-    minHeight: 58,
+    minHeight: 54,
     borderRadius: 14,
     alignItems: 'center',
     justifyContent: 'center',
-    backgroundColor: Colors.primary,
+    backgroundColor: Colors.light,
     marginTop: 16,
   },
   playBtnStop: {
-    backgroundColor: Colors.dark,
+    backgroundColor: '#E6E6E6',
   },
   playBtnText: {
-    fontSize: 20,
-    fontWeight: '800',
-    color: '#fff',
+    fontSize: 17,
+    fontWeight: '700',
+    color: Colors.dark,
   },
 
   // 수정/삭제 한 줄
@@ -509,22 +509,19 @@ const styles = StyleSheet.create({
     color: Colors.danger,
   },
 
-  // 실제 알림 테스트 (보조, 점선 회색)
+  // 실제 알림 테스트 (심플 — 들어보기와 동일 높이·스타일)
   testBtn: {
-    minHeight: 50,
-    borderRadius: 13,
+    minHeight: 54,
+    borderRadius: 14,
     alignItems: 'center',
     justifyContent: 'center',
-    borderWidth: 1.5,
-    borderStyle: 'dashed',
-    borderColor: Colors.border,
-    backgroundColor: Colors.background,
+    backgroundColor: Colors.light,
     marginTop: 12,
   },
   testBtnText: {
-    fontSize: 16,
-    fontWeight: '600',
-    color: Colors.textSub,
+    fontSize: 17,
+    fontWeight: '700',
+    color: Colors.dark,
   },
 
   // 저장된 녹음 없음
