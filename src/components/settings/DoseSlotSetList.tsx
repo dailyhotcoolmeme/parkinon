@@ -574,7 +574,7 @@ export function DoseSlotSetList({ alarmSounds }: Props) {
             key={slot.id}
             style={[styles.card, cardOn ? styles.cardOn : styles.cardOff]}
           >
-            {/* ── 시각 제목 줄 ── */}
+            {/* ── 시각 제목 줄 (+ 우측 상단 수정 버튼) ── */}
             <View style={styles.slotHead}>
               <View style={[styles.slotEmoji, timeDim && styles.slotEmojiOff]}>
                 <Text style={styles.slotEmojiText}>{slotEmoji(slot)}</Text>
@@ -582,6 +582,16 @@ export function DoseSlotSetList({ alarmSounds }: Props) {
               <Text style={[styles.slotTime, timeDim && styles.slotTimeOff]}>
                 {slotTitle(slot)}
               </Text>
+              {!expanded && (
+                <TouchableOpacity
+                  activeOpacity={0.7}
+                  style={styles.slotHeadEdit}
+                  onPress={() => toggleExpand(slot.id!)}
+                >
+                  <Ionicons name="create-outline" size={18} color={Colors.dark} />
+                  <Text style={styles.btnTextLabel}>수정</Text>
+                </TouchableOpacity>
+              )}
             </View>
 
             {!expanded ? (
@@ -622,16 +632,6 @@ export function DoseSlotSetList({ alarmSounds }: Props) {
                   />
                 </View>
 
-                <View style={styles.cardFootRight}>
-                  <TouchableOpacity
-                    activeOpacity={0.7}
-                    style={styles.btnText}
-                    onPress={() => toggleExpand(slot.id!)}
-                  >
-                    <Ionicons name="create-outline" size={18} color={Colors.dark} />
-                    <Text style={styles.btnTextLabel}>수정</Text>
-                  </TouchableOpacity>
-                </View>
               </>
             ) : (
               /* ── 펼친 카드: 2박스 레이아웃 ── */
@@ -1253,9 +1253,20 @@ const styles = StyleSheet.create({
     fontSize: 20,
   },
   slotTime: {
+    flex: 1,
     fontSize: 22,
     fontWeight: '800',
     color: Colors.text,
+  },
+  slotHeadEdit: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    borderWidth: 2,
+    borderColor: Colors.primary,
+    borderRadius: 12,
+    paddingVertical: 8,
+    paddingHorizontal: 14,
   },
   slotTimeOff: {
     color: '#999999',
@@ -1456,7 +1467,6 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     gap: 8,
     borderWidth: 2,
-    borderStyle: 'dashed',
     borderColor: Colors.primary,
     borderRadius: 14,
     paddingVertical: 16,

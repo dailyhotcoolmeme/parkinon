@@ -1582,12 +1582,14 @@ export function SettingsScreen() {
               />
             </View>
             {showMissedSound.first && (
-              <AlarmSoundPickerRow
-                soundId={missedMedSounds.first}
-                sounds={alarmSounds}
-                onSelect={(sid) => setMissedMedSound('first', sid)}
-                backgroundColor={Colors.white}
-              />
+              <View style={styles.missedSoundIndent}>
+                <AlarmSoundPickerRow
+                  soundId={missedMedSounds.first}
+                  sounds={alarmSounds}
+                  onSelect={(sid) => setMissedMedSound('first', sid)}
+                  backgroundColor={Colors.white}
+                />
+              </View>
             )}
             <View style={styles.notifRow}>
               <View style={styles.notifLeft}>
@@ -1600,12 +1602,14 @@ export function SettingsScreen() {
               />
             </View>
             {showMissedSound.second && (
-              <AlarmSoundPickerRow
-                soundId={missedMedSounds.second}
-                sounds={alarmSounds}
-                onSelect={(sid) => setMissedMedSound('second', sid)}
-                backgroundColor={Colors.white}
-              />
+              <View style={styles.missedSoundIndent}>
+                <AlarmSoundPickerRow
+                  soundId={missedMedSounds.second}
+                  sounds={alarmSounds}
+                  onSelect={(sid) => setMissedMedSound('second', sid)}
+                  backgroundColor={Colors.white}
+                />
+              </View>
             )}
           </View>
         )}
@@ -2680,6 +2684,11 @@ const styles = StyleSheet.create({
   notifItemWrap: {
     borderTopWidth: 1,
     borderTopColor: Colors.border,
+    paddingHorizontal: 20,
+    paddingBottom: 6,
+  },
+  // 미복용 알림 소리 줄: 운동 알림과 좌측 라인을 맞추기 위한 들여쓰기
+  missedSoundIndent: {
     paddingHorizontal: 20,
     paddingBottom: 6,
   },
