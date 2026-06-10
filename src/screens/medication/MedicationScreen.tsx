@@ -37,6 +37,8 @@ import {
   LEGACY_SLOT_ORDER,
   LEGACY_KEY_TO_LABEL,
   formatSlotTime,
+  slotDisplayName,
+  labelContainsTime,
   type LegacyMealKey,
 } from '../../constants/doseSlots';
 
@@ -51,6 +53,8 @@ interface MedicationStatus {
   id: string; // 카드 key: dose_slot id(이관) 또는 legacy meal_time 키(미이관)
   label: string;
   time: string;
+  /** 라벨이 이미 시각을 포함(비표준 추가 슬롯) → 예정 줄에서 시각 중복 표기 생략. */
+  labelHasTime?: boolean;
   taken: boolean;
   takenAt?: string;
   medLogId?: string; // 취소(삭제)용 med_logs.id
@@ -569,16 +573,17 @@ export function MedicationScreen() {
   const displayList: MedicationStatus[] = displaySlots.map((slot, idx) => {
     const key = slotStatusKey(slot);
     const log = key ? activeStatus[key] : null;
-    // 라벨: dose_slot.label 우선, 없으면 시각 표시
-    const label = slot.label || formatSlotTime(slot.time);
+    // 라벨: 표준은 "아침", 비표준 추가 슬롯은 "오후 3:00"(이미 시각 포함).
+    const label = slotDisplayName(slot.label, slot.legacyKey, slot.time);
+    const labelHasTime = labelContainsTime(slot.label, slot.legacyKey);
     // 시각: 슬롯 time(HH:MM) → '오전 H:MM'
     const timeStr = formatSlotTime(slot.time);
     // 카드 key: 슬롯 id(이관) 또는 legacyKey(미이관). 둘 다 없으면 시각+idx로 고유화.
     const cardId = (slot.id ?? slot.legacyKey ?? `${slot.time}-${idx}`) as any;
 
     return log
-      ? { id: cardId, label, time: timeStr, taken: true, takenAt: formatTakenAt(log.taken_at), medLogId: log.id }
-      : { id: cardId, label, time: timeStr, taken: false };
+      ? { id: cardId, label, time: timeStr, labelHasTime, taken: true, takenAt: formatTakenAt(log.taken_at), medLogId: log.id }
+      : { id: cardId, label, time: timeStr, labelHasTime, taken: false };
   });
 
   // 오늘 모든 활성 슬롯 복용 완료 여부 (4슬롯 가정 제거, N개 every)
@@ -670,7 +675,11 @@ export function MedicationScreen() {
                   <View style={styles.cardBody}>
                     <Text style={styles.cardLabel}>{item.label} 약</Text>
                     <Text style={styles.cardTime}>
-                      {item.taken ? `${item.takenAt} 복용 완료` : `${item.time} 예정`}
+                      {item.taken
+                        ? `${item.takenAt} 복용 완료`
+                        : item.labelHasTime
+                          ? '복용 예정'
+                          : `${item.time} 예정`}
                     </Text>
                   </View>
                   <View style={[styles.cardBadge, !item.taken && styles.cardBadgeIncomplete]}>

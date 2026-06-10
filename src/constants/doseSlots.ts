@@ -127,6 +127,42 @@ export function formatSlotTime(hhmm: string | null | undefined): string {
 }
 
 /**
+ * 'HH:MM[:SS]' → 시간대 단어. 비표준(추가) 슬롯의 자동 라벨 앞부분.
+ * 구간: 새벽(00–04) / 아침(05–10) / 점심(11–13) / 오후(14–17) / 저녁(18–20) / 밤(21–23).
+ * 파싱 실패 시 빈 문자열.
+ */
+export function periodWord(time: string | null | undefined): string {
+  if (!time) return '';
+  const h = parseInt(time.split(':')[0] ?? '', 10);
+  if (Number.isNaN(h)) return '';
+  if (h <= 4) return '새벽';
+  if (h <= 10) return '아침';
+  if (h <= 13) return '점심';
+  if (h <= 17) return '오후';
+  if (h <= 20) return '저녁';
+  return '밤'; // 21–23
+}
+
+/**
+ * 'HH:MM[:SS]' → 비표준(추가) 슬롯 자동 라벨. "[시간대] [12시간 시각]".
+ * 예: 09:30 → "아침 9:30", 15:00 → "오후 3:00", 19:00 → "저녁 7:00".
+ * 12시간 시각엔 오전/오후 글자 없음(시간대 단어가 그 역할). hour=0→12, 13–23→ -12.
+ * 파싱 실패 시 원본 문자열 반환.
+ */
+export function autoSlotLabel(time: string | null | undefined): string {
+  if (!time) return '';
+  const parts = time.split(':');
+  const h = parseInt(parts[0], 10);
+  const m = parseInt(parts[1] ?? '0', 10);
+  if (Number.isNaN(h)) return time;
+  let displayH = h % 12;
+  if (displayH === 0) displayH = 12;
+  const mm = String(Number.isNaN(m) ? 0 : m).padStart(2, '0');
+  const period = periodWord(time);
+  return period ? `${period} ${displayH}:${mm}` : `${displayH}:${mm}`;
+}
+
+/**
  * 'HH:MM[:SS]' → 자정 기준 분 수 (정렬용). 파싱 실패 시 Infinity(맨 뒤로).
  */
 export function slotSortValue(time: string | null | undefined): number {
@@ -162,6 +198,39 @@ export function nextDoseLabel(
   if (trimmed) return `다음 ${trimmed} 복용`;
   const t = formatSlotTime(time);
   return t ? `다음 복용 (${t})` : '다음 복용';
+}
+
+/**
+ * 슬롯의 "이름"(표시명) 단일 출처.
+ * - 표준 4슬롯(legacyKey 있음): 라벨 그대로("아침" 등). 시각은 화면이 별도 줄에 표시.
+ * - 비표준(추가) 슬롯: label 이 있으면 그 label(이미 "오후 3:00" 형식, 시각 포함).
+ *   label 이 비었으면 시각으로 autoSlotLabel 생성.
+ *
+ * ⚠️ 비표준 슬롯의 label 은 그 자체가 "시간대+시각"이므로, 이름 옆에 시각을
+ *    또 붙이면 "오후 3:00 오후 3:00"처럼 중복된다 → labelContainsTime 로 판별해 거른다.
+ */
+export function slotDisplayName(
+  label: string | null | undefined,
+  legacyKey: LegacyMealKey | null | undefined,
+  time: string | null | undefined
+): string {
+  if (legacyKey) return LEGACY_KEY_TO_LABEL[legacyKey];
+  const trimmed = (label ?? '').trim();
+  if (trimmed) return trimmed;
+  return autoSlotLabel(time);
+}
+
+/**
+ * 라벨이 이미 시각(autoSlotLabel 형식)을 포함하는지 — 비표준 추가 슬롯 판별.
+ * 표준 라벨("아침" 등)은 false → 이름 옆에 시각을 따로 붙여도 됨.
+ * 비표준 라벨("오후 3:00")은 true → 시각 중복 표기 금지.
+ */
+export function labelContainsTime(
+  label: string | null | undefined,
+  legacyKey: LegacyMealKey | null | undefined
+): boolean {
+  if (legacyKey) return false;
+  return !!(label && label.trim());
 }
 
 /**

@@ -11,7 +11,12 @@ import { Ionicons } from '@expo/vector-icons';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Colors } from '../../constants/colors';
 import { useDoseSlots, resolveDisplaySlots, type DoseSlot } from '../../hooks/useDoseSlots';
-import { LEGACY_SLOT_META, formatSlotTime } from '../../constants/doseSlots';
+import {
+  LEGACY_SLOT_META,
+  formatSlotTime,
+  slotDisplayName,
+  labelContainsTime,
+} from '../../constants/doseSlots';
 
 type MealTime = 'morning' | 'lunch' | 'dinner' | 'bedtime';
 type IoniconName = React.ComponentProps<typeof Ionicons>['name'];
@@ -33,6 +38,8 @@ interface MealOption {
   doseSlotId: string | null;   // onSelect 전달용 dose_slots.id (legacy 가상슬롯이면 null)
   label: string;
   time: string;                // 'HH:MM'
+  /** 라벨이 이미 시각을 포함(비표준 추가 슬롯) → 아래 시각 줄을 따로 표시하지 않음(중복 방지). */
+  labelHasTime: boolean;
   icon: IoniconName;
   color: string;
   notifOn: boolean;
@@ -55,14 +62,16 @@ function slotIcon(slot: DoseSlot): { icon: IoniconName; color: string } {
 function buildOptions(slots: DoseSlot[]): MealOption[] {
   return slots.map((slot) => {
     const { icon, color } = slotIcon(slot);
-    // 라벨: dose_slot.label 우선 + '약' 접미사(기존 '아침 약' 표기 유지)
-    const baseLabel = slot.label || formatSlotTime(slot.time);
+    // 라벨: 표준은 "아침 약", 비표준 추가 슬롯은 라벨이 곧 "오후 3:00 약".
+    const baseLabel = slotDisplayName(slot.label, slot.legacyKey, slot.time);
+    const labelHasTime = labelContainsTime(slot.label, slot.legacyKey);
     return {
       key: (slot.id ?? slot.legacyKey ?? slot.time) as string,
       selectKey: slot.legacyKey,
       doseSlotId: slot.id,
       label: `${baseLabel} 약`,
       time: slot.time,
+      labelHasTime,
       icon,
       color,
       notifOn: slot.remindEnabled,
@@ -141,7 +150,10 @@ export function MealTimeModal({ visible, onSelect, onClose, mealSchedules, notif
                   </View>
                   <View style={styles.optionText}>
                     <Text style={[styles.optionLabel, (!notifOn || !selectable) && styles.dimText]}>{opt.label}</Text>
-                    <Text style={[styles.optionTime, (!notifOn || !selectable) && styles.dimText]}>{displayTime}</Text>
+                    {/* 비표준 슬롯은 라벨에 이미 시각이 있어 시각 줄 생략(중복 방지) */}
+                    {!opt.labelHasTime && (
+                      <Text style={[styles.optionTime, (!notifOn || !selectable) && styles.dimText]}>{displayTime}</Text>
+                    )}
                   </View>
                   {isSelected ? (
                     <Ionicons name="checkmark-circle" size={28} color={Colors.primary} />

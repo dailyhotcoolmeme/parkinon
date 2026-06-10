@@ -41,6 +41,8 @@ import { usePatientId } from '../../hooks/usePatientId';
 import {
   formatSlotTime,
   slotSortValue,
+  autoSlotLabel,
+  labelContainsTime,
   LEGACY_SLOT_META,
 } from '../../constants/doseSlots';
 import { useSwipeDownDismiss } from '../../hooks/useSwipeDownDismiss';
@@ -107,8 +109,10 @@ function slotEmoji(slot: DoseSlot): string {
 }
 
 // 시각 제목 ("아침 오전 8:00" 또는 비표준 "오후 3:00")
+// 비표준 슬롯은 label 이 이미 "시간대 시각"(예 "오후 3:00")이므로 시각을 또 붙이지 않는다.
 function slotTitle(slot: DoseSlot): string {
   const t = formatSlotTime(slot.time);
+  if (labelContainsTime(slot.label, slot.legacyKey)) return slot.label!.trim();
   if (slot.label && slot.label.trim()) return `${slot.label.trim()} ${t}`;
   return t;
 }
@@ -441,8 +445,21 @@ export function DoseSlotSetList({ alarmSounds }: Props) {
     if (timeSheet.mode === 'edit' && timeSheet.slotId) {
       const id = timeSheet.slotId;
       setTimeSheet(null);
-      // 시각 변경도 낙관적 — 카드 제목이 바로 바뀜.
-      patchSlot(id, { time: newTime }, { time: newTime });
+      // 표준 슬롯(legacyKey 있음)은 라벨 유지("아침" 등). 비표준 슬롯은 시각이 바뀌면
+      // 라벨("오후 3:00")도 새 시각 기준으로 갱신해야 이름이 시각과 안 어긋난다.
+      const target = slots.find((s) => s.id === id);
+      const isStandardSlot = !!target?.legacyKey;
+      if (isStandardSlot) {
+        // 시각 변경도 낙관적 — 카드 제목이 바로 바뀜.
+        patchSlot(id, { time: newTime }, { time: newTime });
+      } else {
+        const newLabel = autoSlotLabel(newTime);
+        patchSlot(
+          id,
+          { time: newTime, label: newLabel },
+          { time: newTime, label: newLabel },
+        );
+      }
     } else {
       // 추가: dose_slots insert.
       // insert→refresh 왕복 동안 화면이 비는 걸 막으려고 새 슬롯을 즉시 낙관적으로 띄운다.
@@ -454,12 +471,14 @@ export function DoseSlotSetList({ alarmSounds }: Props) {
 
       const maxSort = slots.reduce((mx, s) => Math.max(mx, s.sortOrder), 0);
       const newSort = maxSort + 1;
+      // 비표준(추가) 슬롯 라벨 = "[시간대] [12시간 시각]" (예 "오후 3:00"). 기존 '추가' 폐기.
+      const newLabel = autoSlotLabel(newTime);
       // 임시 슬롯(낙관적). id 는 'opt:' 접두 임시값 — refresh 로 진짜 행이 오면 정리됨.
       const optimistic: DoseSlot = {
         id: `opt:${Date.now()}`,
         patientId: pid,
         time: newTime,
-        label: '추가',
+        label: newLabel,
         sortOrder: newSort,
         remindEnabled: true,
         remindSoundId: null,
@@ -475,7 +494,7 @@ export function DoseSlotSetList({ alarmSounds }: Props) {
         const { error } = await supabase.from('dose_slots').insert({
           patient_id: pid,
           time: newTime,
-          label: '추가',
+          label: newLabel,
           sort_order: newSort,
           remind_enabled: true,
           remind_sound_id: null,
