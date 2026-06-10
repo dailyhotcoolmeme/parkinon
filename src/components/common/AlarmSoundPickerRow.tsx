@@ -11,6 +11,7 @@ import {
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { Audio } from 'expo-av';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Colors } from '../../constants/colors';
 import { useSwipeDownDismiss } from '../../hooks/useSwipeDownDismiss';
 
@@ -43,6 +44,7 @@ interface Props {
  * 60대 타겟: 큰 글씨, 넉넉한 탭 영역, 아이콘+텍스트, 스와이프 다운 닫기.
  */
 export function AlarmSoundPickerRow({ soundId, sounds, onSelect, backgroundColor }: Props) {
+  const insets = useSafeAreaInsets();
   const [open, setOpen] = useState(false);
   const [playingId, setPlayingId] = useState<string | null>(null);
   const [loadingId, setLoadingId] = useState<string | null>(null);
@@ -148,7 +150,10 @@ export function AlarmSoundPickerRow({ soundId, sounds, onSelect, backgroundColor
           onPress={close}
         >
           <Animated.View
-            style={[styles.sheet, { transform: [{ translateY }] }]}
+            style={[
+              styles.sheet,
+              { paddingBottom: Math.max(28, insets.bottom + 16), transform: [{ translateY }] },
+            ]}
             {...panHandlers}
             // 시트 내부 탭이 배경 닫힘으로 전파되지 않도록
             onStartShouldSetResponder={() => true}
