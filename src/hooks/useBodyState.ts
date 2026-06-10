@@ -178,36 +178,27 @@ export function useBodyState(): UseBodyStateReturn {
               if (!cu.push_token) continue;
               const prefs = (cu.caregiver_notif_prefs ?? {}) as Record<string, boolean>;
 
+              // 한 번의 기록(같은 on_off_logs 행)에 담긴 항목들을 모아 보호자에게 1개 알림으로 보낸다.
+              // 항목별 보호자 수신 설정(prefs)은 그대로 존중 — 켜진 항목만 묶음에 포함.
+              const parts: string[] = [];
               if (data.body_state !== undefined && prefs.body_state !== false) {
-                await sendCaregiverPush(
-                  cu.push_token,
-                  '😊 몸 상태를 기록했어요',
-                  `${patientName}님이 몸 상태를 기록했어요. (${data.body_state}점)`,
-                  { type: 'caregiver_body_state' },
-                );
+                parts.push(`몸 상태 ${data.body_state}점`);
               }
               if (data.mood !== undefined && prefs.mood !== false) {
-                await sendCaregiverPush(
-                  cu.push_token,
-                  '😄 기분 상태를 기록했어요',
-                  `${patientName}님이 기분 상태를 기록했어요. (${data.mood}점)`,
-                  { type: 'caregiver_mood' },
-                );
+                parts.push(`기분 ${data.mood}점`);
               }
               if (data.sleep_quality !== undefined && prefs.sleep !== false) {
-                await sendCaregiverPush(
-                  cu.push_token,
-                  '😴 수면을 기록했어요',
-                  `${patientName}님의 수면 상태가 기록됐어요.`,
-                  { type: 'caregiver_sleep' },
-                );
+                parts.push('수면');
               }
               if (data.constipation !== undefined && prefs.constipation !== false) {
+                parts.push('변비');
+              }
+              if (parts.length > 0) {
                 await sendCaregiverPush(
                   cu.push_token,
-                  '🚽 변비를 기록했어요',
-                  `${patientName}님의 변비 상태가 기록됐어요.`,
-                  { type: 'caregiver_constipation' },
+                  '😊 건강 상태를 기록했어요',
+                  `${patientName}님이 기록을 남겼어요 (${parts.join(' · ')})`,
+                  { type: 'caregiver_body_state' },
                 );
               }
             }
