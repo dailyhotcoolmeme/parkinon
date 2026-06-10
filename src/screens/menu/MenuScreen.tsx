@@ -96,8 +96,8 @@ const MENU_SECTIONS: MenuSection[] = [
       {
         key: 'AlarmSoundSettings',
         icon: 'mic-outline',
-        label: '알림음 설정',
-        desc: '저장된 녹음을 들어보고 알림음으로 설정해요',
+        label: '알림음 관리',
+        desc: '알림이 울릴 때 들리는 소리를 등록하고 관리해요',
       },
     ],
   },

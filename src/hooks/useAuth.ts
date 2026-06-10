@@ -237,7 +237,51 @@ export function useAuthProvider(): UseAuthReturn {
       if (__DEV__) console.log('[useAuth] users select 결과: rows.length =', rows?.length);
 
       if (!rows || rows.length === 0) {
-        // 신규 유저 — INSERT
+        // ── 신규(또는 아직 보이지 않는) 유저 ──────────────────────────────────
+        // 카카오 로그인은 Edge Function(kakao-auth)이 verifyOtp 직전에 이미
+        // public.users 행을 kakao_id와 함께 INSERT한다. 따라서 카카오 경로에서는
+        // 클라이언트가 절대 INSERT하지 않는다(유령 행 방지: kakao_id=null / 이름 '사용자').
+        // 다만 복제 지연으로 행이 잠깐 안 보일 수 있으므로 짧게 폴링하여 읽는다.
+        //
+        // 구글 로그인은 Edge Function도 DB 트리거도 없어 클라이언트 INSERT만이
+        // 행을 만든다. 구글 유저는 kakao_id=null이 정상이므로 INSERT를 유지한다.
+        const isKakao = userMeta?.provider === 'kakao';
+
+        if (isKakao) {
+          // 카카오: Edge Function이 만든 행을 폴링으로 기다려 읽기만 한다(INSERT 금지)
+          let kakaoRow: UserProfile | undefined;
+          for (let attempt = 0; attempt < 5; attempt++) {
+            await new Promise(resolve => setTimeout(resolve, 300));
+            const retry: UserProfile[] = await dbFetch(`/users?id=eq.${userId}&select=*&limit=1`, token);
+            if (retry && retry.length > 0) {
+              kakaoRow = retry[0];
+              break;
+            }
+            if (__DEV__) console.log(`[useAuth] 카카오 행 폴링 ${attempt + 1}/5 — 아직 없음`);
+          }
+          if (kakaoRow) {
+            setUser(kakaoRow);
+            provisionForUser(kakaoRow.id, kakaoRow.patient_group_id ?? null).catch(() => {});
+          } else {
+            // Edge Function 행이 끝내 안 보임 → 로그인 실패 처리(클라 INSERT 금지)
+            console.error('[useAuth] 카카오 유저 행을 찾지 못함 — Edge Function 행 누락 추정');
+            dialog?.alert({ title: '로그인 실패', message: '로그인 처리 중 문제가 발생했습니다. 잠시 후 다시 시도해주세요.' });
+            setUser(null);
+            setLoading(false);
+            return;
+          }
+          // 카카오 신규/기존 유저 push token 저장
+          if (token) {
+            Notifications.getPermissionsAsync().then(({ status }) => {
+              if (status === 'granted') {
+                requestPermissionsAndSaveToken(userId, token).catch(console.error);
+              }
+            }).catch(console.error);
+          }
+          return;
+        }
+
+        // 구글 등 비-카카오 경로 — Edge Function/트리거가 없으므로 클라 INSERT로 행 생성
         const name = userMeta?.full_name || userMeta?.name || '사용자';
         const newUser = {
           id: userId, name,
