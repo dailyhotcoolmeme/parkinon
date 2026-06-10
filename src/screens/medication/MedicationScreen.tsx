@@ -155,6 +155,9 @@ export function MedicationScreen() {
   // proceedSave 에서 takeMedication 반환값을 보관 → 팝업 navigate 시 BodyState 로 전달.
   const [lastMedLogId, setLastMedLogId] = useState<string | null>(null);
   const [lastDoseSlotId, setLastDoseSlotId] = useState<string | null>(null);
+  // 방금 기록한 슬롯의 "복용 직후"(track_intervals에 0 포함 + 추적 ON) 여부.
+  // 이게 꺼져 있으면 복용 직후 자동 몸상태 팝업을 띄우지 않는다. (사전기록 onClose 경로에서도 참조)
+  const immediateSuggestRef = useRef(true);
 
   // 온보딩 완료 후 홈 최초 진입 시 알림 설정 팝업 1회 표시
   useEffect(() => {
@@ -493,12 +496,22 @@ export function MedicationScreen() {
       });
     }
 
+    // "복용 직후" 설정이 켜져 있을 때만 복용 직후 자동 몸상태 팝업을 띄운다.
+    //  - 신규 dose_slot 모델: 슬롯의 추적 ON + track_intervals 에 0(복용 직후) 포함 시에만.
+    //  - 구(legacy) 모델: trackIntervals 에 0이 없으므로 게이팅하지 않고 기존대로 항상 표시.
+    const onNewDoseModel = Array.isArray(doseSlots) && doseSlots.length > 0;
+    // 슬롯을 확실히 찾았고 "복용 직후"가 꺼져 있을 때만 억제. (못 찾으면 안전하게 표시)
+    const showImmediateSuggest = (onNewDoseModel && selSlot)
+      ? (selSlot.trackEnabled && selSlot.trackIntervals.includes(0))
+      : true;
+    immediateSuggestRef.current = showImmediateSuggest;
+
     // ⚠️ iOS는 모달을 동시에 두 개 띄우지 못함 → 안내 팝업과 몸상태 권유가 겹치면
     //    하나 닫은 뒤 안 보이는 오버레이가 남아 스크롤이 막힘.
     //    따라서 사전기록 안내가 있으면 그 팝업을 먼저 띄우고, 닫힌 뒤(onClose)에 몸상태 권유를 표시한다.
     if (isPreMed) {
       setShowPreMedInfo(true);
-    } else {
+    } else if (showImmediateSuggest) {
       setTimeout(() => {
         setShowBodyStateSuggest(true);
       }, 100);
@@ -847,7 +860,10 @@ export function MedicationScreen() {
         onClose={() => {
           setShowPreMedInfo(false);
           // 모달 중첩(iOS) 방지: 안내 팝업이 완전히 닫힌 뒤 몸상태 권유 표시
-          setTimeout(() => setShowBodyStateSuggest(true), 300);
+          // (단, "복용 직후"가 꺼진 슬롯이면 표시하지 않는다)
+          if (immediateSuggestRef.current) {
+            setTimeout(() => setShowBodyStateSuggest(true), 300);
+          }
         }}
       />
       <NextNotifModal

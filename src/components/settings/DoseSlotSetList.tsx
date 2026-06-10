@@ -756,7 +756,7 @@ export function DoseSlotSetList({ alarmSounds }: Props) {
                             </View>
                             {/* "복용 직후" 힌트 — 2열 셀 안에선 좁아 어색하므로 그리드 아래 풀너비로 */}
                             <Text style={styles.checkHint}>
-                              ⓘ "복용 직후"는 복용하자마자 바로 알림이 와요
+                              ⓘ "복용 직후"는 약 복용을 기록하면 곧바로 몸상태를 기록하도록 안내해요
                             </Text>
                           </>
                         );
