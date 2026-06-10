@@ -351,6 +351,9 @@ export function AlarmSoundSettingsScreen() {
                         </Text>
                       )}
                     </TouchableOpacity>
+                    <Text style={styles.testHint}>
+                      ⓘ 휴대폰이 진동 모드면 소리가 들리지 않아요
+                    </Text>
                   </View>
                 );
               })
@@ -522,6 +525,13 @@ const styles = StyleSheet.create({
     fontSize: 17,
     fontWeight: '700',
     color: Colors.dark,
+  },
+  testHint: {
+    fontSize: 14,
+    color: Colors.textSub,
+    textAlign: 'center',
+    marginTop: 8,
+    lineHeight: 20,
   },
 
   // 저장된 녹음 없음
