@@ -230,6 +230,35 @@ function channelFor(soundPrefs: Record<string, string | null>, target: DoseTarge
   return slotSoundId ? `parkinon_alarm_${slotSoundId}` : 'default'
 }
 
+/**
+ * 미복용 알림 전용 알림음 우선 적용.
+ * missedSoundId(1차=first_sound_id / 2차=second_sound_id)가 있으면 그 채널,
+ * 없으면 기존 동작(med_time_sound_prefs 따라가기 = channelFor)으로 fallback.
+ */
+function missedChannelFor(
+  missedSoundId: string | null,
+  soundPrefs: Record<string, string | null>,
+  target: DoseTarget,
+): string {
+  if (missedSoundId) return `parkinon_alarm_${missedSoundId}`
+  return channelFor(soundPrefs, target)
+}
+
+/** 환자의 미복용 전용 알림음 설정 1회 조회 (없으면 둘 다 null) */
+async function getMissedSoundPrefs(
+  userId: string,
+): Promise<{ first: string | null; second: string | null }> {
+  const { data } = await supabase
+    .from('missed_med_sound_prefs')
+    .select('first_sound_id, second_sound_id')
+    .eq('user_id', userId)
+    .maybeSingle()
+  return {
+    first: (data as any)?.first_sound_id ?? null,
+    second: (data as any)?.second_sound_id ?? null,
+  }
+}
+
 Deno.serve(async (_req: Request) => {
   const kstNow = new Date(Date.now() + 9 * 60 * 60 * 1000)
   const hh = String(kstNow.getHours()).padStart(2, '0')
@@ -291,12 +320,14 @@ Deno.serve(async (_req: Request) => {
 
     const prefs = (patient.med_time_notif_prefs ?? {}) as Record<string, boolean>
     const soundPrefs = (patient.med_time_sound_prefs ?? {}) as Record<string, string | null>
+    // 미복용 1차 전용 알림음 (없으면 med_time_sound_prefs로 fallback)
+    const missedSounds = await getMissedSoundPrefs(patientId)
 
     for (const target of targets) {
       if (isMuted(prefs, target)) continue
       if (await hasTakenMed(patientId, target, today)) continue
 
-      const channelId = channelFor(soundPrefs, target)
+      const channelId = missedChannelFor(missedSounds.first, soundPrefs, target)
       const data = { type: 'missed_medication_first', mealTime: target.mealTime, doseSlotId: target.doseSlotId }
 
       await sendPush(
@@ -326,12 +357,14 @@ Deno.serve(async (_req: Request) => {
 
     const prefs = (patient.med_time_notif_prefs ?? {}) as Record<string, boolean>
     const soundPrefs = (patient.med_time_sound_prefs ?? {}) as Record<string, string | null>
+    // 미복용 2차 전용 알림음 (없으면 med_time_sound_prefs로 fallback) — 환자 본인만 적용
+    const missedSounds = await getMissedSoundPrefs(patientId)
 
     for (const target of targets) {
       if (isMuted(prefs, target)) continue
       if (await hasTakenMed(patientId, target, today)) continue
 
-      const channelId = channelFor(soundPrefs, target)
+      const channelId = missedChannelFor(missedSounds.second, soundPrefs, target)
 
       // 환자에게 2차 알림
       if (patient.push_token) {

@@ -209,6 +209,10 @@ export function SettingsScreen() {
   const [activeMedSlots, setActiveMedSlots] = useState<MedTimeSlotKey[]>([]);
   // 약 시간 슬롯별 목소리 (slot → custom_sound_id | null). 없으면 기본 목소리
   const [medTimeSounds, setMedTimeSounds] = useState<Record<string, string | null>>({});
+  // 약 미복용 알림 전용 알림음 (1차/2차 각각). null=기본음
+  const [missedMedSounds, setMissedMedSounds] = useState<{ first: string | null; second: string | null }>({
+    first: null, second: null,
+  });
   const [hasMedicationRegistered, setHasMedicationRegistered] = useState(false);
 
   // 환자 알림 수정 (보호자용)
@@ -246,6 +250,18 @@ export function SettingsScreen() {
       if (data?.med_time_sound_prefs) {
         setMedTimeSounds((data.med_time_sound_prefs as Record<string, string | null>) ?? {});
       }
+      // 약 미복용 알림 전용 알림음 로드 (1차/2차)
+      try {
+        const { data: missed } = await supabase
+          .from('missed_med_sound_prefs' as any)
+          .select('first_sound_id, second_sound_id')
+          .eq('user_id', user.id)
+          .maybeSingle();
+        setMissedMedSounds({
+          first: (missed as any)?.first_sound_id ?? null,
+          second: (missed as any)?.second_sound_id ?? null,
+        });
+      } catch {}
       // 약 관리에서 설정한 실제 복용 시간 조회 (슬롯별 가장 이른 시간)
       const { data: meds } = await supabase
         .from('medications')
@@ -1105,6 +1121,19 @@ export function SettingsScreen() {
     });
     if (user) provisionForUser(user.id, user.patient_group_id ?? null).catch(() => {});
   };
+  // 약 미복용 알림 전용 알림음 변경 (1차/2차) → DB upsert + 재프로비저닝
+  const setMissedMedSound = (phase: 'first' | 'second', soundId: string | null) => {
+    setMissedMedSounds((prev) => ({ ...prev, [phase]: soundId }));
+    if (!user) return;
+    const column = phase === 'first' ? 'first_sound_id' : 'second_sound_id';
+    supabase
+      .from('missed_med_sound_prefs' as any)
+      .upsert({ user_id: user.id, [column]: soundId, updated_at: new Date().toISOString() })
+      .then(({ error }) => {
+        if (error) console.error('[SettingsScreen] 미복용 알림음 저장 실패:', error);
+      });
+    provisionForUser(user.id, user.patient_group_id ?? null).catch(() => {});
+  };
 
   const toggleMed = (id: string) => {
     const next = medNotifs.map((n) => (n.id === id ? { ...n, enabled: !n.enabled } : n));
@@ -1508,6 +1537,13 @@ export function SettingsScreen() {
                 thumbColor={Colors.white}
               />
             </View>
+            {!!medTimePrefs['missed_first'] && (
+              <AlarmSoundPickerRow
+                soundId={missedMedSounds.first}
+                sounds={alarmSounds}
+                onSelect={(sid) => setMissedMedSound('first', sid)}
+              />
+            )}
             <View style={styles.notifRow}>
               <View style={styles.notifLeft}>
                 <Text style={styles.notifTitle}>약 미복용 알림 2차</Text>
@@ -1520,6 +1556,13 @@ export function SettingsScreen() {
                 thumbColor={Colors.white}
               />
             </View>
+            {!!medTimePrefs['missed_second'] && (
+              <AlarmSoundPickerRow
+                soundId={missedMedSounds.second}
+                sounds={alarmSounds}
+                onSelect={(sid) => setMissedMedSound('second', sid)}
+              />
+            )}
           </View>
         )}
 

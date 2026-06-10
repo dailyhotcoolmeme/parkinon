@@ -102,7 +102,7 @@ export async function provisionForUser(
     return;
   }
   try {
-    const [soundsRes, prefRes, userRes] = await Promise.all([
+    const [soundsRes, prefRes, userRes, missedRes] = await Promise.all([
       supabase
         .from('custom_sounds' as any)
         .select('id, public_url, label')
@@ -116,6 +116,11 @@ export async function provisionForUser(
         .from('users')
         .select('med_notif_prefs, exercise_notif_prefs, med_time_sound_prefs')
         .eq('id', userId)
+        .maybeSingle(),
+      supabase
+        .from('missed_med_sound_prefs' as any)
+        .select('first_sound_id, second_sound_id')
+        .eq('user_id', userId)
         .maybeSingle(),
     ]);
 
@@ -140,6 +145,10 @@ export async function provisionForUser(
     for (const sid of Object.values(mtSound)) {
       if (sid) ids.push(sid);
     }
+    // 4) 약 미복용 알림 전용 목소리(1차/2차)
+    const missed = (missedRes.data as any) ?? {};
+    if (missed.first_sound_id) ids.push(missed.first_sound_id);
+    if (missed.second_sound_id) ids.push(missed.second_sound_id);
 
     await provisionSounds(ids, sounds);
   } catch {
