@@ -567,7 +567,6 @@ export function DoseSlotSetList({ alarmSounds }: Props) {
         const cardOn = slot.remindEnabled || slot.trackEnabled;
         // 시각 제목 dim: 약 복용 알림이 꺼져 있으면 흐리게 (와이어프레임 점심 카드)
         const timeDim = !slot.remindEnabled;
-        const isStandard = !!slot.legacyKey; // 표준 4슬롯 → 삭제 불가
         const warn = getOverlapWarning(slot);
         return (
           <View
@@ -592,16 +591,14 @@ export function DoseSlotSetList({ alarmSounds }: Props) {
                   >
                     <Ionicons name="create-outline" size={22} color={Colors.textSub} />
                   </TouchableOpacity>
-                  {!isStandard && (
-                    <TouchableOpacity
-                      activeOpacity={0.7}
-                      hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
-                      style={styles.slotIconBtnDelete}
-                      onPress={() => onDeleteSlot(slot)}
-                    >
-                      <Ionicons name="trash-outline" size={22} color={Colors.danger} />
-                    </TouchableOpacity>
-                  )}
+                  <TouchableOpacity
+                    activeOpacity={0.7}
+                    hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+                    style={styles.slotIconBtnDelete}
+                    onPress={() => onDeleteSlot(slot)}
+                  >
+                    <Ionicons name="trash-outline" size={22} color={Colors.danger} />
+                  </TouchableOpacity>
                 </View>
               )}
             </View>
@@ -1463,14 +1460,13 @@ const styles = StyleSheet.create({
     color: Colors.danger,
   },
 
-  // 추가 버튼
+  // 추가 버튼 (녹색 테두리 없이 연한 채움)
   addBtn: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
     gap: 8,
-    borderWidth: 2,
-    borderColor: Colors.primary,
+    backgroundColor: Colors.light,
     borderRadius: 14,
     paddingVertical: 16,
     marginBottom: 4,
