@@ -1664,6 +1664,7 @@ export function SettingsScreen() {
                   soundId={notif.soundId}
                   sounds={alarmSounds}
                   onSelect={(sid) => setExerciseSound(notif.id, sid)}
+                  backgroundColor={Colors.white}
                 />
               )}
             </View>
