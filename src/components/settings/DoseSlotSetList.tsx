@@ -136,6 +136,13 @@ export function DoseSlotSetList({ alarmSounds }: Props) {
   // insert(슬롯 추가)만 중복 탭 방지 — 같은 시각 슬롯 연속 생성 방지용(단일 동작).
   const insertingRef = useRef(false);
 
+  // ── 낙관적 "추가" 슬롯 ─────────────────────────────────────────────────────────
+  // 복용 시각 추가는 dose_slots insert + refresh 로 반영되는데, insert→재fetch
+  // 왕복(라이브 폰 release 에서 수 초) 동안 화면에 새 카드가 안 떠 "아무 변화 없음"으로 보였다.
+  // 그래서 IntervalPickerSheet 처럼 새 슬롯을 즉시 로컬에 반영하고, refresh 가
+  // 진짜 행(real id)을 가져오면 정리한다. key 는 임시 id(opt: 접두).
+  const [addedSlots, setAddedSlots] = useState<DoseSlot[]>([]);
+
   // 시간/분 바텀시트 상태
   const [timeSheet, setTimeSheet] = useState<{
     mode: 'edit' | 'add';
@@ -161,10 +168,16 @@ export function DoseSlotSetList({ alarmSounds }: Props) {
   if (patientId) patientIdRef.current = patientId;
 
   // base(slots) + overrides 머지 = 화면이 렌더할 슬롯 리스트(낙관적 반영).
-  const displaySlots: DoseSlot[] = slots.map((s) => {
+  const mergedSlots: DoseSlot[] = slots.map((s) => {
     const ov = s.id ? overrides[s.id] : undefined;
     return ov ? { ...s, ...ov } : s;
   });
+  // 낙관적 추가분 중 아직 base 에 동일 행(시각+라벨)이 없는 것만 덧붙인다.
+  // refresh 가 진짜 행을 가져오면 매칭되어 빠지므로 중복 카드가 남지 않는다.
+  const pendingAdded = addedSlots.filter(
+    (a) => !slots.some((s) => s.time === a.time && (s.label ?? '') === (a.label ?? '')),
+  );
+  const displaySlots: DoseSlot[] = [...mergedSlots, ...pendingAdded];
 
   // base(slots)가 갱신되어 오버레이 값과 같아졌으면 해당 필드 오버레이를 정리한다.
   // (오버레이가 영구히 쌓여 외부(타 화면/refresh) 변경을 가리지 않도록.)
@@ -196,6 +209,17 @@ export function DoseSlotSetList({ alarmSounds }: Props) {
         }
       }
       return changed ? next : prev;
+    });
+  }, [slots]);
+
+  // base(slots)가 진짜 추가 행을 갖게 되면(refresh 반영) 대응 낙관적 추가분을 정리.
+  useEffect(() => {
+    setAddedSlots((prev) => {
+      if (prev.length === 0) return prev;
+      const next = prev.filter(
+        (a) => !slots.some((s) => s.time === a.time && (s.label ?? '') === (a.label ?? '')),
+      );
+      return next.length === prev.length ? prev : next;
     });
   }, [slots]);
 
@@ -420,19 +444,39 @@ export function DoseSlotSetList({ alarmSounds }: Props) {
       // 시각 변경도 낙관적 — 카드 제목이 바로 바뀜.
       patchSlot(id, { time: newTime }, { time: newTime });
     } else {
-      // 추가: dose_slots insert (insert 는 낙관적 머지 대상이 아니므로 refresh 로 반영)
+      // 추가: dose_slots insert.
+      // insert→refresh 왕복 동안 화면이 비는 걸 막으려고 새 슬롯을 즉시 낙관적으로 띄운다.
       const pid = patientIdRef.current;
       setTimeSheet(null);
       if (!pid) return;
       if (insertingRef.current) return;
       insertingRef.current = true;
+
+      const maxSort = slots.reduce((mx, s) => Math.max(mx, s.sortOrder), 0);
+      const newSort = maxSort + 1;
+      // 임시 슬롯(낙관적). id 는 'opt:' 접두 임시값 — refresh 로 진짜 행이 오면 정리됨.
+      const optimistic: DoseSlot = {
+        id: `opt:${Date.now()}`,
+        patientId: pid,
+        time: newTime,
+        label: '추가',
+        sortOrder: newSort,
+        remindEnabled: true,
+        remindSoundId: null,
+        trackEnabled: true,
+        trackIntervals: DEFAULT_TRACK_INTERVALS,
+        trackSoundId: null,
+        legacyKey: null,
+        isReal: false,
+      };
+      setAddedSlots((prev) => [...prev, optimistic]);
+
       try {
-        const maxSort = slots.reduce((mx, s) => Math.max(mx, s.sortOrder), 0);
         const { error } = await supabase.from('dose_slots').insert({
           patient_id: pid,
           time: newTime,
           label: '추가',
-          sort_order: maxSort + 1,
+          sort_order: newSort,
           remind_enabled: true,
           remind_sound_id: null,
           track_enabled: true,
@@ -445,6 +489,8 @@ export function DoseSlotSetList({ alarmSounds }: Props) {
         await refresh();
       } catch (e) {
         console.error('[DoseSlotSetList] dose_slots insert 실패:', e);
+        // 실패 시 낙관적 슬롯 롤백.
+        setAddedSlots((prev) => prev.filter((s) => s.id !== optimistic.id));
       } finally {
         insertingRef.current = false;
       }
