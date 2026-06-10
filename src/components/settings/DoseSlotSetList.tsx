@@ -47,6 +47,7 @@ import {
 } from '../../constants/doseSlots';
 import { useSwipeDownDismiss } from '../../hooks/useSwipeDownDismiss';
 import { AlarmSoundPickerRow, AlarmSoundOption } from '../common/AlarmSoundPickerRow';
+import { useDialog } from '../../context/DialogContext';
 
 if (
   Platform.OS === 'android' &&
@@ -123,6 +124,7 @@ interface Props {
 }
 
 export function DoseSlotSetList({ alarmSounds }: Props) {
+  const dialog = useDialog();
   const { slots, loading, refresh } = useDoseSlots();
   const { patientId: resolvedPatientId } = usePatientId();
   const [expandedId, setExpandedId] = useState<string | null>(null);
@@ -388,6 +390,14 @@ export function DoseSlotSetList({ alarmSounds }: Props) {
   const onDeleteSlot = useCallback(
     async (slot: DoseSlot) => {
       if (!slot.id) return;
+      const ok = await dialog.confirm({
+        title: '이 복용 시간을 삭제할까요?',
+        message: `'${slotTitle(slot)}' 복용 시간 알림이 삭제돼요.`,
+        confirmText: '삭제',
+        cancelText: '취소',
+        destructive: true,
+      });
+      if (!ok) return;
       const id = slot.id;
       setExpandedId(null);
       try {
@@ -409,7 +419,7 @@ export function DoseSlotSetList({ alarmSounds }: Props) {
         console.error('[DoseSlotSetList] dose_slots 삭제 실패:', e);
       }
     },
-    [refresh],
+    [refresh, dialog],
   );
 
   // ── 시간/분 바텀시트 ───────────────────────────────────────────────────────
@@ -1460,13 +1470,12 @@ const styles = StyleSheet.create({
     color: Colors.danger,
   },
 
-  // 추가 버튼 (녹색 테두리 없이 연한 채움)
+  // 추가 버튼 (테두리 없음)
   addBtn: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
     gap: 8,
-    backgroundColor: Colors.light,
     borderRadius: 14,
     paddingVertical: 16,
     marginBottom: 4,
