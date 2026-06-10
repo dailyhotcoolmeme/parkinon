@@ -203,6 +203,9 @@ export function SettingsScreen() {
     morning: true, lunch: true, dinner: true, bedtime: true,
     missed_first: true, missed_second: true,
   });
+  // 본인이 방금 토글한 직후엔 realtime 에코(동시 발생한 notification_enabled 쓰기의 stale echo)가
+  // 옛 med_time_notif_prefs로 토글을 되돌리지 않도록 막는 가드 타임스탬프
+  const medTimeLocalWriteAtRef = useRef(0);
   const [medSlotTimes, setMedSlotTimes] = useState<Record<MedTimeSlotKey, string>>({
     morning: '08:00', lunch: '12:00', dinner: '18:00', bedtime: '22:00',
   });
@@ -328,6 +331,7 @@ export function SettingsScreen() {
   const toggleMedTimeSlot = async (slot: string) => {
     const prev = medTimePrefs;
     const next = { ...prev, [slot]: !prev[slot] };
+    medTimeLocalWriteAtRef.current = Date.now();
     setMedTimePrefs(next);
     // 발송 게이트(notification_enabled) = "하나라도 ON" (전체 토글 표시는 별도로 select-all)
     const anyOn = computeAnyNotifOn(next, activeMedSlots, medNotifs, exerciseNotifs);
@@ -835,7 +839,9 @@ export function SettingsScreen() {
           } else {
             // 보호자가 바꾼 내 설정을 내 화면에 반영 (DB 재쓰기 없는 적용)
             applyRemoteNotifPrefs(row);
-            if (row.med_time_notif_prefs) {
+            // 단, 본인이 방금(5초 내) 토글한 직후라면 동시 발생한 notification_enabled 쓰기의
+            // stale echo가 옛 값으로 토글을 되돌리는 것을 막고 로컬 낙관값을 우선한다.
+            if (row.med_time_notif_prefs && Date.now() - medTimeLocalWriteAtRef.current > 5000) {
               setMedTimePrefs(prev => ({ ...prev, ...row.med_time_notif_prefs }));
             }
           }
