@@ -1158,14 +1158,9 @@ const styles = StyleSheet.create({
     shadowOpacity: 0.06,
     shadowRadius: 4,
   },
-  cardOn: {
-    borderLeftWidth: 5,
-    borderLeftColor: Colors.accent,
-  },
+  cardOn: {},
   cardOff: {
     backgroundColor: '#F9F9F9',
-    borderLeftWidth: 5,
-    borderLeftColor: Colors.border,
   },
 
   // ── 2박스 레이아웃 ──
