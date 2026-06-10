@@ -6,18 +6,23 @@ import {
   TouchableOpacity,
   StyleSheet,
   ActivityIndicator,
+  Share,
+  Linking,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useNavigation, useFocusEffect } from '@react-navigation/native';
 import { StackNavigationProp } from '@react-navigation/stack';
 import { Ionicons } from '@expo/vector-icons';
+import * as WebBrowser from 'expo-web-browser';
 import { Colors } from '../../constants/colors';
 import { TopBar } from '../../components/common/TopBar';
 import { MenuStackParamList } from '../../navigation/MenuNavigator';
 import { useRecordsData } from '../../hooks/useRecordsData';
 import { useNotificationBadge } from '../../context/NotificationBadgeContext';
+import { useDialog } from '../../context/DialogContext';
 import { navigateTo } from '../../navigation/navigationRef';
 import { triggerLabelToText } from '../../utils/medUtils';
+import { supabase } from '../../lib/supabase';
 
 type NavigationProp = StackNavigationProp<MenuStackParamList, 'Records'>;
 type IoniconName = React.ComponentProps<typeof Ionicons>['name'];
@@ -57,6 +62,7 @@ export function RecordsScreen() {
   const navigation = useNavigation<NavigationProp>();
   const [period, setPeriod] = useState<Period>('이번 주');
   const { unreadCount } = useNotificationBadge();
+  const dialog = useDialog();
 
   // Supabase 실제 데이터
   const { summary, loading, error, refresh } = useRecordsData(period);
@@ -70,6 +76,26 @@ export function RecordsScreen() {
 
   const handleItemPress = (key: ItemKey) => {
     navigation.navigate('RecordDetail', { type: key, period });
+  };
+
+  const [webLoading, setWebLoading] = useState(false);
+  const handleWebOpen = async (mode: 'open' | 'share') => {
+    if (webLoading) return;
+    setWebLoading(true);
+    try {
+      const { data, error: fnError } = await supabase.functions.invoke('create-web-token');
+      if (fnError || !data?.url) throw new Error(fnError?.message || '링크 생성 실패');
+      const url = data.url as string;
+      if (mode === 'open') {
+        await Linking.openURL(url);
+      } else {
+        await Share.share({ message: `파킨온 기록 보기 (30분 안에 열어주세요):\n${url}`, url });
+      }
+    } catch (e: any) {
+      dialog.alert({ title: '오류', message: e?.message || '잠시 후 다시 시도해주세요.' });
+    } finally {
+      setWebLoading(false);
+    }
   };
 
   // ── 표시값 계산 (실제 데이터 기반) ─────────────────────────────────────────
@@ -191,6 +217,26 @@ export function RecordsScreen() {
         bellBadge={unreadCount}
         onBellPress={() => navigateTo('NotificationHistory', { mode: 'all' })}
       />
+
+      {/* 웹에서 보기 */}
+      <View style={styles.webRow}>
+        <TouchableOpacity
+          style={styles.webBtn}
+          onPress={() => handleWebOpen('open')}
+          activeOpacity={0.85}
+        >
+          <Ionicons name="globe-outline" size={20} color={Colors.primary} />
+          <Text style={styles.webBtnText}>웹에서 보기</Text>
+        </TouchableOpacity>
+        <TouchableOpacity
+          style={styles.webBtn}
+          onPress={() => handleWebOpen('share')}
+          activeOpacity={0.85}
+        >
+          <Ionicons name="share-outline" size={20} color={Colors.primary} />
+          <Text style={styles.webBtnText}>PC로 보내기</Text>
+        </TouchableOpacity>
+      </View>
 
       {/* 기간 탭 */}
       <View style={styles.tabRow}>
@@ -325,6 +371,29 @@ export function RecordsScreen() {
 
 const styles = StyleSheet.create({
   safeArea: { flex: 1, backgroundColor: Colors.background },
+
+  // ── 웹에서 보기 ──
+  webRow: {
+    flexDirection: 'row',
+    paddingHorizontal: 16,
+    paddingTop: 12,
+    paddingBottom: 8,
+    backgroundColor: Colors.white,
+    gap: 8,
+  },
+  webBtn: {
+    flex: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 6,
+    height: 44,
+    borderRadius: 22,
+    borderWidth: 1.5,
+    borderColor: Colors.primary,
+    backgroundColor: Colors.white,
+  },
+  webBtnText: { fontSize: 15, fontWeight: '600', color: Colors.primary },
 
   // ── 기간 탭 ──
   tabRow: {

@@ -8,13 +8,13 @@ import {
   Image,
   AppState,
   Linking,
-  Alert,
   Platform,
 } from 'react-native';
 import * as AppleAuthentication from 'expo-apple-authentication';
+import * as Crypto from 'expo-crypto';
 
 // 애플 개발자 계정 승인 후 OTA로 true로 변경
-const APPLE_LOGIN_ENABLED = false;
+const APPLE_LOGIN_ENABLED = true;
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useNavigation } from '@react-navigation/native';
 import type { StackNavigationProp } from '@react-navigation/stack';
@@ -23,16 +23,18 @@ import type { OnboardingStackParamList } from '../../navigation/OnboardingNaviga
 import { AntDesign } from '@expo/vector-icons';
 import { Colors } from '../../constants/colors';
 import { useAuth } from '../../context/AuthContext';
+import { useDialog } from '../../context/DialogContext';
 import { supabase } from '../../lib/supabase';
 
-const TERMS_URL = 'https://parkinon-terms.pages.dev';
-const PRIVACY_URL = 'https://parkinon-privacy.pages.dev';
+const TERMS_URL = 'https://parkinon.com/terms';
+const PRIVACY_URL = 'https://parkinon.com/privacy';
 
 type Nav = StackNavigationProp<OnboardingStackParamList, 'Login'>;
 
 export function LoginScreen() {
   const navigation = useNavigation<Nav>();
   const { user, loading, signInWithKakao, signInWithGoogle, devSignIn } = useAuth();
+  const dialog = useDialog();
   const [signing, setSigning] = useState(false);
   const oauthStarted = useRef(false);
   const { bottom: bottomInset } = useSafeAreaInsets();
@@ -150,20 +152,36 @@ export function LoginScreen() {
     if (!APPLE_LOGIN_ENABLED) return;
     try {
       setSigning(true);
+
+      // CSRF/replay 공격 방지를 위한 raw nonce 생성 (32바이트 hex)
+      // Apple은 identityToken에 SHA256(rawNonce)를 포함해 서명하고,
+      // Supabase는 signInWithIdToken({ nonce: rawNonce })로 일치 검증
+      const rawNonceBytes = await Crypto.getRandomBytesAsync(32);
+      const rawNonce = Array.from(rawNonceBytes)
+        .map((b) => b.toString(16).padStart(2, '0'))
+        .join('');
+      const hashedNonce = await Crypto.digestStringAsync(
+        Crypto.CryptoDigestAlgorithm.SHA256,
+        rawNonce
+      );
+
       const credential = await AppleAuthentication.signInAsync({
         requestedScopes: [
           AppleAuthentication.AppleAuthenticationScope.FULL_NAME,
           AppleAuthentication.AppleAuthenticationScope.EMAIL,
         ],
+        nonce: hashedNonce,
       });
+
       const { error } = await supabase.auth.signInWithIdToken({
         provider: 'apple',
         token: credential.identityToken!,
+        nonce: rawNonce,
       });
       if (error) throw error;
     } catch (e: any) {
       if (e.code !== 'ERR_REQUEST_CANCELED') {
-        Alert.alert('로그인 오류', '애플 로그인에 실패했습니다.');
+        dialog.alert({ title: '로그인 오류', message: '애플 로그인에 실패했습니다\n\n[디버그] ' + (e?.code || e?.message || JSON.stringify(e)).substring(0, 200) });
       }
       setSigning(false);
     }
@@ -195,29 +213,6 @@ export function LoginScreen() {
           )}
         </TouchableOpacity>
 
-        {Platform.OS === 'ios' && (
-          <TouchableOpacity
-            style={[styles.appleBtn, (signing || !APPLE_LOGIN_ENABLED) && styles.appleBtnDisabled]}
-            onPress={handleAppleLogin}
-            activeOpacity={0.85}
-            disabled={signing || !APPLE_LOGIN_ENABLED}
-          >
-            {signing ? (
-              <>
-                <ActivityIndicator color="#fff" />
-                <Text style={styles.appleText}>로그인 중...</Text>
-              </>
-            ) : (
-              <>
-                <AntDesign name="apple1" size={26} color={APPLE_LOGIN_ENABLED ? '#fff' : '#aaa'} />
-                <Text style={[styles.appleText, !APPLE_LOGIN_ENABLED && styles.appleTextDisabled]}>
-                  Apple로 시작하기
-                </Text>
-              </>
-            )}
-          </TouchableOpacity>
-        )}
-
         <TouchableOpacity
           style={[styles.googleBtn, signing && styles.kakaoBtnDisabled]}
           onPress={handleGoogleLogin}
@@ -236,6 +231,29 @@ export function LoginScreen() {
             </>
           )}
         </TouchableOpacity>
+
+        {Platform.OS === 'ios' && (
+          <TouchableOpacity
+            style={[styles.appleBtn, (signing || !APPLE_LOGIN_ENABLED) && styles.appleBtnDisabled]}
+            onPress={handleAppleLogin}
+            activeOpacity={0.85}
+            disabled={signing || !APPLE_LOGIN_ENABLED}
+          >
+            {signing ? (
+              <>
+                <ActivityIndicator color="#fff" />
+                <Text style={styles.appleText}>로그인 중...</Text>
+              </>
+            ) : (
+              <>
+                <AntDesign name="apple" size={26} color={APPLE_LOGIN_ENABLED ? '#fff' : '#aaa'} />
+                <Text style={[styles.appleText, !APPLE_LOGIN_ENABLED && styles.appleTextDisabled]}>
+                  애플로 시작하기
+                </Text>
+              </>
+            )}
+          </TouchableOpacity>
+        )}
 
         <TouchableOpacity
           style={styles.devButton}

@@ -1,4 +1,4 @@
-import React, { useState, useRef } from 'react';
+import React, { useState } from 'react';
 import {
   View,
   Text,
@@ -8,7 +8,6 @@ import {
   KeyboardAvoidingView,
   Platform,
   ScrollView,
-  Alert,
 } from 'react-native';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import AsyncStorage from '@react-native-async-storage/async-storage';
@@ -18,6 +17,7 @@ import type { OnboardingStackParamList } from '../../navigation/OnboardingNaviga
 import { Colors } from '../../constants/colors';
 import { PrimaryButton } from '../../components/common/PrimaryButton';
 import { useAuth } from '../../context/AuthContext';
+import { useDialog } from '../../context/DialogContext';
 import { supabase } from '../../lib/supabase';
 
 type Nav = StackNavigationProp<OnboardingStackParamList, 'FamilyCheck'>;
@@ -28,27 +28,18 @@ type ChoiceKey = 'yes' | 'no' | 'unsure';
 export function FamilyCheckScreen() {
   const navigation = useNavigation<Nav>();
   const { signOut } = useAuth();
+  const dialog = useDialog();
   const { bottom: bottomInset } = useSafeAreaInsets();
   const [viewMode, setViewMode] = useState<ViewMode>('question');
   const [selectedChoice, setSelectedChoice] = useState<ChoiceKey | null>(null);
-  const [code, setCode] = useState(['', '', '', '', '', '']);
+  // 초대 코드는 항상 6자리 숫자 (generateInviteCode가 숫자 코드만 생성).
+  // 60대+ 타겟 UX: 칸 분리 입력 시 키보드가 칸 이동마다 리셋되는 불편을 없애기 위해
+  // 단일 입력 필드 + 숫자 키패드 고정으로 통일.
+  const [code, setCode] = useState('');
   const [loading, setLoading] = useState(false);
-  const inputRefs = useRef<(TextInput | null)[]>([]);
 
-  const handleCodeChange = (text: string, index: number) => {
-    const newCode = [...code];
-    const cleaned = text.replace(/[^a-zA-Z0-9]/g, '').toUpperCase();
-    newCode[index] = cleaned.slice(-1);
-    setCode(newCode);
-    if (cleaned && index < 5) {
-      inputRefs.current[index + 1]?.focus();
-    }
-  };
-
-  const handleCodeKeyPress = (key: string, index: number) => {
-    if (key === 'Backspace' && !code[index] && index > 0) {
-      inputRefs.current[index - 1]?.focus();
-    }
+  const handleCodeChange = (text: string) => {
+    setCode(text.replace(/[^0-9]/g, '').slice(0, 6));
   };
 
   const goToNextScreen = async () => {
@@ -56,44 +47,131 @@ export function FamilyCheckScreen() {
   };
 
   const handleCodeConfirm = async () => {
-    const fullCode = code.join('');
+    const fullCode = code;
     if (fullCode.length < 6) {
-      Alert.alert('', '초대 코드 6자리를 모두 입력해주세요.');
+      dialog.alert({ message: '초대 코드 6자리를 모두 입력해주세요.' });
       return;
     }
     setLoading(true);
     try {
-      // Supabase patient_groups 테이블에서 초대 코드 검증
+      // ⚠️ supabase-js PostgREST 클라이언트(supabase.from().select())는 RN 새 아키텍처에서
+      //    응답 없이 hang하거나 오류를 반환하는 버그가 있다(앱 전반에서 raw fetch로 우회 중).
+      //    이전 구현은 이 오류를 console.warn으로 삼키고 group_id 없이 코드만 저장한 채 진행 →
+      //    온보딩 완료(handleFinish) 시 joinGroupId가 null이라 그룹 합류/멤버 INSERT가 통째로 누락되는
+      //    치명적 버그가 있었다. 따라서 (1) 세션 토큰을 붙인 raw fetch로 조회하고,
+      //    (2) 그룹이 확정되지 않으면(조회 실패·미존재·만료) 진행을 막는다.
       const now = new Date().toISOString();
-      const { data: groups, error } = await supabase
-        .from('patient_groups')
-        .select('id, invite_code_expires_at')
-        .eq('invite_code', fullCode)
-        .limit(1);
+      const SUPABASE_URL = process.env.EXPO_PUBLIC_SUPABASE_URL!;
+      const SUPABASE_ANON_KEY = process.env.EXPO_PUBLIC_SUPABASE_ANON_KEY!;
 
-      if (error) {
-        // DB 오류 시 경고 후 계속 진행 (코드만 저장)
-        console.warn('[FamilyCheck] 코드 검증 오류 (계속 진행):', error.message);
-      } else if (!groups || groups.length === 0) {
-        Alert.alert('코드 오류', '올바른 초대 코드가 아니에요. 다시 확인해주세요.');
+      const { data: sessionData } = await supabase.auth.getSession();
+      const accessToken = sessionData?.session?.access_token;
+      if (!accessToken) {
+        // 코드 조회 RLS 정책(초대코드 조회)은 auth.uid() IS NOT NULL을 요구한다.
+        // 세션 토큰이 없으면 조회가 비로그인(anon)으로 나가 0행이 되어 오판하므로 명확히 차단한다.
+        dialog.alert({ title: '로그인 필요', message: '로그인 정보가 만료됐어요. 앱을 다시 시작한 뒤 시도해주세요.' });
         setLoading(false);
         return;
-      } else {
-        const group = groups[0];
-        // 만료 여부 확인
-        if (group.invite_code_expires_at && group.invite_code_expires_at < now) {
-          Alert.alert('코드 만료', '초대 코드가 만료됐어요. 가족에게 새 코드를 요청해주세요.');
-          setLoading(false);
-          return;
-        }
-        // 그룹 ID 저장 (온보딩 완료 시 DB 연결에 사용)
-        await AsyncStorage.setItem('onboarding_group_id', group.id);
       }
 
+      const lookupUrl =
+        `${SUPABASE_URL}/rest/v1/patient_groups` +
+        `?invite_code=eq.${encodeURIComponent(fullCode)}` +
+        `&select=id,invite_code_expires_at&limit=1`;
+      const res = await fetch(lookupUrl, {
+        method: 'GET',
+        headers: {
+          apikey: SUPABASE_ANON_KEY,
+          Authorization: `Bearer ${accessToken}`,
+          Accept: 'application/json',
+        },
+      });
+
+      if (!res.ok) {
+        // 조회 자체가 실패하면 group_id를 확정할 수 없으므로 진행 금지(조용히 무시 금지).
+        const errText = await res.text().catch(() => '');
+        console.warn('[FamilyCheck] 코드 조회 실패:', res.status, errText);
+        dialog.alert({ title: '확인 실패', message: '초대 코드 확인 중 문제가 생겼어요. 잠시 후 다시 시도해주세요.' });
+        setLoading(false);
+        return;
+      }
+
+      const groups: Array<{ id: string; invite_code_expires_at: string | null }> = await res.json();
+      if (!Array.isArray(groups) || groups.length === 0) {
+        dialog.alert({ title: '코드 오류', message: '올바른 초대 코드가 아니에요. 다시 확인해주세요.' });
+        setLoading(false);
+        return;
+      }
+
+      const group = groups[0];
+      // 만료 여부 확인
+      if (group.invite_code_expires_at && group.invite_code_expires_at < now) {
+        dialog.alert({ title: '코드 만료', message: '초대 코드가 만료됐어요. 가족에게 새 코드를 요청해주세요.' });
+        setLoading(false);
+        return;
+      }
+
+      // ── 환자명 확인 단계 ──────────────────────────────────────────────────
+      // 그룹은 확정됐지만, 다음 화면으로 넘어가기 전에 "어떤 환자와 연동되는지"를
+      // 마스킹된 이름으로 보여주고 확인을 받는다(잘못된 코드 입력 방지).
+      // DB RPC get_invite_patient_masked_name(p_code)는 authenticated 권한으로 실행 가능.
+      const rpcUrl = `${SUPABASE_URL}/rest/v1/rpc/get_invite_patient_masked_name`;
+      let maskedName: string | null = null;
+      try {
+        const rpcRes = await fetch(rpcUrl, {
+          method: 'POST',
+          headers: {
+            apikey: SUPABASE_ANON_KEY,
+            Authorization: `Bearer ${accessToken}`,
+            'Content-Type': 'application/json',
+            Accept: 'application/json',
+          },
+          body: JSON.stringify({ p_code: fullCode }),
+        });
+        if (rpcRes.ok) {
+          // 단일 스칼라 반환이라 본문이 JSON 문자열("최*철") 또는 raw 문자열일 수 있다.
+          let parsed: any = null;
+          try {
+            parsed = await rpcRes.clone().json();
+          } catch {
+            parsed = await rpcRes.text().catch(() => null);
+          }
+          if (typeof parsed === 'string') maskedName = parsed;
+          else if (parsed && typeof parsed === 'object' && typeof parsed.name === 'string') maskedName = parsed.name;
+        } else {
+          console.warn('[FamilyCheck] 환자명 조회 RPC 실패:', rpcRes.status);
+        }
+      } catch (rpcErr) {
+        console.warn('[FamilyCheck] 환자명 조회 RPC 예외:', rpcErr);
+      }
+
+      const trimmedName = (maskedName ?? '').trim();
+      if (!trimmedName || trimmedName === 'null') {
+        // 그룹은 찾았으나 환자 정보 확인 불가 → 코드 오류와 동일하게 처리.
+        dialog.alert({ title: '코드 오류', message: '올바른 초대 코드가 아니에요. 다시 확인해주세요.' });
+        setLoading(false);
+        return;
+      }
+
+      setLoading(false);
+      const ok = await dialog.confirm({
+        title: '연동할 환자 확인',
+        message: `${trimmedName} 님과 가족으로 연동돼요.\n맞으신가요?`,
+        confirmText: '네, 맞아요',
+        cancelText: '아니요, 다시 입력할게요',
+      });
+      if (!ok) {
+        // 취소 → 저장하지 않고 코드 입력 화면에 머무름(입력값 비우기)
+        setCode('');
+        return;
+      }
+
+      // 그룹 ID 확정 — 온보딩 완료 시 patient_group_id 세팅 + 멤버 INSERT에 사용
+      await AsyncStorage.setItem('onboarding_group_id', group.id);
       await AsyncStorage.setItem('onboarding_invite_code', fullCode);
       await goToNextScreen();
     } catch (e: any) {
-      Alert.alert('오류', '코드 확인 중 문제가 생겼어요.\n' + (e?.message ?? ''));
+      await dialog.alert({ title: '오류', message: '코드 확인 중 문제가 생겼어요.\n' + (e?.message ?? '') });
     } finally {
       setLoading(false);
     }
@@ -138,21 +216,21 @@ export function FamilyCheckScreen() {
             </Text>
 
             <View style={styles.codeRow}>
-              {code.map((char, i) => (
-                <TextInput
-                  key={i}
-                  ref={(ref) => { inputRefs.current[i] = ref; }}
-                  style={[styles.codeBox, char && styles.codeBoxFilled]}
-                  value={char}
-                  onChangeText={(text) => handleCodeChange(text, i)}
-                  onKeyPress={({ nativeEvent }) => handleCodeKeyPress(nativeEvent.key, i)}
-                  maxLength={1}
-                  autoCapitalize="characters"
-                  keyboardType="default"
-                  textAlign="center"
-                />
-              ))}
+              <TextInput
+                style={[styles.codeInput, code.length > 0 && styles.codeInputFilled]}
+                value={code}
+                onChangeText={handleCodeChange}
+                placeholder="6자리 숫자"
+                placeholderTextColor={Colors.textHint}
+                maxLength={6}
+                keyboardType="number-pad"
+                textAlign="center"
+                autoFocus
+              />
             </View>
+
+            {/* 임시 디버그 마커 — OTA 적용 확인용 */}
+            <Text style={styles.otaMarker}>연동 점검판 v3 (2026-05-29)</Text>
           </ScrollView>
 
           {/* 하단 버튼 */}
@@ -161,7 +239,7 @@ export function FamilyCheckScreen() {
               title="확인하기"
               onPress={handleCodeConfirm}
               loading={loading}
-              disabled={code.join('').length < 6}
+              disabled={code.length < 6}
             />
             <TouchableOpacity style={styles.closeBtn} onPress={handleClose} activeOpacity={0.7}>
               <Text style={styles.closeBtnText}>닫기</Text>
@@ -359,22 +437,30 @@ const styles = StyleSheet.create({
     marginTop: 16,
     marginBottom: 32,
   },
-  codeBox: {
-    width: 48,
-    height: 60,
-    borderRadius: 10,
+  codeInput: {
+    width: '100%',
+    maxWidth: 320,
+    height: 76,
+    borderRadius: 14,
     borderWidth: 2,
     borderColor: Colors.border,
     backgroundColor: Colors.white,
-    fontSize: 24,
+    fontSize: 34,
     fontWeight: '700',
+    letterSpacing: 10,
     color: Colors.text,
     textAlign: 'center',
   },
-  codeBoxFilled: {
+  codeInputFilled: {
     borderColor: Colors.primary,
     backgroundColor: Colors.light,
     color: Colors.dark,
+  },
+  otaMarker: {
+    fontSize: 12,
+    color: '#BBB',
+    textAlign: 'center',
+    marginTop: 12,
   },
   bottomArea: {
     paddingHorizontal: 24,

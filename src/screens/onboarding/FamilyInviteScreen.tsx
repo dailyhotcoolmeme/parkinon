@@ -6,7 +6,6 @@ import {
   TouchableOpacity,
   ScrollView,
   Share,
-  Alert,
   ActivityIndicator,
 } from 'react-native';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -16,7 +15,15 @@ import type { StackNavigationProp } from '@react-navigation/stack';
 import type { OnboardingStackParamList } from '../../navigation/OnboardingNavigator';
 import { Colors } from '../../constants/colors';
 import { useAuth } from '../../context/AuthContext';
+import { useDialog } from '../../context/DialogContext';
 import { supabase } from '../../lib/supabase';
+import { ensureGroupMember } from '../../utils/groupMembership';
+import {
+  ensurePatientDoseSlots,
+  syncMedicationDoseSlots,
+  invalidateDoseSlotsCache,
+} from '../../hooks/useDoseSlots';
+import type { LegacyMealKey } from '../../constants/doseSlots';
 
 type Nav = StackNavigationProp<OnboardingStackParamList, 'FamilyInvite'>;
 
@@ -32,6 +39,7 @@ function generateInviteCode(): string {
 export function FamilyInviteScreen() {
   const navigation = useNavigation<Nav>();
   const { refreshUser, forceCompleteOnboarding } = useAuth();
+  const dialog = useDialog();
   const [inviteCode, setInviteCode] = useState('');
   const [userName, setUserName] = useState('');
   const [isSaving, setIsSaving] = useState(false);
@@ -60,7 +68,7 @@ export function FamilyInviteScreen() {
         title: '파킨온 가족 초대',
       });
     } catch {
-      Alert.alert('', '공유하기에 실패했어요. 코드를 직접 전달해주세요.');
+      dialog.alert({ message: '공유하기에 실패했어요. 코드를 직접 전달해주세요.' });
     }
   };
 
@@ -76,6 +84,7 @@ export function FamilyInviteScreen() {
         diagYearStr,
         medicationsJson,
         notificationsJson,
+        medNotifsJson,
         caregiverRelation,
         caregiverLiving,
         joinGroupId,
@@ -87,6 +96,7 @@ export function FamilyInviteScreen() {
         'onboarding_diag_year',
         'onboarding_medications',
         'onboarding_notifications',
+        'onboarding_med_notifs',
         'onboarding_relation',
         'onboarding_living',
         'onboarding_group_id',
@@ -128,8 +138,11 @@ export function FamilyInviteScreen() {
         if (caregiverRelation) userUpdateData.caregiver_relation = caregiverRelation;
         if (caregiverLiving) userUpdateData.residence_type = caregiverLiving;
       }
-      if (joinGroupId) {
-        userUpdateData.patient_group_id = joinGroupId;
+      // 그룹이 없는 보호자 단독 가입(환자 코드 미입력)은 group_id가 없으므로 멤버 INSERT를 건너뛰고
+      // 온보딩을 정상 완료시킨다. (보호자는 환자 코드를 나중에 입력 가능 — 그룹 없이도 가입 완료돼야 정상)
+      const resolvedJoinGroupId = joinGroupId?.trim() || null;
+      if (resolvedJoinGroupId) {
+        userUpdateData.patient_group_id = resolvedJoinGroupId;
       }
 
       const updateRes = await fetch(`${SUPABASE_URL}/rest/v1/users?id=eq.${userId}`, {
@@ -144,7 +157,7 @@ export function FamilyInviteScreen() {
 
       // 환자 본인 온보딩 완료 시: patient_groups 생성 + 자신을 멤버로 추가 (초대코드 저장)
       // joinGroupId가 없다는 것은 다른 그룹에 합류하지 않았다는 의미 = 자신이 그룹 생성자
-      if (role === 'patient' && !joinGroupId && inviteCode) {
+      if (role === 'patient' && !resolvedJoinGroupId && inviteCode) {
         const expiresAt = new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString();
         // patient_groups INSERT
         const groupRes = await fetch(`${SUPABASE_URL}/rest/v1/patient_groups`, {
@@ -165,16 +178,8 @@ export function FamilyInviteScreen() {
               headers: { ...baseHeaders, 'Prefer': 'return=minimal' },
               body: JSON.stringify({ patient_group_id: newGroupId }),
             });
-            // patient_group_members에 환자 본인 추가
-            const memberRes = await fetch(`${SUPABASE_URL}/rest/v1/patient_group_members`, {
-              method: 'POST',
-              headers: { ...baseHeaders, 'Prefer': 'resolution=merge-duplicates,return=minimal' },
-              body: JSON.stringify({ group_id: newGroupId, user_id: userId, role: 'patient' }),
-            });
-            if (!memberRes.ok) {
-              const errText = await memberRes.text();
-              console.warn('[FamilyInviteScreen] patient_group_members(환자) 추가 오류 (계속 진행):', errText);
-            }
+            // patient_group_members에 환자 본인 추가 (실패 시 throw → 멤버 누락 방지)
+            await ensureGroupMember(SUPABASE_URL, baseHeaders, newGroupId, userId, 'patient');
           }
         } else {
           const errText = await groupRes.text();
@@ -182,37 +187,46 @@ export function FamilyInviteScreen() {
         }
       }
 
-      // 초대 코드로 가입한 경우 → patient_group_members에도 추가
-      if (joinGroupId && role) {
-        const memberRes = await fetch(`${SUPABASE_URL}/rest/v1/patient_group_members`, {
-          method: 'POST',
-          headers: { ...baseHeaders, 'Prefer': 'resolution=merge-duplicates,return=minimal' },
-          body: JSON.stringify({ group_id: joinGroupId, user_id: userId, role }),
-        });
-        if (!memberRes.ok) {
-          const errText = await memberRes.text();
-          console.warn('[FamilyInviteScreen] patient_group_members 추가 오류 (계속 진행):', errText);
-        }
+      // 초대 코드로 가입한 경우 → patient_group_members에도 반드시 추가
+      // (이 멤버 행이 누락되면 RLS is_same_patient_group()이 항상 false가 되어
+      //  같은 그룹 가족의 이름·정보가 전부 차단되는 치명적 버그 발생 → 조용히 무시 금지)
+      if (resolvedJoinGroupId && role) {
+        await ensureGroupMember(SUPABASE_URL, baseHeaders, resolvedJoinGroupId, userId, role);
       }
 
       // 모든 DB INSERT 완료 후 로컬 상태 반영 (화면 전환은 여기서부터)
       forceCompleteOnboarding();
 
-      // 알림 설정 반영: 온보딩에서 설정한 값을 settings_med_notifs에 저장
-      // onboarding_notifications 형식: { immediate: bool, after30: bool, after2h: bool }
-      // settings_med_notifs 형식: MedNotif[] = [{ id, minutes, enabled }]
-      if (notificationsJson) {
-        try {
-          const notifSettings: Record<string, boolean> = JSON.parse(notificationsJson);
-          const medNotifs = [
-            { id: '1', minutes: 0,   enabled: notifSettings.immediate ?? true },
-            { id: '2', minutes: 30,  enabled: notifSettings.after30   ?? true },
-            { id: '3', minutes: 120, enabled: notifSettings.after2h   ?? true },
-          ];
-          await AsyncStorage.setItem('settings_med_notifs', JSON.stringify(medNotifs));
-        } catch (parseErr) {
-          console.warn('[FamilyInviteScreen] onboarding_notifications 파싱 오류:', parseErr);
+      // 알림 설정 반영: 온보딩에서 설정한 값을 settings_med_notifs + DB med_notif_prefs에 저장
+      // (§13-2 옵션1) NotificationSetupScreen이 추천 MedNotif[]를 onboarding_med_notifs에
+      // 무손실로 저장하므로, 그 값을 그대로 통과시킨다(after30/after2h 하드코딩 브리지 제거).
+      // onboarding_med_notifs 부재 시(구버전 호환) onboarding_notifications에서 변환 fallback.
+      try {
+        let medNotifs: Array<{ id: string; minutes: number; enabled: boolean }> | null = null;
+        if (medNotifsJson) {
+          const parsed = JSON.parse(medNotifsJson);
+          if (Array.isArray(parsed) && parsed.length > 0) medNotifs = parsed;
         }
+        if (!medNotifs && notificationsJson) {
+          // 구버전 호환 fallback (onboarding_med_notifs 없는 기존 데이터)
+          const notifSettings: Record<string, boolean> = JSON.parse(notificationsJson);
+          medNotifs = [
+            { id: '2', minutes: 30,  enabled: notifSettings.after30 ?? true },
+            { id: '3', minutes: 120, enabled: notifSettings.after2h ?? true },
+          ];
+        }
+        if (medNotifs && medNotifs.length > 0) {
+          // AsyncStorage 무손실 저장
+          await AsyncStorage.setItem('settings_med_notifs', JSON.stringify(medNotifs));
+          // DB med_notif_prefs에도 무손실 반영 (SettingsContext와 동일한 fetch 패턴)
+          await fetch(`${SUPABASE_URL}/rest/v1/users?id=eq.${userId}`, {
+            method: 'PATCH',
+            headers: { ...baseHeaders, 'Prefer': 'return=minimal' },
+            body: JSON.stringify({ med_notif_prefs: medNotifs }),
+          }).catch((e) => console.warn('[FamilyInviteScreen] med_notif_prefs 저장 오류:', e));
+        }
+      } catch (parseErr) {
+        console.warn('[FamilyInviteScreen] med notifs 브리지 파싱 오류:', parseErr);
       }
 
       // medications 저장 (환자 본인 또는 보호자가 대신 입력한 경우 모두 저장)
@@ -226,13 +240,37 @@ export function FamilyInviteScreen() {
           dosage?: string;
           times: string[];
           meal_schedules?: Record<string, string>;
-          drugInfo?: { itemImage?: string };
+          drugInfo?: { itemImage?: string; itemSeq?: string };
         }> = JSON.parse(medicationsJson);
 
         if (meds.length > 0) {
+          // [5단계 dual-write] medications 영속화 직후 dose_slots/medication_dose_slots 배선.
+          // 순서: ensurePatientDoseSlots → medications POST(representation) → 각 약 syncMedicationDoseSlots → invalidate.
+          // 신규 온보딩 환자는 dose_slots가 0개이므로, 약 배정 전에 환자 슬롯 4개를 먼저 보장해야 한다.
+          // 헬퍼는 멱등·실패해도 throw 안 함 → 온보딩 흐름을 막지 않는다.
+
+          // track_intervals 기본값용 notifMinutes — onboarding_med_notifs에서 enabled 분 추출(있으면).
+          let notifMinutes: number[] | null = null;
+          try {
+            if (medNotifsJson) {
+              const parsedNotifs = JSON.parse(medNotifsJson);
+              if (Array.isArray(parsedNotifs)) {
+                notifMinutes = parsedNotifs
+                  .filter((n: any) => n && n.enabled !== false && typeof n.minutes === 'number' && n.minutes > 0)
+                  .map((n: any) => n.minutes);
+              }
+            }
+          } catch {
+            notifMinutes = null;
+          }
+
+          // 환자 dose_slots 보장 (meal_schedules 미설정 → 헬퍼가 기본 4슬롯 시각 사용).
+          await ensurePatientDoseSlots(userId, null, undefined, notifMinutes);
+
+          // representation으로 POST해 각 약의 id를 확보 (slot 배정에 필요).
           const medRes = await fetch(`${SUPABASE_URL}/rest/v1/medications`, {
             method: 'POST',
-            headers: { ...baseHeaders, 'Prefer': 'return=minimal' },
+            headers: { ...baseHeaders, 'Prefer': 'return=representation' },
             body: JSON.stringify(meds.map((med) => ({
               patient_id: userId,
               name: med.name,
@@ -242,13 +280,32 @@ export function FamilyInviteScreen() {
               scheduled_times: [],
               drug_code: null,
               drug_image_url: med.drugInfo?.itemImage || null,
+              item_seq: med.drugInfo?.itemSeq || null,
               is_active: true,
             }))),
           });
           if (!medRes.ok) {
             const errText = await medRes.text();
             console.warn(`[FamilyInviteScreen] medications 저장 실패 (계속 진행): ${medRes.status} ${errText}`);
+          } else {
+            // representation 응답: 삽입된 약 행 배열(요청 meds와 동일 순서). id ↔ meal_times 매핑 후 슬롯 배정.
+            try {
+              const insertedRaw = await medRes.json();
+              const inserted: Array<{ id?: string }> = Array.isArray(insertedRaw) ? insertedRaw : [];
+              for (let i = 0; i < inserted.length; i++) {
+                const medId = inserted[i]?.id;
+                const mealTimes = (meds[i]?.times ?? []) as LegacyMealKey[];
+                if (medId) {
+                  await syncMedicationDoseSlots(userId, medId, mealTimes);
+                }
+              }
+            } catch (mapErr) {
+              console.warn('[FamilyInviteScreen] dose_slot 배정 파싱 오류 (계속 진행):', mapErr);
+            }
           }
+
+          // 캐시 무효화 — 직후 읽기 경로(useDoseSlots)가 새 슬롯/배정을 보게.
+          invalidateDoseSlotsCache(userId);
         }
       }
 
@@ -264,6 +321,7 @@ export function FamilyInviteScreen() {
         'onboarding_diag_year',
         'onboarding_medications',
         'onboarding_notifications',
+        'onboarding_med_notifs',
         'onboarding_invite_code_generated',
         'onboarding_relation',
         'onboarding_living',
@@ -272,11 +330,10 @@ export function FamilyInviteScreen() {
       ]);
     } catch (e: any) {
       console.error('[FamilyInviteScreen] handleFinish 오류:', e);
-      Alert.alert(
-        '저장 오류',
-        '정보 저장 중 문제가 발생했어요. 다시 시도해 주세요.\n\n' + (e?.message ?? ''),
-        [{ text: '확인' }]
-      );
+      await dialog.alert({
+        title: '저장 오류',
+        message: '정보 저장 중 문제가 발생했어요. 다시 시도해 주세요.\n\n' + (e?.message ?? ''),
+      });
     } finally {
       setIsSaving(false);
     }

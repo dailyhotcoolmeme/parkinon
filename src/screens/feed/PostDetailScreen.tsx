@@ -8,7 +8,6 @@ import {
   TextInput,
   KeyboardAvoidingView,
   Platform,
-  Alert,
   ActivityIndicator,
 } from 'react-native';
 
@@ -32,6 +31,8 @@ import { supabase } from '../../lib/supabase';
 import { useAuth } from '../../context/AuthContext';
 import { CenterToast } from '../../components/common/CenterToast';
 import { useToast } from '../../hooks/useToast';
+import { useDialog } from '../../context/DialogContext';
+import { ensureNotGuest } from '../../utils/guestGuard';
 
 type RouteProps = NativeStackScreenProps<FeedStackParamList, 'PostDetail'>['route'];
 type NavProp = NativeStackNavigationProp<FeedStackParamList>;
@@ -103,8 +104,9 @@ export function PostDetailScreen() {
   const route = useRoute<RouteProps>();
   const navigation = useNavigation<NavProp>();
   const { post } = route.params;
-  const { user } = useAuth();
+  const { user, signOut } = useAuth();
   const { toastMsg, toastVisible, showToast } = useToast();
+  const dialog = useDialog();
 
   const isOwner = !!(user && post.authorId && user.id === post.authorId);
 
@@ -154,49 +156,47 @@ export function PostDetailScreen() {
   };
 
   // 삭제하기
-  const handleDelete = () => {
-    Alert.alert(
-      '게시글 삭제',
-      '정말 삭제하시겠어요?\n삭제된 글은 복구할 수 없어요.',
-      [
-        { text: '취소', style: 'cancel' },
-        {
-          text: '삭제',
-          style: 'destructive',
-          onPress: async () => {
-            setDeleting(true);
-            try {
-              const { error } = await supabase
-                .from('posts')
-                .delete()
-                .eq('id', post.id);
-              if (error) throw error;
-              Alert.alert('삭제 완료', '게시글이 삭제되었어요.', [
-                { text: '확인', onPress: () => navigation.goBack() },
-              ]);
-            } catch (e: any) {
-              Alert.alert('오류', e.message ?? '삭제 중 문제가 생겼어요. 다시 시도해주세요.');
-              console.error('[PostDetail] handleDelete 오류:', e);
-            } finally {
-              setDeleting(false);
-            }
-          },
-        },
-      ]
-    );
+  const handleDelete = async () => {
+    const ok = await dialog.confirm({
+      title: '게시글 삭제',
+      message: '정말 삭제하시겠어요?\n삭제된 글은 복구할 수 없어요.',
+      confirmText: '삭제',
+      cancelText: '취소',
+      destructive: true,
+    });
+    if (!ok) return;
+    setDeleting(true);
+    try {
+      const { error } = await supabase
+        .from('posts')
+        .delete()
+        .eq('id', post.id);
+      if (error) throw error;
+      await dialog.alert({
+        title: '삭제 완료',
+        message: '게시글이 삭제되었어요.',
+      });
+      navigation.goBack();
+    } catch (e: any) {
+      await dialog.alert({ title: '오류', message: e.message ?? '삭제 중 문제가 생겼어요. 다시 시도해주세요.' });
+      console.error('[PostDetail] handleDelete 오류:', e);
+    } finally {
+      setDeleting(false);
+    }
   };
 
   // 더보기 메뉴
-  const handleMore = () => {
-    Alert.alert(
-      '게시글 관리',
-      '',
-      [
-        { text: '수정하기', onPress: handleEdit },
-        { text: '삭제하기', style: 'destructive', onPress: handleDelete },
-        { text: '취소', style: 'cancel' },
-      ]
-    );
+  const handleMore = async () => {
+    const id = await dialog.show({
+      title: '게시글 관리',
+      buttons: [
+        { id: 'edit', text: '수정하기' },
+        { id: 'delete', text: '삭제하기', style: 'destructive' },
+        { id: 'cancel', text: '취소', style: 'cancel' },
+      ],
+    });
+    if (id === 'edit') handleEdit();
+    else if (id === 'delete') handleDelete();
   };
 
   // 첨부 사진 목록 조회
@@ -251,6 +251,7 @@ export function PostDetailScreen() {
   // 북마크 토글
   const toggleBookmark = async () => {
     if (!user) return;
+    if (await ensureNotGuest(user, dialog, { signOut })) return;
     const next = !isBookmarked;
     setIsBookmarked(next);
     if (next) {
@@ -290,7 +291,7 @@ export function PostDetailScreen() {
       if (error) throw error;
       setComments(buildCommentTree((data ?? []) as CommentRow[]));
     } catch (e: any) {
-      Alert.alert('오류', '댓글을 불러오지 못했어요. 다시 시도해주세요.');
+      await dialog.alert({ title: '오류', message: '댓글을 불러오지 못했어요. 다시 시도해주세요.' });
       console.error('[PostDetail] fetchComments 오류:', e);
     } finally {
       setCommentsLoading(false);
@@ -304,6 +305,7 @@ export function PostDetailScreen() {
   // 좋아요 toggle
   const handleLike = async () => {
     if (!user) return;
+    if (await ensureNotGuest(user, dialog, { signOut })) return;
     const prevLiked = liked;
     const prevCount = likeCount;
     const nextLiked = !liked;
@@ -341,7 +343,7 @@ export function PostDetailScreen() {
       // 에러 시 롤백
       setLiked(prevLiked);
       setLikeCount(prevCount);
-      Alert.alert('오류', '좋아요 처리 중 문제가 생겼어요. 다시 시도해주세요.');
+      await dialog.alert({ title: '오류', message: '좋아요 처리 중 문제가 생겼어요. 다시 시도해주세요.' });
       console.error('[PostDetail] handleLike 오류:', e);
     }
   };
@@ -349,6 +351,7 @@ export function PostDetailScreen() {
   // 댓글/대댓글 등록
   const handleCommentSubmit = async () => {
     if (!user || !commentText.trim()) return;
+    if (await ensureNotGuest(user, dialog, { signOut })) return;
     setSubmittingComment(true);
     try {
       const { error } = await supabase.from('comments').insert({
@@ -374,7 +377,7 @@ export function PostDetailScreen() {
           .eq('id', post.id);
       }
     } catch (e: any) {
-      Alert.alert('오류', e.message ?? '댓글 등록 중 문제가 생겼어요. 다시 시도해주세요.');
+      await dialog.alert({ title: '오류', message: e.message ?? '댓글 등록 중 문제가 생겼어요. 다시 시도해주세요.' });
       console.error('[PostDetail] handleCommentSubmit 오류:', e);
     } finally {
       setSubmittingComment(false);
@@ -384,6 +387,7 @@ export function PostDetailScreen() {
   // 댓글 좋아요
   const handleCommentLike = async (commentId: string) => {
     if (!user) return;
+    if (await ensureNotGuest(user, dialog, { signOut })) return;
     try {
       const { data: existing } = await supabase
         .from('comment_likes')
@@ -405,7 +409,7 @@ export function PostDetailScreen() {
       }
       await fetchComments();
     } catch (e: any) {
-      Alert.alert('오류', '좋아요 처리 중 문제가 생겼어요.');
+      await dialog.alert({ title: '오류', message: '좋아요 처리 중 문제가 생겼어요.' });
       console.error('[PostDetail] handleCommentLike 오류:', e);
     }
   };

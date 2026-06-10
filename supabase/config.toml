@@ -1,2 +1,9 @@
 [functions.r2-upload]
 verify_jwt = false
+
+[auth]
+enabled = true
+
+[auth.external.apple]
+enabled = true
+client_id = "com.ourmine.parkinon"

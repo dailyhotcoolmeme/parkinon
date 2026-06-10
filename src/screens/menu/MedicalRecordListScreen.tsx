@@ -6,7 +6,6 @@ import {
   ScrollView,
   StyleSheet,
   ActivityIndicator,
-  Alert,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useFocusEffect, useNavigation } from '@react-navigation/native';
@@ -20,6 +19,7 @@ import { usePatientId } from '../../hooks/usePatientId';
 import { supabase } from '../../lib/supabase';
 import { MenuStackParamList } from '../../navigation/MenuNavigator';
 import { useNotificationBadge } from '../../context/NotificationBadgeContext';
+import { useDialog } from '../../context/DialogContext';
 
 type NavProp = StackNavigationProp<MenuStackParamList>;
 
@@ -94,6 +94,7 @@ export function MedicalRecordListScreen() {
   const { user } = useAuth();
   const { patientId } = usePatientId();
   const { unreadCount } = useNotificationBadge();
+  const dialog = useDialog();
 
   const [appointments, setAppointments] = useState<Appointment[]>([]);
   const [records, setRecords] = useState<MedRecord[]>([]);
@@ -141,40 +142,35 @@ export function MedicalRecordListScreen() {
 
   useFocusEffect(useCallback(() => { fetchData(); }, [fetchData]));
 
-  const handleDeleteAppointment = (appt: Appointment) => {
-    Alert.alert(
-      '일정 삭제',
-      `${formatApptDate(appt.appointment_date)} 일정을 삭제할까요?`,
-      [
-        { text: '취소', style: 'cancel' },
+  const handleDeleteAppointment = async (appt: Appointment) => {
+    const ok = await dialog.confirm({
+      title: '일정 삭제',
+      message: `${formatApptDate(appt.appointment_date)} 일정을 삭제할까요?`,
+      confirmText: '삭제',
+      cancelText: '취소',
+      destructive: true,
+    });
+    if (!ok) return;
+    try {
+      const token = await getToken();
+      // 알림 취소
+      if (appt.notification_ids?.length) {
+        for (const id of appt.notification_ids) {
+          try { await Notifications.cancelScheduledNotificationAsync(id); } catch {}
+        }
+      }
+      const res = await fetch(
+        `${SUPABASE_URL}/rest/v1/medical_appointments?id=eq.${appt.id}`,
         {
-          text: '삭제',
-          style: 'destructive',
-          onPress: async () => {
-            try {
-              const token = await getToken();
-              // 알림 취소
-              if (appt.notification_ids?.length) {
-                for (const id of appt.notification_ids) {
-                  try { await Notifications.cancelScheduledNotificationAsync(id); } catch {}
-                }
-              }
-              const res = await fetch(
-                `${SUPABASE_URL}/rest/v1/medical_appointments?id=eq.${appt.id}`,
-                {
-                  method: 'DELETE',
-                  headers: { apikey: SUPABASE_ANON_KEY, Authorization: `Bearer ${token}` },
-                },
-              );
-              if (!res.ok) throw new Error('삭제에 실패했어요.');
-              setAppointments(prev => prev.filter(a => a.id !== appt.id));
-            } catch (e: any) {
-              Alert.alert('오류', e.message ?? '삭제에 실패했어요.');
-            }
-          },
+          method: 'DELETE',
+          headers: { apikey: SUPABASE_ANON_KEY, Authorization: `Bearer ${token}` },
         },
-      ],
-    );
+      );
+      if (!res.ok) throw new Error('삭제에 실패했어요.');
+      setAppointments(prev => prev.filter(a => a.id !== appt.id));
+    } catch (e: any) {
+      dialog.alert({ title: '오류', message: e.message ?? '삭제에 실패했어요.' });
+    }
   };
 
   return (

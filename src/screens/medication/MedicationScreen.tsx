@@ -1,4 +1,4 @@
-import React, { useState, useCallback, useEffect, useRef } from 'react';
+import React, { useState, useCallback, useEffect, useRef, useMemo } from 'react';
 import {
   View,
   Text,
@@ -6,7 +6,6 @@ import {
   TouchableOpacity,
   StyleSheet,
   Dimensions,
-  Alert,
   Modal,
 } from 'react-native';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -26,9 +25,20 @@ import { DatePickerModal } from '../../components/common/DatePickerModal';
 import { navigateTo } from '../../navigation/navigationRef';
 import { supabase } from '../../lib/supabase';
 import { useNotificationBadge } from '../../context/NotificationBadgeContext';
+import { useDialog } from '../../context/DialogContext';
 import { HistoryTimeline } from '../../components/common/HistoryTimeline';
+import { useRecordRealtime } from '../../hooks/useRecordRealtime';
 import { mealTimeToKorean } from '../../utils/medUtils';
 import { notificationIntentManager } from '../../utils/NotificationIntentManager';
+import { ensureNotGuest } from '../../utils/guestGuard';
+import { resolveDisplaySlots, fetchPatientDoseSlots, type DoseSlot } from '../../hooks/useDoseSlots';
+import {
+  LEGACY_SLOT_META,
+  LEGACY_SLOT_ORDER,
+  LEGACY_KEY_TO_LABEL,
+  formatSlotTime,
+  type LegacyMealKey,
+} from '../../constants/doseSlots';
 
 const WINDOW_HEIGHT = Dimensions.get('window').height;
 const TOP_BAR_H = 56;
@@ -38,11 +48,12 @@ const TAB_BAR_H = 68;
 type MealTime = 'morning' | 'lunch' | 'dinner' | 'bedtime';
 
 interface MedicationStatus {
-  id: MealTime;
+  id: string; // 카드 key: dose_slot id(이관) 또는 legacy meal_time 키(미이관)
   label: string;
   time: string;
   taken: boolean;
   takenAt?: string;
+  medLogId?: string; // 취소(삭제)용 med_logs.id
 }
 
 const DEFAULT_MEAL_TIME_LABELS: Record<MealTime, { label: string; time: string }> = {
@@ -102,11 +113,22 @@ export function MedicationScreen() {
   const routeParams = (route.params ?? {}) as MedicationRouteParams;
   // 동일 autoOpen 값으로 재진입 시 모달 재오픈 차단 (탭 이동 후 재마운트 방어)
   const processedAutoOpenRef = useRef<number | boolean | null>(null);
-  const { user } = useAuth();
-  const { todayStatus, takeMedication, getMedLogs, error: medError, refresh } = useMedication();
+  const { user, signOut } = useAuth();
+  const {
+    todayStatus,
+    slots: doseSlots,
+    bySlotId: todayBySlotId,
+    hasDoseSlots,
+    takeMedication,
+    cancelMedication,
+    getMedLogs,
+    error: medError,
+    refresh,
+  } = useMedication();
   const { saveBodyState, todayLogs: bodyLogs } = useBodyState();
   const insets = useSafeAreaInsets();
   const { unreadCount, refreshBadge } = useNotificationBadge();
+  const dialog = useDialog();
 
   // users.meal_schedules 기반 시간 표시 (약 없을 때 사용)
   const [userMealSchedules, setUserMealSchedules] = useState<Record<string, string> | null>(null);
@@ -124,6 +146,11 @@ export function MedicationScreen() {
   const [preMedMessage, setPreMedMessage] = useState('');
   const [showNextNotifModal, setShowNextNotifModal] = useState(false);
   const [nextNotifInfo, setNextNotifInfo] = useState<NextNotifInfo | null>(null);
+  // 7단계: 방금 기록한 복용의 슬롯/복용 식별자.
+  // 복용 직후 즉시 몸상태 팝업("기록하기")이 on_off_logs.dose_slot_id / med_log_id 에 귀속하도록
+  // proceedSave 에서 takeMedication 반환값을 보관 → 팝업 navigate 시 BodyState 로 전달.
+  const [lastMedLogId, setLastMedLogId] = useState<string | null>(null);
+  const [lastDoseSlotId, setLastDoseSlotId] = useState<string | null>(null);
 
   // 온보딩 완료 후 홈 최초 진입 시 알림 설정 팝업 1회 표시
   useEffect(() => {
@@ -207,6 +234,34 @@ export function MedicationScreen() {
 
   const isToday = toLocalDateString(selectedDate) === toLocalDateString(new Date());
 
+  // ⚠️ 회귀 수정: 과거 날짜 현황도 fetchTodayStatus(useMedication)와 동일한 정규키 규칙을 써야
+  // 이관 환자(dose_slots 보유)의 과거 back-fill 로그(dose_slot_id=UUID)와 카드 키(slot.id=UUID)가
+  // 일치해 완료표시가 뜬다. 이전엔 과거 경로가 `dose_slot_id ?? meal_time`만 써서
+  // meal_time 만 있는 과거 로그가 UUID 카드 키와 안 맞아 누락됐음.
+  // legacyKey(meal_time) → 정규 dose_slot id 매핑 (doseSlots = useMedication().slots, 실제 행).
+  const legacyKeyToSlotId = useMemo(() => {
+    const m = new Map<string, string>();
+    doseSlots.forEach((s) => {
+      if (s.legacyKey && s.id) m.set(s.legacyKey, s.id);
+    });
+    return m;
+  }, [doseSlots]);
+
+  // 로그 1건 → 정규 슬롯 키. fetchTodayStatus 와 동일 우선순위.
+  //   dose_slot_id ?? legacyKeyToSlotId.get(meal_time) ?? meal_time
+  // 미이관 환자는 doseSlots 가 비어 매핑 실패 → meal_time 키 유지(legacy 매칭 정상).
+  const slotKeyForLog = useCallback(
+    (log: { dose_slot_id?: string | null; meal_time?: string | null }): string | null => {
+      return (
+        log.dose_slot_id ??
+        (log.meal_time ? legacyKeyToSlotId.get(log.meal_time) : undefined) ??
+        log.meal_time ??
+        null
+      );
+    },
+    [legacyKeyToSlotId]
+  );
+
   // 탭/화면 포커스 시 복용 현황 재조회 (오늘 날짜인 경우)
   useFocusEffect(
     useCallback(() => {
@@ -245,6 +300,7 @@ export function MedicationScreen() {
     const dateStr = toLocalDateString(selectedDate);
     setDateLogsLoading(true);
     getMedLogs(dateStr).then((logs) => {
+      // 슬롯 단위 현황(키 = dose_slot_id ?? meal_time). todayBySlotId 와 동일 규칙.
       const status: Record<string, any> = {
         morning: null,
         lunch: null,
@@ -252,21 +308,39 @@ export function MedicationScreen() {
         bedtime: null,
       };
       logs.forEach((log) => {
+        // legacy 4슬롯 키(기존 호환)
         const slot = log.meal_time as keyof typeof status;
-        if (slot && !status[slot]) {
+        if (slot && slot in status && !status[slot]) {
           status[slot] = log;
+        }
+        // 슬롯 단위 키 — fetchTodayStatus 와 동일한 정규키 규칙(이관 환자 키 통일)
+        const key = slotKeyForLog(log);
+        if (key && !status[key]) {
+          status[key] = log;
         }
       });
       setDateLogStatus(status);
       setDateLogsLoading(false);
     });
-  }, [selectedDate, isToday, getMedLogs]);
+  }, [selectedDate, isToday, getMedLogs, slotKeyForLog]);
 
-  // 표시할 현황: 오늘이면 todayStatus, 과거 날짜면 dateLogStatus
-  const activeStatus = isToday ? todayStatus : (dateLogStatus ?? { morning: null, lunch: null, dinner: null, bedtime: null });
+  // 표시할 현황: 오늘이면 슬롯 단위(todayBySlotId), 과거 날짜면 dateLogStatus.
+  // 둘 다 키 = dose_slot_id ?? meal_time 규칙으로 통일됨.
+  const activeStatus: Record<string, any> = isToday
+    ? todayBySlotId
+    : (dateLogStatus ?? { morning: null, lunch: null, dinner: null, bedtime: null });
 
   const [patientName, setPatientName] = useState('환자');
   const [patientId, setPatientId] = useState<string | null>(null);
+
+  // 과거기록(HistoryTimeline) 실시간 갱신 키
+  const [recordsRefreshKey, setRecordsRefreshKey] = useState(0);
+
+  // 약복용 기록 실시간 동기화 — 환자↔보호자 기기 즉시 반영
+  useRecordRealtime('med_logs', patientId, () => {
+    refresh();                          // 오늘 복용현황 갱신
+    setRecordsRefreshKey((k) => k + 1); // 과거기록(HistoryTimeline) 갱신
+  });
 
   useEffect(() => {
     if (!user) return;
@@ -320,30 +394,88 @@ export function MedicationScreen() {
       ? 'caregiver_separate'
       : 'caregiver_same';
 
-  const proceedSave = async (mealTime: MealTime) => {
-    const nowForCheck = new Date();
-    const success = await takeMedication(mealTime);
+  // 취소 버튼 노출 조건: 환자 본인 또는 함께 거주 보호자(연동된 환자 있음)
+  const canCancelRecord = userRole === 'patient' || userRole === 'caregiver_same';
+
+  // 복용 기록 취소(삭제) — 확인 팝업 후 RPC로 삭제, 성공 시 현황 갱신
+  const handleCancelRecord = async (medLogId: string) => {
+    const ok = await dialog.confirm({
+      title: '이 기록을 취소할까요?',
+      message: '취소하면 기록이 삭제되고 되돌릴 수 없어요.',
+      confirmText: '취소하기',
+      cancelText: '닫기',
+      destructive: true,
+    });
+    if (!ok) return;
+
+    const success = await cancelMedication(medLogId);
     if (!success) {
-      Alert.alert('저장 실패', medError ?? '복용 기록 저장에 실패했어요. 다시 시도해 주세요.');
+      dialog.alert({ title: '취소 실패', message: '기록을 취소하지 못했어요.\n다시 시도해 주세요.' });
       return;
     }
+    // 성공 시 현황 갱신 (오늘이면 cancelMedication 내부 fetchTodayStatus, 과거 날짜면 재조회)
+    if (!isToday) {
+      const dateStr = toLocalDateString(selectedDate);
+      const logs = await getMedLogs(dateStr);
+      const status: Record<string, any> = { morning: null, lunch: null, dinner: null, bedtime: null };
+      logs.forEach((log) => {
+        const slot = log.meal_time as keyof typeof status;
+        if (slot && slot in status && !status[slot]) status[slot] = log;
+        // fetchTodayStatus 와 동일한 정규키 규칙(이관 환자 키 통일)
+        const key = slotKeyForLog(log);
+        if (key && !status[key]) status[key] = log;
+      });
+      setDateLogStatus(status);
+    }
+  };
+
+  const proceedSave = async (sel: { mealTime: MealTime | null; doseSlotId: string | null }) => {
+    const { mealTime, doseSlotId } = sel;
+    const nowForCheck = new Date();
+    const result = await takeMedication({ mealTime, doseSlotId });
+    if (!result.success) {
+      dialog.alert({ title: '저장 실패', message: medError ?? '복용 기록 저장에 실패했어요. 다시 시도해 주세요.' });
+      return;
+    }
+
+    // 7단계: 방금 기록한 복용의 식별자 보관 → 즉시 몸상태 팝업이 슬롯 귀속에 사용.
+    //   takeMedication 이 doseSlotId 를 legacyKey→slot.id 로 보충했을 수 있으므로 반환값을 신뢰.
+    setLastMedLogId(result.medLogId);
+    setLastDoseSlotId(result.doseSlotId);
+
+    // 해당 슬롯(이관/비표준 모두) — 사전기록 안내·라벨 폴백에 사용.
+    const selSlot = doseSlotId
+      ? displaySlots.find((s) => s.id === doseSlotId)
+      : (mealTime ? displaySlots.find((s) => s.legacyKey === mealTime) : undefined);
 
     // 약 기록 성공 → 종 아이콘 뱃지 즉시 갱신 (safety net)
     // useMedication 훅 내부에서 이미 읽음 처리하지만 Context 카운트 동기화를 위해 한 번 더 호출
     refreshBadge().catch(() => {});
 
-    // 예정 알림 시간보다 일찍 기록한 경우 → 안내 팝업
-    const schedStr = userMealSchedules?.[mealTime] ?? DEFAULT_MEAL_TIMES[mealTime];
-    const [schedH, schedM] = schedStr.split(':').map(Number);
-    const schedMinutes = schedH * 60 + schedM;
-    const nowMinutes = nowForCheck.getHours() * 60 + nowForCheck.getMinutes();
-    if (nowMinutes < schedMinutes) {
-      const label = DEFAULT_MEAL_TIME_LABELS[mealTime].label;
-      const formattedTime = formatMealTime(schedStr);
-      setPreMedMessage(`${label}약 복용 기록을 미리 남기셨어요.\n알림 시간(${formattedTime})에 알림이 가지 않을게요.`);
-      setShowPreMedInfo(true);
+    // 예정 알림 시간보다 일찍 기록한 경우 → 안내 팝업.
+    // 시각 폴백 우선순위: 슬롯 time → legacy meal_schedules[key] → 기본값.
+    // (mealTime 이 null 인 비표준 슬롯도 슬롯 time 으로 안내 가능)
+    const schedStr =
+      selSlot?.time ||
+      (mealTime ? (userMealSchedules?.[mealTime] ?? DEFAULT_MEAL_TIMES[mealTime]) : undefined);
+    let isPreMed = false;
+    if (schedStr) {
+      const [schedH, schedM] = schedStr.split(':').map(Number);
+      const schedMinutes = schedH * 60 + schedM;
+      const nowMinutes = nowForCheck.getHours() * 60 + nowForCheck.getMinutes();
+      isPreMed = nowMinutes < schedMinutes;
+      if (isPreMed) {
+        const label =
+          (mealTime ? DEFAULT_MEAL_TIME_LABELS[mealTime].label : null) ||
+          selSlot?.label ||
+          '';
+        const formattedTime = formatMealTime(schedStr);
+        const labelPrefix = label ? `${label}약 ` : '';
+        setPreMedMessage(`${labelPrefix}복용 기록을 미리 남기셨어요.\n알림 시간(${formattedTime})에 알림이 가지 않을게요.`);
+      }
     }
 
+    // selectedMealTime 은 BodyState 네비/취침 변비질문에 쓰임 → legacy key 유지(없으면 null).
     setSelectedMealTime(mealTime);
 
     // 다음 예정 알림 조회 — 팝업은 바로 표시하지 않고 state만 저장
@@ -357,31 +489,60 @@ export function MedicationScreen() {
       });
     }
 
-    setTimeout(() => {
-      setShowBodyStateSuggest(true);
-    }, 100);
+    // ⚠️ iOS는 모달을 동시에 두 개 띄우지 못함 → 안내 팝업과 몸상태 권유가 겹치면
+    //    하나 닫은 뒤 안 보이는 오버레이가 남아 스크롤이 막힘.
+    //    따라서 사전기록 안내가 있으면 그 팝업을 먼저 띄우고, 닫힌 뒤(onClose)에 몸상태 권유를 표시한다.
+    if (isPreMed) {
+      setShowPreMedInfo(true);
+    } else {
+      setTimeout(() => {
+        setShowBodyStateSuggest(true);
+      }, 100);
+    }
   };
 
-  const handleMealTimeSelect = (mealTime: MealTime) => {
+  // 선택(mealTime/doseSlotId) → activeStatus 키 해석.
+  // dose_slots 환자면 슬롯 id, 미이관 환자면 meal key 그대로.
+  // (write 경로의 "이미 기록 있음" 확인용 — 표시 규칙과 동일하게 슬롯 단위로 조회)
+  const findLogBySel = (sel: { mealTime: MealTime | null; doseSlotId: string | null }): any => {
+    const slot = sel.doseSlotId
+      ? displaySlots.find((s) => s.id === sel.doseSlotId)
+      : (sel.mealTime ? displaySlots.find((s) => s.legacyKey === sel.mealTime) : undefined);
+    const key = slot ? slotStatusKey(slot) : (sel.doseSlotId ?? sel.mealTime);
+    return (key && activeStatus[key]) || (sel.mealTime && (activeStatus as any)[sel.mealTime]) || null;
+  };
+
+  const handleMealTimeSelect = (sel: { mealTime: MealTime | null; doseSlotId: string | null }) => {
     setShowMealTimeModal(false);
 
+    // 라벨: legacy key 우선, 없으면 슬롯 label.
+    const selSlot = sel.doseSlotId
+      ? displaySlots.find((s) => s.id === sel.doseSlotId)
+      : (sel.mealTime ? displaySlots.find((s) => s.legacyKey === sel.mealTime) : undefined);
+    const label =
+      (sel.mealTime ? DEFAULT_MEAL_TIME_LABELS[sel.mealTime].label : null) ||
+      selSlot?.label ||
+      '';
+    const labelPrefix = label ? `${label}약 ` : '';
+
     // 이미 기록이 있으면 덮어쓰기 확인
-    const existingLog = (activeStatus as any)[mealTime];
+    const existingLog = findLogBySel(sel);
     if (existingLog) {
-      const label = DEFAULT_MEAL_TIME_LABELS[mealTime].label;
       const takenAtStr = formatTakenAt(existingLog.taken_at);
-      Alert.alert(
-        '이미 기록이 있어요',
-        `${label}약 복용 기록(${takenAtStr})이 이미 있어요.\n새 기록으로 덮어쓰시겠어요?`,
-        [
-          { text: '취소', style: 'cancel' },
-          { text: '덮어쓰기', onPress: () => proceedSave(mealTime) },
-        ],
-      );
+      dialog
+        .confirm({
+          title: '이미 기록이 있어요',
+          message: `${labelPrefix}복용 기록(${takenAtStr})이 이미 있어요.\n새 기록으로 덮어쓰시겠어요?`,
+          confirmText: '덮어쓰기',
+          cancelText: '취소',
+        })
+        .then((ok) => {
+          if (ok) proceedSave(sel);
+        });
       return;
     }
 
-    proceedSave(mealTime);
+    proceedSave(sel);
   };
 
   const handleBodyStateSave = async (record: { bodyScore: number; moodScore: number; sleepScore?: number; constipation?: boolean }) => {
@@ -396,25 +557,38 @@ export function MedicationScreen() {
     setSelectedMealTime(null);
   };
 
-  // activeStatus → MedicationStatus[] 변환
-  // users.meal_schedules가 있으면 사용, 없으면 기본값 사용
-  const displayList: MedicationStatus[] = (Object.keys(DEFAULT_MEAL_TIME_LABELS) as MealTime[]).map((mt) => {
-    const log = (activeStatus as any)[mt];
-    const defaultInfo = DEFAULT_MEAL_TIME_LABELS[mt];
-    const timeStr = userMealSchedules?.[mt]
-      ? formatMealTime(userMealSchedules[mt])
-      : defaultInfo.time;
+  // ─── 표시 슬롯 리스트(단일 분기점) ────────────────────────────────────────────
+  // dose_slots 환자면 N개 동적, 미이관 환자면 legacy 4슬롯 가상슬롯.
+  // (resolveDisplaySlots 가 useMedication.slots 가 비면 meal_schedules 로 폴백)
+  const displaySlots: DoseSlot[] = resolveDisplaySlots(doseSlots, userMealSchedules, notifPrefs);
+
+  // 슬롯의 현황 키 = dose_slot id 또는 legacyKey(=meal_time). activeStatus 와 동일 규칙.
+  const slotStatusKey = (slot: DoseSlot): string | null => slot.id ?? slot.legacyKey ?? null;
+
+  // displaySlots → MedicationStatus[] 변환 (카드 표시용, 디자인 그대로)
+  const displayList: MedicationStatus[] = displaySlots.map((slot, idx) => {
+    const key = slotStatusKey(slot);
+    const log = key ? activeStatus[key] : null;
+    // 라벨: dose_slot.label 우선, 없으면 시각 표시
+    const label = slot.label || formatSlotTime(slot.time);
+    // 시각: 슬롯 time(HH:MM) → '오전 H:MM'
+    const timeStr = formatSlotTime(slot.time);
+    // 카드 key: 슬롯 id(이관) 또는 legacyKey(미이관). 둘 다 없으면 시각+idx로 고유화.
+    const cardId = (slot.id ?? slot.legacyKey ?? `${slot.time}-${idx}`) as any;
 
     return log
-      ? { id: mt, label: defaultInfo.label, time: timeStr, taken: true, takenAt: formatTakenAt(log.taken_at) }
-      : { id: mt, label: defaultInfo.label, time: timeStr, taken: false };
+      ? { id: cardId, label, time: timeStr, taken: true, takenAt: formatTakenAt(log.taken_at), medLogId: log.id }
+      : { id: cardId, label, time: timeStr, taken: false };
   });
 
-  // 오늘 모든 시간대(아침/점심/저녁/취침) 복용 완료 여부
-  const ALL_MEAL_SLOTS: MealTime[] = ['morning', 'lunch', 'dinner', 'bedtime'];
-  const allSlotsTaken = isToday && ALL_MEAL_SLOTS.every(
-    (mt) => !!(activeStatus as any)[mt]
-  );
+  // 오늘 모든 활성 슬롯 복용 완료 여부 (4슬롯 가정 제거, N개 every)
+  const allSlotsTaken =
+    isToday &&
+    displaySlots.length > 0 &&
+    displaySlots.every((slot) => {
+      const key = slotStatusKey(slot);
+      return key ? !!activeStatus[key] : false;
+    });
 
   return (
     <SafeAreaView style={styles.safeArea} edges={['top']}>
@@ -444,7 +618,8 @@ export function MedicationScreen() {
               (userRole === 'caregiver_no_patient' || userRole === 'caregiver_separate' || !isToday || allSlotsTaken) && styles.mainButtonDisabled,
             ]}
             disabled={userRole === 'caregiver_no_patient' || userRole === 'caregiver_separate' || !isToday || allSlotsTaken}
-            onPress={() => {
+            onPress={async () => {
+              if (await ensureNotGuest(user, dialog, { signOut })) return;
               if (userRole === 'caregiver_same') {
                 setShowCaregiverConfirm(true);
               } else {
@@ -504,13 +679,23 @@ export function MedicationScreen() {
                     </Text>
                   </View>
                 </View>
+                {item.taken && canCancelRecord && item.medLogId && (
+                  <TouchableOpacity
+                    style={styles.cardCancelBtn}
+                    onPress={() => handleCancelRecord(item.medLogId!)}
+                    hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+                    activeOpacity={0.7}
+                  >
+                    <Text style={styles.cardCancelText}>취소</Text>
+                  </TouchableOpacity>
+                )}
               </View>
             </View>
           ))}
         </View>
 
         {/* 과거 기록 보기 타임라인 */}
-        <HistoryTimeline type="medication" patientId={patientId} />
+        <HistoryTimeline type="medication" patientId={patientId} refreshKey={recordsRefreshKey} />
       </ScrollView>
 
       <MealTimeModal
@@ -574,6 +759,12 @@ export function MedicationScreen() {
             <TouchableOpacity
               onPress={async () => {
                 const mealTimeForNav = selectedMealTime;
+                // 7단계: 즉시 몸상태 팝업도 방금 기록한 복용의 슬롯/복용 식별자를 함께 전달.
+                //   BodyStateScreen 이 triggerDoseSlotId / triggerMedLogId →
+                //   pendingDoseSlotId / pendingMedLogId → on_off_logs.dose_slot_id / med_log_id 로 기록.
+                //   (medication_meal_time 전달은 그대로 보존 = dual)
+                const doseSlotIdForNav = lastDoseSlotId;
+                const medLogIdForNav = lastMedLogId;
                 setShowBodyStateSuggest(false);
                 // AsyncStorage write 완료 보장 후 navigate — race condition 방지
                 // (BodyStateScreen useFocusEffect가 read 시점에 값이 있어야 함)
@@ -581,6 +772,8 @@ export function MedicationScreen() {
                   await AsyncStorage.setItem('pendingBodyStateNotif', JSON.stringify({
                     triggerMinutes: 0,
                     triggerMealTime: mealTimeForNav,
+                    triggerDoseSlotId: doseSlotIdForNav,
+                    triggerMedLogId: medLogIdForNav,
                   }));
                 } catch {}
                 // 안전한 nested navigation: Main > BodyStateTab > BodyState
@@ -592,6 +785,8 @@ export function MedicationScreen() {
                     params: {
                       triggerMinutes: 0,
                       triggerMealTime: mealTimeForNav,
+                      triggerDoseSlotId: doseSlotIdForNav,
+                      triggerMedLogId: medLogIdForNav,
                       triggerTs: Date.now(),
                     },
                   },
@@ -640,7 +835,11 @@ export function MedicationScreen() {
       <PreMedInfoModal
         visible={showPreMedInfo}
         message={preMedMessage}
-        onClose={() => setShowPreMedInfo(false)}
+        onClose={() => {
+          setShowPreMedInfo(false);
+          // 모달 중첩(iOS) 방지: 안내 팝업이 완전히 닫힌 뒤 몸상태 권유 표시
+          setTimeout(() => setShowBodyStateSuggest(true), 300);
+        }}
       />
       <NextNotifModal
         visible={showNextNotifModal}
@@ -748,6 +947,21 @@ const styles = StyleSheet.create({
   cardBadgeIncomplete: { backgroundColor: 'transparent', borderWidth: 1, borderColor: Colors.border },
   cardBadgeText: { fontSize: 16, fontWeight: '700', color: Colors.white },
   cardBadgeTextIncomplete: { color: Colors.textSub },
+
+  /* 복용 기록 취소 버튼 — secondary, 아이콘+텍스트, 터치영역 44dp 이상 */
+  cardCancelBtn: {
+    flexShrink: 0,
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingHorizontal: 14,
+    paddingVertical: 6,
+    marginRight: 8,
+    borderRadius: 8,
+    borderWidth: 1,
+    borderColor: Colors.danger,
+    backgroundColor: Colors.white,
+  },
+  cardCancelText: { fontSize: 16, fontWeight: '700', color: Colors.danger },
 });
 
 // ─── NextNotifInfo 타입 ───────────────────────────────────────────────────────
@@ -770,6 +984,14 @@ function formatTimeHHMM(date: Date): string {
   return `${ampm} ${hour}:${m.toString().padStart(2, '0')}`;
 }
 
+// 'HH:MM[:SS]' → 오늘(now 기준) 해당 시각의 Date
+function parseHHMM(hhmm: string, base: Date): Date {
+  const [h, m] = hhmm.split(':').map(Number);
+  const d = new Date(base);
+  d.setHours(h || 0, m || 0, 0, 0);
+  return d;
+}
+
 
 async function fetchNextNotifMessage(patientId: string): Promise<NextNotifInfo | null> {
   try {
@@ -777,9 +999,10 @@ async function fetchNextNotifMessage(patientId: string): Promise<NextNotifInfo |
     let candidates: Array<{ minutesLeft: number; label: string; sendAt: Date }> = [];
 
     // 1) 약효추적 큐에서 미발송 + 미래 항목 중 가장 가까운 것
+    //    dose_slot_id 있으면 슬롯 label 로, 없으면 legacy meal_time 으로 라벨 해석.
     const { data: queueRows } = await supabase
       .from('effect_tracking_queue')
-      .select('send_at, interval_minutes, meal_time')
+      .select('send_at, interval_minutes, meal_time, dose_slot_id')
       .eq('patient_id', patientId)
       .is('sent_at', null)
       .gt('send_at', now.toISOString())
@@ -791,7 +1014,15 @@ async function fetchNextNotifMessage(patientId: string): Promise<NextNotifInfo |
       const sendAt = new Date(row.send_at);
       const minutesLeft = Math.round((sendAt.getTime() - now.getTime()) / 60000);
       const intervalMin: number = row.interval_minutes ?? 0;
-      const mealKo = mealTimeToKorean(row.meal_time);
+      // 라벨 해석: dose_slot_id 있으면 슬롯 label, 없으면 legacy meal_time.
+      let mealKo: string | null = null;
+      if (row.dose_slot_id) {
+        const qSlots = await fetchPatientDoseSlots(patientId);
+        const qSlot = qSlots.find((s) => s.id === row.dose_slot_id);
+        mealKo = qSlot?.label ?? mealTimeToKorean(row.meal_time);
+      } else {
+        mealKo = mealTimeToKorean(row.meal_time);
+      }
 
       let intervalLabel: string;
       if (intervalMin === 0) intervalLabel = '복용 직후';
@@ -814,42 +1045,58 @@ async function fetchNextNotifMessage(patientId: string): Promise<NextNotifInfo |
 
     if (userError) console.error('[fetchNextNotifMessage] userData error:', userError);
 
-    const DEFAULT_MEAL: Record<string, string> = {
-      morning: '08:00', lunch: '12:00', dinner: '18:00', bedtime: '22:00',
-    };
+    // dose_slots 조회 → 있으면 슬롯 시각/라벨로, 없으면 legacy meal_schedules 폴백.
+    // 공용 상수(LEGACY_SLOT_META/ORDER) 사용으로 화면 내 하드코딩 제거.
+    const { data: slotRows } = await supabase
+      .from('dose_slots')
+      .select('time, label, remind_enabled, sort_order')
+      .eq('patient_id', patientId)
+      .eq('is_active', true)
+      .order('sort_order', { ascending: true })
+      .order('time', { ascending: true });
 
-    const mealSchedules: Record<string, string> = (userData?.meal_schedules as Record<string, string>) ?? DEFAULT_MEAL;
+    // 다음 복용 후보: { time'HH:MM', label } 리스트 (시각 오름차순)
+    type MealCandidate = { time: string; label: string };
+    let mealCandidates: MealCandidate[] = [];
 
-    const MEAL_LABELS: Record<string, string> = {
-      morning: '다음 아침약 복용',
-      lunch: '다음 점심약 복용',
-      dinner: '다음 저녁약 복용',
-      bedtime: '다음 취침약 복용',
-    };
+    if (slotRows && slotRows.length > 0) {
+      // dose_slots 환자: 알림 켜진 슬롯만, 시각순. 라벨은 슬롯 label 우선.
+      mealCandidates = slotRows
+        .filter((r: any) => r.remind_enabled !== false && r.time)
+        .map((r: any) => {
+          const hhmm = String(r.time).slice(0, 5);
+          const labelText = r.label ? `다음 ${r.label}약 복용` : `다음 ${formatTimeHHMM(parseHHMM(hhmm, now))} 복용`;
+          return { time: hhmm, label: labelText };
+        });
+    } else {
+      // 미이관(legacy) 환자: meal_schedules + 공용 LEGACY_SLOT_META
+      const mealSchedules: Record<string, string> =
+        (userData?.meal_schedules as Record<string, string>) ?? {};
+      mealCandidates = LEGACY_SLOT_ORDER.map((key) => {
+        const meta = LEGACY_SLOT_META[key];
+        const time = mealSchedules[key] ?? meta.defaultTime;
+        return { time, label: `다음 ${LEGACY_KEY_TO_LABEL[key]}약 복용` };
+      });
+    }
 
     let foundMeal = false;
-    for (const key of ['morning', 'lunch', 'dinner', 'bedtime']) {
-      const timeStr = mealSchedules[key] ?? DEFAULT_MEAL_TIMES[key as MealTime];
-      const [h, m] = timeStr.split(':').map(Number);
-      const scheduled = new Date(now);
-      scheduled.setHours(h, m, 0, 0);
+    for (const mc of mealCandidates) {
+      const scheduled = parseHHMM(mc.time, now);
       if (scheduled > now) {
         const minutesLeft = Math.round((scheduled.getTime() - now.getTime()) / 60000);
-        candidates.push({ minutesLeft, label: MEAL_LABELS[key], sendAt: scheduled });
+        candidates.push({ minutesLeft, label: mc.label, sendAt: scheduled });
         foundMeal = true;
         break; // 가장 가까운 한 개만
       }
     }
 
-    // 오늘 식사 시간이 모두 지난 경우 내일 아침 폴백
-    if (!foundMeal) {
-      const tomorrowMorning = new Date(now);
-      tomorrowMorning.setDate(tomorrowMorning.getDate() + 1);
-      const morningStr = mealSchedules['morning'] ?? DEFAULT_MEAL['morning'];
-      const [mh, mm] = morningStr.split(':').map(Number);
-      tomorrowMorning.setHours(mh, mm, 0, 0);
-      const minutesLeft = Math.round((tomorrowMorning.getTime() - now.getTime()) / 60000);
-      candidates.push({ minutesLeft, label: '내일 아침약 복용', sendAt: tomorrowMorning });
+    // 오늘 복용 시간이 모두 지난 경우 → 내일 첫 복용 폴백
+    if (!foundMeal && mealCandidates.length > 0) {
+      const first = mealCandidates[0];
+      const tomorrowFirst = parseHHMM(first.time, now);
+      tomorrowFirst.setDate(tomorrowFirst.getDate() + 1);
+      const minutesLeft = Math.round((tomorrowFirst.getTime() - now.getTime()) / 60000);
+      candidates.push({ minutesLeft, label: `내일 ${first.label.replace(/^다음 /, '')}`, sendAt: tomorrowFirst });
     }
 
     // 3) 운동 알림 (exercise_notif_prefs) — 오늘 이후 가장 가까운 운동 알림 시간

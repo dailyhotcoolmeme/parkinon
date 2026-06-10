@@ -42,3 +42,4 @@ yarn-error.*
 /android
 *.apk
 *.aab
+assets/_backup_icons_*/

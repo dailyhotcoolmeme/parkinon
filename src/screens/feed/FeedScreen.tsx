@@ -17,6 +17,9 @@ import { useNotificationBadge } from '../../context/NotificationBadgeContext';
 import { navigateTo } from '../../navigation/navigationRef';
 import { CenterToast } from '../../components/common/CenterToast';
 import { useToast } from '../../hooks/useToast';
+import { useAuth } from '../../context/AuthContext';
+import { useDialog } from '../../context/DialogContext';
+import { ensureNotGuest } from '../../utils/guestGuard';
 
 type Nav = NativeStackNavigationProp<FeedStackParamList, 'FeedMain'>;
 type IoniconName = React.ComponentProps<typeof Ionicons>['name'];
@@ -100,6 +103,8 @@ export function FeedScreen() {
   const insets = useSafeAreaInsets();
   const { unreadCount } = useNotificationBadge();
   const { toastMsg, toastVisible, showToast } = useToast();
+  const { user, signOut } = useAuth();
+  const dialog = useDialog();
   const scrollY = useRef(new Animated.Value(0)).current;
   const lastScrollY = useRef(0);
   const [fabExpanded, setFabExpanded] = useState(true);
@@ -553,7 +558,10 @@ export function FeedScreen() {
         {/* 플로팅 글쓰기 버튼 */}
         <TouchableOpacity
           style={[styles.fab, !fabExpanded && styles.fabCircle, { bottom: 28 + insets.bottom }]}
-          onPress={() => navigation.navigate('PostWrite')}
+          onPress={async () => {
+            if (await ensureNotGuest(user, dialog, { signOut })) return;
+            navigation.navigate('PostWrite');
+          }}
           activeOpacity={0.85}
         >
           <Ionicons name="create-outline" size={24} color={Colors.white} />

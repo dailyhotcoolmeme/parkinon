@@ -6,7 +6,6 @@ import {
   ScrollView,
   TextInput,
   StyleSheet,
-  Alert,
   Modal,
   FlatList,
 } from 'react-native';
@@ -19,6 +18,7 @@ import { Colors } from '../../constants/colors';
 import { TopBar } from '../../components/common/TopBar';
 import { useAuth } from '../../context/AuthContext';
 import { supabase } from '../../lib/supabase';
+import { useDialog } from '../../context/DialogContext';
 
 type Gender = 'male' | 'female';
 type Cohabiting = 'together' | 'apart';
@@ -31,6 +31,7 @@ export function ProfileEditScreen() {
   const navigation = useNavigation<any>();
   const { user, refreshUser } = useAuth();
   const { unreadCount } = useNotificationBadge();
+  const dialog = useDialog();
   const isPatient = user?.role === 'patient';
 
   const [name, setName] = useState('');
@@ -178,7 +179,7 @@ export function ProfileEditScreen() {
 
   const handleSave = async () => {
     if (!name.trim()) {
-      Alert.alert('이름 확인', '이름을 입력해주세요.');
+      dialog.alert({ title: '이름 확인', message: '이름을 입력해주세요.' });
       return;
     }
     if (!user) return;
@@ -218,36 +219,23 @@ export function ProfileEditScreen() {
         if (patientError) throw patientError;
       } else if (!isPatient && !patientId) {
         // 보호자인데 연동된 환자가 없으면 본인 정보는 저장됐음을 알리고 환자 미연동 안내
-        Alert.alert(
-          '저장 완료 (환자 미연동)',
-          '내 정보는 저장됐어요.\n\n담당 환자가 연동되어 있지 않아 환자 정보는 저장할 수 없어요. 가족 연동 메뉴에서 환자를 먼저 연동해주세요.',
-          [
-            {
-              text: '확인',
-              onPress: async () => {
-                await refreshUser();
-                navigation.goBack();
-              },
-            },
-          ]
-        );
+        await dialog.alert({
+          title: '저장 완료 (환자 미연동)',
+          message: '내 정보는 저장됐어요.\n\n담당 환자가 연동되어 있지 않아 환자 정보는 저장할 수 없어요. 가족 연동 메뉴에서 환자를 먼저 연동해주세요.',
+        });
+        await refreshUser();
+        navigation.goBack();
         setSaving(false);
         return;
       }
 
       // refreshUser는 Alert 확인 후 goBack 전에 호출하지 않고
       // goBack 직전에 호출해 user 변경이 현재 화면에 영향을 주지 않도록 함
-      Alert.alert('저장 완료', '프로필이 저장됐어요.', [
-        {
-          text: '확인',
-          onPress: async () => {
-            await refreshUser();
-            navigation.goBack();
-          },
-        },
-      ]);
+      await dialog.alert({ title: '저장 완료', message: '프로필이 저장됐어요.' });
+      await refreshUser();
+      navigation.goBack();
     } catch (e: any) {
-      Alert.alert('오류', e.message ?? '저장 중 문제가 생겼어요. 다시 시도해주세요.');
+      dialog.alert({ title: '오류', message: e.message ?? '저장 중 문제가 생겼어요. 다시 시도해주세요.' });
     } finally {
       setSaving(false);
     }

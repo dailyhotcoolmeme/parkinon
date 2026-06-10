@@ -5,7 +5,6 @@ import {
   TouchableOpacity,
   StyleSheet,
   ScrollView,
-  Alert,
   Modal,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
@@ -19,6 +18,10 @@ import { useExercise } from '../../hooks/useExercise';
 import { useNotificationBadge } from '../../context/NotificationBadgeContext';
 import { useAuth } from '../../context/AuthContext';
 import { supabase } from '../../lib/supabase';
+import { useDialog } from '../../context/DialogContext';
+import { fetchPatientDoseSlots, resolveDisplaySlots } from '../../hooks/useDoseSlots';
+import { nextDoseLabel, slotSortValue } from '../../constants/doseSlots';
+import { mealTimeToKorean } from '../../utils/medUtils';
 
 type Nav = NativeStackNavigationProp<ExerciseStackParamList, 'ExerciseDuration'>;
 type RouteProps = NativeStackScreenProps<ExerciseStackParamList, 'ExerciseDuration'>['route'];
@@ -52,22 +55,16 @@ function exFormatTimeHHMM(date: Date): string {
   return `${ampm} ${hour}:${m.toString().padStart(2, '0')}`;
 }
 
-const EX_MEAL_TIME_KO: Record<string, string> = {
-  morning: '아침약', lunch: '점심약', dinner: '저녁약', bedtime: '취침약',
-};
-const EX_DEFAULT_MEAL_TIMES: Record<string, string> = {
-  morning: '08:00', lunch: '12:00', dinner: '18:00', bedtime: '22:00',
-};
-
 async function fetchExerciseNextNotif(patientId: string): Promise<ExNextNotifInfo | null> {
   try {
     const now = new Date();
     let candidates: Array<{ minutesLeft: number; label: string; sendAt: Date }> = [];
 
     // 1) 약효추적 큐
+    //    dose_slot_id 있으면 슬롯 label 로, 없으면 legacy meal_time 으로 라벨 해석.
     const { data: queueRows } = await supabase
       .from('effect_tracking_queue')
-      .select('send_at, interval_minutes, meal_time')
+      .select('send_at, interval_minutes, meal_time, dose_slot_id')
       .eq('patient_id', patientId)
       .is('sent_at', null)
       .gt('send_at', now.toISOString())
@@ -79,7 +76,15 @@ async function fetchExerciseNextNotif(patientId: string): Promise<ExNextNotifInf
       const sendAt = new Date(row.send_at);
       const minutesLeft = Math.round((sendAt.getTime() - now.getTime()) / 60000);
       const intervalMin: number = row.interval_minutes ?? 0;
-      const mealKo = row.meal_time ? (EX_MEAL_TIME_KO[row.meal_time] ?? '') : '';
+      // 라벨 해석: dose_slot_id 있으면 슬롯 label, 없으면 legacy meal_time.
+      let mealKo: string | null = null;
+      if (row.dose_slot_id) {
+        const qSlots = await fetchPatientDoseSlots(patientId);
+        const qSlot = qSlots.find((s) => s.id === row.dose_slot_id);
+        mealKo = qSlot?.label ?? mealTimeToKorean(row.meal_time);
+      } else {
+        mealKo = mealTimeToKorean(row.meal_time);
+      }
       let intervalLabel: string;
       if (intervalMin === 0) intervalLabel = '복용 직후';
       else if (intervalMin < 60) intervalLabel = `복용 ${intervalMin}분 후`;
@@ -92,7 +97,7 @@ async function fetchExerciseNextNotif(patientId: string): Promise<ExNextNotifInf
       candidates.push({ minutesLeft, label, sendAt });
     }
 
-    // 2) meal_schedules + exercise_notif_prefs
+    // 2) 다음 복용 안내 — dose_slots 순회(없으면 meal_schedules legacy 폴백) + exercise_notif_prefs
     const { data: userData, error: userError } = await supabase
       .from('users')
       .select('meal_schedules, exercise_notif_prefs')
@@ -101,34 +106,49 @@ async function fetchExerciseNextNotif(patientId: string): Promise<ExNextNotifInf
 
     if (userError) console.error('[fetchExerciseNextNotif] userData error:', userError);
 
-    const mealSchedules: Record<string, string> = (userData?.meal_schedules as Record<string, string>) ?? EX_DEFAULT_MEAL_TIMES;
-    const MEAL_LABELS: Record<string, string> = {
-      morning: '다음 아침약 복용', lunch: '다음 점심약 복용',
-      dinner: '다음 저녁약 복용', bedtime: '다음 취침약 복용',
-    };
+    // dose_slots 있으면 그것으로, 없으면 meal_schedules 4슬롯 legacy 가상 슬롯(동작 동일)
+    const doseSlots = await fetchPatientDoseSlots(patientId);
+    const displaySlots = resolveDisplaySlots(
+      doseSlots,
+      userData?.meal_schedules as Record<string, string> | null | undefined
+    );
+    // 시각 순(자정 기준 분)으로 정렬 후 현재 시각 이후 첫 슬롯 1개만 후보
+    const sortedSlots = [...displaySlots].sort(
+      (a, b) => slotSortValue(a.time) - slotSortValue(b.time)
+    );
     let foundMeal = false;
-    for (const key of ['morning', 'lunch', 'dinner', 'bedtime']) {
-      const timeStr = mealSchedules[key] ?? EX_DEFAULT_MEAL_TIMES[key];
-      const [h, m] = timeStr.split(':').map(Number);
+    for (const slot of sortedSlots) {
+      const [h, m] = slot.time.split(':').map(Number);
+      if (Number.isNaN(h)) continue;
       const scheduled = new Date(now);
-      scheduled.setHours(h, m, 0, 0);
+      scheduled.setHours(h, m || 0, 0, 0);
       if (scheduled > now) {
         const minutesLeft = Math.round((scheduled.getTime() - now.getTime()) / 60000);
-        candidates.push({ minutesLeft, label: MEAL_LABELS[key], sendAt: scheduled });
+        candidates.push({
+          minutesLeft,
+          label: nextDoseLabel(slot.legacyKey, slot.label, slot.time),
+          sendAt: scheduled,
+        });
         foundMeal = true;
         break;
       }
     }
 
-    // 오늘 식사 시간이 모두 지난 경우 내일 아침 폴백
-    if (!foundMeal) {
-      const tomorrowMorning = new Date(now);
-      tomorrowMorning.setDate(tomorrowMorning.getDate() + 1);
-      const morningStr = mealSchedules['morning'] ?? EX_DEFAULT_MEAL_TIMES['morning'];
-      const [mh, mm] = morningStr.split(':').map(Number);
-      tomorrowMorning.setHours(mh, mm, 0, 0);
-      const minutesLeft = Math.round((tomorrowMorning.getTime() - now.getTime()) / 60000);
-      candidates.push({ minutesLeft, label: '내일 아침약 복용', sendAt: tomorrowMorning });
+    // 오늘 복용 시각이 모두 지난 경우 내일 첫 복용으로 폴백
+    if (!foundMeal && sortedSlots.length > 0) {
+      const first = sortedSlots[0];
+      const [fh, fm] = first.time.split(':').map(Number);
+      if (!Number.isNaN(fh)) {
+        const tomorrowFirst = new Date(now);
+        tomorrowFirst.setDate(tomorrowFirst.getDate() + 1);
+        tomorrowFirst.setHours(fh, fm || 0, 0, 0);
+        const minutesLeft = Math.round((tomorrowFirst.getTime() - now.getTime()) / 60000);
+        candidates.push({
+          minutesLeft,
+          label: `내일 ${nextDoseLabel(first.legacyKey, first.label, first.time).replace(/^다음 /, '')}`,
+          sendAt: tomorrowFirst,
+        });
+      }
     }
 
     // 3) 운동 알림 (exercise_notif_prefs)
@@ -181,6 +201,7 @@ export function ExerciseDurationScreen() {
   const { saveExercise } = useExercise();
   const { unreadCount, refreshBadge } = useNotificationBadge();
   const { user } = useAuth();
+  const dialog = useDialog();
   const [showNextNotifModal, setShowNextNotifModal] = useState(false);
   const [nextNotifInfo, setNextNotifInfo] = useState<ExNextNotifInfo | null>(null);
   const [savedExerciseName, setSavedExerciseName] = useState('');
@@ -188,7 +209,7 @@ export function ExerciseDurationScreen() {
 
   const handleSave = async () => {
     if (!selected) {
-      Alert.alert('시간 선택', '운동 시간을 선택해주세요.');
+      dialog.alert({ title: '시간 선택', message: '운동 시간을 선택해주세요.' });
       return;
     }
     setSaving(true);
@@ -209,13 +230,13 @@ export function ExerciseDurationScreen() {
         return;
       }
       // 알림 없으면 바로 완료 알림
-      Alert.alert(
-        '저장 완료',
-        `${exerciseName} ${formatDuration(selected)}을 기록했어요! 👏`,
-        [{ text: '확인', onPress: () => navigation.reset({ index: 0, routes: [{ name: 'ExerciseMain' }] }) }],
-      );
+      await dialog.alert({
+        title: '저장 완료',
+        message: `${exerciseName} ${formatDuration(selected)}을 기록했어요! 👏`,
+      });
+      navigation.reset({ index: 0, routes: [{ name: 'ExerciseMain' }] });
     } else {
-      Alert.alert('오류', '기록 저장에 실패했어요. 다시 시도해주세요.');
+      dialog.alert({ title: '오류', message: '기록 저장에 실패했어요. 다시 시도해주세요.' });
     }
   };
 

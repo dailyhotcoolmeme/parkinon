@@ -1,0 +1,22 @@
+diff --git a/node_modules/react-native-compressor/ios/Video/VideoMain.swift b/node_modules/react-native-compressor/ios/Video/VideoMain.swift
+index e7b0bd1..01ec1c5 100644
+--- a/node_modules/react-native-compressor/ios/Video/VideoMain.swift
++++ b/node_modules/react-native-compressor/ios/Video/VideoMain.swift
+@@ -356,7 +356,7 @@ class VideoCompressor {
+                 onFailure(error)
+                 break
+             default:
+-                onFailure(exporter.error ?? CompressionError(message: "Compression failed"))
++                onFailure(CompressionError(message: "Compression failed"))
+               break
+           }
+         })
+@@ -466,7 +466,7 @@ class VideoCompressor {
+         videoRequestOptions.isNetworkAccessAllowed = true
+         videoRequestOptions.deliveryMode = .highQualityFormat
+ 
+-        PHImageManager.default().requestExportSession(forVideo: videoAsset, options: videoRequestOptions, exportPreset: pressetType) { exportSession, _ in
++        PHImageManager.default().requestExportSession(forVideo: videoAsset, options: videoRequestOptions, exportPreset: pressetType) { (exportSession: AVAssetExportSession?, _) in
+             guard let exportSession = exportSession else {
+                 let error = NSError(domain: "RNGalleryManager", code: -91, userInfo: nil)
+                 let exception = NSException(name: NSExceptionName(rawValue: "RNGalleryManager"), reason: "Export session is nil.", userInfo: nil)

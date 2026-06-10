@@ -6,7 +6,6 @@ import {
   TouchableOpacity,
   StyleSheet,
   Dimensions,
-  Alert,
   Modal,
 } from 'react-native';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -21,11 +20,20 @@ import { DatePickerModal } from '../../components/common/DatePickerModal';
 import { useAuth } from '../../context/AuthContext';
 import { useBodyState } from '../../hooks/useBodyState';
 import { triggerLabelToText, mealTimeToKorean, mealTimeToPeriod } from '../../utils/medUtils';
+import { fetchPatientDoseSlots, resolveDisplaySlots } from '../../hooks/useDoseSlots';
+import { nextDoseLabel, slotSortValue } from '../../constants/doseSlots';
 import { navigateTo } from '../../navigation/navigationRef';
 import { supabase } from '../../lib/supabase';
 import { useNotificationBadge } from '../../context/NotificationBadgeContext';
 import { useSettings } from '../../context/SettingsContext';
+import { useDialog } from '../../context/DialogContext';
 import { HistoryTimeline } from '../../components/common/HistoryTimeline';
+import { useRecordRealtime } from '../../hooks/useRecordRealtime';
+import { ensureNotGuest } from '../../utils/guestGuard';
+import { MeasurementInviteModal } from '../../components/measurement/MeasurementInviteModal';
+import { ensureMeasurementConsent } from '../../utils/measurementConsent';
+import { buildRecommendedMedNotifs } from '../../utils/recommendUtils';
+import type { MeasurementMedPhase } from '../../types/database';
 
 const WINDOW_HEIGHT = Dimensions.get('window').height;
 const TOP_BAR_H = 56;
@@ -72,6 +80,19 @@ function labelToMinutes(label: string): number | null {
   if (label === 'after_medication') return 0;
   const match = label.match(/^(\d+)min_after$/);
   if (match) return parseInt(match[1], 10);
+  // 2hour_after 처럼 시간 단위 라벨 호환
+  const hourMatch = label.match(/^(\d+)hour_after$/);
+  if (hourMatch) return parseInt(hourMatch[1], 10) * 60;
+  return null;
+}
+
+// 약효추적 라벨 → 디지털 바이오마커 측정 시점(med_phase) 매핑.
+// 30분 → '30m', 2시간(120분) → '2h'. 그 외(직후·기타)는 null(권유 안 함).
+function labelToMedPhase(label: string | null | undefined): '30m' | '2h' | null {
+  if (!label) return null;
+  const min = labelToMinutes(label);
+  if (min === 30) return '30m';
+  if (min === 120) return '2h';
   return null;
 }
 
@@ -116,7 +137,7 @@ function toLocalDateString(date: Date): string {
 // 오늘(KST) 가장 최근 med_log 직접 조회 — AsyncStorage stale 데이터 의존 제거
 async function fetchTodayLastMedLog(
   patientId: string
-): Promise<{ taken_at: string; meal_time: string | null } | null> {
+): Promise<{ taken_at: string; meal_time: string | null; dose_slot_id: string | null; id: string | null } | null> {
   try {
     const kstOffset = 9 * 60 * 60 * 1000;
     const nowKst = new Date(Date.now() + kstOffset);
@@ -133,7 +154,7 @@ async function fetchTodayLastMedLog(
 
     const { data, error } = await supabase
       .from('med_logs')
-      .select('taken_at, meal_time')
+      .select('taken_at, meal_time, dose_slot_id, id')
       .eq('patient_id', patientId)
       .gte('taken_at', startUtcIso)
       .order('taken_at', { ascending: false })
@@ -144,6 +165,8 @@ async function fetchTodayLastMedLog(
     return {
       taken_at: (data as any).taken_at,
       meal_time: (data as any).meal_time ?? null,
+      dose_slot_id: (data as any).dose_slot_id ?? null,
+      id: (data as any).id ?? null,
     };
   } catch {
     return null;
@@ -176,7 +199,7 @@ function formatDurationKo(totalMin: number): string {
 }
 
 export function BodyStateScreen() {
-  const { user } = useAuth();
+  const { user, signOut } = useAuth();
   const { todayLogs, saveBodyState, fetchVideoLogs, getBodyStateLogs, refresh } = useBodyState();
   const [showFlow, setShowFlow] = useState(false);
   const [showCaregiverConfirm, setShowCaregiverConfirm] = useState(false);
@@ -186,6 +209,7 @@ export function BodyStateScreen() {
   const [dateLogs, setDateLogs] = useState<any[]>([]);
   const [pendingTriggerLabel, setPendingTriggerLabel] = useState<string | null>(null);
   const [historyRefreshKey, setHistoryRefreshKey] = useState(0);
+  const [recordsRefreshKey, setRecordsRefreshKey] = useState(0);
   const [showTriggerSelect, setShowTriggerSelect] = useState(false);
   const [triggerMedTime, setTriggerMedTime] = useState<Date | null>(null);
   const [triggerModalSelected, setTriggerModalSelected] = useState<string | null>(null);
@@ -195,10 +219,21 @@ export function BodyStateScreen() {
   const [showNextNotifModal, setShowNextNotifModal] = useState(false);
   const [nextNotifInfo, setNextNotifInfo] = useState<NextNotifInfo | null>(null);
   const [pendingMealTime, setPendingMealTime] = useState<string | null>(null);
+  // 약 복용 모델 7단계: 슬롯별 통계용 dose_slot_id + 복용 1:1 매칭용 med_log_id.
+  // 알림 진입(또는 수동 입력 시 보강)에서 설정 → 저장 시 on_off_logs.dose_slot_id / med_log_id로 기록.
+  const [pendingDoseSlotId, setPendingDoseSlotId] = useState<string | null>(null);
+  const [pendingMedLogId, setPendingMedLogId] = useState<string | null>(null);
   const [hasBedtimeMedication, setHasBedtimeMedication] = useState(false);
   const [bedtimeRefreshTick, setBedtimeRefreshTick] = useState(0);
+  // 컨디션 측정 권유 모달 — NextNotifModal 닫힘 후 표시
+  const [showMeasureInvite, setShowMeasureInvite] = useState(false);
+  const [measureInvitePhase, setMeasureInvitePhase] = useState<MeasurementMedPhase | null>(null);
+  // 권유 모달이 NextNotifModal과 겹치지 않도록, NextNotif 닫힘 시 pending 상태에서 인계
+  const [pendingMeasureInvitePhase, setPendingMeasureInvitePhase] = useState<MeasurementMedPhase | null>(null);
+  // 환자 약 중 레보도파 계열 존재 여부 — 비레보도파 단독 환자는 권유 안 함
+  const [hasLevodopaMed, setHasLevodopaMed] = useState(false);
   const hasBedtimeLoadedRef = useRef(false);
-  const pendingFlowArgsRef = useRef<{ label: string; medTime: Date | null; mealTimeKey: string | null } | null>(null);
+  const pendingFlowArgsRef = useRef<{ label: string; medTime: Date | null; mealTimeKey: string | null; doseSlotId?: string | null; medLogId?: string | null } | null>(null);
   // 회귀 수정: route.params triggerTs dedupe — 같은 ts는 한 번만 처리
   // (다른 탭 갔다 복귀 시 stale params로 인한 중복 발화 방지)
   const processedTriggerTsRef = useRef<number | null>(null);
@@ -207,6 +242,7 @@ export function BodyStateScreen() {
   const insets = useSafeAreaInsets();
   const { unreadCount } = useNotificationBadge();
   const { medNotifs } = useSettings();
+  const dialog = useDialog();
 
   // minutes → trigger_time_label 변환
   const minutesToLabel = (minutes: number): string => {
@@ -266,29 +302,39 @@ export function BodyStateScreen() {
         const label = minutesToLabel(triggerMinutes);
         // 알림 데이터에 meal_time이 있으면 우선 사용, 없으면 AsyncStorage 조회
         const paramMealTime = (route.params as any)?.triggerMealTime ?? null;
+        // 약 복용 모델 7단계: 푸시가 실어 보낸 슬롯/복용 식별자(없으면 null·미이관/구 데이터)
+        const paramDoseSlotId = (route.params as any)?.triggerDoseSlotId ?? null;
+        const paramMedLogId = (route.params as any)?.triggerMedLogId ?? null;
         setPendingTriggeredBy('notification');
         setPendingTriggerLabel(label);
         if (!showFlow) {
           if (paramMealTime) {
-            openFlowOrPend(label, null, paramMealTime);
+            openFlowOrPend(label, null, paramMealTime, paramDoseSlotId, paramMedLogId);
           } else if (patientId) {
             fetchTodayLastMedLog(patientId)
               .then((parsed) => {
-                if (!parsed) { openFlowOrPend(label, null, null); return; }
+                if (!parsed) { openFlowOrPend(label, null, null, paramDoseSlotId, paramMedLogId); return; }
                 const medTime = parsed.taken_at ? new Date(parsed.taken_at) : null;
-                openFlowOrPend(label, medTime, parsed.meal_time);
+                // 알림이 식별자를 안 실었을 때만 마지막 복용 기록에서 보강.
+                openFlowOrPend(
+                  label,
+                  medTime,
+                  parsed.meal_time,
+                  paramDoseSlotId ?? parsed.dose_slot_id ?? null,
+                  paramMedLogId ?? parsed.id ?? null,
+                );
               })
-              .catch(() => openFlowOrPend(label, null, null));
+              .catch(() => openFlowOrPend(label, null, null, paramDoseSlotId, paramMedLogId));
           } else {
-            openFlowOrPend(label, null, null);
+            openFlowOrPend(label, null, null, paramDoseSlotId, paramMedLogId);
           }
         }
 
         // 처리 직후 route.params 비움 — 다음 포커스 진입 시 stale 재발화 방지
         // (handleSaveRecord 성공 시에만 비우는 기존 로직은 사용자가 취소/다른 탭 이동 시 stale 잔존)
-        navigation.setParams({ triggerMinutes: null, triggerMealTime: null, triggerTs: null });
+        navigation.setParams({ triggerMinutes: null, triggerMealTime: null, triggerDoseSlotId: null, triggerMedLogId: null, triggerTs: null });
       }
-    }, [route.params?.triggerMinutes, (route.params as any)?.triggerMealTime, (route.params as any)?.triggerTs, patientId])
+    }, [route.params?.triggerMinutes, (route.params as any)?.triggerMealTime, (route.params as any)?.triggerDoseSlotId, (route.params as any)?.triggerMedLogId, (route.params as any)?.triggerTs, patientId])
   );
 
   // 약효 추적 알림 탭 → 몸상태 팝업 열기 (AsyncStorage 방식 — 콜드스타트 대응)
@@ -302,23 +348,32 @@ export function BodyStateScreen() {
           const parsed = JSON.parse(value);
           // TTL 5분 초과 → stale 폐기
           if (parsed?.ts && Date.now() - parsed.ts > 5 * 60 * 1000) return;
-          const { triggerMinutes, triggerMealTime } = parsed;
+          const { triggerMinutes, triggerMealTime, triggerDoseSlotId, triggerMedLogId } = parsed;
           if (triggerMinutes == null) return;
+          // 약 복용 모델 7단계: AsyncStorage pending에 실린 슬롯/복용 식별자(없으면 null)
+          const psDoseSlotId = triggerDoseSlotId ?? null;
+          const psMedLogId = triggerMedLogId ?? null;
           const label = minutesToLabel(triggerMinutes);
           setPendingTriggeredBy('notification');
           setPendingTriggerLabel(label);
           if (triggerMealTime) {
-            openFlowOrPend(label, null, triggerMealTime);
+            openFlowOrPend(label, null, triggerMealTime, psDoseSlotId, psMedLogId);
           } else if (patientId) {
             fetchTodayLastMedLog(patientId)
               .then((parsed) => {
-                if (!parsed) { openFlowOrPend(label, null, null); return; }
+                if (!parsed) { openFlowOrPend(label, null, null, psDoseSlotId, psMedLogId); return; }
                 const medTime = parsed.taken_at ? new Date(parsed.taken_at) : null;
-                openFlowOrPend(label, medTime, parsed.meal_time);
+                openFlowOrPend(
+                  label,
+                  medTime,
+                  parsed.meal_time,
+                  psDoseSlotId ?? parsed.dose_slot_id ?? null,
+                  psMedLogId ?? parsed.id ?? null,
+                );
               })
-              .catch(() => openFlowOrPend(label, null, null));
+              .catch(() => openFlowOrPend(label, null, null, psDoseSlotId, psMedLogId));
           } else {
-            openFlowOrPend(label, null, null);
+            openFlowOrPend(label, null, null, psDoseSlotId, psMedLogId);
           }
         } catch {}
       });
@@ -372,6 +427,17 @@ export function BodyStateScreen() {
       });
   }, [user]);
 
+  // 몸상태 기록 실시간 동기화 — 환자↔보호자 즉시 반영
+  // 지정 환자의 on_off_logs가 추가/삭제/수정되면 오늘 기록 + 과거기록 모두 갱신
+  useRecordRealtime('on_off_logs', patientId, () => {
+    if (isToday) {
+      refresh();
+    } else {
+      loadDateLogs();
+    }
+    setRecordsRefreshKey(k => k + 1);
+  });
+
   // 포커스 시 취침약 재조회 트리거 (patientId 확보된 경우만)
   useFocusEffect(
     useCallback(() => {
@@ -395,10 +461,34 @@ export function BodyStateScreen() {
         if (pendingFlowArgsRef.current) {
           const args = pendingFlowArgsRef.current;
           pendingFlowArgsRef.current = null;
-          openFlowLatestRef.current(args.label, args.medTime, args.mealTimeKey);
+          openFlowLatestRef.current(args.label, args.medTime, args.mealTimeKey, args.doseSlotId ?? null, args.medLogId ?? null);
         }
       });
   }, [patientId, bedtimeRefreshTick]);
+
+  // 환자 medications에 레보도파 계열이 있는지 1회 조회 — 측정 권유 노출 게이트
+  // 환자 본인일 때만 (보호자는 권유 자체가 차단되므로 조회 불필요)
+  useEffect(() => {
+    if (!patientId || userRole !== 'patient') return;
+    let alive = true;
+    (async () => {
+      try {
+        const { data, error } = await supabase
+          .from('medications')
+          .select('name')
+          .eq('patient_id', patientId);
+        if (error || !data || !alive) return;
+        const meds = data.map((m: any) => ({
+          name: m.name ?? '',
+        }));
+        const { activeClasses } = buildRecommendedMedNotifs(meds);
+        if (alive) setHasLevodopaMed(activeClasses.length > 0);
+      } catch {}
+    })();
+    return () => {
+      alive = false;
+    };
+  }, [patientId, userRole]);
 
   // 표시할 로그: 오늘이면 todayLogs, 다른 날이면 dateLogs
   const activeLogs = isToday ? todayLogs : dateLogs;
@@ -408,8 +498,17 @@ export function BodyStateScreen() {
 
   // 같은 시간대 배지가 오늘 이미 있으면 확인 후 팝업 오픈
   // mealTimeKey: 실제 med_logs.meal_time ('morning'|'lunch'|'dinner'|'bedtime')
-  const openFlowWithDuplicateCheck = (labelKey: string, medTime: Date | null, mealTimeKey: string | null) => {
+  const openFlowWithDuplicateCheck = (
+    labelKey: string,
+    medTime: Date | null,
+    mealTimeKey: string | null,
+    doseSlotId: string | null = null,
+    medLogId: string | null = null,
+  ) => {
     setPendingMealTime(mealTimeKey);
+    // 슬롯/복용 식별자 보강 — 알림 진입 시 전달됨. 없으면 null(미이관/수동·통계 미반영).
+    setPendingDoseSlotId(doseSlotId);
+    setPendingMedLogId(medLogId);
     // mealTimeKey가 있는 경우 — label + meal_time 모두 일치할 때만 중복으로 처리
     // (예: 점심약 복용 직후 기록이 있어도 저녁약 복용 직후 기록은 허용)
     const hasDuplicate = activeLogs.some((log: any) => {
@@ -434,13 +533,35 @@ export function BodyStateScreen() {
   const openFlowLatestRef = useRef(openFlowWithDuplicateCheck);
   useEffect(() => { openFlowLatestRef.current = openFlowWithDuplicateCheck; });
 
+  // TriggerSelectModal '기록하기' 확정 처리.
+  // 버그 수정: 기존엔 onConfirm → openFlowOrPend → openFlowWithDuplicateCheck로 되돌아가
+  // 같은 (중복) 시간대가 그대로 재검출되면 TriggerSelectModal이 무한 재오픈 →
+  // "기록하기 눌러도 반응 없음"으로 보임. 사용자가 모달에서 시간대를 명시적으로 선택한
+  // 시점부터는 중복 재검사를 하지 않고, 중복이면 덮어쓰기 모드로 바로 팝업을 연다.
+  const handleTriggerSelectConfirm = (labelKey: string, medTime: Date | null) => {
+    setShowTriggerSelect(false);
+    setPendingTriggerLabel(labelKey);
+    // 선택한 시간대가 이미 오늘 기록되어 있으면 → 덮어쓰기 모드로 진입
+    const existing = activeLogs.find((log: any) => log.trigger_time_label === labelKey);
+    overrideLogIdRef.current = existing ? ((existing as any).id ?? null) : null;
+    // pendingMealTime은 openFlowWithDuplicateCheck 진입 시 이미 설정됨(중복 검사 경유).
+    // 중복 재검사 없이 바로 팝업 오픈.
+    setShowFlow(true);
+  };
+
   // hasBedtimeMedication 로드 완료 전 팝업 오픈 방지 헬퍼
-  const openFlowOrPend = (label: string, medTime: Date | null, mealTimeKey: string | null) => {
+  const openFlowOrPend = (
+    label: string,
+    medTime: Date | null,
+    mealTimeKey: string | null,
+    doseSlotId: string | null = null,
+    medLogId: string | null = null,
+  ) => {
     if (!hasBedtimeLoadedRef.current) {
-      pendingFlowArgsRef.current = { label, medTime, mealTimeKey };
+      pendingFlowArgsRef.current = { label, medTime, mealTimeKey, doseSlotId, medLogId };
       return;
     }
-    openFlowWithDuplicateCheck(label, medTime, mealTimeKey);
+    openFlowWithDuplicateCheck(label, medTime, mealTimeKey, doseSlotId, medLogId);
   };
 
   // 활성화된 medNotifs 인터벌 목록 (복용 직후 포함)
@@ -475,11 +596,10 @@ export function BodyStateScreen() {
 
     // 케이스 1: 약 복용 기록 없음
     if (!lastMedLog || !lastMedLog.taken_at) {
-      Alert.alert(
-        '몸상태 기록 불가',
-        '약 복용 기록이 있어야 몸상태 기록을 남길 수 있어요.\n\n약을 드신 후 다시 시도해 주세요.',
-        [{ text: '확인' }],
-      );
+      dialog.alert({
+        title: '몸상태 기록 불가',
+        message: '약 복용 기록이 있어야 몸상태 기록을 남길 수 있어요.\n\n약을 드신 후 다시 시도해 주세요.',
+      });
       return;
     }
 
@@ -491,16 +611,18 @@ export function BodyStateScreen() {
       .sort((a, b) => a - b);
 
     if (intervals.length === 0) {
-      Alert.alert(
-        '몸상태 기록 불가',
-        '약효 추적 시간대가 설정되어 있지 않아요.\n\n설정 화면에서 알림 시간대를 먼저 설정해 주세요.',
-        [{ text: '확인' }],
-      );
+      dialog.alert({
+        title: '몸상태 기록 불가',
+        message: '약효 추적 시간대가 설정되어 있지 않아요.\n\n설정 화면에서 알림 시간대를 먼저 설정해 주세요.',
+      });
       return;
     }
 
     const takenAt = new Date(lastMedLog.taken_at);
     const mealTime = lastMedLog.meal_time;
+    // 수동 입력은 triggered_by='manual'이라 통계 미반영이지만 슬롯/복용 식별자는 채워둠.
+    const manualDoseSlotId = lastMedLog.dose_slot_id ?? null;
+    const manualMedLogId = lastMedLog.id ?? null;
     const now = new Date();
     const elapsedMin = (now.getTime() - takenAt.getTime()) / 60000;
 
@@ -530,18 +652,16 @@ export function BodyStateScreen() {
         }
       }
       if (!nextAt) {
-        Alert.alert(
-          '몸상태 기록 불가',
-          '약효 추적 가능 시간 범위를 벗어났어요.\n\n다음 약 복용 후 다시 기록해 주세요.',
-          [{ text: '확인' }],
-        );
+        dialog.alert({
+          title: '몸상태 기록 불가',
+          message: '약효 추적 가능 시간 범위를 벗어났어요.\n\n다음 약 복용 후 다시 기록해 주세요.',
+        });
       } else {
         const remainMin = (nextAt.getTime() - now.getTime()) / 60000;
-        Alert.alert(
-          '몸상태 기록 불가',
-          `약효 추적 가능 시간 범위를 벗어났어요.\n\n다음 알림 시간까지 ${formatDurationKo(remainMin)} 남았어요.\n그때부터 기록 가능해요.`,
-          [{ text: '확인' }],
-        );
+        dialog.alert({
+          title: '몸상태 기록 불가',
+          message: `약효 추적 가능 시간 범위를 벗어났어요.\n\n다음 알림 시간까지 ${formatDurationKo(remainMin)} 남았어요.\n그때부터 기록 가능해요.`,
+        });
       }
       return;
     }
@@ -563,22 +683,17 @@ export function BodyStateScreen() {
       // 케이스 5: 이미 기록됨 → 덮어쓰기 확인
       // 오타 수정: mealLabel이 이미 "저녁약" 형태이므로 추가 "약" 붙이지 않음
       const targetLabel = mealLabel ? `${mealLabel} 복용 ${intervalText}` : `복용 ${intervalText}`;
-      Alert.alert(
-        '이미 기록되어 있어요',
-        `${targetLabel}는 이미 기록되어 있어요.\n덮어쓸까요?`,
-        [
-          { text: '취소', style: 'cancel' },
-          {
-            text: '덮어쓰기',
-            onPress: () => {
-              overrideLogIdRef.current = (existing as any).id ?? null;
-              setPendingTriggerLabel(labelKey);
-              setPendingMealTime(mealTime ?? null);
-              openFlowOrPend(labelKey, takenAt, mealTime ?? null);
-            },
-          },
-        ],
-      );
+      const confirmed = await dialog.confirm({
+        title: '이미 기록되어 있어요',
+        message: `${targetLabel}는 이미 기록되어 있어요.\n덮어쓸까요?`,
+        confirmText: '덮어쓰기',
+      });
+      if (confirmed) {
+        overrideLogIdRef.current = (existing as any).id ?? null;
+        setPendingTriggerLabel(labelKey);
+        setPendingMealTime(mealTime ?? null);
+        openFlowOrPend(labelKey, takenAt, mealTime ?? null, manualDoseSlotId, manualMedLogId);
+      }
       return;
     }
 
@@ -587,7 +702,7 @@ export function BodyStateScreen() {
     overrideLogIdRef.current = null;
     setPendingTriggerLabel(labelKey);
     setPendingMealTime(mealTime ?? null);
-    openFlowOrPend(labelKey, takenAt, mealTime ?? null);
+    openFlowOrPend(labelKey, takenAt, mealTime ?? null, manualDoseSlotId, manualMedLogId);
   };
 
   // DB 로그 → BodyRecord 변환
@@ -607,6 +722,44 @@ export function BodyStateScreen() {
     };
   });
 
+  // 기록 취소(삭제) 버튼 노출 조건:
+  //   - 환자 본인, 또는
+  //   - 함께 거주 보호자(residence_type === 'together')
+  //   그 외(따로 거주 보호자 등)는 숨김
+  const canCancelRecord =
+    user?.role === 'patient' ||
+    (user?.role === 'caregiver' && user?.residence_type === 'together');
+
+  // 기록 한 건 취소(삭제) — RLS 우회 + 권한 자체검증 RPC 사용(직접 delete 금지)
+  const handleCancelRecord = async (onOffLogId: string) => {
+    const ok = await dialog.confirm({
+      title: '이 기록을 취소할까요?',
+      message: '취소하면 기록이 삭제되고 되돌릴 수 없어요.',
+      confirmText: '취소하기',
+      cancelText: '닫기',
+      destructive: true,
+    });
+    if (!ok) return;
+
+    const { error } = await supabase.rpc('cancel_patient_record', {
+      p_table: 'on_off_logs',
+      p_record_id: onOffLogId,
+    });
+
+    if (error) {
+      console.error('[BodyStateScreen] handleCancelRecord 오류:', error);
+      dialog.alert({ title: '취소 실패', message: '기록을 취소하지 못했어요.\n다시 시도해 주세요.' });
+      return;
+    }
+
+    // 성공 → 오늘/선택 날짜 기록 리스트 갱신
+    if (isToday) {
+      await refresh();
+    } else {
+      await loadDateLogs();
+    }
+  };
+
   const handleSaveRecord = async (record: { bodyScore: number; moodScore: number; sleepScore?: number; constipation?: boolean }) => {
     // pendingMealTime은 handleOpenBodyState 또는 알림 진입 흐름에서 이미 설정됨
     // (medication_meal_time DB 컬럼에 저장될 값)
@@ -616,12 +769,17 @@ export function BodyStateScreen() {
     const savedLabel = pendingTriggerLabel; // state 초기화 전 캡처
     const savedTriggeredBy = pendingTriggeredBy;
     const savedMealTime = medicationMealTime;
+    // 약 복용 모델 7단계: 슬롯/복용 식별자 캡처(state 초기화 전) → on_off_logs.dose_slot_id / med_log_id
+    const savedDoseSlotId = pendingDoseSlotId ?? undefined;
+    const savedMedLogId = pendingMedLogId ?? undefined;
     const savedPatientId = patientId; // 클로저 캡처 — 비동기 처리 중 state 변경 방지
     const savedOverrideLogId = overrideLogIdRef.current; // 덮어쓰기 모드 캡처
     overrideLogIdRef.current = null;
     setShowFlow(false);
     setPendingTriggerLabel(null);
     setPendingTriggeredBy('manual');
+    setPendingDoseSlotId(null);
+    setPendingMedLogId(null);
     setHistoryRefreshKey(k => k + 1);
     if (route.params?.triggerMinutes != null) {
       navigation.setParams({ triggerMinutes: null });
@@ -637,10 +795,12 @@ export function BodyStateScreen() {
         constipation: record.constipation,
         trigger_time_label: savedLabel ?? undefined,
         medication_meal_time: savedMealTime,
+        dose_slot_id: savedDoseSlotId,
+        med_log_id: savedMedLogId,
       }, savedTriggeredBy);
 
       if (!success) {
-        Alert.alert('저장 실패', '몸상태 기록 저장에 실패했어요. 다시 시도해주세요.');
+        dialog.alert({ title: '저장 실패', message: '몸상태 기록 저장에 실패했어요. 다시 시도해주세요.' });
         return;
       }
 
@@ -686,14 +846,51 @@ export function BodyStateScreen() {
       }
 
       // 2-3. 큐 삭제 완료 후 다음 예정 알림 조회 → 팝업 표시
+      let nextInfoShown = false;
       if (savedPatientId) {
         const info = await fetchNextNotifMessage(savedPatientId);
         if (info) {
           setNextNotifInfo(info);
           setShowNextNotifModal(true);
+          nextInfoShown = true;
+        }
+      }
+
+      // 2-4. 컨디션 측정 권유 — 조건 충족 시 NextNotifModal 닫힘 후 표시
+      //   조건: 환자 본인 + 약효추적 알림 진입(notification) + 30m/2h 시점 + 레보도파 보유
+      //   비노출: 보호자 / 게스트 / 비레보도파 단독 / 자율 입력
+      const phase = labelToMedPhase(savedLabel);
+      if (
+        phase &&
+        userRole === 'patient' &&
+        savedTriggeredBy === 'notification' &&
+        hasLevodopaMed
+      ) {
+        // 다음 알림 모달이 떠있으면 닫힘 후 표시, 없으면 즉시 표시
+        if (nextInfoShown) {
+          setPendingMeasureInvitePhase(phase);
+        } else {
+          setMeasureInvitePhase(phase);
+          setShowMeasureInvite(true);
         }
       }
     })().catch(console.error);
+  };
+
+  // 컨디션 측정 권유 — 동의 게이트 통과 후 TapGame으로 직진입(Phase 4 결정)
+  const handleMeasureInviteAccept = async () => {
+    const phase = measureInvitePhase ?? 'self_initiated';
+    setShowMeasureInvite(false);
+    setMeasureInvitePhase(null);
+    // 동의 화면 게이트 — 미동의면 ConsentScreen으로 이동되고 false 반환
+    const ok = await ensureMeasurementConsent(navigation);
+    if (!ok) return;
+    navigation.navigate('TapGame', { medPhase: phase, medIntakeId: null });
+  };
+
+  const handleMeasureInviteLater = () => {
+    setShowMeasureInvite(false);
+    setMeasureInvitePhase(null);
   };
 
   return (
@@ -724,7 +921,8 @@ export function BodyStateScreen() {
               (userRole === 'caregiver_no_patient' || userRole === 'caregiver_separate' || !isToday) && styles.mainButtonDisabled,
             ]}
             disabled={userRole === 'caregiver_no_patient' || userRole === 'caregiver_separate' || !isToday}
-            onPress={() => {
+            onPress={async () => {
+              if (await ensureNotGuest(user, dialog, { signOut })) return;
               if (userRole === 'caregiver_same') {
                 setShowCaregiverConfirm(true);
               } else {
@@ -749,10 +947,47 @@ export function BodyStateScreen() {
             <Text style={styles.caregiverNotice}>오늘 날짜에서만 기록할 수 있어요</Text>
           )}
 
+          {/* 컨디션 측정 진입점 (환자 본인만 노출) — 영상 두 항목 바로 위 */}
+          {userRole === 'patient' && (
+            <View style={styles.videoButtonRow}>
+              <TouchableOpacity
+                style={styles.outlineButton}
+                onPress={async () => {
+                  if (await ensureNotGuest(user, dialog, { signOut })) return;
+                  navigateTo('MeasurementMenu');
+                }}
+                activeOpacity={0.85}
+              >
+                <View style={styles.outlineButtonInner}>
+                  <Text style={styles.outlineButtonEmoji}>🖐️</Text>
+                  <Text style={styles.outlineButtonText}>컨디션 측정하기</Text>
+                </View>
+              </TouchableOpacity>
+
+              <TouchableOpacity
+                style={styles.outlineButton}
+                onPress={async () => {
+                  if (await ensureNotGuest(user, dialog, { signOut })) return;
+                  navigateTo('MeasurementRecords');
+                }}
+                activeOpacity={0.85}
+              >
+                <View style={styles.outlineButtonInner}>
+                  <Text style={styles.outlineButtonEmoji}>📊</Text>
+                  <Text style={styles.outlineButtonText}>측정 기록 보기</Text>
+                </View>
+              </TouchableOpacity>
+            </View>
+          )}
+
           <View style={styles.videoButtonRow}>
             <TouchableOpacity
               style={[styles.outlineButton, !isToday && styles.outlineButtonDisabled]}
-              onPress={() => { if (isToday) navigation.navigate('VideoRecord'); }}
+              onPress={async () => {
+                if (!isToday) return;
+                if (await ensureNotGuest(user, dialog, { signOut })) return;
+                navigation.navigate('VideoRecord');
+              }}
               activeOpacity={isToday ? 0.85 : 1}
               disabled={!isToday}
             >
@@ -793,14 +1028,20 @@ export function BodyStateScreen() {
               const periodRecords = records.filter(r => r.period === period);
               if (periodRecords.length === 0) return null;
               return (
-                <MealSectionCard key={period} period={period} records={periodRecords} />
+                <MealSectionCard
+                  key={period}
+                  period={period}
+                  records={periodRecords}
+                  canCancel={canCancelRecord}
+                  onCancel={handleCancelRecord}
+                />
               );
             })
           )}
         </View>
 
         {/* 과거 기록 보기 타임라인 */}
-        <HistoryTimeline type="bodystate" patientId={patientId} refreshKey={historyRefreshKey} />
+        <HistoryTimeline type="bodystate" patientId={patientId} refreshKey={historyRefreshKey + recordsRefreshKey} />
       </ScrollView>
 
       <CaregiverConfirmModal
@@ -834,7 +1075,21 @@ export function BodyStateScreen() {
       <NextNotifModal
         visible={showNextNotifModal}
         info={nextNotifInfo}
-        onClose={() => setShowNextNotifModal(false)}
+        onClose={() => {
+          setShowNextNotifModal(false);
+          // 다음 알림 안내가 닫힌 직후 권유 모달 인계 (조건 충족 시)
+          if (pendingMeasureInvitePhase) {
+            const p = pendingMeasureInvitePhase;
+            setPendingMeasureInvitePhase(null);
+            setMeasureInvitePhase(p);
+            setShowMeasureInvite(true);
+          }
+        }}
+      />
+      <MeasurementInviteModal
+        visible={showMeasureInvite}
+        onMeasureNow={handleMeasureInviteAccept}
+        onLater={handleMeasureInviteLater}
       />
       <TriggerSelectModal
         visible={showTriggerSelect}
@@ -844,9 +1099,7 @@ export function BodyStateScreen() {
         onSelect={setTriggerModalSelected}
         onConfirm={() => {
           if (!triggerModalSelected) return;
-          setPendingTriggerLabel(triggerModalSelected);
-          setShowTriggerSelect(false);
-          openFlowOrPend(triggerModalSelected, triggerMedTime, null);
+          handleTriggerSelectConfirm(triggerModalSelected, triggerMedTime);
         }}
         onDismiss={() => setShowTriggerSelect(false)}
       />
@@ -868,7 +1121,17 @@ function scoreColor(s: number): string {
   return '#B71C1C';
 }
 
-function RecordRow({ record, isLast }: { record: BodyRecord; isLast: boolean }) {
+function RecordRow({
+  record,
+  isLast,
+  canCancel,
+  onCancel,
+}: {
+  record: BodyRecord;
+  isLast: boolean;
+  canCancel: boolean;
+  onCancel: (id: string) => void;
+}) {
   const badgeBg = PERIOD_BADGE_BG[record.period] ?? 'rgba(0,0,0,0.08)';
   const badgeText = PERIOD_BADGE_TEXT[record.period] ?? '#333';
   const sep = <Text style={{ fontSize: 17, color: '#CCC', marginHorizontal: 10 }}>|</Text>;
@@ -920,11 +1183,35 @@ function RecordRow({ record, isLast }: { record: BodyRecord; isLast: boolean }) 
           </>
         )}
       </View>
+
+      {/* 기록 취소(삭제) 버튼 — 환자 본인 / 함께 거주 보호자만 노출 */}
+      {canCancel && (
+        <View style={{ flexDirection: 'row', justifyContent: 'flex-end', marginTop: 12 }}>
+          <TouchableOpacity
+            style={styles.cancelRecordBtn}
+            onPress={() => onCancel(record.id)}
+            hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+            activeOpacity={0.7}
+          >
+            <Text style={styles.cancelRecordBtnText}>취소</Text>
+          </TouchableOpacity>
+        </View>
+      )}
     </View>
   );
 }
 
-function MealSectionCard({ period, records }: { period: string; records: BodyRecord[] }) {
+function MealSectionCard({
+  period,
+  records,
+  canCancel,
+  onCancel,
+}: {
+  period: string;
+  records: BodyRecord[];
+  canCancel: boolean;
+  onCancel: (id: string) => void;
+}) {
   const color = PERIOD_COLOR[period] ?? '#888';
   const icon = PERIOD_ICON[period] ?? '🕐';
 
@@ -957,7 +1244,13 @@ function MealSectionCard({ period, records }: { period: string; records: BodyRec
 
       {/* 기록 행들 */}
       {records.map((rec, idx) => (
-        <RecordRow key={rec.id} record={rec} isLast={idx === records.length - 1} />
+        <RecordRow
+          key={rec.id}
+          record={rec}
+          isLast={idx === records.length - 1}
+          canCancel={canCancel}
+          onCancel={onCancel}
+        />
       ))}
     </View>
   );
@@ -1029,6 +1322,7 @@ const styles = StyleSheet.create({
     borderColor: '#BDBDBD',
   },
   outlineButtonInner: { flexDirection: 'row', alignItems: 'center', gap: 10 },
+  outlineButtonEmoji: { fontSize: 22 },
   outlineButtonText: { fontSize: 18, fontWeight: '700', color: Colors.primary },
   outlineButtonTextDisabled: { color: '#BDBDBD' },
 
@@ -1044,6 +1338,23 @@ const styles = StyleSheet.create({
     fontSize: 14,
     color: Colors.textSub,
     textAlign: 'center',
+  },
+  // 기록 취소 버튼 — 작고 secondary, 터치영역 최소 44dp 확보
+  cancelRecordBtn: {
+    flexShrink: 0,
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingHorizontal: 14,
+    paddingVertical: 6,
+    borderRadius: 8,
+    borderWidth: 1,
+    borderColor: Colors.danger,
+    backgroundColor: Colors.white,
+  },
+  cancelRecordBtnText: {
+    fontSize: 16,
+    fontWeight: '700',
+    color: Colors.danger,
   },
 });
 
@@ -1208,13 +1519,6 @@ interface NextNotifInfo {
 // 기록 완료 후 다음 예정 알림 정보를 반환합니다.
 // effect_tracking_queue (약효추적), meal_schedules (식사 알림), exercise_notif_prefs (운동 알림) 중 가장 가까운 것 선택.
 
-const DEFAULT_MEAL_TIMES_BS: Record<string, string> = {
-  morning: '08:00',
-  lunch: '12:00',
-  dinner: '18:00',
-  bedtime: '22:00',
-};
-
 function formatTimeHHMM_BS(date: Date): string {
   const h = date.getHours();
   const m = date.getMinutes();
@@ -1230,9 +1534,10 @@ async function fetchNextNotifMessage(patientId: string): Promise<NextNotifInfo |
     let candidates: Array<{ minutesLeft: number; label: string; sendAt: Date }> = [];
 
     // 1) 약효추적 큐에서 미발송 + 미래 항목 중 가장 가까운 것
+    //    dose_slot_id 있으면 슬롯 label 로, 없으면 legacy meal_time 으로 라벨 해석.
     const { data: queueRows } = await supabase
       .from('effect_tracking_queue')
-      .select('send_at, interval_minutes, meal_time')
+      .select('send_at, interval_minutes, meal_time, dose_slot_id')
       .eq('patient_id', patientId)
       .is('sent_at', null)
       .gt('send_at', now.toISOString())
@@ -1244,7 +1549,15 @@ async function fetchNextNotifMessage(patientId: string): Promise<NextNotifInfo |
       const sendAt = new Date(row.send_at);
       const minutesLeft = Math.round((sendAt.getTime() - now.getTime()) / 60000);
       const intervalMin: number = row.interval_minutes ?? 0;
-      const mealKo = mealTimeToKorean(row.meal_time);
+      // 라벨 해석: dose_slot_id 있으면 슬롯 label, 없으면 legacy meal_time.
+      let mealKo: string | null = null;
+      if (row.dose_slot_id) {
+        const qSlots = await fetchPatientDoseSlots(patientId);
+        const qSlot = qSlots.find((s) => s.id === row.dose_slot_id);
+        mealKo = qSlot?.label ?? mealTimeToKorean(row.meal_time);
+      } else {
+        mealKo = mealTimeToKorean(row.meal_time);
+      }
 
       let intervalLabel: string;
       if (intervalMin === 0) intervalLabel = '복용 직후';
@@ -1258,7 +1571,7 @@ async function fetchNextNotifMessage(patientId: string): Promise<NextNotifInfo |
       candidates.push({ minutesLeft, label, sendAt });
     }
 
-    // 2) meal_schedules에서 현재 시각 이후 다음 식사 알림 + exercise_notif_prefs 운동 알림
+    // 2) 다음 복용 안내 — dose_slots 순회(없으면 meal_schedules legacy 폴백) + exercise_notif_prefs 운동 알림
     const { data: userData, error: userError } = await supabase
       .from('users')
       .select('meal_schedules, exercise_notif_prefs')
@@ -1267,38 +1580,50 @@ async function fetchNextNotifMessage(patientId: string): Promise<NextNotifInfo |
 
     if (userError) console.error('[fetchNextNotifMessage] userData error:', userError);
 
-    const mealSchedules: Record<string, string> = (userData?.meal_schedules as Record<string, string>) ?? DEFAULT_MEAL_TIMES_BS;
-
-    const MEAL_LABELS: Record<string, string> = {
-      morning: '다음 아침약 복용',
-      lunch: '다음 점심약 복용',
-      dinner: '다음 저녁약 복용',
-      bedtime: '다음 취침약 복용',
-    };
+    // dose_slots 있으면 그것으로, 없으면 meal_schedules 4슬롯 legacy 가상 슬롯(동작 동일)
+    const doseSlots = await fetchPatientDoseSlots(patientId);
+    const displaySlots = resolveDisplaySlots(
+      doseSlots,
+      userData?.meal_schedules as Record<string, string> | null | undefined
+    );
+    // 시각 순(자정 기준 분)으로 정렬 후 현재 시각 이후 첫 슬롯 1개만 후보
+    const sortedSlots = [...displaySlots].sort(
+      (a, b) => slotSortValue(a.time) - slotSortValue(b.time)
+    );
 
     let foundMeal = false;
-    for (const key of ['morning', 'lunch', 'dinner', 'bedtime']) {
-      const timeStr = mealSchedules[key] ?? DEFAULT_MEAL_TIMES_BS[key];
-      const [h, m] = timeStr.split(':').map(Number);
+    for (const slot of sortedSlots) {
+      const [h, m] = slot.time.split(':').map(Number);
+      if (Number.isNaN(h)) continue;
       const scheduled = new Date(now);
-      scheduled.setHours(h, m, 0, 0);
+      scheduled.setHours(h, m || 0, 0, 0);
       if (scheduled > now) {
         const minutesLeft = Math.round((scheduled.getTime() - now.getTime()) / 60000);
-        candidates.push({ minutesLeft, label: MEAL_LABELS[key], sendAt: scheduled });
+        candidates.push({
+          minutesLeft,
+          label: nextDoseLabel(slot.legacyKey, slot.label, slot.time),
+          sendAt: scheduled,
+        });
         foundMeal = true;
         break;
       }
     }
 
-    // 오늘 식사 시간이 모두 지난 경우 내일 아침 폴백
-    if (!foundMeal) {
-      const tomorrowMorning = new Date(now);
-      tomorrowMorning.setDate(tomorrowMorning.getDate() + 1);
-      const morningStr = mealSchedules['morning'] ?? DEFAULT_MEAL_TIMES_BS['morning'];
-      const [mh, mm] = morningStr.split(':').map(Number);
-      tomorrowMorning.setHours(mh, mm, 0, 0);
-      const minutesLeft = Math.round((tomorrowMorning.getTime() - now.getTime()) / 60000);
-      candidates.push({ minutesLeft, label: '내일 아침약 복용', sendAt: tomorrowMorning });
+    // 오늘 복용 시각이 모두 지난 경우 내일 첫 복용으로 폴백
+    if (!foundMeal && sortedSlots.length > 0) {
+      const first = sortedSlots[0];
+      const [fh, fm] = first.time.split(':').map(Number);
+      if (!Number.isNaN(fh)) {
+        const tomorrowFirst = new Date(now);
+        tomorrowFirst.setDate(tomorrowFirst.getDate() + 1);
+        tomorrowFirst.setHours(fh, fm || 0, 0, 0);
+        const minutesLeft = Math.round((tomorrowFirst.getTime() - now.getTime()) / 60000);
+        candidates.push({
+          minutesLeft,
+          label: `내일 ${nextDoseLabel(first.legacyKey, first.label, first.time).replace(/^다음 /, '')}`,
+          sendAt: tomorrowFirst,
+        });
+      }
     }
 
     // 3) 운동 알림 (exercise_notif_prefs) — 오늘 이후 가장 가까운 운동 알림 시간

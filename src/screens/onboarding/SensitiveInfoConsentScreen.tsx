@@ -5,7 +5,6 @@ import {
   StyleSheet,
   TouchableOpacity,
   ScrollView,
-  Alert,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useNavigation } from '@react-navigation/native';
@@ -14,12 +13,17 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import { Ionicons } from '@expo/vector-icons';
 import { Colors } from '../../constants/colors';
 import type { OnboardingStackParamList } from '../../navigation/OnboardingNavigator';
+import { useDialog } from '../../context/DialogContext';
 import { supabase } from '../../lib/supabase';
 
 type Nav = StackNavigationProp<OnboardingStackParamList, 'SensitiveInfoConsent'>;
 
+// 민감정보 동의 버전. 동의 문구/항목 변경 시 1씩 올리면 기존 사용자에게 강제 재동의 요구 가능.
+export const SENSITIVE_INFO_CONSENT_VERSION = 1;
+
 export function SensitiveInfoConsentScreen() {
   const navigation = useNavigation<Nav>();
+  const dialog = useDialog();
   const [agreed, setAgreed] = useState(false);
 
   const handleAgree = async () => {
@@ -41,13 +45,16 @@ export function SensitiveInfoConsentScreen() {
               'Content-Type': 'application/json',
               'Prefer': 'return=minimal',
             },
-            body: JSON.stringify({ sensitive_info_consented: true }),
+            body: JSON.stringify({
+              sensitive_info_consented: true,
+              sensitive_info_consent_version: SENSITIVE_INFO_CONSENT_VERSION,
+            }),
           }
         );
         if (!res.ok) {
           const errText = await res.text();
           console.error('[SensitiveInfoConsent] DB 저장 실패:', res.status, errText);
-          Alert.alert('오류', '동의 처리에 실패했어요. 잠시 후 다시 시도해 주세요.');
+          dialog.alert({ title: '오류', message: '동의 처리에 실패했어요. 잠시 후 다시 시도해 주세요.' });
           return;
         }
       }
@@ -57,7 +64,7 @@ export function SensitiveInfoConsentScreen() {
       navigation.replace('FamilyCheck');
     } catch (e) {
       console.error('[SensitiveInfoConsent] handleAgree 예외:', e);
-      Alert.alert('오류', '동의 처리 중 문제가 생겼어요. 잠시 후 다시 시도해 주세요.');
+      dialog.alert({ title: '오류', message: '동의 처리 중 문제가 생겼어요. 잠시 후 다시 시도해 주세요.' });
     }
   };
 

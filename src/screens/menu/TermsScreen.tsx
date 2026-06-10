@@ -22,7 +22,12 @@ export function TermsScreen() {
       />
       <WebView
         style={styles.webview}
-        source={{ uri: 'https://parkinon-terms.pages.dev' }}
+        source={{ uri: 'https://parkinon.com/terms' }}
+        originWhitelist={['https://parkinon.com']}
+        // 신뢰 도메인 외부로의 이탈 차단 — 외부 링크는 차단(필요 시 외부 브라우저로만)
+        onShouldStartLoadWithRequest={(req) =>
+          req.url.startsWith('https://parkinon.com')
+        }
       />
     </SafeAreaView>
   );

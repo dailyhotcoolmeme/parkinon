@@ -129,7 +129,7 @@ export async function requestPermissionsAndSaveToken(
       : await Notifications.getExpoPushTokenAsync();
 
     const token = tokenData.data;
-    console.log('[notifications] Expo Push Token 획득 성공:', token.substring(0, 30) + '...');
+    if (__DEV__) console.log('[notifications] Expo Push Token 획득 성공:', token.substring(0, 30) + '...');
 
     // 4. users 테이블에 push_token 저장
     //    supabase-js PostgREST 대신 직접 fetch 사용 (새 아키텍처 hang 버그 우회)
@@ -145,7 +145,7 @@ export async function requestPermissionsAndSaveToken(
       return null;
     }
 
-    console.log('[notifications] DB 저장 시작 → userId:', userId);
+    if (__DEV__) console.log('[notifications] DB 저장 시작 → userId:', userId);
 
     const res = await fetch(`${SUPABASE_URL}/rest/v1/users?id=eq.${userId}`, {
       method: 'PATCH',
@@ -160,9 +160,11 @@ export async function requestPermissionsAndSaveToken(
 
     if (!res.ok) {
       const txt = await res.text();
-      console.error('[notifications] ❌ push_token PATCH 실패:', res.status, txt);
-      console.error('[notifications] userId:', userId);
-      console.error('[notifications] SUPABASE_URL:', SUPABASE_URL);
+      if (__DEV__) {
+        console.error('[notifications] ❌ push_token PATCH 실패:', res.status, txt);
+        console.error('[notifications] userId:', userId);
+        console.error('[notifications] SUPABASE_URL:', SUPABASE_URL);
+      }
       return null;
     }
 

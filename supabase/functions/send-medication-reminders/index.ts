@@ -5,11 +5,74 @@ const supabase = createClient(
   Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!
 )
 
+// legacy 4슬롯 라벨 fallback. dose_slot.label이 있으면 그 값을 우선 사용.
 const MEAL_LABELS: Record<string, string> = {
   morning: '아침', lunch: '점심', dinner: '저녁', bedtime: '취침',
 }
 
-async function sendPush(to: string, title: string, body: string, data: Record<string, unknown>) {
+/**
+ * get_meds_at_time RPC가 반환하는 1행.
+ * - legacy 행: meal_time(슬롯키) 채워짐, dose_slot_id/label NULL.
+ * - 신규(dose_slot) 행: dose_slot_id/label 채워짐. meal_time은 표준 4라벨이면
+ *   호환용 슬롯키, 비표준 라벨이면 NULL.
+ */
+interface MedRow {
+  patient_id: string
+  meal_time: string | null
+  dose_slot_id: string | null
+  label: string | null
+  time: string | null
+}
+
+/**
+ * 한 번 알릴 단위(복용 슬롯). legacy/신규를 통일해 다룬다.
+ * - key: 중복제거·prefs 조회용 안정 키 (dose_slot_id 우선, 없으면 meal_time)
+ * - mealTime: 구버전 prefs/sound prefs 키 & 푸시 data.mealTime (없으면 null)
+ * - doseSlotId: 신규 식별자 (없으면 null)
+ * - displayLabel: 표시용 한글 라벨
+ */
+interface DoseTarget {
+  key: string
+  mealTime: string | null
+  doseSlotId: string | null
+  displayLabel: string
+}
+
+function toDoseTarget(row: MedRow): DoseTarget | null {
+  const mealTime = row.meal_time ?? null
+  const doseSlotId = row.dose_slot_id ?? null
+  // 표시 라벨: dose_slot.label 우선 → meal_time MEAL_LABELS fallback → '약'
+  const displayLabel =
+    (row.label && row.label.trim()) ||
+    (mealTime ? MEAL_LABELS[mealTime] : '') ||
+    '약'
+  // 안정 키: dose_slot_id 우선, 없으면 meal_time. 둘 다 없으면 식별 불가 → skip.
+  const key = doseSlotId ?? mealTime
+  if (!key) return null
+  return { key, mealTime, doseSlotId, displayLabel }
+}
+
+/** 환자별 DoseTarget 목록을 RPC 행에서 구성 (key 기준 중복제거). */
+function groupTargets(rows: MedRow[] | null | undefined): Map<string, DoseTarget[]> {
+  const out = new Map<string, Map<string, DoseTarget>>()
+  for (const row of rows ?? []) {
+    const t = toDoseTarget(row)
+    if (!t) continue
+    if (!out.has(row.patient_id)) out.set(row.patient_id, new Map())
+    out.get(row.patient_id)!.set(t.key, t)
+  }
+  const result = new Map<string, DoseTarget[]>()
+  for (const [pid, m] of out.entries()) result.set(pid, [...m.values()])
+  return result
+}
+
+async function sendPush(
+  to: string,
+  title: string,
+  body: string,
+  data: Record<string, unknown>,
+  channelId = 'default',
+) {
   const res = await fetch('https://exp.host/--/api/v2/push/send', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
@@ -20,11 +83,28 @@ async function sendPush(to: string, title: string, body: string, data: Record<st
       body,
       data,
       priority: 'high',
-      channelId: 'default',
+      channelId,
     }),
   })
   const result = await res.json()
-  console.log('[sendPush]', JSON.stringify({ to: to.slice(0, 30), title, status: res.status, result }))
+  console.log('[sendPush]', JSON.stringify({ to: to.slice(0, 30), title, channelId, status: res.status, result }))
+}
+
+/**
+ * 수신자의 알림음 설정 → Android 채널 ID 결정.
+ * recorded면 클라가 프로비저닝해 둔 `parkinon_alarm_<soundId>` 채널, 아니면 'default'.
+ * (채널 규칙은 클라 src/lib/alarmSound.ts와 동일해야 함)
+ */
+async function resolveAlarmChannel(userId: string): Promise<string> {
+  const { data } = await supabase
+    .from('alarm_sound_prefs')
+    .select('sound_type, custom_sound_id')
+    .eq('user_id', userId)
+    .maybeSingle()
+  if (data?.sound_type === 'recorded' && data.custom_sound_id) {
+    return `parkinon_alarm_${data.custom_sound_id}`
+  }
+  return 'default'
 }
 
 function subtractMinutes(hhmm: string, minutes: number): string {
@@ -45,19 +125,53 @@ async function logNotification(userId: string, type: string, title: string, body
   })
 }
 
-async function hasTakenMed(patientId: string, slot: string, today: string): Promise<boolean> {
-  const { data: logs } = await supabase
-    .from('med_logs')
-    .select('id')
-    .eq('patient_id', patientId)
-    .eq('meal_time', slot)
-    .gte('taken_at', `${today}T00:00:00+09:00`)
-    .lte('taken_at', `${today}T23:59:59+09:00`)
-    .limit(1)
-  return !!(logs?.length)
+/**
+ * 오늘 이 복용 슬롯을 이미 복용했는지.
+ * 구버전(meal_time) 기록과 신버전(dose_slot_id) 기록 둘 중 하나라도 있으면 true.
+ * → 구버전 앱이 meal_time으로 기록해도, 신버전이 dose_slot_id로 기록해도 인식.
+ */
+async function hasTakenMed(
+  patientId: string,
+  target: DoseTarget,
+  today: string,
+): Promise<boolean> {
+  const start = `${today}T00:00:00+09:00`
+  const end = `${today}T23:59:59+09:00`
+
+  // 신규 경로: dose_slot_id 기록 확인
+  if (target.doseSlotId) {
+    const { data: bySlot } = await supabase
+      .from('med_logs')
+      .select('id')
+      .eq('patient_id', patientId)
+      .eq('dose_slot_id', target.doseSlotId)
+      .gte('taken_at', start)
+      .lte('taken_at', end)
+      .limit(1)
+    if (bySlot?.length) return true
+  }
+
+  // 구 경로: meal_time 기록 확인 (구버전 앱 호환 — 단 하나도 깨지면 안 됨)
+  if (target.mealTime) {
+    const { data: bySlotKey } = await supabase
+      .from('med_logs')
+      .select('id')
+      .eq('patient_id', patientId)
+      .eq('meal_time', target.mealTime)
+      .gte('taken_at', start)
+      .lte('taken_at', end)
+      .limit(1)
+    if (bySlotKey?.length) return true
+  }
+
+  return false
 }
 
-async function sendCaregiverMissed(patientId: string, patientGroupId: string, slot: string) {
+async function sendCaregiverMissed(
+  patientId: string,
+  patientGroupId: string,
+  target: DoseTarget,
+) {
   const { data: caregivers } = await supabase
     .from('patient_group_members')
     .select('user_id')
@@ -76,7 +190,7 @@ async function sendCaregiverMissed(patientId: string, patientGroupId: string, sl
 
   const { data: caregiverUsers } = await supabase
     .from('users')
-    .select('push_token, caregiver_notif_prefs')
+    .select('id, push_token, caregiver_notif_prefs')
     .in('id', caregivers.map((c: any) => c.user_id))
     .not('push_token', 'is', null)
 
@@ -84,13 +198,36 @@ async function sendCaregiverMissed(patientId: string, patientGroupId: string, sl
     if (!cu.push_token) continue
     const prefs = (cu.caregiver_notif_prefs ?? {}) as Record<string, boolean>
     if (prefs.med_missed === false) continue
+    const channelId = await resolveAlarmChannel(cu.id)
     await sendPush(
       cu.push_token,
       '⚠️ 약을 안 드셨어요',
-      `${subject}이 ${MEAL_LABELS[slot]} 약을 아직 안 드셨어요.`,
-      { type: 'caregiver_missed_med', mealTime: slot },
+      `${subject}이 ${target.displayLabel} 약을 아직 안 드셨어요.`,
+      { type: 'caregiver_missed_med', mealTime: target.mealTime, doseSlotId: target.doseSlotId },
+      channelId,
     )
   }
+}
+
+/**
+ * 한 환자의 복용 슬롯들에 대해 알림 발송.
+ * phase: 정시(reminder) / 1차(first) / 2차(second).
+ * 구버전과 동일하게 prefs[mealTime]===false면 skip, 이미 복용이면 skip.
+ * 신규 dose_slot 행은 mealTime이 없을 수 있는데, 이 경우 prefs 게이트는
+ * dose_slot.remind_enabled(RPC가 이미 필터)로 대체되므로 통과시킨다.
+ */
+function isMuted(prefs: Record<string, boolean>, target: DoseTarget): boolean {
+  // 구 경로: meal_time prefs로 끈 경우 존중
+  if (target.mealTime && prefs[target.mealTime] === false) return true
+  // 신규 경로: RPC가 이미 remind_enabled로 필터함 → 추가 차단 없음
+  return false
+}
+
+function channelFor(soundPrefs: Record<string, string | null>, target: DoseTarget): string {
+  // 구 경로: med_time_sound_prefs[mealTime]. 신규 슬롯은 mealTime 없으면 default.
+  // (dose_slot.remind_sound_id 기반 채널은 4단계 클라 전환과 함께 도입 예정)
+  const slotSoundId = target.mealTime ? soundPrefs[target.mealTime] : null
+  return slotSoundId ? `parkinon_alarm_${slotSoundId}` : 'default'
 }
 
 Deno.serve(async (_req: Request) => {
@@ -107,118 +244,112 @@ Deno.serve(async (_req: Request) => {
   // ── 1. 정시 알림 ──────────────────────────────────────────────────
   const { data: matchedMeds } = await supabase.rpc('get_meds_at_time', { target_time: currentTime })
 
-  if (matchedMeds?.length) {
-    const toNotify: Map<string, Set<string>> = new Map()
-    for (const row of matchedMeds) {
-      if (!toNotify.has(row.patient_id)) toNotify.set(row.patient_id, new Set())
-      toNotify.get(row.patient_id)!.add(row.meal_time)
-    }
+  const onTime = groupTargets(matchedMeds as MedRow[] | null)
+  for (const [patientId, targets] of onTime.entries()) {
+    const { data: patient } = await supabase
+      .from('users')
+      .select('push_token, notification_enabled, med_time_notif_prefs, med_time_sound_prefs, patient_group_id')
+      .eq('id', patientId)
+      .single()
 
-    for (const [patientId, slots] of toNotify.entries()) {
-      const { data: patient } = await supabase
-        .from('users')
-        .select('push_token, notification_enabled, med_time_notif_prefs, patient_group_id')
-        .eq('id', patientId)
-        .single()
+    if (!patient?.push_token || !patient.notification_enabled) continue
 
-      if (!patient?.push_token || !patient.notification_enabled) continue
+    const prefs = (patient.med_time_notif_prefs ?? {}) as Record<string, boolean>
+    const soundPrefs = (patient.med_time_sound_prefs ?? {}) as Record<string, string | null>
 
-      const prefs = (patient.med_time_notif_prefs ?? {}) as Record<string, boolean>
+    for (const target of targets) {
+      if (isMuted(prefs, target)) continue
+      if (await hasTakenMed(patientId, target, today)) continue
 
-      for (const slot of slots) {
-        if (prefs[slot] === false) continue
-        if (await hasTakenMed(patientId, slot, today)) continue
+      const channelId = channelFor(soundPrefs, target)
+      const data = { type: 'medication_reminder', mealTime: target.mealTime, doseSlotId: target.doseSlotId }
 
-        await sendPush(
-          patient.push_token,
-          '💊 약 드실 시간이에요',
-          `${MEAL_LABELS[slot]} 약을 드실 시간이에요.`,
-          { type: 'medication_reminder', mealTime: slot },
-        )
-        await logNotification(patientId, 'medication_reminder', '💊 약 드실 시간이에요', `${MEAL_LABELS[slot]} 약을 드실 시간이에요.`, { type: 'medication_reminder', mealTime: slot })
-        sent++
-      }
+      await sendPush(
+        patient.push_token,
+        '💊 약 드실 시간이에요',
+        `${target.displayLabel} 약을 드실 시간이에요.`,
+        data,
+        channelId,
+      )
+      await logNotification(patientId, 'medication_reminder', '💊 약 드실 시간이에요', `${target.displayLabel} 약을 드실 시간이에요.`, data)
+      sent++
     }
   }
 
   // ── 2. 1차 미복용 알림 (+10분) — 환자에게만 ───────────────────────
   const { data: meds10 } = await supabase.rpc('get_meds_at_time', { target_time: time10 })
 
-  if (meds10?.length) {
-    const toNotify10: Map<string, Set<string>> = new Map()
-    for (const row of meds10) {
-      if (!toNotify10.has(row.patient_id)) toNotify10.set(row.patient_id, new Set())
-      toNotify10.get(row.patient_id)!.add(row.meal_time)
-    }
+  const first = groupTargets(meds10 as MedRow[] | null)
+  for (const [patientId, targets] of first.entries()) {
+    const { data: patient } = await supabase
+      .from('users')
+      .select('push_token, notification_enabled, med_time_notif_prefs, med_time_sound_prefs, patient_group_id')
+      .eq('id', patientId)
+      .single()
 
-    for (const [patientId, slots] of toNotify10.entries()) {
-      const { data: patient } = await supabase
-        .from('users')
-        .select('push_token, notification_enabled, med_time_notif_prefs, patient_group_id')
-        .eq('id', patientId)
-        .single()
+    if (!patient?.push_token || !patient.notification_enabled) continue
 
-      if (!patient?.push_token || !patient.notification_enabled) continue
+    const prefs = (patient.med_time_notif_prefs ?? {}) as Record<string, boolean>
+    const soundPrefs = (patient.med_time_sound_prefs ?? {}) as Record<string, string | null>
 
-      const prefs = (patient.med_time_notif_prefs ?? {}) as Record<string, boolean>
+    for (const target of targets) {
+      if (isMuted(prefs, target)) continue
+      if (await hasTakenMed(patientId, target, today)) continue
 
-      for (const slot of slots) {
-        if (prefs[slot] === false) continue
-        if (await hasTakenMed(patientId, slot, today)) continue
+      const channelId = channelFor(soundPrefs, target)
+      const data = { type: 'missed_medication_first', mealTime: target.mealTime, doseSlotId: target.doseSlotId }
 
-        await sendPush(
-          patient.push_token,
-          '💊 약을 아직 안 드셨어요',
-          `${MEAL_LABELS[slot]} 약을 아직 드시지 않으셨어요.`,
-          { type: 'missed_medication_first', mealTime: slot },
-        )
-        await logNotification(patientId, 'missed_medication', '💊 약을 아직 안 드셨어요', `${MEAL_LABELS[slot]} 약을 아직 드시지 않으셨어요.`, { type: 'missed_medication_first', mealTime: slot })
-        sent++
-      }
+      await sendPush(
+        patient.push_token,
+        '💊 약을 아직 안 드셨어요',
+        `${target.displayLabel} 약을 아직 드시지 않으셨어요.`,
+        data,
+        channelId,
+      )
+      await logNotification(patientId, 'missed_medication', '💊 약을 아직 안 드셨어요', `${target.displayLabel} 약을 아직 드시지 않으셨어요.`, data)
+      sent++
     }
   }
 
   // ── 3. 2차 미복용 알림 (+20분) — 환자 + 보호자 ───────────────────
   const { data: meds20 } = await supabase.rpc('get_meds_at_time', { target_time: time20 })
 
-  if (meds20?.length) {
-    const toNotify20: Map<string, Set<string>> = new Map()
-    for (const row of meds20) {
-      if (!toNotify20.has(row.patient_id)) toNotify20.set(row.patient_id, new Set())
-      toNotify20.get(row.patient_id)!.add(row.meal_time)
-    }
+  const second = groupTargets(meds20 as MedRow[] | null)
+  for (const [patientId, targets] of second.entries()) {
+    const { data: patient } = await supabase
+      .from('users')
+      .select('push_token, notification_enabled, med_time_notif_prefs, med_time_sound_prefs, patient_group_id')
+      .eq('id', patientId)
+      .single()
 
-    for (const [patientId, slots] of toNotify20.entries()) {
-      const { data: patient } = await supabase
-        .from('users')
-        .select('push_token, notification_enabled, med_time_notif_prefs, patient_group_id')
-        .eq('id', patientId)
-        .single()
+    if (!patient?.notification_enabled) continue
 
-      if (!patient?.notification_enabled) continue
+    const prefs = (patient.med_time_notif_prefs ?? {}) as Record<string, boolean>
+    const soundPrefs = (patient.med_time_sound_prefs ?? {}) as Record<string, string | null>
 
-      const prefs = (patient.med_time_notif_prefs ?? {}) as Record<string, boolean>
+    for (const target of targets) {
+      if (isMuted(prefs, target)) continue
+      if (await hasTakenMed(patientId, target, today)) continue
 
-      for (const slot of slots) {
-        if (prefs[slot] === false) continue
-        if (await hasTakenMed(patientId, slot, today)) continue
+      const channelId = channelFor(soundPrefs, target)
 
-        // 환자에게 2차 알림
-        if (patient.push_token) {
-          await sendPush(
-            patient.push_token,
-            '💊 약을 안 드셨어요',
-            `${MEAL_LABELS[slot]} 약을 아직 안 드셨어요.`,
-            { type: 'missed_medication_second', mealTime: slot },
-          )
-          await logNotification(patientId, 'missed_medication', '💊 약을 안 드셨어요', `${MEAL_LABELS[slot]} 약을 아직 안 드셨어요.`, { type: 'missed_medication_second', mealTime: slot })
-          sent++
-        }
+      // 환자에게 2차 알림
+      if (patient.push_token) {
+        const data = { type: 'missed_medication_second', mealTime: target.mealTime, doseSlotId: target.doseSlotId }
+        await sendPush(
+          patient.push_token,
+          '💊 약을 안 드셨어요',
+          `${target.displayLabel} 약을 아직 안 드셨어요.`,
+          data,
+          channelId,
+        )
+        await logNotification(patientId, 'missed_medication', '💊 약을 안 드셨어요', `${target.displayLabel} 약을 아직 안 드셨어요.`, data)
+        sent++
+      }
 
-        // 보호자에게 알림
-        if (patient.patient_group_id) {
-          await sendCaregiverMissed(patientId, patient.patient_group_id, slot)
-        }
+      // 보호자에게 알림
+      if (patient.patient_group_id) {
+        await sendCaregiverMissed(patientId, patient.patient_group_id, target)
       }
     }
   }
@@ -234,7 +365,7 @@ Deno.serve(async (_req: Request) => {
   for (const patient of allPatients ?? []) {
     if (!patient.push_token) continue
     const prefs = (patient.exercise_notif_prefs ?? []) as Array<{
-      id: string; ampm: string; hour: number; minute: number; enabled: boolean
+      id: string; ampm: string; hour: number; minute: number; enabled: boolean; soundId?: string | null
     }>
     for (const pref of prefs) {
       if (!pref.enabled) continue
@@ -244,11 +375,14 @@ Deno.serve(async (_req: Request) => {
       if (pref.ampm === '오전' && h === 12) h = 0
       const target = `${String(h).padStart(2, '0')}:${String(pref.minute).padStart(2, '0')}`
       if (target !== currentTime) continue
+      // 이 운동 알림 항목에 지정된 목소리(soundId). 없으면("기본 목소리") 휴대폰 시스템 기본음('default').
+      const exerciseChannelId = pref.soundId ? `parkinon_alarm_${pref.soundId}` : 'default'
       await sendPush(
         patient.push_token,
         '🏃 운동할 시간이에요!',
         '오늘 운동 기록을 남겨보세요.',
         { type: 'exercise_reminder' },
+        exerciseChannelId,
       )
       await logNotification(patient.id, 'exercise_reminder', '🏃 운동할 시간이에요!', '오늘 운동 기록을 남겨보세요.', { type: 'exercise_reminder' })
       sent++

@@ -7,13 +7,17 @@
  * 이 파일의 useAuthProvider()는 AuthProvider 내부에서만 사용합니다.
  */
 import { useState, useEffect, useCallback } from 'react';
-import { Platform, Alert, AppState } from 'react-native';
+import { Platform, AppState } from 'react-native';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 import * as WebBrowser from 'expo-web-browser';
 import * as Linking from 'expo-linking';
 import * as Notifications from 'expo-notifications';
 import { login as kakaoLogin } from '@react-native-seoul/kakao-login';
 import { supabase } from '../lib/supabase';
 import { requestPermissionsAndSaveToken } from '../utils/notifications';
+import { provisionForUser } from '../lib/alarmSound';
+import { useDialog, DialogApi } from '../context/DialogContext';
+import { GUEST_USER_ID } from '../utils/guestGuard';
 
 // ─── 딥링크 redirect URI ────────────────────────────────────────────────────
 const REDIRECT_TO = 'parkinon://auth/callback';
@@ -33,6 +37,7 @@ export interface UserProfile {
   residence_type: 'together' | 'separate' | null;
   diagnosis_year: number | null;
   sensitive_info_consented: boolean | null;
+  sensitive_info_consent_version: number | null;
 }
 
 export type AuthUser = UserProfile;
@@ -57,8 +62,9 @@ WebBrowser.maybeCompleteAuthSession();
 async function processAuthUrl(
   url: string,
   onAuthStateChangeFallback?: (userId: string, userMeta?: Record<string, any>, accessToken?: string) => Promise<void>,
+  dialog?: DialogApi,
 ): Promise<void> {
-  console.log('[useAuth] Auth URL 처리 시작:', url.substring(0, 80));
+  if (__DEV__) console.log('[useAuth] Auth URL 처리 시작:', url.substring(0, 80));
 
   // fragment 방식 (access_token + refresh_token)
   const fragmentStr = url.split('#')[1] ?? '';
@@ -67,33 +73,33 @@ async function processAuthUrl(
   const refreshToken = fragmentParams.get('refresh_token');
 
   if (accessToken && refreshToken) {
-    console.log('[useAuth] fragment 토큰 발견 → setSession');
+    if (__DEV__) console.log('[useAuth] fragment 토큰 발견 → setSession');
     const { error } = await supabase.auth.setSession({ access_token: accessToken, refresh_token: refreshToken });
     if (error) {
       console.error('[useAuth] setSession 오류:', error.message);
-      Alert.alert('로그인 실패', '카카오 로그인 처리 중 오류가 발생했습니다. 다시 시도해주세요.');
+      dialog?.alert({ title: '로그인 실패', message: '카카오 로그인 처리 중 오류가 발생했습니다. 다시 시도해주세요.' });
     }
   } else {
     // PKCE 방식 (code 파라미터)
     const parsed = Linking.parse(url);
     const code = parsed.queryParams?.code as string | undefined;
-    console.log('[useAuth] PKCE code 있음:', !!code);
+    if (__DEV__) console.log('[useAuth] PKCE code 있음:', !!code);
 
     if (code) {
       const { data, error } = await supabase.auth.exchangeCodeForSession(code);
       if (error) {
         console.error('[useAuth] exchangeCodeForSession 오류:', error.message, error.status);
-        Alert.alert('로그인 실패', '카카오 로그인 처리 중 오류가 발생했습니다. 다시 시도해주세요.');
+        dialog?.alert({ title: '로그인 실패', message: '카카오 로그인 처리 중 오류가 발생했습니다. 다시 시도해주세요.' });
         return;
       }
       // onAuthStateChange가 발동하지 않을 경우를 대비해 세션 직접 확인
       if (data?.session?.user) {
-        console.log('[useAuth] exchangeCodeForSession 성공, onAuthStateChange 대기 중:', data.session.user.id);
+        if (__DEV__) console.log('[useAuth] exchangeCodeForSession 성공, onAuthStateChange 대기 중:', data.session.user.id);
         // 300ms 대기 후 onAuthStateChange 발동 여부 확인
         await new Promise(resolve => setTimeout(resolve, 300));
         const { data: { session: currentSession } } = await supabase.auth.getSession();
         if (currentSession?.user && onAuthStateChangeFallback) {
-          console.log('[useAuth] fallback 직접 처리 → loadUserProfile 호출');
+          if (__DEV__) console.log('[useAuth] fallback 직접 처리 → loadUserProfile 호출');
           await onAuthStateChangeFallback(
             currentSession.user.id,
             currentSession.user.user_metadata,
@@ -102,8 +108,8 @@ async function processAuthUrl(
         }
       }
     } else {
-      console.error('[useAuth] Auth URL에서 토큰/코드 없음. 파라미터:', Object.keys(parsed.queryParams ?? {}));
-      Alert.alert('로그인 실패', '카카오 로그인 응답이 올바르지 않습니다. 다시 시도해주세요.');
+      if (__DEV__) console.error('[useAuth] Auth URL에서 토큰/코드 없음. 파라미터:', Object.keys(parsed.queryParams ?? {}));
+      dialog?.alert({ title: '로그인 실패', message: '카카오 로그인 응답이 올바르지 않습니다. 다시 시도해주세요.' });
     }
   }
 
@@ -126,6 +132,49 @@ function isAuthUrl(url: string): boolean {
 
 const SUPABASE_URL = process.env.EXPO_PUBLIC_SUPABASE_URL!;
 const SUPABASE_ANON_KEY = process.env.EXPO_PUBLIC_SUPABASE_ANON_KEY!;
+
+// ─── 로그아웃 시 정리할 사용자별 AsyncStorage 키 ─────────────────────────────
+// 다음 로그인 사용자와 섞이면 안 되는 키만 정리한다.
+// 기기 공용 설정(배터리 최적화 안내 등)은 의도적으로 제외한다.
+const USER_SCOPED_STORAGE_KEYS = [
+  // 측정 동의 / 기준선 메타
+  'measurement_consent_v1',
+  'measurement_baseline_med_signature_v1',
+  'measurement_baseline_reset_at_v1',
+  // 약 알림 추천 / 알림 온보딩
+  'med_notif_recommendation_meta',
+  'notif_onboarding_shown',
+  // 알림 스케줄/중복처리 상태
+  'processedNotifIds',
+  'missedMedRemindNotifIds',
+  'exerciseNotifIds',
+  // 사용자별 알림 설정
+  'settings_med_notifs',
+  'settings_exercise_notifs',
+  'settings_caregiver_notifs',
+  // 피드 읽음 표시
+  'parkinon_read_posts',
+  // 민감정보 동의
+  'sensitive_info_consented',
+  // 알림으로 진입 대기중인 임시 데이터
+  'pendingMedNotif',
+  'pendingBodyStateNotif',
+  'pendingExerciseNotif',
+  // 온보딩 임시 입력값(다음 사용자와 섞이면 안 됨)
+  'onboarding_name',
+  'onboarding_birth_year',
+  'onboarding_gender',
+  'onboarding_diag_year',
+  'onboarding_relation',
+  'onboarding_living',
+  'onboarding_role',
+  'onboarding_medications',
+  'onboarding_med_notifs',
+  'onboarding_notifications',
+  'onboarding_group_id',
+  'onboarding_invite_code',
+  'onboarding_invite_code_generated',
+] as const;
 
 // supabase-js PostgREST 클라이언트 대신 직접 fetch 사용
 // (React Native 새 아키텍처에서 supabase-js PostgREST 요청이 응답 없이 행(hang)하는 버그 우회)
@@ -152,6 +201,7 @@ async function dbFetch(path: string, token: string, options?: RequestInit): Prom
 export function useAuthProvider(): UseAuthReturn {
   const [user, setUser] = useState<UserProfile | null>(null);
   const [loading, setLoading] = useState(true);
+  const dialog = useDialog();
 
   // public.users 테이블에서 프로필 로드 (없으면 insert)
   // accessToken을 직접 받아 supabase.auth.getSession() 추가 호출 없이 즉시 DB 조회
@@ -164,7 +214,7 @@ export function useAuthProvider(): UseAuthReturn {
       setTimeout(() => reject(new Error('Supabase DB 연결 타임아웃')), 8000)
     );
     try {
-      console.log('[useAuth] loadUserProfile 시작:', userId);
+      if (__DEV__) console.log('[useAuth] loadUserProfile 시작:', userId);
 
       // 토큰 확보 (onAuthStateChange에서 전달 받는 게 우선)
       let token = accessToken;
@@ -184,7 +234,7 @@ export function useAuthProvider(): UseAuthReturn {
         timeoutPromise,
       ]);
 
-      console.log('[useAuth] users select 결과: rows.length =', rows?.length);
+      if (__DEV__) console.log('[useAuth] users select 결과: rows.length =', rows?.length);
 
       if (!rows || rows.length === 0) {
         // 신규 유저 — INSERT
@@ -197,6 +247,8 @@ export function useAuthProvider(): UseAuthReturn {
           caregiver_relation: null, residence_type: null,
           diagnosis_year: null, notification_enabled: true,
           patient_group_id: null,
+          sensitive_info_consented: false,
+          sensitive_info_consent_version: null,
         };
         try {
           const inserted: UserProfile[] = await dbFetch('/users?select=*', token, {
@@ -225,6 +277,8 @@ export function useAuthProvider(): UseAuthReturn {
         }
       } else {
         setUser(rows[0]);
+        // 알림음 채널 프로비저닝 (약 알림이 오기 전에 가족 목소리 채널을 미리 깔아둠)
+        provisionForUser(rows[0].id, rows[0].patient_group_id ?? null).catch(() => {});
         // 로그인 성공 시 push token 항상 저장 (온보딩 완료 여부 무관)
         // - 재로그인, 재설치, 앱 업데이트 시에도 토큰이 최신 값으로 유지됨
         if (token) {
@@ -246,6 +300,8 @@ export function useAuthProvider(): UseAuthReturn {
           notification_enabled: true, patient_group_id: null, kakao_id: null,
           birth_year: null, gender: null, caregiver_relation: null,
           residence_type: null, diagnosis_year: null,
+          sensitive_info_consented: null,
+          sensitive_info_consent_version: null,
         });
       } else {
         setUser(null);
@@ -262,7 +318,7 @@ export function useAuthProvider(): UseAuthReturn {
     const { data: { subscription } } = supabase.auth.onAuthStateChange(
       async (event, session) => {
         if (!mounted) return;
-        console.log('[useAuth] onAuthStateChange:', event);
+        if (__DEV__) console.log('[useAuth] onAuthStateChange:', event);
         if (session?.user) {
           // access_token을 직접 전달 → dbFetch에서 추가 getSession 호출 없이 바로 사용
           await loadUserProfile(session.user.id, session.user.user_metadata, session.access_token);
@@ -291,19 +347,19 @@ export function useAuthProvider(): UseAuthReturn {
       if (!isAuthUrl(url)) return;
       if (url === lastProcessedUrl.current) return;
       lastProcessedUrl.current = url;
-      console.log('[useAuth] auth URL 처리:', url.substring(0, 80));
-      processAuthUrl(url, loadUserProfile);
+      if (__DEV__) console.log('[useAuth] auth URL 처리:', url.substring(0, 80));
+      processAuthUrl(url, loadUserProfile, dialog);
     };
 
     const subscription = Linking.addEventListener('url', ({ url }) => {
-      console.log('[useAuth] 글로벌 Linking URL 수신:', url.substring(0, 80));
+      if (__DEV__) console.log('[useAuth] 글로벌 Linking URL 수신:', url.substring(0, 80));
       handleUrl(url);
     });
 
     // 앱이 딥링크로 시작된 경우 (cold start)
     Linking.getInitialURL().then((url) => {
       if (url) {
-        console.log('[useAuth] getInitialURL (cold start):', url.substring(0, 80));
+        if (__DEV__) console.log('[useAuth] getInitialURL (cold start):', url.substring(0, 80));
         handleUrl(url);
       }
     });
@@ -316,7 +372,7 @@ export function useAuthProvider(): UseAuthReturn {
         try {
           const url = await Linking.getInitialURL();
           if (url) {
-            console.log('[useAuth] AppState active - getInitialURL:', url.substring(0, 80));
+            if (__DEV__) console.log('[useAuth] AppState active - getInitialURL:', url.substring(0, 80));
             handleUrl(url);
           }
         } catch (_) {}
@@ -327,7 +383,7 @@ export function useAuthProvider(): UseAuthReturn {
       subscription.remove();
       appStateSub.remove();
     };
-  }, [loadUserProfile]);
+  }, [loadUserProfile, dialog]);
 
   // ─── 구글 로그인 (Android 전용) ───────────────────────────────────────────
   // Chrome Custom Tab(openAuthSessionAsync)으로 열기
@@ -356,13 +412,13 @@ export function useAuthProvider(): UseAuthReturn {
       if (result.type === 'success' && result.url) {
         // Custom Tab에서 캡처한 URL을 processAuthUrl로 처리
         // loadUserProfile을 fallback으로 전달 — onAuthStateChange 미발동 시 스피너 무한 방지
-        await processAuthUrl(result.url, loadUserProfile);
+        await processAuthUrl(result.url, loadUserProfile, dialog);
       }
       // result.type === 'cancel'이면 사용자가 취소한 것 → 아무 처리 안 함
     } catch (err) {
       console.error('[useAuth] signInWithGoogle 오류:', err);
     }
-  }, [loadUserProfile]);
+  }, [loadUserProfile, dialog]);
 
   // ─── 카카오 로그인 (네이티브 SDK) ─────────────────────────────────────────
   // @react-native-seoul/kakao-login SDK로 카카오톡 앱/카카오 계정 로그인 →
@@ -374,7 +430,7 @@ export function useAuthProvider(): UseAuthReturn {
 
       // 1) SDK로 카카오 로그인 (카톡 앱 또는 카카오 계정 웹뷰)
       const tokenResult = await kakaoLogin();
-      console.log('[useAuth] SDK 로그인 성공, accessToken 획득');
+      if (__DEV__) console.log('[useAuth] SDK 로그인 성공, accessToken 획득');
 
       // 2) Edge Function 호출 → magic link 발급
       const { data, error } = await supabase.functions.invoke('kakao-auth', {
@@ -407,7 +463,7 @@ export function useAuthProvider(): UseAuthReturn {
       }
 
       if (verifyData.user) {
-        console.log('[useAuth] verifyOtp 성공, 프로필 로드:', verifyData.user.id);
+        if (__DEV__) console.log('[useAuth] verifyOtp 성공, 프로필 로드:', verifyData.user.id);
         // onAuthStateChange가 자동 발동하지만, 만약 안 될 경우를 대비해 직접도 호출
         // (onAuthStateChange가 발동하면 setUser가 두 번 호출되지만 같은 데이터라 문제 없음)
         await loadUserProfile(
@@ -429,15 +485,15 @@ export function useAuthProvider(): UseAuthReturn {
       ) {
         return false;
       }
-      Alert.alert('로그인 오류', '오류가 발생했습니다. 다시 시도해주세요.');
+      dialog.alert({ title: '로그인 오류', message: '오류가 발생했습니다. 다시 시도해주세요.\n\n[디버그] ' + msg.substring(0, 200) });
       return false;
     }
-  }, [loadUserProfile]);
+  }, [loadUserProfile, dialog]);
 
   // 개발용 mock 로그인
   const devSignIn = useCallback(async () => {
     const mockUser: UserProfile = {
-      id: '00000000-0000-0000-0000-000000000001',
+      id: GUEST_USER_ID,
       name: '홍길동',
       role: 'patient',
       onboarding_done: true,
@@ -449,6 +505,8 @@ export function useAuthProvider(): UseAuthReturn {
       caregiver_relation: null,
       residence_type: null,
       diagnosis_year: 2020,
+      sensitive_info_consented: true,
+      sensitive_info_consent_version: 1,
     };
     setUser(mockUser);
   }, []);
@@ -483,6 +541,13 @@ export function useAuthProvider(): UseAuthReturn {
     try {
       await Notifications.cancelAllScheduledNotificationsAsync();
     } catch {}
+    // 사용자별 로컬 데이터 정리 (다음 로그인 사용자와 섞이지 않도록)
+    // 기기 공용 설정은 USER_SCOPED_STORAGE_KEYS에 포함하지 않았으므로 유지된다.
+    try {
+      await AsyncStorage.multiRemove([...USER_SCOPED_STORAGE_KEYS]);
+    } catch (e) {
+      console.warn('[signOut] 사용자별 로컬 데이터 정리 실패:', e);
+    }
     setUser(null);
     setLoading(false);
   }, []);

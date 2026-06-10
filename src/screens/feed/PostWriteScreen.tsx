@@ -8,7 +8,6 @@ import {
   ScrollView,
   KeyboardAvoidingView,
   Platform,
-  Alert,
   Image,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
@@ -24,6 +23,8 @@ import { supabase } from '../../lib/supabase';
 import { useAuth } from '../../context/AuthContext';
 import type { Database } from '../../types/database';
 import type { FeedStackParamList } from '../../navigation/FeedNavigator';
+import { useDialog } from '../../context/DialogContext';
+import { ensureNotGuest } from '../../utils/guestGuard';
 
 type PostType = Database['public']['Tables']['posts']['Row']['post_type'];
 
@@ -46,7 +47,8 @@ interface PhotoEntry {
 export function PostWriteScreen() {
   const navigation = useNavigation();
   const route = useRoute<RouteProps>();
-  const { user } = useAuth();
+  const { user, signOut } = useAuth();
+  const dialog = useDialog();
 
   const params = route.params;
   const isEditMode = !!(params?.postId);
@@ -68,12 +70,12 @@ export function PostWriteScreen() {
 
   const handlePhotoAdd = async () => {
     if (photoEntries.length >= 5) {
-      Alert.alert('사진 제한', '사진은 최대 5장까지 추가할 수 있어요.');
+      dialog.alert({ title: '사진 제한', message: '사진은 최대 5장까지 추가할 수 있어요.' });
       return;
     }
     const perm = await ImagePicker.requestMediaLibraryPermissionsAsync();
     if (!perm.granted) {
-      Alert.alert('권한 필요', '갤러리 접근 권한이 필요해요.');
+      dialog.alert({ title: '권한 필요', message: '갤러리 접근 권한이 필요해요.' });
       return;
     }
     const result = await ImagePicker.launchImageLibraryAsync({
@@ -111,16 +113,17 @@ export function PostWriteScreen() {
 
   const handleSubmit = async () => {
     if (!user) return;
+    if (await ensureNotGuest(user, dialog, { signOut })) return;
     if (!selectedCategory) {
-      Alert.alert('글 유형 선택', '글 유형을 선택해주세요.');
+      dialog.alert({ title: '글 유형 선택', message: '글 유형을 선택해주세요.' });
       return;
     }
     if (!title.trim()) {
-      Alert.alert('제목 입력', '제목을 입력해주세요.');
+      dialog.alert({ title: '제목 입력', message: '제목을 입력해주세요.' });
       return;
     }
     if (!content.trim()) {
-      Alert.alert('내용 입력', '내용을 입력해주세요.');
+      dialog.alert({ title: '내용 입력', message: '내용을 입력해주세요.' });
       return;
     }
 
@@ -164,17 +167,17 @@ export function PostWriteScreen() {
                 sort_order: existingCount + idx,
               });
             } catch (photoErr: any) {
-              Alert.alert('사진 업로드 에러', photoErr?.message ?? String(photoErr));
+              await dialog.alert({ title: '사진 업로드 에러', message: photoErr?.message ?? String(photoErr) });
               setSubmitting(false);
               return; // 업로드 실패시 중단
             }
           }
           if (uploadFailCount > 0) {
-            Alert.alert(
-              '사진 업로드 일부 실패',
-              `${uploadFailCount}장의 사진이 업로드되지 않았어요. 수정 내용은 저장되었습니다.`,
-              [{ text: '확인', onPress: () => navigation.goBack() }]
-            );
+            await dialog.alert({
+              title: '사진 업로드 일부 실패',
+              message: `${uploadFailCount}장의 사진이 업로드되지 않았어요. 수정 내용은 저장되었습니다.`,
+            });
+            navigation.goBack();
             return;
           }
         }
@@ -189,9 +192,8 @@ export function PostWriteScreen() {
         const updatedUrls = (updatedMedia ?? []).map((m: any) => m.r2_url);
         params?.onSave?.(updatedUrls);
 
-        Alert.alert('수정 완료', '글이 수정되었어요.', [
-          { text: '확인', onPress: () => navigation.goBack() },
-        ]);
+        await dialog.alert({ title: '수정 완료', message: '글이 수정되었어요.', toast: true });
+        navigation.goBack();
       } else {
         // ── 등록 모드 ──
         const { data: post, error: postError } = await supabase
@@ -225,27 +227,26 @@ export function PostWriteScreen() {
                 sort_order: idx,
               });
             } catch (photoErr: any) {
-              Alert.alert('사진 업로드 에러', photoErr?.message ?? String(photoErr));
+              await dialog.alert({ title: '사진 업로드 에러', message: photoErr?.message ?? String(photoErr) });
               setSubmitting(false);
               return; // 업로드 실패시 중단
             }
           }
           if (uploadFailCount > 0) {
-            Alert.alert(
-              '사진 업로드 일부 실패',
-              `${uploadFailCount}장의 사진이 업로드되지 않았어요. 글은 정상 등록되었습니다.`,
-              [{ text: '확인', onPress: () => navigation.goBack() }]
-            );
+            await dialog.alert({
+              title: '사진 업로드 일부 실패',
+              message: `${uploadFailCount}장의 사진이 업로드되지 않았어요. 글은 정상 등록되었습니다.`,
+            });
+            navigation.goBack();
             return;
           }
         }
 
-        Alert.alert('등록 완료', '글이 등록되었어요.', [
-          { text: '확인', onPress: () => navigation.goBack() },
-        ]);
+        await dialog.alert({ title: '등록 완료', message: '글이 등록되었어요.', toast: true });
+        navigation.goBack();
       }
     } catch (e: any) {
-      Alert.alert('오류', e.message ?? (isEditMode ? '수정 중 문제가 생겼어요. 다시 시도해주세요.' : '등록 중 문제가 생겼어요. 다시 시도해주세요.'));
+      await dialog.alert({ title: '오류', message: e.message ?? (isEditMode ? '수정 중 문제가 생겼어요. 다시 시도해주세요.' : '등록 중 문제가 생겼어요. 다시 시도해주세요.') });
     } finally {
       setSubmitting(false);
     }

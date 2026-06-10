@@ -13,6 +13,8 @@ import { supabase } from '../lib/supabase';
 import { useAuth } from '../context/AuthContext';
 import type { Database } from '../types/database';
 import { triggerLabelToText, triggerLabelToMinutes } from '../utils/medUtils';
+import { fetchPatientDoseSlots, type DoseSlot } from './useDoseSlots';
+import { formatSlotTime, slotSortValue } from '../constants/doseSlots';
 
 type Period = '이번 주' | '이번 달' | '최근 3개월';
 type ItemKey = 'medication' | 'bodyState' | 'mood' | 'sleep' | 'constipation' | 'exercise';
@@ -38,8 +40,10 @@ export interface SummarySlot {
   unit: string;
   // 시간대별 항목용 (bodyState/mood)
   timeSlots?: Record<string, { current: number; prev: number }>;
-  // 약복용 식사 시간대별
+  // 약복용 식사 시간대별. 키 = 정규 슬롯 키(dose_slot_id / legacy meal_time)
   mealTimeSlots?: Record<string, { current: number; prev: number }>;
+  // 약복용 슬롯 키 → 표시 라벨 (slot.label ?? 시각). 현황/트렌드 렌더 공용.
+  mealSlotLabels?: Record<string, string>;
 }
 
 export interface UseRecordDetailDataReturn {
@@ -129,7 +133,7 @@ function quarterLabel(quartersAgo: number): string {
 
 // ── 집계 함수 ─────────────────────────────────────────────────────────────────
 
-type MedLogRow = Pick<Database['public']['Tables']['med_logs']['Row'], 'id' | 'taken_at' | 'meal_time'>;
+type MedLogRow = Pick<Database['public']['Tables']['med_logs']['Row'], 'id' | 'taken_at' | 'meal_time' | 'dose_slot_id'>;
 type OnOffRow = Pick<
   Database['public']['Tables']['on_off_logs']['Row'],
   'body_state' | 'mood' | 'sleep_quality' | 'constipation' | 'triggered_by' | 'trigger_time_label' | 'logged_at'
@@ -193,14 +197,24 @@ export function triggerLabelToDisplay(label: string): string {
   return triggerLabelToText(label) || label;
 }
 
-const MEAL_ORDER = ['morning', 'lunch', 'dinner', 'bedtime'] as const;
-const MEAL_LABELS: Record<string, string> = {
-  morning: '아침약', lunch: '점심약', dinner: '저녁약', bedtime: '취침약',
-};
-const MEAL_COLORS: Record<string, string> = {
-  morning: '#F44336', lunch: '#4CAF50', dinner: '#2196F3', bedtime: '#FF9800',
-};
+// 약복용 시간대별 슬롯 색 팔레트 — 기존 MEAL_COLORS(아침=빨강/점심=초록/저녁=파랑/취침=주황)
+// 색을 그대로 순환 사용. 표준 4슬롯(sortOrder 0~3)은 기존과 동일 색을 받는다.
+const MEAL_COLOR_PALETTE = ['#F44336', '#4CAF50', '#2196F3', '#FF9800', '#9C27B0', '#607D8B'];
 const TRIGGER_COLORS = ['#F44336', '#4CAF50', '#2196F3', '#FF9800', '#9C27B0', '#607D8B'];
+
+/**
+ * 약복용 시간대별 집계의 슬롯 메타.
+ * - slotKey: 정규 그룹 키 (dose_slot_id ?? legacyKey→slot.id ?? meal_time)
+ * - label: 표시 라벨 (slot.label ?? formatSlotTime(slot.time))
+ * - color: sortOrder 기반 팔레트 순환
+ * - sortValue: 정렬용 (sortOrder*10000 + 시각 분 — sortOrder 우선, 동률 시 시각)
+ */
+interface MedSlotMeta {
+  slotKey: string;
+  label: string;
+  color: string;
+  sortValue: number;
+}
 
 export function useRecordDetailData(type: ItemKey, period: Period): UseRecordDetailDataReturn {
   const { user } = useAuth();
@@ -272,15 +286,18 @@ export function useRecordDetailData(type: ItemKey, period: Period): UseRecordDet
       let medLogs: MedLogRow[] = [];
       let onOffLogs: OnOffRow[] = [];
       let exLogs: ExRow[] = [];
+      let doseSlots: DoseSlot[] = [];
 
       if (type === 'medication') {
         const { data } = await supabase
           .from('med_logs')
-          .select('id, taken_at, meal_time')
+          .select('id, taken_at, meal_time, dose_slot_id')
           .eq('patient_id', patientId)
           .gte('taken_at', totalStart)
           .lte('taken_at', totalEnd);
         medLogs = data ?? [];
+        // 활성 dose_slots(시각순, N개). 없으면 [] → legacy meal_time 폴백 경로로 자연 처리.
+        doseSlots = await fetchPatientDoseSlots(patientId);
       } else if (type === 'exercise') {
         const { data } = await supabase
           .from('exercise_logs')
@@ -331,39 +348,114 @@ export function useRecordDetailData(type: ItemKey, period: Period): UseRecordDet
           label: r.label,
         }));
 
-        // 식사 시간대별 분류
-        const activeMeals = new Set<string>();
-        for (const log of medLogs) { if (log.meal_time) activeMeals.add(log.meal_time); }
-        const sortedMeals = MEAL_ORDER.filter(m => activeMeals.has(m));
+        // ── 시간대별: dose_slots(N개, 시각순) 기반 ──────────────────────────────
+        // legacyKey(meal_time) → 정규 dose_slot id 매핑 (이관 환자 키 통일, 4단계 패턴).
+        const legacyKeyToSlotId = new Map<string, string>();
+        doseSlots.forEach((s) => {
+          if (s.legacyKey && s.id) legacyKeyToSlotId.set(s.legacyKey, s.id);
+        });
+
+        // 로그 1건 → 정규 그룹 키.
+        //   우선순위: log.dose_slot_id ?? legacyKey(meal_time)→slot.id ?? meal_time
+        // 미이관 환자는 doseSlots 가 비어 매핑 실패 → meal_time 키 유지(legacy 정상).
+        const logSlotKey = (log: MedLogRow): string | null =>
+          log.dose_slot_id ??
+          (log.meal_time ? legacyKeyToSlotId.get(log.meal_time) : undefined) ??
+          log.meal_time ??
+          null;
+
+        // 슬롯 메타 맵 (정규 키 → 라벨/색/정렬). 활성 dose_slots 로 먼저 구성.
+        const slotMetaByKey = new Map<string, MedSlotMeta>();
+        doseSlots.forEach((s) => {
+          // 활성 슬롯의 정규 키: 실제 행이면 id, (이론상) id 없으면 legacyKey/시각.
+          const key = s.id ?? s.legacyKey ?? s.time;
+          if (!key || slotMetaByKey.has(key)) return;
+          slotMetaByKey.set(key, {
+            slotKey: key,
+            label: s.label ?? formatSlotTime(s.time),
+            color: MEAL_COLOR_PALETTE[s.sortOrder % MEAL_COLOR_PALETTE.length],
+            sortValue: s.sortOrder * 10000 + slotSortValue(s.time),
+          });
+        });
+
+        // 데이터에 등장하나 활성 목록에 없는 슬롯(비활성/삭제된 과거 기록) — 합집합 보존.
+        // 정규 키만 알고 메타가 없으므로, 같은 키의 임의 로그 1건으로 라벨을 복원한다.
+        //   - dose_slot_id 로만 남은 경우: 라벨/시각 알 수 없음 → '이전 복용' 폴백.
+        //   - legacy meal_time 으로 남은 경우: meal_time 자체가 키이자 표시 단서.
+        const legacyMealLabel: Record<string, string> = {
+          morning: '아침약', lunch: '점심약', dinner: '저녁약', bedtime: '취침약',
+        };
+        const legacyMealOrder: Record<string, number> = {
+          morning: 0, lunch: 1, dinner: 2, bedtime: 3,
+        };
+        let extraSeq = doseSlots.length; // 합집합 슬롯 색/정렬 순번(활성 뒤에 이어붙임)
+        for (const log of medLogs) {
+          const key = logSlotKey(log);
+          if (!key || slotMetaByKey.has(key)) continue;
+          // 활성 목록에 없는 키 → 합집합 추가.
+          const mealKey = log.meal_time ?? '';
+          const isLegacyMeal = mealKey in legacyMealLabel;
+          slotMetaByKey.set(key, {
+            slotKey: key,
+            label: isLegacyMeal ? legacyMealLabel[mealKey] : '이전 복용',
+            color: MEAL_COLOR_PALETTE[extraSeq % MEAL_COLOR_PALETTE.length],
+            // legacy meal 은 표준 순서, 그 외(삭제된 커스텀 슬롯)는 맨 뒤.
+            sortValue: isLegacyMeal
+              ? legacyMealOrder[mealKey] * 10000
+              : 9_000_000 + extraSeq,
+          });
+          extraSeq += 1;
+        }
+
+        const countInRange = (logs: MedLogRow[], slotKey: string) =>
+          logs.filter(l => logSlotKey(l) === slotKey).length;
+
+        // 표시 대상: 조회 구간(전체 ranges) 내 실제 복용 데이터가 1건이라도 있는 슬롯만.
+        // (기존 동작 보존 — 데이터 없는 슬롯은 현황/트렌드에 노출하지 않음.
+        //  과거 합집합 슬롯도 데이터가 있어야 등장하므로 자연히 만족.)
+        const slotsWithData = new Set<string>();
+        for (const log of medLogs) {
+          const key = logSlotKey(log);
+          if (key) slotsWithData.add(key);
+        }
+        // 정렬된 슬롯 키 목록 (sortOrder→시각순). 데이터 있는 슬롯만.
+        const sortedSlotMetas = Array.from(slotMetaByKey.values())
+          .filter(m => slotsWithData.has(m.slotKey))
+          .sort((a, b) => a.sortValue - b.sortValue);
 
         const mealTimeSlots: Record<string, { current: number; prev: number }> = {};
-        for (const meal of sortedMeals) {
-          mealTimeSlots[meal] = {
-            current: currLogs.filter(l => l.meal_time === meal).length,
-            prev: prevLogs.filter(l => l.meal_time === meal).length,
+        for (const meta of sortedSlotMetas) {
+          mealTimeSlots[meta.slotKey] = {
+            current: countInRange(currLogs, meta.slotKey),
+            prev: countInRange(prevLogs, meta.slotKey),
           };
         }
 
         const mealTSM: TimeSeriesMap = {};
-        for (const meal of sortedMeals) {
-          const color = MEAL_COLORS[meal] ?? '#607D8B';
+        for (const meta of sortedSlotMetas) {
           const mealPoints = ranges.map(r => ({
-            value: filterMed(medLogs, r.start, r.end).filter(l => l.meal_time === meal).length,
+            value: countInRange(filterMed(medLogs, r.start, r.end), meta.slotKey),
             label: r.label,
           }));
           const maxVal = Math.max(...mealPoints.map(p => p.value), 1);
-          mealTSM[meal] = { points: mealPoints, unit: '회', max: maxVal, color };
+          mealTSM[meta.slotKey] = { points: mealPoints, unit: '회', max: maxVal, color: meta.color };
         }
 
+        // 표시 라벨 맵(키→라벨)을 RecordDetailScreen 이 쓸 수 있게 summarySlot 에 동봉.
+        const slotLabels: Record<string, string> = {};
+        for (const meta of sortedSlotMetas) slotLabels[meta.slotKey] = meta.label;
+
+        const hasSlots = sortedSlotMetas.length > 0;
         setSummarySlot({
           current: medRate(currLogs, currRange.start, currRange.end),
           prev: medRate(prevLogs, prevRange.start, prevRange.end),
           unit: '%',
-          mealTimeSlots: sortedMeals.length > 0 ? mealTimeSlots : undefined,
+          mealTimeSlots: hasSlots ? mealTimeSlots : undefined,
+          mealSlotLabels: hasSlots ? slotLabels : undefined,
         });
         setTrendSeries({ points, unit: '%', max: 100, color: '#4CAF50' });
         setTimeSeriesMap(null);
-        setMealTimeSeriesMap(sortedMeals.length > 0 ? mealTSM : null);
+        setMealTimeSeriesMap(hasSlots ? mealTSM : null);
 
       } else if (type === 'sleep') {
         const points: TrendPoint[] = ranges.map(r => ({

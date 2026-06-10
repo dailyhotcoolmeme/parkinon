@@ -42,7 +42,7 @@ const LIVING = [
 type RelationKey = typeof RELATIONS[number]['key'];
 type LivingKey = typeof LIVING[number]['key'];
 
-const TOTAL_STEPS = 4;
+const TOTAL_STEPS = 5;
 
 export function CaregiverInfoScreen() {
   const navigation = useNavigation<Nav>();
@@ -91,8 +91,11 @@ export function CaregiverInfoScreen() {
       await AsyncStorage.setItem('onboarding_gender', gender);
       navigation.push('CaregiverInfo', { step: 4 });
     } else if (step === 4) {
-      if (!relation || !living) return;
+      if (!relation) return;
       await AsyncStorage.setItem('onboarding_relation', relation);
+      navigation.push('CaregiverInfo', { step: 5 });
+    } else if (step === 5) {
+      if (!living) return;
       await AsyncStorage.setItem('onboarding_living', living);
       navigation.navigate('MedicationRegister');
     }
@@ -102,7 +105,8 @@ export function CaregiverInfoScreen() {
     if (step === 1) return name.trim().length > 0;
     if (step === 2) return birthYear !== '';
     if (step === 3) return gender !== null;
-    if (step === 4) return relation !== null && living !== null;
+    if (step === 4) return relation !== null;
+    if (step === 5) return living !== null;
     return false;
   };
 
@@ -199,9 +203,13 @@ export function CaregiverInfoScreen() {
                   </TouchableOpacity>
                 ))}
               </View>
+            </View>
+          )}
 
-              <View style={styles.sectionDivider} />
-              <Text style={styles.sectionTitle}>현재 어디서 지내시나요?</Text>
+          {step === 5 && (
+            <View>
+              <Text style={styles.title}>현재 어디서{'\n'}지내시나요?</Text>
+              <Text style={styles.subtitle}>환자분과 함께 지내시는지 알려주세요</Text>
 
               <View style={styles.livingArea}>
                 {LIVING.map((l) => (
@@ -317,14 +325,14 @@ const styles = StyleSheet.create({
   relationBtnSelected: { borderColor: Colors.primary, backgroundColor: Colors.light },
   relationText: { fontSize: 16, fontWeight: '700', color: Colors.textSub },
   relationTextSelected: { color: Colors.dark },
-  livingArea: { gap: 12 },
+  livingArea: { gap: 16, marginTop: 8 },
   livingBtn: {
     flexDirection: 'row', alignItems: 'center',
-    backgroundColor: Colors.white, borderRadius: 14, borderWidth: 2, borderColor: Colors.border,
-    padding: 18, gap: 14, minHeight: 64,
+    backgroundColor: Colors.white, borderRadius: 16, borderWidth: 2, borderColor: Colors.border,
+    paddingVertical: 28, paddingHorizontal: 22, gap: 14, minHeight: 88,
   },
   livingBtnSelected: { borderColor: Colors.primary, backgroundColor: Colors.light },
-  livingText: { flex: 1, fontSize: 18, fontWeight: '600', color: Colors.textSub },
+  livingText: { flex: 1, fontSize: 20, fontWeight: '700', color: Colors.textSub },
   livingTextSelected: { color: Colors.dark },
   radioOuter: { width: 24, height: 24, borderRadius: 12, borderWidth: 2, borderColor: Colors.border, alignItems: 'center', justifyContent: 'center' },
   radioOuterSelected: { borderColor: Colors.primary },

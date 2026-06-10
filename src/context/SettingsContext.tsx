@@ -9,6 +9,8 @@ export interface MedNotif {
   id: string;
   minutes: number;
   enabled: boolean;
+  /** 이 알림에 쓸 녹음 목소리(custom_sounds.id). 없으면 기본 목소리(단일 설정)로 폴백 */
+  soundId?: string | null;
 }
 
 export interface ExerciseNotif {
@@ -17,6 +19,8 @@ export interface ExerciseNotif {
   hour: number;
   minute: number;
   enabled: boolean;
+  /** 이 알림에 쓸 녹음 목소리(custom_sounds.id). 없으면 기본 목소리(단일 설정)로 폴백 */
+  soundId?: string | null;
 }
 
 interface SettingsContextValue {
@@ -38,6 +42,15 @@ interface SettingsContextValue {
   recheckSystemPermission: () => Promise<void>;
   /** 개별 알림 전체 OFF 여부를 반영해 전체 알림 토글 자동 동기화 */
   syncGlobalFromIndividual: () => void;
+  /**
+   * 실시간 동기화 전용 — 원격(다른 기기/보호자)에서 바뀐 값을 로컬 state에만 반영.
+   * DB에 다시 쓰지 않아 에코 루프를 막는다.
+   */
+  applyRemoteNotifPrefs: (row: {
+    med_notif_prefs?: MedNotif[] | null;
+    exercise_notif_prefs?: ExerciseNotif[] | null;
+    notification_enabled?: boolean | null;
+  }) => void;
 }
 
 const SettingsContext = createContext<SettingsContextValue | null>(null);
@@ -45,7 +58,7 @@ const SettingsContext = createContext<SettingsContextValue | null>(null);
 const STORAGE_KEY_MED = 'settings_med_notifs';
 const STORAGE_KEY_EXERCISE = 'settings_exercise_notifs';
 
-const DEFAULT_MED_NOTIFS: MedNotif[] = [
+export const DEFAULT_MED_NOTIFS: MedNotif[] = [
   { id: '2', minutes: 30, enabled: true },
   { id: '3', minutes: 120, enabled: true },
 ];
@@ -77,7 +90,7 @@ export function SettingsProvider({ children }: { children: React.ReactNode }) {
       setSystemPermissionGranted(granted);
 
       if (status !== 'granted' && status !== 'undetermined') {
-        // denied → 앱 강제 OFF + DB 저장 (기존 로직 유지)
+        // denied → OS가 알림을 막으므로 앱도 강제 OFF + DB 저장 (하드 제약)
         setNotificationEnabledState(false);
         try {
           const { data: { session } } = await supabase.auth.getSession();
@@ -98,29 +111,11 @@ export function SettingsProvider({ children }: { children: React.ReactNode }) {
         } catch (e) {
           console.warn('[SettingsContext] 시스템 권한 차단 DB 동기화 오류:', e);
         }
-      } else if (status === 'granted') {
-        // granted로 복귀 → 앱 알림도 자동 ON + DB 저장
-        setNotificationEnabledState(true);
-        try {
-          const { data: { session } } = await supabase.auth.getSession();
-          if (session?.user) {
-            const SUPABASE_URL = process.env.EXPO_PUBLIC_SUPABASE_URL!;
-            const SUPABASE_ANON_KEY = process.env.EXPO_PUBLIC_SUPABASE_ANON_KEY!;
-            await fetch(`${SUPABASE_URL}/rest/v1/users?id=eq.${session.user.id}`, {
-              method: 'PATCH',
-              headers: {
-                'apikey': SUPABASE_ANON_KEY,
-                'Authorization': `Bearer ${session.access_token}`,
-                'Content-Type': 'application/json',
-                'Prefer': 'return=minimal',
-              },
-              body: JSON.stringify({ notification_enabled: true }),
-            });
-          }
-        } catch (e) {
-          console.warn('[SettingsContext] 시스템 권한 허용 DB 동기화 오류:', e);
-        }
       }
+      // granted / undetermined → 시스템 권한 상태(systemPermissionGranted)만 갱신하고
+      // 앱의 전체 알림 토글(notificationEnabled)은 사용자가 저장한 DB 값을 그대로 따른다.
+      // ⚠️ 예전엔 granted면 무조건 true로 덮어써, 사용자가 끈 전체 알림 OFF가
+      //    앱 재시작/포그라운드마다 ON으로 되살아나는 버그가 있었음 → 강제 ON 제거.
     } catch (e) {
       console.warn('[SettingsContext] 시스템 권한 확인 오류:', e);
     }
@@ -299,38 +294,21 @@ export function SettingsProvider({ children }: { children: React.ReactNode }) {
     setNotificationEnabledState(enabled);
 
     if (!enabled) {
-      // 전체 알림 OFF: 예약 알림 전부 취소 + 개별 알림 state 모두 false
+      // 전체 알림 OFF: 예약 알림 전부 취소
       try {
         await Notifications.cancelAllScheduledNotificationsAsync();
       } catch (e) {
         console.warn('[SettingsContext] 알림 취소 오류:', e);
       }
-      setMedNotifsState(prev => {
-        const next = prev.map(n => ({ ...n, enabled: false }));
-        AsyncStorage.setItem(STORAGE_KEY_MED, JSON.stringify(next)).catch(console.warn);
-        return next;
-      });
-      setExerciseNotifsState(prev => {
-        const next = prev.map(n => ({ ...n, enabled: false }));
-        AsyncStorage.setItem(STORAGE_KEY_EXERCISE, JSON.stringify(next)).catch(console.warn);
-        return next;
-      });
-    } else {
-      // 전체 알림 ON: 개별 알림 state 모두 true
-      setMedNotifsState(prev => {
-        const next = prev.map(n => ({ ...n, enabled: true }));
-        AsyncStorage.setItem(STORAGE_KEY_MED, JSON.stringify(next)).catch(console.warn);
-        return next;
-      });
-      setExerciseNotifsState(prev => {
-        const next = prev.map(n => ({ ...n, enabled: true }));
-        AsyncStorage.setItem(STORAGE_KEY_EXERCISE, JSON.stringify(next)).catch(console.warn);
-        return next;
-      });
     }
 
+    // 전체 토글 → 개별(약효 추적/운동) 알림 일괄 반영 + AsyncStorage + DB 저장
+    // (영속 setter 사용 — 이전엔 state/AsyncStorage만 바꿔 재시작 시 DB값으로 되돌아갔음)
+    setMedNotifs(prev => prev.map(n => ({ ...n, enabled })));
+    setExerciseNotifs(prev => prev.map(n => ({ ...n, enabled })));
+
     await _persistNotificationEnabled(enabled);
-  }, [_persistNotificationEnabled]);
+  }, [_persistNotificationEnabled, setMedNotifs, setExerciseNotifs]);
 
   /**
    * DB/시스템 상태 동기화 전용 — 개별 알림 state를 건드리지 않고
@@ -349,6 +327,27 @@ export function SettingsProvider({ children }: { children: React.ReactNode }) {
     }
     await _persistNotificationEnabled(enabled);
   }, [_persistNotificationEnabled]);
+
+  // 실시간 동기화 전용: 원격에서 바뀐 값을 로컬 state + AsyncStorage에만 반영 (DB 재쓰기 X)
+  const applyRemoteNotifPrefs = useCallback((row: {
+    med_notif_prefs?: MedNotif[] | null;
+    exercise_notif_prefs?: ExerciseNotif[] | null;
+    notification_enabled?: boolean | null;
+  }) => {
+    if (row.med_notif_prefs) {
+      const med = (row.med_notif_prefs as MedNotif[]).filter(n => n.minutes !== 0);
+      setMedNotifsState(med);
+      AsyncStorage.setItem(STORAGE_KEY_MED, JSON.stringify(med)).catch(() => {});
+    }
+    if (row.exercise_notif_prefs) {
+      const ex = row.exercise_notif_prefs as ExerciseNotif[];
+      setExerciseNotifsState(ex);
+      AsyncStorage.setItem(STORAGE_KEY_EXERCISE, JSON.stringify(ex)).catch(() => {});
+    }
+    if (typeof row.notification_enabled === 'boolean') {
+      setNotificationEnabledState(row.notification_enabled);
+    }
+  }, []);
 
   // 개별 알림이 변경될 때마다: 전부 OFF면 전체 알림도 OFF, 하나라도 ON이면 전체 알림 ON
   const syncGlobalFromIndividual = useCallback(() => {
@@ -400,6 +399,7 @@ export function SettingsProvider({ children }: { children: React.ReactNode }) {
       systemPermissionGranted,
       recheckSystemPermission,
       syncGlobalFromIndividual,
+      applyRemoteNotifPrefs,
     }}>
       {children}
     </SettingsContext.Provider>

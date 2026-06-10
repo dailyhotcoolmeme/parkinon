@@ -10,44 +10,77 @@ import {
 import { Ionicons } from '@expo/vector-icons';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Colors } from '../../constants/colors';
+import { useDoseSlots, resolveDisplaySlots, type DoseSlot } from '../../hooks/useDoseSlots';
+import { LEGACY_SLOT_META, formatSlotTime } from '../../constants/doseSlots';
 
 type MealTime = 'morning' | 'lunch' | 'dinner' | 'bedtime';
 type IoniconName = React.ComponentProps<typeof Ionicons>['name'];
 
 interface Props {
   visible: boolean;
-  onSelect: (mealTime: MealTime) => void;
+  /** 5단계: {mealTime(legacy key, 없으면 null), doseSlotId(dose_slots.id, 없으면 null)} 전달. */
+  onSelect: (sel: { mealTime: MealTime | null; doseSlotId: string | null }) => void;
   onClose: () => void;
   mealSchedules?: Record<string, string> | null;
   notifPrefs?: Record<string, boolean> | null;
 }
 
-function formatMealTime(timeStr: string): string {
-  const [h, m] = timeStr.split(':').map(Number);
-  const ampm = h < 12 ? '오전' : '오후';
-  const hour = h % 12 === 0 ? 12 : h % 12;
-  return `${ampm} ${hour}:${m.toString().padStart(2, '0')}`;
+// 표시용 옵션. selectKey = legacy meal key(있으면), doseSlotId = dose_slots.id(이관 환자).
+// 5단계: dose_slot_id 가 있으면 비표준 라벨 슬롯도 선택 가능.
+interface MealOption {
+  key: string;                 // 렌더 key (slot id 또는 legacy key)
+  selectKey: MealTime | null;  // onSelect 전달용 legacy key (비표준 슬롯이면 null)
+  doseSlotId: string | null;   // onSelect 전달용 dose_slots.id (legacy 가상슬롯이면 null)
+  label: string;
+  time: string;                // 'HH:MM'
+  icon: IoniconName;
+  color: string;
+  notifOn: boolean;
 }
 
-const MEAL_DEFAULT_TIMES: Record<MealTime, string> = {
-  morning: '08:00',
-  lunch:   '12:00',
-  dinner:  '18:00',
-  bedtime: '22:00',
-};
+// dose_slot.legacyKey → 아이콘/색. 비표준 슬롯은 시간대 기반 기본값.
+function slotIcon(slot: DoseSlot): { icon: IoniconName; color: string } {
+  if (slot.legacyKey) {
+    const meta = LEGACY_SLOT_META[slot.legacyKey];
+    return { icon: meta.icon as IoniconName, color: meta.color };
+  }
+  // 비표준 슬롯: 시각으로 대략 아이콘 추정
+  const h = parseInt(slot.time.split(':')[0] ?? '0', 10);
+  if (h < 11) return { icon: 'sunny-outline', color: '#FF9800' };
+  if (h < 15) return { icon: 'partly-sunny-outline', color: '#4CAF50' };
+  if (h < 21) return { icon: 'moon-outline', color: '#3F51B5' };
+  return { icon: 'bed-outline', color: '#7C4DFF' };
+}
 
-const MEAL_OPTIONS: { id: MealTime; label: string; icon: IoniconName; color: string }[] = [
-  { id: 'morning', label: '아침 약', icon: 'sunny-outline',        color: '#FF9800' },
-  { id: 'lunch',   label: '점심 약', icon: 'partly-sunny-outline', color: '#4CAF50' },
-  { id: 'dinner',  label: '저녁 약', icon: 'moon-outline',         color: '#3F51B5' },
-  { id: 'bedtime', label: '취침 약', icon: 'bed-outline',          color: '#7C4DFF' },
-];
+function buildOptions(slots: DoseSlot[]): MealOption[] {
+  return slots.map((slot) => {
+    const { icon, color } = slotIcon(slot);
+    // 라벨: dose_slot.label 우선 + '약' 접미사(기존 '아침 약' 표기 유지)
+    const baseLabel = slot.label || formatSlotTime(slot.time);
+    return {
+      key: (slot.id ?? slot.legacyKey ?? slot.time) as string,
+      selectKey: slot.legacyKey,
+      doseSlotId: slot.id,
+      label: `${baseLabel} 약`,
+      time: slot.time,
+      icon,
+      color,
+      notifOn: slot.remindEnabled,
+    };
+  });
+}
 
 export function MealTimeModal({ visible, onSelect, onClose, mealSchedules, notifPrefs }: Props) {
   const insets = useSafeAreaInsets();
   const fadeAnim = useRef(new Animated.Value(0)).current;
   const slideAnim = useRef(new Animated.Value(80)).current;
-  const [selected, setSelected] = useState<MealTime | null>(null);
+  const [selected, setSelected] = useState<string | null>(null);
+
+  // dose_slots(이관) 우선, 없으면 legacy meal_schedules/notifPrefs 폴백.
+  const { slots: doseSlots } = useDoseSlots();
+  const displaySlots = resolveDisplaySlots(doseSlots, mealSchedules, notifPrefs);
+  const options = buildOptions(displaySlots);
+  const selectedOption = options.find((o) => o.key === selected) ?? null;
 
   useEffect(() => {
     if (visible) {
@@ -63,8 +96,10 @@ export function MealTimeModal({ visible, onSelect, onClose, mealSchedules, notif
   }, [visible]);
 
   const handleSubmit = () => {
-    if (!selected) return;
-    onSelect(selected);
+    if (!selectedOption) return;
+    // dose_slot_id 또는 legacy key 중 하나라도 있으면 선택 가능(비표준 슬롯 포함).
+    if (!selectedOption.doseSlotId && !selectedOption.selectKey) return;
+    onSelect({ mealTime: selectedOption.selectKey, doseSlotId: selectedOption.doseSlotId });
   };
 
   return (
@@ -79,35 +114,38 @@ export function MealTimeModal({ visible, onSelect, onClose, mealSchedules, notif
           <Text style={styles.subtitle}>복용한 시간대를 선택해주세요</Text>
 
           <View style={styles.optionList}>
-            {MEAL_OPTIONS.map((opt, i) => {
-              const notifOn = !notifPrefs || notifPrefs[opt.id] !== false;
-              const rawTime = mealSchedules?.[opt.id] ?? MEAL_DEFAULT_TIMES[opt.id];
-              const displayTime = formatMealTime(rawTime);
+            {options.map((opt, i) => {
+              const notifOn = opt.notifOn;
+              const displayTime = formatSlotTime(opt.time);
               const iconColor = notifOn ? opt.color : '#AAAAAA';
-              const isSelected = selected === opt.id;
+              const isSelected = selected === opt.key;
+              // 5단계: dose_slot_id 또는 legacy key 가 있으면 선택 가능(비표준 슬롯도 쓰기 가능).
+              const selectable = !!(opt.doseSlotId || opt.selectKey);
 
               return (
                 <TouchableOpacity
-                  key={opt.id}
+                  key={opt.key}
                   style={[
                     styles.optionRow,
-                    i < MEAL_OPTIONS.length - 1 && styles.optionRowBorder,
+                    i < options.length - 1 && styles.optionRowBorder,
                     !notifOn && styles.optionRowDim,
                     isSelected && styles.optionRowSelected,
+                    !selectable && styles.optionRowDim,
                   ]}
-                  onPress={() => setSelected(opt.id)}
-                  activeOpacity={0.75}
+                  onPress={() => { if (selectable) setSelected(opt.key); }}
+                  activeOpacity={selectable ? 0.75 : 1}
+                  disabled={!selectable}
                 >
                   <View style={[styles.iconCircle, { backgroundColor: iconColor + '22' }]}>
                     <Ionicons name={opt.icon} size={30} color={iconColor} />
                   </View>
                   <View style={styles.optionText}>
-                    <Text style={[styles.optionLabel, !notifOn && styles.dimText]}>{opt.label}</Text>
-                    <Text style={[styles.optionTime, !notifOn && styles.dimText]}>{displayTime}</Text>
+                    <Text style={[styles.optionLabel, (!notifOn || !selectable) && styles.dimText]}>{opt.label}</Text>
+                    <Text style={[styles.optionTime, (!notifOn || !selectable) && styles.dimText]}>{displayTime}</Text>
                   </View>
                   {isSelected ? (
                     <Ionicons name="checkmark-circle" size={28} color={Colors.primary} />
-                  ) : notifOn ? (
+                  ) : !selectable ? null : notifOn ? (
                     <Ionicons name="chevron-forward" size={22} color={Colors.textHint} />
                   ) : (
                     <View style={styles.noNotifBadge}>
@@ -125,10 +163,10 @@ export function MealTimeModal({ visible, onSelect, onClose, mealSchedules, notif
               <Text style={styles.closeText}>닫기</Text>
             </TouchableOpacity>
             <TouchableOpacity
-              style={[styles.submitBtn, !selected && styles.submitBtnDisabled]}
+              style={[styles.submitBtn, !(selectedOption?.doseSlotId || selectedOption?.selectKey) && styles.submitBtnDisabled]}
               onPress={handleSubmit}
               activeOpacity={0.8}
-              disabled={!selected}
+              disabled={!(selectedOption?.doseSlotId || selectedOption?.selectKey)}
             >
               <Text style={styles.submitText}>등록</Text>
             </TouchableOpacity>

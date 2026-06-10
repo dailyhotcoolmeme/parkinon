@@ -23,6 +23,7 @@
 import { useState, useCallback } from 'react';
 import { supabase } from '../lib/supabase';
 import { useAuth } from '../context/AuthContext';
+import { ensureGroupMember } from '../utils/groupMembership';
 import type { Database } from '../types/database';
 
 const SUPABASE_URL = process.env.EXPO_PUBLIC_SUPABASE_URL!;
@@ -136,21 +137,9 @@ export function useFamilyLink(): UseFamilyLinkReturn {
       const newGroup = insertedGroups?.[0];
       if (!newGroup?.id) throw new Error('그룹 생성에 실패했어요.');
 
-      // patient_group_members에 본인 추가 (fetch POST)
-      const memberHeaders = await buildHeaders('return=minimal');
-      const memberRes = await fetch(`${SUPABASE_URL}/rest/v1/patient_group_members`, {
-        method: 'POST',
-        headers: memberHeaders,
-        body: JSON.stringify({
-          group_id: newGroup.id,
-          user_id: user.id,
-          role: user.role ?? 'patient',
-        }),
-      });
-      if (!memberRes.ok) {
-        const errText = await memberRes.text();
-        throw new Error(`멤버 추가 실패 (HTTP ${memberRes.status}): ${errText}`);
-      }
+      // patient_group_members에 본인 추가 (재시도 + 검증, 실패 시 throw)
+      const baseHeaders = await buildHeaders();
+      await ensureGroupMember(SUPABASE_URL, baseHeaders, newGroup.id, user.id, user.role ?? 'patient');
 
       // users 테이블의 patient_group_id 업데이트 (fetch PATCH)
       const userUpdateHeaders = await buildHeaders('return=minimal');
@@ -221,21 +210,11 @@ export function useFamilyLink(): UseFamilyLinkReturn {
       }
     }
 
-    // 3) 새 그룹에 멤버 추가
-    const memberHeaders = await buildHeaders('return=minimal');
-    const memberRes = await fetch(`${SUPABASE_URL}/rest/v1/patient_group_members`, {
-      method: 'POST',
-      headers: memberHeaders,
-      body: JSON.stringify({
-        group_id: targetGroupId,
-        user_id: user.id,
-        role: user.role ?? 'caregiver',
-      }),
-    });
-    if (!memberRes.ok) {
-      const errText = await memberRes.text();
-      throw new Error(`멤버 추가 실패 (HTTP ${memberRes.status}): ${errText}`);
-    }
+    // 3) 새 그룹에 멤버 추가 (재시도 + 검증, 실패 시 throw → 멤버 누락 방지)
+    //    이 행이 patient_group_members에 반드시 들어가야 RLS is_same_patient_group()이
+    //    true가 되어 같은 그룹 가족 정보가 정상 노출된다.
+    const baseHeaders = await buildHeaders();
+    await ensureGroupMember(SUPABASE_URL, baseHeaders, targetGroupId, user.id, user.role ?? 'caregiver');
 
     // 4) users 테이블의 patient_group_id 업데이트
     const userUpdateHeaders = await buildHeaders('return=minimal');

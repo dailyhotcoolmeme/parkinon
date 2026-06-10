@@ -6,7 +6,6 @@ import {
   TouchableOpacity,
   ScrollView,
   StyleSheet,
-  Alert,
   Modal,
   Animated,
   Dimensions,
@@ -24,7 +23,10 @@ import { TopBar } from '../../components/common/TopBar';
 import { useSettings, MedNotif, ExerciseNotif } from '../../context/SettingsContext';
 import { useAuth } from '../../context/AuthContext';
 import { useNotificationBadge } from '../../context/NotificationBadgeContext';
+import { useDialog } from '../../context/DialogContext';
 import { minutesToLabel } from '../../utils/medUtils';
+import { ensureNotGuest } from '../../utils/guestGuard';
+import { markMedNotifUserEdited } from '../../utils/medNotifRecommendationMeta';
 import { supabase } from '../../lib/supabase';
 import type { StackNavigationProp } from '@react-navigation/stack';
 import type { MenuStackParamList } from '../../navigation/MenuNavigator';
@@ -33,6 +35,10 @@ import {
   scheduleMedicationReminders,
   scheduleExerciseReminders,
 } from '../../utils/notifications';
+import { provisionForUser } from '../../lib/alarmSound';
+import { AlarmSoundPickerRow, AlarmSoundOption } from '../../components/common/AlarmSoundPickerRow';
+import { DoseSlotSetList } from '../../components/settings/DoseSlotSetList';
+import { ensurePatientDoseSlots } from '../../hooks/useDoseSlots';
 
 interface CaregiverNotif {
   id: string;
@@ -43,10 +49,11 @@ interface CaregiverNotif {
 
 const DEFAULT_CAREGIVER_NOTIFS: CaregiverNotif[] = [
   { id: 'med_taken', label: '환자 약 복용 기록 시', sub: '환자가 약 복용 기록 시 알림을 받아요', enabled: true },
-  { id: 'med_missed', label: '환자 약 미복용 알림 2차', sub: '환자가 약 미복용 20분이 되면 알림을 받아요\n알림을 받으면 환자에게 알려주세요', enabled: true },
+  { id: 'med_missed', label: '환자 약 미복용 알림 2차', sub: '환자가 약 미복용 20분이 되면 알림을 받아요\n알림을 받으면 환자께 알려주세요', enabled: true },
   { id: 'body_state', label: '몸상태 기록 시', enabled: true },
   { id: 'mood', label: '기분 기록 시', enabled: true },
   { id: 'exercise', label: '운동 기록 시', enabled: true },
+  { id: 'measurement_completed', label: '컨디션 측정 완료 시', sub: '환자가 손가락·반응속도 측정을 마치면 알림을 받아요', enabled: true },
   { id: 'sleep', label: '수면 기록 시', enabled: false },
   { id: 'constipation', label: '변비 기록 시', enabled: false },
 ];
@@ -119,6 +126,49 @@ async function patchUser(userId: string, accessToken: string, body: Record<strin
   });
 }
 
+// 보호자가 "환자"의 알림 설정 컬럼을 수정할 때 사용.
+// users UPDATE RLS는 본인 행만 허용하므로, 같은 그룹 검증 + 알림 컬럼만 갱신하는
+// SECURITY DEFINER RPC(update_patient_notif_prefs)를 호출한다. body는 patchUser와 동일한
+// 형태({ med_time_notif_prefs / med_notif_prefs / exercise_notif_prefs / meal_schedules })를 받는다.
+async function patchPatientUser(patientId: string, accessToken: string, body: Record<string, unknown>) {
+  const res = await fetch(`${SUPABASE_URL}/rest/v1/rpc/update_patient_notif_prefs`, {
+    method: 'POST',
+    headers: {
+      'apikey': SUPABASE_ANON_KEY,
+      'Authorization': `Bearer ${accessToken}`,
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify({ p_patient_id: patientId, p_prefs: body }),
+  });
+  if (!res.ok) {
+    const txt = await res.text();
+    throw new Error(`환자 알림 설정 저장 실패 (HTTP ${res.status}): ${txt}`);
+  }
+  return res;
+}
+
+// ─── 전체 알림(마스터) 계산 ─────────────────────────────────────────────────────
+// 전체 알림 표시 = 개별이 "전부 ON"일 때만 ON (select-all).
+// notification_enabled(발송 게이트) = "하나라도 ON" — 켠 개별 알림은 실제 발송되도록.
+function relevantMedTimeSlots(activeSlots: string[]): string[] {
+  return activeSlots.length > 0 ? [...activeSlots, 'missed_first', 'missed_second'] : [];
+}
+function computeAnyNotifOn(
+  medTime: Record<string, boolean>, activeSlots: string[],
+  medN: { enabled: boolean }[], exN: { enabled: boolean }[],
+): boolean {
+  const slots = relevantMedTimeSlots(activeSlots);
+  return slots.some(s => !!medTime[s]) || medN.some(n => n.enabled) || exN.some(n => n.enabled);
+}
+function computeAllNotifOn(
+  medTime: Record<string, boolean>, activeSlots: string[],
+  medN: { enabled: boolean }[], exN: { enabled: boolean }[],
+): boolean {
+  const slots = relevantMedTimeSlots(activeSlots);
+  if (slots.length === 0 && medN.length === 0 && exN.length === 0) return false;
+  return slots.every(s => medTime[s] !== false) && medN.every(n => n.enabled) && exN.every(n => n.enabled);
+}
+
 // ─── Component ────────────────────────────────────────────────────────────────
 
 const MED_TIME_SLOTS = [
@@ -131,11 +181,12 @@ const MED_TIME_SLOTS = [
 type MedTimeSlotKey = 'morning' | 'lunch' | 'dinner' | 'bedtime';
 
 export function SettingsScreen() {
-  const { user } = useAuth();
+  const { user, signOut } = useAuth();
   const navigation = useNavigation<StackNavigationProp<MenuStackParamList>>();
   const insets = useSafeAreaInsets();
   const isCaregiver = user?.role === 'caregiver';
   const { unreadCount } = useNotificationBadge();
+  const dialog = useDialog();
 
   // Settings context (shared with Records screens)
   const {
@@ -144,6 +195,7 @@ export function SettingsScreen() {
     notificationEnabled, setNotificationEnabled, setNotificationEnabledOnly,
     systemPermissionGranted, recheckSystemPermission,
     syncGlobalFromIndividual,
+    applyRemoteNotifPrefs,
   } = useSettings();
 
   // 약 복용 시간 알림 per-slot 설정
@@ -155,6 +207,8 @@ export function SettingsScreen() {
     morning: '08:00', lunch: '12:00', dinner: '18:00', bedtime: '22:00',
   });
   const [activeMedSlots, setActiveMedSlots] = useState<MedTimeSlotKey[]>([]);
+  // 약 시간 슬롯별 목소리 (slot → custom_sound_id | null). 없으면 기본 목소리
+  const [medTimeSounds, setMedTimeSounds] = useState<Record<string, string | null>>({});
   const [hasMedicationRegistered, setHasMedicationRegistered] = useState(false);
 
   // 환자 알림 수정 (보호자용)
@@ -171,6 +225,11 @@ export function SettingsScreen() {
   });
   const [patientMedNotifs, setPatientMedNotifs] = useState<MedNotif[]>([]);
   const [patientExerciseNotifs, setPatientExerciseNotifs] = useState<ExerciseNotif[]>([]);
+  // 그룹 녹음 목록 (알림별 소리 선택용)
+  const [alarmSounds, setAlarmSounds] = useState<AlarmSoundOption[]>([]);
+  // 환자의 전체 알림(마스터) 상태 — '환자 알림 수정' 토글 게이팅에 사용.
+  // (보호자 자신의 notificationEnabled가 아니라 환자 값으로 표시해야 일치함)
+  const [patientNotificationEnabled, setPatientNotificationEnabled] = useState(true);
 
   // 약 복용 시간 알림 설정 로드 + 약 관리에서 설정한 실제 시간 조회
   const loadMedTimePrefs = React.useCallback(async () => {
@@ -178,11 +237,14 @@ export function SettingsScreen() {
     try {
       const { data } = await supabase
         .from('users')
-        .select('med_time_notif_prefs, meal_schedules')
+        .select('med_time_notif_prefs, med_time_sound_prefs, meal_schedules')
         .eq('id', user.id)
         .single();
       if (data?.med_time_notif_prefs) {
         setMedTimePrefs(prev => ({ ...prev, ...data.med_time_notif_prefs }));
+      }
+      if (data?.med_time_sound_prefs) {
+        setMedTimeSounds((data.med_time_sound_prefs as Record<string, string | null>) ?? {});
       }
       // 약 관리에서 설정한 실제 복용 시간 조회 (슬롯별 가장 이른 시간)
       const { data: meds } = await supabase
@@ -219,13 +281,41 @@ export function SettingsScreen() {
         setMedSlotTimes(defaultTimes);
         setActiveMedSlots(['morning', 'lunch', 'dinner', 'bedtime']);
       }
+
+      // ── 세트카드용 dose_slots 부트스트랩 ────────────────────────────────────
+      // 미이관/온보딩 직후라 dose_slots 가 0개인 환자만 legacy meal_schedules 기준으로
+      // 4슬롯을 생성한다. 이미 dose_slots 가 있으면 건드리지 않는다(6단계에서 직접 수정하므로
+      // ensure 의 멱등 update 가 사용자가 세트카드에서 바꾼 값을 되돌리지 않게).
+      try {
+        const { count } = await supabase
+          .from('dose_slots')
+          .select('id', { count: 'exact', head: true })
+          .eq('patient_id', user.id)
+          .eq('is_active', true);
+        if (!count || count === 0) {
+          const enabledMin = (medNotifs ?? [])
+            .filter(n => n.enabled && n.minutes > 0)
+            .map(n => n.minutes);
+          await ensurePatientDoseSlots(
+            user.id,
+            (data?.meal_schedules ?? null) as any,
+            (data?.med_time_notif_prefs ?? null) as any,
+            enabledMin.length > 0 ? enabledMin : null,
+          );
+        }
+      } catch (e) {
+        console.warn('[SettingsScreen] dose_slots 부트스트랩 실패(계속):', e);
+      }
     } catch {}
-  }, [user, isCaregiver]);
+  }, [user, isCaregiver, medNotifs]);
 
   const toggleMedTimeSlot = async (slot: string) => {
     const prev = medTimePrefs;
     const next = { ...prev, [slot]: !prev[slot] };
     setMedTimePrefs(next);
+    // 발송 게이트(notification_enabled) = "하나라도 ON" (전체 토글 표시는 별도로 select-all)
+    const anyOn = computeAnyNotifOn(next, activeMedSlots, medNotifs, exerciseNotifs);
+    if (anyOn !== notificationEnabled) setNotificationEnabledOnly(anyOn);
     try {
       // fetch API 직접 사용 (supabase-js New Architecture hang 우회)
       const { data: { session } } = await supabase.auth.getSession();
@@ -234,7 +324,7 @@ export function SettingsScreen() {
     } catch (e) {
       console.error('[SettingsScreen] toggleMedTimeSlot 저장 실패:', e);
       setMedTimePrefs(prev);
-      Alert.alert('저장 실패', '알림 설정을 저장하지 못했어요.\n인터넷 연결을 확인하고 다시 시도해주세요.');
+      await dialog.alert({ title: '저장 실패', message: '알림 설정을 저장하지 못했어요.\n인터넷 연결을 확인하고 다시 시도해주세요.' });
     }
   };
 
@@ -278,7 +368,7 @@ export function SettingsScreen() {
 
       // 2. 환자의 알림 설정 + 이름 (raw fetch)
       const userRes = await fetch(
-        `${SUPABASE_URL}/rest/v1/users?id=eq.${pid}&select=med_time_notif_prefs,med_notif_prefs,exercise_notif_prefs,meal_schedules,name&limit=1`,
+        `${SUPABASE_URL}/rest/v1/users?id=eq.${pid}&select=med_time_notif_prefs,med_notif_prefs,exercise_notif_prefs,meal_schedules,name,notification_enabled&limit=1`,
         { headers }
       );
       const userData = await userRes.json();
@@ -289,6 +379,8 @@ export function SettingsScreen() {
       } else {
         console.warn('[SettingsScreen] 환자 name이 없음:', patientUser);
       }
+      // 환자의 전체 알림(마스터) 상태 — '환자 알림 수정' 토글 게이팅용
+      setPatientNotificationEnabled(patientUser?.notification_enabled ?? true);
       if (patientUser?.med_time_notif_prefs) {
         setPatientMedTimePrefs(prev => ({ ...prev, ...patientUser.med_time_notif_prefs }));
       }
@@ -347,20 +439,65 @@ export function SettingsScreen() {
     }
   }, [user, isCaregiver]);
 
+  // 보호자가 환자의 전체 알림을 켜고 끔. 전체 ON → 환자 개별 알림 모두 ON, OFF → 모두 OFF
+  // (전체=개별 일괄). 환자 notification_enabled + 모든 개별 prefs를 한 번에 저장.
+  const togglePatientMaster = async (enabled: boolean) => {
+    if (!patientId) return;
+    const prevMaster = patientNotificationEnabled;
+    const prevMedTime = patientMedTimePrefs;
+    const prevMed = patientMedNotifs;
+    const prevEx = patientExerciseNotifs;
+
+    const SLOT_KEYS = ['morning', 'lunch', 'dinner', 'bedtime', 'missed_first', 'missed_second'];
+    const nextMedTime: Record<string, boolean> = { ...patientMedTimePrefs };
+    Object.keys(nextMedTime).forEach(k => { nextMedTime[k] = enabled; });
+    SLOT_KEYS.forEach(k => { nextMedTime[k] = enabled; });
+    const nextMed = patientMedNotifs.map(n => ({ ...n, enabled }));
+    const nextEx = patientExerciseNotifs.map(n => ({ ...n, enabled }));
+
+    setPatientNotificationEnabled(enabled);
+    setPatientMedTimePrefs(nextMedTime);
+    setPatientMedNotifs(nextMed);
+    setPatientExerciseNotifs(nextEx);
+
+    try {
+      const { data: { session } } = await supabase.auth.getSession();
+      if (!session?.access_token) throw new Error('세션이 만료되었어요');
+      await patchPatientUser(patientId, session.access_token, {
+        notification_enabled: enabled,
+        med_time_notif_prefs: nextMedTime,
+        med_notif_prefs: nextMed,
+        exercise_notif_prefs: nextEx,
+      });
+    } catch (e) {
+      console.error('[SettingsScreen] togglePatientMaster 저장 실패:', e);
+      setPatientNotificationEnabled(prevMaster);
+      setPatientMedTimePrefs(prevMedTime);
+      setPatientMedNotifs(prevMed);
+      setPatientExerciseNotifs(prevEx);
+      await dialog.alert({ title: '저장 실패', message: '환자분 알림 설정을 저장하지 못했어요.\n인터넷 연결을 확인하고 다시 시도해주세요.' });
+    }
+  };
+
   const togglePatientMedTimeSlot = async (slot: string) => {
     if (!patientId) return;
     const prev = patientMedTimePrefs;
+    const prevMaster = patientNotificationEnabled;
     const next = { ...prev, [slot]: !prev[slot] };
     setPatientMedTimePrefs(next);
+    // 발송 게이트 = "하나라도 ON" (전체 토글 표시는 별도로 select-all)
+    const anyOn = computeAnyNotifOn(next, patientActiveMedSlots, patientMedNotifs, patientExerciseNotifs);
+    setPatientNotificationEnabled(anyOn);
     try {
       // fetch API 직접 사용 (supabase-js New Architecture hang 우회)
       const { data: { session } } = await supabase.auth.getSession();
       if (!session?.access_token) throw new Error('세션이 만료되었어요');
-      await patchUser(patientId, session.access_token, { med_time_notif_prefs: next });
+      await patchPatientUser(patientId, session.access_token, { med_time_notif_prefs: next, notification_enabled: anyOn });
     } catch (e) {
       console.error('[SettingsScreen] togglePatientMedTimeSlot 저장 실패:', e);
       setPatientMedTimePrefs(prev);
-      Alert.alert('저장 실패', '환자분 알림 설정을 저장하지 못했어요.\n인터넷 연결을 확인하고 다시 시도해주세요.');
+      setPatientNotificationEnabled(prevMaster);
+      await dialog.alert({ title: '저장 실패', message: '환자분 알림 설정을 저장하지 못했어요.\n인터넷 연결을 확인하고 다시 시도해주세요.' });
     }
   };
 
@@ -385,51 +522,101 @@ export function SettingsScreen() {
     });
   }, []);
 
-  const toggleCaregiverNotif = (id: string) => {
-    setCaregiverNotifs(prev => {
-      const next = prev.map(n => n.id === id ? { ...n, enabled: !n.enabled } : n);
-      AsyncStorage.setItem(STORAGE_KEY_CAREGIVER, JSON.stringify(next)).catch(() => {});
-      // DB에도 동기화
-      const prefs: Record<string, boolean> = {};
-      next.forEach(n => { prefs[n.id] = n.enabled; });
-      supabase.auth.getSession().then(async ({ data: { session } }) => {
-        if (!session?.user) return;
-        const SUPA_URL = process.env.EXPO_PUBLIC_SUPABASE_URL!;
-        const SUPA_KEY = process.env.EXPO_PUBLIC_SUPABASE_ANON_KEY!;
-        try {
-          const res = await fetch(
-            `${SUPA_URL}/rest/v1/users?id=eq.${session.user.id}`,
-            {
-              method: 'PATCH',
-              headers: {
-                'Content-Type': 'application/json',
-                'apikey': SUPA_KEY,
-                'Authorization': `Bearer ${session.access_token}`,
-                'Prefer': 'return=minimal',
-              },
-              body: JSON.stringify({ caregiver_notif_prefs: prefs }),
-            },
-          );
-          if (!res.ok) {
-            const text = await res.text();
-            console.error('[SettingsScreen] caregiver_notif_prefs 저장 오류:', text);
-          }
-        } catch (e) {
-          console.error('[SettingsScreen] caregiver_notif_prefs fetch 오류:', e);
-        }
-      });
-      return next;
-    });
+  // 보호자 알림 토글 저장의 신뢰성 가드.
+  // - 저장이 setState 업데이터 내부의 fire-and-forget이던 기존 구조는
+  //   ① 실패해도 UI엔 반영/ DB엔 미반영 ② 포커스 리로드가 DB(낡은 값)로 로컬을 덮어씀
+  //   → OFF가 DB에 안 남고 ON으로 되돌아가는 버그가 있었음.
+  // - caregiverWriteSeq: 저장 진행 중 포커스 리로드가 stale 값으로 덮지 못하게 막는 시퀀스.
+  const caregiverWriteSeq = useRef(0);
+
+  const toggleCaregiverNotif = async (id: string) => {
+    const prevNotifs = caregiverNotifs;
+    const next = prevNotifs.map(n => n.id === id ? { ...n, enabled: !n.enabled } : n);
+    const prefs: Record<string, boolean> = {};
+    next.forEach(n => { prefs[n.id] = n.enabled; });
+    // 발송 게이트(notification_enabled) = 보호자 알림이 "하나라도 ON"
+    const masterAnyOn = next.some(n => n.enabled);
+
+    // 낙관적 UI 반영 + 로컬 변경 표시(리로드 가드)
+    const seq = ++caregiverWriteSeq.current;
+    setCaregiverNotifs(next);
+    await AsyncStorage.setItem(STORAGE_KEY_CAREGIVER, JSON.stringify(next)).catch(() => {});
+
+    // DB에 신뢰성 있게 저장 (supabase 클라이언트가 토큰 자동 갱신 → 401 silent fail 방지)
+    try {
+      const { data: { session } } = await supabase.auth.getSession();
+      if (!session?.user) throw new Error('세션 없음');
+      const { error } = await supabase
+        .from('users')
+        .update({ caregiver_notif_prefs: prefs, notification_enabled: masterAnyOn })
+        .eq('id', session.user.id);
+      if (error) throw error;
+    } catch (e) {
+      console.error('[SettingsScreen] caregiver_notif_prefs 저장 실패:', e);
+      // 저장 실패 → 그 사이 다른 토글이 없었다면 UI/AsyncStorage 롤백 + 사용자 안내
+      if (caregiverWriteSeq.current === seq) {
+        setCaregiverNotifs(prevNotifs);
+        await AsyncStorage.setItem(STORAGE_KEY_CAREGIVER, JSON.stringify(prevNotifs)).catch(() => {});
+        await dialog.alert({
+          title: '저장 실패',
+          message: '알림 설정을 저장하지 못했어요.\n인터넷 연결을 확인하고 다시 시도해 주세요.',
+        });
+      }
+    }
   };
 
+  // 전체 알림 토글 → 현재 사용자 역할의 개별 알림 일괄 반영 (DB까지 저장).
+  // - 보호자: 보호자 개별 알림(caregiver_notif_prefs) 전체 ON/OFF
+  // - 환자: 약 복용 시간/미복용(med_time_notif_prefs) 전체 ON/OFF
+  //   (약효 추적/운동은 SettingsContext.setNotificationEnabled에서 함께 처리)
+  const cascadeMasterToIndividual = React.useCallback(async (enabled: boolean) => {
+    if (isCaregiver) {
+      const next = caregiverNotifs.map(n => ({ ...n, enabled }));
+      caregiverWriteSeq.current += 1; // 포커스 리로드 클로버 방지
+      setCaregiverNotifs(next);
+      const prefs: Record<string, boolean> = {};
+      next.forEach(n => { prefs[n.id] = n.enabled; });
+      await AsyncStorage.setItem(STORAGE_KEY_CAREGIVER, JSON.stringify(next)).catch(() => {});
+      try {
+        const { data: { session } } = await supabase.auth.getSession();
+        if (session?.user) {
+          const { error } = await supabase
+            .from('users')
+            .update({ caregiver_notif_prefs: prefs })
+            .eq('id', session.user.id);
+          if (error) throw error;
+        }
+      } catch (e) {
+        console.error('[SettingsScreen] 전체→보호자 개별 일괄 저장 실패:', e);
+      }
+    } else {
+      const SLOT_KEYS = ['morning', 'lunch', 'dinner', 'bedtime', 'missed_first', 'missed_second'];
+      const next: Record<string, boolean> = { ...medTimePrefs };
+      Object.keys(next).forEach(k => { next[k] = enabled; });
+      SLOT_KEYS.forEach(k => { next[k] = enabled; });
+      setMedTimePrefs(next);
+      try {
+        const { data: { session } } = await supabase.auth.getSession();
+        if (session?.access_token && user) {
+          await patchUser(user.id, session.access_token, { med_time_notif_prefs: next });
+        }
+      } catch (e) {
+        console.error('[SettingsScreen] 전체→환자 시간알림 일괄 저장 실패:', e);
+      }
+    }
+  }, [isCaregiver, caregiverNotifs, medTimePrefs, user]);
+
   const handleRefreshPushToken = async () => {
+    // 게스트(테스트로 둘러보기) 차단 — Supabase 세션 자체가 없음
+    if (await ensureNotGuest(user, dialog, { signOut })) return;
     try {
-      Alert.alert('알림 토큰 재등록', '잠시만 기다려주세요...');
+      // 진행 표시는 흐름을 막지 않도록 토스트로(원래 Alert도 비차단)
+      dialog.alert({ message: '알림 토큰 재등록 중이에요. 잠시만 기다려주세요...', toast: true });
 
       // 1. Expo Push Token 획득
       const { status } = await Notifications.getPermissionsAsync();
       if (status !== 'granted') {
-        Alert.alert('알림 권한 없음', '기기 설정에서 알림 권한을 허용해주세요.');
+        await dialog.alert({ title: '알림 권한 없음', message: '기기 설정에서 알림 권한을 허용해주세요.' });
         return;
       }
 
@@ -438,20 +625,20 @@ export function SettingsScreen() {
       });
 
       if (!token?.data) {
-        Alert.alert('실패', '토큰 획득 실패');
+        await dialog.alert({ title: '실패', message: '토큰 획득 실패' });
         return;
       }
 
       // 2. DB에 저장 (fetch 사용, supabase-js 절대 사용 금지)
       const { data: { session } } = await supabase.auth.getSession();
       if (!session?.access_token) {
-        Alert.alert('실패', '로그인 세션 없음');
+        await dialog.alert({ title: '실패', message: '로그인 세션 없음' });
         return;
       }
 
       const { data: { user } } = await supabase.auth.getUser();
       if (!user?.id) {
-        Alert.alert('실패', '사용자 정보 없음');
+        await dialog.alert({ title: '실패', message: '사용자 정보 없음' });
         return;
       }
 
@@ -470,13 +657,13 @@ export function SettingsScreen() {
 
       if (!response.ok) {
         const error = await response.text();
-        Alert.alert('실패', `DB 저장 실패: ${response.status}\n${error}`);
+        await dialog.alert({ title: '실패', message: `DB 저장 실패: ${response.status}\n${error}` });
         return;
       }
 
-      Alert.alert('성공', `알림 토큰이 등록되었습니다!\n\n토큰: ${token.data.substring(0, 30)}...`);
+      await dialog.alert({ title: '성공', message: `알림 토큰이 등록되었습니다!\n\n토큰: ${token.data.substring(0, 30)}...` });
     } catch (error: any) {
-      Alert.alert('오류', error.message);
+      await dialog.alert({ title: '오류', message: error.message });
     }
   };
 
@@ -518,6 +705,9 @@ export function SettingsScreen() {
     React.useCallback(() => {
       (async () => {
         try {
+          // 보호자 토글이 저장 중일 때 이 리로드가 끝나면, 그 사이 저장이 있었는지 비교해
+          // stale DB 값으로 로컬을 덮어쓰지 않도록 시퀀스를 스냅샷한다.
+          const caregiverSeqAtStart = caregiverWriteSeq.current;
           // 1. 시스템 알림 권한 상태 먼저 재확인 (설정에서 차단/허용 후 돌아왔을 때 반영)
           await recheckSystemPermission();
 
@@ -539,7 +729,8 @@ export function SettingsScreen() {
             const forceOff = status !== 'granted' && status !== 'undetermined';
             await setNotificationEnabledOnly(forceOff ? false : dbEnabled);
 
-            if (isCaregiver && userRow.caregiver_notif_prefs) {
+            // 리로드 도중 사용자가 토글했다면(시퀀스 변동) DB 값으로 덮지 않는다.
+            if (isCaregiver && userRow.caregiver_notif_prefs && caregiverWriteSeq.current === caregiverSeqAtStart) {
               const prefs = userRow.caregiver_notif_prefs as Record<string, boolean>;
               setCaregiverNotifs(prev => prev.map(n => ({
                 ...n,
@@ -586,6 +777,7 @@ export function SettingsScreen() {
           setShowPermissionSheet(false);
           setPendingOn(false);
           await setNotificationEnabled(true);
+          await cascadeMasterToIndividual(true);
           await scheduleMedicationReminders();
           await scheduleExerciseReminders(exerciseNotifs);
         }
@@ -593,7 +785,50 @@ export function SettingsScreen() {
       }
     });
     return () => subscription.remove();
-  }, [showPermissionSheet, setNotificationEnabled, exerciseNotifs]);
+  }, [showPermissionSheet, setNotificationEnabled, exerciseNotifs, cascadeMasterToIndividual]);
+
+  // ─── 실시간 동기화 (환자 ↔ 보호자) ────────────────────────────────────────────
+  // - 환자: 자기 user 행 구독 → 보호자가 바꾸면 즉시 반영 (로컬 state만, DB 재쓰기 X → 에코 방지)
+  // - 보호자: 연동 환자 user 행 구독 → 환자가 바꾸면 '환자 알림 수정' 섹션 즉시 갱신
+  useEffect(() => {
+    if (!user) return;
+    const targetId = isCaregiver ? patientId : user.id;
+    if (!targetId) return; // 보호자: patientId 확정 후 구독
+
+    const channel = supabase
+      .channel(`settings-sync-${targetId}`)
+      .on(
+        'postgres_changes',
+        { event: 'UPDATE', schema: 'public', table: 'users', filter: `id=eq.${targetId}` },
+        (payload) => {
+          const row = payload.new as Record<string, any>;
+          if (isCaregiver) {
+            // 환자가 바꾼 값을 '환자 알림 수정' 섹션에 반영 (로컬 state만)
+            if (typeof row.notification_enabled === 'boolean') {
+              setPatientNotificationEnabled(row.notification_enabled);
+            }
+            if (row.med_time_notif_prefs) {
+              setPatientMedTimePrefs(prev => ({ ...prev, ...row.med_time_notif_prefs }));
+            }
+            if (row.med_notif_prefs) {
+              setPatientMedNotifs((row.med_notif_prefs as MedNotif[]).filter(n => n.minutes !== 0));
+            }
+            if (row.exercise_notif_prefs) {
+              setPatientExerciseNotifs(row.exercise_notif_prefs as ExerciseNotif[]);
+            }
+          } else {
+            // 보호자가 바꾼 내 설정을 내 화면에 반영 (DB 재쓰기 없는 적용)
+            applyRemoteNotifPrefs(row);
+            if (row.med_time_notif_prefs) {
+              setMedTimePrefs(prev => ({ ...prev, ...row.med_time_notif_prefs }));
+            }
+          }
+        },
+      )
+      .subscribe();
+
+    return () => { supabase.removeChannel(channel); };
+  }, [user, isCaregiver, patientId, applyRemoteNotifPrefs]);
 
   // ─── Animation refs ─────────────────────────────────────────────────────────
   const fadeAnim = useRef(new Animated.Value(0)).current;
@@ -691,11 +926,30 @@ export function SettingsScreen() {
     ]).start();
   };
 
-  const closePatientPicker = () => {
+  // onClosed: 피커 Modal이 완전히 닫힌 뒤 실행. iOS에서 Modal 중첩(피커+경고 dialog)으로
+  // 화면이 멈추는 문제를 막기 위해, 경고/다음 Modal은 반드시 이 콜백에서 띄운다.
+  const closePatientPicker = (onClosed?: () => void) => {
     Animated.parallel([
       Animated.timing(patientFadeAnim, { toValue: 0, duration: 200, useNativeDriver: true }),
       Animated.timing(patientSlideAnim, { toValue: 300, duration: 200, useNativeDriver: true }),
-    ]).start(() => setPatientPickerVisible(false));
+    ]).start(() => {
+      setPatientPickerVisible(false);
+      if (onClosed) setTimeout(onClosed, 50); // Modal 해제가 네이티브에 반영될 여유
+    });
+  };
+
+  // 환자 알림 설정 DB 저장(보호자용). 피커 Modal을 먼저 닫은 뒤 경고/저장을 처리해
+  // iOS Modal 중첩 멈춤을 피한다.
+  const persistPatientPrefs = async (body: Record<string, unknown>, prevSnapshot: () => void) => {
+    try {
+      const { data: { session } } = await supabase.auth.getSession();
+      if (!session?.access_token) throw new Error('세션이 만료되었어요');
+      await patchPatientUser(patientId!, session.access_token, body);
+    } catch (e) {
+      console.error('[SettingsScreen] 환자 알림 설정 저장 실패:', e);
+      prevSnapshot(); // 실패 시 롤백
+      dialog.alert({ title: '저장 실패', message: '환자분 알림 설정을 저장하지 못했어요.\n인터넷 연결을 확인하고 다시 시도해주세요.' });
+    }
   };
 
   const savePatientMedTime = async () => {
@@ -704,29 +958,26 @@ export function SettingsScreen() {
       ? patientMedNotifs.some(n => n.id !== editingPatientMedId && n.minutes === patientSelectedMinutes)
       : patientMedNotifs.some(n => n.minutes === patientSelectedMinutes);
     if (isDuplicate) {
-      Alert.alert('중복된 알림', '이미 같은 시간의 알림이 있어요.');
-      closePatientPicker();
+      closePatientPicker(() => dialog.alert({ title: '중복된 알림', message: '이미 같은 시간의 알림이 있어요.' }));
       return;
     }
     const { conflict, minGap, conflictPair } = checkMealGapConflict(patientSelectedMinutes, patientMedSlotTimes, patientActiveMedSlots);
     if (conflict) {
-      Alert.alert(
-        '약 복용 시간과 겹쳐요',
-        `${conflictPair} 간격이 ${formatMinutes(minGap)}이에요.\n약효추적 알림은 ${formatMinutes(minGap - 1)} 이하로 설정해주세요.`,
-      );
-      closePatientPicker();
+      closePatientPicker(() => dialog.alert({
+        title: '약 복용 시간과 겹쳐요',
+        message: `${conflictPair} 간격이 ${formatMinutes(minGap)}이에요.\n약효추적 알림은 ${formatMinutes(minGap - 1)} 이하로 설정해주세요.`,
+      }));
       return;
     }
+    const prev = patientMedNotifs;
     const next = editingPatientMedId
       ? [...patientMedNotifs.map(n => n.id === editingPatientMedId ? { ...n, minutes: patientSelectedMinutes } : n)]
           .sort((a, b) => a.minutes - b.minutes)
       : [...patientMedNotifs, { id: Date.now().toString(), minutes: patientSelectedMinutes, enabled: true }]
           .sort((a, b) => a.minutes - b.minutes);
     setPatientMedNotifs(next);
-    // fetch API 직접 사용 (supabase-js New Architecture hang 우회)
-    const { data: { session } } = await supabase.auth.getSession();
-    if (session?.access_token) await patchUser(patientId, session.access_token, { med_notif_prefs: next });
     closePatientPicker();
+    await persistPatientPrefs({ med_notif_prefs: next }, () => setPatientMedNotifs(prev));
   };
 
   const savePatientExerciseTime = async () => {
@@ -736,66 +987,74 @@ export function SettingsScreen() {
       ? patientExerciseNotifs.some(n => n.id !== editingPatientExerciseId && toTotal24hMinutes(n) === newTotal)
       : patientExerciseNotifs.some(n => toTotal24hMinutes(n) === newTotal);
     if (isDuplicate) {
-      Alert.alert('중복된 알림', '이미 같은 시간의 알림이 있어요.');
-      closePatientPicker();
+      closePatientPicker(() => dialog.alert({ title: '중복된 알림', message: '이미 같은 시간의 알림이 있어요.' }));
       return;
     }
+    const prev = patientExerciseNotifs;
     const next = editingPatientExerciseId
       ? [...patientExerciseNotifs.map(n => n.id === editingPatientExerciseId ? { ...n, ...patientPickerExTime } : n)]
           .sort((a, b) => toTotal24hMinutes(a) - toTotal24hMinutes(b))
       : [...patientExerciseNotifs, { id: Date.now().toString(), ...patientPickerExTime, enabled: true }]
           .sort((a, b) => toTotal24hMinutes(a) - toTotal24hMinutes(b));
     setPatientExerciseNotifs(next);
-    // fetch API 직접 사용 (supabase-js New Architecture hang 우회)
-    const { data: { session } } = await supabase.auth.getSession();
-    if (session?.access_token) await patchUser(patientId, session.access_token, { exercise_notif_prefs: next });
     closePatientPicker();
+    await persistPatientPrefs({ exercise_notif_prefs: next }, () => setPatientExerciseNotifs(prev));
   };
 
   const togglePatientMedNotif = async (id: string) => {
     if (!patientId) return;
     const next = patientMedNotifs.map(n => n.id === id ? { ...n, enabled: !n.enabled } : n);
     setPatientMedNotifs(next);
-    // fetch API 직접 사용 (supabase-js New Architecture hang 우회)
+    // 발송 게이트 = "하나라도 ON"
+    const anyOn = computeAnyNotifOn(patientMedTimePrefs, patientActiveMedSlots, next, patientExerciseNotifs);
+    setPatientNotificationEnabled(anyOn);
     const { data: { session } } = await supabase.auth.getSession();
-    if (session?.access_token) await patchUser(patientId, session.access_token, { med_notif_prefs: next });
+    if (session?.access_token) await patchPatientUser(patientId, session.access_token, { med_notif_prefs: next, notification_enabled: anyOn });
   };
 
   const togglePatientExerciseNotif = async (id: string) => {
     if (!patientId) return;
     const next = patientExerciseNotifs.map(n => n.id === id ? { ...n, enabled: !n.enabled } : n);
     setPatientExerciseNotifs(next);
+    // 발송 게이트 = "하나라도 ON"
+    const anyOn = computeAnyNotifOn(patientMedTimePrefs, patientActiveMedSlots, patientMedNotifs, next);
+    setPatientNotificationEnabled(anyOn);
+    const { data: { session } } = await supabase.auth.getSession();
+    if (session?.access_token) await patchPatientUser(patientId, session.access_token, { exercise_notif_prefs: next, notification_enabled: anyOn });
+  };
+
+  const deletePatientMedNotif = async (id: string) => {
+    if (!patientId) return;
+    const ok = await dialog.confirm({
+      title: '알림 삭제',
+      message: '이 알림을 삭제하시겠어요?',
+      confirmText: '삭제',
+      cancelText: '취소',
+      destructive: true,
+    });
+    if (!ok) return;
+    const next = patientMedNotifs.filter(n => n.id !== id);
+    setPatientMedNotifs(next);
     // fetch API 직접 사용 (supabase-js New Architecture hang 우회)
     const { data: { session } } = await supabase.auth.getSession();
-    if (session?.access_token) await patchUser(patientId, session.access_token, { exercise_notif_prefs: next });
+    if (session?.access_token) await patchPatientUser(patientId!, session.access_token, { med_notif_prefs: next });
   };
 
-  const deletePatientMedNotif = (id: string) => {
+  const deletePatientExerciseNotif = async (id: string) => {
     if (!patientId) return;
-    Alert.alert('알림 삭제', '이 알림을 삭제하시겠어요?', [
-      { text: '취소', style: 'cancel' },
-      { text: '삭제', style: 'destructive', onPress: async () => {
-        const next = patientMedNotifs.filter(n => n.id !== id);
-        setPatientMedNotifs(next);
-        // fetch API 직접 사용 (supabase-js New Architecture hang 우회)
-        const { data: { session } } = await supabase.auth.getSession();
-        if (session?.access_token) await patchUser(patientId!, session.access_token, { med_notif_prefs: next });
-      }},
-    ]);
-  };
-
-  const deletePatientExerciseNotif = (id: string) => {
-    if (!patientId) return;
-    Alert.alert('알림 삭제', '이 알림을 삭제하시겠어요?', [
-      { text: '취소', style: 'cancel' },
-      { text: '삭제', style: 'destructive', onPress: async () => {
-        const next = patientExerciseNotifs.filter(n => n.id !== id);
-        setPatientExerciseNotifs(next);
-        // fetch API 직접 사용 (supabase-js New Architecture hang 우회)
-        const { data: { session } } = await supabase.auth.getSession();
-        if (session?.access_token) await patchUser(patientId!, session.access_token, { exercise_notif_prefs: next });
-      }},
-    ]);
+    const ok = await dialog.confirm({
+      title: '알림 삭제',
+      message: '이 알림을 삭제하시겠어요?',
+      confirmText: '삭제',
+      cancelText: '취소',
+      destructive: true,
+    });
+    if (!ok) return;
+    const next = patientExerciseNotifs.filter(n => n.id !== id);
+    setPatientExerciseNotifs(next);
+    // fetch API 직접 사용 (supabase-js New Architecture hang 우회)
+    const { data: { session } } = await supabase.auth.getSession();
+    if (session?.access_token) await patchPatientUser(patientId!, session.access_token, { exercise_notif_prefs: next });
   };
 
   // ─── Sort helpers ───────────────────────────────────────────────────────────
@@ -805,24 +1064,70 @@ export function SettingsScreen() {
   };
 
   // ─── Handlers ───────────────────────────────────────────────────────────────
-  const toggleMed = (id: string) => {
-    setMedNotifs((prev) =>
-      prev.map((n) => (n.id === id ? { ...n, enabled: !n.enabled } : n))
-    );
-    // 상태 반영 후 전체 알림 토글 자동 동기화
-    setTimeout(syncGlobalFromIndividual, 0);
+
+  // 그룹 녹음 목록 로드 (알림별 소리 선택용)
+  useEffect(() => {
+    if (!user?.patient_group_id) { setAlarmSounds([]); return; }
+    supabase
+      .from('custom_sounds' as any)
+      .select('id, label, public_url')
+      .eq('group_id', user.patient_group_id)
+      .order('created_at', { ascending: false })
+      .then(({ data }: any) => {
+        setAlarmSounds(
+          ((data as any[]) ?? []).map((s) => ({
+            id: s.id,
+            label: s.label?.trim() || '내 녹음',
+            previewUrl: s.public_url ?? null,
+          })),
+        );
+      });
+  }, [user?.patient_group_id]);
+
+  // 약효 알림 항목의 소리 변경 → 저장 + 채널 재프로비저닝
+  const setMedSound = (id: string, soundId: string | null) => {
+    setMedNotifs((prev) => prev.map((n) => (n.id === id ? { ...n, soundId } : n)));
+    if (user) provisionForUser(user.id, user.patient_group_id ?? null).catch(() => {});
+  };
+  // 운동 알림 항목의 소리 변경
+  const setExerciseSound = (id: string, soundId: string | null) => {
+    setExerciseNotifs((prev) => prev.map((n) => (n.id === id ? { ...n, soundId } : n)));
+    if (user) provisionForUser(user.id, user.patient_group_id ?? null).catch(() => {});
+  };
+  // 약 시간 슬롯(아침/점심/저녁/취침) 목소리 변경 → DB 저장 + 재프로비저닝
+  const setMedTimeSound = (slot: string, soundId: string | null) => {
+    setMedTimeSounds((prev) => {
+      const next = { ...prev, [slot]: soundId };
+      supabase.auth.getSession().then(({ data: { session } }) => {
+        if (session?.user) patchUser(session.user.id, session.access_token, { med_time_sound_prefs: next });
+      }).catch(() => {});
+      return next;
+    });
+    if (user) provisionForUser(user.id, user.patient_group_id ?? null).catch(() => {});
   };
 
-  const deleteMed = (id: string) => {
-    Alert.alert('알림 삭제', '이 알림을 삭제하시겠어요?', [
-      { text: '취소', style: 'cancel' },
-      {
-        text: '삭제',
-        style: 'destructive',
-        onPress: () =>
-          setMedNotifs((prev) => prev.filter((n) => n.id !== id)),
-      },
-    ]);
+  const toggleMed = (id: string) => {
+    const next = medNotifs.map((n) => (n.id === id ? { ...n, enabled: !n.enabled } : n));
+    setMedNotifs(next);
+    // 사용자 수동 수정 — 추천 보존 플래그 잠금 (§13-6)
+    markMedNotifUserEdited();
+    // 발송 게이트(notification_enabled) = "하나라도 ON" (전체 토글은 별도로 select-all 표시)
+    const anyOn = computeAnyNotifOn(medTimePrefs, activeMedSlots, next, exerciseNotifs);
+    if (anyOn !== notificationEnabled) setNotificationEnabledOnly(anyOn);
+  };
+
+  const deleteMed = async (id: string) => {
+    const ok = await dialog.confirm({
+      title: '알림 삭제',
+      message: '이 알림을 삭제하시겠어요?',
+      confirmText: '삭제',
+      cancelText: '취소',
+      destructive: true,
+    });
+    if (!ok) return;
+    setMedNotifs((prev) => prev.filter((n) => n.id !== id));
+    // 사용자 수동 수정 — 추천 보존 플래그 잠금 (§13-6)
+    markMedNotifUserEdited();
   };
 
   const saveMedTime = () => {
@@ -830,15 +1135,15 @@ export function SettingsScreen() {
       ? medNotifs.some(n => n.id !== editingMedId && n.minutes === selectedMinutes)
       : medNotifs.some(n => n.minutes === selectedMinutes);
     if (isDuplicate) {
-      Alert.alert('중복된 알림', '이미 같은 시간의 알림이 있어요.');
+      dialog.alert({ title: '중복된 알림', message: '이미 같은 시간의 알림이 있어요.' });
       return;
     }
     const { conflict, minGap, conflictPair } = checkMealGapConflict(selectedMinutes, medSlotTimes, activeMedSlots);
     if (conflict) {
-      Alert.alert(
-        '약 복용 시간과 겹쳐요',
-        `${conflictPair} 간격이 ${formatMinutes(minGap)}이에요.\n약효추적 알림은 ${formatMinutes(minGap - 1)} 이하로 설정해주세요.`,
-      );
+      dialog.alert({
+        title: '약 복용 시간과 겹쳐요',
+        message: `${conflictPair} 간격이 ${formatMinutes(minGap)}이에요.\n약효추적 알림은 ${formatMinutes(minGap - 1)} 이하로 설정해주세요.`,
+      });
       return;
     }
     if (editingMedId) {
@@ -852,27 +1157,29 @@ export function SettingsScreen() {
           .sort((a, b) => a.minutes - b.minutes)
       );
     }
+    // 사용자 수동 수정(추가/시간변경) — 추천 보존 플래그 잠금 (§13-6)
+    markMedNotifUserEdited();
     closePicker();
   };
 
   const toggleExercise = (id: string) => {
-    setExerciseNotifs((prev) =>
-      prev.map((n) => (n.id === id ? { ...n, enabled: !n.enabled } : n))
-    );
-    // 상태 반영 후 전체 알림 토글 자동 동기화
-    setTimeout(syncGlobalFromIndividual, 0);
+    const next = exerciseNotifs.map((n) => (n.id === id ? { ...n, enabled: !n.enabled } : n));
+    setExerciseNotifs(next);
+    // 발송 게이트(notification_enabled) = "하나라도 ON"
+    const anyOn = computeAnyNotifOn(medTimePrefs, activeMedSlots, medNotifs, next);
+    if (anyOn !== notificationEnabled) setNotificationEnabledOnly(anyOn);
   };
 
-  const deleteExercise = (id: string) => {
-    Alert.alert('알림 삭제', '이 알림을 삭제하시겠어요?', [
-      { text: '취소', style: 'cancel' },
-      {
-        text: '삭제',
-        style: 'destructive',
-        onPress: () =>
-          setExerciseNotifs((prev) => prev.filter((n) => n.id !== id)),
-      },
-    ]);
+  const deleteExercise = async (id: string) => {
+    const ok = await dialog.confirm({
+      title: '알림 삭제',
+      message: '이 알림을 삭제하시겠어요?',
+      confirmText: '삭제',
+      cancelText: '취소',
+      destructive: true,
+    });
+    if (!ok) return;
+    setExerciseNotifs((prev) => prev.filter((n) => n.id !== id));
   };
 
   const saveExerciseTime = () => {
@@ -881,7 +1188,7 @@ export function SettingsScreen() {
       ? exerciseNotifs.some(n => n.id !== editingExerciseId && toTotal24hMinutes(n) === newTotal)
       : exerciseNotifs.some(n => toTotal24hMinutes(n) === newTotal);
     if (isDuplicate) {
-      Alert.alert('중복된 알림', '이미 같은 시간의 알림이 있어요.');
+      dialog.alert({ title: '중복된 알림', message: '이미 같은 시간의 알림이 있어요.' });
       return;
     }
     if (editingExerciseId) {
@@ -973,32 +1280,31 @@ export function SettingsScreen() {
     closePicker();
   };
 
-  const deleteMedSlot = (slotKey: MedTimeSlotKey) => {
-    Alert.alert('알림 삭제', `${MED_TIME_SLOTS.find(s => s.key === slotKey)?.label} 시간대 알림을 삭제하시겠어요?`, [
-      { text: '취소', style: 'cancel' },
-      {
-        text: '삭제',
-        style: 'destructive',
-        onPress: async () => {
-          // 1. 해당 시간대 비활성화 (med_time_notif_prefs)
-          const nextPrefs = { ...medTimePrefs, [slotKey]: false };
-          setMedTimePrefs(nextPrefs);
+  const deleteMedSlot = async (slotKey: MedTimeSlotKey) => {
+    const ok = await dialog.confirm({
+      title: '알림 삭제',
+      message: `${MED_TIME_SLOTS.find(s => s.key === slotKey)?.label} 시간대 알림을 삭제하시겠어요?`,
+      confirmText: '삭제',
+      cancelText: '취소',
+      destructive: true,
+    });
+    if (!ok) return;
+    // 1. 해당 시간대 비활성화 (med_time_notif_prefs)
+    const nextPrefs = { ...medTimePrefs, [slotKey]: false };
+    setMedTimePrefs(nextPrefs);
 
-          // 2. activeMedSlots에서 제거
-          setActiveMedSlots(prev => prev.filter(k => k !== slotKey));
+    // 2. activeMedSlots에서 제거
+    setActiveMedSlots(prev => prev.filter(k => k !== slotKey));
 
-          // 3. DB 업데이트
-          try {
-            const session = await supabase.auth.getSession();
-            if (session?.data.session?.access_token) {
-              await patchUser(user!.id, session.data.session.access_token, { med_time_notif_prefs: nextPrefs });
-            }
-          } catch (error) {
-            console.error('Failed to delete med slot:', error);
-          }
-        },
-      },
-    ]);
+    // 3. DB 업데이트
+    try {
+      const session = await supabase.auth.getSession();
+      if (session?.data.session?.access_token) {
+        await patchUser(user!.id, session.data.session.access_token, { med_time_notif_prefs: nextPrefs });
+      }
+    } catch (error) {
+      console.error('Failed to delete med slot:', error);
+    }
   };
 
   const openBatterySettings = async () => {
@@ -1029,8 +1335,15 @@ export function SettingsScreen() {
   const hourButtonWidth = (SCREEN_WIDTH - 88) / 4;
 
   // 연결된 환자 이름으로 텍스트 내 "환자" 치환 (미연결 시 원문 그대로)
+  // 환자명 뒤에는 항상 "님"을 붙이고, 뒤따르는 조사(가/이/은/는/을/를/에게 등)는 제거해
+  // "최성철가" 같은 비문 대신 "최성철님" 형태로 통일한다.
   const pt = (text: string) =>
-    linkedPatientName ? text.replace(/환자/g, linkedPatientName) : text;
+    linkedPatientName
+      ? text.replace(
+          /환자(이|가|은|는|을|를|의|와|과|랑|이랑|에게|에게서|도|만|보다|처럼|로서|으로|로)?/g,
+          `${linkedPatientName}님`,
+        )
+      : text;
 
   // ─── Render ─────────────────────────────────────────────────────────────────
   return (
@@ -1088,7 +1401,9 @@ export function SettingsScreen() {
               </Text>
             </View>
             <Switch
-              value={pendingOn || notificationEnabled}
+              value={pendingOn || (isCaregiver
+                ? (caregiverNotifs.length > 0 && caregiverNotifs.every(n => n.enabled))
+                : computeAllNotifOn(medTimePrefs, activeMedSlots, medNotifs, exerciseNotifs))}
               onValueChange={async (v) => {
                 if (v) {
                   // ── OFF → ON 시도: 시스템 권한 상태 먼저 확인 ──────────────
@@ -1097,6 +1412,7 @@ export function SettingsScreen() {
                   if (status === 'granted') {
                     // 시스템 이미 허용 → 바로 ON
                     await setNotificationEnabled(true);
+                    await cascadeMasterToIndividual(true);
                     await scheduleMedicationReminders();
                     await scheduleExerciseReminders(exerciseNotifs);
 
@@ -1105,6 +1421,7 @@ export function SettingsScreen() {
                     const { status: newStatus } = await Notifications.requestPermissionsAsync();
                     if (newStatus === 'granted') {
                       await setNotificationEnabled(true);
+                      await cascadeMasterToIndividual(true);
                       if (user?.id) {
                         const { data: { session } } = await supabase.auth.getSession();
                         requestPermissionsAndSaveToken(user.id, session?.access_token ?? undefined).catch(console.error);
@@ -1126,6 +1443,7 @@ export function SettingsScreen() {
                 }
                 // OFF 처리
                 await setNotificationEnabled(false);
+                await cascadeMasterToIndividual(false);
               }}
               trackColor={{ false: Colors.border, true: Colors.primary }}
               thumbColor={Colors.white}
@@ -1165,193 +1483,45 @@ export function SettingsScreen() {
           )}
         </View>
 
-        {/* ── Card 1: 약 복용 시간 알림 (환자만) ── */}
-        {!isCaregiver && <View style={[styles.card, styles.cardMarginTop]}>
-          <View style={styles.cardHeader}>
-            <Ionicons name="alarm-outline" size={24} color={Colors.primary} style={styles.cardHeaderIcon} />
-            <View style={styles.cardHeaderText}>
-              <Text style={styles.cardHeaderTitle}>약 복용 시간 알림</Text>
-              <Text style={styles.cardHeaderSub}>설정한 시간에 맞춰 약 복용 알림을 보내요</Text>
-            </View>
-          </View>
-          {MED_TIME_SLOTS.filter(slot => activeMedSlots.includes(slot.key as MedTimeSlotKey)).map((slot) => {
-            const slotKey = slot.key as MedTimeSlotKey;
-            const rawTime = medSlotTimes[slotKey]; // e.g. "08:00"
-            // HH:MM → 오전/오후 H:MM 형식으로 변환
-            const formatTime = (t: string) => {
-              const [hStr, mStr] = t.split(':');
-              const h = parseInt(hStr, 10);
-              const m = mStr;
-              if (h === 0) return `오전 12:${m}`;
-              if (h < 12) return `오전 ${h}:${m}`;
-              if (h === 12) return `오후 12:${m}`;
-              return `오후 ${h - 12}:${m}`;
-            };
-            const displayTime = formatTime(rawTime);
-            const isOn = medTimePrefs[slotKey] && notificationEnabled;
-            return (
-              <View key={slot.key} style={styles.notifRow}>
-                <View style={styles.notifLeft}>
-                  <Text style={styles.notifTitle}>{slot.label}  {displayTime}</Text>
-                  <Text style={styles.notifSub}>
-                    매일 {displayTime}에 복용 알림을 보내요
-                  </Text>
-                </View>
-                <View style={{ flexDirection: 'row', alignItems: 'center', gap: 12 }}>
-                  <Switch
-                    value={isOn}
-                    onValueChange={() => toggleMedTimeSlot(slotKey)}
-                    disabled={!notificationEnabled}
-                    trackColor={{ false: Colors.border, true: Colors.primary }}
-                    thumbColor={Colors.white}
-                  />
-                  {hasMedicationRegistered ? (
-                    <TouchableOpacity
-                      activeOpacity={0.7}
-                      onPress={() => navigation.navigate('MedicationManage', { openSlot: slotKey })}
-                      style={{ paddingVertical: 8, paddingHorizontal: 8 }}
-                    >
-                      <Ionicons name="create-outline" size={22} color={Colors.textSub} />
-                    </TouchableOpacity>
-                  ) : (
-                    <>
-                      <TouchableOpacity
-                        activeOpacity={0.7}
-                        hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
-                        style={styles.iconBtn}
-                        onPress={() => openMedSlotPicker(slotKey)}
-                      >
-                        <Ionicons name="create-outline" size={22} color={Colors.textSub} />
-                      </TouchableOpacity>
-                      <TouchableOpacity
-                        activeOpacity={0.7}
-                        hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
-                        style={[styles.iconBtn, styles.iconBtnDelete]}
-                        onPress={() => deleteMedSlot(slotKey)}
-                      >
-                        <Ionicons name="trash-outline" size={22} color={Colors.danger} />
-                      </TouchableOpacity>
-                    </>
-                  )}
-                </View>
-              </View>
-            );
-          })}
-          {activeMedSlots.length > 0 && (
-            <>
-              <View style={[styles.notifRow, { borderTopWidth: 2, borderTopColor: '#E0E0E0' }]}>
-                <View style={styles.notifLeft}>
-                  <Text style={styles.notifTitle}>약 미복용 알림 1차</Text>
-                  <Text style={styles.notifSub}>복용 시간 10분 후 미복용 시 알림을 보내요</Text>
-                </View>
-                <Switch
-                  value={!!medTimePrefs['missed_first'] && notificationEnabled}
-                  onValueChange={() => toggleMedTimeSlot('missed_first')}
-                  disabled={!notificationEnabled}
-                  trackColor={{ false: Colors.border, true: Colors.primary }}
-                  thumbColor={Colors.white}
-                />
-              </View>
-              <View style={styles.notifRow}>
-                <View style={styles.notifLeft}>
-                  <Text style={styles.notifTitle}>약 미복용 알림 2차</Text>
-                  <Text style={styles.notifSub}>복용 시간 20분 후에도 미복용 시 알림을 보내요</Text>
-                </View>
-                <Switch
-                  value={!!medTimePrefs['missed_second'] && notificationEnabled}
-                  onValueChange={() => toggleMedTimeSlot('missed_second')}
-                  disabled={!notificationEnabled}
-                  trackColor={{ false: Colors.border, true: Colors.primary }}
-                  thumbColor={Colors.white}
-                />
-              </View>
-            </>
-          )}
-        </View>}
+        {/* ── 복용 시각별 세트카드 (환자만) — 약 복용 시간 알림 + 약효 추적을 통합 ── */}
+        {!isCaregiver && <DoseSlotSetList alarmSounds={alarmSounds} />}
 
-        {/* ── Card 2: 약효 추적 알림 (환자만) ── */}
-        {!isCaregiver && <View style={[styles.card, styles.cardMarginTop]}>
-          <View style={styles.cardHeader}>
-            <Ionicons
-              name="notifications-outline"
-              size={24}
-              color={Colors.primary}
-              style={styles.cardHeaderIcon}
-            />
-            <View style={styles.cardHeaderText}>
-              <Text style={styles.cardHeaderTitle}>약효 추적 알림</Text>
-              <Text style={styles.cardHeaderSub}>
-                약 복용 후 컨디션을 기록해요
-              </Text>
-              <Text style={styles.notifNotice}>
-                취침약은 약효 추적 알림을 보내지 않아요
-              </Text>
+        {/* ── 약 미복용 알림 (환자만 · 시각별 아님 · 환자 전역) ── */}
+        {!isCaregiver && activeMedSlots.length > 0 && (
+          <View style={[styles.card, styles.cardMarginTop]}>
+            <View style={styles.cardHeader}>
+              <Ionicons name="alarm-outline" size={24} color={Colors.primary} style={styles.cardHeaderIcon} />
+              <View style={styles.cardHeaderText}>
+                <Text style={styles.cardHeaderTitle}>약 미복용 알림</Text>
+                <Text style={styles.cardHeaderSub}>복용 시간이 지나도 기록이 없으면 알려드려요</Text>
+              </View>
             </View>
-          </View>
-
-          {medNotifs.map((notif) => (
-            <View key={notif.id} style={styles.notifRow}>
+            <View style={styles.notifRow}>
               <View style={styles.notifLeft}>
-                <Text style={styles.notifTitle}>
-                  {minutesToLabel(notif.minutes)}
-                </Text>
-                <Text style={styles.notifSub}>
-                  약 복용 후 {minutesToLabel(notif.minutes)}에 알림을 보내요
-                </Text>
+                <Text style={styles.notifTitle}>약 미복용 알림 1차</Text>
+                <Text style={styles.notifSub}>복용 시간 10분 후 미복용 시 알림을 보내요</Text>
               </View>
-              <View style={styles.notifRight}>
-                <Switch
-                  value={notif.enabled && notificationEnabled}
-                  onValueChange={() => toggleMed(notif.id)}
-                  disabled={!notificationEnabled}
-                  trackColor={{
-                    false: Colors.border,
-                    true: Colors.primary,
-                  }}
-                  thumbColor={Colors.white}
-                />
-                <TouchableOpacity
-                  activeOpacity={0.7}
-                  hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
-                  style={styles.iconBtn}
-                  onPress={() => openPicker('med', notif.id)}
-                >
-                  <Ionicons
-                    name="create-outline"
-                    size={22}
-                    color={Colors.textSub}
-                  />
-                </TouchableOpacity>
-                <TouchableOpacity
-                  activeOpacity={0.7}
-                  hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
-                  style={[styles.iconBtn, styles.iconBtnDelete]}
-                  onPress={() => deleteMed(notif.id)}
-                >
-                  <Ionicons
-                    name="trash-outline"
-                    size={22}
-                    color={Colors.danger}
-                  />
-                </TouchableOpacity>
-              </View>
+              <Switch
+                value={!!medTimePrefs['missed_first']}
+                onValueChange={() => toggleMedTimeSlot('missed_first')}
+                trackColor={{ false: Colors.border, true: Colors.primary }}
+                thumbColor={Colors.white}
+              />
             </View>
-          ))}
-
-          <TouchableOpacity
-            activeOpacity={0.7}
-            style={styles.addRow}
-            onPress={() => openPicker('med', null)}
-          >
-            <Ionicons
-              name="add-circle-outline"
-              size={22}
-              color={Colors.accent}
-              style={{ marginRight: 8 }}
-            />
-            <Text style={styles.addLabel}>알림 추가하기</Text>
-          </TouchableOpacity>
-        </View>}
+            <View style={styles.notifRow}>
+              <View style={styles.notifLeft}>
+                <Text style={styles.notifTitle}>약 미복용 알림 2차</Text>
+                <Text style={styles.notifSub}>복용 시간 20분 후에도 미복용 시 알림을 보내요</Text>
+              </View>
+              <Switch
+                value={!!medTimePrefs['missed_second']}
+                onValueChange={() => toggleMedTimeSlot('missed_second')}
+                trackColor={{ false: Colors.border, true: Colors.primary }}
+                thumbColor={Colors.white}
+              />
+            </View>
+          </View>
+        )}
 
         {/* ── Card 2: 운동 알림 (환자만) ── */}
         {!isCaregiver && <View style={[styles.card, styles.cardMarginTop]}>
@@ -1369,7 +1539,8 @@ export function SettingsScreen() {
           </View>
 
           {exerciseNotifs.map((notif) => (
-            <View key={notif.id} style={styles.notifRow}>
+            <View key={notif.id} style={styles.notifItemWrap}>
+              <View style={styles.notifRowInner}>
               <View style={styles.notifLeft}>
                 <Text style={styles.notifTitle}>{formatExerciseNotif(notif)}</Text>
                 <Text style={styles.notifSub}>
@@ -1378,9 +1549,8 @@ export function SettingsScreen() {
               </View>
               <View style={styles.notifRight}>
                 <Switch
-                  value={notif.enabled && notificationEnabled}
+                  value={notif.enabled}
                   onValueChange={() => toggleExercise(notif.id)}
-                  disabled={!notificationEnabled}
                   trackColor={{ false: Colors.border, true: Colors.primary }}
                   thumbColor={Colors.white}
                 />
@@ -1401,6 +1571,14 @@ export function SettingsScreen() {
                   <Ionicons name="trash-outline" size={22} color={Colors.danger} />
                 </TouchableOpacity>
               </View>
+              </View>
+              {notif.enabled && (
+                <AlarmSoundPickerRow
+                  soundId={notif.soundId}
+                  sounds={alarmSounds}
+                  onSelect={(sid) => setExerciseSound(notif.id, sid)}
+                />
+              )}
             </View>
           ))}
 
@@ -1437,7 +1615,7 @@ export function SettingsScreen() {
               </View>
             </View>
             {caregiverNotifs.map((notif) => (
-              <View key={notif.id} style={styles.notifRow}>
+              <View key={notif.id} style={[styles.notifRow, styles.notifRowTop]}>
                 <View style={styles.notifLeft}>
                   <Text style={styles.notifTitle}>{pt(notif.label)}</Text>
                   <Text style={styles.notifSub}>
@@ -1445,9 +1623,9 @@ export function SettingsScreen() {
                   </Text>
                 </View>
                 <Switch
-                  value={notif.enabled && notificationEnabled}
+                  style={styles.notifSwitch}
+                  value={notif.enabled}
                   onValueChange={() => toggleCaregiverNotif(notif.id)}
-                  disabled={!notificationEnabled}
                   trackColor={{ false: Colors.border, true: Colors.primary }}
                   thumbColor={Colors.white}
                 />
@@ -1495,6 +1673,23 @@ export function SettingsScreen() {
               };
               return (
                 <>
+                  {/* ── 환자 전체 알림 (보호자가 환자 대신 ON/OFF) ── */}
+                  <View style={{ marginTop: 12, marginHorizontal: 12, borderRadius: 12, borderWidth: 1, borderColor: Colors.border, backgroundColor: Colors.white }}>
+                    <View style={[styles.notifRow, styles.notifRowTop, { borderTopWidth: 0, paddingHorizontal: 16 }]}>
+                      <View style={styles.notifLeft}>
+                        <Text style={styles.notifTitle}>전체 알림</Text>
+                        <Text style={styles.notifSub}>{(linkedPatientName || '환자')}님의 모든 알림을 한 번에 켜거나 꺼요</Text>
+                      </View>
+                      <Switch
+                        style={styles.notifSwitch}
+                        value={computeAllNotifOn(patientMedTimePrefs, patientActiveMedSlots, patientMedNotifs, patientExerciseNotifs)}
+                        onValueChange={(v) => togglePatientMaster(v)}
+                        trackColor={{ false: Colors.border, true: Colors.primary }}
+                        thumbColor={Colors.white}
+                      />
+                    </View>
+                  </View>
+
                   {/* ── 서브카드 1: 약 복용 시간 알림 (파란색) ── */}
                   <View style={{ marginTop: 12, marginHorizontal: 12, borderRadius: 12, overflow: 'hidden', borderWidth: 1, borderColor: '#BBDEFB' }}>
                     <View style={{ flexDirection: 'row', alignItems: 'center', backgroundColor: '#E3F2FD', paddingHorizontal: 16, paddingVertical: 12 }}>
@@ -1509,18 +1704,17 @@ export function SettingsScreen() {
                       MED_TIME_SLOTS.filter(slot => patientActiveMedSlots.includes(slot.key as MedTimeSlotKey)).map((slot) => {
                         const slotKey = slot.key as MedTimeSlotKey;
                         const displayTime = formatPatientTime(patientMedSlotTimes[slotKey]);
-                        const isOn = patientMedTimePrefs[slotKey] && notificationEnabled;
+                        const isOn = !!patientMedTimePrefs[slotKey];
                         return (
-                          <View key={slotKey} style={[styles.notifRow, { backgroundColor: Colors.white }]}>
+                          <View key={slotKey} style={[styles.notifRow, styles.notifRowTop, { backgroundColor: Colors.white }]}>
                             <View style={styles.notifLeft}>
                               <Text style={styles.notifTitle}>{slot.label}  {displayTime}</Text>
                               <Text style={styles.notifSub}>매일 {displayTime}에 복용 알림을 보내요</Text>
                             </View>
-                            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 12 }}>
+                            <View style={[styles.notifSwitch, { flexDirection: 'row', alignItems: 'center', gap: 12 }]}>
                               <Switch
                                 value={isOn}
                                 onValueChange={() => togglePatientMedTimeSlot(slotKey)}
-                                disabled={!notificationEnabled}
                                 trackColor={{ false: Colors.border, true: '#1565C0' }}
                                 thumbColor={Colors.white}
                               />
@@ -1538,28 +1732,28 @@ export function SettingsScreen() {
                     )}
                     {patientActiveMedSlots.length > 0 && (
                       <>
-                        <View style={[styles.notifRow, { backgroundColor: Colors.white, borderTopWidth: 2, borderTopColor: '#E0E0E0' }]}>
+                        <View style={[styles.notifRow, styles.notifRowTop, { backgroundColor: Colors.white, borderTopWidth: 2, borderTopColor: '#E0E0E0' }]}>
                           <View style={styles.notifLeft}>
                             <Text style={styles.notifTitle}>약 미복용 알림 1차</Text>
                             <Text style={styles.notifSub}>복용 시간 10분 후 미복용 시 알림을 보내요</Text>
                           </View>
                           <Switch
-                            value={!!patientMedTimePrefs['missed_first'] && notificationEnabled}
+                            style={styles.notifSwitch}
+                            value={!!patientMedTimePrefs['missed_first']}
                             onValueChange={() => togglePatientMedTimeSlot('missed_first')}
-                            disabled={!notificationEnabled}
                             trackColor={{ false: Colors.border, true: '#1565C0' }}
                             thumbColor={Colors.white}
                           />
                         </View>
-                        <View style={[styles.notifRow, { backgroundColor: Colors.white }]}>
+                        <View style={[styles.notifRow, styles.notifRowTop, { backgroundColor: Colors.white }]}>
                           <View style={styles.notifLeft}>
                             <Text style={styles.notifTitle}>약 미복용 알림 2차</Text>
                             <Text style={styles.notifSub}>복용 시간 20분 후에도 미복용 시 알림을 보내요</Text>
                           </View>
                           <Switch
-                            value={!!patientMedTimePrefs['missed_second'] && notificationEnabled}
+                            style={styles.notifSwitch}
+                            value={!!patientMedTimePrefs['missed_second']}
                             onValueChange={() => togglePatientMedTimeSlot('missed_second')}
-                            disabled={!notificationEnabled}
                             trackColor={{ false: Colors.border, true: '#1565C0' }}
                             thumbColor={Colors.white}
                           />
@@ -1575,16 +1769,15 @@ export function SettingsScreen() {
                       <Text style={{ fontSize: 17, fontWeight: '700', color: '#E65100' }}>약효 추적 알림</Text>
                     </View>
                     {patientMedNotifs.map((notif) => (
-                      <View key={notif.id} style={[styles.notifRow, { backgroundColor: Colors.white }]}>
+                      <View key={notif.id} style={[styles.notifRow, styles.notifRowTop, { backgroundColor: Colors.white }]}>
                         <View style={styles.notifLeft}>
                           <Text style={styles.notifTitle}>{minutesToLabel(notif.minutes)}</Text>
                           <Text style={styles.notifSub}>약 복용 후 {minutesToLabel(notif.minutes)}에 알림을 보내요</Text>
                         </View>
-                        <View style={styles.notifRight}>
+                        <View style={[styles.notifRight, styles.notifSwitch]}>
                           <Switch
-                            value={notif.enabled && notificationEnabled}
+                            value={notif.enabled}
                             onValueChange={() => togglePatientMedNotif(notif.id)}
-                            disabled={!notificationEnabled}
                             trackColor={{ false: Colors.border, true: '#E65100' }}
                             thumbColor={Colors.white}
                           />
@@ -1624,16 +1817,15 @@ export function SettingsScreen() {
                       <Text style={{ fontSize: 17, fontWeight: '700', color: '#2E7D32' }}>운동 알림</Text>
                     </View>
                     {patientExerciseNotifs.map((notif) => (
-                      <View key={notif.id} style={[styles.notifRow, { backgroundColor: Colors.white }]}>
+                      <View key={notif.id} style={[styles.notifRow, styles.notifRowTop, { backgroundColor: Colors.white }]}>
                         <View style={styles.notifLeft}>
                           <Text style={styles.notifTitle}>{formatExerciseNotif(notif)}</Text>
                           <Text style={styles.notifSub}>매일 {formatExerciseNotif(notif)}에 운동 알림을 보내요</Text>
                         </View>
-                        <View style={styles.notifRight}>
+                        <View style={[styles.notifRight, styles.notifSwitch]}>
                           <Switch
-                            value={notif.enabled && notificationEnabled}
+                            value={notif.enabled}
                             onValueChange={() => togglePatientExerciseNotif(notif.id)}
-                            disabled={!notificationEnabled}
                             trackColor={{ false: Colors.border, true: '#2E7D32' }}
                             thumbColor={Colors.white}
                           />
@@ -2069,13 +2261,13 @@ export function SettingsScreen() {
         visible={patientPickerVisible}
         transparent
         animationType="none"
-        onRequestClose={closePatientPicker}
+        onRequestClose={() => closePatientPicker()}
       >
         <Animated.View style={[styles.backdrop, { opacity: patientFadeAnim }]}>
           <TouchableOpacity
             style={StyleSheet.absoluteFill}
             activeOpacity={1}
-            onPress={closePatientPicker}
+            onPress={() => closePatientPicker()}
           />
           <Animated.View
             style={[
@@ -2129,7 +2321,7 @@ export function SettingsScreen() {
                 <TouchableOpacity
                   activeOpacity={0.7}
                   style={styles.cancelLink}
-                  onPress={closePatientPicker}
+                  onPress={() => closePatientPicker()}
                 >
                   <Ionicons name="close-outline" size={22} color={Colors.textSub} />
                   <Text style={styles.cancelLinkText}>닫기</Text>
@@ -2239,7 +2431,7 @@ export function SettingsScreen() {
                 <TouchableOpacity
                   activeOpacity={0.7}
                   style={styles.cancelLink}
-                  onPress={closePatientPicker}
+                  onPress={() => closePatientPicker()}
                 >
                   <Ionicons name="close-outline" size={22} color={Colors.textSub} />
                   <Text style={styles.cancelLinkText}>닫기</Text>
@@ -2396,6 +2588,26 @@ const styles = StyleSheet.create({
     borderTopColor: Colors.border,
     paddingHorizontal: 20,
   },
+  // 알림 항목 + 소리 줄을 세로로 감싸는 카드
+  notifItemWrap: {
+    borderTopWidth: 1,
+    borderTopColor: Colors.border,
+    paddingHorizontal: 20,
+    paddingBottom: 6,
+  },
+  notifRowInner: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    minHeight: 76,
+  },
+  // 보호자 알림 행: 보조문구가 길어도 스위치가 제목 라인 중앙에 맞도록 상단 정렬한다.
+  notifRowTop: {
+    alignItems: 'flex-start',
+  },
+  // notifLeft 위쪽 패딩(14) + 제목 라인 높이(약 24)의 중앙에 스위치(높이 31)가 오도록 보정.
+  notifSwitch: {
+    marginTop: 11,
+  },
   notifLeft: {
     flex: 1,
     paddingVertical: 14,
@@ -2421,6 +2633,56 @@ const styles = StyleSheet.create({
     marginTop: 12,
     lineHeight: 20,
     paddingHorizontal: 4,
+  },
+  // 약효 추적 디스클레이머 (NotificationSetupScreen disclaimerCard 톤 재사용)
+  medTrackDisclaimer: {
+    backgroundColor: '#FFF3E0',
+    borderLeftWidth: 4,
+    borderLeftColor: '#FF9800',
+    marginHorizontal: 20,
+    marginTop: 16,
+    borderRadius: 12,
+    padding: 16,
+  },
+  medTrackDisclaimerText: {
+    fontSize: 18,
+    color: Colors.text,
+    lineHeight: 26,
+    fontWeight: '600',
+  },
+  medTrackDisclaimerSub: {
+    fontSize: 14,
+    color: Colors.textSub,
+    lineHeight: 20,
+    marginTop: 8,
+  },
+  // 약 0개 차단 안내 (안심 톤)
+  medTrackEmpty: {
+    paddingHorizontal: 20,
+    paddingTop: 20,
+    paddingBottom: 24,
+    alignItems: 'center',
+  },
+  medTrackEmptyText: {
+    fontSize: 18,
+    color: Colors.text,
+    lineHeight: 27,
+    textAlign: 'center',
+    marginBottom: 20,
+  },
+  medTrackEmptyBtn: {
+    minHeight: 56,
+    alignSelf: 'stretch',
+    borderRadius: 12,
+    backgroundColor: Colors.primary,
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingHorizontal: 20,
+  },
+  medTrackEmptyBtnText: {
+    fontSize: 18,
+    fontWeight: 'bold',
+    color: Colors.white,
   },
   notifRight: {
     flexDirection: 'row',

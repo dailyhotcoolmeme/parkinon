@@ -5,7 +5,6 @@ import {
   TouchableOpacity,
   ScrollView,
   StyleSheet,
-  Alert,
   ActivityIndicator,
   Modal,
   Image,
@@ -14,6 +13,7 @@ import {
   Platform,
   PanResponder,
   Animated,
+  Linking,
 } from 'react-native';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useFocusEffect, useRoute, useNavigation } from '@react-navigation/native';
@@ -27,17 +27,45 @@ import { supabase } from '../../lib/supabase';
 import { useAuth } from '../../context/AuthContext';
 import { useFamilyLink } from '../../hooks/useFamilyLink';
 import { useNotificationBadge } from '../../context/NotificationBadgeContext';
+import { useSettings, MedNotif } from '../../context/SettingsContext';
+import { useDialog } from '../../context/DialogContext';
+import { buildRecommendedMedNotifs, resolveTrackingRecommendation } from '../../utils/recommendUtils';
+import { minutesToLabel } from '../../utils/medUtils';
+import {
+  getRecommendationMeta,
+  patchRecommendationMeta,
+  buildSourceMedSignature,
+} from '../../utils/medNotifRecommendationMeta';
+import {
+  LEGACY_SLOT_ORDER,
+  LEGACY_SLOT_META,
+  labelToLegacyKey,
+  normalizeHhmm,
+  type LegacyMealKey,
+} from '../../constants/doseSlots';
+import {
+  ensurePatientDoseSlots,
+  syncMedicationDoseSlots,
+  invalidateDoseSlotsCache,
+} from '../../hooks/useDoseSlots';
 
 // ─── 타입 ────────────────────────────────────────────────────────────────────
 
 type TimeSlot = 'morning' | 'lunch' | 'dinner' | 'bedtime';
 
-const TIME_SLOTS: { key: TimeSlot; label: string; emoji: string; defaultTime: string; bgColor: string }[] = [
-  { key: 'morning', label: '아침약', emoji: '🌅', defaultTime: '08:00', bgColor: '#FFF8E1' },
-  { key: 'lunch',   label: '점심약', emoji: '☀️', defaultTime: '12:00', bgColor: '#E8F5E9' },
-  { key: 'dinner',  label: '저녁약', emoji: '🌙', defaultTime: '18:00', bgColor: '#E3F2FD' },
-  { key: 'bedtime', label: '취침약', emoji: '😴', defaultTime: '22:00', bgColor: '#EDE7F6' },
-];
+// 화면 내 슬롯 표시 상수(값 동일) — 공용 단일 출처(LEGACY_SLOT_META)에서 파생.
+// label 은 기존 '아침약' 표기 유지(korMed). emoji/defaultTime/bgColor 동일.
+const TIME_SLOTS: { key: TimeSlot; label: string; emoji: string; defaultTime: string; bgColor: string }[] =
+  LEGACY_SLOT_ORDER.map((key) => {
+    const meta = LEGACY_SLOT_META[key];
+    return {
+      key,
+      label: meta.korMed,
+      emoji: meta.emoji,
+      defaultTime: meta.defaultTime,
+      bgColor: meta.bgColor,
+    };
+  });
 
 type MealSchedules = Partial<Record<TimeSlot, string>>;
 
@@ -52,6 +80,20 @@ interface DrugInfo {
   etcOtcName?: string;
   printFront?: string;
   printBack?: string;
+  itemSeq?: string;
+}
+
+/**
+ * 약에 배정된 dose_slots 조인 결과(표시 전용).
+ * - key: dose_slot.label 을 legacy 슬롯 키로 역매핑한 값(표준 4슬롯). 비표준 라벨이면 null.
+ * - time: 'HH:MM' (dose_slots.time 정규화)
+ * - sortOrder: dose_slots.sort_order (표시 정렬용)
+ * ⚠️ 표시 전용. 쓰기(meal_times/meal_schedules)에는 사용하지 않음.
+ */
+interface MedDoseSlot {
+  key: LegacyMealKey | null;
+  time: string;
+  sortOrder: number;
 }
 
 interface Medication {
@@ -61,6 +103,9 @@ interface Medication {
   times: TimeSlot[];
   schedules?: MealSchedules;
   drugInfo?: DrugInfo | null;
+  ediCode?: string;
+  /** medication_dose_slots 조인(표시 우선). 없으면 legacy(times/schedules) 폴백. */
+  doseSlots?: MedDoseSlot[];
 }
 
 type ChangeType = 'added' | 'updated' | 'deleted';
@@ -74,99 +119,148 @@ interface MedSnapshot {
 
 // ─── API 함수 ─────────────────────────────────────────────────────────────────
 
-const CLAUDE_API_KEY = process.env.EXPO_PUBLIC_CLAUDE_API_KEY;
-const CLAUDE_API_URL = 'https://api.anthropic.com/v1/messages';
-const MFDS_KEY = process.env.EXPO_PUBLIC_MFDS_KEY ?? '';
-const MFDS_URL = 'https://apis.data.go.kr/1471000/MdcinGrnIdntfcInfoService03/getMdcinGrnIdntfcInfoList03';
+const SUPABASE_URL = process.env.EXPO_PUBLIC_SUPABASE_URL ?? '';
+const SUPABASE_ANON_KEY = process.env.EXPO_PUBLIC_SUPABASE_ANON_KEY ?? '';
+
+async function getAccessToken(): Promise<string> {
+  const { data: { session } } = await supabase.auth.getSession();
+  return session?.access_token ?? SUPABASE_ANON_KEY;
+}
 
 async function callClaudeOCR(
   base64Image: string,
   mediaType: string,
-): Promise<{ medications: { name: string; times: string[] }[] }> {
-  const response = await fetch(CLAUDE_API_URL, {
+): Promise<{ medications: { name: string; ediCode: string; times: string[] }[]; rawText: string }> {
+  // image_type: 'jpeg' | 'png'
+  const rawType = mediaType.replace('image/', '');
+  const imageType: 'jpeg' | 'png' = rawType === 'png' ? 'png' : 'jpeg';
+
+  const accessToken = await getAccessToken();
+  const response = await fetch(`${SUPABASE_URL}/functions/v1/claude-medical-record`, {
     method: 'POST',
     headers: {
-      'x-api-key': CLAUDE_API_KEY ?? '',
-      'anthropic-version': '2023-06-01',
-      'content-type': 'application/json',
+      'Content-Type': 'application/json',
+      'apikey': SUPABASE_ANON_KEY,
+      'Authorization': `Bearer ${accessToken}`,
     },
     body: JSON.stringify({
-      model: 'claude-haiku-4-5-20251001',
-      max_tokens: 1024,
-      messages: [
-        {
-          role: 'user',
-          content: [
-            {
-              type: 'image',
-              source: { type: 'base64', media_type: mediaType, data: base64Image },
-            },
-            {
-              type: 'text',
-              text: `이 사진에서 약 이름과 복용 시간대를 추출해주세요.
-
-규칙:
-- 사진에 명확하게 보이는 약 이름만 추출하세요. 확실하지 않으면 추출하지 마세요.
-- 약 이름은 사진에 적힌 그대로 정확히 읽어주세요. 임의로 변경하거나 추측하지 마세요.
-- 처방전이면: 약품명 컬럼에서 읽으세요
-- 약봉투/약봉지이면: 봉투에 인쇄된 약품명을 읽으세요
-- 복용 시간대가 명확히 표시된 경우만 포함하세요. 불명확하면 빈 배열로 두세요.
-
-반드시 아래 JSON 형식으로만 응답하세요 (다른 텍스트 없이):
-{"medications":[{"name":"약 이름","times":["morning","lunch","dinner","bedtime"]}]}
-복용 시간대: morning(아침)/lunch(점심)/dinner(저녁)/bedtime(취침)
-개인정보(이름, 주민번호 등)는 무시하세요.
-약이 보이지 않거나 읽기 어려우면 {"medications":[]} 를 반환하세요.`,
-            },
-          ],
-        },
-      ],
+      image_base64: base64Image,
+      image_type: imageType,
+      mode: 'medication_manage',
     }),
   });
 
-  if (!response.ok) throw new Error(`API 오류: ${response.status}`);
+  if (!response.ok) throw new Error(`OCR 오류: ${response.status}`);
   const data = await response.json();
-  const text: string = data.content[0].text;
-  const cleaned = text.replace(/```json\n?/g, '').replace(/```\n?/g, '').trim();
-  return JSON.parse(cleaned) as { medications: { name: string; times: string[] }[] };
+  const normalized = {
+    medications: (data.medications ?? []).map((m: any) => ({
+      name: String(m.name ?? ''),
+      ediCode: (m.ediCode ?? '').toString().trim(),
+      times: Array.isArray(m.times) ? m.times : [],
+    })),
+  };
+  return { ...normalized, rawText: '' };
+}
+
+// mfds-proxy Edge Function 호출 헬퍼
+async function callMfdsProxy(endpoint: 'grn' | 'easy' | 'easy01', query: string, opts?: { numOfRows?: number; pageNo?: number }): Promise<any> {
+  const accessToken = await getAccessToken();
+  const res = await fetch(`${SUPABASE_URL}/functions/v1/mfds-proxy`, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      'apikey': SUPABASE_ANON_KEY,
+      'Authorization': `Bearer ${accessToken}`,
+    },
+    body: JSON.stringify({ endpoint, query, ...(opts ?? {}) }),
+  });
+  if (!res.ok) return null;
+  return res.json();
+}
+
+function normalizeDrugName(s: string): string {
+  return (s || '').replace(/[\s()（）\-_\/]/g, '').toUpperCase();
+}
+
+function isNameMatched(searchName: string, returnedName: string): boolean {
+  if (!returnedName) return false;
+  const s = normalizeDrugName(searchName);
+  const r = normalizeDrugName(returnedName);
+  if (!s || !r) return false;
+  const sHead = s.slice(0, 3);
+  const rHead = r.slice(0, 3);
+  return r.includes(sHead) || s.includes(rHead);
 }
 
 async function searchMfdsInfo(drugName: string): Promise<DrugInfo | null> {
+  // 1차: 의약품 e약은요 API (제품허가 기반, 브랜드명 검색에 강함) — mfds-proxy 경유
+  let easyHit: {
+    itemName: string;
+    entpName?: string;
+    itemImage?: string;
+    efcyQesitm?: string;
+    useMethodQesitm?: string;
+  } | null = null;
+
   try {
-    const url = `${MFDS_URL}?serviceKey=${encodeURIComponent(MFDS_KEY)}&item_name=${encodeURIComponent(drugName)}&type=json&numOfRows=5&pageNo=1`;
-    const res = await fetch(url);
-    if (!res.ok) return null;
-    const data = await res.json();
-    const rawItems = data?.body?.items?.item ?? data?.body?.items;
-    if (!rawItems) return null;
-    const list = Array.isArray(rawItems) ? rawItems : [rawItems];
-    if (list.length === 0) return null;
-    const item = list[0];
-    const returnedName: string = item.ITEM_NAME ?? '';
-    const searchUpper = drugName.replace(/\s/g, '').toUpperCase();
-    const returnedUpper = returnedName.replace(/\s/g, '').toUpperCase();
-    if (
-      returnedName &&
-      !returnedUpper.includes(searchUpper.slice(0, 3)) &&
-      !searchUpper.includes(returnedUpper.slice(0, 3))
-    ) {
-      return null;
+    const easyData = await callMfdsProxy('easy', drugName, { numOfRows: 5, pageNo: 1 });
+    if (easyData) {
+      const rawEasy = easyData?.body?.items?.item ?? easyData?.body?.items;
+      if (rawEasy) {
+        const easyList = Array.isArray(rawEasy) ? rawEasy : [rawEasy];
+        const matched = easyList.find((it: any) => isNameMatched(drugName, it?.itemName ?? '')) ?? easyList[0];
+        if (matched && matched.itemName) {
+          easyHit = {
+            itemName: matched.itemName,
+            entpName: matched.entpName ?? undefined,
+            itemImage: matched.itemImage ?? undefined,
+            efcyQesitm: matched.efcyQesitm ?? undefined,
+            useMethodQesitm: matched.useMethodQesitm ?? undefined,
+          };
+        }
+      }
     }
-    return {
-      itemName: returnedName || drugName,
-      entpName: item.ENTP_NAME ?? undefined,
-      itemImage: item.ITEM_IMAGE ?? undefined,
-      chart: item.CHART ?? undefined,
-      drugShape: item.DRUG_SHAPE ?? undefined,
-      colorClass: item.COLOR_CLASS1 ?? undefined,
-      className: item.CLASS_NAME ?? undefined,
-      etcOtcName: item.ETC_OTC_NAME ?? undefined,
-      printFront: item.PRINT_FRONT ?? undefined,
-      printBack: item.PRINT_BACK ?? undefined,
-    };
   } catch {
-    return null;
+    // ignore, fallback to 낱알식별
   }
+
+  // 2차: 낱알식별 API (이미지/모양 정보 보강) — mfds-proxy 경유
+  let grnHit: any = null;
+  try {
+    const data = await callMfdsProxy('grn', drugName, { numOfRows: 5, pageNo: 1 });
+    if (data) {
+      const rawItems = data?.body?.items?.item ?? data?.body?.items;
+      if (rawItems) {
+        const list = Array.isArray(rawItems) ? rawItems : [rawItems];
+        const matched = list.find((it: any) => isNameMatched(drugName, it?.ITEM_NAME ?? '')) ?? list[0];
+        if (matched && isNameMatched(drugName, matched.ITEM_NAME ?? '')) {
+          grnHit = matched;
+        }
+      }
+    }
+  } catch {
+    // ignore
+  }
+
+  if (!easyHit && !grnHit) return null;
+
+  const itemName = easyHit?.itemName || grnHit?.ITEM_NAME || drugName;
+  const entpName = easyHit?.entpName ?? grnHit?.ENTP_NAME ?? undefined;
+  const itemImage = easyHit?.itemImage || grnHit?.ITEM_IMAGE || undefined;
+
+  return {
+    itemName,
+    entpName,
+    itemImage,
+    chart: grnHit?.CHART ?? undefined,
+    drugShape: grnHit?.DRUG_SHAPE ?? undefined,
+    colorClass: grnHit?.COLOR_CLASS1 ?? undefined,
+    className: grnHit?.CLASS_NAME ?? undefined,
+    etcOtcName: grnHit?.ETC_OTC_NAME ?? undefined,
+    printFront: grnHit?.PRINT_FRONT ?? undefined,
+    printBack: grnHit?.PRINT_BACK ?? undefined,
+    itemSeq: grnHit?.ITEM_SEQ ?? undefined,
+  };
 }
 
 // ─── 스와이프 다운 닫기 훅 ────────────────────────────────────────────────────
@@ -478,11 +572,9 @@ function DrugInfoModal({ drug, onClose }: { drug: Medication | null; onClose: ()
     if (!drug?.name) return;
     setEasyInfo(null);
     setEasyLoading(true);
-    fetch(
-      `https://apis.data.go.kr/1471000/DrbEasyDrugInfoService01/getDrbEasyDrugList?serviceKey=${encodeURIComponent(MFDS_KEY)}&itemName=${encodeURIComponent(drug.name)}&type=json&numOfRows=3&pageNo=1`
-    )
-      .then(r => r.json())
+    callMfdsProxy('easy01', drug.name, { numOfRows: 3, pageNo: 1 })
       .then(data => {
+        if (!data) return;
         // 공공 API 응답: data.response.body 또는 data.body
         const body = data?.response?.body ?? data?.body;
         const rawItems = body?.items?.item ?? body?.items;
@@ -495,7 +587,7 @@ function DrugInfoModal({ drug, onClose }: { drug: Medication | null; onClose: ()
           });
         }
       })
-      .catch((e) => { console.error('[DrugInfo] easyDrug API 오류:', e); })
+      .catch((e) => { if (__DEV__) console.error('[DrugInfo] easyDrug API 오류:', e); })
       .finally(() => setEasyLoading(false));
   }, [drug?.name]);
 
@@ -917,8 +1009,15 @@ export function MedicationManageScreen() {
   const openSlotParam = (route.params as any)?.openSlot as ('morning' | 'lunch' | 'dinner' | 'bedtime') | undefined;
   const { getPatientForCaregiver } = useFamilyLink();
   const { unreadCount } = useNotificationBadge();
+  const { medNotifs, setMedNotifs } = useSettings();
+  const dialog = useDialog();
   const navigation = useNavigation<any>();
   const [medications, setMedications] = useState<Medication[]>([]);
+  // 환자에게 dose_slots(이관/신규)가 1개 이상 있으면 true → 표시 슬롯/시각 폴백의 단일 기준.
+  // (true면 약 카드/섹션 시각은 dose_slots 조인 우선, false면 legacy meal_schedules)
+  const [hasDoseSlots, setHasDoseSlots] = useState(false);
+  // 약효 확인 시간 재추천 제안 다이얼로그 진행 중복 방지
+  const reRecommendInFlight = useRef(false);
   const [isOcrLoading, setIsOcrLoading] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
   const [selectedDrug, setSelectedDrug] = useState<Medication | null>(null);
@@ -949,12 +1048,16 @@ export function MedicationManageScreen() {
 
   // OCR 결과 확인 바텀시트
   const [ocrResultVisible, setOcrResultVisible] = useState(false);
+  const [ocrRawText, setOcrRawText] = useState<string>('');
   const [ocrEnrichedMeds, setOcrEnrichedMeds] = useState<Array<{
     id: string;
     name: string;
+    ediCode: string;
+    dosage?: string | null;
     times: TimeSlot[];
-    schedules: MealSchedules;
-    drugInfo: any;
+    schedules?: MealSchedules;
+    drugInfo?: DrugInfo | null;
+    doseSlots?: MedDoseSlot[];
     checked: boolean;
   }>>([]);
 
@@ -1002,7 +1105,55 @@ export function MedicationManageScreen() {
         schedules: (row.meal_schedules ?? {}) as MealSchedules,
         drugInfo: row.drug_image_url ? { itemName: row.name, itemImage: row.drug_image_url } : undefined,
       }));
-      setMedications(baseMeds);
+
+      // ── 표시용 dose_slots 조인 (읽기 전용) ──────────────────────────────────
+      // 이관/신규 환자: medication_dose_slots(M:N) → dose_slots 의 time/label 로 표시.
+      // 없으면 hasDoseSlots=false → 기존 legacy(meal_times/meal_schedules) 폴백.
+      // ⚠️ 쓰기 경로(meal_times/meal_schedules)는 전혀 건드리지 않음.
+      let medsWithSlots = baseMeds;
+      let patientHasDoseSlots = false;
+      try {
+        const medIds = baseMeds.map((m) => m.id);
+        const { data: slotJoin, error: slotErr } = await supabase
+          .from('medication_dose_slots')
+          .select('medication_id, dose_slots!inner(label, time, sort_order, is_active, patient_id)')
+          .eq('dose_slots.patient_id', pid)
+          .eq('dose_slots.is_active', true)
+          .in('medication_id', medIds.length > 0 ? medIds : ['__none__']);
+        if (slotErr) throw slotErr;
+
+        const byMed = new Map<string, MedDoseSlot[]>();
+        (slotJoin ?? []).forEach((row: any) => {
+          const ds = row.dose_slots;
+          if (!ds) return;
+          patientHasDoseSlots = true;
+          const list = byMed.get(row.medication_id) ?? [];
+          list.push({
+            key: labelToLegacyKey(ds.label),
+            time: normalizeHhmm(ds.time),
+            sortOrder: ds.sort_order ?? 0,
+          });
+          byMed.set(row.medication_id, list);
+        });
+
+        if (patientHasDoseSlots) {
+          medsWithSlots = baseMeds.map((m) => {
+            const slots = byMed.get(m.id);
+            if (!slots || slots.length === 0) return m;
+            return {
+              ...m,
+              doseSlots: [...slots].sort((a, b) => a.sortOrder - b.sortOrder),
+            };
+          });
+        }
+      } catch (slotE) {
+        // dose_slots 조인 실패 시 legacy 표시로 안전 폴백
+        console.warn('[MedicationManageScreen] dose_slots 조인 실패, legacy 표시로 폴백:', slotE);
+        patientHasDoseSlots = false;
+        medsWithSlots = baseMeds;
+      }
+      setHasDoseSlots(patientHasDoseSlots);
+      setMedications(medsWithSlots);
 
       // drug_image_url 없는 약은 식약처 API로 이미지 보충 시도
       const medsWithoutImage = baseMeds.filter(m => !m.drugInfo?.itemImage);
@@ -1021,7 +1172,10 @@ export function MedicationManageScreen() {
               if (found.drugInfo?.itemImage) {
                 supabase
                   .from('medications')
-                  .update({ drug_image_url: found.drugInfo.itemImage })
+                  .update({
+                    drug_image_url: found.drugInfo.itemImage,
+                    ...(found.drugInfo.itemSeq ? { item_seq: found.drugInfo.itemSeq } : {}),
+                  })
                   .eq('id', med.id)
                   .then(() => {})
                   .catch(() => {});
@@ -1054,10 +1208,10 @@ export function MedicationManageScreen() {
     try {
       if (useCamera) {
         const { status } = await ImagePicker.requestCameraPermissionsAsync();
-        if (status !== 'granted') { Alert.alert('권한 필요', '카메라 접근 권한이 필요해요.'); return; }
+        if (status !== 'granted') { await dialog.alert({ title: '권한 필요', message: '카메라 접근 권한이 필요해요.' }); return; }
       } else {
         const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
-        if (status !== 'granted') { Alert.alert('권한 필요', '갤러리 접근 권한이 필요해요.'); return; }
+        if (status !== 'granted') { await dialog.alert({ title: '권한 필요', message: '갤러리 접근 권한이 필요해요.' }); return; }
       }
 
       const result = useCamera
@@ -1067,7 +1221,7 @@ export function MedicationManageScreen() {
       if (result.canceled || !result.assets?.length) return;
 
       const asset = result.assets[0];
-      if (!asset.base64) { Alert.alert('오류', '이미지를 읽을 수 없어요.'); return; }
+      if (!asset.base64) { await dialog.alert({ title: '오류', message: '이미지를 읽을 수 없어요.' }); return; }
 
       const uri = asset.uri.toLowerCase();
       let mediaType = 'image/jpeg';
@@ -1082,6 +1236,7 @@ export function MedicationManageScreen() {
       const newMeds: Medication[] = parsed.medications.map((med, i) => ({
         id: (Date.now() + i).toString(),
         name: med.name,
+        ediCode: (med.ediCode ?? '').trim(),
         times: med.times.filter((t): t is TimeSlot => validSlots.includes(t as TimeSlot)),
         schedules: {},
       }));
@@ -1091,17 +1246,268 @@ export function MedicationManageScreen() {
       );
 
       if (enriched.length === 0) {
-        Alert.alert('약을 찾지 못했어요', '사진이 선명한지 확인 후 다시 시도하거나, 직접 입력해주세요.');
+        await dialog.alert({ title: '약을 찾지 못했어요', message: '사진이 선명한지 확인 후 다시 시도하거나, 직접 입력해주세요.' });
         return;
       }
 
       // DB 저장 대신 바텀시트로 결과 표시
-      setOcrEnrichedMeds(enriched.map(m => ({ ...m, checked: true })));
+      setOcrRawText(parsed.rawText ?? '');
+      setOcrEnrichedMeds(enriched.map(m => ({ ...m, ediCode: m.ediCode ?? '', checked: true })));
       setOcrResultVisible(true);
     } catch {
-      Alert.alert('', '분석에 실패했어요. 다시 시도해주세요.');
+      await dialog.alert({ message: '분석에 실패했어요. 다시 시도해주세요.' });
     } finally {
       setIsOcrLoading(false);
+    }
+  };
+
+  // ── 비교 키 / 비교 유틸 ───────────────────────────────────────────────
+  const normalizeNameKey = (name: string): string =>
+    (name ?? '').replace(/\s/g, '').toLowerCase().slice(0, 5);
+
+  // EDI코드가 있으면 EDI 우선, 없으면 이름 fallback
+  const matchKey = (m: { ediCode?: string | null; name?: string | null }): string => {
+    const edi = (m.ediCode ?? '').toString().trim();
+    if (edi) return 'edi:' + edi;
+    return 'name:' + normalizeNameKey(m.name ?? '');
+  };
+
+  const slotsLabel = (slots: string[]): string => {
+    const order: TimeSlot[] = ['morning', 'lunch', 'dinner', 'bedtime'];
+    const sorted = order.filter(s => slots.includes(s));
+    return sorted.map(s => TIME_SLOTS.find(t => t.key === s)?.label.replace('약', '') ?? s).join(',') || '없음';
+  };
+
+  // ── 표시 슬롯 단일 진입점 (읽기 전용) ─────────────────────────────────────
+  // dose_slots 조인(med.doseSlots)이 있으면 그걸로, 없으면 legacy(times/schedules).
+  // ⚠️ 쓰기에는 절대 사용하지 않음 — 약 카드/섹션의 라벨·시각 표시 전용.
+
+  /** 약이 속한 표시용 표준 슬롯 키 목록(LEGACY_SLOT_ORDER 순서). */
+  const medDisplaySlotKeys = useCallback((med: Medication): TimeSlot[] => {
+    if (hasDoseSlots && med.doseSlots && med.doseSlots.length > 0) {
+      // dose_slots 조인 우선. 표준 4슬롯으로 역매핑되는 것만(비표준 라벨은 6단계 세트카드에서 처리).
+      const keys = med.doseSlots
+        .map((s) => s.key)
+        .filter((k): k is TimeSlot => k != null);
+      return LEGACY_SLOT_ORDER.filter((k) => keys.includes(k));
+    }
+    // legacy 폴백
+    return LEGACY_SLOT_ORDER.filter((k) => med.times.includes(k));
+  }, [hasDoseSlots]);
+
+  /** 특정 약·슬롯의 표시 시각('HH:MM'). dose_slots 우선, 없으면 legacy schedules, 최후 defaultTime. */
+  const medDisplaySlotTime = useCallback((med: Medication, key: TimeSlot): string => {
+    if (hasDoseSlots && med.doseSlots && med.doseSlots.length > 0) {
+      const ds = med.doseSlots.find((s) => s.key === key);
+      if (ds?.time) return ds.time;
+    }
+    return med.schedules?.[key] ?? (LEGACY_SLOT_META[key]?.defaultTime ?? '08:00');
+  }, [hasDoseSlots]);
+
+  type DiffEntry =
+    | { type: 'added'; name: string; ediCode?: string; key: string }
+    | { type: 'stopped'; name: string; ediCode?: string; key: string; prevItemId?: string; prevMedId?: string }
+    | { type: 'timing_changed'; name: string; ediCode?: string; key: string; prevSlots: string[]; newSlots: string[]; prevMedId?: string }
+    | { type: 'dose_changed'; name: string; ediCode?: string; key: string; prevTakes: number; newTakes: number; prevMedId?: string }
+    | { type: 'unchanged'; name: string; ediCode?: string; key: string; prevMedId?: string };
+
+  const performOcrSave = async (
+    selected: typeof ocrEnrichedMeds,
+    diffs: DiffEntry[]
+  ) => {
+    if (!user || !targetPatientId) {
+      setMedications(prev => [...prev, ...selected]);
+      return;
+    }
+
+    const today = new Date().toISOString().slice(0, 10);
+
+    try {
+      // 1) prescription 헤더 저장
+      let prescriptionId: string | null = null;
+      try {
+        const { data: rxRow, error: rxErr } = await supabase
+          .from('prescriptions')
+          .insert({
+            patient_id: targetPatientId,
+            issued_at: today,
+            hospital: null,
+            source: 'ocr',
+            image_url: null,
+            raw_ocr_text: ocrRawText || null,
+          })
+          .select()
+          .single();
+        if (rxErr) throw rxErr;
+        prescriptionId = rxRow?.id ?? null;
+
+        if (prescriptionId) {
+          const itemRows = selected.map(med => ({
+            prescription_id: prescriptionId,
+            edi_code: med.ediCode && med.ediCode.trim() ? med.ediCode.trim() : null,
+            product_name: med.name,
+            dose_per_take: 1,
+            takes_per_day: med.times.length,
+            total_days: null,
+            timing_slots: med.times,
+            meal_relation: 'none',
+            free_text: null,
+          }));
+          if (itemRows.length > 0) {
+            const { error: itemErr } = await supabase
+              .from('prescription_items')
+              .insert(itemRows);
+            if (itemErr) console.warn('[OCR confirm] prescription_items 저장 실패:', itemErr);
+          }
+        }
+      } catch (rxErr) {
+        console.warn('[OCR confirm] prescriptions 저장 실패:', rxErr);
+      }
+
+      // 2) medications 동기화 — diff 기반 (EDI코드 우선 매칭)
+      const addedKeys = new Set(diffs.filter(d => d.type === 'added').map(d => d.key));
+      // 2-1) 신규 약: insert
+      const toInsert = selected.filter(m => addedKeys.has(matchKey(m)));
+      let insertedDbMeds: Medication[] = [];
+      if (toInsert.length > 0) {
+        const { data: inserted, error: insertError } = await supabase
+          .from('medications')
+          .insert(
+            toInsert.map(med => ({
+              patient_id: targetPatientId,
+              name: med.name,
+              dosage: null,
+              meal_times: med.times,
+              meal_schedules: {},
+              scheduled_times: [] as string[],
+              drug_code: null,
+              drug_image_url: med.drugInfo?.itemImage ?? null,
+              item_seq: med.drugInfo?.itemSeq ?? null,
+              is_active: true,
+            }))
+          )
+          .select();
+        if (insertError) throw insertError;
+        insertedDbMeds = (inserted ?? []).map((row: any) => {
+          const matched = toInsert.find(s => s.name === row.name);
+          return {
+            id: row.id,
+            name: row.name,
+            dosage: null,
+            times: (row.meal_times ?? []) as TimeSlot[],
+            schedules: (row.meal_schedules ?? {}) as MealSchedules,
+            drugInfo: matched?.drugInfo ?? null,
+            ediCode: matched?.ediCode ?? '',
+          };
+        });
+      }
+
+      // 2-2) 변경된 약: update (meal_times 갱신)
+      const toUpdate = diffs.filter(
+        d => d.type === 'timing_changed' || d.type === 'dose_changed'
+      ) as Extract<DiffEntry, { type: 'timing_changed' | 'dose_changed' }>[];
+      const updatedIds: string[] = [];
+      for (const d of toUpdate) {
+        if (!d.prevMedId) continue;
+        const newMed = selected.find(s => matchKey(s) === d.key);
+        if (!newMed) continue;
+        const { error: upErr } = await supabase
+          .from('medications')
+          .update({
+            meal_times: newMed.times,
+            meal_schedules: {},
+            scheduled_times: [] as string[],
+            is_active: true,
+          })
+          .eq('id', d.prevMedId);
+        if (upErr) console.warn('[OCR confirm] medications update 실패:', upErr);
+        else updatedIds.push(d.prevMedId);
+      }
+
+      // 2-3) 중단된 약: is_active=false + ended_at(있으면)
+      const toStop = diffs.filter(d => d.type === 'stopped') as Extract<DiffEntry, { type: 'stopped' }>[];
+      const stoppedIds: string[] = [];
+      for (const d of toStop) {
+        if (!d.prevMedId) continue;
+        // ended_at 컬럼 시도 (실패하면 is_active만)
+        const { error: upErr } = await supabase
+          .from('medications')
+          .update({ is_active: false, ended_at: today })
+          .eq('id', d.prevMedId);
+        if (upErr) {
+          const { error: upErr2 } = await supabase
+            .from('medications')
+            .update({ is_active: false })
+            .eq('id', d.prevMedId);
+          if (upErr2) console.warn('[OCR confirm] 중단 처리 실패:', upErr2);
+          else stoppedIds.push(d.prevMedId);
+        } else {
+          stoppedIds.push(d.prevMedId);
+        }
+      }
+
+      // 2-4) dose_slots dual-write: 신규/변경 약의 약↔슬롯 매핑 동기화 + 중단 약 매핑 정리.
+      // OCR 경로는 medications.meal_schedules 를 {} 로 두므로 dose_slot.time 은 환자
+      // users.meal_schedules(기존 시각) 기준으로 보장한다. 실패해도 throw 안 함.
+      try {
+        const { data: freshUser } = await supabase
+          .from('users')
+          .select('meal_schedules')
+          .eq('id', targetPatientId)
+          .single();
+        const mergedSchedules = (freshUser?.meal_schedules ?? {}) as MealSchedules;
+        await ensureDoseSlotsForPatient(mergedSchedules);
+        // 신규 약 매핑
+        await Promise.all(
+          insertedDbMeds.map((m) =>
+            syncMedicationDoseSlots(targetPatientId, m.id, (m.times ?? []) as LegacyMealKey[])
+          )
+        );
+        // 변경 약 매핑(새 meal_times 기준)
+        await Promise.all(
+          toUpdate.map((d) => {
+            if (!d.prevMedId) return Promise.resolve();
+            const newMed = selected.find((s) => matchKey(s) === d.key);
+            if (!newMed) return Promise.resolve();
+            return syncMedicationDoseSlots(
+              targetPatientId!,
+              d.prevMedId,
+              (newMed.times ?? []) as LegacyMealKey[]
+            );
+          })
+        );
+        // 중단 약 매핑 비움(빈 배열 → 기존 매핑 delete)
+        await Promise.all(
+          stoppedIds.map((id) => syncMedicationDoseSlots(targetPatientId!, id, []))
+        );
+        invalidateDoseSlotsCache(targetPatientId);
+      } catch (dsErr) {
+        console.warn('[OCR confirm] dose_slots 동기화 실패(계속):', dsErr);
+      }
+
+      // 3) 화면 상태 동기화
+      setMedications(prev => {
+        const next = prev
+          .filter(m => !stoppedIds.includes(m.id))
+          .map(m => {
+            const upd = toUpdate.find(d => d.prevMedId === m.id);
+            if (!upd) return m;
+            const newMed = selected.find(s => matchKey(s) === upd.key);
+            if (!newMed) return m;
+            return { ...m, times: newMed.times, schedules: {} };
+          })
+          .concat(insertedDbMeds);
+        insertedDbMeds.forEach(m => {
+          saveMedicationHistory(targetPatientId!, m.id, 'added', next);
+        });
+        // 처방전 등록으로 약 변경 → 재추천 제안(비강제 §3-C)
+        proposeReRecommend(next);
+        return next;
+      });
+    } catch (e) {
+      console.error('[OCR confirm] 저장 오류:', e);
+      // 최후 폴백: 화면에 표시만
+      setMedications(prev => [...prev, ...selected]);
     }
   };
 
@@ -1113,63 +1519,220 @@ export function MedicationManageScreen() {
     }
     setOcrResultVisible(false);
 
-    if (user && targetPatientId) {
-      try {
-        const { data: inserted, error: insertError } = await supabase
+    // ── 직전 처방전 조회 + 비교 + PK 매칭 안내 통합 ─────────────────────
+    let diffs: DiffEntry[] = [];
+    let isFirstPrescription = false;
+    let pkTips: string[] = [];
+
+    try {
+      if (targetPatientId) {
+        // 직전 prescription
+        const { data: prevRx } = await supabase
+          .from('prescriptions')
+          .select('id, issued_at')
+          .eq('patient_id', targetPatientId)
+          .order('issued_at', { ascending: false })
+          .limit(1);
+        const prevPrescriptionId = prevRx?.[0]?.id;
+
+        // 현재 active medications (medications 테이블엔 edi_code 컬럼 없을 수 있어 이름 기반 매핑)
+        const { data: activeMeds } = await supabase
           .from('medications')
-          .insert(
-            selected.map(med => ({
-              patient_id: targetPatientId,
-              name: med.name,
-              dosage: null,
-              meal_times: med.times,
-              meal_schedules: {},
-              scheduled_times: [] as string[],
-              drug_code: null,
-              drug_image_url: med.drugInfo?.itemImage ?? null,
-              is_active: true,
-            }))
-          )
-          .select();
-        if (insertError) throw insertError;
-        const dbMeds: Medication[] = (inserted ?? []).map((row: any, i: number) => ({
-          id: row.id,
-          name: row.name,
-          dosage: null,
-          times: (row.meal_times ?? []) as TimeSlot[],
-          schedules: (row.meal_schedules ?? {}) as MealSchedules,
-          drugInfo: selected[i]?.drugInfo ?? null,
-        }));
-        setMedications(prev => {
-          const next = [...prev, ...dbMeds];
-          // 각 추가된 약에 대해 스냅샷 저장
-          dbMeds.forEach(m => {
-            saveMedicationHistory(targetPatientId!, m.id, 'added', next);
+          .select('id, name, meal_times')
+          .eq('patient_id', targetPatientId)
+          .eq('is_active', true);
+        const medByNameKey = new Map<string, { id: string; name: string; times: string[] }>();
+        (activeMeds ?? []).forEach((r: any) => {
+          medByNameKey.set('name:' + normalizeNameKey(r.name), {
+            id: r.id,
+            name: r.name,
+            times: (r.meal_times ?? []) as string[],
           });
-          return next;
         });
-      } catch (e) {
-        console.error('[OCR confirm] 저장 오류:', e);
-        setMedications(prev => [...prev, ...selected]);
+
+        if (!prevPrescriptionId) {
+          isFirstPrescription = true;
+          diffs = selected.map(m => {
+            const key = matchKey(m);
+            return {
+              type: 'added',
+              name: m.name,
+              ediCode: m.ediCode,
+              key,
+            } as DiffEntry;
+          });
+        } else {
+          const { data: prevItems } = await supabase
+            .from('prescription_items')
+            .select('id, product_name, edi_code, timing_slots, takes_per_day, dose_per_take')
+            .eq('prescription_id', prevPrescriptionId);
+          // EDI 우선 매칭 키
+          const prevByKey = new Map<string, any>();
+          (prevItems ?? []).forEach((it: any) => {
+            const key = matchKey({ ediCode: it.edi_code, name: it.product_name });
+            prevByKey.set(key, it);
+          });
+          const newByKey = new Map<string, typeof selected[number]>();
+          selected.forEach(s => newByKey.set(matchKey(s), s));
+
+          // 추가 / 변경 / 동일
+          for (const s of selected) {
+            const key = matchKey(s);
+            const prev = prevByKey.get(key);
+            // medications 테이블 매칭은 이름 키로 (edi_code 컬럼 없을 수 있음)
+            const prevMedId = medByNameKey.get('name:' + normalizeNameKey(s.name))?.id;
+            if (!prev) {
+              diffs.push({ type: 'added', name: s.name, ediCode: s.ediCode, key });
+              continue;
+            }
+            const prevSlots = (prev.timing_slots ?? []) as string[];
+            const newSlots = s.times as string[];
+            const slotsDiffer =
+              prevSlots.length !== newSlots.length ||
+              !prevSlots.every(ps => newSlots.includes(ps));
+            const prevTakes = prev.takes_per_day ?? prevSlots.length;
+            const newTakes = newSlots.length;
+            if (slotsDiffer) {
+              diffs.push({
+                type: 'timing_changed',
+                name: s.name,
+                ediCode: s.ediCode,
+                key,
+                prevSlots,
+                newSlots,
+                prevMedId,
+              });
+            } else if (prevTakes !== newTakes) {
+              diffs.push({
+                type: 'dose_changed',
+                name: s.name,
+                ediCode: s.ediCode,
+                key,
+                prevTakes,
+                newTakes,
+                prevMedId,
+              });
+            } else {
+              diffs.push({ type: 'unchanged', name: s.name, ediCode: s.ediCode, key, prevMedId });
+            }
+          }
+          // 중단: 직전엔 있는데 신규엔 없음
+          for (const [key, prev] of prevByKey.entries()) {
+            if (!newByKey.has(key)) {
+              const prevEdi = (prev.edi_code ?? '').toString().trim();
+              diffs.push({
+                type: 'stopped',
+                name: prev.product_name,
+                ediCode: prevEdi || undefined,
+                key,
+                prevItemId: prev.id,
+                prevMedId: medByNameKey.get('name:' + normalizeNameKey(prev.product_name))?.id,
+              });
+            }
+          }
+        }
       }
-    } else {
-      setMedications(prev => [...prev, ...selected]);
+    } catch (cmpErr) {
+      console.warn('[OCR confirm] 비교 실패, 전부 신규로 진행:', cmpErr);
+      diffs = selected.map(m => ({ type: 'added', name: m.name, ediCode: m.ediCode, key: matchKey(m) } as DiffEntry));
     }
+
+    // PK 매칭 tips (실패해도 무시) — EDI코드 있으면 우선 조회
+    try {
+      for (const med of selected) {
+        let profile: any = null;
+        const edi = (med.ediCode ?? '').trim();
+        if (edi) {
+          const { data: byEdi } = await supabase
+            .from('medication_pk_profile')
+            .select('product_name, ingredient, suggested_slots, onset_min, tmax_min, edi_code')
+            .eq('edi_code', edi)
+            .limit(1);
+          profile = byEdi?.[0] ?? null;
+        }
+        if (!profile) {
+          const nameFrag = med.name.replace(/\s/g, '').slice(0, 3);
+          if (!nameFrag) continue;
+          const { data: profileRows } = await supabase
+            .from('medication_pk_profile')
+            .select('product_name, ingredient, suggested_slots, onset_min, tmax_min')
+            .or(`product_name.ilike.%${nameFrag}%,ingredient.ilike.%${nameFrag}%`)
+            .limit(1);
+          profile = profileRows?.[0];
+        }
+        if (profile) {
+          const slots: number[] = (profile?.suggested_slots as number[] | undefined) ?? [0, 30, 120];
+          const label = slots
+            .filter(s => s > 0)
+            .map(s => (s >= 60 ? `${Math.round(s / 60)}시간` : `${s}분`))
+            .join(', ');
+          pkTips.push(`ℹ️ ${med.name}: 복용 후 ${label} 시점 기록 권장`);
+        }
+      }
+    } catch (matchErr) {
+      console.warn('[OCR confirm] PK 매칭 실패:', matchErr);
+    }
+
+    // ── 비교 다이얼로그 메시지 작성 ───────────────────────────────────────
+    const lines: string[] = [];
+    if (isFirstPrescription) {
+      lines.push('처음 등록되는 처방입니다.');
+    } else {
+      const addedLines = diffs.filter(d => d.type === 'added').map(d => `➕ ${d.name} 추가`);
+      const stoppedLines = diffs.filter(d => d.type === 'stopped').map(d => `❌ ${d.name} 중단`);
+      const timingLines = diffs
+        .filter(d => d.type === 'timing_changed')
+        .map(d => {
+          const t = d as Extract<DiffEntry, { type: 'timing_changed' }>;
+          return `🟡 ${t.name} 복용시기 변경 (${slotsLabel(t.prevSlots)} → ${slotsLabel(t.newSlots)})`;
+        });
+      const doseLines = diffs
+        .filter(d => d.type === 'dose_changed')
+        .map(d => {
+          const t = d as Extract<DiffEntry, { type: 'dose_changed' }>;
+          return `🟡 ${t.name} 1일 횟수 변경 (${t.prevTakes}회 → ${t.newTakes}회)`;
+        });
+      lines.push(...addedLines, ...timingLines, ...doseLines, ...stoppedLines);
+      if (lines.length === 0) {
+        lines.push('직전 처방과 동일합니다.');
+      }
+    }
+    if (pkTips.length > 0) {
+      lines.push('');
+      lines.push(...pkTips);
+    }
+
+    // 공용 다이얼로그로 확인
+    const ok = await dialog.confirm({
+      title: '직전 처방과 비교',
+      message: lines.join('\n'),
+      confirmText: '등록하기',
+      cancelText: '취소',
+      cancelable: true,
+    });
+    if (ok) { performOcrSave(selected, diffs); }
   };
 
-  const handleOcrPress = () => {
-    Alert.alert('처방전 사진 등록', '사진을 어디서 가져올까요?', [
-      { text: '카메라로 찍기', onPress: () => pickImageAndRunOCR(true) },
-      { text: '갤러리에서 선택', onPress: () => pickImageAndRunOCR(false) },
-      { text: '취소', style: 'cancel' },
-    ]);
+  const handleOcrPress = async () => {
+    const choice = await dialog.show({
+      title: '처방전 사진 등록',
+      message: '사진을 어디서 가져올까요?',
+      buttons: [
+        { id: 'camera', text: '카메라로 찍기' },
+        { id: 'gallery', text: '갤러리에서 선택' },
+        { id: 'cancel', text: '취소', style: 'cancel' },
+      ],
+      cancelable: true,
+    });
+    if (choice === 'camera') pickImageAndRunOCR(true);
+    else if (choice === 'gallery') pickImageAndRunOCR(false);
   };
 
   // ── 식약처 정보 조회 ──────────────────────────────────────────────────
 
   const handleFetchMfdsForAdd = async () => {
     const trimmed = addName.trim();
-    if (!trimmed) { Alert.alert('', '약 이름을 먼저 입력해주세요.'); return; }
+    if (!trimmed) { await dialog.alert({ message: '약 이름을 먼저 입력해주세요.' }); return; }
     setIsMfdsLoading(true);
     try {
       const info = await searchMfdsInfo(trimmed);
@@ -1181,7 +1744,7 @@ export function MedicationManageScreen() {
 
   const handleFetchMfdsForEdit = async () => {
     const trimmed = editName.trim();
-    if (!trimmed) { Alert.alert('', '약 이름을 먼저 입력해주세요.'); return; }
+    if (!trimmed) { await dialog.alert({ message: '약 이름을 먼저 입력해주세요.' }); return; }
     setIsEditMfdsLoading(true);
     try {
       const info = await searchMfdsInfo(trimmed);
@@ -1217,12 +1780,188 @@ export function MedicationManageScreen() {
     }
   }, []);
 
+  // ── 약효 확인 시간 재추천(§3-C 비강제) / 사용자 수정값 보존(§13-6) ───────────
+
+  /** 현재 등록 약 목록 → 추천 입력 형태 */
+  const toRecommendInput = useCallback((meds: Medication[]) =>
+    meds.map(m => ({
+      name: m.name,
+      mfdsClassName: m.drugInfo?.className ?? undefined,
+    })), []);
+
+  /** 현재 등록 약 목록 → 약/용량 시그니처(§8.1) */
+  const toSignature = useCallback((meds: Medication[]) =>
+    buildSourceMedSignature(
+      meds.map(m => ({
+        name: m.name,
+        className: m.drugInfo?.className ?? null,
+        dosage: m.dosage ?? null,
+      }))
+    ), []);
+
+  /** 등록 레보도파 약 중 식약처 itemSeq 보유한 것(원문 링크용) */
+  const findLevodopaSeq = useCallback((meds: Medication[]): { name: string; itemSeq?: string } | null => {
+    const levo = meds.filter(m => {
+      const rec = resolveTrackingRecommendation(m.name, m.drugInfo?.className ?? undefined);
+      return rec?.active === true;
+    });
+    if (levo.length === 0) return null;
+    const withSeq = levo.find(m => m.drugInfo?.itemSeq);
+    const pick = withSeq ?? levo[0];
+    return { name: pick.name, itemSeq: pick.drugInfo?.itemSeq };
+  }, []);
+
+  /** 식약처 원문 직접 보기 (§4-A / 외부 브라우저 — 60대 고지 동반) */
+  const openMfdsDetail = useCallback(async (target: { name: string; itemSeq?: string } | null) => {
+    if (!target) return;
+    const url = target.itemSeq
+      ? `https://nedrug.mfds.go.kr/pbp/CCBBB01/getItemDetail?itemSeq=${target.itemSeq}`
+      : `https://nedrug.mfds.go.kr/searchDrug?searchYn=true&keyword=${encodeURIComponent(target.name)}`;
+    const ok = await dialog.confirm({
+      title: '식약처 약 정보',
+      message: '인터넷 창이 열려요.\n보고 나서 ◀(뒤로)로 돌아오시면 돼요.',
+      confirmText: '식약처 정보 열기',
+      cancelText: '취소',
+      cancelable: true,
+    });
+    if (ok) { Linking.openURL(url).catch(() => {}); }
+  }, [dialog]);
+
+  /**
+   * 약효 확인 시간 재추천 제안(비강제 — §3-C / §13-6).
+   *
+   * @param meds 평가 대상 약 목록(변경 직후 최신)
+   * @param opts.manual true=사용자가 진입점에서 직접 요청(시그니처 동일해도 표시)
+   */
+  const proposeReRecommend = useCallback(async (meds: Medication[], opts?: { manual?: boolean }) => {
+    if (reRecommendInFlight.current) return;
+    try {
+      const meta = await getRecommendationMeta();
+      const userEdited = meta?.userEdited === true;
+      const prevSig = meta?.sourceMedSignature;
+      const nextSig = toSignature(meds);
+
+      const result = buildRecommendedMedNotifs(toRecommendInput(meds));
+      const hasLevodopa = result.notifs.length > 0;
+
+      // 레보도파가 하나도 없게 됨 → 강제 변경 금지, 안심 안내만(§7-X 비레보도파 카피)
+      if (!hasLevodopa) {
+        // 시그니처는 갱신해 두되(다이얼로그 반복 방지) medNotifs 는 사용자 것 유지
+        await patchRecommendationMeta({ sourceMedSignature: nextSig });
+        if (opts?.manual || (prevSig !== undefined && prevSig !== nextSig)) {
+          await dialog.alert({
+            title: '약효 확인 시간',
+            message: '지금 등록하신 약은 약효추적 알림 대상이 아니에요.\n약은 평소대로 잘 챙기시면 돼요. 알림은 안 와도 괜찮아요.',
+            confirmText: '알겠어요',
+          });
+        }
+        return;
+      }
+
+      // 시그니처 변화 없음 + 수동 호출 아님 → 제안 안 함
+      const changed = prevSig === undefined || prevSig !== nextSig;
+      if (!changed && !opts?.manual) return;
+
+      const levoTarget = findLevodopaSeq(meds);
+      const timeList = result.notifs
+        .map(n => `• 복용 ${minutesToLabel(n.minutes)}`)
+        .join('\n');
+
+      const baseMsg =
+        '약이 바뀌었어요. 약에 맞춰 컨디션 확인 시간을 새로 잡아드릴까요?\n\n' +
+        '이렇게 맞춰드릴 수 있어요:\n' + timeList;
+      const editedWarn = userEdited
+        ? '\n\n직접 정하신 시간이 있어요. 바꾸면 그 설정은 사라져요.'
+        : '';
+
+      const applyNew = async () => {
+        const applied: MedNotif[] = result.notifs.map(n => ({ ...n, enabled: true }));
+        setMedNotifs(applied);
+        await patchRecommendationMeta({
+          recommendedFromClasses: result.activeClasses,
+          userEdited: false,            // 사용자가 명시 적용 → 새 기준 확정(§8.1)
+          lastAppliedAt: new Date().toISOString(),
+          sourceMedSignature: nextSig,
+        });
+        await dialog.alert({ title: '맞췄어요', message: '약에 맞춰 컨디션 확인 시간을 새로 맞췄어요.\n주치의와 상의해 언제든 바꾸실 수 있어요.', confirmText: '알겠어요' });
+      };
+
+      const keepAsIs = async () => {
+        // 사용자 값 불변 — 시그니처만 갱신해 다이얼로그 반복 방지
+        await patchRecommendationMeta({ sourceMedSignature: nextSig });
+      };
+
+      reRecommendInFlight.current = true;
+      // 버튼/배경탭/스와이프/백버튼 어느 경로로 닫혀도 dialog.show가
+      // 단 한 번만 resolve → 정리 로직 1회·가드 해제 1회 보장.
+      const picked = await dialog.show({
+        title: '약효 확인 시간',
+        message: baseMsg + editedWarn,
+        buttons: [
+          { id: 'apply', text: '새 시간으로 맞출게요', style: 'primary' },
+          { id: 'keep', text: '그대로 둘게요', style: 'cancel' },
+        ],
+        cancelable: true,
+      });
+      try {
+        // 'apply'만 새 시간 적용, 그 외(그대로 둘게요/배경탭/스와이프/null) = keepAsIs
+        if (picked === 'apply') {
+          await applyNew();
+        } else {
+          await keepAsIs();
+        }
+      } finally {
+        reRecommendInFlight.current = false;
+      }
+    } catch (e) {
+      console.warn('[proposeReRecommend] 오류:', e);
+      reRecommendInFlight.current = false;
+    }
+  }, [toSignature, toRecommendInput, findLevodopaSeq, setMedNotifs]);
+
+  // ── dose_slots dual-write 헬퍼 (5단계) ────────────────────────────────────
+  // legacy(meal_times/meal_schedules) 쓰기 직후 신규 dose_slots/medication_dose_slots
+  // 를 동기화하는 공용 진입점. 헬퍼는 실패해도 throw 하지 않으므로 legacy 쓰기를 막지 않음.
+  //
+  // notifMinutes: 전역 약효추적(medNotifs)에서 enabled 분만 추출 → 신규 슬롯 insert 시
+  //               track_intervals 기본값으로 사용(없으면 헬퍼가 30/120 폴백).
+  const enabledTrackMinutes = useCallback(
+    () => medNotifs.filter((n) => n.enabled && n.minutes > 0).map((n) => n.minutes),
+    [medNotifs]
+  );
+
+  /**
+   * 환자 dose_slots 를 주어진 meal_schedules 기준으로 보장(멱등 upsert).
+   * - users.med_time_notif_prefs 를 신선하게 읽어 remind_enabled 반영.
+   * - 보호자 경로 포함: 항상 targetPatientId(연동 환자) 대상.
+   * 실패해도 throw 하지 않음(헬퍼 내부에서 흡수).
+   */
+  const ensureDoseSlotsForPatient = useCallback(
+    async (mealSchedules: MealSchedules) => {
+      const pid = targetPatientId;
+      if (!pid) return;
+      let notifPrefs: Record<string, boolean> | null = null;
+      try {
+        const { data: userRow } = await supabase
+          .from('users')
+          .select('med_time_notif_prefs')
+          .eq('id', pid)
+          .single();
+        notifPrefs = (userRow?.med_time_notif_prefs ?? null) as Record<string, boolean> | null;
+      } catch (e) {
+        console.warn('[MedicationManageScreen] med_time_notif_prefs 조회 실패(계속):', e);
+      }
+      await ensurePatientDoseSlots(pid, mealSchedules, notifPrefs, enabledTrackMinutes());
+    },
+    [targetPatientId, enabledTrackMinutes]
+  );
+
   // ── 추가 ────────────────────────────────────────────────────────────────
 
   const handleAddSubmit = async () => {
     const trimmed = addName.trim();
-    if (!trimmed) { Alert.alert('', '약 이름을 입력해주세요.'); return; }
-    if (addTimes.length === 0) { Alert.alert('', '복용 시간대를 하나 이상 선택해주세요.'); return; }
+    if (!trimmed) { await dialog.alert({ message: '약 이름을 입력해주세요.' }); return; }
+    if (addTimes.length === 0) { await dialog.alert({ message: '복용 시간대를 하나 이상 선택해주세요.' }); return; }
     if (!user || !targetPatientId) return;
 
     const finalSchedules: MealSchedules = {};
@@ -1242,6 +1981,7 @@ export function MedicationManageScreen() {
           scheduled_times: [] as string[],
           drug_code: null,
           drug_image_url: addDrugInfo?.itemImage ?? null,
+          item_seq: addDrugInfo?.itemSeq ?? null,
           is_active: true,
         })
         .select()
@@ -1267,6 +2007,22 @@ export function MedicationManageScreen() {
         console.warn('[MedicationManageScreen] users.meal_schedules 업데이트 실패:', userError);
       }
 
+      // dose_slots dual-write: 환자 슬롯 보장(병합된 meal_schedules 기준) → 약↔슬롯 재배정.
+      // ensure 가 syncMedicationDoseSlots 의 선행조건이므로 순서 유지. 실패해도 throw 안 함.
+      try {
+        const { data: freshUser } = await supabase
+          .from('users')
+          .select('meal_schedules')
+          .eq('id', targetPatientId)
+          .single();
+        const mergedSchedules = (freshUser?.meal_schedules ?? finalSchedules) as MealSchedules;
+        await ensureDoseSlotsForPatient(mergedSchedules);
+        await syncMedicationDoseSlots(targetPatientId, data.id, addTimes);
+        invalidateDoseSlotsCache(targetPatientId);
+      } catch (dsErr) {
+        console.warn('[MedicationManageScreen] dose_slots 동기화 실패(계속):', dsErr);
+      }
+
       const newMed: Medication = {
         id: data.id,
         name: data.name,
@@ -1279,6 +2035,8 @@ export function MedicationManageScreen() {
         const next = [...prev, newMed];
         // 스냅샷 저장 (비동기, 실패해도 무시)
         saveMedicationHistory(targetPatientId!, data.id, 'added', next);
+        // 약 추가 → 약효 확인 시간 재추천 제안(비강제 §3-C)
+        proposeReRecommend(next);
         return next;
       });
       setAddName('');
@@ -1289,7 +2047,7 @@ export function MedicationManageScreen() {
       setShowAddForm(false);
     } catch (e) {
       console.error('[MedicationManageScreen] 약 추가 오류:', e);
-      Alert.alert('', '약 추가에 실패했어요. 다시 시도해주세요.');
+      await dialog.alert({ message: '약 추가에 실패했어요. 다시 시도해주세요.' });
     }
   };
 
@@ -1306,8 +2064,8 @@ export function MedicationManageScreen() {
 
   const handleEditSave = async () => {
     const trimmed = editName.trim();
-    if (!trimmed) { Alert.alert('', '약 이름을 입력해주세요.'); return; }
-    if (editTimes.length === 0) { Alert.alert('', '복용 시간대를 하나 이상 선택해주세요.'); return; }
+    if (!trimmed) { await dialog.alert({ message: '약 이름을 입력해주세요.' }); return; }
+    if (editTimes.length === 0) { await dialog.alert({ message: '복용 시간대를 하나 이상 선택해주세요.' }); return; }
     const savedId = editingId;
     if (!savedId) return;
 
@@ -1326,6 +2084,8 @@ export function MedicationManageScreen() {
       if (targetPatientId) {
         saveMedicationHistory(targetPatientId, savedId, 'updated', next);
       }
+      // 약 수정(계열/제형/용량 변경 포함) → 재추천 제안(비강제 §3-C)
+      proposeReRecommend(next);
       return next;
     });
     setEditingId(null);
@@ -1339,6 +2099,7 @@ export function MedicationManageScreen() {
           meal_times: editTimes,
           meal_schedules: finalSchedules,
           drug_image_url: editDrugInfo?.itemImage ?? null,
+          item_seq: editDrugInfo?.itemSeq ?? null,
         })
         .eq('id', savedId);
       if (error) throw error;
@@ -1362,10 +2123,25 @@ export function MedicationManageScreen() {
         } catch (userError) {
           console.warn('[MedicationManageScreen] users.meal_schedules 업데이트 실패:', userError);
         }
+
+        // dose_slots dual-write: 슬롯 보장(이미 있을 수 있으나 안전위해 ensure 먼저) → 약↔슬롯 재배정.
+        try {
+          const { data: freshUser } = await supabase
+            .from('users')
+            .select('meal_schedules')
+            .eq('id', targetPatientId)
+            .single();
+          const mergedSchedules = (freshUser?.meal_schedules ?? finalSchedules) as MealSchedules;
+          await ensureDoseSlotsForPatient(mergedSchedules);
+          await syncMedicationDoseSlots(targetPatientId, savedId, editTimes);
+          invalidateDoseSlotsCache(targetPatientId);
+        } catch (dsErr) {
+          console.warn('[MedicationManageScreen] dose_slots 동기화 실패(계속):', dsErr);
+        }
       }
     } catch (e) {
       console.error('[MedicationManageScreen] 약 수정 오류:', e);
-      Alert.alert('', '약 수정에 실패했어요.');
+      await dialog.alert({ message: '약 수정에 실패했어요.' });
       loadMedications();
     }
   };
@@ -1381,40 +2157,52 @@ export function MedicationManageScreen() {
 
   // ── 삭제 ────────────────────────────────────────────────────────────────
 
-  const handleDelete = (med: Medication) => {
-    Alert.alert('약 삭제', `${med.name}을(를) 삭제할까요?\n삭제해도 복용 기록은 유지돼요.`, [
-      { text: '취소', style: 'cancel' },
-      {
-        text: '삭제',
-        style: 'destructive',
-        onPress: async () => {
-          setMedications(prev => {
-            const next = prev.filter(m => m.id !== med.id);
-            // 스냅샷 저장 (비동기, 실패해도 무시) - 삭제된 약도 포함한 최종 목록
-            if (targetPatientId) {
-              saveMedicationHistory(targetPatientId, med.id, 'deleted', next);
-            }
-            return next;
-          });
-          try {
-            const { error } = await supabase
-              .from('medications')
-              .update({ is_active: false })
-              .eq('id', med.id);
-            if (error) throw error;
-          } catch (e) {
-            console.error('[MedicationManageScreen] 약 삭제 오류:', e);
-            Alert.alert('', '삭제에 실패했어요.');
-            loadMedications();
-          }
-        },
-      },
-    ]);
+  const handleDelete = async (med: Medication) => {
+    const ok = await dialog.confirm({
+      title: '약 삭제',
+      message: `${med.name}을(를) 삭제할까요?\n삭제해도 복용 기록은 유지돼요.`,
+      confirmText: '삭제',
+      cancelText: '취소',
+      destructive: true,
+    });
+    if (!ok) return;
+    setMedications(prev => {
+      const next = prev.filter(m => m.id !== med.id);
+      // 스냅샷 저장 (비동기, 실패해도 무시) - 삭제된 약도 포함한 최종 목록
+      if (targetPatientId) {
+        saveMedicationHistory(targetPatientId, med.id, 'deleted', next);
+      }
+      // 약 삭제 → 재추천 제안(레보도파 전삭제 시 강제변경 없이 안심 안내 §13-6)
+      proposeReRecommend(next);
+      return next;
+    });
+    try {
+      const { error } = await supabase
+        .from('medications')
+        .update({ is_active: false })
+        .eq('id', med.id);
+      if (error) throw error;
+
+      // dose_slots dual-write: 환자 시간표(dose_slots)는 유지하고, 이 약의 약↔슬롯
+      // 매핑(medication_dose_slots)만 비운다(빈 배열 → 기존 매핑 delete). 실패해도 throw 안 함.
+      if (targetPatientId) {
+        try {
+          await syncMedicationDoseSlots(targetPatientId, med.id, []);
+          invalidateDoseSlotsCache(targetPatientId);
+        } catch (dsErr) {
+          console.warn('[MedicationManageScreen] dose_slots 매핑 정리 실패(계속):', dsErr);
+        }
+      }
+    } catch (e) {
+      console.error('[MedicationManageScreen] 약 삭제 오류:', e);
+      await dialog.alert({ message: '삭제에 실패했어요.' });
+      loadMedications();
+    }
   };
 
   // ── 시간대 수정 저장 ────────────────────────────────────────────────────
 
-  const handleSlotEditSave = async (updatedMeds: Medication[], _newTime: string) => {
+  const handleSlotEditSave = async (updatedMeds: Medication[], newTime: string) => {
     // 낙관적 UI 업데이트
     setMedications(updatedMeds);
 
@@ -1435,6 +2223,29 @@ export function MedicationManageScreen() {
         }).eq('id', med.id)
       )
     );
+
+    // dose_slots dual-write: 이 화면은 users.meal_schedules 를 직접 쓰지 않으므로,
+    // 변경된 약들의 슬롯 시각을 모아 환자 dose_slot.time 을 동기화한다(홈/알림 시각 불일치 방지).
+    // newTime 은 이번에 편집된 슬롯의 새 시각. 이후 약↔슬롯 매핑도 변경 약만 재배정.
+    if (targetPatientId && changes.length > 0) {
+      try {
+        // 변경된 약들의 슬롯별 시각을 병합(legacy key → 'HH:MM'). 동일 슬롯은 마지막 값 사용.
+        const mergedSchedules: MealSchedules = {};
+        updatedMeds.forEach((med) => {
+          const sched = med.schedules ?? {};
+          (Object.keys(sched) as TimeSlot[]).forEach((k) => {
+            if (sched[k]) mergedSchedules[k] = sched[k];
+          });
+        });
+        await ensureDoseSlotsForPatient(mergedSchedules);
+        await Promise.all(
+          changes.map((med) => syncMedicationDoseSlots(targetPatientId, med.id, med.times))
+        );
+        invalidateDoseSlotsCache(targetPatientId);
+      } catch (dsErr) {
+        console.warn('[MedicationManageScreen] dose_slots 동기화 실패(계속):', dsErr);
+      }
+    }
   };
 
   const toggleAddTime = (t: TimeSlot) => {
@@ -1458,7 +2269,7 @@ export function MedicationManageScreen() {
   // ── 섹션 생성 ────────────────────────────────────────────────────────────
 
   const activeSections = TIME_SLOTS.filter(slot =>
-    medications.some(m => m.times.includes(slot.key))
+    medications.some(m => medDisplaySlotKeys(m).includes(slot.key))
   );
 
   // ── 렌더 ────────────────────────────────────────────────────────────────
@@ -1522,8 +2333,8 @@ export function MedicationManageScreen() {
           ) : (
             <View style={styles.sectionListContainer}>
               {activeSections.map(slot => {
-                const slotMeds = medications.filter(m => m.times.includes(slot.key));
-                const slotTime = slotMeds[0]?.schedules?.[slot.key] ?? slot.defaultTime;
+                const slotMeds = medications.filter(m => medDisplaySlotKeys(m).includes(slot.key));
+                const slotTime = slotMeds[0] ? medDisplaySlotTime(slotMeds[0], slot.key) : slot.defaultTime;
 
                 return (
                   <View key={slot.key} style={styles.sectionCard}>
@@ -1575,6 +2386,39 @@ export function MedicationManageScreen() {
             </View>
           ))}
 
+          {/* ── 약효 확인 시간 맞춰보기 (§7.2-bis 비강제 진입점) ── */}
+          {!showEditList && !showAddForm && medications.length > 0 && (
+            <View style={styles.effectCard}>
+              <View style={styles.effectCardHeader}>
+                <Ionicons name="time-outline" size={26} color={Colors.primary} />
+                <Text style={styles.effectCardTitle}>약효 확인 시간</Text>
+              </View>
+              <Text style={styles.effectCardDesc}>
+                등록하신 약에 맞춰 컨디션 확인 시간을 맞춰드릴 수 있어요.{'\n'}
+                바꿀지는 직접 정하시면 돼요.
+              </Text>
+              <Text style={styles.effectCardNote}>
+                ⓘ 확정 처방은 아니에요. 주치의와 상의해 조정하세요.
+              </Text>
+              <TouchableOpacity
+                style={styles.effectPrimaryBtn}
+                onPress={() => proposeReRecommend(medications, { manual: true })}
+                activeOpacity={0.85}
+              >
+                <Ionicons name="time-outline" size={22} color={Colors.white} />
+                <Text style={styles.effectPrimaryBtnText}>약효 확인 시간 맞춰보기</Text>
+              </TouchableOpacity>
+              <TouchableOpacity
+                style={styles.effectMfdsBtn}
+                onPress={() => openMfdsDetail(findLevodopaSeq(medications))}
+                activeOpacity={0.85}
+              >
+                <Ionicons name="document-text-outline" size={22} color={Colors.primary} />
+                <Text style={styles.effectMfdsBtnText}>식약처 약 정보 직접 보기</Text>
+              </TouchableOpacity>
+            </View>
+          )}
+
           {/* ── 버튼 2개: 약 직접 등록 / 약 전체 수정 ── */}
           <View style={styles.dualBtnRow}>
             <TouchableOpacity
@@ -1614,7 +2458,7 @@ export function MedicationManageScreen() {
                   style={styles.medInput}
                   value={addName}
                   onChangeText={(v) => { setAddName(v); setAddDrugInfo(undefined); }}
-                  placeholder="약 이름 입력 (예: 시네메트)"
+                  placeholder="약 이름 입력 (예: 마도파)"
                   placeholderTextColor={Colors.textHint}
                   returnKeyType="done"
                 />
@@ -1756,13 +2600,13 @@ export function MedicationManageScreen() {
                       </Text>
                     </TouchableOpacity>
 
-                    {/* 복용 시간대 세로 배치 */}
-                    {med.times.length > 0 && (
+                    {/* 복용 시간대 세로 배치 (dose_slots 조인 우선, 없으면 legacy) */}
+                    {medDisplaySlotKeys(med).length > 0 && (
                       <View style={styles.medSlotList}>
-                        {med.times.map(t => {
+                        {medDisplaySlotKeys(med).map(t => {
                           const slot = TIME_SLOTS.find(s => s.key === t);
                           if (!slot) return null;
-                          const time = med.schedules?.[t] ?? slot.defaultTime;
+                          const time = medDisplaySlotTime(med, t);
                           return (
                             <Text key={t} style={styles.medSlotRow}>
                               {slot.label}{'  '}{time}
@@ -2409,6 +3253,51 @@ const styles = StyleSheet.create({
   medItemTextGroup: { flex: 1 },
   medItemName: { fontSize: 20, fontWeight: '700', color: Colors.text },
   medItemDosage: { fontSize: 18, color: Colors.textSub, marginTop: 2 },
+
+  // 약효 확인 시간 진입 카드 (§7.2-bis)
+  effectCard: {
+    backgroundColor: Colors.white,
+    borderRadius: 16,
+    borderWidth: 2,
+    borderColor: Colors.primary,
+    paddingHorizontal: 18,
+    paddingVertical: 18,
+    marginBottom: 16,
+    elevation: 2,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.08,
+    shadowRadius: 4,
+  },
+  effectCardHeader: { flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: 8 },
+  effectCardTitle: { fontSize: 20, fontWeight: '700', color: Colors.text },
+  effectCardDesc: { fontSize: 18, lineHeight: 26, color: Colors.text },
+  effectCardNote: { fontSize: 15, lineHeight: 22, color: Colors.textSub, marginTop: 10, marginBottom: 14 },
+  effectPrimaryBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 8,
+    minHeight: 56,
+    borderRadius: 16,
+    backgroundColor: Colors.primary,
+    paddingHorizontal: 16,
+  },
+  effectPrimaryBtnText: { fontSize: 18, fontWeight: '700', color: Colors.white },
+  effectMfdsBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 8,
+    minHeight: 56,
+    borderRadius: 16,
+    borderWidth: 2,
+    borderColor: Colors.primary,
+    backgroundColor: Colors.white,
+    paddingHorizontal: 16,
+    marginTop: 10,
+  },
+  effectMfdsBtnText: { fontSize: 18, fontWeight: '700', color: Colors.primary },
 
   // 버튼 2개 행
   dualBtnRow: {

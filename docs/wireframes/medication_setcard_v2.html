@@ -1,0 +1,128 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>세트카드 v2 — 정리안 (두 묶음 분리 + 시간바꾸기 위로)</title>
+<style>
+  :root{--green:#4CAF50;--green-d:#2E7D32;--green-l:#E8F5E9;--orange:#FF9800;--orange-l:#FFF3E0;--ink:#222;--sub:#666;--line:#EEE;--bg:#F5F5F5;--blue-l:#EAF2FB;--blue:#3a6fb0;}
+  *{box-sizing:border-box;}
+  body{margin:0;font-family:-apple-system,"Apple SD Gothic Neo","Noto Sans KR",sans-serif;color:var(--ink);background:#ECECEC;padding:28px 14px;}
+  h1{text-align:center;font-size:20px;}
+  .sub{text-align:center;color:#555;font-size:13px;margin:0 0 24px;}
+  .stage{display:flex;flex-wrap:wrap;gap:36px;justify-content:center;align-items:flex-start;}
+  .phone{width:390px;background:var(--bg);border-radius:34px;padding:14px;box-shadow:0 10px 40px rgba(0,0,0,.18);}
+  .screen{background:var(--bg);border-radius:22px;overflow:hidden;padding:14px 14px 22px;}
+  .cap{font-size:12px;color:#555;text-align:center;margin-top:10px;font-weight:600;}
+  .card{background:#fff;border-radius:18px;padding:16px;box-shadow:0 1px 6px rgba(0,0,0,.06);border-left:5px solid var(--orange);}
+  .slottop{display:flex;align-items:center;gap:10px;margin-bottom:14px;}
+  .emoji{width:42px;height:42px;border-radius:21px;background:var(--green-l);display:flex;align-items:center;justify-content:center;font-size:21px;}
+  .stime{font-size:23px;font-weight:800;}
+  /* group box */
+  .grp{border-radius:14px;padding:14px;margin-bottom:12px;}
+  .grp.alarm{background:var(--blue-l);}
+  .grp.track{background:var(--green-l);}
+  .ghead{display:flex;align-items:center;gap:8px;font-size:18px;font-weight:800;margin-bottom:4px;}
+  .ghead .sw{margin-left:auto;}
+  .gdesc{font-size:13px;color:#555;margin:0 0 12px;}
+  .row{display:flex;align-items:center;gap:10px;min-height:52px;}
+  .sw{width:56px;height:31px;border-radius:16px;background:var(--green);position:relative;flex:none;}
+  .sw.off{background:#C8C8C8;}
+  .sw::after{content:"";position:absolute;width:25px;height:25px;border-radius:50%;background:#fff;top:3px;right:3px;box-shadow:0 1px 3px rgba(0,0,0,.3);}
+  .sw.off::after{right:auto;left:3px;}
+  .subrow{display:flex;align-items:center;gap:10px;background:#fff;border-radius:11px;padding:13px;margin-top:10px;font-size:16px;}
+  .subrow .lab{flex:1;font-weight:600;}
+  .subrow .val{color:var(--green-d);font-weight:700;}
+  .subrow.tappable{border:1.5px solid #dfe7f1;}
+  .qlab{font-size:15px;color:#444;font-weight:700;margin:4px 2px 8px;}
+  .qlab small{font-weight:500;color:#777;}
+  .chk{display:flex;align-items:center;gap:11px;background:#fff;border:1.5px solid var(--line);border-radius:11px;padding:11px 12px;margin-bottom:7px;min-height:52px;}
+  .chk.sel{border:2px solid var(--green);background:#F1FBF1;}
+  .box{width:25px;height:25px;border-radius:7px;border:2px solid #bbb;flex:none;display:flex;align-items:center;justify-content:center;color:#fff;font-size:15px;}
+  .chk.sel .box{background:var(--green);border-color:var(--green);}
+  .chk .m{font-size:17px;font-weight:700;}
+  .chk .hint{font-size:12px;color:var(--orange);margin-top:2px;}
+  .addbtn{display:flex;align-items:center;justify-content:center;gap:7px;border:2px dashed var(--green);color:var(--green-d);background:#fff;border-radius:11px;padding:13px;font-size:16px;font-weight:700;margin:2px 0 0;}
+  .done{display:flex;align-items:center;justify-content:center;background:var(--green);color:#fff;border-radius:13px;padding:15px;font-size:18px;font-weight:800;margin-top:4px;}
+  .timebtn{display:inline-flex;align-items:center;gap:6px;border:2px solid var(--blue);color:var(--blue);background:#fff;border-radius:11px;padding:10px 14px;font-size:15px;font-weight:700;}
+  .note{max-width:720px;margin:30px auto 0;background:#fff;border-radius:16px;padding:22px;box-shadow:0 4px 20px rgba(0,0,0,.08);}
+  .note h2{margin:0 0 12px;font-size:18px;}
+  .note li{font-size:14px;margin:7px 0;line-height:1.5;}
+  .old{opacity:.9;}
+  .badtag{display:inline-block;background:#FDEAEA;color:#c0392b;font-size:11px;font-weight:800;border-radius:5px;padding:2px 7px;margin-right:6px;}
+  .goodtag{display:inline-block;background:var(--green-l);color:var(--green-d);font-size:11px;font-weight:800;border-radius:5px;padding:2px 7px;margin-right:6px;}
+</style>
+</head>
+<body>
+  <h1>세트카드 v2 — 정리안</h1>
+  <p class="sub">두 묶음으로 분리 · 시간 바꾸기를 약 알림 옆으로 · 2026-06-09</p>
+
+  <div class="stage">
+
+    <!-- BEFORE -->
+    <div>
+      <div class="phone"><div class="screen">
+        <div class="card old">
+          <div class="slottop"><div class="emoji">🌅</div><div class="stime">아침 오전 8:00</div></div>
+          <div class="row"><div style="flex:1;"><b style="font-size:17px;">약 드실 시간 알려드릴까요?</b><div style="font-size:12px;color:#777;">매일 오전 8:00에 알려드려요</div></div><div class="sw off"></div></div>
+          <div style="height:1px;background:#eee;margin:12px 0;"></div>
+          <div class="row"><div style="flex:1;"><b style="font-size:17px;">약 드시고 나서 몸 상태 여쭤볼게요</b></div><div class="sw"></div></div>
+          <div class="qlab" style="margin-top:10px;">언제 여쭤볼까요 <small>(여러 개)</small></div>
+          <div class="chk sel"><div class="box">✓</div><div class="m">30분 뒤</div></div>
+          <div class="chk"><div class="box"></div><div class="m">1시간 뒤</div></div>
+          <div class="chk sel"><div class="box">✓</div><div class="m">2시간 뒤</div></div>
+          <div class="addbtn">＋ 다른 시간 더하기</div>
+          <div class="subrow" style="margin-top:10px;"><span>🔊</span><span class="lab">알림 소리</span><span class="val">기본 ▾</span></div>
+          <div class="subrow tappable" style="border-color:#ddd;"><span>🕐</span><span class="lab" style="text-align:center;color:#444;">시간 바꾸기</span></div>
+          <div class="done">다 됐어요</div>
+        </div>
+      </div></div>
+      <div class="cap">지금 (BEFORE) — 다 한 덩어리, 시간 바꾸기 맨 밑 😵</div>
+    </div>
+
+    <!-- AFTER -->
+    <div>
+      <div class="phone"><div class="screen">
+        <div class="card">
+          <div class="slottop"><div class="emoji">🌅</div><div class="stime">아침 오전 8:00</div></div>
+
+          <!-- GROUP 1: 약 알림 -->
+          <div class="grp alarm">
+            <div class="ghead">🔔 약 알림 <span class="sw off"></span></div>
+            <p class="gdesc">매일 오전 8:00에 약 드시라고 알려드려요</p>
+            <div class="subrow tappable"><span>🕐</span><span class="lab">알림 시간</span><span class="val">오전 8:00 · 바꾸기 ▾</span></div>
+            <div class="subrow"><span>🔊</span><span class="lab">알림 소리</span><span class="val">딸 목소리 ▾</span></div>
+          </div>
+
+          <!-- GROUP 2: 몸 상태 여쭤보기 -->
+          <div class="grp track">
+            <div class="ghead">💊 몸 상태 여쭤보기 <span class="sw"></span></div>
+            <p class="gdesc">약 드시고 나서 몸 상태를 여쭤봐요</p>
+            <div class="qlab">언제 여쭤볼까요 <small>(여러 개 고르셔도 돼요)</small></div>
+            <div class="chk sel"><div class="box">✓</div><div><div class="m">약 드신 바로 뒤</div><div class="hint">ⓘ '먹었어요' 누르면 바로 여쭤봐요</div></div></div>
+            <div class="chk sel"><div class="box">✓</div><div class="m">약 드시고 30분 뒤</div></div>
+            <div class="chk"><div class="box"></div><div class="m">약 드시고 2시간 뒤</div></div>
+            <div class="addbtn">＋ 다른 시간 더하기</div>
+            <div class="subrow"><span>🔊</span><span class="lab">여쭤볼 때 소리</span><span class="val">기본 ▾</span></div>
+          </div>
+
+          <div class="done">다 됐어요</div>
+        </div>
+      </div></div>
+      <div class="cap">정리안 (AFTER) — 두 묶음 분리, 시간 바꾸기 약 알림 안으로 ✅</div>
+    </div>
+
+  </div>
+
+  <div class="note">
+    <h2>무엇이 바뀌나</h2>
+    <ul>
+      <li><span class="goodtag">묶음 1</span><b>🔔 약 알림</b> — 켤까요 토글 + <b>알림 시간(바꾸기)</b> + 알림 소리 = 약 알림 관련은 전부 파란 박스 한 곳. <span class="badtag">전</span> 맨 밑에 떠있던 "시간 바꾸기"를 여기로 올림(오너 요청).</li>
+      <li><span class="goodtag">묶음 2</span><b>💊 몸 상태 여쭤보기</b> — 켤까요 토글 + 언제(체크줄+직접추가) + 여쭤볼 때 소리 = 초록 박스 한 곳.</li>
+      <li>두 박스를 <b>색·여백으로 확실히 분리</b> → "약 알림"과 "몸 상태 여쭤보기"가 다른 거라는 게 눈에 바로 들어옴(섞임 해소).</li>
+      <li>각 박스 켜고 끄는 토글을 <b>박스 제목 줄</b>에 둬서, 끄면 그 박스 안 내용이 접혀 더 단순해짐.</li>
+      <li>접힌(요약) 카드는 그대로 — 펼쳤을 때만 이렇게 두 박스로 보임.</li>
+    </ul>
+  </div>
+</body>
+</html>

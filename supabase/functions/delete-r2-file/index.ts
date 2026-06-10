@@ -58,7 +58,13 @@ Deno.serve(async (req) => {
       );
     }
 
-    // 소유권 확인 — 본인의 미디어 로그만 삭제 가능
+    // 소유권 확인.
+    //   허용:
+    //     - 환자 본인이 본인 의료영상 삭제
+    //     - 업로더 본인이 자기 업로드 삭제
+    //     - 보호자(같은 patient_group) 인 경우 같은 그룹 환자 파일 삭제
+    //   거부:
+    //     - 그 외 모든 경우 (다른 그룹 사용자 파일 등) → 403
     const { data: mediaLog, error: logError } = await supabase
       .from('media_logs')
       .select('id, patient_id, logged_by, r2_key')
@@ -72,7 +78,25 @@ Deno.serve(async (req) => {
       );
     }
 
-    if (mediaLog.patient_id !== user.id && mediaLog.logged_by !== user.id) {
+    // 안전을 위해 요청 body 의 r2_key 와 DB 의 r2_key 일치 확인 (불일치 시 거부)
+    if (mediaLog.r2_key !== r2_key) {
+      return new Response(
+        JSON.stringify({ error: 'r2_key 가 일치하지 않습니다.' }),
+        { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } },
+      );
+    }
+
+    let allowed = mediaLog.patient_id === user.id || mediaLog.logged_by === user.id;
+    if (!allowed) {
+      // 보호자(같은 patient_group) 인지 확인
+      const { data: sameGroup } = await supabase
+        .rpc('is_same_patient_group', { target_user_id: mediaLog.patient_id });
+      if (sameGroup === true) {
+        allowed = true;
+      }
+    }
+
+    if (!allowed) {
       return new Response(
         JSON.stringify({ error: '삭제 권한이 없습니다.' }),
         { status: 403, headers: { ...corsHeaders, 'Content-Type': 'application/json' } },

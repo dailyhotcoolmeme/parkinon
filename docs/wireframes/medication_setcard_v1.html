@@ -1,0 +1,242 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>파킨온 6단계 — 복용 시각 세트카드 알림설정 와이어프레임 v1</title>
+<style>
+  :root{
+    --green:#4CAF50; --green-d:#2E7D32; --green-l:#E8F5E9;
+    --orange:#FF9800; --orange-l:#FFF3E0; --danger:#F44336;
+    --ink:#222; --sub:#666; --line:#EEE; --bg:#F5F5F5;
+  }
+  *{box-sizing:border-box; -webkit-font-smoothing:antialiased;}
+  body{margin:0; font-family:-apple-system,"Apple SD Gothic Neo","Noto Sans KR",sans-serif; background:#ECECEC; color:var(--ink); padding:32px 16px;}
+  h1{text-align:center; font-size:22px;}
+  .sub{text-align:center; color:#555; margin:0 0 28px; font-size:14px;}
+  .stage{display:flex; flex-wrap:wrap; gap:40px; justify-content:center; align-items:flex-start;}
+  .phone{width:390px; background:var(--bg); border-radius:36px; padding:14px; box-shadow:0 10px 40px rgba(0,0,0,.18); border:1px solid #ddd;}
+  .screen{background:var(--bg); border-radius:24px; overflow:hidden;}
+  .caption{font-size:13px; color:#555; text-align:center; margin-top:10px; font-weight:600;}
+  /* topbar (non-sticky, in flow) */
+  .topbar{display:flex; align-items:center; gap:10px; padding:18px 18px 8px; background:var(--bg);}
+  .topbar .back{font-size:17px; color:var(--ink);}
+  .topbar .title{font-size:20px; font-weight:800;}
+  .body{padding:6px 16px 24px;}
+  /* guide box */
+  .guide{background:var(--green-l); border-radius:16px; padding:18px; margin:12px 0 18px;}
+  .guide b{font-size:17px; color:var(--green-d);}
+  .guide p{margin:8px 0 0; font-size:14px; color:#3a5a3c; line-height:1.5;}
+  .section-title{font-size:19px; font-weight:800; margin:18px 2px 4px;}
+  .section-desc{font-size:13px; color:var(--sub); margin:0 2px 12px;}
+  /* card */
+  .card{background:#fff; border-radius:16px; padding:18px; margin-bottom:14px; box-shadow:0 1px 6px rgba(0,0,0,.06);}
+  .card.on{border-left:5px solid var(--orange);}
+  .card.off{background:#F9F9F9;}
+  .slot-head{display:flex; align-items:center; gap:10px; margin-bottom:6px;}
+  .slot-emoji{width:40px;height:40px;border-radius:20px;background:var(--green-l);display:flex;align-items:center;justify-content:center;font-size:20px;}
+  .slot-time{font-size:22px; font-weight:800;}
+  .slot-label{font-size:14px; color:var(--sub); margin-left:auto;}
+  .divider{height:1px; background:var(--line); margin:14px 0;}
+  /* toggle row */
+  .row{display:flex; align-items:center; gap:12px; min-height:56px;}
+  .row .txt{flex:1;}
+  .row .txt .lead{font-size:18px; font-weight:700;}
+  .row .txt .desc{font-size:13px; color:var(--sub); margin-top:2px;}
+  .sw{width:58px;height:32px;border-radius:16px;background:var(--green);position:relative;flex:none;}
+  .sw.off{background:#CBCBCB;}
+  .sw::after{content:"";position:absolute;width:26px;height:26px;border-radius:50%;background:#fff;top:3px;right:3px;box-shadow:0 1px 3px rgba(0,0,0,.3);}
+  .sw.off::after{right:auto;left:3px;}
+  /* summary line + batuti */
+  .summary{font-size:15px;color:#444;margin:8px 0 2px;line-height:1.45;}
+  .btn-text{display:inline-flex;align-items:center;gap:6px;border:2px solid var(--green);color:var(--green-d);background:#fff;border-radius:12px;padding:10px 16px;font-size:15px;font-weight:700;}
+  .btn-add{display:flex;align-items:center;justify-content:center;gap:8px;border:2px dashed var(--green);color:var(--green-d);background:#fff;border-radius:14px;padding:16px;font-size:17px;font-weight:700;margin:4px 0 16px;}
+  /* check rows (recommended over chips) */
+  .checkrow{display:flex;align-items:flex-start;gap:12px;min-height:56px;padding:10px 12px;border-radius:12px;margin-bottom:8px;border:1.5px solid var(--line);}
+  .checkrow.sel{border:2px solid var(--green);background:var(--green-l);}
+  .box{width:26px;height:26px;border-radius:7px;border:2px solid #bbb;flex:none;margin-top:2px;display:flex;align-items:center;justify-content:center;font-size:16px;color:#fff;}
+  .checkrow.sel .box{background:var(--green);border-color:var(--green);}
+  .checkrow .ct{flex:1;}
+  .checkrow .ct .m{font-size:18px;font-weight:700;}
+  .checkrow .ct .hint{font-size:13px;color:var(--orange);margin-top:3px;}
+  .qhead{font-size:16px;color:#444;font-weight:700;margin:6px 2px 10px;}
+  .qhead small{font-weight:500;color:var(--sub);}
+  .voice{display:flex;align-items:center;gap:10px;background:#F7F7F7;border-radius:12px;padding:14px;margin:10px 0;}
+  .voice .ico{font-size:18px;}
+  .voice .vt{flex:1;font-size:16px;font-weight:600;}
+  .voice .pick{font-size:15px;color:var(--green-d);font-weight:700;}
+  .done{display:flex;align-items:center;justify-content:center;background:var(--green);color:#fff;border-radius:14px;padding:16px;font-size:18px;font-weight:800;margin-top:8px;}
+  .del{display:flex;align-items:center;justify-content:center;gap:6px;color:var(--danger);font-size:15px;font-weight:700;margin-top:12px;}
+  /* soft warning */
+  .warn{background:var(--orange-l);border-left:5px solid var(--orange);border-radius:12px;padding:14px;margin:12px 0;}
+  .warn b{font-size:16px;color:#9a5b00;}
+  .warn p{margin:6px 0 12px;font-size:14px;color:#7a5320;line-height:1.5;}
+  .warn .acts{display:flex;gap:10px;}
+  .warn .acts div{flex:1;text-align:center;border-radius:12px;padding:12px;font-size:15px;font-weight:700;}
+  .warn .acts .keep{background:#fff;border:2px solid var(--orange);color:#9a5b00;}
+  .warn .acts .redo{background:#fff;border:1.5px solid #ddd;color:#666;}
+  .ghost{background:#fff;border-radius:16px;padding:16px 18px;margin-bottom:14px;box-shadow:0 1px 6px rgba(0,0,0,.06);opacity:.65;}
+  .ghost .lead{font-size:17px;font-weight:700;}
+  .ghost .d{font-size:13px;color:var(--sub);margin-top:3px;}
+  /* decisions panel */
+  .panel{max-width:760px;margin:36px auto 0;background:#fff;border-radius:16px;padding:24px;box-shadow:0 4px 20px rgba(0,0,0,.08);}
+  .panel h2{margin:0 0 6px;font-size:20px;}
+  .panel .meta{color:#888;font-size:13px;margin-bottom:18px;}
+  .dec{border:1px solid #eee;border-radius:12px;padding:16px;margin-bottom:14px;}
+  .dec .q{font-weight:800;font-size:16px;margin-bottom:10px;}
+  .opt{display:flex;gap:10px;margin:6px 0;font-size:14px;line-height:1.5;}
+  .opt .tag{flex:none;font-weight:800;font-size:12px;border-radius:6px;padding:3px 8px;height:fit-content;}
+  .tag.a{background:var(--green-l);color:var(--green-d);}
+  .tag.b{background:#EEF3FF;color:#2a4ea8;}
+  .rec{font-size:13px;color:var(--green-d);font-weight:700;margin-top:6px;}
+  .agree{max-width:760px;margin:20px auto 0;background:#fff;border-radius:16px;padding:20px 24px;box-shadow:0 4px 20px rgba(0,0,0,.08);}
+  .agree h2{font-size:18px;margin:0 0 10px;}
+  .agree li{font-size:14px;margin:6px 0;line-height:1.5;}
+</style>
+</head>
+<body>
+  <h1>파킨온 — 복용 시각 세트카드 알림설정 (와이어프레임 v1)</h1>
+  <p class="sub">두 UX 관점(디자인 스펙 · 사용자 심리) 종합안 · 2026-06-09 · 검수용(미구현)</p>
+
+  <div class="stage">
+
+    <!-- SCREEN 1: list with collapsed cards -->
+    <div>
+      <div class="phone"><div class="screen">
+        <div class="topbar"><span class="back">←&nbsp;뒤로</span><span class="title">알림 설정</span></div>
+        <div class="body">
+          <div class="guide">
+            <b>이 약 시간마다 따로 정하실 수 있어요</b>
+            <p>약 드실 시간을 알려드리고, 드시고 나서 몸 상태를 여쭤볼지 정해요. 잘 모르시면 그대로 두셔도 괜찮아요. 미리 맞춰뒀어요.</p>
+          </div>
+
+          <div class="ghost"><div class="lead">🔔 전체 알림</div><div class="d">모든 알림을 한 번에 켜고 끌 수 있어요 (기존 유지)</div></div>
+
+          <div class="section-title">복용 시각별 알림</div>
+          <div class="section-desc">복용하시는 시각마다 알림과 몸 상태 여쭤보기를 정할 수 있어요</div>
+
+          <!-- collapsed card: first impression = 1 decision -->
+          <div class="card on">
+            <div class="slot-head"><div class="slot-emoji">🌅</div><div class="slot-time">아침 8:00</div><div class="slot-label">아침</div></div>
+            <div class="row"><div class="txt"><div class="lead">약 드실 시간 알려드릴까요?</div></div><div class="sw"></div></div>
+            <div class="divider"></div>
+            <div class="row"><div class="txt"><div class="lead">약 드시고 나서 몸 상태 여쭤볼게요</div><div class="summary">약 드신 바로 뒤, 30분 뒤에 여쭤볼게요</div></div><div class="sw"></div></div>
+            <div style="text-align:right;margin-top:10px;"><span class="btn-text">✏️ 바꾸기</span></div>
+          </div>
+
+          <!-- collapsed card: alarm off example -->
+          <div class="card off">
+            <div class="slot-head"><div class="slot-emoji" style="background:#eee;">☀️</div><div class="slot-time" style="color:#999;">점심 12:00</div><div class="slot-label">점심</div></div>
+            <div class="row"><div class="txt"><div class="lead" style="color:#999;">약 드실 시간 알려드릴까요?</div></div><div class="sw off"></div></div>
+            <div class="divider"></div>
+            <div class="row"><div class="txt"><div class="lead">약 드시고 나서 몸 상태 여쭤볼게요</div><div class="summary">30분 뒤, 2시간 뒤에 여쭤볼게요</div></div><div class="sw"></div></div>
+            <div style="text-align:right;margin-top:10px;"><span class="btn-text">✏️ 바꾸기</span></div>
+          </div>
+
+          <div class="ghost" style="opacity:.5;"><div class="lead">🌙 저녁 6:00 · 밤 9:00 …</div><div class="d">아래로 이어서 카드가 나와요</div></div>
+
+          <div class="btn-add">＋ 복용 시각 추가하기</div>
+
+          <div class="ghost"><div class="lead">⏰ 약 미복용 알림</div><div class="d">기존 유지 (시각별 아님 · 환자 전역)</div></div>
+        </div>
+      </div></div>
+      <div class="caption">화면 1 — 세트카드 리스트(접힘). 카드 첫인상 = 결정 1개(약 알림 켤까요?)</div>
+    </div>
+
+    <!-- SCREEN 2: expanded card with check rows -->
+    <div>
+      <div class="phone"><div class="screen">
+        <div class="topbar"><span class="back">←&nbsp;뒤로</span><span class="title">알림 설정</span></div>
+        <div class="body">
+          <div class="card on">
+            <div class="slot-head"><div class="slot-emoji">🌙</div><div class="slot-time">저녁 6:00</div><span class="btn-text" style="margin-left:auto;">✏️ 시간 바꾸기</span></div>
+
+            <div class="row"><div class="txt"><div class="lead">약 드실 시간 알려드릴까요?</div><div class="desc">매일 저녁 6:00에 약 드시라고 알려드려요</div></div><div class="sw"></div></div>
+            <div class="voice"><span class="ico">🔊</span><span class="vt">알림 목소리</span><span class="pick">딸 목소리 ▾</span></div>
+
+            <div class="divider"></div>
+
+            <div class="row"><div class="txt"><div class="lead">약 드시고 나서 몸 상태 여쭤볼게요</div></div><div class="sw"></div></div>
+            <div class="qhead">언제 여쭤볼까요 <small>(여러 개 고르셔도 돼요)</small></div>
+
+            <div class="checkrow sel"><div class="box">✓</div><div class="ct"><div class="m">약 드신 바로 뒤</div><div class="hint">ⓘ '먹었어요' 누르면 바로 몸 상태를 여쭤봐요</div></div></div>
+            <div class="checkrow sel"><div class="box">✓</div><div class="ct"><div class="m">약 드시고 30분 뒤</div></div></div>
+            <div class="checkrow"><div class="box"></div><div class="ct"><div class="m">약 드시고 1시간 뒤</div></div></div>
+            <div class="checkrow"><div class="box"></div><div class="ct"><div class="m">약 드시고 2시간 뒤</div></div></div>
+            <div class="checkrow"><div class="box"></div><div class="ct"><div class="m">약 드시고 3시간 뒤</div></div></div>
+
+            <div class="warn">
+              <b>🟠 다음 약 드실 시간과 가까워요</b>
+              <p>이 시간에 여쭤보면 다음 약 드신 것과 섞일 수 있어요. 그래도 이대로 둘까요?</p>
+              <div class="acts"><div class="redo">다시 고를게요</div><div class="keep">이대로 둘게요</div></div>
+            </div>
+
+            <div class="voice"><span class="ico">🔊</span><span class="vt">여쭤볼 때 목소리</span><span class="pick">기본 목소리 ▾</span></div>
+
+            <div class="done">다 됐어요</div>
+            <div class="del">🗑 이 복용 시각 삭제</div>
+          </div>
+        </div>
+      </div></div>
+      <div class="caption">화면 2 — [바꾸기] 펼침. 칩 대신 큰 체크줄(56dp) · 소프트 경고(막지 않음) · 직접추가는 보호자 모드만</div>
+    </div>
+
+  </div>
+
+  <!-- AGREED -->
+  <div class="agree">
+    <h2>✅ 두 관점이 합의한 것 (그대로 구현 예정)</h2>
+    <ul>
+      <li>알림설정 안에서 <b>복용 시각마다 카드 1장</b> (전역 1세트 폐기). 카드는 별도화면 아닌 <b>인라인 + 아코디언(1개만 펼침)</b>.</li>
+      <li>카드 첫인상은 <b>결정 1개</b>(약 알림 토글). 몸상태 여쭤보기 세부는 접고 <b>사람말 요약 + [바꾸기]</b>.</li>
+      <li>용어 전면 순화: "추적·직후·세트·복용" 단독 노출 금지 → <b>"약 드시고 나서 몸 상태 여쭤보기", "약 드신 바로 뒤"</b> 등 완결 문장.</li>
+      <li>소프트 경고(겹침)는 <b>막지 않고 안내만</b> · 주황 · 행동어 버튼([이대로 둘게요]/[다시 고를게요]).</li>
+      <li>현재 코드의 <b>아이콘 단독 ✏️/🗑 버튼 → 텍스트 포함</b>으로 시정(규칙 위반 해소).</li>
+      <li>시간/분 선택은 <b>바텀시트(딤·스와이프 닫기)</b>. 전체알림·미복용·운동·보호자 카드는 <b>기존 유지</b>.</li>
+      <li>저장은 토글/체크 <b>즉시 반영</b>(저장 버튼 없음). 활성 카드는 <b>왼쪽 오렌지 띠</b>로만 표시(체크뱃지 덮기 금지).</li>
+    </ul>
+  </div>
+
+  <!-- DECISIONS -->
+  <div class="panel">
+    <h2>🟡 오너 결정 필요 (다음 접속 때)</h2>
+    <div class="meta">두 에이전트가 갈렸거나, 와이어프레임 밖 권고라 자동 반영하지 않은 항목입니다. 더블컨펌 후 구현합니다.</div>
+
+    <div class="dec">
+      <div class="q">① 추적 시각 고르기 — 칩 vs 큰 체크줄</div>
+      <div class="opt"><span class="tag b">A 칩</span><div>작은 칩 6개 가로 나열(디자인 스펙 안). 공간 절약·세련.</div></div>
+      <div class="opt"><span class="tag a">B 체크줄</span><div>56dp 큰 체크줄 세로(사용자 심리 안). 어르신이 "여러 개 골라도 됨"을 칩보다 잘 이해. 위 화면2가 이 안.</div></div>
+      <div class="rec">▶ 추천: B(체크줄) — 60대 칩=라디오 오해 위험. 단 카드가 길어짐.</div>
+    </div>
+
+    <div class="dec">
+      <div class="q">② 기본 추적 시각 (새 환자 디폴트)</div>
+      <div class="opt"><span class="tag b">A 현행</span><div>30분 뒤 · 2시간 뒤 (기존 CLAUDE.md 기본값 유지).</div></div>
+      <div class="opt"><span class="tag a">B 변경</span><div>약 드신 바로 뒤 · 30분 뒤 (복용후 팝업이 자연 등장 → 인과 학습). 위 화면이 이 안.</div></div>
+      <div class="rec">▶ 추천: B — 단 기존 기본값 변경이라 확인 필요.</div>
+    </div>
+
+    <div class="dec">
+      <div class="q">③ 표준 4슬롯(아침/점심/저녁/취침) 완전 삭제 허용?</div>
+      <div class="opt"><span class="tag a">A 끄기만</span><div>표준 4슬롯은 "삭제" 대신 "알림 끄기"만. 통계 슬롯축·기존 데이터 보존. 비표준 추가분만 완전 삭제.</div></div>
+      <div class="opt"><span class="tag b">B 전부 삭제</span><div>표준 슬롯도 삭제 허용(단순). DB 테스트 전용이라 데이터 손실 부담 적음.</div></div>
+      <div class="rec">▶ DB 테스트 전용이라 B도 무방. 통계(7단계) 영향만 확인.</div>
+    </div>
+
+    <div class="dec">
+      <div class="q">④ 세트당 알림 소리 — 2개 vs 1개</div>
+      <div class="opt"><span class="tag b">A 2개</span><div>복용 알림 소리 + 여쭤볼 때 소리 각각(스펙대로).</div></div>
+      <div class="opt"><span class="tag a">B 1개</span><div>세트당 소리 1개로 단순화(어르신 과부하 완화).</div></div>
+      <div class="rec">▶ 추천: 일단 A(스펙대로), 과하면 B로.</div>
+    </div>
+
+    <div class="dec">
+      <div class="q">⑤ "복용 직후" 칩과 약복용 탭 팝업 연결고리 (화면2의 ⓘ 문구 + 팝업에 "끄는 길" 안내)</div>
+      <div class="opt"><span class="tag a">반영</span><div>약복용 탭 복용후 팝업까지 같이 손대야 함(범위 확장). 인과 학습엔 효과적.</div></div>
+      <div class="opt"><span class="tag b">보류</span><div>6단계는 알림설정만, 팝업 연결은 다음에.</div></div>
+      <div class="rec">▶ 추천: 알림설정 쪽 ⓘ 예고는 넣고, 팝업 수정은 오너 확인 후.</div>
+    </div>
+  </div>
+
+</body>
+</html>

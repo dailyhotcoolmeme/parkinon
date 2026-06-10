@@ -9,7 +9,6 @@ import {
   Modal,
   ActivityIndicator,
   StatusBar,
-  Alert,
   PanResponder,
 } from 'react-native';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -21,6 +20,7 @@ import { Colors } from '../../constants/colors';
 import { TopBar } from '../../components/common/TopBar';
 import { supabase } from '../../lib/supabase';
 import { useNotificationBadge } from '../../context/NotificationBadgeContext';
+import { useDialog } from '../../context/DialogContext';
 
 const SCREEN_WIDTH = Dimensions.get('window').width;
 const THUMB_WIDTH = 120;
@@ -679,6 +679,7 @@ export function VideoListScreen() {
   const navigation = useNavigation<any>();
   const insets = useSafeAreaInsets();
   const { unreadCount } = useNotificationBadge();
+  const dialog = useDialog();
   const [filter, setFilter] = useState<FilterType>('all');
   const [sections, setSections] = useState<SectionData[]>([]);
   const [loading, setLoading] = useState(false);
@@ -770,45 +771,40 @@ export function VideoListScreen() {
     setPreviewingId(prev => (prev === item.id ? null : item.id));
   };
 
-  const handleDelete = (item: VideoLog) => {
-    Alert.alert(
-      '영상 삭제',
-      '영상을 삭제하시겠어요?\n삭제된 영상은 복구할 수 없어요.',
-      [
-        { text: '취소', style: 'cancel' },
-        {
-          text: '삭제',
-          style: 'destructive',
-          onPress: async () => {
-            setDeleting(true);
-            try {
-              if (item.r2_key) {
-                // R2 파일 + DB 행을 Edge Function으로 함께 삭제
-                const { error: efError } = await supabase.functions.invoke('delete-r2-file', {
-                  body: { r2_key: item.r2_key, media_log_id: item.id },
-                });
-                if (efError) {
-                  console.error('[VideoListScreen] R2 삭제 오류:', efError);
-                  // Edge Function 실패 시 DB 행만 삭제 (fallback)
-                  const { error: dbError } = await supabase.from('media_logs').delete().eq('id', item.id);
-                  if (dbError) throw dbError;
-                }
-              } else {
-                // r2_key 없으면 DB 행만 삭제
-                const { error } = await supabase.from('media_logs').delete().eq('id', item.id);
-                if (error) throw error;
-              }
-              fetchVideos(filter);
-            } catch (e) {
-              console.error('[VideoListScreen] 삭제 오류:', e);
-              Alert.alert('삭제 실패', '영상 삭제에 실패했어요. 다시 시도해 주세요.');
-            } finally {
-              setDeleting(false);
-            }
-          },
-        },
-      ]
-    );
+  const handleDelete = async (item: VideoLog) => {
+    const ok = await dialog.confirm({
+      title: '영상 삭제',
+      message: '영상을 삭제하시겠어요?\n삭제된 영상은 복구할 수 없어요.',
+      confirmText: '삭제',
+      cancelText: '취소',
+      destructive: true,
+    });
+    if (!ok) return;
+    setDeleting(true);
+    try {
+      if (item.r2_key) {
+        // R2 파일 + DB 행을 Edge Function으로 함께 삭제
+        const { error: efError } = await supabase.functions.invoke('delete-r2-file', {
+          body: { r2_key: item.r2_key, media_log_id: item.id },
+        });
+        if (efError) {
+          console.error('[VideoListScreen] R2 삭제 오류:', efError);
+          // Edge Function 실패 시 DB 행만 삭제 (fallback)
+          const { error: dbError } = await supabase.from('media_logs').delete().eq('id', item.id);
+          if (dbError) throw dbError;
+        }
+      } else {
+        // r2_key 없으면 DB 행만 삭제
+        const { error } = await supabase.from('media_logs').delete().eq('id', item.id);
+        if (error) throw error;
+      }
+      fetchVideos(filter);
+    } catch (e) {
+      console.error('[VideoListScreen] 삭제 오류:', e);
+      dialog.alert({ title: '삭제 실패', message: '영상 삭제에 실패했어요. 다시 시도해 주세요.' });
+    } finally {
+      setDeleting(false);
+    }
   };
 
   return (

@@ -1,4 +1,4 @@
-import React, { useState, useCallback, useRef } from 'react';
+import React, { useState, useCallback, useRef, useEffect } from 'react';
 import {
   View,
   Text,
@@ -6,12 +6,13 @@ import {
   StyleSheet,
   TouchableOpacity,
   TextInput,
-  Alert,
   ActivityIndicator,
   Modal,
   PanResponder,
   Animated,
   Share,
+  Keyboard,
+  Platform,
 } from 'react-native';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useFocusEffect, useNavigation } from '@react-navigation/native';
@@ -22,6 +23,8 @@ import { useFamilyLink } from '../../hooks/useFamilyLink';
 import { useAuth } from '../../context/AuthContext';
 import { useNotificationBadge } from '../../context/NotificationBadgeContext';
 import { supabase } from '../../lib/supabase';
+import { useDialog } from '../../context/DialogContext';
+import { ensureNotGuest } from '../../utils/guestGuard';
 
 const RELATION_MAP: Record<string, string> = {
   spouse: '배우자',
@@ -34,9 +37,10 @@ const RELATION_MAP: Record<string, string> = {
 export function FamilyLinkScreen() {
   const navigation = useNavigation<any>();
   const insets = useSafeAreaInsets();
-  const { user } = useAuth();
+  const { user, signOut } = useAuth();
   const { generateInviteCode, joinByCode, joinByCodeForce, getGroupMembers, leaveGroup, loading, error: familyLinkError } = useFamilyLink();
   const { unreadCount } = useNotificationBadge();
+  const dialog = useDialog();
 
   const [members, setMembers] = useState<import('../../hooks/useFamilyLink').GroupMember[]>([]);
   const [inviteCode, setInviteCode] = useState('');
@@ -52,6 +56,26 @@ export function FamilyLinkScreen() {
 
   // 바텀시트 스와이프 애니메이션
   const sheetY = useRef(new Animated.Value(400)).current;
+
+  // iOS 키보드가 올라오면 바텀시트가 키보드 위로 밀려 올라가도록 키보드 높이 추적
+  const [keyboardHeight, setKeyboardHeight] = useState(0);
+
+  useEffect(() => {
+    const showEvent = Platform.OS === 'ios' ? 'keyboardWillShow' : 'keyboardDidShow';
+    const hideEvent = Platform.OS === 'ios' ? 'keyboardWillHide' : 'keyboardDidHide';
+
+    const showSub = Keyboard.addListener(showEvent, (e) => {
+      setKeyboardHeight(e.endCoordinates?.height ?? 0);
+    });
+    const hideSub = Keyboard.addListener(hideEvent, () => {
+      setKeyboardHeight(0);
+    });
+
+    return () => {
+      showSub.remove();
+      hideSub.remove();
+    };
+  }, []);
 
   const openSheet = () => {
     setInputCode('');
@@ -147,38 +171,34 @@ export function FamilyLinkScreen() {
     }, [loadData])
   );
 
-  const handleDisconnect = (member: import('../../hooks/useFamilyLink').GroupMember) => {
-    Alert.alert(
-      '연결 해제',
-      `${member.user?.name ?? '가족'}님과의 연결을 해제하시겠어요?`,
-      [
-        { text: '취소', style: 'cancel' },
-        {
-          text: '해제',
-          style: 'destructive',
-          onPress: async () => {
-            const ok = await leaveGroup();
-            if (ok) {
-              setMembers([]);
-              setInviteCode('');
-              loadData();
-            } else {
-              Alert.alert('오류', '연결 해제 중 문제가 생겼어요.');
-            }
-          },
-        },
-      ],
-    );
+  const handleDisconnect = async (member: import('../../hooks/useFamilyLink').GroupMember) => {
+    const confirmed = await dialog.confirm({
+      title: '연결 해제',
+      message: `${member.user?.name ?? '가족'}님과의 연결을 해제하시겠어요?`,
+      confirmText: '해제',
+      cancelText: '취소',
+      destructive: true,
+    });
+    if (!confirmed) return;
+    const ok = await leaveGroup();
+    if (ok) {
+      setMembers([]);
+      setInviteCode('');
+      loadData();
+    } else {
+      dialog.alert({ title: '오류', message: '연결 해제 중 문제가 생겼어요.' });
+    }
   };
 
   const handleShareKakao = async () => {
+    if (await ensureNotGuest(user, dialog, { signOut })) return;
     let code = inviteCode;
     if (!code) {
       setLoadingCode(true);
       const generated = await generateInviteCode();
       setLoadingCode(false);
       if (!generated) {
-        Alert.alert('오류', '초대 코드 생성에 실패했어요. 잠시 후 다시 시도해주세요.');
+        dialog.alert({ title: '오류', message: '초대 코드 생성에 실패했어요. 잠시 후 다시 시도해주세요.' });
         return;
       }
       code = generated;
@@ -193,6 +213,7 @@ export function FamilyLinkScreen() {
   };
 
   const handleConnect = async () => {
+    if (await ensureNotGuest(user, dialog, { signOut })) return;
     const trimmed = inputCode.trim();
     if (trimmed.length < 6) return;
 
@@ -201,53 +222,39 @@ export function FamilyLinkScreen() {
     setConnecting(false);
 
     if (result.needsConfirm) {
-      // 기존 그룹에 다른 멤버가 있는 경우 → 확인 Alert
-      Alert.alert(
-        '가족 연동 변경',
-        result.message,
-        [
-          { text: '취소', style: 'cancel' },
-          {
-            text: '확인',
-            style: 'destructive',
-            onPress: async () => {
-              setConnecting(true);
-              const forceResult = await joinByCodeForce(trimmed);
-              setConnecting(false);
-              if (forceResult.success) {
-                closeSheet();
-                Alert.alert('연결 완료', forceResult.message, [
-                  {
-                    text: '확인',
-                    onPress: () => {
-                      isLoadingRef.current = false;
-                      loadData();
-                    },
-                  },
-                ]);
-              } else {
-                Alert.alert('연결 실패', forceResult.message);
-              }
-            },
-          },
-        ]
-      );
+      // 기존 그룹에 다른 멤버가 있는 경우 → 확인 다이얼로그
+      const confirmed = await dialog.confirm({
+        title: '가족 연동 변경',
+        message: result.message,
+        confirmText: '확인',
+        cancelText: '취소',
+        destructive: true,
+      });
+      if (!confirmed) return;
+      setConnecting(true);
+      const forceResult = await joinByCodeForce(trimmed);
+      setConnecting(false);
+      if (forceResult.success) {
+        closeSheet();
+        await dialog.alert({
+          title: '연결 완료',
+          message: forceResult.message,
+        });
+        isLoadingRef.current = false;
+        loadData();
+      } else {
+        dialog.alert({ title: '연결 실패', message: forceResult.message });
+      }
       return;
     }
 
     if (result.success) {
       closeSheet();
-      Alert.alert('연결 완료', result.message, [
-        {
-          text: '확인',
-          onPress: () => {
-            isLoadingRef.current = false;
-            loadData();
-          },
-        },
-      ]);
+      await dialog.alert({ title: '연결 완료', message: result.message });
+      isLoadingRef.current = false;
+      loadData();
     } else {
-      Alert.alert('연결 실패', result.message);
+      dialog.alert({ title: '연결 실패', message: result.message });
     }
   };
 
@@ -406,7 +413,17 @@ export function FamilyLinkScreen() {
           onPress={closeSheet}
         />
         <Animated.View
-          style={[styles.sheet, { transform: [{ translateY: sheetY }], paddingBottom: Math.max(36, 20 + insets.bottom) }]}
+          style={[
+            styles.sheet,
+            {
+              transform: [{ translateY: sheetY }],
+              // 키보드가 올라오면 키보드 높이만큼 바텀시트를 위로 띄워 입력 필드·확인 버튼이 가리지 않게 함
+              paddingBottom:
+                keyboardHeight > 0
+                  ? keyboardHeight + 16
+                  : Math.max(36, 20 + insets.bottom),
+            },
+          ]}
         >
           {/* 드래그 핸들 */}
           <View {...panResponder.panHandlers} style={styles.sheetHandle}>

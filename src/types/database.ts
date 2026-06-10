@@ -5,6 +5,10 @@ export type MealTime = 'morning' | 'lunch' | 'dinner' | 'bedtime';
 export type TriggeredBy = 'notification' | 'manual';
 export type PostType = 'chat' | 'question' | 'info' | 'exercise' | 'cheer';
 
+// 디지털 바이오마커 측정 타입 (docs/digital_biomarker_mvpA_spec.md §8)
+export type MeasurementType = 'tap' | 'reaction';
+export type MeasurementMedPhase = '30m' | '2h' | 'self_initiated' | 'other';
+
 export interface Database {
   public: {
     Tables: {
@@ -25,6 +29,7 @@ export interface Database {
           notification_enabled: boolean;
           push_token: string | null;
           med_time_notif_prefs: Record<string, boolean> | null;
+          med_time_sound_prefs: Record<string, string | null> | null;
           med_notif_prefs: unknown[] | null;
           exercise_notif_prefs: unknown[] | null;
           caregiver_notif_prefs: Record<string, boolean> | null;
@@ -85,6 +90,7 @@ export interface Database {
           scheduled_times: string[];
           drug_code: string | null;
           drug_image_url: string | null;
+          item_seq: string | null;
           is_active: boolean;
           created_at: string;
         };
@@ -100,6 +106,58 @@ export interface Database {
           }
         ];
       };
+      dose_slots: {
+        Row: {
+          id: string;
+          patient_id: string;
+          time: string;
+          label: string | null;
+          sort_order: number;
+          remind_enabled: boolean;
+          remind_sound_id: string | null;
+          track_enabled: boolean;
+          track_intervals: number[];
+          track_sound_id: string | null;
+          is_active: boolean;
+          created_at: string;
+          updated_at: string;
+        };
+        Insert: Omit<Database['public']['Tables']['dose_slots']['Row'], 'id' | 'created_at' | 'updated_at'> & { id?: string; created_at?: string; updated_at?: string };
+        Update: Partial<Database['public']['Tables']['dose_slots']['Insert']>;
+        Relationships: [
+          {
+            foreignKeyName: 'dose_slots_patient_id_fkey';
+            columns: ['patient_id'];
+            isOneToOne: false;
+            referencedRelation: 'users';
+            referencedColumns: ['id'];
+          }
+        ];
+      };
+      medication_dose_slots: {
+        Row: {
+          medication_id: string;
+          dose_slot_id: string;
+        };
+        Insert: Database['public']['Tables']['medication_dose_slots']['Row'];
+        Update: Partial<Database['public']['Tables']['medication_dose_slots']['Insert']>;
+        Relationships: [
+          {
+            foreignKeyName: 'medication_dose_slots_medication_id_fkey';
+            columns: ['medication_id'];
+            isOneToOne: false;
+            referencedRelation: 'medications';
+            referencedColumns: ['id'];
+          },
+          {
+            foreignKeyName: 'medication_dose_slots_dose_slot_id_fkey';
+            columns: ['dose_slot_id'];
+            isOneToOne: false;
+            referencedRelation: 'dose_slots';
+            referencedColumns: ['id'];
+          }
+        ];
+      };
       med_logs: {
         Row: {
           id: string;
@@ -107,7 +165,8 @@ export interface Database {
           logged_by: string;
           medication_id: string | null;
           taken_at: string;
-          meal_time: MealTime;
+          meal_time: MealTime | null;
+          dose_slot_id: string | null;
           note: string | null;
           created_at: string;
         };
@@ -141,10 +200,12 @@ export interface Database {
           constipation: boolean | null;
           triggered_by: TriggeredBy;
           trigger_time_label: string | null;
+          dose_slot_id: string | null;
+          med_log_id: string | null;
           logged_at: string;
           created_at: string;
         };
-        Insert: Omit<Database['public']['Tables']['on_off_logs']['Row'], 'id' | 'created_at'> & { id?: string };
+        Insert: Omit<Database['public']['Tables']['on_off_logs']['Row'], 'id' | 'created_at' | 'med_log_id' | 'dose_slot_id'> & { id?: string; med_log_id?: string | null; dose_slot_id?: string | null };
         Update: Partial<Database['public']['Tables']['on_off_logs']['Insert']>;
         Relationships: [
           {
@@ -359,7 +420,6 @@ export interface Database {
           }
         ];
       };
-    };
       comment_likes: {
         Row: {
           id: string;
@@ -392,9 +452,13 @@ export interface Database {
           patient_id: string;
           push_token: string;
           med_log_id: string | null;
+          dose_slot_id: string | null;
+          // 실제 DB에는 존재하나 타입 정의에서 누락됐던 컬럼(legacy 호환·표시용).
+          meal_time: MealTime | null;
           interval_minutes: number;
           send_at: string;
           sent_at: string | null;
+          sound_id: string | null;
           created_at: string | null;
         };
         Insert: Omit<Database['public']['Tables']['effect_tracking_queue']['Row'], 'id' | 'created_at'> & { id?: string; created_at?: string | null };
@@ -525,6 +589,105 @@ export interface Database {
           },
           {
             foreignKeyName: 'post_likes_user_id_fkey';
+            columns: ['user_id'];
+            isOneToOne: false;
+            referencedRelation: 'users';
+            referencedColumns: ['id'];
+          }
+        ];
+      };
+      measurements: {
+        Row: {
+          id: string;
+          user_id: string;
+          type: MeasurementType;
+          started_at: string;
+          ended_at: string | null;
+          med_intake_id: string | null;
+          med_phase: MeasurementMedPhase;
+          context: Record<string, unknown>;
+          deleted_at: string | null;
+          created_at: string;
+        };
+        Insert: {
+          id?: string;
+          user_id: string;
+          type: MeasurementType;
+          started_at?: string;
+          ended_at?: string | null;
+          med_intake_id?: string | null;
+          med_phase?: MeasurementMedPhase;
+          context?: Record<string, unknown>;
+          deleted_at?: string | null;
+          created_at?: string;
+        };
+        Update: Partial<Database['public']['Tables']['measurements']['Insert']>;
+        Relationships: [
+          {
+            foreignKeyName: 'measurements_user_id_fkey';
+            columns: ['user_id'];
+            isOneToOne: false;
+            referencedRelation: 'users';
+            referencedColumns: ['id'];
+          },
+          {
+            foreignKeyName: 'measurements_med_intake_id_fkey';
+            columns: ['med_intake_id'];
+            isOneToOne: false;
+            referencedRelation: 'med_logs';
+            referencedColumns: ['id'];
+          }
+        ];
+      };
+      measurement_features: {
+        Row: {
+          id: string;
+          measurement_id: string;
+          feature_key: string;
+          value_numeric: number | null;
+          value_jsonb: Record<string, unknown> | unknown[] | null;
+          created_at: string;
+        };
+        Insert: {
+          id?: string;
+          measurement_id: string;
+          feature_key: string;
+          value_numeric?: number | null;
+          value_jsonb?: Record<string, unknown> | unknown[] | null;
+          created_at?: string;
+        };
+        Update: Partial<Database['public']['Tables']['measurement_features']['Insert']>;
+        Relationships: [
+          {
+            foreignKeyName: 'measurement_features_measurement_id_fkey';
+            columns: ['measurement_id'];
+            isOneToOne: false;
+            referencedRelation: 'measurements';
+            referencedColumns: ['id'];
+          }
+        ];
+      };
+      baseline_stats: {
+        Row: {
+          user_id: string;
+          feature_key: string;
+          mean: number;
+          sd: number;
+          n: number;
+          updated_at: string;
+        };
+        Insert: {
+          user_id: string;
+          feature_key: string;
+          mean?: number;
+          sd?: number;
+          n?: number;
+          updated_at?: string;
+        };
+        Update: Partial<Database['public']['Tables']['baseline_stats']['Insert']>;
+        Relationships: [
+          {
+            foreignKeyName: 'baseline_stats_user_id_fkey';
             columns: ['user_id'];
             isOneToOne: false;
             referencedRelation: 'users';

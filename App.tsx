@@ -5,6 +5,7 @@ import { SafeAreaProvider } from 'react-native-safe-area-context';
 import { AuthProvider } from './src/context/AuthContext';
 import { NotificationBadgeProvider, useNotificationBadge } from './src/context/NotificationBadgeContext';
 import { SettingsProvider } from './src/context/SettingsContext';
+import { DialogProvider } from './src/context/DialogContext';
 import { RootNavigator } from './src/navigation/RootNavigator';
 import * as Notifications from 'expo-notifications';
 import { navigateTo } from './src/navigation/navigationRef';
@@ -26,6 +27,24 @@ Notifications.setNotificationChannelAsync('default', {
   bypassDnd: false,
   enableLights: true,
   enableVibrate: true,
+});
+
+// 디지털 바이오마커 MVP-A Phase 4 — 약효추적 알림 액션 버튼 카테고리
+// 'effect_tracking' 카테고리에 [바로 측정하기] 액션 1개 등록.
+// iOS / Android 동일 적용. JS-only (OTA 가능 — Phase 0 검증 완료).
+// Edge Function process-notification-queue가 푸시 payload에 categoryId='effect_tracking'을 포함하면
+// 시스템 알림 UI에 액션 버튼이 노출되고, 사용자가 탭 시 handleNotificationResponse의
+// response.actionIdentifier === 'measure_now' 분기로 측정 화면 직진입.
+Notifications.setNotificationCategoryAsync('effect_tracking', [
+  {
+    identifier: 'measure_now',
+    buttonTitle: '바로 측정하기',
+    options: {
+      opensAppToForeground: true,
+    },
+  },
+]).catch((e) => {
+  console.warn('[App] effect_tracking 카테고리 등록 실패:', e);
 });
 
 // 알림 리스너는 NotificationBadgeProvider 내부에서 접근해야 context를 쓸 수 있음
@@ -316,6 +335,86 @@ function AppInner() {
           notificationIntentManager.emit({ mealTime });
         } else if (type === 'effect_tracking') {
           log('branch_match', { branch: 'effect_tracking' });
+
+          // Phase 4 — '바로 측정하기' 액션 버튼 분기 (스펙 §7.2)
+          // categoryId='effect_tracking'의 액션 'measure_now' 탭 → 측정 화면 직진입
+          // (약효 입력 화면 거치지 않음). 본문 탭(actionIdentifier='default')은 기존 흐름 유지.
+          if (response.actionIdentifier === 'measure_now') {
+            log('branch_match', { branch: 'effect_tracking_measure_now' });
+
+            // payload data에서 측정에 필요한 파라미터 추출.
+            // - med_phase: process-notification-queue가 minutes(interval_minutes)로 보낸다.
+            //   서버 enum은 30 → '30m', 120 → '2h'. 그 외는 fallback 'self_initiated'.
+            // - med_intake_id: 큐 스키마에 없음(§7.3) → 진입 후 클라가 매칭하거나 null.
+            // 디폴트 게임: 탭핑(스펙 §4·§9 — 보편적·짧음, 알림 → 1탭 → 측정 시작 흐름 보장).
+            const medIntakeId: string | null =
+              (data?.med_intake_id as string) ??
+              (data?.medIntakeId as string) ??
+              null;
+            const minutes: number | null =
+              typeof data?.minutes === 'number' ? data.minutes : triggerMinutes;
+            // MeasurementMedPhase enum 매핑 — 클라이언트 타입(database.ts:10)에 맞춤
+            const medPhase: '30m' | '2h' | 'self_initiated' =
+              minutes === 30 ? '30m' : minutes === 120 ? '2h' : 'self_initiated';
+
+            // cross-type stale cleanup (다른 알림 타입 잔존 pending 키 제거)
+            try {
+              await AsyncStorage.multiRemove([
+                'pendingMedNotif',
+                'pendingExerciseNotif',
+                'pendingBodyStateNotif',
+              ]);
+              log('multi_remove', {
+                keys: ['pendingMedNotif', 'pendingExerciseNotif', 'pendingBodyStateNotif'],
+                success: true,
+              });
+            } catch (e: any) {
+              log('multi_remove', { success: false, error: String(e?.message ?? e) });
+            }
+
+            // 동의 확인 — 미동의 시 ConsentScreen으로 보내되, 동의 후 자동으로 측정 화면 진입하도록
+            // 'next' 파라미터로 후속 목적지 전달(ConsentScreen.handleAgree에서 처리).
+            // 동의됨: TapGame 직진입.
+            const tapGameArgs = { medPhase, medIntakeId };
+            let consentOk = false;
+            try {
+              const v = await AsyncStorage.getItem('measurement_consent_v1');
+              consentOk = v === 'true';
+            } catch (e: any) {
+              log('consent_check_failed', { error: String(e?.message ?? e) });
+              consentOk = false;
+            }
+            log('consent_check', { consentOk });
+
+            if (consentOk) {
+              log('navigate_start', { target: 'TapGame', args: tapGameArgs });
+              navigateTo('TapGame', tapGameArgs);
+            } else {
+              const consentArgs = {
+                next: { screen: 'TapGame', params: tapGameArgs },
+              };
+              log('navigate_start', { target: 'MeasurementConsent', args: consentArgs });
+              navigateTo('MeasurementConsent', consentArgs);
+            }
+
+            // 정상 처리 완료 마킹 (try-catch 바깥 코드와 동일 패턴)
+            markProcessed(notifId).catch(() => {});
+            log('handler_exit', { success: true, viaAction: 'measure_now' });
+            return;
+          }
+
+          // 본문 탭(기본) — 기존 약효 입력 화면 진입 흐름 유지
+          // 약 복용 모델 7단계 선결: 슬롯별 통계용 dose_slot_id + 복용 1:1 매칭용 med_log_id를
+          // 푸시 data에서 추출해 BodyState까지 전달(on_off_logs.dose_slot_id / med_log_id 기록).
+          // 둘 다 없을 수 있음(미이관/구 데이터) → null 허용. navArgs에서도 쓰므로 try 밖에 선언.
+          const triggerDoseSlotId: string | null =
+            (data?.doseSlotId as string) ??
+            (data?.dose_slot_id as string) ??
+            null;
+          const triggerMedLogId: string | null =
+            (data?.med_log_id as string) ??
+            (data?.medLogId as string) ??
+            null;
           try {
             // cross-type stale cleanup
             await AsyncStorage.multiRemove(['pendingMedNotif', 'pendingExerciseNotif']);
@@ -323,6 +422,8 @@ function AppInner() {
             const value = JSON.stringify({
               triggerMinutes,
               triggerMealTime: mealTime,
+              triggerDoseSlotId,
+              triggerMedLogId,
               ts: Date.now(),
             });
             await AsyncStorage.setItem('pendingBodyStateNotif', value);
@@ -337,12 +438,31 @@ function AppInner() {
               params: {
                 triggerMinutes,
                 triggerMealTime: mealTime,
+                triggerDoseSlotId,
+                triggerMedLogId,
                 triggerTs: Date.now(),
               },
             },
           };
           log('navigate_start', { target: 'Main', args: navArgs });
           navigateTo('Main', navArgs);
+        } else if (type === 'measurement_completed') {
+          // 디지털 바이오마커 MVP-A Phase 5A — 보호자에게 환자 측정 완료 알림 진입.
+          // payload data: { type, measurement_type, patient_id, measurement_id }
+          // 진입: 보호자 측정 결과 조회 화면 (RootStack, read-only).
+          log('branch_match', { branch: 'measurement_completed' });
+          try {
+            await AsyncStorage.multiRemove([
+              'pendingMedNotif',
+              'pendingExerciseNotif',
+              'pendingBodyStateNotif',
+            ]);
+          } catch {}
+          const patientId: string | undefined =
+            (data?.patient_id as string) ?? undefined;
+          const navArgs = patientId ? { patientId } : undefined;
+          log('navigate_start', { target: 'CaregiverMeasurement', args: navArgs });
+          navigateTo('CaregiverMeasurement', navArgs);
         } else if (type === 'exercise_reminder') {
           log('branch_match', { branch: 'exercise' });
           // pendingExerciseNotif 플래그를 먼저 저장 후 Exercise 탭으로만 전환.
@@ -664,11 +784,13 @@ export default function App() {
         backgroundColor="#FFFFFF"
       />
       <SafeAreaProvider>
-        <AuthProvider>
-          <NotificationBadgeProvider>
-            <AppInner />
-          </NotificationBadgeProvider>
-        </AuthProvider>
+        <DialogProvider>
+          <AuthProvider>
+            <NotificationBadgeProvider>
+              <AppInner />
+            </NotificationBadgeProvider>
+          </AuthProvider>
+        </DialogProvider>
       </SafeAreaProvider>
     </GestureHandlerRootView>
   );

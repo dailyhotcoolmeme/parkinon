@@ -131,15 +131,31 @@ export function HistoryTimeline({ type, patientId, refreshKey }: HistoryTimeline
 
     try {
       if (type === 'medication') {
+        // dose_slots 환자: dose_slot_id → label 매핑(있으면 우선). 미이관이면 빈 맵.
+        const slotLabelMap: Record<string, string> = {};
+        try {
+          const { data: slotRows } = await supabase
+            .from('dose_slots').select('id, label').eq('patient_id', patientId);
+          (slotRows ?? []).forEach((s: any) => {
+            if (s.id && s.label) slotLabelMap[s.id] = s.label;
+          });
+        } catch {}
+
         const { data } = await supabase
-          .from('med_logs').select('taken_at, meal_time').eq('patient_id', patientId)
+          .from('med_logs').select('taken_at, meal_time, dose_slot_id').eq('patient_id', patientId)
           .gte('taken_at', rangeStart).lte('taken_at', rangeEnd).order('taken_at', { ascending: false });
         (data ?? []).forEach((row: any) => {
           const kstDate = new Date(new Date(row.taken_at).getTime() + 9 * 60 * 60 * 1000).toISOString().slice(0, 10);
           if (!newMap[kstDate]) newMap[kstDate] = [];
+          // dose_slot label 우선 → legacy meal_time period → 원본 meal_time 폴백
+          const period =
+            (row.dose_slot_id && slotLabelMap[row.dose_slot_id]) ||
+            mealTimeToPeriod(row.meal_time) ||
+            row.meal_time ||
+            '';
           newMap[kstDate].push({
             time: toKSTTime(row.taken_at),
-            content: `${mealTimeToPeriod(row.meal_time) || row.meal_time}약 복용`,
+            content: `${period}약 복용`,
           });
         });
       } else if (type === 'bodystate') {
@@ -155,7 +171,7 @@ export function HistoryTimeline({ type, patientId, refreshKey }: HistoryTimeline
           if (row.mood != null) line1.push(`기분상태 ${row.mood}점`);
           const line2: string[] = [];
           if (row.sleep_quality != null) line2.push(`수면 ${row.sleep_quality}점`);
-          if (row.constipation != null) line2.push(`변비 ${row.constipation}`);
+          if (row.constipation != null) line2.push(`변비 ${row.constipation ? '있었어요' : '없었어요'}`);
           // medication_meal_time이 있으면 실제 복용 약 기준, 없으면 시간대 추론
           const period = row.medication_meal_time
             ? (mealTimeToPeriod(row.medication_meal_time) || getPeriodKo(row.logged_at))

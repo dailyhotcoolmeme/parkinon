@@ -4,7 +4,6 @@ import {
   Text,
   StyleSheet,
   TouchableOpacity,
-  Alert,
 } from 'react-native';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import AsyncStorage from '@react-native-async-storage/async-storage';
@@ -14,6 +13,7 @@ import type { OnboardingStackParamList } from '../../navigation/OnboardingNaviga
 import { Colors } from '../../constants/colors';
 import { PrimaryButton } from '../../components/common/PrimaryButton';
 import { useAuth } from '../../context/AuthContext';
+import { useDialog } from '../../context/DialogContext';
 import { supabase } from '../../lib/supabase';
 
 type Nav = StackNavigationProp<OnboardingStackParamList, 'RoleSelect'>;
@@ -35,6 +35,7 @@ const ROLES = [
 export function RoleSelectScreen() {
   const navigation = useNavigation<Nav>();
   const { signOut } = useAuth();
+  const dialog = useDialog();
   const [selectedRole, setSelectedRole] = useState<RoleKey | null>(null);
   const [loading, setLoading] = useState(false);
   const { bottom: bottomInset } = useSafeAreaInsets();
@@ -81,7 +82,7 @@ export function RoleSelectScreen() {
         navigation.navigate('CaregiverInfo', { step: 1 });
       }
     } catch (e: any) {
-      Alert.alert('오류', '역할 저장 중 문제가 생겼어요. 다시 시도해주세요.\n' + (e?.message ?? ''));
+      await dialog.alert({ title: '오류', message: '역할 저장 중 문제가 생겼어요. 다시 시도해주세요.\n' + (e?.message ?? '') });
     } finally {
       setLoading(false);
     }

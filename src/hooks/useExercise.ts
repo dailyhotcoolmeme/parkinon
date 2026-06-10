@@ -20,6 +20,7 @@ export interface UseExerciseReturn {
   loading: boolean;
   error: string | null;
   saveExercise: (exerciseType: string, durationMinutes: number) => Promise<boolean>;
+  cancelExercise: (exerciseLogId: string) => Promise<boolean>;
   getExerciseLogs: (date: string) => Promise<{ logs: ExerciseLogRow[]; error: string | null }>;
   getTodayTotalMinutes: () => number;
   refresh: () => Promise<void>;
@@ -197,6 +198,27 @@ export function useExercise(): UseExerciseReturn {
     }
   }, [user, getPatientId, fetchTodayLogs]);
 
+  // 운동 기록 취소(삭제)
+  // RLS 우회 + 권한 자체검증을 위해 직접 delete가 아닌 RPC 사용
+  const cancelExercise = useCallback(async (exerciseLogId: string): Promise<boolean> => {
+    if (!user) return false;
+
+    try {
+      const { error: rpcError } = await supabase.rpc('cancel_patient_record', {
+        p_table: 'exercise_logs',
+        p_record_id: exerciseLogId,
+      });
+
+      if (rpcError) throw rpcError;
+
+      await fetchTodayLogs();
+      return true;
+    } catch (err: any) {
+      console.error('[useExercise] cancelExercise 오류:', err);
+      return false;
+    }
+  }, [user, fetchTodayLogs]);
+
   // 날짜별 기록 조회
   const getExerciseLogs = useCallback(async (date: string): Promise<{ logs: ExerciseLogRow[]; error: string | null }> => {
     if (!user) return { logs: [], error: null };
@@ -238,6 +260,7 @@ export function useExercise(): UseExerciseReturn {
     loading,
     error,
     saveExercise,
+    cancelExercise,
     getExerciseLogs,
     getTodayTotalMinutes,
     refresh,

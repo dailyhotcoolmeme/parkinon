@@ -5,7 +5,6 @@ import {
   TouchableOpacity,
   ScrollView,
   StyleSheet,
-  Alert,
   ActivityIndicator,
   Modal,
   Image,
@@ -20,6 +19,7 @@ import { TopBar } from '../../components/common/TopBar';
 import { useAuth } from '../../context/AuthContext';
 import { supabase } from '../../lib/supabase';
 import { MenuStackParamList } from '../../navigation/MenuNavigator';
+import { useDialog } from '../../context/DialogContext';
 
 type NavProp = StackNavigationProp<MenuStackParamList>;
 type RouteType = RouteProp<{ MedicalRecordDetail: { recordId: string } }, 'MedicalRecordDetail'>;
@@ -65,6 +65,7 @@ export function MedicalRecordDetailScreen() {
   const recordId = (route.params as any)?.recordId as string;
   const { user } = useAuth();
   const { unreadCount } = useNotificationBadge();
+  const dialog = useDialog();
 
   const [record, setRecord] = useState<RecordDetail | null>(null);
   const [loading, setLoading] = useState(true);
@@ -108,43 +109,40 @@ export function MedicalRecordDetailScreen() {
     }, [fetchRecord])
   );
 
-  const handleDelete = () => {
-    Alert.alert(
-      '진료 기록 삭제',
-      '이 진료 기록을 삭제할까요?\n삭제한 기록은 복구할 수 없어요.',
-      [
-        { text: '취소', style: 'cancel' },
-        {
-          text: '삭제',
-          style: 'destructive',
-          onPress: async () => {
-            try {
-              const token = await getToken();
-              const headers = {
-                apikey: SUPABASE_ANON_KEY,
-                Authorization: `Bearer ${token}`,
-              };
-              // 처방약 먼저 삭제
-              await fetch(
-                `${SUPABASE_URL}/rest/v1/medical_record_medications?record_id=eq.${recordId}`,
-                { method: 'DELETE', headers }
-              );
-              // 본 기록 삭제
-              const res = await fetch(
-                `${SUPABASE_URL}/rest/v1/medical_records?id=eq.${recordId}`,
-                { method: 'DELETE', headers }
-              );
-              if (!res.ok) throw new Error('삭제에 실패했어요.');
-              Alert.alert('삭제 완료', '진료 기록이 삭제되었어요.', [
-                { text: '확인', onPress: () => navigation.goBack() },
-              ]);
-            } catch (e: any) {
-              Alert.alert('오류', e.message ?? '삭제에 실패했어요.');
-            }
-          },
-        },
-      ]
-    );
+  const handleDelete = async () => {
+    const ok = await dialog.confirm({
+      title: '진료 기록 삭제',
+      message: '이 진료 기록을 삭제할까요?\n삭제한 기록은 복구할 수 없어요.',
+      confirmText: '삭제',
+      cancelText: '취소',
+      destructive: true,
+    });
+    if (!ok) return;
+    try {
+      const token = await getToken();
+      const headers = {
+        apikey: SUPABASE_ANON_KEY,
+        Authorization: `Bearer ${token}`,
+      };
+      // 처방약 먼저 삭제
+      await fetch(
+        `${SUPABASE_URL}/rest/v1/medical_record_medications?record_id=eq.${recordId}`,
+        { method: 'DELETE', headers }
+      );
+      // 본 기록 삭제
+      const res = await fetch(
+        `${SUPABASE_URL}/rest/v1/medical_records?id=eq.${recordId}`,
+        { method: 'DELETE', headers }
+      );
+      if (!res.ok) throw new Error('삭제에 실패했어요.');
+      await dialog.alert({
+        title: '삭제 완료',
+        message: '진료 기록이 삭제되었어요.',
+      });
+      navigation.goBack();
+    } catch (e: any) {
+      dialog.alert({ title: '오류', message: e.message ?? '삭제에 실패했어요.' });
+    }
   };
 
   const meds = record?.medical_record_medications ?? [];

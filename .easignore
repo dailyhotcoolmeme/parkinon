@@ -1,0 +1,33 @@
+# EAS Build archive ignore — keep upload small & clean (managed workflow regenerates native)
+node_modules/
+ios/
+android/
+.expo/
+dist/
+web-build/
+.git/
+.gradle/
+.kotlin/
+
+# secrets / local
+.env
+.env*.local
+*.jks
+*.p8
+*.p12
+*.key
+*.keystore
+*.mobileprovision
+*.pem
+
+# build artifacts
+*.apk
+*.aab
+*.tsbuildinfo
+
+# os
+.DS_Store
+
+# docs / scratch (not needed for build)
+docs/
+*.log

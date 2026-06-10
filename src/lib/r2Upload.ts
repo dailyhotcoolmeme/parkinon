@@ -149,6 +149,26 @@ export async function uploadVideo(
 }
 
 /**
+ * 알림음(개인 녹음) R2 업로드. 경로: parkinon/sounds/{uploaderUserId}/{uuid}.{ext}
+ * - uploaderUserId(녹음한 사용자=본인)로 경로를 잡아 r2-upload 소유권 검증 통과.
+ * - 기본 m4a(expo-av 녹음 기본). 반환 key를 custom_sounds에 저장해 두고, 재생 시 다운로드.
+ */
+export async function uploadSound(
+  localUri: string,
+  uploaderUserId: string,
+  mimeType: string = 'audio/m4a',
+  timeoutMs?: number,
+): Promise<UploadResult> {
+  const ext = /ogg/.test(mimeType) ? 'ogg'
+    : /wav/.test(mimeType) ? 'wav'
+    : /caf/.test(mimeType) ? 'caf'
+    : 'm4a';
+  const key = `parkinon/sounds/${uploaderUserId}/${generateUuid()}.${ext}`;
+  const url = await uploadToR2(localUri, mimeType, key, timeoutMs ?? 60000);
+  return { url, key, expires_at: calcExpiresAt() };
+}
+
+/**
  * 사진 파일을 R2에 업로드합니다.
  *
  * @param localUri  로컬 파일 URI (expo-file-system 경로)

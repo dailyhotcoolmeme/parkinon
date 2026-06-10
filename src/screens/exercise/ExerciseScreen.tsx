@@ -7,7 +7,6 @@ import {
   StyleSheet,
   Dimensions,
   ActivityIndicator,
-  Alert,
 } from 'react-native';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useNavigation } from '@react-navigation/native';
@@ -26,6 +25,9 @@ import { CaregiverConfirmModal } from '../../components/common/CaregiverConfirmM
 import { supabase } from '../../lib/supabase';
 import { useNotificationBadge } from '../../context/NotificationBadgeContext';
 import { HistoryTimeline } from '../../components/common/HistoryTimeline';
+import { useDialog } from '../../context/DialogContext';
+import { ensureNotGuest } from '../../utils/guestGuard';
+import { useRecordRealtime } from '../../hooks/useRecordRealtime';
 
 type Nav = NativeStackNavigationProp<ExerciseStackParamList, 'ExerciseMain'>;
 
@@ -61,8 +63,9 @@ function getDateLabel(date: Date): string {
 
 export function ExerciseScreen() {
   const navigation = useNavigation<Nav>();
-  const { user } = useAuth();
-  const { todayLogs, getTodayTotalMinutes, getExerciseLogs, loading, error, refresh } = useExercise();
+  const dialog = useDialog();
+  const { user, signOut } = useAuth();
+  const { todayLogs, getTodayTotalMinutes, getExerciseLogs, cancelExercise, loading, error, refresh } = useExercise();
   const insets = useSafeAreaInsets();
   const [selectedDate, setSelectedDate] = useState(new Date());
   const [showDatePicker, setShowDatePicker] = useState(false);
@@ -71,7 +74,14 @@ export function ExerciseScreen() {
   const [showCaregiverConfirm, setShowCaregiverConfirm] = useState(false);
   const [patientName, setPatientName] = useState('환자');
   const [patientId, setPatientId] = useState<string | null>(null);
+  const [recordsRefreshKey, setRecordsRefreshKey] = useState(0);
   const { unreadCount } = useNotificationBadge();
+
+  // 운동 기록 실시간 동기화 (환자↔보호자 즉시 반영)
+  useRecordRealtime('exercise_logs', patientId, () => {
+    refresh();                         // 오늘 운동 기록 새로고침
+    setRecordsRefreshKey((k) => k + 1); // 과거기록(HistoryTimeline) 갱신
+  });
 
   // patient_group_id가 있어도 실제 환자 멤버가 없을 수 있으므로 patientId 기준으로 판단
   const userRole: 'patient' | 'caregiver_no_patient' | 'caregiver_same' | 'caregiver_separate' =
@@ -124,7 +134,7 @@ export function ExerciseScreen() {
     const dateStr = new Date(date.getTime() + kstOffset).toISOString().slice(0, 10);
     const { logs, error: fetchError } = await getExerciseLogs(dateStr);
     if (fetchError) {
-      Alert.alert('불러오기 실패', fetchError);
+      dialog.alert({ title: '불러오기 실패', message: fetchError });
     }
     setDateLogs(logs);
     setDateLoading(false);
@@ -162,7 +172,7 @@ export function ExerciseScreen() {
   // error 발생 시 Alert
   React.useEffect(() => {
     if (error) {
-      Alert.alert('불러오기 실패', error);
+      dialog.alert({ title: '불러오기 실패', message: error });
     }
   }, [error]);
 
@@ -170,6 +180,26 @@ export function ExerciseScreen() {
   const displayLogs = isToday(selectedDate) ? todayLogs : dateLogs;
   const totalMinutes = displayLogs.reduce((sum, log) => sum + log.duration_minutes, 0);
   const isLoading = loading || dateLoading;
+
+  // 기록 취소 버튼 노출 조건: 환자 본인 또는 함께 거주하는 보호자 + 오늘 날짜
+  const canCancel = (userRole === 'patient' || userRole === 'caregiver_same') && isToday(selectedDate);
+
+  // 운동 기록 취소(삭제)
+  const handleCancelExercise = useCallback(async (exerciseLogId: string) => {
+    if (await ensureNotGuest(user, dialog, { signOut })) return;
+    const ok = await dialog.confirm({
+      title: '이 기록을 취소할까요?',
+      message: '취소하면 기록이 삭제되고 되돌릴 수 없어요.',
+      confirmText: '취소하기',
+      cancelText: '닫기',
+      destructive: true,
+    });
+    if (!ok) return;
+    const success = await cancelExercise(exerciseLogId);
+    if (!success) {
+      dialog.alert({ title: '취소 실패', message: '기록을 취소하지 못했어요.\n다시 시도해 주세요.' });
+    }
+  }, [user, dialog, signOut, cancelExercise]);
 
   return (
     <SafeAreaView style={styles.safe} edges={['top']}>
@@ -195,7 +225,8 @@ export function ExerciseScreen() {
           <TouchableOpacity
             style={[styles.primaryBtn, (userRole === 'caregiver_no_patient' || userRole === 'caregiver_separate' || !isToday(selectedDate)) && styles.primaryBtnDisabled]}
             disabled={userRole === 'caregiver_no_patient' || userRole === 'caregiver_separate' || !isToday(selectedDate)}
-            onPress={() => {
+            onPress={async () => {
+              if (await ensureNotGuest(user, dialog, { signOut })) return;
               if (userRole === 'caregiver_same') {
                 setShowCaregiverConfirm(true);
               } else {
@@ -266,13 +297,22 @@ export function ExerciseScreen() {
                     {new Date(record.logged_at).toLocaleTimeString('ko-KR', { hour: '2-digit', minute: '2-digit' })}
                   </Text>
                 </View>
+                {canCancel && (
+                  <TouchableOpacity
+                    style={styles.cancelBtn}
+                    onPress={() => handleCancelExercise(record.id)}
+                    activeOpacity={0.7}
+                  >
+                    <Text style={styles.cancelBtnText}>취소</Text>
+                  </TouchableOpacity>
+                )}
               </View>
             ))
           )}
         </View>
 
         {/* 과거 기록 보기 타임라인 */}
-        <HistoryTimeline type="exercise" patientId={patientId} />
+        <HistoryTimeline type="exercise" patientId={patientId} refreshKey={recordsRefreshKey} />
       </ScrollView>
       <DatePickerModal
         visible={showDatePicker}
@@ -372,6 +412,19 @@ const styles = StyleSheet.create({
   },
   recordIconWrap: { marginRight: 16, width: 46, alignItems: 'center' },
   recordInfo: { flex: 1 },
+  cancelBtn: {
+    flexShrink: 0,
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingHorizontal: 14,
+    paddingVertical: 6,
+    borderRadius: 8,
+    borderWidth: 1,
+    borderColor: Colors.danger,
+    backgroundColor: Colors.white,
+    marginLeft: 12,
+  },
+  cancelBtnText: { fontSize: 16, fontWeight: '700', color: Colors.danger },
   recordLabel: { fontSize: 20, fontWeight: '600', color: Colors.text },
   recordTime: { fontSize: 17, color: Colors.textSub, marginTop: 4 },
 

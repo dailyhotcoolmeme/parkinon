@@ -1,3 +1,5 @@
+import { LEGACY_SLOT_META, type LegacyMealKey } from '../constants/doseSlots';
+
 // KST(UTC+9) 기준 오늘 날짜 문자열 반환 (YYYY-MM-DD)
 export function getKSTToday(): string {
   const now = new Date();
@@ -78,28 +80,21 @@ export function triggerLabelToMinutes(label: string | null | undefined): number 
 
 /**
  * medication_meal_time → 한국어 약 이름 (예: 'dinner' → '저녁약')
+ * 슬롯 상수는 constants/doseSlots.ts(LEGACY_SLOT_META) 단일 출처 사용.
+ * 시그니처·반환값은 기존과 100% 동일(매칭 실패 시 입력값 그대로).
  */
 export function mealTimeToKorean(mealTime: string | null | undefined): string {
   if (!mealTime) return '';
-  const map: Record<string, string> = {
-    morning: '아침약',
-    lunch: '점심약',
-    dinner: '저녁약',
-    bedtime: '취침약',
-  };
-  return map[mealTime] ?? mealTime;
+  const meta = LEGACY_SLOT_META[mealTime as LegacyMealKey];
+  return meta ? meta.korMed : mealTime;
 }
 
 /**
  * medication_meal_time → 한국어 시간대 이름 (예: 'dinner' → '저녁')
+ * 슬롯 상수는 constants/doseSlots.ts(LEGACY_SLOT_META) 단일 출처 사용.
  */
 export function mealTimeToPeriod(mealTime: string | null | undefined): string {
   if (!mealTime) return '';
-  const map: Record<string, string> = {
-    morning: '아침',
-    lunch: '점심',
-    dinner: '저녁',
-    bedtime: '취침',
-  };
-  return map[mealTime] ?? mealTime;
+  const meta = LEGACY_SLOT_META[mealTime as LegacyMealKey];
+  return meta ? meta.label : mealTime;
 }

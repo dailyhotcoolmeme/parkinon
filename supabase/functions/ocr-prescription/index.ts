@@ -1,4 +1,5 @@
 import { serve } from 'https://deno.land/std@0.168.0/http/server.ts';
+import { createClient } from 'npm:@supabase/supabase-js@2';
 
 // 개인정보 마스킹 패턴
 const MASKING_PATTERNS = [
@@ -23,7 +24,6 @@ const MASKING_PATTERNS = [
 
 /**
  * 텍스트에서 개인정보를 마스킹 처리합니다.
- * (이미지를 API에 보내기 전에 프롬프트로 지시하고, 응답에서도 재마스킹)
  */
 function maskPersonalInfo(text: string): string {
   let masked = text;
@@ -46,6 +46,28 @@ interface OcrRequest {
 
 interface OcrResponse {
   medications: MedicationResult[];
+}
+
+// ---------------------------------------------------------------
+// C5: 단순 in-memory rate limit (사용자별 5분당 5회).
+// Edge Function 인스턴스가 cold start 마다 리셋되지만 동일 인스턴스에서의
+// 단기 burst 방지에는 충분.
+// ---------------------------------------------------------------
+const RATE_LIMIT_WINDOW_MS = 5 * 60 * 1000; // 5분
+const RATE_LIMIT_MAX = 5;
+const rateLimitMap = new Map<string, number[]>();
+
+function checkRateLimit(userId: string): boolean {
+  const now = Date.now();
+  const windowStart = now - RATE_LIMIT_WINDOW_MS;
+  const history = (rateLimitMap.get(userId) ?? []).filter((t) => t > windowStart);
+  if (history.length >= RATE_LIMIT_MAX) {
+    rateLimitMap.set(userId, history);
+    return false;
+  }
+  history.push(now);
+  rateLimitMap.set(userId, history);
+  return true;
 }
 
 /**
@@ -110,61 +132,24 @@ async function analyzeWithClaude(
 
   const result = await response.json();
   const content = result.content?.[0]?.text ?? '';
-
-  // JSON 파싱 (응답에서 개인정보 재마스킹)
   const maskedContent = maskPersonalInfo(content);
-
-  // JSON 블록 추출
   const jsonMatch = maskedContent.match(/\{[\s\S]*\}/);
   if (!jsonMatch) {
-    console.error('Claude 응답에서 JSON을 찾을 수 없음:', maskedContent);
+    console.error('Claude 응답에서 JSON을 찾을 수 없음');
     return [];
   }
-
   const parsed = JSON.parse(jsonMatch[0]);
   return parsed.medications ?? [];
 }
 
-/**
- * 식약처 API로 약 정보 매칭
- * TODO: 공공데이터포털에서 API 키 발급 후 아래 코드 활성화
- * API: https://apis.data.go.kr/1471000/DrugPrdtPrmsnInfoService04/getDrugPrdtPrmsnDtlInq04
- * 신청: https://www.data.go.kr/data/15095254/openapi.do
- */
 async function matchWithKfda(
   medications: MedicationResult[]
 ): Promise<MedicationResult[]> {
-  // TODO: KFDA_API_KEY 환경변수 설정 후 활성화
-  // const kfdaApiKey = Deno.env.get('KFDA_API_KEY');
-  // if (!kfdaApiKey) {
-  //   console.warn('KFDA_API_KEY 미설정 — 약 이름만 반환합니다.');
-  //   return medications;
-  // }
-
-  // TODO: 식약처 API 매칭 구현
-  // for (const med of medications) {
-  //   const url = new URL('https://apis.data.go.kr/1471000/DrugPrdtPrmsnInfoService04/getDrugPrdtPrmsnDtlInq04');
-  //   url.searchParams.set('serviceKey', kfdaApiKey);
-  //   url.searchParams.set('type', 'json');
-  //   url.searchParams.set('itemName', med.name);
-  //   url.searchParams.set('numOfRows', '1');
-  //   const res = await fetch(url.toString());
-  //   if (res.ok) {
-  //     const data = await res.json();
-  //     const item = data.body?.items?.[0];
-  //     if (item) {
-  //       med.name = item.ITEM_NAME ?? med.name;
-  //       // 추가 정보 매핑 가능: item.EE_DOC_DATA (효능), item.UD_DOC_DATA (주의사항)
-  //     }
-  //   }
-  // }
-
-  // KFDA API 키 없으면 약 이름만 반환
+  // TODO: KFDA API 키 발급 후 활성화
   return medications;
 }
 
 serve(async (req: Request) => {
-  // CORS 헤더
   const corsHeaders = {
     'Access-Control-Allow-Origin': '*',
     'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
@@ -183,6 +168,37 @@ serve(async (req: Request) => {
   }
 
   try {
+    // -----------------------------------------------------------
+    // C5: 인증 검증 (verify_jwt=true 이지만 함수 내부에서도 user 확인)
+    // -----------------------------------------------------------
+    const authHeader = req.headers.get('Authorization');
+    if (!authHeader) {
+      return new Response(
+        JSON.stringify({ error: '인증이 필요합니다.' }),
+        { status: 401, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      );
+    }
+    const supabase = createClient(
+      Deno.env.get('SUPABASE_URL')!,
+      Deno.env.get('SUPABASE_ANON_KEY')!,
+      { global: { headers: { Authorization: authHeader } } },
+    );
+    const { data: { user }, error: authError } = await supabase.auth.getUser();
+    if (authError || !user) {
+      return new Response(
+        JSON.stringify({ error: '인증이 필요합니다.' }),
+        { status: 401, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      );
+    }
+
+    // 사용자별 rate limit
+    if (!checkRateLimit(user.id)) {
+      return new Response(
+        JSON.stringify({ error: '요청이 너무 잦습니다. 잠시 후 다시 시도해주세요.' }),
+        { status: 429, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      );
+    }
+
     const body = await req.json() as OcrRequest;
 
     if (!body.image_base64 || !body.image_type) {
@@ -199,16 +215,16 @@ serve(async (req: Request) => {
       );
     }
 
-    // 1. Claude Vision으로 처방전 분석 (원본 이미지는 이 범위 내에서만 사용)
+    // 이미지 크기 상한 (base64 길이 기준 ≈ 6MB 원본). 과도한 요청 차단.
+    if (body.image_base64.length > 8_000_000) {
+      return new Response(
+        JSON.stringify({ error: '이미지가 너무 큽니다.' }),
+        { status: 413, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      );
+    }
+
     const medications = await analyzeWithClaude(body.image_base64, body.image_type);
-
-    // 2. 원본 이미지 데이터 즉시 파기 (변수 참조 해제)
-    // body.image_base64는 이 시점 이후로 사용하지 않음
-    // Deno/V8 GC가 메모리 수거
-
-    // 3. 식약처 API로 약 정보 매칭 (TODO: API 키 발급 후 활성화)
     const matchedMedications = await matchWithKfda(medications);
-
     const responseBody: OcrResponse = { medications: matchedMedications };
 
     return new Response(JSON.stringify(responseBody), {

@@ -8,7 +8,6 @@ import {
   KeyboardAvoidingView,
   Platform,
   ScrollView,
-  Alert,
   ActivityIndicator,
   Modal,
   Image,
@@ -21,9 +20,12 @@ import type { OnboardingStackParamList } from '../../navigation/OnboardingNaviga
 import { Colors } from '../../constants/colors';
 import { PrimaryButton } from '../../components/common/PrimaryButton';
 import { useAuth } from '../../context/AuthContext';
+import { useDialog } from '../../context/DialogContext';
 import * as ImagePicker from 'expo-image-picker';
 import * as FileSystem from 'expo-file-system';
 import { supabase } from '../../lib/supabase';
+import { ensureGroupMember } from '../../utils/groupMembership';
+import { ensurePatientDoseSlots } from '../../hooks/useDoseSlots';
 
 type Nav = StackNavigationProp<OnboardingStackParamList, 'MedicationRegister'>;
 
@@ -62,6 +64,7 @@ interface DrugInfo {
   etcOtcName?: string;
   printFront?: string;
   printBack?: string;
+  itemSeq?: string;
 }
 
 interface Medication {
@@ -78,19 +81,23 @@ type Mode = 'home' | 'manual';
 const SUPABASE_URL = process.env.EXPO_PUBLIC_SUPABASE_URL ?? '';
 const SUPABASE_ANON_KEY = process.env.EXPO_PUBLIC_SUPABASE_ANON_KEY ?? '';
 
-const MFDS_KEY = process.env.EXPO_PUBLIC_MFDS_KEY ?? '';
-const MFDS_URL = 'https://apis.data.go.kr/1471000/MdcinGrnIdntfcInfoService03/getMdcinGrnIdntfcInfoList03';
+async function getAccessToken(): Promise<string> {
+  const { data: { session } } = await supabase.auth.getSession();
+  return session?.access_token ?? SUPABASE_ANON_KEY;
+}
 
 async function callClaudeOCR(base64Image: string, mediaType: string): Promise<{ medications: { name: string; times: string[] }[] }> {
   // image_type은 'jpeg' 또는 'png'만 허용 (Edge Function 스펙)
   const rawType = mediaType.replace('image/', '');
   const imageType: 'jpeg' | 'png' = rawType === 'png' ? 'png' : 'jpeg';
 
+  const accessToken = await getAccessToken();
   const response = await fetch(`${SUPABASE_URL}/functions/v1/ocr-prescription`, {
     method: 'POST',
     headers: {
       'Content-Type': 'application/json',
-      'Authorization': `Bearer ${SUPABASE_ANON_KEY}`,
+      'apikey': SUPABASE_ANON_KEY,
+      'Authorization': `Bearer ${accessToken}`,
     },
     body: JSON.stringify({ image_base64: base64Image, image_type: imageType }),
   });
@@ -114,8 +121,16 @@ async function callClaudeOCR(base64Image: string, mediaType: string): Promise<{ 
 
 async function searchMfdsInfo(drugName: string): Promise<DrugInfo | null> {
   try {
-    const url = `${MFDS_URL}?serviceKey=${encodeURIComponent(MFDS_KEY)}&item_name=${encodeURIComponent(drugName)}&type=json&numOfRows=5&pageNo=1`;
-    const res = await fetch(url);
+    const accessToken = await getAccessToken();
+    const res = await fetch(`${SUPABASE_URL}/functions/v1/mfds-proxy`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'apikey': SUPABASE_ANON_KEY,
+        'Authorization': `Bearer ${accessToken}`,
+      },
+      body: JSON.stringify({ endpoint: 'grn', query: drugName, numOfRows: 5, pageNo: 1 }),
+    });
     if (!res.ok) return null;
     const data = await res.json();
 
@@ -148,6 +163,7 @@ async function searchMfdsInfo(drugName: string): Promise<DrugInfo | null> {
       etcOtcName: item.ETC_OTC_NAME ?? undefined,
       printFront: item.PRINT_FRONT ?? undefined,
       printBack: item.PRINT_BACK ?? undefined,
+      itemSeq: item.ITEM_SEQ ?? undefined,
     };
   } catch {
     return null;
@@ -724,6 +740,7 @@ const tseStyles = StyleSheet.create({
 export function MedicationRegisterScreen() {
   const navigation = useNavigation<Nav>();
   const { forceCompleteOnboarding } = useAuth();
+  const dialog = useDialog();
   const [mode, setMode] = useState<Mode>('home');
   const { bottom: bottomInset } = useSafeAreaInsets();
 
@@ -735,7 +752,7 @@ export function MedicationRegisterScreen() {
       const userId = sessionData?.session?.user?.id;
       const accessToken = sessionData?.session?.access_token;
       if (!userId || !accessToken) {
-        Alert.alert('오류', '세션이 만료되었어요. 다시 로그인해 주세요.');
+        dialog.alert({ title: '오류', message: '세션이 만료되었어요. 다시 로그인해 주세요.' });
         return;
       }
 
@@ -756,8 +773,9 @@ export function MedicationRegisterScreen() {
         'onboarding_gender',
         'onboarding_relation',
         'onboarding_living',
+        'onboarding_invite_code',
       ]).then((pairs) => pairs.map(([, v]) => v));
-      const [roleVal, inviteCodeVal, joinGroupIdVal, nameVal, birthYearVal, genderVal, relationVal, livingVal] = storageValues;
+      const [roleVal, inviteCodeVal, joinGroupIdVal, nameVal, birthYearVal, genderVal, relationVal, livingVal, enteredInviteCodeVal] = storageValues;
 
       // onboarding_done 업데이트 + 프로필 정보 포함
       const patchBody: Record<string, any> = {
@@ -783,36 +801,50 @@ export function MedicationRegisterScreen() {
       if (!patchRes.ok) {
         const errText = await patchRes.text();
         console.error('[MedicationRegisterScreen] onboarding_done 업데이트 실패:', patchRes.status, errText);
-        Alert.alert('오류', '온보딩 완료 처리에 실패했어요. 잠시 후 다시 시도해 주세요.');
+        dialog.alert({ title: '오류', message: '온보딩 완료 처리에 실패했어요. 잠시 후 다시 시도해 주세요.' });
         return;
       }
 
-      // 보호자가 초대코드로 그룹에 참여한 경우 patient_group_members INSERT (나중에 등록하기 경로)
-      // FamilyInviteScreen을 거치지 않으므로 여기서 직접 처리
-      if (joinGroupIdVal) {
-        try {
-          const memberInsertRes = await fetch(`${SUPABASE_URL}/rest/v1/patient_group_members`, {
-            method: 'POST',
-            headers: { ...baseHeaders, 'Prefer': 'resolution=merge-duplicates,return=minimal' },
-            body: JSON.stringify({ group_id: joinGroupIdVal, user_id: userId, role: roleVal ?? 'caregiver' }),
+      // [5단계 dual-write] meal_schedules 설정 직후, 신규 온보딩 환자의 dose_slots 4개를 생성/보장.
+      // ("나중에 등록하기" 경로 — 약은 없지만 환자 복용 시간표(슬롯)는 기본 4슬롯으로 만들어 둔다.)
+      // 멱등·실패해도 throw 안 함 → 온보딩 흐름을 막지 않는다.
+      await ensurePatientDoseSlots(userId, patchBody.meal_schedules);
+
+      // 초대코드로 그룹에 참여한 경우 patient_group_members INSERT (나중에 등록하기 경로)
+      // FamilyInviteScreen을 거치지 않으므로 여기서 직접 처리.
+      // ⚠️ 멤버 행이 누락되면 RLS is_same_patient_group()이 false → 같은 그룹 가족
+      //    정보가 전부 차단되므로, 멤버 INSERT를 먼저(필수) 보장한 뒤 patient_group_id를 갱신한다.
+      // ⚠️ 그룹이 없는 보호자 단독 가입(환자 코드 미입력 = 그룹 미합류)은 group_id가 없으므로
+      //    멤버 INSERT를 건너뛰고 온보딩을 정상 완료시킨다. (보호자는 환자 코드를 나중에 입력 가능)
+      const resolvedJoinGroupId = joinGroupIdVal?.trim() || null;
+      if (resolvedJoinGroupId) {
+        // 멤버 INSERT 먼저 — 실패 시 throw되어 아래 catch에서 표면화 (조용히 무시 금지)
+        await ensureGroupMember(SUPABASE_URL, baseHeaders, resolvedJoinGroupId, userId, roleVal ?? 'caregiver');
+        const pgPatchRes = await fetch(`${SUPABASE_URL}/rest/v1/users?id=eq.${userId}`, {
+          method: 'PATCH',
+          headers: { ...baseHeaders, 'Prefer': 'return=minimal' },
+          body: JSON.stringify({ patient_group_id: resolvedJoinGroupId }),
+        });
+        if (!pgPatchRes.ok) {
+          const errText = await pgPatchRes.text();
+          console.warn('[MedicationRegisterScreen] patient_group_id PATCH 실패:', errText);
+        }
+      } else {
+        // 진단: 초대 코드를 입력했는데(enteredInviteCodeVal / onboarding_invite_code 존재)
+        // group_id가 비어있는 비정상 상황. 코드 조회(raw fetch) 단계에서 그룹 ID가 저장되지
+        // 않았다는 뜻이므로 사용자에게 안내한다. (보호자 단독 = 코드 미입력은 조용히 통과)
+        const enteredCode = enteredInviteCodeVal?.trim();
+        if (enteredCode) {
+          dialog.alert({
+            title: '연동 확인 필요',
+            message: '초대 코드 연동이 완료되지 않았어요. 가입 후 메뉴 > 가족 연동에서 코드를 다시 입력해주세요.',
           });
-          if (!memberInsertRes.ok) {
-            const errText = await memberInsertRes.text();
-            console.warn('[MedicationRegisterScreen] patient_group_members INSERT 실패 (계속 진행):', errText);
-          }
-          await fetch(`${SUPABASE_URL}/rest/v1/users?id=eq.${userId}`, {
-            method: 'PATCH',
-            headers: { ...baseHeaders, 'Prefer': 'return=minimal' },
-            body: JSON.stringify({ patient_group_id: joinGroupIdVal }),
-          });
-        } catch (memberErr) {
-          console.warn('[MedicationRegisterScreen] patient_group_members 처리 예외 (계속 진행):', memberErr);
         }
       }
 
       // 환자인 경우 patient_groups가 없으면 생성 (나중에 등록하기 경로)
 
-      if (roleVal === 'patient' && !joinGroupIdVal && inviteCodeVal) {
+      if (roleVal === 'patient' && !resolvedJoinGroupId && inviteCodeVal) {
         const expiresAt = new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString();
         const groupRes = await fetch(`${SUPABASE_URL}/rest/v1/patient_groups`, {
           method: 'POST',
@@ -831,11 +863,7 @@ export function MedicationRegisterScreen() {
               headers: { ...baseHeaders, 'Prefer': 'return=minimal' },
               body: JSON.stringify({ patient_group_id: newGroupId }),
             });
-            await fetch(`${SUPABASE_URL}/rest/v1/patient_group_members`, {
-              method: 'POST',
-              headers: { ...baseHeaders, 'Prefer': 'resolution=merge-duplicates,return=minimal' },
-              body: JSON.stringify({ group_id: newGroupId, user_id: userId, role: 'patient' }),
-            });
+            await ensureGroupMember(SUPABASE_URL, baseHeaders, newGroupId, userId, 'patient');
           }
         } else {
           const errText = await groupRes.text();
@@ -847,7 +875,7 @@ export function MedicationRegisterScreen() {
       forceCompleteOnboarding();
     } catch (e) {
       console.error('[MedicationRegisterScreen] onboarding_done 업데이트 예외:', e);
-      Alert.alert('오류', '온보딩 완료 처리 중 문제가 생겼어요. 잠시 후 다시 시도해 주세요.');
+      dialog.alert({ title: '오류', message: '온보딩 완료 처리 중 문제가 생겼어요. 잠시 후 다시 시도해 주세요.' });
     }
   };
   const [medName, setMedName] = useState('');
@@ -874,7 +902,7 @@ export function MedicationRegisterScreen() {
   // 수동 식약처 조회
   const handleMfdsSearch = async () => {
     const trimmed = medName.trim();
-    if (!trimmed) { Alert.alert('', '약 이름을 먼저 입력해주세요.'); return; }
+    if (!trimmed) { dialog.alert({ message: '약 이름을 먼저 입력해주세요.' }); return; }
     setMfdsLoading(true);
     setMfdsResult(null);
     try {
@@ -929,13 +957,13 @@ export function MedicationRegisterScreen() {
       if (useCamera) {
         const { status } = await ImagePicker.requestCameraPermissionsAsync();
         if (status !== 'granted') {
-          Alert.alert('권한 필요', '카메라 접근 권한이 필요해요.');
+          dialog.alert({ title: '권한 필요', message: '카메라 접근 권한이 필요해요.' });
           return;
         }
       } else {
         const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
         if (status !== 'granted') {
-          Alert.alert('권한 필요', '갤러리 접근 권한이 필요해요.');
+          dialog.alert({ title: '권한 필요', message: '갤러리 접근 권한이 필요해요.' });
           return;
         }
       }
@@ -958,7 +986,7 @@ export function MedicationRegisterScreen() {
 
       const asset = result.assets[0];
       if (!asset.base64) {
-        Alert.alert('오류', '이미지를 읽을 수 없어요. 다시 시도해주세요.');
+        dialog.alert({ title: '오류', message: '이미지를 읽을 수 없어요. 다시 시도해주세요.' });
         return;
       }
 
@@ -1007,50 +1035,48 @@ export function MedicationRegisterScreen() {
 
       const noInfoCount = enriched.filter((m) => m.drugInfo === null).length;
       if (enriched.length === 0) {
-        Alert.alert('약을 찾지 못했어요', '사진이 선명한지 확인 후 다시 시도하거나, 직접 입력해주세요.');
+        dialog.alert({ title: '약을 찾지 못했어요', message: '사진이 선명한지 확인 후 다시 시도하거나, 직접 입력해주세요.' });
       } else if (noInfoCount > 0) {
-        Alert.alert(
-          `약 ${enriched.length}개 인식됨`,
-          `${noInfoCount}개는 식약처에서 정보를 찾지 못했어요.\n약 이름이 정확한지 꼭 확인하고 수정해주세요.`
-        );
+        dialog.alert({
+          title: `약 ${enriched.length}개 인식됨`,
+          message: `${noInfoCount}개는 식약처에서 정보를 찾지 못했어요.\n약 이름이 정확한지 꼭 확인하고 수정해주세요.`,
+        });
       } else {
-        Alert.alert('', `약 ${enriched.length}개를 찾았어요. 정보를 확인해주세요.`);
+        dialog.alert({ message: `약 ${enriched.length}개를 찾았어요. 정보를 확인해주세요.`, toast: true });
       }
     } catch (error) {
-      Alert.alert('', '분석에 실패했어요. 다시 시도해주세요.');
+      dialog.alert({ message: '분석에 실패했어요. 다시 시도해주세요.' });
     } finally {
       setIsOcrLoading(false);
     }
   };
 
-  const handleOcrPress = () => {
+  const handleOcrPress = async () => {
     // 처방전 촬영 전 주의사항 안내 → 확인 후 카메라/갤러리 선택
-    Alert.alert(
-      '처방전 촬영 안내',
-      '입력된 약 정보는 자동 인식 결과입니다.\n반드시 확인하고 오류가 있으면 직접 수정해주세요.\n\n처방전 사진은 분석 후 즉시 삭제됩니다.',
-      [
-        {
-          text: '확인',
-          onPress: () => {
-            Alert.alert(
-              '처방전 사진 등록',
-              '사진을 어디서 가져올까요?',
-              [
-                { text: '카메라로 찍기', onPress: () => pickImageAndRunOCR(true) },
-                { text: '갤러리에서 선택', onPress: () => pickImageAndRunOCR(false) },
-                { text: '취소', style: 'cancel' },
-              ]
-            );
-          },
-        },
-      ]
-    );
+    await dialog.alert({
+      title: '처방전 촬영 안내',
+      message: '입력된 약 정보는 자동 인식 결과입니다.\n반드시 확인하고 오류가 있으면 직접 수정해주세요.\n\n처방전 사진은 분석 후 즉시 삭제됩니다.',
+    });
+    const choice = await dialog.show({
+      title: '처방전 사진 등록',
+      message: '사진을 어디서 가져올까요?',
+      buttons: [
+        { id: 'camera', text: '카메라로 찍기' },
+        { id: 'gallery', text: '갤러리에서 선택' },
+        { id: 'cancel', text: '취소', style: 'cancel' },
+      ],
+    });
+    if (choice === 'camera') {
+      pickImageAndRunOCR(true);
+    } else if (choice === 'gallery') {
+      pickImageAndRunOCR(false);
+    }
   };
 
   const handleAddMed = () => {
     const trimmed = medName.trim();
-    if (!trimmed) { Alert.alert('', '약 이름을 입력해주세요.'); return; }
-    if (selectedTimes.length === 0) { Alert.alert('', '복용 시간대를 하나 이상 선택해주세요.'); return; }
+    if (!trimmed) { dialog.alert({ message: '약 이름을 입력해주세요.' }); return; }
+    if (selectedTimes.length === 0) { dialog.alert({ message: '복용 시간대를 하나 이상 선택해주세요.' }); return; }
     const newId = Date.now().toString();
 
     // 선택된 시간대만 meal_schedules에 포함
@@ -1106,8 +1132,8 @@ export function MedicationRegisterScreen() {
 
   const handleEditSave = () => {
     const trimmed = editName.trim();
-    if (!trimmed) { Alert.alert('', '약 이름을 입력해주세요.'); return; }
-    if (editTimes.length === 0) { Alert.alert('', '복용 시간대를 하나 이상 선택해주세요.'); return; }
+    if (!trimmed) { dialog.alert({ message: '약 이름을 입력해주세요.' }); return; }
+    if (editTimes.length === 0) { dialog.alert({ message: '복용 시간대를 하나 이상 선택해주세요.' }); return; }
     const savedId = editingMedId;
 
     const schedules: MealSchedules = {};
@@ -1188,7 +1214,7 @@ export function MedicationRegisterScreen() {
                   setMfdsCompany('');
                   setPendingDrugInfo(undefined);
                 }}
-                placeholder="약 이름 입력 (예: 시네메트)"
+                placeholder="약 이름 입력 (예: 마도파)"
                 placeholderTextColor={Colors.textHint}
                 returnKeyType="next"
               />

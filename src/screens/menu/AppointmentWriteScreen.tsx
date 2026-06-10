@@ -6,7 +6,6 @@ import {
   TouchableOpacity,
   ScrollView,
   StyleSheet,
-  Alert,
   ActivityIndicator,
   Modal,
   FlatList,
@@ -27,6 +26,7 @@ import { usePatientId } from '../../hooks/usePatientId';
 import { supabase } from '../../lib/supabase';
 import { MenuStackParamList } from '../../navigation/MenuNavigator';
 import { useNotificationBadge } from '../../context/NotificationBadgeContext';
+import { useDialog } from '../../context/DialogContext';
 
 type NavProp = StackNavigationProp<MenuStackParamList>;
 type RouteType = RouteProp<{ AppointmentWrite: { appointmentId?: string } }, 'AppointmentWrite'>;
@@ -303,6 +303,7 @@ export function AppointmentWriteScreen() {
   const { user } = useAuth();
   const { patientId } = usePatientId();
   const { unreadCount } = useNotificationBadge();
+  const dialog = useDialog();
 
   // 내일 10:00 기본값
   const tomorrow = new Date(NOW.getTime() + 24 * 60 * 60 * 1000);
@@ -389,7 +390,7 @@ export function AppointmentWriteScreen() {
           if (appt.notification_ids?.length > 0) setExistingNotifIds(appt.notification_ids);
         }
       } catch (e: any) {
-        Alert.alert('오류', e.message ?? '데이터를 불러오지 못했어요.');
+        dialog.alert({ title: '오류', message: e.message ?? '데이터를 불러오지 못했어요.' });
       } finally {
         setIsLoading(false);
       }
@@ -490,11 +491,10 @@ export function AppointmentWriteScreen() {
         if (!res.ok) throw new Error('일정 저장에 실패했어요.');
       }
 
-      Alert.alert('저장 완료', '진료 일정이 저장되었어요.', [
-        { text: '확인', onPress: () => navigation.goBack() },
-      ]);
+      await dialog.alert({ title: '저장 완료', message: '진료 일정이 저장되었어요.' });
+      navigation.goBack();
     } catch (e: any) {
-      Alert.alert('오류', e.message ?? '저장에 실패했어요.');
+      dialog.alert({ title: '오류', message: e.message ?? '저장에 실패했어요.' });
     } finally {
       setIsSaving(false);
     }

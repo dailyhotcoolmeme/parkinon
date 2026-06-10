@@ -8,12 +8,12 @@ import {
   Animated,
   ScrollView,
   Dimensions,
-  Alert,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Colors } from '../../constants/colors';
 import { ScoreSelector } from '../../components/common/ScoreSelector';
+import { useDialog } from '../../context/DialogContext';
 
 interface SaveData {
   bodyScore: number;
@@ -74,6 +74,7 @@ export function BodyStatePopupFlow({
   showConstipation = false,
 }: Props) {
   const insets = useSafeAreaInsets();
+  const dialog = useDialog();
   const [step, setStep] = useState<Step>('body');
   const [bodyScore, setBodyScore] = useState<number | null>(null);
   const [moodScore, setMoodScore] = useState<number | null>(null);
@@ -247,19 +248,20 @@ export function BodyStatePopupFlow({
   };
 
   // 우상단 X — 1단계는 단순 닫기, 2단계 이후는 confirm
-  const handleTopClose = () => {
+  const handleTopClose = async () => {
     if (currentIndex === 0) {
       onClose();
       return;
     }
-    Alert.alert(
-      '기록을 닫을까요?',
-      '기록 중인 내용이 있어요. 닫으면 저장되지 않아요.',
-      [
-        { text: '취소', style: 'cancel' },
-        { text: '닫기', style: 'destructive', onPress: () => onClose() },
-      ],
-    );
+    const ok = await dialog.confirm({
+      title: '기록을 닫을까요?',
+      message: '기록 중인 내용이 있어요. 닫으면 저장되지 않아요.',
+      confirmText: '닫기',
+      cancelText: '취소',
+      destructive: true,
+    });
+    if (!ok) return;
+    onClose();
   };
 
   return (

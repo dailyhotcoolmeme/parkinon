@@ -4,7 +4,6 @@ import {
   Text,
   TouchableOpacity,
   StyleSheet,
-  Alert,
   Dimensions,
   PanResponder,
   Animated,
@@ -23,6 +22,7 @@ import { useBodyState } from '../../hooks/useBodyState';
 import { useNotificationBadge } from '../../context/NotificationBadgeContext';
 import { uploadVideo, saveMediaLog } from '../../lib/r2Upload';
 import { Video as VideoCompressor } from 'react-native-compressor';
+import { useDialog } from '../../context/DialogContext';
 
 const { height: SCREEN_HEIGHT } = Dimensions.get('window');
 
@@ -40,6 +40,7 @@ export function VideoRecordScreen() {
   const { user } = useAuth();
   const { getPatientId } = useBodyState();
   const { unreadCount } = useNotificationBadge();
+  const dialog = useDialog();
   const [selectedVideo, setSelectedVideo] = useState<SelectedVideo | null>(null);
   const [loading, setLoading] = useState(false);
   const [uploadStage, setUploadStage] = useState<'compressing' | 'uploading' | 'saving' | 'done' | null>(null);
@@ -58,7 +59,7 @@ export function VideoRecordScreen() {
     try {
       const permResult = await ImagePicker.requestMediaLibraryPermissionsAsync();
       if (!permResult.granted) {
-        Alert.alert('권한 필요', '갤러리 접근 권한이 필요해요.');
+        dialog.alert({ title: '권한 필요', message: '갤러리 접근 권한이 필요해요.' });
         return;
       }
 
@@ -74,11 +75,10 @@ export function VideoRecordScreen() {
         const durationSec = asset.duration ? asset.duration / 1000 : 0;
 
         if (durationSec > MAX_DURATION_SEC) {
-          Alert.alert(
-            '영상이 너무 길어요',
-            '2분 이하의 영상만 선택할 수 있어요.\n더 짧은 영상을 선택해주세요.',
-            [{ text: '확인' }],
-          );
+          dialog.alert({
+            title: '영상이 너무 길어요',
+            message: '2분 이하의 영상만 선택할 수 있어요.\n더 짧은 영상을 선택해주세요.',
+          });
           return;
         }
 
@@ -92,7 +92,7 @@ export function VideoRecordScreen() {
         setDuration(0);
       }
     } catch (e) {
-      Alert.alert('오류', '영상을 불러오는 중 문제가 생겼어요. 다시 시도해주세요.');
+      dialog.alert({ title: '오류', message: '영상을 불러오는 중 문제가 생겼어요. 다시 시도해주세요.' });
     }
   };
 
@@ -100,7 +100,7 @@ export function VideoRecordScreen() {
     try {
       const camPerm = await ImagePicker.requestCameraPermissionsAsync();
       if (!camPerm.granted) {
-        Alert.alert('권한 필요', '카메라 접근 권한이 필요해요.');
+        dialog.alert({ title: '권한 필요', message: '카메라 접근 권한이 필요해요.' });
         return;
       }
 
@@ -115,11 +115,10 @@ export function VideoRecordScreen() {
         const durationSec = asset.duration ? asset.duration / 1000 : 0;
 
         if (durationSec > MAX_DURATION_SEC) {
-          Alert.alert(
-            '영상이 너무 길어요',
-            '2분 이하의 영상만 선택할 수 있어요.',
-            [{ text: '확인' }],
-          );
+          dialog.alert({
+            title: '영상이 너무 길어요',
+            message: '2분 이하의 영상만 선택할 수 있어요.',
+          });
           return;
         }
 
@@ -133,7 +132,7 @@ export function VideoRecordScreen() {
         setDuration(0);
       }
     } catch (e) {
-      Alert.alert('오류', '카메라를 열 수 없어요. 다시 시도해주세요.');
+      dialog.alert({ title: '오류', message: '카메라를 열 수 없어요. 다시 시도해주세요.' });
     }
   };
 
@@ -164,7 +163,7 @@ export function VideoRecordScreen() {
     try {
       const patientId = await getPatientId();
       if (!patientId) {
-        Alert.alert('오류', '연동된 환자 정보를 찾을 수 없어요.');
+        dialog.alert({ title: '오류', message: '연동된 환자 정보를 찾을 수 없어요.' });
         setUploadStage(null);
         setLoading(false);
         return;
@@ -211,16 +210,20 @@ export function VideoRecordScreen() {
       if (cancelledRef.current) return;
       setUploadStage(null);
       if (e?.message === 'UPLOAD_TIMEOUT') {
-        Alert.alert(
-          '업로드 시간 초과',
-          '네트워크가 느려서 저장에 실패했어요.\n와이파이 연결 후 다시 시도해주세요.',
-          [
-            { text: '다시 시도', onPress: handleSave },
-            { text: '취소', style: 'cancel' },
-          ]
-        );
+        dialog
+          .show({
+            title: '업로드 시간 초과',
+            message: '네트워크가 느려서 저장에 실패했어요.\n와이파이 연결 후 다시 시도해주세요.',
+            buttons: [
+              { id: 'retry', text: '다시 시도', style: 'primary' },
+              { id: 'cancel', text: '취소', style: 'cancel' },
+            ],
+          })
+          .then((picked) => {
+            if (picked === 'retry') handleSave();
+          });
       } else {
-        Alert.alert('오류', e.message ?? '저장 중 문제가 생겼어요. 다시 시도해주세요.');
+        dialog.alert({ title: '오류', message: e.message ?? '저장 중 문제가 생겼어요. 다시 시도해주세요.' });
       }
     } finally {
       if (!cancelledRef.current && uploadStage !== 'done') setLoading(false);

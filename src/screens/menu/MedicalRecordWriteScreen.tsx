@@ -6,7 +6,6 @@ import {
   TouchableOpacity,
   ScrollView,
   StyleSheet,
-  Alert,
   ActivityIndicator,
   KeyboardAvoidingView,
   Platform,
@@ -29,14 +28,13 @@ import { supabase } from '../../lib/supabase';
 import { MenuStackParamList } from '../../navigation/MenuNavigator';
 import { uploadPhoto } from '../../lib/r2Upload';
 import { useNotificationBadge } from '../../context/NotificationBadgeContext';
+import { useDialog } from '../../context/DialogContext';
 
 type NavProp = StackNavigationProp<MenuStackParamList>;
 type RouteType = RouteProp<{ MedicalRecordWrite: { recordId?: string } }, 'MedicalRecordWrite'>;
 
 const SUPABASE_URL = process.env.EXPO_PUBLIC_SUPABASE_URL!;
 const SUPABASE_ANON_KEY = process.env.EXPO_PUBLIC_SUPABASE_ANON_KEY!;
-const CLAUDE_API_KEY = process.env.EXPO_PUBLIC_CLAUDE_API_KEY;
-const CLAUDE_API_URL = 'https://api.anthropic.com/v1/messages';
 
 // ─── 날짜/시간 피커 ──────────────────────────────────────────────────────────
 const ITEM_H = 58;
@@ -196,42 +194,30 @@ interface OcrMed { name: string; dosage?: string; }
 interface PrevMed { name: string; dosage?: string; }
 
 async function callClaudeOCR(base64Image: string, mediaType: string): Promise<{ medications: OcrMed[] }> {
-  const response = await fetch(CLAUDE_API_URL, {
+  // image_type: 'jpeg' | 'png'
+  const rawType = mediaType.replace('image/', '');
+  const imageType: 'jpeg' | 'png' = rawType === 'png' ? 'png' : 'jpeg';
+
+  // claude-medical-record Edge Function 호출 (CLAUDE_API_KEY는 서버 secret)
+  const { data: { session } } = await supabase.auth.getSession();
+  const accessToken = session?.access_token ?? SUPABASE_ANON_KEY;
+
+  const response = await fetch(`${SUPABASE_URL}/functions/v1/claude-medical-record`, {
     method: 'POST',
     headers: {
-      'x-api-key': CLAUDE_API_KEY ?? '',
-      'anthropic-version': '2023-06-01',
-      'content-type': 'application/json',
+      'Content-Type': 'application/json',
+      'apikey': SUPABASE_ANON_KEY,
+      'Authorization': `Bearer ${accessToken}`,
     },
     body: JSON.stringify({
-      model: 'claude-haiku-4-5-20251001',
-      max_tokens: 1024,
-      messages: [{
-        role: 'user',
-        content: [
-          { type: 'image', source: { type: 'base64', media_type: mediaType, data: base64Image } },
-          {
-            type: 'text',
-            text: `이 처방전 사진에서 약 이름과 용량을 추출해주세요.
-규칙:
-- 사진에 명확하게 보이는 약 이름만 추출하세요.
-- 약 이름은 사진에 적힌 그대로 정확히 읽어주세요.
-- 처방전이면: 약품명 컬럼에서 읽으세요.
-- 용량(mg, mcg, 정 등)이 명확히 표시된 경우 dosage에 포함하세요.
-- 개인정보(이름, 주민번호 등)는 무시하세요.
-반드시 아래 JSON 형식으로만 응답하세요 (다른 텍스트 없이):
-{"medications":[{"name":"약 이름","dosage":"용량 또는 빈 문자열"}]}
-약이 보이지 않거나 읽기 어려우면 {"medications":[]} 를 반환하세요.`,
-          },
-        ],
-      }],
+      image_base64: base64Image,
+      image_type: imageType,
+      mode: 'medical_record',
     }),
   });
-  if (!response.ok) throw new Error(`API 오류: ${response.status}`);
+  if (!response.ok) throw new Error(`OCR 오류: ${response.status}`);
   const data = await response.json();
-  const text: string = data.content[0].text;
-  const cleaned = text.replace(/```json\n?/g, '').replace(/```\n?/g, '').trim();
-  return JSON.parse(cleaned) as { medications: OcrMed[] };
+  return { medications: (data.medications ?? []) as OcrMed[] };
 }
 
 function computeChangeType(
@@ -253,6 +239,7 @@ export function MedicalRecordWriteScreen() {
   const { user } = useAuth();
   const { patientId } = usePatientId();
   const { unreadCount } = useNotificationBadge();
+  const dialog = useDialog();
 
   // 날짜/시간 상태 (기본: 오늘 오전 9시)
   const [selYear, setSelYear] = useState(NOW.getFullYear());
@@ -354,7 +341,7 @@ export function MedicalRecordWriteScreen() {
           }
         }
       } catch (e: any) {
-        Alert.alert('오류', e.message ?? '데이터를 불러오지 못했어요.');
+        dialog.alert({ title: '오류', message: e.message ?? '데이터를 불러오지 못했어요.' });
       } finally {
         setIsLoadingEdit(false);
       }
@@ -389,11 +376,11 @@ export function MedicalRecordWriteScreen() {
       let result: ImagePicker.ImagePickerResult;
       if (fromCamera) {
         const perm = await ImagePicker.requestCameraPermissionsAsync();
-        if (perm.status !== 'granted') { Alert.alert('권한 필요', '카메라 권한이 필요해요.'); return; }
+        if (perm.status !== 'granted') { dialog.alert({ title: '권한 필요', message: '카메라 권한이 필요해요.' }); return; }
         result = await ImagePicker.launchCameraAsync({ mediaTypes: ImagePicker.MediaTypeOptions.Images, quality: 0.7 });
       } else {
         const perm = await ImagePicker.requestMediaLibraryPermissionsAsync();
-        if (perm.status !== 'granted') { Alert.alert('권한 필요', '사진 라이브러리 권한이 필요해요.'); return; }
+        if (perm.status !== 'granted') { dialog.alert({ title: '권한 필요', message: '사진 라이브러리 권한이 필요해요.' }); return; }
         result = await ImagePicker.launchImageLibraryAsync({ mediaTypes: ImagePicker.MediaTypeOptions.Images, quality: 0.7 });
       }
       if (result.canceled || !result.assets?.[0]) return;
@@ -412,9 +399,9 @@ export function MedicalRecordWriteScreen() {
       const base64 = await FileSystem.readAsStringAsync(compressedUri, { encoding: FileSystem.EncodingType.Base64 });
       const ocrResult = await callClaudeOCR(base64, 'image/jpeg');
       setOcrMeds(ocrResult.medications);
-      if (ocrResult.medications.length === 0) Alert.alert('알림', '처방전에서 약 이름을 찾지 못했어요.\n직접 확인해 주세요.');
+      if (ocrResult.medications.length === 0) dialog.alert({ title: '알림', message: '처방전에서 약 이름을 찾지 못했어요.\n직접 확인해 주세요.' });
     } catch (e: any) {
-      Alert.alert('오류', e.message ?? 'OCR 처리 중 오류가 발생했어요.');
+      dialog.alert({ title: '오류', message: e.message ?? 'OCR 처리 중 오류가 발생했어요.' });
     } finally {
       setIsOcrLoading(false);
     }
@@ -536,11 +523,10 @@ export function MedicalRecordWriteScreen() {
         if (!medInsertRes.ok) console.warn('처방약 저장 실패:', await medInsertRes.text());
       }
 
-      Alert.alert('저장 완료', '진료 기록이 저장되었어요.', [
-        { text: '확인', onPress: () => navigation.goBack() },
-      ]);
+      await dialog.alert({ title: '저장 완료', message: '진료 기록이 저장되었어요.' });
+      navigation.goBack();
     } catch (e: any) {
-      Alert.alert('오류', e.message ?? '저장에 실패했어요.');
+      dialog.alert({ title: '오류', message: e.message ?? '저장에 실패했어요.' });
     } finally {
       setIsSaving(false);
     }

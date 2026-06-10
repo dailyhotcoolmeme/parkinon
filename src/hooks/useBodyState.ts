@@ -25,6 +25,10 @@ export interface BodyStateInput {
   constipation?: boolean;
   trigger_time_label?: string; // 'after_medication' | '30min_after' | '2hour_after'
   medication_meal_time?: string; // 'morning' | 'lunch' | 'dinner' | 'bedtime'
+  // 약 복용 모델 7단계: 슬롯별 통계용 dose_slot_id + 어느 복용의 약효인지 1:1 매칭용 med_log_id.
+  // 둘 다 없을 수 있음(미이관·수동) → 조건부 insert, NULL 허용.
+  dose_slot_id?: string;
+  med_log_id?: string;
 }
 
 export interface UseBodyStateReturn {
@@ -127,6 +131,8 @@ export function useBodyState(): UseBodyStateReturn {
       if (data.constipation !== undefined) insertData.constipation = data.constipation;
       if (data.trigger_time_label !== undefined) insertData.trigger_time_label = data.trigger_time_label;
       if (data.medication_meal_time !== undefined) insertData.medication_meal_time = data.medication_meal_time;
+      if (data.dose_slot_id !== undefined) insertData.dose_slot_id = data.dose_slot_id;
+      if (data.med_log_id !== undefined) insertData.med_log_id = data.med_log_id;
 
       const { error: insertError } = await supabase
         .from('on_off_logs')

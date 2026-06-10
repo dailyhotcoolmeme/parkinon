@@ -41,10 +41,6 @@ const itemMeta: Record<string, { icon: IoniconName; label: string }> = {
 
 import { triggerLabelToDisplay } from '../../hooks/useRecordDetailData';
 
-const MEAL_LABELS: Record<string, string> = {
-  morning: '아침약', lunch: '점심약', dinner: '저녁약', bedtime: '취침약',
-};
-
 const VISIBLE_COUNT = 4;
 const BAR_MAX_HEIGHT = 100;
 const CHART_HEIGHT = 170;
@@ -283,7 +279,7 @@ export function RecordDetailScreen() {
                 const color = TIME_COLORS_PALETTE[i % TIME_COLORS_PALETTE.length];
                 return (
                   <View key={meal} style={[styles.timeSlot, { borderLeftColor: color }]}>
-                    <Text style={styles.timeSlotLabel}>{MEAL_LABELS[meal] ?? meal}</Text>
+                    <Text style={styles.timeSlotLabel}>{summarySlot.mealSlotLabels?.[meal] ?? meal}</Text>
                     <View style={styles.timeSlotRow}>
                       <Text style={[styles.timeSlotValue, { color }]}>
                         {vals.current > 0 ? `${vals.current}회` : '-'}
@@ -382,7 +378,7 @@ export function RecordDetailScreen() {
             <View key={meal} style={styles.card}>
               <View style={styles.trendTitleRow}>
                 <View style={[styles.trendDot, { backgroundColor: series.color }]} />
-                <Text style={styles.trendTitle}>{MEAL_LABELS[meal] ?? meal} 트렌드</Text>
+                <Text style={styles.trendTitle}>{summarySlot.mealSlotLabels?.[meal] ?? meal} 트렌드</Text>
               </View>
               <BarChart
                 values={series.points.map(p => p.value)}

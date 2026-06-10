@@ -5,7 +5,6 @@ import {
   TouchableOpacity,
   ScrollView,
   StyleSheet,
-  Alert,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useNavigation } from '@react-navigation/native';
@@ -19,6 +18,8 @@ import { useAuth } from '../../context/AuthContext';
 import { useNotificationBadge } from '../../context/NotificationBadgeContext';
 import { supabase } from '../../lib/supabase';
 import { navigateTo } from '../../navigation/navigationRef';
+import { useDialog } from '../../context/DialogContext';
+import { ensureNotGuest } from '../../utils/guestGuard';
 
 type NavigationProp = StackNavigationProp<MenuStackParamList, 'MenuHome'>;
 type IoniconName = React.ComponentProps<typeof Ionicons>['name'];
@@ -34,6 +35,18 @@ interface MenuSection {
   title: string;
   items: MenuItem[];
 }
+
+/** 환자 본인일 때만 노출되는 측정 기록 항목 */
+const PATIENT_ONLY_MEASUREMENT_ITEM: MenuItem = {
+  key: 'MeasurementRecords',
+  icon: 'stats-chart-outline',
+  label: '컨디션 측정 기록 보기',
+  desc: '손가락·반응속도 측정 기록을 확인해요',
+};
+
+/** 보호자 모드: 환자 측정 1회 이상일 때만 '기록' 섹션 최상단에 추가되는 항목 (Phase 5A).
+ *  라벨/설명은 환자 이름으로 동적 생성(아래 menuSections). '환자' 일반어 노출 금지 — 이름+님 사용. */
+const CAREGIVER_MEASUREMENT_VIEW_KEY = 'CaregiverMeasurementView';
 
 const MENU_SECTIONS: MenuSection[] = [
   {
@@ -80,6 +93,12 @@ const MENU_SECTIONS: MenuSection[] = [
         label: '알림 설정',
         desc: '약·운동 알림 시간을 설정해요',
       },
+      {
+        key: 'AlarmSoundSettings',
+        icon: 'mic-outline',
+        label: '알림음 설정',
+        desc: '저장된 녹음을 들어보고 알림음으로 설정해요',
+      },
     ],
   },
   {
@@ -105,6 +124,7 @@ export function MenuScreen() {
   const navigation = useNavigation<NavigationProp>();
   const { user, signOut, refreshUser } = useAuth();
   const { unreadCount } = useNotificationBadge();
+  const dialog = useDialog();
 
   // 화면 포커스 시 사용자 정보 갱신 (ProfileEdit 후 이름 즉시 반영)
   useFocusEffect(
@@ -115,6 +135,93 @@ export function MenuScreen() {
 
   const roleName = user?.role === 'caregiver' ? '보호자' : '환자';
 
+  // Phase 5A — 보호자: 환자의 측정이 1회라도 있는지 체크 → 진입점 노출 가드
+  const [hasPatientMeasurement, setHasPatientMeasurement] = React.useState<boolean>(false);
+  // 보호자 모드에서 같은 그룹 환자의 user_id / 이름 — 측정 기록 화면으로 넘길 때 사용.
+  const [patientId, setPatientId] = React.useState<string | null>(null);
+  const [patientName, setPatientName] = React.useState<string | null>(null);
+  useFocusEffect(
+    React.useCallback(() => {
+      let cancelled = false;
+      const isCaregiverLinked =
+        user?.role === 'caregiver' && !!user?.patient_group_id;
+      if (!isCaregiverLinked) {
+        setHasPatientMeasurement(false);
+        setPatientId(null);
+        setPatientName(null);
+        return;
+      }
+      (async () => {
+        try {
+          // 같은 group의 환자 user_id + 이름 조회 (users join)
+          const { data: row } = await supabase
+            .from('patient_group_members')
+            .select('user_id, users:user_id ( name )')
+            .eq('group_id', user!.patient_group_id!)
+            .eq('role', 'patient')
+            .maybeSingle();
+          const pid = (row as any)?.user_id as string | undefined;
+          const pname = (row as any)?.users?.name as string | undefined;
+          if (!cancelled) {
+            setPatientId(pid ?? null);
+            setPatientName(pname ?? null);
+          }
+          if (!pid) {
+            if (!cancelled) setHasPatientMeasurement(false);
+            return;
+          }
+          // 측정 1건 이상 존재 여부만 확인 — head: true + count로 비용 최소화
+          const { count } = await supabase
+            .from('measurements')
+            .select('id', { count: 'exact', head: true })
+            .eq('user_id', pid)
+            .is('deleted_at', null);
+          if (!cancelled) setHasPatientMeasurement((count ?? 0) > 0);
+        } catch (e) {
+          // RLS/네트워크 실패 시 조용히 false — 진입점 미노출 (안전 디폴트)
+          if (!cancelled) setHasPatientMeasurement(false);
+        }
+      })();
+      return () => {
+        cancelled = true;
+      };
+    }, [user?.role, user?.patient_group_id])
+  );
+
+  // '기록' 섹션 순서 규칙 (메뉴 맨 위):
+  //   1) 📊 기록 보기 (Records)
+  //   2) 📊 컨디션 측정 기록 보기 (환자 전용) / 환자 컨디션 보기 (보호자 + 측정 1회+)
+  //   3) 📹 영상 기록 보기 (VideoList)
+  // 환자/보호자 노출 조건은 기존 유지. 위치만 '기록 보기'와 '영상 기록 보기' 사이로 변경.
+  const menuSections = React.useMemo<MenuSection[]>(() => {
+    const isPatient = user?.role === 'patient';
+    const isCaregiverWithData = user?.role === 'caregiver' && hasPatientMeasurement;
+    if (!isPatient && !isCaregiverWithData) return MENU_SECTIONS;
+    // 보호자 항목 라벨/설명 — 환자 이름+님 사용. 이름 로드 전이면 잠시 '환자' fallback.
+    const pName = patientName ?? '환자';
+    const caregiverItem: MenuItem = {
+      key: CAREGIVER_MEASUREMENT_VIEW_KEY,
+      icon: 'hand-left-outline',
+      label: `${pName}님 컨디션 보기`,
+      desc: `${pName}님의 손가락·반응속도 결과를 확인해요`,
+    };
+    return MENU_SECTIONS.map((section) => {
+      if (section.title !== '기록') return section;
+      const extraItem = isPatient
+        ? PATIENT_ONLY_MEASUREMENT_ITEM
+        : caregiverItem;
+      // 'Records'(기록 보기) 다음, 'VideoList'(영상 기록 보기) 앞 위치에 삽입
+      const recordsIdx = section.items.findIndex((i) => i.key === 'Records');
+      const insertAt = recordsIdx >= 0 ? recordsIdx + 1 : 0;
+      const nextItems = [
+        ...section.items.slice(0, insertAt),
+        extraItem,
+        ...section.items.slice(insertAt),
+      ];
+      return { ...section, items: nextItems };
+    });
+  }, [user?.role, hasPatientMeasurement, patientName]);
+
   // 가족 연동 설명 텍스트 — role과 연동 여부에 따라 다르게 표시
   const familyLinkDesc = React.useMemo(() => {
     const isLinked = !!user?.patient_group_id;
@@ -123,7 +230,11 @@ export function MenuScreen() {
     return '보호자를 초대해보세요';
   }, [user?.patient_group_id, user?.role]);
 
-  const handleMenuPress = (key: string) => {
+  const handleMenuPress = async (key: string) => {
+    // 약관·개인정보처리방침은 게스트도 열람 가능. 그 외 서버 데이터가 필요한 항목은 게스트 차단.
+    const guestAllowed = key === 'Terms' || key === 'Privacy' || key === 'Settings';
+    if (!guestAllowed && (await ensureNotGuest(user, dialog, { signOut }))) return;
+
     if (key === 'Records') {
       navigation.navigate('Records');
     } else if (key === 'VideoList') {
@@ -140,71 +251,78 @@ export function MenuScreen() {
       navigation.navigate('Privacy');
     } else if (key === 'MedicalRecordList') {
       navigation.navigate('MedicalRecordList');
+    } else if (key === 'AlarmSoundSettings') {
+      // 알림음 설정 화면 — RootNavigator 스택으로 이동 (녹음은 설정 화면 안에서 진입)
+      navigateTo('AlarmSoundSettings');
+    } else if (key === 'MeasurementRecords') {
+      // 환자 본인 측정 기록 보기 — params 없이 본인 데이터.
+      navigateTo('MeasurementRecords');
+    } else if (key === CAREGIVER_MEASUREMENT_VIEW_KEY) {
+      // 보호자: 환자가 보는 것과 동일한 측정 기록 화면을 환자 데이터로 관람(읽기 전용).
+      if (!patientId) return;
+      navigateTo('MeasurementRecords', { patientId, patientName: patientName ?? undefined });
     }
   };
 
-  const handleLogout = () => {
-    Alert.alert(
-      '로그아웃',
-      '정말 로그아웃 하시겠어요?',
-      [
-        { text: '취소', style: 'cancel' },
-        {
-          text: '로그아웃',
-          style: 'destructive',
-          onPress: () => signOut(),
-        },
-      ],
-    );
+  const handleLogout = async () => {
+    const ok = await dialog.confirm({
+      title: '로그아웃',
+      message: '정말 로그아웃 하시겠어요?',
+      confirmText: '로그아웃',
+      cancelText: '취소',
+      destructive: true,
+    });
+    if (!ok) return;
+    signOut();
   };
 
-  const handleWithdraw = () => {
-    Alert.alert(
-      '회원 탈퇴',
-      '탈퇴하시면 모든 기록이 삭제돼요.\n정말 탈퇴하시겠어요?',
-      [
-        { text: '취소', style: 'cancel' },
+  const handleWithdraw = async () => {
+    if (await ensureNotGuest(user, dialog, { signOut })) return;
+    const ok = await dialog.confirm({
+      title: '회원 탈퇴',
+      message: '탈퇴하시면 모든 기록이 삭제돼요.\n정말 탈퇴하시겠어요?',
+      confirmText: '탈퇴하기',
+      cancelText: '취소',
+      destructive: true,
+    });
+    if (!ok) return;
+    try {
+      // 세션 토큰 확보
+      const { data: { session } } = await supabase.auth.getSession();
+      if (!session?.access_token) throw new Error('세션 없음');
+
+      // delete-account Edge Function 호출
+      // (supabase-js PostgREST hang 버그 우회 + auth.admin.deleteUser 권한 필요)
+      const res = await fetch(
+        `${process.env.EXPO_PUBLIC_SUPABASE_URL}/functions/v1/delete-account`,
         {
-          text: '탈퇴하기',
-          style: 'destructive',
-          onPress: async () => {
-            try {
-              // 세션 토큰 확보
-              const { data: { session } } = await supabase.auth.getSession();
-              if (!session?.access_token) throw new Error('세션 없음');
-
-              // delete-account Edge Function 호출
-              // (supabase-js PostgREST hang 버그 우회 + auth.admin.deleteUser 권한 필요)
-              const res = await fetch(
-                `${process.env.EXPO_PUBLIC_SUPABASE_URL}/functions/v1/delete-account`,
-                {
-                  method: 'POST',
-                  headers: {
-                    'Authorization': `Bearer ${session.access_token}`,
-                    'Content-Type': 'application/json',
-                  },
-                }
-              );
-
-              if (!res.ok) {
-                const body = await res.text();
-                console.error('[handleWithdraw] edge function 오류:', res.status, body);
-                throw new Error('탈퇴 실패');
-              }
-
-              // 탈퇴 완료 안내 후 로컬 세션 정리
-              Alert.alert(
-                '탈퇴 완료',
-                '계정이 삭제되었습니다.\n이용해 주셔서 감사합니다.',
-                [{ text: '확인', onPress: () => supabase.auth.signOut() }]
-              );
-            } catch (e: any) {
-              Alert.alert('오류', '탈퇴 처리 중 문제가 생겼어요. 다시 시도해주세요.');
-            }
+          method: 'POST',
+          headers: {
+            'Authorization': `Bearer ${session.access_token}`,
+            'Content-Type': 'application/json',
           },
-        },
-      ],
-    );
+        }
+      );
+
+      if (!res.ok) {
+        const body = await res.text();
+        console.error('[handleWithdraw] edge function 오류:', res.status, body);
+        throw new Error('탈퇴 실패');
+      }
+
+      // 탈퇴 완료 안내 후 로컬 세션 정리
+      await dialog.alert({
+        title: '탈퇴 완료',
+        message: '계정이 삭제되었습니다.\n이용해 주셔서 감사합니다.',
+      });
+      // useAuth의 signOut을 사용해 user state를 즉시 null로 만들고
+      // 온보딩 임시 입력값(AsyncStorage) 등 사용자별 로컬 데이터를 정리한다.
+      // (supabase.auth.signOut()만 호출하면 user state가 비동기로 늦게 갱신되어
+      //  RootNavigator가 OnboardingGuest(로그인)가 아닌 온보딩 중간 화면으로 빠질 수 있음)
+      await signOut();
+    } catch (e: any) {
+      dialog.alert({ title: '오류', message: '탈퇴 처리 중 문제가 생겼어요. 다시 시도해주세요.' });
+    }
   };
 
   return (
@@ -224,7 +342,10 @@ export function MenuScreen() {
         {/* 프로필 컴팩트 카드 */}
         <TouchableOpacity
           style={styles.profileCard}
-          onPress={() => navigation.navigate('ProfileEdit')}
+          onPress={async () => {
+            if (await ensureNotGuest(user, dialog, { signOut })) return;
+            navigation.navigate('ProfileEdit');
+          }}
           activeOpacity={0.85}
         >
           <View style={styles.profileAvatarWrap}>
@@ -241,7 +362,7 @@ export function MenuScreen() {
         </TouchableOpacity>
 
         {/* 섹션별 메뉴 */}
-        {MENU_SECTIONS.map((section) => (
+        {menuSections.map((section) => (
           <View key={section.title}>
             <View style={styles.sectionHeader}>
               <Text style={styles.sectionHeaderText}>{section.title.toUpperCase()}</Text>
@@ -315,10 +436,6 @@ export function MenuScreen() {
             <Ionicons name="chevron-forward" size={22} color={Colors.textHint} />
           </TouchableOpacity>
         </View>
-
-        <Text style={{ fontSize: 11, color: '#999', textAlign: 'center', marginTop: 16, marginBottom: 8 }}>
-          v.20260506-otatest
-        </Text>
       </ScrollView>
     </SafeAreaView>
   );

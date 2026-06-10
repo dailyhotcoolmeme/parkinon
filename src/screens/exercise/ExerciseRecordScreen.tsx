@@ -6,7 +6,6 @@ import {
   TouchableOpacity,
   StyleSheet,
   TextInput,
-  Alert,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useNavigation } from '@react-navigation/native';
@@ -18,6 +17,7 @@ import { TopBar } from '../../components/common/TopBar';
 import { PrimaryButton } from '../../components/common/PrimaryButton';
 import type { ExerciseStackParamList } from '../../navigation/ExerciseNavigator';
 import { useNotificationBadge } from '../../context/NotificationBadgeContext';
+import { useDialog } from '../../context/DialogContext';
 
 type Nav = NativeStackNavigationProp<ExerciseStackParamList, 'ExerciseRecord'>;
 type MCIName = React.ComponentProps<typeof MaterialCommunityIcons>['name'];
@@ -76,6 +76,7 @@ function ExerciseRow({ ex, selected, onPress }: { ex: Exercise; selected: boolea
 export function ExerciseRecordScreen() {
   const navigation = useNavigation<Nav>();
   const { unreadCount } = useNotificationBadge();
+  const dialog = useDialog();
   const [selected, setSelected] = useState<string | null>(null);
   const [customText, setCustomText] = useState('');
   const [showOther, setShowOther] = useState(false);
@@ -92,7 +93,7 @@ export function ExerciseRecordScreen() {
 
   const handleCustomNext = () => {
     if (!customText.trim()) {
-      Alert.alert('운동 입력', '운동 이름을 입력해주세요.');
+      dialog.alert({ title: '운동 입력', message: '운동 이름을 입력해주세요.' });
       return;
     }
     navigation.navigate('ExerciseDuration', { exerciseName: customText.trim() });
