@@ -46,7 +46,8 @@ export type RootStackParamList = {
   // 환자 본인: param 없음(본인 데이터). 보호자: { patientId, patientName }로 환자 데이터 관람(읽기 전용).
   MeasurementRecords: { patientId?: string; patientName?: string } | undefined;
   // 알림음 녹음 화면 — 5초 이내 음성 녹음 → R2 업로드 + custom_sounds 기록
-  RecordSound: undefined;
+  // editSoundId/editLabel 이 오면 수정 모드(기존 행 UPDATE). 없으면 신규 등록.
+  RecordSound: { editSoundId?: string; editLabel?: string } | undefined;
   // 알림음 설정 화면 — 저장된 녹음 미리듣기/설정/삭제 + 새 녹음 진입
   AlarmSoundSettings: undefined;
 };

@@ -1,0 +1,141 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>알림음 관리 페이지 개편안</title>
+<style>
+  :root{--green:#4CAF50;--green-d:#2E7D32;--green-l:#E8F5E9;--orange:#FF9800;--orange-l:#FFF3E0;--danger:#F44336;--ink:#222;--sub:#777;--line:#ECECEC;--bg:#F5F5F5;}
+  *{box-sizing:border-box;}
+  body{margin:0;font-family:-apple-system,"Apple SD Gothic Neo","Noto Sans KR",sans-serif;color:var(--ink);background:#E6E6E6;padding:28px 14px;}
+  h1{text-align:center;font-size:21px;}
+  .sub{text-align:center;color:#555;font-size:13px;margin:0 0 24px;}
+  .stage{display:flex;flex-wrap:wrap;gap:36px;justify-content:center;align-items:flex-start;}
+  .phone{width:390px;background:var(--bg);border-radius:34px;padding:14px;box-shadow:0 10px 40px rgba(0,0,0,.18);}
+  .screen{background:var(--bg);border-radius:24px;overflow:hidden;}
+  .cap{font-size:12px;color:#555;text-align:center;margin-top:10px;font-weight:600;}
+  /* topbar */
+  .top{display:flex;align-items:center;gap:12px;padding:18px 18px 10px;}
+  .top .back{font-size:22px;color:#444;}
+  .top .title{font-size:21px;font-weight:800;}
+  .body{padding:4px 18px 26px;}
+  .intro{font-size:14px;color:var(--sub);margin:6px 2px 18px;line-height:1.5;}
+  /* sound card */
+  .card{background:#fff;border-radius:18px;padding:18px;margin-bottom:16px;box-shadow:0 1px 8px rgba(0,0,0,.06);}
+  .chead{display:flex;align-items:center;gap:12px;}
+  .ic{width:46px;height:46px;border-radius:23px;background:var(--green-l);display:flex;align-items:center;justify-content:center;font-size:22px;flex:none;}
+  .name{font-size:21px;font-weight:800;}
+  .date{font-size:14px;color:var(--sub);margin-top:3px;}
+  /* primary play */
+  .play{display:flex;align-items:center;justify-content:center;gap:8px;background:var(--orange);color:#fff;border-radius:14px;height:58px;font-size:19px;font-weight:800;margin:16px 0 0;}
+  /* secondary actions row */
+  .acts{display:flex;gap:12px;margin-top:12px;}
+  .acts .b{flex:1;display:flex;align-items:center;justify-content:center;gap:6px;height:54px;border-radius:13px;font-size:17px;font-weight:700;border:2px solid;}
+  .b.edit{border-color:var(--green);color:var(--green-d);background:#fff;}
+  .b.del{border-color:var(--danger);color:var(--danger);background:#fff;}
+  /* test (tertiary, optional) */
+  .test{display:flex;align-items:center;justify-content:center;gap:7px;height:50px;border-radius:13px;border:1.5px dashed #C9C9C9;color:#555;font-size:15px;font-weight:600;margin-top:12px;background:#FAFAFA;}
+  /* add button */
+  .add{display:flex;align-items:center;justify-content:center;gap:8px;background:var(--green);color:#fff;border-radius:16px;height:62px;font-size:20px;font-weight:800;margin-top:8px;}
+  /* empty */
+  .empty{background:#fff;border-radius:16px;padding:28px 20px;text-align:center;color:var(--sub);font-size:16px;line-height:1.6;margin-bottom:16px;}
+  /* edit sheet preview */
+  .sheet{width:390px;}
+  .sheetcard{background:#fff;border-radius:22px 22px 0 0;padding:22px 20px 26px;box-shadow:0 -4px 30px rgba(0,0,0,.12);}
+  .grab{width:44px;height:5px;border-radius:3px;background:#DDD;margin:0 auto 16px;}
+  .sheetcard h3{font-size:19px;margin:0 0 14px;text-align:center;}
+  .field{border:2px solid var(--line);border-radius:12px;padding:14px 16px;font-size:18px;color:#222;}
+  .sheetbtns{display:flex;gap:12px;margin-top:16px;}
+  .sheetbtns .b{flex:1;height:56px;border-radius:13px;display:flex;align-items:center;justify-content:center;font-size:18px;font-weight:800;}
+  .sb-cancel{background:#F0F0F0;color:#555;}
+  .sb-save{background:var(--green);color:#fff;}
+  .note{max-width:760px;margin:30px auto 0;background:#fff;border-radius:16px;padding:22px;box-shadow:0 4px 20px rgba(0,0,0,.08);}
+  .note h2{margin:0 0 12px;font-size:18px;}
+  .note li{font-size:14px;margin:7px 0;line-height:1.5;}
+  .tag{display:inline-block;background:var(--orange-l);color:#9a5b00;font-size:11px;font-weight:800;border-radius:5px;padding:2px 7px;margin-right:6px;}
+</style>
+</head>
+<body>
+  <h1>알림음 관리 — 개편안</h1>
+  <p class="sub">깔끔 정리 · 수정(이름변경) 추가 · "새 알림음 등록" · 2026-06-10</p>
+
+  <div class="stage">
+
+    <!-- main list -->
+    <div>
+      <div class="phone"><div class="screen">
+        <div class="top"><span class="back">←</span><span class="title">알림음 관리</span></div>
+        <div class="body">
+          <p class="intro">알림이 울릴 때 들리는 소리를 만들고 관리해요.<br>여기서 만든 소리는 <b>알림 관리</b>에서 골라 쓸 수 있어요.</p>
+
+          <!-- sound card 1 -->
+          <div class="card">
+            <div class="chead">
+              <div class="ic">🎙</div>
+              <div><div class="name">딸 목소리</div><div class="date">2026년 5월 31일</div></div>
+            </div>
+            <div class="play">▶ 들어보기</div>
+            <div class="acts">
+              <div class="b edit">✏️ 수정</div>
+              <div class="b del">🗑 삭제</div>
+            </div>
+            <div class="test">🔔 실제 알림으로 들어보기</div>
+          </div>
+
+          <!-- sound card 2 -->
+          <div class="card">
+            <div class="chead">
+              <div class="ic">🎙</div>
+              <div><div class="name">아들 목소리</div><div class="date">2026년 6월 2일</div></div>
+            </div>
+            <div class="play">▶ 들어보기</div>
+            <div class="acts">
+              <div class="b edit">✏️ 수정</div>
+              <div class="b del">🗑 삭제</div>
+            </div>
+            <div class="test">🔔 실제 알림으로 들어보기</div>
+          </div>
+
+          <div class="add">＋ 새 알림음 등록</div>
+        </div>
+      </div></div>
+      <div class="cap">화면 — 깔끔한 카드(이름·날짜 + 들어보기 + 수정/삭제), "테스트"는 보조</div>
+    </div>
+
+    <!-- edit sheet + empty -->
+    <div>
+      <div class="phone"><div class="screen">
+        <div class="top"><span class="back">←</span><span class="title">알림음 관리</span></div>
+        <div class="body">
+          <p class="intro">알림이 울릴 때 들리는 소리를 만들고 관리해요.</p>
+          <div class="empty">아직 만든 알림음이 없어요.<br>아래에서 새로 등록해 보세요.</div>
+          <div class="add">＋ 새 알림음 등록</div>
+        </div>
+        <!-- edit bottom sheet -->
+        <div class="sheetcard" style="margin-top:40px;">
+          <div class="grab"></div>
+          <h3>알림음 이름 수정</h3>
+          <div class="field">딸 목소리</div>
+          <div class="sheetbtns">
+            <div class="b sb-cancel">취소</div>
+            <div class="b sb-save">저장</div>
+          </div>
+        </div>
+      </div></div>
+      <div class="cap">왼쪽 위=빈 목록 / 아래=수정(이름변경) 바텀시트</div>
+    </div>
+
+  </div>
+
+  <div class="note">
+    <h2>무엇이 바뀌나 (오너 피드백 반영)</h2>
+    <ul>
+      <li><span class="tag">정리</span>카드 하나에 큰 버튼 3개 쌓아서 정신없던 걸 → <b>이름·날짜 + [들어보기](주황 강조) + [수정][삭제] 한 줄</b>로 깔끔하게. 여백 넉넉히.</li>
+      <li><span class="tag">추가</span><b>수정(이름 변경)</b> 기능 — 탭하면 바텀시트로 이름 바꿔 저장. (지금은 삭제만 있었음)</li>
+      <li><span class="tag">명칭</span>"새 알림음 녹음" → <b>"새 알림음 등록"</b></li>
+      <li><span class="tag">테스트</span>"실제 알림으로 들어보기"는 <b>보조(점선 회색)</b>로 내려서 덜 튀게. <b>※ 오너 결정: 여기 남길까요, 아니면 빼고 알림 관리(소리 고르는 곳)로 옮길까요?</b> (테스트는 "알림에 적용할 때" 더 어울려서요)</li>
+      <li>제목 "알림음 관리" 통일, 60대용 큰 글씨(이름 21·버튼 17~19)·버튼 54dp+ 유지.</li>
+    </ul>
+  </div>
+</body>
+</html>

@@ -12,7 +12,7 @@ import {
   Modal,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { useNavigation } from '@react-navigation/native';
+import { useNavigation, useRoute } from '@react-navigation/native';
 import { Audio } from 'expo-av';
 import { Colors } from '../../constants/colors';
 import { TopBar } from '../../components/common/TopBar';
@@ -20,6 +20,7 @@ import { useAuth } from '../../context/AuthContext';
 import { useDialog } from '../../context/DialogContext';
 import { supabase } from '../../lib/supabase';
 import { uploadSound } from '../../lib/r2Upload';
+import { provisionForUser } from '../../lib/alarmSound';
 
 const MAX_DURATION_MS = 5000; // 최대 5초
 const DEFAULT_LABEL = '내 녹음';
@@ -28,15 +29,21 @@ type Phase = 'idle' | 'recording' | 'recorded';
 
 export function RecordSoundScreen() {
   const navigation = useNavigation<any>();
+  const route = useRoute<any>();
   const { user } = useAuth();
   const dialog = useDialog();
+
+  // 수정 모드: editSoundId 가 오면 기존 custom_sounds 행을 UPDATE (새 행 INSERT 아님)
+  const editSoundId: string | undefined = route.params?.editSoundId;
+  const editLabel: string | undefined = route.params?.editLabel;
+  const isEditMode = !!editSoundId;
 
   const [phase, setPhase] = useState<Phase>('idle');
   const [elapsedMs, setElapsedMs] = useState(0); // 녹음 경과 시간(표시용)
   const [recordedUri, setRecordedUri] = useState<string | null>(null);
   const [recordedDurationMs, setRecordedDurationMs] = useState(0);
   const [isPlaying, setIsPlaying] = useState(false);
-  const [label, setLabel] = useState('');
+  const [label, setLabel] = useState(isEditMode ? (editLabel ?? '') : '');
   const [saving, setSaving] = useState(false);
   const [showNameModal, setShowNameModal] = useState(false);
 
@@ -231,8 +238,12 @@ export function RecordSoundScreen() {
   };
 
   // ── 저장 ──────────────────────────────────────────────────
+  // 신규 등록: custom_sounds INSERT.
+  // 수정 모드(isEditMode): 같은 id 행을 UPDATE (RPC). 새로 녹음했으면 소리 교체, 아니면 이름만 변경.
   const handleSave = async () => {
-    if (!recordedUri || !user) return;
+    if (!user) return;
+    // 수정 모드는 녹음 없이 이름만 변경 가능. 신규는 녹음 필수.
+    if (!isEditMode && !recordedUri) return;
 
     if (!user.patient_group_id) {
       dialog.alert({
@@ -252,9 +263,54 @@ export function RecordSoundScreen() {
         setIsPlaying(false);
       }
 
-      const result = await uploadSound(recordedUri, user.id, 'audio/m4a');
-
       const finalLabel = label.trim() || DEFAULT_LABEL;
+
+      if (isEditMode && editSoundId) {
+        // ── 수정: 기존 행 UPDATE (id 유지 → 참조 무결성 보존) ──
+        let newUrl: string | null = null;
+        let newKey: string | null = null;
+        let newDuration: number | null = null;
+        const soundReplaced = !!recordedUri;
+
+        if (soundReplaced) {
+          // 새로 녹음함 → 신규와 동일 경로로 업로드
+          const result = await uploadSound(recordedUri!, user.id, 'audio/m4a');
+          newUrl = result.url;
+          newKey = result.key;
+          newDuration = recordedDurationMs;
+        }
+
+        const { data: ok, error } = await (supabase.rpc as any)('update_custom_sound', {
+          p_sound_id: editSoundId,
+          p_label: finalLabel,
+          p_public_url: newUrl, // null이면 소리 그대로(이름만 변경)
+          p_r2_key_src: newKey,
+          p_duration_ms: newDuration,
+        });
+        if (error) throw new Error(error.message);
+        if (!ok) {
+          dialog.alert({
+            title: '수정할 수 없어요',
+            message: '같은 가족만 이 알림음을 수정할 수 있어요.',
+          });
+          return;
+        }
+
+        // 소리가 바뀌었으면 기기 알림 채널을 새 소리로 갱신
+        if (soundReplaced) {
+          await provisionForUser(user.id, user.patient_group_id ?? null).catch(() => {});
+        }
+
+        await dialog.alert({
+          title: '수정 완료',
+          message: '알림음이 수정되었어요.',
+        });
+        navigation.goBack();
+        return;
+      }
+
+      // ── 신규 등록: INSERT (기존 흐름 그대로) ──
+      const result = await uploadSound(recordedUri!, user.id, 'audio/m4a');
       const { error } = await supabase.from('custom_sounds' as any).insert({
         group_id: user.patient_group_id,
         recorded_by: user.id,
@@ -293,7 +349,7 @@ export function RecordSoundScreen() {
 
   return (
     <SafeAreaView style={styles.safeArea}>
-      <TopBar title="알림음 녹음" showBack />
+      <TopBar title={isEditMode ? '알림음 수정' : '알림음 녹음'} showBack />
 
       <KeyboardAvoidingView
         style={styles.flex1}
@@ -308,11 +364,23 @@ export function RecordSoundScreen() {
       >
         {/* 안내 문구 */}
         <View style={styles.guideBox}>
-          <Text style={styles.guideTitle}>5초 이내로 녹음해 주세요</Text>
-          <Text style={styles.guideText}>
-            예: "엄마~ 약 드세요~"{'\n'}
-            녹음 버튼을 누르고 또박또박 말해 주세요.
-          </Text>
+          {isEditMode ? (
+            <>
+              <Text style={styles.guideTitle}>알림음을 수정해요</Text>
+              <Text style={styles.guideText}>
+                이름만 바꾸거나, 다시 녹음해서 소리를 바꿀 수 있어요.{'\n'}
+                소리는 그대로 두고 이름만 바꿔도 돼요.
+              </Text>
+            </>
+          ) : (
+            <>
+              <Text style={styles.guideTitle}>5초 이내로 녹음해 주세요</Text>
+              <Text style={styles.guideText}>
+                예: "엄마~ 약 드세요~"{'\n'}
+                녹음 버튼을 누르고 또박또박 말해 주세요.
+              </Text>
+            </>
+          )}
         </View>
 
         {/* 상태 표시 영역 */}
@@ -332,7 +400,14 @@ export function RecordSoundScreen() {
           ) : (
             <>
               <Text style={styles.idleEmoji}>🎤</Text>
-              <Text style={styles.idleText}>아래 버튼을 눌러 녹음을 시작하세요</Text>
+              {isEditMode ? (
+                <Text style={styles.idleText}>
+                  지금 이름: {label.trim() || DEFAULT_LABEL}{'\n'}
+                  이름만 바꾸거나, 다시 녹음할 수 있어요.
+                </Text>
+              ) : (
+                <Text style={styles.idleText}>아래 버튼을 눌러 녹음을 시작하세요</Text>
+              )}
             </>
           )}
         </View>
@@ -340,13 +415,37 @@ export function RecordSoundScreen() {
         {/* 하단 버튼 영역 */}
         <View style={styles.buttonArea}>
           {phase === 'idle' && (
-            <TouchableOpacity
-              style={[styles.bigButton, styles.recordButton]}
-              onPress={handleStartRecording}
-              activeOpacity={0.85}
-            >
-              <Text style={styles.bigButtonText}>● 녹음 시작</Text>
-            </TouchableOpacity>
+            <>
+              <TouchableOpacity
+                style={[styles.bigButton, styles.recordButton]}
+                onPress={handleStartRecording}
+                activeOpacity={0.85}
+                disabled={saving}
+              >
+                <Text style={styles.bigButtonText}>
+                  {isEditMode ? '● 다시 녹음 (소리 바꾸기)' : '● 녹음 시작'}
+                </Text>
+              </TouchableOpacity>
+
+              {/* 수정 모드: 녹음 없이 이름만 바꿔 저장 */}
+              {isEditMode && (
+                <TouchableOpacity
+                  style={[styles.bigButton, styles.saveButton, saving && styles.disabledButton]}
+                  onPress={() => setShowNameModal(true)}
+                  activeOpacity={0.85}
+                  disabled={saving}
+                >
+                  {saving ? (
+                    <View style={styles.savingRow}>
+                      <ActivityIndicator color="#fff" />
+                      <Text style={styles.bigButtonText}>저장 중...</Text>
+                    </View>
+                  ) : (
+                    <Text style={styles.bigButtonText}>이름만 바꿔 저장</Text>
+                  )}
+                </TouchableOpacity>
+              )}
+            </>
           )}
 
           {phase === 'recording' && (
@@ -374,7 +473,10 @@ export function RecordSoundScreen() {
 
               <TouchableOpacity
                 style={[styles.bigButton, styles.saveButton, saving && styles.disabledButton]}
-                onPress={() => { setLabel(''); setShowNameModal(true); }}
+                onPress={() => {
+                  if (!isEditMode) setLabel('');
+                  setShowNameModal(true);
+                }}
                 activeOpacity={0.85}
                 disabled={saving}
               >
@@ -417,7 +519,9 @@ export function RecordSoundScreen() {
           behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
         >
           <View style={styles.modalCard}>
-            <Text style={styles.modalTitle}>알림음 이름</Text>
+            <Text style={styles.modalTitle}>
+              {isEditMode ? '알림음 이름 수정' : '알림음 이름'}
+            </Text>
             <Text style={styles.modalSub}>나중에 알아보기 쉽게 이름을 붙여주세요.</Text>
             <TextInput
               style={styles.modalInput}
@@ -457,10 +561,6 @@ const styles = StyleSheet.create({
   safeArea: {
     flex: 1,
     backgroundColor: Colors.background,
-  },
-  container: {
-    flex: 1,
-    padding: 20,
   },
   flex1: { flex: 1 },
   scrollContent: {
@@ -555,27 +655,6 @@ const styles = StyleSheet.create({
     fontSize: 19,
     color: Colors.textSub,
     fontWeight: '600',
-  },
-
-  // 라벨 입력
-  labelBox: {
-    marginBottom: 16,
-  },
-  labelTitle: {
-    fontSize: 18,
-    fontWeight: '700',
-    color: Colors.text,
-    marginBottom: 8,
-  },
-  labelInput: {
-    backgroundColor: Colors.white,
-    borderWidth: 1.5,
-    borderColor: Colors.border,
-    borderRadius: 12,
-    paddingHorizontal: 16,
-    paddingVertical: 14,
-    fontSize: 20,
-    color: Colors.text,
   },
 
   // 버튼
