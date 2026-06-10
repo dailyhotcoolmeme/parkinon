@@ -181,6 +181,28 @@ const MED_TIME_SLOTS = [
 
 type MedTimeSlotKey = 'morning' | 'lunch' | 'dinner' | 'bedtime';
 
+// 매 렌더 새 객체가 생기지 않도록 trackColor를 모듈 상수로 고정 (Fabric 재커밋 방지)
+const SWITCH_TRACK_COLOR = { false: Colors.border, true: Colors.primary };
+
+/**
+ * New Architecture(Fabric)에서 거대한 화면이 한 프레임에 리렌더되지 못하면 컨트롤드 Switch가
+ * value prop을 늦게 받아 "옛값으로 잠깐 튀었다가" 새값으로 가는 문제가 있다.
+ * 스위치 값을 작은 래퍼의 로컬 state로 분리해, 탭 즉시 가볍게 리렌더 → 네이티브에 곧바로 반영되게 한다.
+ * 부모 value가 실제로 바뀌면(원격/로드) 동기화한다.
+ */
+function OptimisticSwitch({ value, onValueChange }: { value: boolean; onValueChange: (v: boolean) => void }) {
+  const [shown, setShown] = useState(value);
+  useEffect(() => { setShown(value); }, [value]);
+  return (
+    <Switch
+      value={shown}
+      onValueChange={(v) => { setShown(v); onValueChange(v); }}
+      trackColor={SWITCH_TRACK_COLOR}
+      thumbColor={Colors.white}
+    />
+  );
+}
+
 export function SettingsScreen() {
   const { user, signOut } = useAuth();
   const navigation = useNavigation<StackNavigationProp<MenuStackParamList>>();
@@ -1552,11 +1574,9 @@ export function SettingsScreen() {
                 <Text style={styles.notifTitle}>약 미복용 알림 1차</Text>
                 <Text style={styles.notifSub}>복용 시간 10분 후 미복용 시 알림을 보내요</Text>
               </View>
-              <Switch
+              <OptimisticSwitch
                 value={!!medTimePrefs['missed_first']}
                 onValueChange={() => toggleMedTimeSlot('missed_first')}
-                trackColor={{ false: Colors.border, true: Colors.primary }}
-                thumbColor={Colors.white}
               />
             </View>
             {showMissedSound.first && (
@@ -1564,6 +1584,7 @@ export function SettingsScreen() {
                 soundId={missedMedSounds.first}
                 sounds={alarmSounds}
                 onSelect={(sid) => setMissedMedSound('first', sid)}
+                backgroundColor={Colors.white}
               />
             )}
             <View style={styles.notifRow}>
@@ -1571,11 +1592,9 @@ export function SettingsScreen() {
                 <Text style={styles.notifTitle}>약 미복용 알림 2차</Text>
                 <Text style={styles.notifSub}>복용 시간 20분 후에도 미복용 시 알림을 보내요</Text>
               </View>
-              <Switch
+              <OptimisticSwitch
                 value={!!medTimePrefs['missed_second']}
                 onValueChange={() => toggleMedTimeSlot('missed_second')}
-                trackColor={{ false: Colors.border, true: Colors.primary }}
-                thumbColor={Colors.white}
               />
             </View>
             {showMissedSound.second && (
@@ -1583,6 +1602,7 @@ export function SettingsScreen() {
                 soundId={missedMedSounds.second}
                 sounds={alarmSounds}
                 onSelect={(sid) => setMissedMedSound('second', sid)}
+                backgroundColor={Colors.white}
               />
             )}
           </View>
