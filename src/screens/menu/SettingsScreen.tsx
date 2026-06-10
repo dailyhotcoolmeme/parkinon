@@ -273,7 +273,9 @@ export function SettingsScreen() {
         .select('med_time_notif_prefs, med_time_sound_prefs, meal_schedules')
         .eq('id', user.id)
         .single();
-      if (data?.med_time_notif_prefs) {
+      // 본인이 방금(5초 내) 토글한 직후라면, 복제 지연으로 옛 값을 읽어와 토글을
+      // 되돌리는 것을 막고 낙관적 로컬값을 유지한다. (realtime 핸들러와 동일 가드)
+      if (data?.med_time_notif_prefs && Date.now() - medTimeLocalWriteAtRef.current > 5000) {
         setMedTimePrefs(prev => ({ ...prev, ...data.med_time_notif_prefs }));
       }
       if (data?.med_time_sound_prefs) {
