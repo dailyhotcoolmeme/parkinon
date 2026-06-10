@@ -583,14 +583,26 @@ export function DoseSlotSetList({ alarmSounds }: Props) {
                 {slotTitle(slot)}
               </Text>
               {!expanded && (
-                <TouchableOpacity
-                  activeOpacity={0.7}
-                  style={styles.slotHeadEdit}
-                  onPress={() => toggleExpand(slot.id!)}
-                >
-                  <Ionicons name="create-outline" size={18} color={Colors.dark} />
-                  <Text style={styles.btnTextLabel}>수정</Text>
-                </TouchableOpacity>
+                <View style={styles.slotHeadActions}>
+                  <TouchableOpacity
+                    activeOpacity={0.7}
+                    hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+                    style={styles.slotIconBtn}
+                    onPress={() => toggleExpand(slot.id!)}
+                  >
+                    <Ionicons name="create-outline" size={22} color={Colors.textSub} />
+                  </TouchableOpacity>
+                  {!isStandard && (
+                    <TouchableOpacity
+                      activeOpacity={0.7}
+                      hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+                      style={styles.slotIconBtnDelete}
+                      onPress={() => onDeleteSlot(slot)}
+                    >
+                      <Ionicons name="trash-outline" size={22} color={Colors.danger} />
+                    </TouchableOpacity>
+                  )}
+                </View>
               )}
             </View>
 
@@ -778,7 +790,7 @@ export function DoseSlotSetList({ alarmSounds }: Props) {
                   )}
                 </View>
 
-                {/* ── 박스 밖: 완료 + (비표준만) 삭제 ── */}
+                {/* ── 박스 밖: 완료 (삭제는 접힌 카드 우측 상단 아이콘으로 이동) ── */}
                 <TouchableOpacity
                   activeOpacity={0.85}
                   style={styles.doneBtn}
@@ -786,17 +798,6 @@ export function DoseSlotSetList({ alarmSounds }: Props) {
                 >
                   <Text style={styles.doneBtnText}>완료</Text>
                 </TouchableOpacity>
-
-                {!isStandard && (
-                  <TouchableOpacity
-                    activeOpacity={0.7}
-                    style={styles.delBtn}
-                    onPress={() => onDeleteSlot(slot)}
-                  >
-                    <Ionicons name="trash-outline" size={18} color={Colors.danger} />
-                    <Text style={styles.delBtnText}>이 복용 시간 삭제</Text>
-                  </TouchableOpacity>
-                )}
               </>
             )}
           </View>
@@ -1258,15 +1259,17 @@ const styles = StyleSheet.create({
     fontWeight: '800',
     color: Colors.text,
   },
-  slotHeadEdit: {
+  slotHeadActions: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 6,
-    borderWidth: 2,
-    borderColor: Colors.primary,
-    borderRadius: 12,
-    paddingVertical: 8,
-    paddingHorizontal: 14,
+  },
+  slotIconBtn: {
+    marginLeft: 12,
+    padding: 4,
+  },
+  slotIconBtnDelete: {
+    marginLeft: 8,
+    padding: 4,
   },
   slotTimeOff: {
     color: '#999999',
