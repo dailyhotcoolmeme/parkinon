@@ -11,6 +11,7 @@ import {
   Dimensions,
   Linking,
   AppState,
+  InteractionManager,
 } from 'react-native';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useFocusEffect, useNavigation } from '@react-navigation/native';
@@ -206,6 +207,9 @@ export function SettingsScreen() {
   // 본인이 방금 토글한 직후엔 realtime 에코(동시 발생한 notification_enabled 쓰기의 stale echo)가
   // 옛 med_time_notif_prefs로 토글을 되돌리지 않도록 막는 가드 타임스탬프
   const medTimeLocalWriteAtRef = useRef(0);
+  // 미복용 알림음 선택 행(무거운 expo-av 컴포넌트)을 토글과 같은 프레임에 mount/unmount하면
+  // 네이티브 Switch 애니메이션이 튄다 → 표시 여부를 한 틱 늦춰 스위치 전환을 먼저 끝낸다.
+  const [showMissedSound, setShowMissedSound] = useState({ first: false, second: false });
   const [medSlotTimes, setMedSlotTimes] = useState<Record<MedTimeSlotKey, string>>({
     morning: '08:00', lunch: '12:00', dinner: '18:00', bedtime: '22:00',
   });
@@ -541,6 +545,18 @@ export function SettingsScreen() {
       if (val === 'true') setBatteryOptimized(true);
     });
   }, []);
+
+  // 미복용 알림음 행 표시를 토글 프레임에서 분리 (스위치 애니메이션 먼저 끝낸 뒤 mount/unmount)
+  useEffect(() => {
+    const first = !!medTimePrefs['missed_first'];
+    const second = !!medTimePrefs['missed_second'];
+    const task = InteractionManager.runAfterInteractions(() => {
+      setShowMissedSound((prev) =>
+        prev.first === first && prev.second === second ? prev : { first, second },
+      );
+    });
+    return () => task.cancel();
+  }, [medTimePrefs]);
 
   // 보호자 알림 토글 저장의 신뢰성 가드.
   // - 저장이 setState 업데이터 내부의 fire-and-forget이던 기존 구조는
@@ -1543,7 +1559,7 @@ export function SettingsScreen() {
                 thumbColor={Colors.white}
               />
             </View>
-            {!!medTimePrefs['missed_first'] && (
+            {showMissedSound.first && (
               <AlarmSoundPickerRow
                 soundId={missedMedSounds.first}
                 sounds={alarmSounds}
@@ -1562,7 +1578,7 @@ export function SettingsScreen() {
                 thumbColor={Colors.white}
               />
             </View>
-            {!!medTimePrefs['missed_second'] && (
+            {showMissedSound.second && (
               <AlarmSoundPickerRow
                 soundId={missedMedSounds.second}
                 sounds={alarmSounds}
