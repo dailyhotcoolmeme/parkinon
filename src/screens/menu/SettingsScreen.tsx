@@ -1754,16 +1754,7 @@ export function SettingsScreen() {
               />
             </TouchableOpacity>
 
-            {showPatientNotifs && (() => {
-              const formatPatientTime = (t: string) => {
-                const [hStr, mStr] = t.split(':');
-                const h = parseInt(hStr, 10);
-                if (h === 0) return `오전 12:${mStr}`;
-                if (h < 12) return `오전 ${h}:${mStr}`;
-                if (h === 12) return `오후 12:${mStr}`;
-                return `오후 ${h - 12}:${mStr}`;
-              };
-              return (
+            {showPatientNotifs && (
                 <>
                   {/* ── 환자 전체 알림 (보호자가 환자 대신 ON/OFF) ── */}
                   <View style={{ marginTop: 12, marginHorizontal: 12, borderRadius: 12, borderWidth: 1, borderColor: Colors.border, backgroundColor: Colors.white }}>
@@ -1782,125 +1773,44 @@ export function SettingsScreen() {
                     </View>
                   </View>
 
-                  {/* ── 서브카드 1: 약 복용 시간 알림 (파란색) ── */}
-                  <View style={{ marginTop: 12, marginHorizontal: 12, borderRadius: 12, overflow: 'hidden', borderWidth: 1, borderColor: '#BBDEFB' }}>
-                    <View style={{ flexDirection: 'row', alignItems: 'center', backgroundColor: '#E3F2FD', paddingHorizontal: 16, paddingVertical: 12 }}>
-                      <Ionicons name="alarm-outline" size={20} color="#1565C0" style={{ marginRight: 10 }} />
-                      <Text style={{ fontSize: 17, fontWeight: '700', color: '#1565C0' }}>약 복용 시간 알림</Text>
-                    </View>
-                    {patientActiveMedSlots.length === 0 ? (
-                      <View style={{ paddingHorizontal: 16, paddingVertical: 14 }}>
-                        <Text style={{ fontSize: 16, color: Colors.textSub }}>등록된 약이 없어요</Text>
-                      </View>
-                    ) : (
-                      MED_TIME_SLOTS.filter(slot => patientActiveMedSlots.includes(slot.key as MedTimeSlotKey)).map((slot) => {
-                        const slotKey = slot.key as MedTimeSlotKey;
-                        const displayTime = formatPatientTime(patientMedSlotTimes[slotKey]);
-                        const isOn = !!patientMedTimePrefs[slotKey];
-                        return (
-                          <View key={slotKey} style={[styles.notifRow, styles.notifRowTop, { backgroundColor: Colors.white }]}>
-                            <View style={styles.notifLeft}>
-                              <Text style={styles.notifTitle}>{slot.label}  {displayTime}</Text>
-                              <Text style={styles.notifSub}>매일 {displayTime}에 복용 알림을 보내요</Text>
-                            </View>
-                            <View style={[styles.notifSwitch, { flexDirection: 'row', alignItems: 'center', gap: 12 }]}>
-                              <Switch
-                                value={isOn}
-                                onValueChange={() => togglePatientMedTimeSlot(slotKey)}
-                                trackColor={{ false: Colors.border, true: '#1565C0' }}
-                                thumbColor={Colors.white}
-                              />
-                              <TouchableOpacity
-                                activeOpacity={0.7}
-                                onPress={() => navigation.navigate('MedicationManage', { openSlot: slotKey })}
-                                style={{ paddingVertical: 8, paddingHorizontal: 8 }}
-                              >
-                                <Ionicons name="create-outline" size={22} color={Colors.textSub} />
-                              </TouchableOpacity>
-                            </View>
-                          </View>
-                        );
-                      })
-                    )}
-                    {patientActiveMedSlots.length > 0 && (
-                      <>
-                        <View style={[styles.notifRow, styles.notifRowTop, { backgroundColor: Colors.white, borderTopWidth: 2, borderTopColor: '#E0E0E0' }]}>
-                          <View style={styles.notifLeft}>
-                            <Text style={styles.notifTitle}>약 미복용 알림 1차</Text>
-                            <Text style={styles.notifSub}>복용 시간 10분 후 미복용 시 알림을 보내요</Text>
-                          </View>
-                          <Switch
-                            style={styles.notifSwitch}
-                            value={!!patientMedTimePrefs['missed_first']}
-                            onValueChange={() => togglePatientMedTimeSlot('missed_first')}
-                            trackColor={{ false: Colors.border, true: '#1565C0' }}
-                            thumbColor={Colors.white}
-                          />
-                        </View>
-                        <View style={[styles.notifRow, styles.notifRowTop, { backgroundColor: Colors.white }]}>
-                          <View style={styles.notifLeft}>
-                            <Text style={styles.notifTitle}>약 미복용 알림 2차</Text>
-                            <Text style={styles.notifSub}>복용 시간 20분 후에도 미복용 시 알림을 보내요</Text>
-                          </View>
-                          <Switch
-                            style={styles.notifSwitch}
-                            value={!!patientMedTimePrefs['missed_second']}
-                            onValueChange={() => togglePatientMedTimeSlot('missed_second')}
-                            trackColor={{ false: Colors.border, true: '#1565C0' }}
-                            thumbColor={Colors.white}
-                          />
-                        </View>
-                      </>
-                    )}
-                  </View>
+                  {/* ── 복용 시각별 세트카드 (보호자가 환자 대신 편집) — 복용 알림 + 약효 추적 통합 ── */}
+                  <DoseSlotSetList alarmSounds={alarmSounds} />
 
-                  {/* ── 서브카드 2: 약효 추적 알림 (오렌지) ── */}
-                  <View style={{ marginTop: 10, marginHorizontal: 12, borderRadius: 12, overflow: 'hidden', borderWidth: 1, borderColor: '#FFE0B2' }}>
-                    <View style={{ flexDirection: 'row', alignItems: 'center', backgroundColor: '#FFF3E0', paddingHorizontal: 16, paddingVertical: 12 }}>
-                      <Ionicons name="notifications-outline" size={20} color="#E65100" style={{ marginRight: 10 }} />
-                      <Text style={{ fontSize: 17, fontWeight: '700', color: '#E65100' }}>약효 추적 알림</Text>
-                    </View>
-                    {patientMedNotifs.map((notif) => (
-                      <View key={notif.id} style={[styles.notifRow, styles.notifRowTop, { backgroundColor: Colors.white }]}>
-                        <View style={styles.notifLeft}>
-                          <Text style={styles.notifTitle}>{minutesToLabel(notif.minutes)}</Text>
-                          <Text style={styles.notifSub}>약 복용 후 {minutesToLabel(notif.minutes)}에 알림을 보내요</Text>
-                        </View>
-                        <View style={[styles.notifRight, styles.notifSwitch]}>
-                          <Switch
-                            value={notif.enabled}
-                            onValueChange={() => togglePatientMedNotif(notif.id)}
-                            trackColor={{ false: Colors.border, true: '#E65100' }}
-                            thumbColor={Colors.white}
-                          />
-                          <TouchableOpacity
-                            activeOpacity={0.7}
-                            hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
-                            style={styles.iconBtn}
-                            onPress={() => openPatientPicker('med', notif.id)}
-                          >
-                            <Ionicons name="create-outline" size={22} color={Colors.textSub} />
-                          </TouchableOpacity>
-                          <TouchableOpacity
-                            activeOpacity={0.7}
-                            hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
-                            style={[styles.iconBtn, styles.iconBtnDelete]}
-                            onPress={() => deletePatientMedNotif(notif.id)}
-                          >
-                            <Ionicons name="trash-outline" size={22} color={Colors.danger} />
-                          </TouchableOpacity>
-                        </View>
+                  {/* ── 약 미복용 알림 (파란색, 시각별 아님 · 환자 전역) ── */}
+                  {patientActiveMedSlots.length > 0 && (
+                    <View style={{ marginTop: 10, marginHorizontal: 12, borderRadius: 12, overflow: 'hidden', borderWidth: 1, borderColor: '#BBDEFB' }}>
+                      <View style={{ flexDirection: 'row', alignItems: 'center', backgroundColor: '#E3F2FD', paddingHorizontal: 16, paddingVertical: 12 }}>
+                        <Ionicons name="alarm-outline" size={20} color="#1565C0" style={{ marginRight: 10 }} />
+                        <Text style={{ fontSize: 17, fontWeight: '700', color: '#1565C0' }}>약 미복용 알림</Text>
                       </View>
-                    ))}
-                    <TouchableOpacity
-                      activeOpacity={0.7}
-                      style={[styles.addRow, { backgroundColor: Colors.white }]}
-                      onPress={() => openPatientPicker('med', null)}
-                    >
-                      <Ionicons name="add-circle-outline" size={22} color="#E65100" style={{ marginRight: 8 }} />
-                      <Text style={[styles.addLabel, { color: '#E65100' }]}>알림 추가하기</Text>
-                    </TouchableOpacity>
-                  </View>
+                      <View style={[styles.notifRow, styles.notifRowTop, { backgroundColor: Colors.white }]}>
+                        <View style={styles.notifLeft}>
+                          <Text style={styles.notifTitle}>약 미복용 알림 1차</Text>
+                          <Text style={styles.notifSub}>복용 시간 10분 후 미복용 시 알림을 보내요</Text>
+                        </View>
+                        <Switch
+                          style={styles.notifSwitch}
+                          value={!!patientMedTimePrefs['missed_first']}
+                          onValueChange={() => togglePatientMedTimeSlot('missed_first')}
+                          trackColor={{ false: Colors.border, true: '#1565C0' }}
+                          thumbColor={Colors.white}
+                        />
+                      </View>
+                      <View style={[styles.notifRow, styles.notifRowTop, { backgroundColor: Colors.white }]}>
+                        <View style={styles.notifLeft}>
+                          <Text style={styles.notifTitle}>약 미복용 알림 2차</Text>
+                          <Text style={styles.notifSub}>복용 시간 20분 후에도 미복용 시 알림을 보내요</Text>
+                        </View>
+                        <Switch
+                          style={styles.notifSwitch}
+                          value={!!patientMedTimePrefs['missed_second']}
+                          onValueChange={() => togglePatientMedTimeSlot('missed_second')}
+                          trackColor={{ false: Colors.border, true: '#1565C0' }}
+                          thumbColor={Colors.white}
+                        />
+                      </View>
+                    </View>
+                  )}
 
                   {/* ── 서브카드 3: 운동 알림 (초록) ── */}
                   <View style={{ marginTop: 10, marginHorizontal: 12, marginBottom: 12, borderRadius: 12, overflow: 'hidden', borderWidth: 1, borderColor: '#C8E6C9' }}>
@@ -1950,8 +1860,7 @@ export function SettingsScreen() {
                     </TouchableOpacity>
                   </View>
                 </>
-              );
-            })()}
+            )}
           </View>
         )}
 

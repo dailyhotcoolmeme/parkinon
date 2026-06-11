@@ -181,6 +181,26 @@ export function useDoseSlots(): UseDoseSlotsReturn {
     load(true);
   }, [load]);
 
+  // 보호자↔환자 즉시 반영: 이 환자의 dose_slots 변경을 realtime 으로 감지해 갱신.
+  // (보호자가 환자 dose_slots 를 수정하면 환자 기기가, 반대도 즉시 반영)
+  useEffect(() => {
+    if (!patientId) return;
+    const channel = supabase
+      .channel(`dose-slots-rt-${patientId}`)
+      .on(
+        'postgres_changes',
+        { event: '*', schema: 'public', table: 'dose_slots', filter: `patient_id=eq.${patientId}` },
+        () => {
+          invalidateDoseSlotsCache(patientId);
+          load(false);
+        },
+      )
+      .subscribe();
+    return () => {
+      supabase.removeChannel(channel);
+    };
+  }, [patientId, load]);
+
   const refresh = useCallback(async () => {
     if (patientId) invalidateDoseSlotsCache(patientId);
     await load(false);
