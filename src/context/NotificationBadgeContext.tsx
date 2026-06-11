@@ -71,8 +71,18 @@ export function NotificationBadgeProvider({ children }: { children: React.ReactN
       data: Record<string, any> = {},
       readAt: string | null = null,
     ) => {
-      if (!user?.id) return;
       try {
+        // 콜드스타트 등으로 컨텍스트 user 가 아직 로딩되지 않았을 때도 읽음 처리가 되도록
+        // 세션에서 userId 를 직접 해석한다. (알림 탭했는데 user 미로딩으로 읽음처리가
+        // 건너뛰어져 배지가 안 꺼지던 문제 방지)
+        let userId = user?.id ?? null;
+        if (!userId) {
+          try {
+            const { data: { session } } = await supabase.auth.getSession();
+            userId = session?.user?.id ?? null;
+          } catch {}
+        }
+        if (!userId) return;
         const SUPA_URL = process.env.EXPO_PUBLIC_SUPABASE_URL!;
         const SUPA_KEY = process.env.EXPO_PUBLIC_SUPABASE_ANON_KEY!;
 
@@ -91,7 +101,7 @@ export function NotificationBadgeProvider({ children }: { children: React.ReactN
           const { data: unread } = await supabase
             .from('notification_logs')
             .select('id, read_at')
-            .eq('user_id', user.id)
+            .eq('user_id', userId)
             .eq('type', dbType)
             .eq('title', title)
             .gte('created_at', since24h)
@@ -123,7 +133,7 @@ export function NotificationBadgeProvider({ children }: { children: React.ReactN
           const { data: recentAny } = await supabase
             .from('notification_logs')
             .select('id')
-            .eq('user_id', user.id)
+            .eq('user_id', userId)
             .eq('type', dbType)
             .eq('title', title)
             .gte('created_at', since5m)
@@ -141,7 +151,7 @@ export function NotificationBadgeProvider({ children }: { children: React.ReactN
               'Authorization': `Bearer ${session?.access_token ?? ''}`,
               'Prefer': 'return=minimal',
             },
-            body: JSON.stringify({ user_id: user.id, type: dbType, title, body, data, read_at: readAt }),
+            body: JSON.stringify({ user_id: userId, type: dbType, title, body, data, read_at: readAt }),
           });
           return;
         }
@@ -151,7 +161,7 @@ export function NotificationBadgeProvider({ children }: { children: React.ReactN
         const { data: existing } = await supabase
           .from('notification_logs')
           .select('id')
-          .eq('user_id', user.id)
+          .eq('user_id', userId)
           .eq('type', dbType)
           .eq('title', title)
           .gte('created_at', since)
@@ -177,7 +187,7 @@ export function NotificationBadgeProvider({ children }: { children: React.ReactN
                 'Prefer': 'return=minimal',
               },
               body: JSON.stringify({
-                user_id: user.id,
+                user_id: userId,
                 type: dbType,
                 title,
                 body,
