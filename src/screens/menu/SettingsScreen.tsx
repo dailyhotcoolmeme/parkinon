@@ -1730,6 +1730,12 @@ export function SettingsScreen() {
         {isCaregiver && (
           <>
           <View style={styles.caregiverDivider} />
+          <View style={styles.caregiverNote}>
+            <Ionicons name="information-circle" size={20} color={Colors.primary} style={{ marginTop: 1 }} />
+            <Text style={styles.caregiverNoteText}>
+              여기서 알림을 바꾸면 {(linkedPatientName || '환자')}님 휴대폰의 알림도 똑같이 바뀌어요.
+            </Text>
+          </View>
           <View style={[styles.card, styles.cardMarginTop]}>
             <TouchableOpacity
               activeOpacity={0.8}
@@ -2545,12 +2551,31 @@ const styles = StyleSheet.create({
     paddingBottom: 80,
   },
 
-  // 보호자 '환자 알림 수정' 섹션 구분선 (위쪽 구분)
+  // 보호자 '환자 알림 수정' 섹션 구분선 (위쪽 구분) — 확실히 보이게
   caregiverDivider: {
-    height: 1,
-    backgroundColor: Colors.border,
-    marginTop: 28,
-    marginBottom: 2,
+    height: 2,
+    backgroundColor: '#B8C0CC',
+    borderRadius: 1,
+    marginTop: 30,
+    marginBottom: 12,
+  },
+  // 구분선 아래 안내 — 보호자 수정이 환자 휴대폰에도 반영됨을 알림
+  caregiverNote: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    gap: 8,
+    backgroundColor: Colors.light,
+    borderRadius: 12,
+    paddingHorizontal: 14,
+    paddingVertical: 12,
+    marginBottom: 4,
+  },
+  caregiverNoteText: {
+    flex: 1,
+    fontSize: 15,
+    lineHeight: 21,
+    color: Colors.dark,
+    fontWeight: '600',
   },
 
   // ── Card ──
