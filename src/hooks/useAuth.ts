@@ -358,10 +358,12 @@ export function useAuthProvider(): UseAuthReturn {
   // 앱 실행 시 세션 복원 + 세션 변화 구독
   useEffect(() => {
     let mounted = true;
+    let initialHandled = false;
 
     const { data: { subscription } } = supabase.auth.onAuthStateChange(
       async (event, session) => {
         if (!mounted) return;
+        initialHandled = true;
         if (__DEV__) console.log('[useAuth] onAuthStateChange:', event);
         if (session?.user) {
           // access_token을 직접 전달 → dbFetch에서 추가 getSession 호출 없이 바로 사용
@@ -373,8 +375,26 @@ export function useAuthProvider(): UseAuthReturn {
       }
     );
 
+    // 부트스트랩: onAuthStateChange 의 초기(INITIAL_SESSION) 이벤트가 발화하지 않거나 늦는
+    // 경우 대비해 직접 세션을 확인한다. (이게 없으면 그 이벤트가 안 올 때 loading 이 영영
+    // 안 풀려 흰 화면+스피너에 갇힘 — 장시간 사용 후 토큰 갱신 타이밍 등에서 발생)
+    supabase.auth.getSession().then(({ data: { session } }) => {
+      if (!mounted || initialHandled) return;
+      if (session?.user) {
+        loadUserProfile(session.user.id, session.user.user_metadata, session.access_token);
+      } else {
+        setUser(null);
+        setLoading(false);
+      }
+    }).catch(() => { if (mounted) setLoading(false); });
+
+    // 안전장치: 어떤 이유로든 8초 내 로딩이 안 풀리면 강제 해제(무한 흰 화면 방지 — 최소
+    // 로그인 화면이라도 보이게).
+    const loadingSafety = setTimeout(() => { if (mounted) setLoading(false); }, 8000);
+
     return () => {
       mounted = false;
+      clearTimeout(loadingSafety);
       subscription.unsubscribe();
     };
   }, [loadUserProfile]);
