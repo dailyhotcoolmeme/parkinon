@@ -1755,7 +1755,7 @@ export function SettingsScreen() {
             </TouchableOpacity>
 
             {showPatientNotifs && (
-                <View style={{ paddingHorizontal: 10, paddingBottom: 10 }}>
+                <View style={{ paddingTop: 4, paddingBottom: 10, backgroundColor: '#EEF2F7' }}>
                   {/* ── 환자 전체 알림 (보호자가 환자 대신 ON/OFF) ── */}
                   <View style={{ marginTop: 12, borderRadius: 12, borderWidth: 1, borderColor: Colors.border, backgroundColor: Colors.white }}>
                     <View style={[styles.notifRow, styles.notifRowTop, { borderTopWidth: 0, paddingHorizontal: 16 }]}>
