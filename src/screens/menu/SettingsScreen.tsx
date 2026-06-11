@@ -2553,9 +2553,8 @@ const styles = StyleSheet.create({
 
   // 보호자 '환자 알림 수정' 섹션 구분선 (위쪽 구분) — 확실히 보이게
   caregiverDivider: {
-    height: 2,
+    height: 1,
     backgroundColor: '#B8C0CC',
-    borderRadius: 1,
     marginTop: 30,
     marginBottom: 12,
   },
