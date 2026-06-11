@@ -14,7 +14,7 @@ import { useDoseSlots, resolveDisplaySlots, type DoseSlot } from '../../hooks/us
 import {
   LEGACY_SLOT_META,
   formatSlotTime,
-  slotDisplayName,
+  slotTitle,
   labelContainsTime,
 } from '../../constants/doseSlots';
 
@@ -62,16 +62,16 @@ function slotIcon(slot: DoseSlot): { icon: IoniconName; color: string } {
 function buildOptions(slots: DoseSlot[]): MealOption[] {
   return slots.map((slot) => {
     const { icon, color } = slotIcon(slot);
-    // 라벨: 표준은 "아침 약", 비표준 추가 슬롯은 라벨이 곧 "오후 3:00 약".
-    const baseLabel = slotDisplayName(slot.label, slot.legacyKey, slot.time);
-    const labelHasTime = labelContainsTime(slot.label, slot.legacyKey);
+    // 라벨: 설정 화면(DoseSlotSetList)과 동일한 slotTitle(이름+시각) 사용 → 명칭 일치.
+    //   표준 "아침 오전 6:00 약", 비표준 "밤 11:00 약". 시각이 이름에 포함되므로 별도 표시 안 함.
+    const title = slotTitle(slot.label, slot.legacyKey, slot.time);
     return {
       key: (slot.id ?? slot.legacyKey ?? slot.time) as string,
       selectKey: slot.legacyKey,
       doseSlotId: slot.id,
-      label: `${baseLabel} 약`,
+      label: `${title} 약`,
       time: slot.time,
-      labelHasTime,
+      labelHasTime: true,
       icon,
       color,
       notifOn: slot.remindEnabled,

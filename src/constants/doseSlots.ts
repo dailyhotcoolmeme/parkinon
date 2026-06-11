@@ -221,6 +221,23 @@ export function slotDisplayName(
 }
 
 /**
+ * 슬롯의 "전체 표시 제목"(이름 + 시각 인라인) — 설정 화면(DoseSlotSetList)과 복용 시트가
+ * 동일하게 보이도록 하는 단일 출처.
+ * - 비표준(라벨이 이미 시각 포함): 라벨 그대로("밤 11:00").
+ * - 표준/라벨 있음: "라벨 시각"("아침 오전 6:00").
+ */
+export function slotTitle(
+  label: string | null | undefined,
+  legacyKey: LegacyMealKey | null | undefined,
+  time: string | null | undefined
+): string {
+  const t = formatSlotTime(time);
+  if (labelContainsTime(label, legacyKey)) return (label ?? '').trim();
+  if (label && label.trim()) return `${label.trim()} ${t}`;
+  return t;
+}
+
+/**
  * 라벨이 이미 시각(autoSlotLabel 형식)을 포함하는지 — 비표준 추가 슬롯 판별.
  * 표준 라벨("아침" 등)은 false → 이름 옆에 시각을 따로 붙여도 됨.
  * 비표준 라벨("오후 3:00")은 true → 시각 중복 표기 금지.
