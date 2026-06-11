@@ -14,7 +14,7 @@ import { useAuth } from '../context/AuthContext';
 import type { Database } from '../types/database';
 import { triggerLabelToText, triggerLabelToMinutes } from '../utils/medUtils';
 import { fetchPatientDoseSlots, type DoseSlot } from './useDoseSlots';
-import { formatSlotTime, slotSortValue } from '../constants/doseSlots';
+import { formatSlotTime, slotSortValue, slotTitle } from '../constants/doseSlots';
 
 type Period = '이번 주' | '이번 달' | '최근 3개월';
 type ItemKey = 'medication' | 'bodyState' | 'mood' | 'sleep' | 'constipation' | 'exercise';
@@ -372,7 +372,8 @@ export function useRecordDetailData(type: ItemKey, period: Period): UseRecordDet
           if (!key || slotMetaByKey.has(key)) return;
           slotMetaByKey.set(key, {
             slotKey: key,
-            label: s.label ?? formatSlotTime(s.time),
+            // 설정/메인/시트와 동일한 slotTitle(이름+시각)로 통일 → "아침 오전 6:00", "밤 11:00".
+            label: slotTitle(s.label, s.legacyKey, s.time),
             color: MEAL_COLOR_PALETTE[s.sortOrder % MEAL_COLOR_PALETTE.length],
             sortValue: s.sortOrder * 10000 + slotSortValue(s.time),
           });
