@@ -238,6 +238,26 @@ export function slotTitle(
 }
 
 /**
+ * 환자의 dose_slots 목록으로 "슬롯 표시명(slotTitle)" 조회 맵을 만든다.
+ * - byId: dose_slot_id → slotTitle (신규 기록)
+ * - byLegacyKey: 'morning'|'lunch'|'dinner'|'bedtime' → slotTitle (legacy meal_time 기록 폴백)
+ * 과거기록/몸상태/운동 등 여러 화면이 record 의 (dose_slot_id, meal_time)로 일관된 명칭을 얻게 함.
+ */
+export function buildSlotTitleMaps(
+  slots: Array<{ id?: string | null; label?: string | null; legacyKey?: LegacyMealKey | null; time: string }>
+): { byId: Record<string, string>; byLegacyKey: Record<string, string> } {
+  const byId: Record<string, string> = {};
+  const byLegacyKey: Record<string, string> = {};
+  for (const s of slots) {
+    const lk = s.legacyKey ?? labelToLegacyKey(s.label);
+    const title = slotTitle(s.label, lk, s.time);
+    if (s.id) byId[s.id] = title;
+    if (lk) byLegacyKey[lk] = title;
+  }
+  return { byId, byLegacyKey };
+}
+
+/**
  * 라벨이 이미 시각(autoSlotLabel 형식)을 포함하는지 — 비표준 추가 슬롯 판별.
  * 표준 라벨("아침" 등)은 false → 이름 옆에 시각을 따로 붙여도 됨.
  * 비표준 라벨("오후 3:00")은 true → 시각 중복 표기 금지.

@@ -21,7 +21,8 @@ import { useAuth } from '../../context/AuthContext';
 import { useBodyState } from '../../hooks/useBodyState';
 import { triggerLabelToText, mealTimeToKorean, mealTimeToPeriod } from '../../utils/medUtils';
 import { fetchPatientDoseSlots, resolveDisplaySlots } from '../../hooks/useDoseSlots';
-import { nextDoseLabel, slotSortValue } from '../../constants/doseSlots';
+import type { DoseSlot } from '../../hooks/useDoseSlots';
+import { nextDoseLabel, slotSortValue, buildSlotTitleMaps } from '../../constants/doseSlots';
 import { navigateTo } from '../../navigation/navigationRef';
 import { supabase } from '../../lib/supabase';
 import { useNotificationBadge } from '../../context/NotificationBadgeContext';
@@ -43,7 +44,12 @@ const TAB_BAR_H = 68;
 interface BodyRecord {
   id: string;
   time: string;
+  /** 시간대 키('아침'/'점심'/'저녁'/'취침') — 아이콘/색 매핑·기존 동작 보존용 */
   period: string;
+  /** 표시용 슬롯 명칭(slotTitle, 예: "아침 오전 6:00") — 헤더/그룹 제목 */
+  slotLabel: string;
+  /** 그룹 정렬용 슬롯 시각(분). 없으면 Infinity(맨 뒤) */
+  slotSort: number;
   trigger: string;
   triggeredBy: string;
   bodyScore: number;
@@ -232,6 +238,8 @@ export function BodyStateScreen() {
   const [pendingMeasureInvitePhase, setPendingMeasureInvitePhase] = useState<MeasurementMedPhase | null>(null);
   // 환자 약 중 레보도파 계열 존재 여부 — 비레보도파 단독 환자는 권유 안 함
   const [hasLevodopaMed, setHasLevodopaMed] = useState(false);
+  // 표시용 dose_slots — 기록 슬롯 명칭(slotTitle) 조회/그룹핑용 (display 전용, 기록 로직 무관)
+  const [displaySlots, setDisplaySlots] = useState<DoseSlot[]>([]);
   const hasBedtimeLoadedRef = useRef(false);
   const pendingFlowArgsRef = useRef<{ label: string; medTime: Date | null; mealTimeKey: string | null; doseSlotId?: string | null; medLogId?: string | null } | null>(null);
   // 회귀 수정: route.params triggerTs dedupe — 같은 ts는 한 번만 처리
@@ -490,6 +498,44 @@ export function BodyStateScreen() {
     };
   }, [patientId, userRole]);
 
+  // 표시용 dose_slots 로드 — 기록 슬롯 명칭(slotTitle)·그룹핑에만 사용(display 전용)
+  useEffect(() => {
+    if (!patientId) {
+      setDisplaySlots([]);
+      return;
+    }
+    let alive = true;
+    (async () => {
+      try {
+        const { data: userData } = await supabase
+          .from('users')
+          .select('meal_schedules')
+          .eq('id', patientId)
+          .single();
+        const doseSlots = await fetchPatientDoseSlots(patientId);
+        const resolved = resolveDisplaySlots(
+          doseSlots,
+          userData?.meal_schedules as Record<string, string> | null | undefined
+        );
+        if (alive) setDisplaySlots(resolved);
+      } catch {
+        if (alive) setDisplaySlots([]);
+      }
+    })();
+    return () => {
+      alive = false;
+    };
+  }, [patientId, recordsRefreshKey]);
+
+  // 슬롯 표시명(slotTitle) 조회맵 — byId[dose_slot_id] / byLegacyKey[meal_time]
+  const slotTitleMaps = React.useMemo(
+    () =>
+      buildSlotTitleMaps(
+        displaySlots.map((s) => ({ id: s.id, label: s.label, legacyKey: s.legacyKey, time: s.time }))
+      ),
+    [displaySlots]
+  );
+
   // 표시할 로그: 오늘이면 todayLogs, 다른 날이면 dateLogs
   const activeLogs = isToday ? todayLogs : dateLogs;
 
@@ -708,10 +754,28 @@ export function BodyStateScreen() {
   // DB 로그 → BodyRecord 변환
   const records: BodyRecord[] = activeLogs.map((log: any) => {
     const mealTimeKo = log.medication_meal_time ? mealTimeToPeriod(log.medication_meal_time) : null;
+    // 아이콘/색용 시간대 키(기존 동작 보존)
+    const period = mealTimeKo ?? getPeriod(log.logged_at);
+    // 표시용 슬롯 명칭(slotTitle): byId[dose_slot_id] 우선 → byLegacyKey[meal_time] → legacy 폴백
+    const slotLabel =
+      (log.dose_slot_id && slotTitleMaps.byId[log.dose_slot_id]) ||
+      (log.medication_meal_time && slotTitleMaps.byLegacyKey[log.medication_meal_time]) ||
+      period;
+    // 그룹 정렬용 시각: 해당 슬롯의 time(없으면 기록 시각)
+    const matchedSlot =
+      (log.dose_slot_id && displaySlots.find((s) => s.id === log.dose_slot_id)) ||
+      (log.medication_meal_time &&
+        displaySlots.find((s) => s.legacyKey === log.medication_meal_time)) ||
+      null;
+    const slotSort = matchedSlot
+      ? slotSortValue(matchedSlot.time)
+      : new Date(log.logged_at).getHours() * 60 + new Date(log.logged_at).getMinutes();
     return {
       id: log.id,
       time: formatTime(log.logged_at),
-      period: mealTimeKo ?? getPeriod(log.logged_at),
+      period,
+      slotLabel,
+      slotSort,
       trigger: (log.trigger_time_label && getTriggerLabel(log.trigger_time_label))
         || (log.triggered_by === 'notification' ? '알림' : '직접 입력'),
       triggeredBy: log.triggered_by ?? 'manual',
@@ -829,14 +893,16 @@ export function BodyStateScreen() {
           if (savedMealTime) query = (query as any).eq('meal_time', savedMealTime);
           const { data: deletedItems } = await (query as any).select();
           if (deletedItems && deletedItems.length > 0) {
-            let periodKo = getPeriod(new Date().toISOString());
-            if (savedMealTime) {
-              const p = mealTimeToPeriod(savedMealTime);
-              if (p) periodKo = p;
-            }
+            // 슬롯 표시명: byId[dose_slot_id] 우선 → byLegacyKey[meal_time] → legacy period 폴백
+            let slotName = getPeriod(new Date().toISOString());
+            const mapped =
+              (savedDoseSlotId && slotTitleMaps.byId[savedDoseSlotId]) ||
+              (savedMealTime && slotTitleMaps.byLegacyKey[savedMealTime]) ||
+              (savedMealTime ? mealTimeToPeriod(savedMealTime) : null);
+            if (mapped) slotName = mapped;
             const delta = triggerLabelToText(savedLabel!);
             setPreRecordMessage(
-              `${periodKo}약 복용 ${delta} 후 몸상태 기록을 미리 남기셨어요.\n\n사전에 설정된 알림은 보내지 않을게요.`
+              `${slotName} 약 복용 ${delta} 후 몸상태 기록을 미리 남기셨어요.\n\n사전에 설정된 알림은 보내지 않을게요.`
             );
             setShowPreRecordInfo(true);
           }
@@ -1024,19 +1090,34 @@ export function BodyStateScreen() {
               <Text style={styles.emptySubText}>위 버튼을 눌러 기록해 보세요!</Text>
             </View>
           ) : (
-            ['취침', '저녁', '점심', '아침'].map(period => {
-              const periodRecords = records.filter(r => r.period === period);
-              if (periodRecords.length === 0) return null;
-              return (
-                <MealSectionCard
-                  key={period}
-                  period={period}
-                  records={periodRecords}
-                  canCancel={canCancelRecord}
-                  onCancel={handleCancelRecord}
-                />
-              );
-            })
+            (() => {
+              // records 에 등장하는 distinct slotLabel 을 슬롯 시각 순(내림차순: 취침→아침)으로 그룹핑
+              const order: string[] = [];
+              const sortOf: Record<string, number> = {};
+              records.forEach(r => {
+                if (!(r.slotLabel in sortOf)) {
+                  sortOf[r.slotLabel] = r.slotSort;
+                  order.push(r.slotLabel);
+                }
+              });
+              order.sort((a, b) => sortOf[b] - sortOf[a]);
+              return order.map(slotLabel => {
+                const groupRecords = records.filter(r => r.slotLabel === slotLabel);
+                if (groupRecords.length === 0) return null;
+                // 아이콘/색은 기존 시간대 키(period) 기준 유지
+                const period = groupRecords[0].period;
+                return (
+                  <MealSectionCard
+                    key={slotLabel}
+                    period={period}
+                    displayTitle={slotLabel}
+                    records={groupRecords}
+                    canCancel={canCancelRecord}
+                    onCancel={handleCancelRecord}
+                  />
+                );
+              });
+            })()
           )}
         </View>
 
@@ -1203,17 +1284,22 @@ function RecordRow({
 
 function MealSectionCard({
   period,
+  displayTitle,
   records,
   canCancel,
   onCancel,
 }: {
   period: string;
+  /** 헤더 표시 텍스트(slotTitle). 없으면 period 사용 */
+  displayTitle?: string;
   records: BodyRecord[];
   canCancel: boolean;
   onCancel: (id: string) => void;
 }) {
+  // 색·아이콘은 시간대 키(period) 기준 유지, 표시 텍스트만 displayTitle
   const color = PERIOD_COLOR[period] ?? '#888';
   const icon = PERIOD_ICON[period] ?? '🕐';
+  const title = displayTitle ?? period;
 
   return (
     <View style={{
@@ -1236,7 +1322,7 @@ function MealSectionCard({
         alignItems: 'center',
       }}>
         <Text style={{ fontSize: 20, marginRight: 8 }}>{icon}</Text>
-        <Text style={{ fontSize: 20, fontWeight: '700', color: '#fff' }}>{period}</Text>
+        <Text style={{ fontSize: 20, fontWeight: '700', color: '#fff' }}>{title}</Text>
         <Text style={{ fontSize: 16, color: 'rgba(255,255,255,0.85)', marginLeft: 8 }}>
           {records.length}개 기록
         </Text>

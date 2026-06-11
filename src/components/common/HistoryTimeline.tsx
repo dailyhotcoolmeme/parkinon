@@ -14,6 +14,7 @@ import { supabase } from '../../lib/supabase';
 import { useAuth } from '../../context/AuthContext';
 import { Colors } from '../../constants/colors';
 import { getKSTDayRange, triggerLabelToTag, mealTimeToPeriod } from '../../utils/medUtils';
+import { buildSlotTitleMaps } from '../../constants/doseSlots';
 
 type TimelineType = 'medication' | 'bodystate' | 'exercise';
 
@@ -129,33 +130,40 @@ export function HistoryTimeline({ type, patientId, refreshKey }: HistoryTimeline
     const { end: rangeEnd } = getKSTDayRange(todayStr);
     const newMap: Record<string, TimelineEntry[]> = {};
 
+    // dose_slots 슬롯 표시명(slotTitle) 조회맵 — 약복용/몸상태 분기 공용.
+    // byId[dose_slot_id] 우선 → byLegacyKey[meal_time] → legacy 폴백.
+    let slotTitleMaps: { byId: Record<string, string>; byLegacyKey: Record<string, string> } = {
+      byId: {},
+      byLegacyKey: {},
+    };
+    if (type === 'medication' || type === 'bodystate') {
+      try {
+        const { data: slotRows } = await supabase
+          .from('dose_slots').select('id, label, time').eq('patient_id', patientId);
+        slotTitleMaps = buildSlotTitleMaps(
+          (slotRows ?? []).map((s: any) => ({ id: s.id, label: s.label, time: s.time }))
+        );
+      } catch {}
+    }
+
     try {
       if (type === 'medication') {
-        // dose_slots 환자: dose_slot_id → label 매핑(있으면 우선). 미이관이면 빈 맵.
-        const slotLabelMap: Record<string, string> = {};
-        try {
-          const { data: slotRows } = await supabase
-            .from('dose_slots').select('id, label').eq('patient_id', patientId);
-          (slotRows ?? []).forEach((s: any) => {
-            if (s.id && s.label) slotLabelMap[s.id] = s.label;
-          });
-        } catch {}
-
         const { data } = await supabase
           .from('med_logs').select('taken_at, meal_time, dose_slot_id').eq('patient_id', patientId)
           .gte('taken_at', rangeStart).lte('taken_at', rangeEnd).order('taken_at', { ascending: false });
         (data ?? []).forEach((row: any) => {
           const kstDate = new Date(new Date(row.taken_at).getTime() + 9 * 60 * 60 * 1000).toISOString().slice(0, 10);
           if (!newMap[kstDate]) newMap[kstDate] = [];
-          // dose_slot label 우선 → legacy meal_time period → 원본 meal_time 폴백
-          const period =
-            (row.dose_slot_id && slotLabelMap[row.dose_slot_id]) ||
+          // slotTitle(byId 우선 → byLegacyKey) → legacy meal_time period → 원본 meal_time 폴백
+          const slotName =
+            (row.dose_slot_id && slotTitleMaps.byId[row.dose_slot_id]) ||
+            slotTitleMaps.byLegacyKey[row.meal_time] ||
             mealTimeToPeriod(row.meal_time) ||
             row.meal_time ||
             '';
           newMap[kstDate].push({
             time: toKSTTime(row.taken_at),
-            content: `${period}약 복용`,
+            content: `${slotName} 약 복용`,
           });
         });
       } else if (type === 'bodystate') {
@@ -172,12 +180,14 @@ export function HistoryTimeline({ type, patientId, refreshKey }: HistoryTimeline
           const line2: string[] = [];
           if (row.sleep_quality != null) line2.push(`수면 ${row.sleep_quality}점`);
           if (row.constipation != null) line2.push(`변비 ${row.constipation ? '있었어요' : '없었어요'}`);
-          // medication_meal_time이 있으면 실제 복용 약 기준, 없으면 시간대 추론
-          const period = row.medication_meal_time
-            ? (mealTimeToPeriod(row.medication_meal_time) || getPeriodKo(row.logged_at))
+          // 슬롯 표시명: byLegacyKey[medication_meal_time] 우선 → legacy period → 시간대 추론
+          const slotName = row.medication_meal_time
+            ? (slotTitleMaps.byLegacyKey[row.medication_meal_time]
+                || mealTimeToPeriod(row.medication_meal_time)
+                || getPeriodKo(row.logged_at))
             : getPeriodKo(row.logged_at);
           const delta = row.trigger_time_label ? triggerLabelToTag(row.trigger_time_label) : '';
-          const tag = delta ? `(${period}약 ${delta})` : undefined;
+          const tag = delta ? `(${slotName} ${delta})` : undefined;
           newMap[kstDate].push({
             time: toKSTTime(row.logged_at),
             content: line1.join(' | ') || '기록',

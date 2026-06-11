@@ -41,6 +41,7 @@ import {
   LEGACY_SLOT_META,
   labelToLegacyKey,
   normalizeHhmm,
+  slotTitle,
   type LegacyMealKey,
 } from '../../constants/doseSlots';
 import {
@@ -807,7 +808,7 @@ function SlotEditBottomSheet({ visible, slot, medications, onClose, onSave }: Sl
 
             {/* 헤더 */}
             <View style={[seBsStyles.header, { backgroundColor: slot.bgColor }]}>
-              <Text style={seBsStyles.headerTitle}>{slot.emoji} {slot.label} 수정</Text>
+              <Text style={seBsStyles.headerTitle}>{slot.emoji} {slotTitle(slot.label, slot.key, currentTime)} 수정</Text>
               <TouchableOpacity onPress={onClose} style={seBsStyles.closeBtn} activeOpacity={0.7}>
                 <Text style={seBsStyles.closeBtnText}>닫기</Text>
               </TouchableOpacity>
@@ -2342,8 +2343,7 @@ export function MedicationManageScreen() {
                     <View style={[styles.sectionHeader, { backgroundColor: slot.bgColor }]}>
                       <View style={styles.sectionHeaderLeft}>
                         <Text style={styles.sectionHeaderEmoji}>{slot.emoji}</Text>
-                        <Text style={styles.sectionHeaderLabel}>{slot.label}</Text>
-                        <Text style={styles.sectionHeaderTime}>{slotTime}</Text>
+                        <Text style={styles.sectionHeaderLabel}>{slotTitle(slot.label, slot.key, slotTime)}</Text>
                       </View>
                       <TouchableOpacity
                         style={styles.slotEditBtn}
@@ -2609,7 +2609,7 @@ export function MedicationManageScreen() {
                           const time = medDisplaySlotTime(med, t);
                           return (
                             <Text key={t} style={styles.medSlotRow}>
-                              {slot.label}{'  '}{time}
+                              {slotTitle(slot.label, slot.key, time)}
                             </Text>
                           );
                         })}
