@@ -261,6 +261,8 @@ function AppInner() {
       // - effect_tracking: 'meal_time' (snake_case) 사용
       // 양쪽 다 받도록 fallback
       const mealTime: string | null = data?.mealTime ?? data?.meal_time ?? null;
+      // 알림 페이로드에 실린 dose_slot 식별자 — 진입 시 "어떤 약인지" 자동 선택에 사용.
+      const doseSlotId: string | null = (data?.doseSlotId as string) ?? (data?.dose_slot_id as string) ?? null;
       const triggerMinutes: number | null =
         typeof data?.minutes === 'number' ? data.minutes : null;
 
@@ -323,16 +325,16 @@ function AppInner() {
             // cross-type stale cleanup: 다른 타입의 잔존 pending 키 제거
             await AsyncStorage.multiRemove(['pendingBodyStateNotif', 'pendingExerciseNotif']);
             log('multi_remove', { keys: ['pendingBodyStateNotif', 'pendingExerciseNotif'], success: true });
-            const value = JSON.stringify({ mealTime, ts: Date.now() });
+            const value = JSON.stringify({ mealTime, doseSlotId, ts: Date.now() });
             await AsyncStorage.setItem('pendingMedNotif', value);
             log('set_item', { key: 'pendingMedNotif', value, success: true });
           } catch (e: any) {
             log('set_item', { success: false, error: String(e?.message ?? e) });
           }
-          const navArgs = { screen: 'Medication', params: { autoOpen: Date.now(), mealTime } };
+          const navArgs = { screen: 'Medication', params: { autoOpen: Date.now(), mealTime, doseSlotId } };
           log('navigate_start', { target: 'Main', args: navArgs });
           navigateTo('Main', navArgs);
-          notificationIntentManager.emit({ mealTime });
+          notificationIntentManager.emit({ mealTime, doseSlotId });
         } else if (type === 'effect_tracking') {
           log('branch_match', { branch: 'effect_tracking' });
 

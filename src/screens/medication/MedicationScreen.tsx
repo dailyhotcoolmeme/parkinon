@@ -108,6 +108,7 @@ function toLocalDateString(date: Date): string {
 type MedicationRouteParams = {
   autoOpen?: number | boolean;
   mealTime?: string | null;
+  doseSlotId?: string | null;
 };
 
 export function MedicationScreen() {
@@ -157,6 +158,9 @@ export function MedicationScreen() {
   // 방금 기록한 슬롯의 "복용 직후"(track_intervals에 0 포함 + 추적 ON) 여부.
   // 이게 꺼져 있으면 복용 직후 자동 몸상태 팝업을 띄우지 않는다. (사전기록 onClose 경로에서도 참조)
   const immediateSuggestRef = useRef(true);
+  // 알림으로 진입 시 "이 약 맞나요?" 확인 다이얼로그가 여러 경로(라우트 param·IntentManager·AsyncStorage)에서
+  // 중복으로 뜨지 않도록 막는 가드(3초 윈도우).
+  const notifEntryGuardRef = useRef(0);
 
   // 온보딩 완료 후 홈 최초 진입 시 알림 설정 팝업 1회 표시
   useEffect(() => {
@@ -206,12 +210,14 @@ export function MedicationScreen() {
     // ⚠️ 주석 처리: patientId 비동기 로드 전 userRole이 잘못 계산돼 modal 오픈이 막힘 (AsyncStorage useFocusEffect 방식으로 대체)
     // if (userRole === 'caregiver_separate' || userRole === 'caregiver_no_patient') return;
 
-    // 화면 전환 애니메이션 완료 후 모달 오픈
+    // 화면 전환 애니메이션 완료 후: 알림에 실린 슬롯으로 "이 약 맞나요?" 확인 → 바로 기록.
+    const enterMealTime = routeParams.mealTime ?? null;
+    const enterDoseSlotId = routeParams.doseSlotId ?? null;
     const timer = setTimeout(() => {
-      setShowMealTimeModal(true);
+      enterFromNotification({ mealTime: enterMealTime, doseSlotId: enterDoseSlotId });
       // routeParams 즉시 clear → 탭 이동 후 재진입 시 stale 값으로 재오픈되는 것 차단
       try {
-        navigation.setParams({ autoOpen: undefined, mealTime: undefined });
+        navigation.setParams({ autoOpen: undefined, mealTime: undefined, doseSlotId: undefined });
       } catch (e) {
         console.warn('[MedicationScreen] setParams clear 실패:', e);
       }
@@ -224,12 +230,11 @@ export function MedicationScreen() {
   // NotificationIntentManager 기반 알림 탭 → 모달 열기 (콜드 스타트 레이스 컨디션 해결)
   const openMedModalRef = useRef(false);
   useEffect(() => {
-    const unsubscribe = notificationIntentManager.subscribe(({ mealTime }) => {
+    const unsubscribe = notificationIntentManager.subscribe(({ mealTime, doseSlotId }) => {
       if (openMedModalRef.current) return;
       openMedModalRef.current = true;
       setTimeout(() => { openMedModalRef.current = false; }, 2000);
-      if (mealTime) setSelectedMealTime(mealTime as MealTime);
-      setTimeout(() => setShowMealTimeModal(true), 100);
+      setTimeout(() => enterFromNotification({ mealTime: mealTime ?? null, doseSlotId: doseSlotId ?? null }), 100);
     });
     return unsubscribe;
   }, []);
@@ -289,9 +294,9 @@ export function MedicationScreen() {
           const data = JSON.parse(value);
           // TTL 5분 초과 → stale 폐기 (모달 표시 안 함)
           if (data?.ts && Date.now() - data.ts > 5 * 60 * 1000) return;
-          const mealTime = data?.mealTime;
-          if (mealTime) setSelectedMealTime(mealTime as MealTime);
-          setTimeout(() => setShowMealTimeModal(true), 300);
+          const mealTime = data?.mealTime ?? null;
+          const doseSlotId = data?.doseSlotId ?? null;
+          setTimeout(() => enterFromNotification({ mealTime, doseSlotId }), 300);
         } catch {}
       });
     }, [])
@@ -560,6 +565,58 @@ export function MedicationScreen() {
 
     proceedSave(sel);
   };
+
+  // 알림(약 복용/미복용)을 눌러 진입한 경우: 알림에 실린 슬롯 식별자로 "어떤 약인지" 자동 판별.
+  //  → 매번 시간대를 직접 고르게 하지 않고, "○○ 약을 드셨나요?" 한 번만 확인받고 바로 기록.
+  //  (자동 판별이 틀렸으면 '다른 시간 선택'으로 기존 선택 모달로 폴백)
+  // attempt: 콜드스타트 시 dose_slots 로딩 전이면 selSlot 을 못 찾을 수 있어 1회 재시도.
+  function enterFromNotification(
+    sel: { mealTime: string | null; doseSlotId: string | null },
+    attempt: number = 0,
+  ) {
+    // 여러 진입 경로(라우트 param·IntentManager·AsyncStorage)에서 같은 탭으로 중복 호출되는 것 차단.
+    if (attempt === 0) {
+      if (Date.now() - notifEntryGuardRef.current < 3000) return;
+      notifEntryGuardRef.current = Date.now();
+    }
+
+    const selSlot = sel.doseSlotId
+      ? displaySlots.find((s) => s.id === sel.doseSlotId)
+      : (sel.mealTime ? displaySlots.find((s) => s.legacyKey === sel.mealTime) : undefined);
+
+    if (!selSlot) {
+      // 슬롯 로딩 전일 수 있음 → 한 번 재시도, 그래도 못 찾으면 기존처럼 전체 선택 모달로.
+      if (attempt < 1) {
+        setTimeout(() => enterFromNotification(sel, attempt + 1), 600);
+        return;
+      }
+      if (sel.mealTime) setSelectedMealTime(sel.mealTime as MealTime);
+      setShowMealTimeModal(true);
+      return;
+    }
+
+    // 알림으로 들어왔으니 어떤 약인지는 이미 정해짐 → 한 번 더 확인만 받고 바로 기록.
+    const title = slotTitle(selSlot.label, selSlot.legacyKey, selSlot.time);
+    dialog
+      .confirm({
+        title: '약 복용 기록',
+        message: `${title} 약을 드셨나요?`,
+        confirmText: '네, 복용했어요',
+        cancelText: '다른 시간 선택',
+      })
+      .then((ok) => {
+        if (ok) {
+          // 이미 기록이 있으면 handleMealTimeSelect 가 덮어쓰기 확인 후 저장.
+          handleMealTimeSelect({
+            mealTime: (selSlot.legacyKey as MealTime | null) ?? null,
+            doseSlotId: selSlot.id ?? null,
+          });
+        } else {
+          // 자동 판별이 틀렸을 수 있으니 전체 선택 모달로.
+          setShowMealTimeModal(true);
+        }
+      });
+  }
 
   const handleBodyStateSave = async (record: { bodyScore: number; moodScore: number; sleepScore?: number; constipation?: boolean }) => {
     await saveBodyState({

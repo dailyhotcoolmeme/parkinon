@@ -1,4 +1,4 @@
-type MedIntent = { mealTime: string | null };
+type MedIntent = { mealTime: string | null; doseSlotId?: string | null };
 
 class NotificationIntentManager {
   private pendingIntent: MedIntent | null = null;
