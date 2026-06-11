@@ -1726,9 +1726,8 @@ export function SettingsScreen() {
           </View>
         )}
 
-        {/* ── Card: 환자 알림 수정 (보호자만) — 헤더만 카드, 내용은 아래 최상위로(환자와 동일 구조) ── */}
+        {/* ── Card: 환자 알림 수정 (보호자만) — 바깥 테두리 박스 안에 환자용 카드를 여백 두고 배치 ── */}
         {isCaregiver && (
-          <>
           <View style={[styles.card, styles.cardMarginTop]}>
             <TouchableOpacity
               activeOpacity={0.8}
@@ -1754,10 +1753,9 @@ export function SettingsScreen() {
                 color={Colors.textSub}
               />
             </TouchableOpacity>
-          </View>
 
             {showPatientNotifs && (
-                <>
+                <View style={{ paddingHorizontal: 10, paddingBottom: 10 }}>
                   {/* ── 환자 전체 알림 (보호자가 환자 대신 ON/OFF) ── */}
                   <View style={{ marginTop: 12, borderRadius: 12, borderWidth: 1, borderColor: Colors.border, backgroundColor: Colors.white }}>
                     <View style={[styles.notifRow, styles.notifRowTop, { borderTopWidth: 0, paddingHorizontal: 16 }]}>
@@ -1861,9 +1859,9 @@ export function SettingsScreen() {
                       <Text style={[styles.addLabel, { color: '#2E7D32' }]}>알림 추가하기</Text>
                     </TouchableOpacity>
                   </View>
-                </>
+                </View>
             )}
-          </>
+          </View>
         )}
 
       </ScrollView>
