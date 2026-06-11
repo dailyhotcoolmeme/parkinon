@@ -52,7 +52,7 @@ const DEFAULT_CAREGIVER_NOTIFS: CaregiverNotif[] = [
   { id: 'med_taken', label: '환자 약 복용 기록 시', sub: '환자가 약 복용 기록 시 알림을 받아요', enabled: true },
   { id: 'med_missed', label: '환자 약 미복용 알림 2차', sub: '환자가 약 미복용 20분이 되면 알림을 받아요\n알림을 받으면 환자께 알려주세요', enabled: true },
   { id: 'body_state', label: '몸상태 기록 시', enabled: true },
-  { id: 'mood', label: '기분 기록 시', enabled: true },
+  { id: 'mood', label: '기분상태 기록 시', enabled: true },
   { id: 'exercise', label: '운동 기록 시', enabled: true },
   { id: 'measurement_completed', label: '컨디션 측정 완료 시', sub: '환자가 손가락·반응속도 측정을 마치면 알림을 받아요', enabled: true },
   { id: 'sleep', label: '수면 기록 시', enabled: false },
