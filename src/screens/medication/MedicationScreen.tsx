@@ -37,8 +37,7 @@ import {
   LEGACY_SLOT_ORDER,
   LEGACY_KEY_TO_LABEL,
   formatSlotTime,
-  slotDisplayName,
-  labelContainsTime,
+  slotTitle,
   type LegacyMealKey,
 } from '../../constants/doseSlots';
 
@@ -586,9 +585,9 @@ export function MedicationScreen() {
   const displayList: MedicationStatus[] = displaySlots.map((slot, idx) => {
     const key = slotStatusKey(slot);
     const log = key ? activeStatus[key] : null;
-    // 라벨: 표준은 "아침", 비표준 추가 슬롯은 "오후 3:00"(이미 시각 포함).
-    const label = slotDisplayName(slot.label, slot.legacyKey, slot.time);
-    const labelHasTime = labelContainsTime(slot.label, slot.legacyKey);
+    // 라벨: 설정 화면(slotTitle)과 동일하게 이름+시각 인라인 → "아침 오전 6:00", "밤 11:00".
+    const label = slotTitle(slot.label, slot.legacyKey, slot.time);
+    const labelHasTime = true; // 시각이 라벨에 포함되므로 시각을 별도로 표시하지 않음
     // 시각: 슬롯 time(HH:MM) → '오전 H:MM'
     const timeStr = formatSlotTime(slot.time);
     // 카드 key: 슬롯 id(이관) 또는 legacyKey(미이관). 둘 다 없으면 시각+idx로 고유화.
