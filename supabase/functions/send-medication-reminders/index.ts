@@ -217,9 +217,13 @@ async function sendCaregiverMissed(
  * dose_slot.remind_enabled(RPC가 이미 필터)로 대체되므로 통과시킨다.
  */
 function isMuted(prefs: Record<string, boolean>, target: DoseTarget): boolean {
-  // 구 경로: meal_time prefs로 끈 경우 존중
+  // 신규 dose_slot 타겟: get_meds_at_time 이 이미 dose_slots.remind_enabled 로 필터함.
+  //   → legacy med_time_notif_prefs[mealTime] 로 추가 차단하면, 새 토글(remind_enabled)을
+  //     켜도 옛 prefs(예: morning:false)가 남아 알림이 막히는 desync 버그가 생긴다.
+  //   → dose_slot 타겟은 remind_enabled 를 단일 진실로 삼고 추가 차단하지 않는다.
+  if (target.doseSlotId) return false
+  // 구 경로(legacy, doseSlotId 없음): meal_time prefs로 끈 경우만 존중
   if (target.mealTime && prefs[target.mealTime] === false) return true
-  // 신규 경로: RPC가 이미 remind_enabled로 필터함 → 추가 차단 없음
   return false
 }
 
@@ -320,6 +324,8 @@ Deno.serve(async (_req: Request) => {
 
     const prefs = (patient.med_time_notif_prefs ?? {}) as Record<string, boolean>
     const soundPrefs = (patient.med_time_sound_prefs ?? {}) as Record<string, string | null>
+    // 환자가 1차 미복용 알림을 끈 경우 발송 안 함
+    if (prefs.missed_first === false) continue
     // 미복용 1차 전용 알림음 (없으면 med_time_sound_prefs로 fallback)
     const missedSounds = await getMissedSoundPrefs(patientId)
 
@@ -366,8 +372,8 @@ Deno.serve(async (_req: Request) => {
 
       const channelId = missedChannelFor(missedSounds.second, soundPrefs, target)
 
-      // 환자에게 2차 알림
-      if (patient.push_token) {
+      // 환자에게 2차 알림 (환자가 2차 미복용 알림을 끈 경우 보내지 않음 — 보호자 알림은 아래에서 독립 처리)
+      if (patient.push_token && prefs.missed_second !== false) {
         const data = { type: 'missed_medication_second', mealTime: target.mealTime, doseSlotId: target.doseSlotId }
         await sendPush(
           patient.push_token,
