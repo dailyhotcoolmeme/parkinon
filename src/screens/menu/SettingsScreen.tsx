@@ -2563,10 +2563,9 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'flex-start',
     gap: 8,
-    backgroundColor: Colors.light,
-    borderRadius: 12,
-    paddingHorizontal: 14,
-    paddingVertical: 12,
+    backgroundColor: 'transparent',
+    paddingHorizontal: 2,
+    paddingVertical: 6,
     marginBottom: 4,
   },
   caregiverNoteText: {
