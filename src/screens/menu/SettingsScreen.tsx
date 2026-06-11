@@ -1726,8 +1726,9 @@ export function SettingsScreen() {
           </View>
         )}
 
-        {/* ── Card: 환자 알림 수정 (보호자만) ── */}
+        {/* ── Card: 환자 알림 수정 (보호자만) — 헤더만 카드, 내용은 아래 최상위로(환자와 동일 구조) ── */}
         {isCaregiver && (
+          <>
           <View style={[styles.card, styles.cardMarginTop]}>
             <TouchableOpacity
               activeOpacity={0.8}
@@ -1753,11 +1754,12 @@ export function SettingsScreen() {
                 color={Colors.textSub}
               />
             </TouchableOpacity>
+          </View>
 
             {showPatientNotifs && (
                 <>
                   {/* ── 환자 전체 알림 (보호자가 환자 대신 ON/OFF) ── */}
-                  <View style={{ marginTop: 12, marginHorizontal: 12, borderRadius: 12, borderWidth: 1, borderColor: Colors.border, backgroundColor: Colors.white }}>
+                  <View style={{ marginTop: 12, borderRadius: 12, borderWidth: 1, borderColor: Colors.border, backgroundColor: Colors.white }}>
                     <View style={[styles.notifRow, styles.notifRowTop, { borderTopWidth: 0, paddingHorizontal: 16 }]}>
                       <View style={styles.notifLeft}>
                         <Text style={styles.notifTitle}>전체 알림</Text>
@@ -1778,7 +1780,7 @@ export function SettingsScreen() {
 
                   {/* ── 약 미복용 알림 (파란색, 시각별 아님 · 환자 전역) ── */}
                   {patientActiveMedSlots.length > 0 && (
-                    <View style={{ marginTop: 10, marginHorizontal: 12, borderRadius: 12, overflow: 'hidden', borderWidth: 1, borderColor: '#BBDEFB' }}>
+                    <View style={{ marginTop: 10, borderRadius: 12, overflow: 'hidden', borderWidth: 1, borderColor: '#BBDEFB' }}>
                       <View style={{ flexDirection: 'row', alignItems: 'center', backgroundColor: '#E3F2FD', paddingHorizontal: 16, paddingVertical: 12 }}>
                         <Ionicons name="alarm-outline" size={20} color="#1565C0" style={{ marginRight: 10 }} />
                         <Text style={{ fontSize: 17, fontWeight: '700', color: '#1565C0' }}>약 미복용 알림</Text>
@@ -1813,7 +1815,7 @@ export function SettingsScreen() {
                   )}
 
                   {/* ── 서브카드 3: 운동 알림 (초록) ── */}
-                  <View style={{ marginTop: 10, marginHorizontal: 12, marginBottom: 12, borderRadius: 12, overflow: 'hidden', borderWidth: 1, borderColor: '#C8E6C9' }}>
+                  <View style={{ marginTop: 10, marginBottom: 12, borderRadius: 12, overflow: 'hidden', borderWidth: 1, borderColor: '#C8E6C9' }}>
                     <View style={{ flexDirection: 'row', alignItems: 'center', backgroundColor: '#E8F5E9', paddingHorizontal: 16, paddingVertical: 12 }}>
                       <Ionicons name="fitness-outline" size={20} color="#2E7D32" style={{ marginRight: 10 }} />
                       <Text style={{ fontSize: 17, fontWeight: '700', color: '#2E7D32' }}>운동 알림</Text>
@@ -1861,7 +1863,7 @@ export function SettingsScreen() {
                   </View>
                 </>
             )}
-          </View>
+          </>
         )}
 
       </ScrollView>
