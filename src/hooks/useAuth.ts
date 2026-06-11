@@ -388,9 +388,9 @@ export function useAuthProvider(): UseAuthReturn {
       }
     }).catch(() => { if (mounted) setLoading(false); });
 
-    // 안전장치: 어떤 이유로든 8초 내 로딩이 안 풀리면 강제 해제(무한 흰 화면 방지 — 최소
-    // 로그인 화면이라도 보이게).
-    const loadingSafety = setTimeout(() => { if (mounted) setLoading(false); }, 8000);
+    // 안전장치: 어떤 이유로든 로딩이 안 풀리면 강제 해제(무한 흰 화면 방지 — 최소 로그인
+    // 화면이라도 보이게). 만료 세션 복원 실패 등으로 오래 걸릴 때 대기를 짧게.
+    const loadingSafety = setTimeout(() => { if (mounted) setLoading(false); }, 3000);
 
     return () => {
       mounted = false;
