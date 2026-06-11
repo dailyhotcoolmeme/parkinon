@@ -136,6 +136,10 @@ export function useDoseSlots(): UseDoseSlotsReturn {
   const [slots, setSlots] = useState<DoseSlot[]>([]);
   const [loading, setLoading] = useState(true);
   const mounted = useRef(true);
+  // realtime 채널 이름은 훅 인스턴스마다 고유해야 한다. (여러 화면이 같은 환자의
+  // useDoseSlots 를 동시에 쓰면 같은 이름의 채널을 재사용 → subscribe 후 .on() 추가
+  // 시도로 크래시) 인스턴스별 고유 suffix 로 충돌 방지.
+  const rtChannelId = useRef(Math.random().toString(36).slice(2, 10));
 
   useEffect(() => {
     mounted.current = true;
@@ -186,7 +190,7 @@ export function useDoseSlots(): UseDoseSlotsReturn {
   useEffect(() => {
     if (!patientId) return;
     const channel = supabase
-      .channel(`dose-slots-rt-${patientId}`)
+      .channel(`dose-slots-rt-${patientId}-${rtChannelId.current}`)
       .on(
         'postgres_changes',
         { event: '*', schema: 'public', table: 'dose_slots', filter: `patient_id=eq.${patientId}` },
