@@ -292,7 +292,9 @@ export function useMedication(): UseMedicationReturn {
         })
       ).catch(() => {});
 
-      // DB INSERT 성공 후 알림 처리 (실패해도 전체 함수에 영향 없음)
+      // DB INSERT 성공 후 알림/큐/뱃지 처리 — 복용 직후 팝업을 즉시 띄우기 위해
+      // 느린 엣지함수 invoke 들을 await 하지 않고 백그라운드로 보낸다(복용 기록은 이미 저장됨).
+      void (async () => {
       try {
         // 약효 추적 알림 큐잉.
         //  - 신규 분기(doseSlotId 존재): 서버가 dose_slot.track_enabled 로 게이트.
@@ -411,8 +413,9 @@ export function useMedication(): UseMedicationReturn {
         // 약 기록 자체는 이미 성공이므로 silent
         console.error('[useMedication] 알림 읽음 처리 실패 (복용 기록은 저장됨):', markReadErr);
       }
+      })();
 
-      // 오늘 현황 갱신
+      // 오늘 현황 갱신 (카드 반영 — 빠른 읽기라 유지)
       await fetchTodayStatus();
       // 7단계: 방금 기록한 복용의 식별자 반환(즉시 몸상태 팝업 경로의 슬롯 귀속용).
       //   doseSlotId 는 보충 후 effective 값, medLogId 는 insert 의 .select('id') 결과.

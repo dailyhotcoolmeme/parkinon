@@ -305,7 +305,15 @@ export function RecordSoundScreen() {
           title: '수정 완료',
           message: '알림음이 수정되었어요.',
         });
-        navigation.goBack();
+        // 목록 화면이 즉시 반영하도록 변경분 전달 (복제 지연으로 재조회가 옛 값일 수 있어 대비)
+        navigation.navigate('AlarmSoundSettings', {
+          updatedSound: {
+            id: editSoundId,
+            label: finalLabel,
+            public_url: newUrl, // null이면 목록이 기존 소리 유지
+            duration_ms: newDuration,
+          },
+        });
         return;
       }
 

@@ -143,7 +143,8 @@ export function useBodyState(): UseBodyStateReturn {
       // 오늘 기록 갱신
       await fetchTodayLogs();
 
-      // 보호자에게 푸시 알림
+      // 보호자에게 푸시 알림 — 기록 직후 다음 안내 팝업을 즉시 띄우기 위해 백그라운드로(await 안 함)
+      void (async () => {
       try {
         if (user.patient_group_id) {
           const { data: caregivers } = await supabase
@@ -207,6 +208,7 @@ export function useBodyState(): UseBodyStateReturn {
       } catch (notifErr) {
         console.error('[useBodyState] 보호자 푸시 실패 (기록은 저장됨):', notifErr);
       }
+      })();
 
       return true;
     } catch (err: any) {

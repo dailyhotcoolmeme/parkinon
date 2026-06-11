@@ -49,7 +49,10 @@ export type RootStackParamList = {
   // editSoundId/editLabel 이 오면 수정 모드(기존 행 UPDATE). 없으면 신규 등록.
   RecordSound: { editSoundId?: string; editLabel?: string } | undefined;
   // 알림음 설정 화면 — 저장된 녹음 미리듣기/설정/삭제 + 새 녹음 진입
-  AlarmSoundSettings: undefined;
+  // updatedSound: RecordSound 수정 후 돌아올 때 변경분 전달(즉시 반영용)
+  AlarmSoundSettings:
+    | { updatedSound?: { id: string; label?: string; public_url?: string | null; duration_ms?: number | null } }
+    | undefined;
 };
 
 const Stack = createStackNavigator<RootStackParamList>();

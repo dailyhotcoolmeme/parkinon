@@ -10,7 +10,7 @@ import {
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
-import { useFocusEffect } from '@react-navigation/native';
+import { useFocusEffect, useRoute, useNavigation } from '@react-navigation/native';
 import { Audio } from 'expo-av';
 import notifee from '@notifee/react-native';
 import { ensureRecordedChannel, provisionForUser } from '../../lib/alarmSound';
@@ -44,6 +44,8 @@ function formatDate(iso: string): string {
 export function AlarmSoundSettingsScreen() {
   const { user } = useAuth();
   const dialog = useDialog();
+  const route = useRoute<any>();
+  const navigation = useNavigation<any>();
 
   const [loading, setLoading] = useState(true);
   const [sounds, setSounds] = useState<CustomSound[]>([]);
@@ -52,6 +54,11 @@ export function AlarmSoundSettingsScreen() {
   const [deletingId, setDeletingId] = useState<string | null>(null);
 
   const soundRef = useRef<Audio.Sound | null>(null);
+  // 복제 지연으로 load() 가 옛 데이터를 줘도 화면이 되돌아가지 않도록 하는 낙관적 보정 큐.
+  //  - 삭제: 서버 목록에 아직 남아 있어도 숨김. 서버가 따라잡으면(목록에서 사라지면) 정리.
+  //  - 수정: 서버 라벨/URL 이 옛 값이면 새 값으로 덮어 표시. 서버가 새 값이 되면 보정 해제.
+  const pendingDeleteIdsRef = useRef<Set<string>>(new Set());
+  const pendingEditsRef = useRef<Record<string, Partial<CustomSound>>>({});
 
   // 언마운트 시 재생 리소스 정리
   useEffect(() => {
@@ -85,7 +92,31 @@ export function AlarmSoundSettingsScreen() {
         .order('created_at', { ascending: false });
 
       const sList = ((soundsRes.data as any[]) ?? []) as CustomSound[];
-      setSounds(sList);
+      // 낙관적 보정 적용 (삭제 숨김 / 수정 덮어쓰기), 서버가 따라잡은 항목은 보정 해제
+      const delIds = pendingDeleteIdsRef.current;
+      const edits = pendingEditsRef.current;
+      const seen = new Set<string>();
+      const merged: CustomSound[] = [];
+      for (const s of sList) {
+        seen.add(s.id);
+        if (delIds.has(s.id)) continue; // 삭제 대기 → 숨김
+        const e = edits[s.id];
+        if (e) {
+          const labelDone = e.label === undefined || s.label === e.label;
+          const urlDone = e.public_url == null || s.public_url === e.public_url;
+          if (labelDone && urlDone) {
+            delete edits[s.id]; // 서버 반영 완료 → 보정 해제
+            merged.push(s);
+          } else {
+            merged.push({ ...s, ...e });
+          }
+        } else {
+          merged.push(s);
+        }
+      }
+      // 서버 목록에서 사라진 삭제대기 id 정리 (서버가 따라잡음)
+      for (const id of Array.from(delIds)) if (!seen.has(id)) delIds.delete(id);
+      setSounds(merged);
       // 기기에 현재 알림음 설정 전체(기본 + 항목별 목소리) 반영
       provisionForUser(user.id, user.patient_group_id ?? null).catch(() => {});
     } catch (e) {
@@ -94,6 +125,23 @@ export function AlarmSoundSettingsScreen() {
       setLoading(false);
     }
   }, [user]);
+
+  // 수정 화면(RecordSound)에서 돌아올 때 전달된 변경분을 즉시 반영 (복제 지연 대비)
+  useEffect(() => {
+    const u = route.params?.updatedSound as
+      | { id: string; label?: string; public_url?: string | null; duration_ms?: number | null }
+      | undefined;
+    if (!u?.id) return;
+    const patch: Partial<CustomSound> = {};
+    if (u.label !== undefined) patch.label = u.label;
+    if (u.public_url) {
+      patch.public_url = u.public_url;
+      if (u.duration_ms !== undefined && u.duration_ms !== null) patch.duration_ms = u.duration_ms;
+    }
+    pendingEditsRef.current[u.id] = { ...(pendingEditsRef.current[u.id] ?? {}), ...patch };
+    setSounds((prev) => prev.map((s) => (s.id === u.id ? { ...s, ...patch } : s)));
+    navigation.setParams({ updatedSound: undefined }); // 소비 후 제거 (재병합 방지)
+  }, [route.params?.updatedSound, navigation]);
 
   // 진입/복귀마다 갱신 + 떠날 때 재생 정리
   useFocusEffect(
@@ -219,8 +267,9 @@ export function AlarmSoundSettingsScreen() {
         return;
       }
 
-      // 목록 갱신
-      await load();
+      // 즉시 목록에서 제거 + 삭제 대기 큐 등록 (복제 지연 재조회가 되살리지 못하게)
+      pendingDeleteIdsRef.current.add(item.id);
+      setSounds((prev) => prev.filter((s) => s.id !== item.id));
     } catch (e) {
       dialog.alert({
         title: '삭제에 실패했어요',
