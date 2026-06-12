@@ -26,8 +26,15 @@ interface Props {
   visible: boolean;
   onClose: () => void;
   onSave: (data: SaveData) => void;
+  onGoExercise?: () => void;
   showSleep?: boolean;
   showConstipation?: boolean;
+  /** 'edit' 이면 각 단계에 기존 점수를 미리 선택한 상태로 연다(기록 수정용). */
+  mode?: 'create' | 'edit';
+  initialBody?: number | null;
+  initialMood?: number | null;
+  initialSleep?: number | null;
+  initialConstipation?: boolean | null;
 }
 
 type Step = 'body' | 'mood' | 'sleep' | 'constipation';
@@ -72,7 +79,13 @@ export function BodyStatePopupFlow({
   onSave,
   showSleep = false,
   showConstipation = false,
+  mode = 'create',
+  initialBody = null,
+  initialMood = null,
+  initialSleep = null,
+  initialConstipation = null,
 }: Props) {
+  const isEdit = mode === 'edit';
   const insets = useSafeAreaInsets();
   const dialog = useDialog();
   const [step, setStep] = useState<Step>('body');
@@ -97,10 +110,11 @@ export function BodyStatePopupFlow({
   useEffect(() => {
     if (visible) {
       setStep('body');
-      setBodyScore(null); bsRef.current = null;
-      setMoodScore(null); msRef.current = null;
-      setSleepScore(null); ssRef.current = null;
-      setConstipation(null); cRef.current = null;
+      // 수정 모드: 기존 점수를 미리 선택. 입력 모드: 빈 값.
+      setBodyScore(initialBody); bsRef.current = initialBody;
+      setMoodScore(initialMood); msRef.current = initialMood;
+      setSleepScore(initialSleep); ssRef.current = initialSleep;
+      setConstipation(initialConstipation); cRef.current = initialConstipation;
       slideAnim.setValue(80);
       contentSlide.setValue(0);
       contentOpacity.setValue(1);
@@ -187,7 +201,7 @@ export function BodyStatePopupFlow({
           <View style={[styles.stepBanner, { backgroundColor: '#FFF8E1' }]}>
             <View style={styles.stepBannerText}>
               <Text style={[styles.stepBannerLabel, { color: '#F57F17' }]}>
-                변비  {currentIndex + 1}/{orderedSteps.length}단계
+                변비{isEdit ? ' 수정' : ''}  {currentIndex + 1}/{orderedSteps.length}단계
               </Text>
               <Text style={styles.stepTitle}>오늘 변비 증상이 있으셨나요?</Text>
             </View>
@@ -224,7 +238,7 @@ export function BodyStatePopupFlow({
         <View style={[styles.stepBanner, { backgroundColor: cfg.bgColor }]}>
           <View style={styles.stepBannerText}>
             <Text style={[styles.stepBannerLabel, { color: cfg.accentColor }]}>
-              {cfg.stepLabel}  {currentIndex + 1}/{orderedSteps.length}단계
+              {cfg.stepLabel}{isEdit ? ' 수정' : ''}  {currentIndex + 1}/{orderedSteps.length}단계
             </Text>
             <Text style={styles.stepTitle}>{cfg.title}</Text>
           </View>

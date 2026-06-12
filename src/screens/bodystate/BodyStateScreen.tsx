@@ -209,6 +209,8 @@ export function BodyStateScreen() {
   const { user, signOut } = useAuth();
   const { todayLogs, saveBodyState, fetchVideoLogs, getBodyStateLogs, refresh } = useBodyState();
   const [showFlow, setShowFlow] = useState(false);
+  // 수정 중인 기록(있으면 입력 팝업이 수정 모드로 열림). null이면 신규 입력.
+  const [editTarget, setEditTarget] = useState<BodyRecord | null>(null);
   const [showCaregiverConfirm, setShowCaregiverConfirm] = useState(false);
   const [selectedDate, setSelectedDate] = useState(new Date());
   const [showDatePicker, setShowDatePicker] = useState(false);
@@ -825,7 +827,49 @@ export function BodyStateScreen() {
     }
   };
 
+  // 기록 수정 — 입력 팝업을 수정 모드로 열기(각 단계에 기존 점수 미리 선택).
+  const handleEditRecord = (record: BodyRecord) => {
+    setEditTarget(record);
+    setShowFlow(true);
+  };
+
+  // 수정 저장 — 새 기록 생성 대신 해당 on_off_logs 행을 update(권한 게이트 RPC).
+  const handleSaveEdit = async (
+    target: BodyRecord,
+    record: { bodyScore: number; moodScore: number; sleepScore?: number; constipation?: boolean },
+  ) => {
+    setShowFlow(false);
+    setEditTarget(null);
+
+    const { error } = await supabase.rpc('update_patient_onoff_record', {
+      p_record_id: target.id,
+      p_body_state: record.bodyScore,
+      p_mood: record.moodScore,
+      p_sleep_quality: record.sleepScore ?? null,
+      p_constipation: record.constipation ?? null,
+    });
+
+    if (error) {
+      console.error('[BodyStateScreen] handleSaveEdit 오류:', error);
+      dialog.alert({ title: '수정 실패', message: '기록을 수정하지 못했어요.\n다시 시도해 주세요.' });
+      return;
+    }
+
+    setHistoryRefreshKey(k => k + 1);
+    if (isToday) {
+      await refresh();
+    } else {
+      await loadDateLogs();
+    }
+  };
+
   const handleSaveRecord = async (record: { bodyScore: number; moodScore: number; sleepScore?: number; constipation?: boolean }) => {
+    // 수정 모드: 새 기록 생성 대신 기존 기록 update 후 종료.
+    if (editTarget) {
+      await handleSaveEdit(editTarget, record);
+      return;
+    }
+
     // pendingMealTime은 handleOpenBodyState 또는 알림 진입 흐름에서 이미 설정됨
     // (medication_meal_time DB 컬럼에 저장될 값)
     const medicationMealTime: string | undefined = pendingMealTime ?? undefined;
@@ -1116,6 +1160,7 @@ export function BodyStateScreen() {
                     records={groupRecords}
                     canCancel={canCancelRecord}
                     onCancel={handleCancelRecord}
+                    onEdit={handleEditRecord}
                   />
                 );
               });
@@ -1135,13 +1180,20 @@ export function BodyStateScreen() {
       />
       <BodyStatePopupFlow
         visible={showFlow}
-        onClose={() => setShowFlow(false)}
+        onClose={() => { setShowFlow(false); setEditTarget(null); }}
         onSave={handleSaveRecord}
         onGoExercise={() => navigateTo('Exercise')}
-        showSleep={todayLogs.length === 0}
+        mode={editTarget ? 'edit' : 'create'}
+        initialBody={editTarget?.bodyScore ?? null}
+        initialMood={editTarget?.moodScore ?? null}
+        initialSleep={editTarget?.sleepScore ?? null}
+        initialConstipation={editTarget?.constipation ?? null}
+        showSleep={editTarget ? editTarget.sleepScore !== undefined : todayLogs.length === 0}
         showConstipation={
-          pendingMealTime === 'bedtime' ||
-          (pendingMealTime === 'dinner' && !hasBedtimeMedication)
+          editTarget
+            ? editTarget.constipation !== undefined
+            : (pendingMealTime === 'bedtime' ||
+               (pendingMealTime === 'dinner' && !hasBedtimeMedication))
         }
       />
       <DatePickerModal
@@ -1209,11 +1261,13 @@ function RecordRow({
   isLast,
   canCancel,
   onCancel,
+  onEdit,
 }: {
   record: BodyRecord;
   isLast: boolean;
   canCancel: boolean;
   onCancel: (id: string) => void;
+  onEdit: (record: BodyRecord) => void;
 }) {
   const badgeBg = PERIOD_BADGE_BG[record.period] ?? 'rgba(0,0,0,0.08)';
   const badgeText = PERIOD_BADGE_TEXT[record.period] ?? '#333';
@@ -1237,18 +1291,28 @@ function RecordRow({
             {record.trigger}
           </Text>
         </View>
-        {/* 시간 + 취소 버튼 — 취소는 시간 오른쪽에 배치 */}
-        <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10 }}>
+        {/* 시간 + 수정/삭제 아이콘 — 시간 오른쪽에 배치(알림 설정과 동일 아이콘) */}
+        <View style={{ flexDirection: 'row', alignItems: 'center' }}>
           <Text style={{ fontSize: 16, color: '#999' }}>{record.time}</Text>
           {canCancel && (
-            <TouchableOpacity
-              style={styles.cancelRecordBtn}
-              onPress={() => onCancel(record.id)}
-              hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
-              activeOpacity={0.7}
-            >
-              <Text style={styles.cancelRecordBtnText}>취소</Text>
-            </TouchableOpacity>
+            <>
+              <TouchableOpacity
+                style={styles.recordIconBtn}
+                onPress={() => onEdit(record)}
+                hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+                activeOpacity={0.7}
+              >
+                <Ionicons name="create-outline" size={22} color={Colors.textSub} />
+              </TouchableOpacity>
+              <TouchableOpacity
+                style={styles.recordIconBtnDelete}
+                onPress={() => onCancel(record.id)}
+                hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+                activeOpacity={0.7}
+              >
+                <Ionicons name="trash-outline" size={22} color={Colors.danger} />
+              </TouchableOpacity>
+            </>
           )}
         </View>
       </View>
@@ -1290,6 +1354,7 @@ function MealSectionCard({
   records,
   canCancel,
   onCancel,
+  onEdit,
 }: {
   period: string;
   /** 헤더 표시 텍스트(slotTitle). 없으면 period 사용 */
@@ -1297,6 +1362,7 @@ function MealSectionCard({
   records: BodyRecord[];
   canCancel: boolean;
   onCancel: (id: string) => void;
+  onEdit: (record: BodyRecord) => void;
 }) {
   // 색·아이콘은 시간대 키(period) 기준 유지, 표시 텍스트만 displayTitle
   const color = PERIOD_COLOR[period] ?? '#888';
@@ -1338,6 +1404,7 @@ function MealSectionCard({
           isLast={idx === records.length - 1}
           canCancel={canCancel}
           onCancel={onCancel}
+          onEdit={onEdit}
         />
       ))}
     </View>
@@ -1427,22 +1494,14 @@ const styles = StyleSheet.create({
     color: Colors.textSub,
     textAlign: 'center',
   },
-  // 기록 취소 버튼 — 작고 secondary, 터치영역 최소 44dp 확보
-  cancelRecordBtn: {
-    flexShrink: 0,
-    alignItems: 'center',
-    justifyContent: 'center',
-    paddingHorizontal: 14,
-    paddingVertical: 6,
-    borderRadius: 8,
-    borderWidth: 1,
-    borderColor: Colors.danger,
-    backgroundColor: Colors.white,
+  // 기록 수정/삭제 아이콘 버튼 — 알림 설정(DoseSlotSetList)과 동일한 스타일
+  recordIconBtn: {
+    marginLeft: 12,
+    padding: 4,
   },
-  cancelRecordBtnText: {
-    fontSize: 16,
-    fontWeight: '700',
-    color: Colors.danger,
+  recordIconBtnDelete: {
+    marginLeft: 4,
+    padding: 4,
   },
 });
 
