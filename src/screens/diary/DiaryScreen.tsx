@@ -93,7 +93,19 @@ export function DiaryScreen() {
 
   return (
     <SafeAreaView style={styles.safeArea} edges={['top']}>
-      <TopBar title="일기" showBack />
+      <TopBar
+        title="일기"
+        showBack
+        rightComponent={
+          <TouchableOpacity
+            onPress={() => setShowEditor(true)}
+            hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+            style={styles.topWriteBtn}
+          >
+            <Text style={styles.topWriteText}>{myEntry ? '수정' : '작성'}</Text>
+          </TouchableOpacity>
+        }
+      />
 
       {/* ── 날짜 헤더 (우아한 serif, 한 장의 페이지) §11-3 ── */}
       <View style={styles.dateHeader}>
@@ -162,13 +174,6 @@ export function DiaryScreen() {
               <EntryBlock entry={entry} isMine={entry.author_id === user?.id} />
             </View>
           ))}
-
-          {/* 내가 안 썼으면 쓰기 진입 / 썼으면 수정 — 조용한 한 줄 */}
-          <TouchableOpacity style={styles.writeEntryLink} onPress={() => setShowEditor(true)} activeOpacity={0.7}>
-            <Text style={styles.writeEntryText}>
-              {myEntry ? '✏️ 수정' : '✏️ 글 쓰기'}
-            </Text>
-          </TouchableOpacity>
 
           <View style={{ height: 28 }} />
         </ScrollView>
@@ -357,42 +362,47 @@ function EntryBlock({ entry, isMine }: { entry: DiaryEntry; isMine: boolean }) {
 
       {!!entry.text && <Text style={styles.entryText}>{entry.text}</Text>}
 
-      {/* 음성: surface 인라인 pill */}
+      {/* 사진: 2열 그리드(전부 보임), 탭 → 라이트박스 (시안) */}
+      {entry.photo_urls.length > 0 && (
+        <View style={styles.photoGrid}>
+          {entry.photo_urls.map((url, i) => (
+            <TouchableOpacity key={i} style={styles.gridPhoto} activeOpacity={0.85} onPress={() => setShowPhotos(true)}>
+              <Image source={{ uri: url }} style={styles.gridPhotoImg} />
+            </TouchableOpacity>
+          ))}
+        </View>
+      )}
+
+      {/* 음성: 원형 ▶ + 파형 + 라벨 pill (시안) */}
       {entry.audio_url && (
-        <TouchableOpacity style={styles.audioPill} onPress={handlePlayAudio} activeOpacity={0.8}>
-          <Ionicons name={playing ? 'stop' : 'play'} size={18} color={Journal.accent} />
-          <Text style={styles.audioPillText}>{playing ? '음성 멈춤' : '음성 듣기'}</Text>
+        <TouchableOpacity style={styles.audioPill} onPress={handlePlayAudio} activeOpacity={0.85}>
+          <View style={styles.audioPlayCircle}>
+            <Ionicons name={playing ? 'pause' : 'play'} size={13} color="#fff" />
+          </View>
+          <View style={styles.audioWave}>
+            {[8, 14, 20, 11, 16, 7].map((h, i) => (
+              <View key={i} style={[styles.audioWaveBar, { height: h }]} />
+            ))}
+          </View>
+          <Text style={styles.audioPillText}>{playing ? '멈춤' : '음성 듣기'}</Text>
         </TouchableOpacity>
       )}
 
-      {/* 사진·영상: 액자 프레임 가로 나열 */}
-      {(entry.photo_urls.length > 0 || entry.video_url) && (
-        <View style={styles.frameRow}>
-          {entry.photo_urls.length > 0 && (
-            <TouchableOpacity
-              style={styles.photoFrame}
-              activeOpacity={0.85}
-              onPress={() => setShowPhotos(true)}
-            >
-              <Image source={{ uri: entry.photo_urls[0] }} style={styles.photoFrameImg} />
-              {entry.photo_urls.length > 1 && (
-                <View style={styles.photoCountBadge}>
-                  <Text style={styles.photoCountText}>+{entry.photo_urls.length - 1}</Text>
-                </View>
-              )}
-            </TouchableOpacity>
-          )}
-
-          {entry.video_url && (
-            <TouchableOpacity style={styles.videoFrame} activeOpacity={0.85} onPress={() => setShowVideo(true)}>
-              <View style={styles.videoFrameInner}>
-                <View style={styles.playCircle}>
-                  <Ionicons name="play" size={20} color="#fff" />
-                </View>
-              </View>
-            </TouchableOpacity>
-          )}
-        </View>
+      {/* 영상: 62% 포스터 + 스크림 + 흰 재생버튼 (시안) */}
+      {entry.video_url && (
+        <TouchableOpacity style={styles.videoPoster} activeOpacity={0.9} onPress={() => setShowVideo(true)}>
+          <AVVideo
+            source={{ uri: entry.video_url }}
+            style={StyleSheet.absoluteFill}
+            resizeMode={ResizeMode.COVER}
+            shouldPlay={false}
+            isMuted
+          />
+          <View style={styles.videoScrim} />
+          <View style={styles.videoPlayBig}>
+            <Ionicons name="play" size={22} color={Journal.accent} />
+          </View>
+        </TouchableOpacity>
       )}
 
       {/* 사진 탭 → 기존 ImageGalleryViewer 라이트박스 */}
@@ -478,10 +488,12 @@ interface EditorProps {
 // RN엔 repeating-linear-gradient가 없으므로, 콘텐츠 높이를 onLayout으로 재서
 // 32px 간격마다 1px 가로선 View를 절대배치로 깔고, 그 위에 글·첨부를 얹는다.
 const RULE_SPACING = 32;
+const PAPER_PT = 14; // paperContent 상단 패딩 = 첫 글줄 시작 y
 
 function RuledPaper({ children }: { children: React.ReactNode }) {
   const [height, setHeight] = useState(0);
-  const lineCount = Math.ceil(height / RULE_SPACING);
+  // 줄은 각 글줄 박스의 '하단'에 그어서 글이 줄 위에 앉게 한다(노트 괘선).
+  const lineCount = Math.max(0, Math.ceil((height - PAPER_PT) / RULE_SPACING));
   return (
     <View
       style={styles.paper}
@@ -490,7 +502,7 @@ function RuledPaper({ children }: { children: React.ReactNode }) {
       {/* 괘선 레이어 (글·첨부 뒤) */}
       <View style={styles.ruleLayer} pointerEvents="none">
         {Array.from({ length: lineCount }).map((_, i) => (
-          <View key={i} style={[styles.ruleLine, { top: i * RULE_SPACING }]} />
+          <View key={i} style={[styles.ruleLine, { top: PAPER_PT + (i + 1) * RULE_SPACING }]} />
         ))}
       </View>
       {/* 콘텐츠 (글 + 첨부 미리보기) — 괘선 위 */}
@@ -824,7 +836,24 @@ function DiaryEditorModal({ visible, dateStr, patientId, existing, onClose, onSa
   return (
     <Modal visible={visible} animationType="slide" onRequestClose={onClose}>
       <SafeAreaView style={styles.editorSafe} edges={['top', 'bottom']}>
-        <TopBar title={existing ? '일기 수정' : '일기 작성'} showClose />
+        <TopBar
+          title={existing ? '일기 수정' : '일기 작성'}
+          showClose
+          rightComponent={
+            <TouchableOpacity
+              onPress={handleSave}
+              disabled={saving || deleting}
+              hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+              style={styles.topSaveBtn}
+            >
+              {saving ? (
+                <ActivityIndicator size="small" color={Journal.accent} />
+              ) : (
+                <Text style={styles.topSaveText}>저장</Text>
+              )}
+            </TouchableOpacity>
+          }
+        />
         <KeyboardAvoidingView
           style={styles.flex1}
           behavior={Platform.OS === 'ios' ? 'padding' : undefined}
@@ -850,41 +879,40 @@ function DiaryEditorModal({ visible, dateStr, patientId, existing, onClose, onSa
               {/* 첨부 미리보기 묶음 — 괘선 위에 그냥 얹힘(정렬 없음) */}
               {(hasAudio || hasVideo || photoUrls.length > 0 || newPhotoUris.length > 0) && (
                 <View style={styles.attBlock}>
-                  {/* 음성 첨부됨 표시 + 미리듣기 */}
+                  {/* 음성 첨부 pill: ▶ + 들어보기 · 다시 녹음 · 삭제 (시안) */}
                   {hasAudio && !recording && (
-                    <View style={styles.attachedRow}>
-                      <Ionicons name="mic" size={22} color={Journal.accent} />
-                      <TouchableOpacity
-                        style={styles.audioPreviewBtn}
-                        onPress={handlePreviewAudio}
-                        activeOpacity={0.8}
-                      >
-                        <Ionicons name={previewPlaying ? 'pause' : 'play'} size={18} color={Journal.accent} />
-                        <Text style={styles.audioPreviewText}>{previewPlaying ? '멈춤' : '들어보기'}</Text>
+                    <View style={styles.attAudio}>
+                      <TouchableOpacity style={styles.attAudioPlay} onPress={handlePreviewAudio} activeOpacity={0.85}>
+                        <Ionicons name={previewPlaying ? 'pause' : 'play'} size={16} color="#fff" />
                       </TouchableOpacity>
-                      <TouchableOpacity onPress={handleRemoveAudio} style={styles.removeBtn}>
-                        <Text style={styles.removeBtnText}>빼기</Text>
+                      <Text style={styles.attAudioLabel}>{previewPlaying ? '멈춤' : '들어보기'}</Text>
+                      <TouchableOpacity onPress={handleToggleRecord} hitSlop={{ top: 8, bottom: 8, left: 6, right: 6 }}>
+                        <Text style={styles.attAudioAction}>다시 녹음</Text>
+                      </TouchableOpacity>
+                      <TouchableOpacity onPress={handleRemoveAudio} hitSlop={{ top: 8, bottom: 8, left: 6, right: 6 }}>
+                        <Text style={styles.attAudioAction}>삭제</Text>
                       </TouchableOpacity>
                     </View>
                   )}
 
-                  {/* 영상 첨부됨 표시 + 미리보기(탭하면 재생) */}
-                  {hasVideo && (
-                    <View style={styles.attachedRow}>
-                      <TouchableOpacity
-                        style={styles.videoPreviewFrame}
-                        activeOpacity={0.85}
-                        onPress={() => setShowVideoPreview(true)}
-                      >
-                        <View style={styles.videoPreviewInner}>
-                          <View style={styles.playCircle}>
-                            <Ionicons name="play" size={18} color="#fff" />
-                          </View>
+                  {/* 영상 첨부: 120×74 포스터 + 스크림 + 재생 + ✕ (시안) */}
+                  {hasVideo && (newVideoUri || existingVideoUrl) && (
+                    <View style={styles.attVidWrap}>
+                      <TouchableOpacity style={styles.attVid} activeOpacity={0.85} onPress={() => setShowVideoPreview(true)}>
+                        <AVVideo
+                          source={{ uri: (newVideoUri ?? existingVideoUrl) as string }}
+                          style={StyleSheet.absoluteFill}
+                          resizeMode={ResizeMode.COVER}
+                          shouldPlay={false}
+                          isMuted
+                        />
+                        <View style={styles.videoScrim} />
+                        <View style={styles.attVidPlay}>
+                          <Ionicons name="play" size={16} color={Journal.accent} />
                         </View>
                       </TouchableOpacity>
-                      <Text style={styles.attachedText}>영상이 첨부되었어요</Text>
-                      <TouchableOpacity onPress={handleRemoveVideo} style={styles.removeBtn}>
-                        <Text style={styles.removeBtnText}>빼기</Text>
+                      <TouchableOpacity style={styles.attVidX} onPress={handleRemoveVideo}>
+                        <Ionicons name="close" size={14} color={Journal.accent} />
                       </TouchableOpacity>
                     </View>
                   )}
@@ -916,37 +944,6 @@ function DiaryEditorModal({ visible, dateStr, patientId, existing, onClose, onSa
               )}
             </RuledPaper>
 
-            {/* 첨부 도구막대 (키보드 위) — [📷 사진] [🎬 동영상] [🎙 음성] */}
-            <View style={styles.attachChipRow}>
-              <TouchableOpacity style={styles.attachChip} onPress={handleAddPhoto} activeOpacity={0.8}>
-                <Text style={styles.attachChipText}>📷 사진</Text>
-              </TouchableOpacity>
-              <TouchableOpacity
-                style={styles.attachChip}
-                onPress={hasVideo ? handleRemoveVideo : handlePickVideo}
-                activeOpacity={0.8}
-              >
-                <Text style={styles.attachChipText}>{hasVideo ? '🎬 동영상 ✓' : '🎬 동영상'}</Text>
-              </TouchableOpacity>
-              <TouchableOpacity
-                style={[styles.attachChip, recording && styles.attachChipActive]}
-                onPress={handleToggleRecord}
-                activeOpacity={0.8}
-              >
-                <Text style={[styles.attachChipText, recording && styles.attachChipTextActive]}>
-                  {recording ? '⏹ 녹음 멈추기' : hasAudio ? '🎙 음성 ✓' : '🎙 음성'}
-                </Text>
-              </TouchableOpacity>
-            </View>
-
-            {/* 영상 촬영 진입 (첨부 없을 때) */}
-            {!hasVideo && (
-              <TouchableOpacity style={styles.recordVideoLink} onPress={handleRecordVideo} activeOpacity={0.8}>
-                <Ionicons name="camera-outline" size={20} color={Journal.inkSoft} />
-                <Text style={styles.recordVideoLinkText}>영상 촬영하기</Text>
-              </TouchableOpacity>
-            )}
-
             {/* 내가 쓴 글일 때만 — 조용한 삭제 버튼 (주연 아님) */}
             {existing && (
               <TouchableOpacity
@@ -966,21 +963,26 @@ function DiaryEditorModal({ visible, dateStr, patientId, existing, onClose, onSa
             <View style={{ height: 24 }} />
           </ScrollView>
 
-          <View style={styles.editorBottom}>
+          {/* 도구막대 (키보드 위 고정) — [📷 사진] [🎬 동영상] [🎙 음성] */}
+          <View style={styles.toolbarBar}>
+            <TouchableOpacity style={styles.tool} onPress={handleAddPhoto} activeOpacity={0.8}>
+              <Text style={styles.toolText}>📷 사진</Text>
+            </TouchableOpacity>
             <TouchableOpacity
-              style={[styles.saveBtn, (saving || deleting) && styles.saveBtnDisabled]}
-              onPress={handleSave}
-              activeOpacity={0.85}
-              disabled={saving || deleting}
+              style={styles.tool}
+              onPress={hasVideo ? handleRemoveVideo : handlePickVideo}
+              activeOpacity={0.8}
             >
-              {saving ? (
-                <View style={styles.savingRow}>
-                  <ActivityIndicator color="#fff" />
-                  <Text style={styles.saveBtnText}>{saveStage ?? '저장 중'}</Text>
-                </View>
-              ) : (
-                <Text style={styles.saveBtnText}>저장</Text>
-              )}
+              <Text style={styles.toolText}>{hasVideo ? '🎬 동영상 ✓' : '🎬 동영상'}</Text>
+            </TouchableOpacity>
+            <TouchableOpacity
+              style={[styles.tool, recording && styles.toolActive]}
+              onPress={handleToggleRecord}
+              activeOpacity={0.8}
+            >
+              <Text style={[styles.toolText, recording && styles.toolTextActive]}>
+                {recording ? '⏹ 멈추기' : hasAudio ? '🎙 음성 ✓' : '🎙 음성'}
+              </Text>
             </TouchableOpacity>
           </View>
         </KeyboardAvoidingView>
@@ -1048,7 +1050,20 @@ const styles = StyleSheet.create({
   entryRole: { fontSize: 12, fontWeight: '500', color: Journal.inkFaint },
   entryText: { fontFamily: SERIF, fontSize: 16, fontWeight: '400', lineHeight: 26, color: Journal.ink },
 
-  // ── 음성: surface 인라인 pill §11-3 ──
+  // ── 사진 2열 그리드 (시안) ──
+  photoGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: 8, marginTop: 14 },
+  gridPhoto: {
+    width: '48%',
+    aspectRatio: 1,
+    borderRadius: 8,
+    borderWidth: 1,
+    borderColor: Journal.rule,
+    overflow: 'hidden',
+    backgroundColor: Journal.rule,
+  },
+  gridPhotoImg: { width: '100%', height: '100%' },
+
+  // ── 음성: 원형 ▶ + 파형 + 라벨 pill (시안) ──
   audioPill: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -1062,7 +1077,41 @@ const styles = StyleSheet.create({
     borderColor: Journal.rule,
     marginTop: 14,
   },
-  audioPillText: { fontSize: 14, fontWeight: '600', color: Journal.accent },
+  audioPlayCircle: {
+    width: 26,
+    height: 26,
+    borderRadius: 13,
+    backgroundColor: Journal.accent,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  audioWave: { flexDirection: 'row', alignItems: 'center', gap: 3 },
+  audioWaveBar: { width: 3, borderRadius: 2, backgroundColor: Journal.inkFaint },
+  audioPillText: { fontSize: 13, fontWeight: '500', color: Journal.inkSoft },
+
+  // ── 영상: 62% 포스터 + 스크림 + 흰 재생버튼 (시안) ──
+  videoPoster: {
+    width: '62%',
+    aspectRatio: 16 / 10,
+    borderRadius: 10,
+    borderWidth: 1,
+    borderColor: Journal.rule,
+    overflow: 'hidden',
+    backgroundColor: Journal.ink,
+    marginTop: 14,
+  },
+  videoScrim: { ...StyleSheet.absoluteFillObject, backgroundColor: 'rgba(38,28,18,0.32)' },
+  videoPlayBig: {
+    position: 'absolute',
+    top: 0, left: 0, right: 0, bottom: 0,
+    margin: 'auto',
+    width: 46,
+    height: 46,
+    borderRadius: 23,
+    backgroundColor: 'rgba(255,255,255,0.92)',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
 
   // ── 사진·영상 액자 프레임 §11-3 (surface 매트 + 옅은 그림자, radius 3) ──
   frameRow: { flexDirection: 'row', flexWrap: 'wrap', gap: 12, marginTop: 14 },
@@ -1205,6 +1254,10 @@ const styles = StyleSheet.create({
   },
   trendLinkText: { fontSize: 13, fontWeight: '600', color: Journal.accent },
 
+  // 상단 우측 작성/수정 버튼
+  topWriteBtn: { paddingHorizontal: 8, paddingVertical: 8, minHeight: 40, justifyContent: 'center' },
+  topWriteText: { fontSize: 16, fontWeight: '700', color: Journal.accent },
+
   // ── 에디터 (펼친 일기장) §11-4 ──
   editorSafe: { flex: 1, backgroundColor: Journal.pageDeep },
   editorContent: { padding: 20 },
@@ -1250,6 +1303,94 @@ const styles = StyleSheet.create({
   attachChipActive: { backgroundColor: Journal.accent },
   attachChipText: { fontSize: 14, fontWeight: '600', color: Journal.inkSoft },
   attachChipTextActive: { color: '#FAF5E9' },
+
+  // 상단 우측 저장 버튼 (에디터)
+  topSaveBtn: { paddingHorizontal: 8, paddingVertical: 8, minHeight: 40, justifyContent: 'center' },
+  topSaveText: { fontSize: 16, fontWeight: '700', color: Journal.accent },
+
+  // 도구막대 (키보드 위 고정)
+  toolbarBar: {
+    flexDirection: 'row',
+    gap: 10,
+    paddingHorizontal: 14,
+    paddingVertical: 10,
+    borderTopWidth: 1,
+    borderTopColor: Journal.rule,
+    backgroundColor: Journal.page,
+  },
+  tool: {
+    flex: 1,
+    height: 46,
+    borderRadius: 10,
+    backgroundColor: Journal.surface,
+    borderWidth: 1,
+    borderColor: Journal.rule,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  toolText: { fontSize: 14, fontWeight: '600', color: Journal.inkSoft },
+  toolActive: { backgroundColor: Journal.accent, borderColor: Journal.accent },
+  toolTextActive: { color: '#FAF5E9' },
+
+  // 음성 첨부 pill (에디터, 시안)
+  attAudio: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 14,
+    alignSelf: 'flex-start',
+    backgroundColor: Journal.surface,
+    borderWidth: 1,
+    borderColor: Journal.rule,
+    borderRadius: 12,
+    paddingHorizontal: 14,
+    paddingVertical: 10,
+  },
+  attAudioPlay: {
+    width: 30,
+    height: 30,
+    borderRadius: 15,
+    backgroundColor: Journal.accent,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  attAudioLabel: { fontSize: 13, fontWeight: '500', color: Journal.inkSoft },
+  attAudioAction: { fontSize: 13, fontWeight: '600', color: Journal.accent },
+
+  // 영상 첨부 프레임 (에디터, 시안)
+  attVidWrap: { width: 120, height: 74, alignSelf: 'flex-start' },
+  attVid: {
+    width: 120,
+    height: 74,
+    borderRadius: 8,
+    overflow: 'hidden',
+    borderWidth: 1,
+    borderColor: Journal.rule,
+    backgroundColor: Journal.ink,
+  },
+  attVidPlay: {
+    position: 'absolute',
+    top: 0, left: 0, right: 0, bottom: 0,
+    margin: 'auto',
+    width: 34,
+    height: 34,
+    borderRadius: 17,
+    backgroundColor: 'rgba(255,255,255,0.92)',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  attVidX: {
+    position: 'absolute',
+    top: -7,
+    right: -7,
+    width: 22,
+    height: 22,
+    borderRadius: 11,
+    backgroundColor: '#fff',
+    borderWidth: 1,
+    borderColor: Journal.rule,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
   recordVideoLink: {
     flexDirection: 'row',
     alignItems: 'center',
