@@ -21,6 +21,7 @@ import { useAuth } from '../../context/AuthContext';
 import { useBodyState } from '../../hooks/useBodyState';
 import { triggerLabelToText, mealTimeToKorean, mealTimeToPeriod } from '../../utils/medUtils';
 import { fetchPatientDoseSlots, resolveDisplaySlots } from '../../hooks/useDoseSlots';
+import { useScrollTopOnTabPress } from '../../hooks/useScrollTopOnTabPress';
 import type { DoseSlot } from '../../hooks/useDoseSlots';
 import { nextDoseLabel, slotSortValue, buildSlotTitleMaps } from '../../constants/doseSlots';
 import { navigateTo } from '../../navigation/navigationRef';
@@ -209,6 +210,9 @@ export function BodyStateScreen() {
   const { user, signOut } = useAuth();
   const { todayLogs, saveBodyState, fetchVideoLogs, getBodyStateLogs, refresh } = useBodyState();
   const [showFlow, setShowFlow] = useState(false);
+  // 탭 버튼 누를 때 항상 맨 위로
+  const scrollRef = useRef<ScrollView>(null);
+  useScrollTopOnTabPress(scrollRef);
   // 수정 중인 기록(있으면 입력 팝업이 수정 모드로 열림). null이면 신규 입력.
   const [editTarget, setEditTarget] = useState<BodyRecord | null>(null);
   const [showCaregiverConfirm, setShowCaregiverConfirm] = useState(false);
@@ -1024,7 +1028,7 @@ export function BodyStateScreen() {
         </TouchableOpacity>
       </View>
 
-      <ScrollView style={styles.scroll} showsVerticalScrollIndicator={false} contentContainerStyle={styles.scrollContent}>
+      <ScrollView ref={scrollRef} style={styles.scroll} showsVerticalScrollIndicator={false} contentContainerStyle={styles.scrollContent}>
         {/* 버튼 영역 */}
         <View style={styles.centerBlock}>
           <TouchableOpacity

@@ -21,6 +21,7 @@ import { navigateTo } from '../../navigation/navigationRef';
 import { useDialog } from '../../context/DialogContext';
 import { ensureNotGuest } from '../../utils/guestGuard';
 import { MEASUREMENT_FEATURE_ENABLED } from '../../constants/featureFlags';
+import { useScrollTopOnTabPress } from '../../hooks/useScrollTopOnTabPress';
 
 type NavigationProp = StackNavigationProp<MenuStackParamList, 'MenuHome'>;
 type IoniconName = React.ComponentProps<typeof Ionicons>['name'];
@@ -126,6 +127,10 @@ export function MenuScreen() {
   const { user, signOut, refreshUser } = useAuth();
   const { unreadCount } = useNotificationBadge();
   const dialog = useDialog();
+
+  // 탭 버튼 누를 때 항상 맨 위로
+  const scrollRef = React.useRef<ScrollView>(null);
+  useScrollTopOnTabPress(scrollRef);
 
   // 화면 포커스 시 사용자 정보 갱신 (ProfileEdit 후 이름 즉시 반영)
   useFocusEffect(
@@ -339,6 +344,7 @@ export function MenuScreen() {
       />
 
       <ScrollView
+        ref={scrollRef}
         style={styles.scroll}
         contentContainerStyle={styles.scrollContent}
         showsVerticalScrollIndicator={false}

@@ -1,4 +1,4 @@
-import React, { useState, useCallback, useEffect } from 'react';
+import React, { useState, useCallback, useEffect, useRef } from 'react';
 import {
   View,
   Text,
@@ -28,6 +28,7 @@ import { HistoryTimeline } from '../../components/common/HistoryTimeline';
 import { useDialog } from '../../context/DialogContext';
 import { ensureNotGuest } from '../../utils/guestGuard';
 import { useRecordRealtime } from '../../hooks/useRecordRealtime';
+import { useScrollTopOnTabPress } from '../../hooks/useScrollTopOnTabPress';
 
 type Nav = NativeStackNavigationProp<ExerciseStackParamList, 'ExerciseMain'>;
 
@@ -63,6 +64,9 @@ function getDateLabel(date: Date): string {
 
 export function ExerciseScreen() {
   const navigation = useNavigation<Nav>();
+  // 탭 버튼 누를 때 항상 맨 위로
+  const scrollRef = useRef<ScrollView>(null);
+  useScrollTopOnTabPress(scrollRef);
   const dialog = useDialog();
   const { user, signOut } = useAuth();
   const { todayLogs, getTodayTotalMinutes, getExerciseLogs, cancelExercise, loading, error, refresh } = useExercise();
@@ -219,7 +223,7 @@ export function ExerciseScreen() {
         </TouchableOpacity>
       </View>
 
-      <ScrollView style={styles.scroll} showsVerticalScrollIndicator={false} contentContainerStyle={styles.scrollContent}>
+      <ScrollView ref={scrollRef} style={styles.scroll} showsVerticalScrollIndicator={false} contentContainerStyle={styles.scrollContent}>
         {/* 버튼 영역 */}
         <View style={styles.centerBlock}>
           <TouchableOpacity

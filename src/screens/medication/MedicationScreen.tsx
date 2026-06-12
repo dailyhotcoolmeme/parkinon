@@ -20,6 +20,7 @@ import { CaregiverConfirmModal } from '../../components/common/CaregiverConfirmM
 import { NotificationOnboardingModal, NOTIF_ONBOARDING_SHOWN_KEY } from '../../components/common/NotificationOnboardingModal';
 import { useMedication } from '../../hooks/useMedication';
 import { useBodyState } from '../../hooks/useBodyState';
+import { useScrollTopOnTabPress } from '../../hooks/useScrollTopOnTabPress';
 import { useAuth } from '../../context/AuthContext';
 import { DatePickerModal } from '../../components/common/DatePickerModal';
 import { navigateTo } from '../../navigation/navigationRef';
@@ -136,6 +137,10 @@ export function MedicationScreen() {
   const insets = useSafeAreaInsets();
   const { unreadCount, refreshBadge } = useNotificationBadge();
   const dialog = useDialog();
+
+  // 탭 버튼 누를 때 항상 맨 위로
+  const scrollRef = useRef<ScrollView>(null);
+  useScrollTopOnTabPress(scrollRef);
 
   // users.meal_schedules 기반 시간 표시 (약 없을 때 사용)
   const [userMealSchedules, setUserMealSchedules] = useState<Record<string, string> | null>(null);
@@ -724,7 +729,7 @@ export function MedicationScreen() {
         </TouchableOpacity>
       </View>
 
-      <ScrollView style={styles.scroll} showsVerticalScrollIndicator={false} contentContainerStyle={styles.scrollContent}>
+      <ScrollView ref={scrollRef} style={styles.scroll} showsVerticalScrollIndicator={false} contentContainerStyle={styles.scrollContent}>
         {/* 버튼 영역 */}
         <View style={styles.centerBlock}>
           <TouchableOpacity

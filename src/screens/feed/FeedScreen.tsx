@@ -17,6 +17,7 @@ import { useNotificationBadge } from '../../context/NotificationBadgeContext';
 import { navigateTo } from '../../navigation/navigationRef';
 import { CenterToast } from '../../components/common/CenterToast';
 import { useToast } from '../../hooks/useToast';
+import { useScrollTopOnTabPress } from '../../hooks/useScrollTopOnTabPress';
 import { useAuth } from '../../context/AuthContext';
 import { useDialog } from '../../context/DialogContext';
 import { ensureNotGuest } from '../../utils/guestGuard';
@@ -107,6 +108,9 @@ export function FeedScreen() {
   const dialog = useDialog();
   const scrollY = useRef(new Animated.Value(0)).current;
   const lastScrollY = useRef(0);
+  // 탭 버튼 누를 때 항상 맨 위로
+  const listRef = useRef<FlatList>(null);
+  useScrollTopOnTabPress(listRef);
   const [fabExpanded, setFabExpanded] = useState(true);
   const [posts, setPosts] = useState<PostItem[]>([]);
   const [loading, setLoading] = useState(true);
@@ -535,6 +539,7 @@ export function FeedScreen() {
           </View>
         ) : (
           <FlatList
+            ref={listRef}
             data={posts}
             keyExtractor={(item) => item.id}
             renderItem={renderItem}
