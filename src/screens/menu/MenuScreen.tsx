@@ -56,14 +56,20 @@ const MENU_SECTIONS: MenuSection[] = [
       {
         key: 'Records',
         icon: 'bar-chart-outline',
-        label: '기록 보기',
-        desc: '주간·월간 건강 기록을 확인해요',
+        label: '작성 기록 보기',
+        desc: '약복용 약효추적 기록을 확인해요',
       },
       {
         key: 'VideoList',
         icon: 'videocam-outline',
         label: '영상 기록 보기',
-        desc: '촬영한 영상 기록을 확인해요',
+        desc: '몸상태 촬영한 기록을 확인해요',
+      },
+      {
+        key: 'MedicalRecordList',
+        icon: 'medical-outline',
+        label: '진료 기록',
+        desc: '병원 진료 기록을 확인해요',
       },
     ],
   },
@@ -71,34 +77,28 @@ const MENU_SECTIONS: MenuSection[] = [
     title: '관리',
     items: [
       {
-        key: 'MedicationManage',
-        icon: 'medkit-outline',
-        label: '약 관리',
-        desc: '복용 중인 약을 추가·수정해요',
-      },
-      {
-        key: 'MedicalRecordList',
-        icon: 'medical-outline',
-        label: '진료 기록',
-        desc: '병원 진료 기록을 관리해요',
-      },
-      {
         key: 'FamilyLink',
         icon: 'people-outline',
         label: '가족 연동',
         desc: '__FAMILY_LINK_DESC__',
       },
       {
+        key: 'MedicationManage',
+        icon: 'medkit-outline',
+        label: '복용약 관리',
+        desc: '복용 중인 약을 추가·수정해요',
+      },
+      {
         key: 'Settings',
         icon: 'notifications-outline',
         label: '알림 설정',
-        desc: '약·운동 알림 시간을 설정해요',
+        desc: '약복용 약효추적 운동 알림을 설정할 수 있어요',
       },
       {
         key: 'AlarmSoundSettings',
         icon: 'mic-outline',
         label: '알림음 관리',
-        desc: '알림이 울릴 때 들리는 소리를 등록하고 관리해요',
+        desc: '알림음을 직접 등록하고 관리해요',
       },
     ],
   },
@@ -225,13 +225,8 @@ export function MenuScreen() {
     });
   }, [user?.role, hasPatientMeasurement, patientName]);
 
-  // 가족 연동 설명 텍스트 — role과 연동 여부에 따라 다르게 표시
-  const familyLinkDesc = React.useMemo(() => {
-    const isLinked = !!user?.patient_group_id;
-    if (isLinked) return '가족 연동 관리';
-    if (user?.role === 'caregiver') return '환자(보호 대상자)와 연동하세요';
-    return '보호자를 초대해보세요';
-  }, [user?.patient_group_id, user?.role]);
+  // 가족 연동 설명 텍스트 (고정 문구)
+  const familyLinkDesc = '가족을 초대하고 함께 관리해요';
 
   const handleMenuPress = async (key: string) => {
     // 약관·개인정보처리방침은 게스트도 열람 가능. 그 외 서버 데이터가 필요한 항목은 게스트 차단.
