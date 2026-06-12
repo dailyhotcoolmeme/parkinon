@@ -80,7 +80,7 @@ export function DiaryScreen() {
   const [showDatePicker, setShowDatePicker] = useState(false);
   const [showEditor, setShowEditor] = useState(false);
 
-  const { autoSummary, entries, loading, patientId, saveMyEntry } = useDiary(dateStr);
+  const { autoSummary, entries, loading, patientId, saveMyEntry, deleteMyEntry } = useDiary(dateStr);
 
   // 미래 날짜로는 이동 금지
   const isToday = dateStr === todayStr;
@@ -150,7 +150,7 @@ export function DiaryScreen() {
         >
           {/* ── 한마디 (본문, 주연) — 한 장의 페이지, 블록 사이 rule 1px §11-3 ── */}
           {entries.length === 0 && (
-            <Text style={styles.emptyEntryText}>아직 적은 한마디가 없어요.</Text>
+            <Text style={styles.emptyEntryText}>아직 작성한 글이 없어요.</Text>
           )}
 
           {entries.map((entry, idx) => (
@@ -163,7 +163,7 @@ export function DiaryScreen() {
           {/* 내가 안 썼으면 쓰기 진입 / 썼으면 수정 — 조용한 한 줄 */}
           <TouchableOpacity style={styles.writeEntryLink} onPress={() => setShowEditor(true)} activeOpacity={0.7}>
             <Text style={styles.writeEntryText}>
-              {myEntry ? '✏️ 내 한마디 수정' : '✏️ 오늘 한마디 쓰기'}
+              {myEntry ? '✏️ 수정' : '✏️ 글 쓰기'}
             </Text>
           </TouchableOpacity>
 
@@ -194,6 +194,10 @@ export function DiaryScreen() {
           onClose={() => setShowEditor(false)}
           onSaved={async (input) => {
             await saveMyEntry(input);
+            setShowEditor(false);
+          }}
+          onDeleted={async () => {
+            await deleteMyEntry();
             setShowEditor(false);
           }}
         />
@@ -229,21 +233,50 @@ function AutoFootnote({ summary, dialog }: { summary: AutoSummary | null; dialog
           )}
 
           {summary.onOff.scores.length > 0 && (
-            <View style={styles.footnoteScoreRow}>
-              <Text style={styles.footnoteText}>😊 약효 </Text>
-              <ScrollView
-                horizontal
-                showsHorizontalScrollIndicator={false}
-                style={styles.scoreScroll}
-                contentContainerStyle={styles.scoreRow}
-              >
-                {summary.onOff.scores.map((s, i) => (
-                  <View key={i} style={styles.scoreChip}>
-                    <Text style={styles.scoreChipLabel}>{s.label}</Text>
-                    <Text style={styles.scoreChipScore}>{s.score}</Text>
-                  </View>
-                ))}
-              </ScrollView>
+            <View style={styles.onOffBlock}>
+              {/* 몸상태 줄 */}
+              {summary.onOff.scores.some((s) => s.body != null) && (
+                <View style={styles.footnoteScoreRow}>
+                  <Text style={styles.onOffLineLabel}>몸상태</Text>
+                  <ScrollView
+                    horizontal
+                    showsHorizontalScrollIndicator={false}
+                    style={styles.scoreScroll}
+                    contentContainerStyle={styles.scoreRow}
+                  >
+                    {summary.onOff.scores
+                      .filter((s) => s.body != null)
+                      .map((s, i) => (
+                        <View key={`b-${i}`} style={styles.scoreChip}>
+                          <Text style={styles.scoreChipLabel}>{s.label}</Text>
+                          <Text style={styles.scoreChipScore}>{s.body}</Text>
+                        </View>
+                      ))}
+                  </ScrollView>
+                </View>
+              )}
+
+              {/* 기분 줄 */}
+              {summary.onOff.scores.some((s) => s.mood != null) && (
+                <View style={styles.footnoteScoreRow}>
+                  <Text style={styles.onOffLineLabel}>기분</Text>
+                  <ScrollView
+                    horizontal
+                    showsHorizontalScrollIndicator={false}
+                    style={styles.scoreScroll}
+                    contentContainerStyle={styles.scoreRow}
+                  >
+                    {summary.onOff.scores
+                      .filter((s) => s.mood != null)
+                      .map((s, i) => (
+                        <View key={`m-${i}`} style={styles.scoreChip}>
+                          <Text style={styles.scoreChipLabel}>{s.label}</Text>
+                          <Text style={styles.scoreChipScore}>{s.mood}</Text>
+                        </View>
+                      ))}
+                  </ScrollView>
+                </View>
+              )}
             </View>
           )}
 
@@ -463,9 +496,10 @@ interface EditorProps {
     photoUrls: string[];
     videoMediaId: string | null;
   }) => Promise<void>;
+  onDeleted: () => Promise<void>;
 }
 
-function DiaryEditorModal({ visible, dateStr, patientId, existing, onClose, onSaved }: EditorProps) {
+function DiaryEditorModal({ visible, dateStr, patientId, existing, onClose, onSaved, onDeleted }: EditorProps) {
   const { user } = useAuth();
   const dialog = useDialog();
 
@@ -485,14 +519,59 @@ function DiaryEditorModal({ visible, dateStr, patientId, existing, onClose, onSa
   const [recording, setRecording] = useState(false);
   const [saving, setSaving] = useState(false);
   const [saveStage, setSaveStage] = useState<string | null>(null);
+  const [deleting, setDeleting] = useState(false);
+
+  // 에디터 안 음성 미리듣기 (로컬 녹음 uri 우선, 없으면 기존 audio_url)
+  const previewSoundRef = useRef<Audio.Sound | null>(null);
+  const [previewPlaying, setPreviewPlaying] = useState(false);
+  // 첨부 영상 미리보기(풀스크린)
+  const [showVideoPreview, setShowVideoPreview] = useState(false);
 
   const recordingRef = useRef<Audio.Recording | null>(null);
 
   useEffect(() => {
     return () => {
       recordingRef.current?.stopAndUnloadAsync().catch(() => {});
+      previewSoundRef.current?.unloadAsync().catch(() => {});
     };
   }, []);
+
+  // ── 첨부 음성 미리듣기 (EntryBlock의 재생 패턴 재사용) ──
+  const previewUri = recordedAudioUri ?? audioUrl;
+  const handlePreviewAudio = async () => {
+    if (!previewUri) return;
+    try {
+      if (previewSoundRef.current) {
+        await previewSoundRef.current.unloadAsync().catch(() => {});
+        previewSoundRef.current = null;
+        setPreviewPlaying(false);
+        return;
+      }
+      await Audio.setAudioModeAsync({ allowsRecordingIOS: false, playsInSilentModeIOS: true });
+      const { sound } = await Audio.Sound.createAsync({ uri: previewUri }, { shouldPlay: true });
+      previewSoundRef.current = sound;
+      setPreviewPlaying(true);
+      sound.setOnPlaybackStatusUpdate((s) => {
+        if (s.isLoaded && s.didJustFinish) {
+          setPreviewPlaying(false);
+          sound.unloadAsync().catch(() => {});
+          if (previewSoundRef.current === sound) previewSoundRef.current = null;
+        }
+      });
+    } catch (e) {
+      setPreviewPlaying(false);
+      dialog.alert({ title: '재생할 수 없어요', message: '다시 시도해 주세요.' });
+    }
+  };
+
+  // 미리듣기 중인 음성을 정리(녹음 토글/빼기 시 호출)
+  const stopPreviewAudio = async () => {
+    if (previewSoundRef.current) {
+      await previewSoundRef.current.unloadAsync().catch(() => {});
+      previewSoundRef.current = null;
+    }
+    setPreviewPlaying(false);
+  };
 
   // ── 사진 추가 ──
   const handleAddPhoto = async () => {
@@ -573,6 +652,7 @@ function DiaryEditorModal({ visible, dateStr, patientId, existing, onClose, onSa
   };
 
   const handleRemoveVideo = () => {
+    setShowVideoPreview(false);
     setNewVideoUri(null);
     setExistingVideoUrl(null);
     setVideoMediaId(null);
@@ -604,6 +684,7 @@ function DiaryEditorModal({ visible, dateStr, patientId, existing, onClose, onSa
     }
     // 시작
     try {
+      await stopPreviewAudio();
       const perm = await Audio.requestPermissionsAsync();
       if (!perm.granted) {
         dialog.alert({ title: '마이크 권한이 필요해요', message: '휴대폰 설정에서 마이크 권한을 켜 주세요.' });
@@ -621,7 +702,8 @@ function DiaryEditorModal({ visible, dateStr, patientId, existing, onClose, onSa
     }
   };
 
-  const handleRemoveAudio = () => {
+  const handleRemoveAudio = async () => {
+    await stopPreviewAudio();
     setRecordedAudioUri(null);
     setAudioUrl(null);
     setAudioR2Key(null);
@@ -718,10 +800,31 @@ function DiaryEditorModal({ visible, dateStr, patientId, existing, onClose, onSa
     }
   };
 
+  // ── 삭제 (내가 쓴 글) ──
+  const handleDelete = async () => {
+    const ok = await dialog.confirm({
+      title: '글 삭제',
+      message: '이 날의 글을 삭제할까요?',
+      destructive: true,
+      confirmText: '삭제',
+      cancelText: '취소',
+    });
+    if (!ok) return;
+    setDeleting(true);
+    try {
+      await stopPreviewAudio();
+      await onDeleted();
+    } catch (e: any) {
+      dialog.alert({ title: '삭제에 실패했어요', message: e?.message ?? '잠시 후 다시 시도해 주세요.' });
+    } finally {
+      setDeleting(false);
+    }
+  };
+
   return (
     <Modal visible={visible} animationType="slide" onRequestClose={onClose}>
       <SafeAreaView style={styles.editorSafe} edges={['top', 'bottom']}>
-        <TopBar title="오늘 한마디" showClose />
+        <TopBar title={existing ? '일기 수정' : '일기 작성'} showClose />
         <KeyboardAvoidingView
           style={styles.flex1}
           behavior={Platform.OS === 'ios' ? 'padding' : undefined}
@@ -766,21 +869,38 @@ function DiaryEditorModal({ visible, dateStr, patientId, existing, onClose, onSa
               </TouchableOpacity>
             </View>
 
-            {/* 음성 첨부됨 표시 */}
+            {/* 음성 첨부됨 표시 + 미리듣기 */}
             {hasAudio && !recording && (
               <View style={styles.attachedRow}>
                 <Ionicons name="mic" size={22} color={Journal.accent} />
-                <Text style={styles.attachedText}>음성이 첨부되었어요</Text>
+                <TouchableOpacity
+                  style={styles.audioPreviewBtn}
+                  onPress={handlePreviewAudio}
+                  activeOpacity={0.8}
+                >
+                  <Ionicons name={previewPlaying ? 'pause' : 'play'} size={18} color={Journal.accent} />
+                  <Text style={styles.audioPreviewText}>{previewPlaying ? '멈춤' : '들어보기'}</Text>
+                </TouchableOpacity>
                 <TouchableOpacity onPress={handleRemoveAudio} style={styles.removeBtn}>
                   <Text style={styles.removeBtnText}>빼기</Text>
                 </TouchableOpacity>
               </View>
             )}
 
-            {/* 영상 첨부됨 표시 + 촬영 옵션 */}
+            {/* 영상 첨부됨 표시 + 미리보기(탭하면 재생) */}
             {hasVideo ? (
               <View style={styles.attachedRow}>
-                <Ionicons name="videocam" size={22} color={Journal.accent} />
+                <TouchableOpacity
+                  style={styles.videoPreviewFrame}
+                  activeOpacity={0.85}
+                  onPress={() => setShowVideoPreview(true)}
+                >
+                  <View style={styles.videoPreviewInner}>
+                    <View style={styles.playCircle}>
+                      <Ionicons name="play" size={18} color="#fff" />
+                    </View>
+                  </View>
+                </TouchableOpacity>
                 <Text style={styles.attachedText}>영상이 첨부되었어요</Text>
                 <TouchableOpacity onPress={handleRemoveVideo} style={styles.removeBtn}>
                   <Text style={styles.removeBtnText}>빼기</Text>
@@ -817,15 +937,31 @@ function DiaryEditorModal({ visible, dateStr, patientId, existing, onClose, onSa
               </ScrollView>
             )}
 
+            {/* 내가 쓴 글일 때만 — 조용한 삭제 버튼 (주연 아님) */}
+            {existing && (
+              <TouchableOpacity
+                style={styles.deleteEntryLink}
+                onPress={handleDelete}
+                activeOpacity={0.7}
+                disabled={saving || deleting}
+              >
+                {deleting ? (
+                  <ActivityIndicator size="small" color={Journal.inkSoft} />
+                ) : (
+                  <Text style={styles.deleteEntryText}>이 날의 글 삭제</Text>
+                )}
+              </TouchableOpacity>
+            )}
+
             <View style={{ height: 24 }} />
           </ScrollView>
 
           <View style={styles.editorBottom}>
             <TouchableOpacity
-              style={[styles.saveBtn, saving && styles.saveBtnDisabled]}
+              style={[styles.saveBtn, (saving || deleting) && styles.saveBtnDisabled]}
               onPress={handleSave}
               activeOpacity={0.85}
-              disabled={saving}
+              disabled={saving || deleting}
             >
               {saving ? (
                 <View style={styles.savingRow}>
@@ -838,6 +974,14 @@ function DiaryEditorModal({ visible, dateStr, patientId, existing, onClose, onSa
             </TouchableOpacity>
           </View>
         </KeyboardAvoidingView>
+
+        {/* 첨부 영상 미리보기 (풀스크린) — 로컬 신규 uri 우선, 없으면 기존 url */}
+        {showVideoPreview && (newVideoUri || existingVideoUrl) && (
+          <FullscreenVideoModal
+            url={(newVideoUri ?? existingVideoUrl) as string}
+            onClose={() => setShowVideoPreview(false)}
+          />
+        )}
       </SafeAreaView>
     </Modal>
   );
@@ -1036,6 +1180,13 @@ const styles = StyleSheet.create({
   footnoteRows: { gap: 10 },
   footnoteText: { fontSize: 13, fontWeight: '500', lineHeight: 20, color: Journal.inkFaint },
   footnoteScoreRow: { flexDirection: 'row', alignItems: 'center' },
+  onOffBlock: { gap: 8 },
+  onOffLineLabel: {
+    fontSize: 13,
+    fontWeight: '600',
+    color: Journal.inkFaint,
+    width: 48,
+  },
 
   scoreScroll: { flexShrink: 1 },
   scoreRow: { flexDirection: 'row', gap: 6, alignItems: 'center', paddingRight: 4 },
@@ -1099,6 +1250,46 @@ const styles = StyleSheet.create({
   attachedText: { fontSize: 14, fontWeight: '600', color: Journal.ink, flex: 1 },
   removeBtn: { paddingHorizontal: 12, paddingVertical: 10, minHeight: 48, justifyContent: 'center' },
   removeBtnText: { fontSize: 14, fontWeight: '700', color: Journal.accent },
+
+  // 음성 미리듣기 버튼 (에디터 내부, surface 톤)
+  audioPreviewBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    height: 40,
+    paddingHorizontal: 14,
+    borderRadius: 20,
+    backgroundColor: Journal.surface,
+    borderWidth: 1,
+    borderColor: Journal.rule,
+  },
+  audioPreviewText: { fontSize: 14, fontWeight: '600', color: Journal.accent },
+
+  // 첨부 영상 미리보기 작은 액자 프레임
+  videoPreviewFrame: {
+    width: 56,
+    height: 56,
+    backgroundColor: Journal.surface,
+    padding: 4,
+    borderRadius: 3,
+  },
+  videoPreviewInner: {
+    flex: 1,
+    borderRadius: 1,
+    backgroundColor: Journal.ink,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+
+  // 조용한 삭제 링크 (에디터 하단)
+  deleteEntryLink: {
+    alignSelf: 'center',
+    minHeight: 48,
+    justifyContent: 'center',
+    paddingHorizontal: 16,
+    marginTop: 28,
+  },
+  deleteEntryText: { fontSize: 14, fontWeight: '600', color: Journal.inkSoft, textDecorationLine: 'underline' },
 
   thumbRow: { flexDirection: 'row', gap: 12, paddingVertical: 2 },
   editorThumbWrap: { position: 'relative' },

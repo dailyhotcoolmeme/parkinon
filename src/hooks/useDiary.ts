@@ -13,12 +13,13 @@ export interface MedSummary {
 
 export interface OnOffScore {
   label: string; // 사람이 읽는 시점 라벨 (예: '복용직후', '30분 후', '2시간 후')
-  score: number; // body_state 점수
+  body: number | null; // 몸상태(body_state) 점수
+  mood: number | null; // 기분(mood) 점수
 }
 
 export interface OnOffSummary {
   count: number;
-  scores: OnOffScore[]; // 그날 약효추적 body_state 점수 전체 (logged_at 순)
+  scores: OnOffScore[]; // 그날 약효추적 몸상태·기분 점수 전체 (logged_at 순)
 }
 
 export interface ExerciseSummaryItem {
@@ -102,6 +103,7 @@ interface UseDiaryReturn {
   loading: boolean;
   patientId: string | null;
   saveMyEntry: (input: SaveMyEntryInput) => Promise<void>;
+  deleteMyEntry: () => Promise<void>;
   refresh: () => Promise<void>;
 }
 
@@ -138,7 +140,7 @@ export function useDiary(dateStr: string): UseDiaryReturn {
           .order('taken_at', { ascending: true }),
         supabase
           .from('on_off_logs')
-          .select('id, body_state, logged_at, trigger_time_label')
+          .select('id, body_state, mood, logged_at, trigger_time_label')
           .eq('patient_id', patientId)
           .gte('logged_at', startUtc)
           .lt('logged_at', endUtc)
@@ -162,19 +164,27 @@ export function useDiary(dateStr: string): UseDiaryReturn {
       const medRows = (medRes.data as { id: string; taken_at: string }[] | null) ?? [];
       const onOffRows =
         (onOffRes.data as
-          | { id: string; body_state: number | null; logged_at: string; trigger_time_label: string | null }[]
+          | {
+              id: string;
+              body_state: number | null;
+              mood: number | null;
+              logged_at: string;
+              trigger_time_label: string | null;
+            }[]
           | null) ?? [];
       const exRows =
         (exRes.data as { id: string; exercise_type: string; duration_minutes: number }[] | null) ?? [];
       const mediaRows =
         (mediaRes.data as { id: string; media_type: 'video' | 'photo'; r2_url: string }[] | null) ?? [];
 
-      // body_state 가 있는 기록 전체를 logged_at 순으로 (쿼리에서 이미 정렬됨) 라벨+점수 칩으로
+      // 몸상태(body_state) 또는 기분(mood) 중 하나라도 있는 기록 전체를
+      // logged_at 순으로 (쿼리에서 이미 정렬됨) 라벨+점수 칩으로
       const onOffScores: OnOffScore[] = onOffRows
-        .filter((r) => r.body_state != null)
+        .filter((r) => r.body_state != null || r.mood != null)
         .map((r) => ({
           label: triggerLabelToChip(r.trigger_time_label),
-          score: r.body_state as number,
+          body: r.body_state ?? null,
+          mood: r.mood ?? null,
         }));
 
       setAutoSummary({
@@ -282,12 +292,26 @@ export function useDiary(dateStr: string): UseDiaryReturn {
     [patientId, user, dateStr, fetchAll],
   );
 
+  // 내가 쓴 그날의 글 삭제 (RLS: author 본인만 삭제 허용)
+  const deleteMyEntry = useCallback(async () => {
+    if (!patientId || !user) throw new Error('삭제에 필요한 정보가 없어요.');
+    const { error } = await supabase
+      .from('diary_entries' as any)
+      .delete()
+      .eq('patient_id', patientId)
+      .eq('entry_date', dateStr)
+      .eq('author_id', user.id);
+    if (error) throw new Error(error.message);
+    await fetchAll();
+  }, [patientId, user, dateStr, fetchAll]);
+
   return {
     autoSummary,
     entries,
     loading: loading || pidLoading,
     patientId,
     saveMyEntry,
+    deleteMyEntry,
     refresh: fetchAll,
   };
 }
