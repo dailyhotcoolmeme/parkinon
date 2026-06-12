@@ -34,6 +34,13 @@ interface VideoLog {
   r2_key?: string | null;
   logged_at: string;
   duration_seconds?: number | null;
+  source?: string | null;
+}
+
+// 영상의 logged_at(UTC ISO) → KST 기준 YYYY-MM-DD (일기 화면 이동용)
+function loggedAtToKstDateString(iso: string): string {
+  const kst = new Date(new Date(iso).getTime() + 9 * 60 * 60 * 1000);
+  return kst.toISOString().slice(0, 10);
 }
 
 interface SectionData {
@@ -231,49 +238,62 @@ interface VideoCardProps {
   onDelete: (item: VideoLog) => void;
   previewingId: string | null;
   onPreviewPress: (item: VideoLog) => void;
+  onOpenDiary: (item: VideoLog) => void;
 }
 
-function VideoCard({ item, onPress, onDelete, previewingId, onPreviewPress }: VideoCardProps) {
+function VideoCard({ item, onPress, onDelete, previewingId, onPreviewPress, onOpenDiary }: VideoCardProps) {
+  const isDiary = item.source === 'diary';
   return (
     <View style={cardStyles.card}>
-      {/* 썸네일: 탭 → 인라인 재생 */}
-      <View style={cardStyles.thumb}>
-        <VideoPreview
-          uri={item.r2_url}
-          isPlaying={previewingId === item.id}
-          onPreviewPress={() => onPreviewPress(item)}
-          durationSeconds={item.duration_seconds}
-        />
+      <View style={cardStyles.topRow}>
+        {/* 썸네일: 탭 → 인라인 재생 */}
+        <View style={cardStyles.thumb}>
+          <VideoPreview
+            uri={item.r2_url}
+            isPlaying={previewingId === item.id}
+            onPreviewPress={() => onPreviewPress(item)}
+            durationSeconds={item.duration_seconds}
+          />
+        </View>
+        {/* 텍스트 영역: 탭 → 전체화면 재생 */}
+        <TouchableOpacity
+          style={cardStyles.info}
+          onPress={() => item.r2_url && onPress(item)}
+          activeOpacity={0.7}
+        >
+          <Text style={cardStyles.dateText}>{formatDateLabel(item.logged_at)}</Text>
+          <Text style={cardStyles.timeText}>{formatTime(item.logged_at)}</Text>
+          {isDiary && (
+            <View style={cardStyles.diaryBadge}>
+              <Ionicons name="book-outline" size={14} color={Colors.primary} />
+              <Text style={cardStyles.diaryBadgeText}>일기 기록</Text>
+            </View>
+          )}
+        </TouchableOpacity>
+        <TouchableOpacity
+          style={cardStyles.deleteBtn}
+          onPress={() => onDelete(item)}
+          activeOpacity={0.7}
+          hitSlop={{ top: 4, bottom: 4, left: 4, right: 4 }}
+        >
+          <Ionicons name="trash-outline" size={22} color="#F44336" />
+        </TouchableOpacity>
       </View>
-      {/* 텍스트 영역: 탭 → 전체화면 재생 */}
-      <TouchableOpacity
-        style={cardStyles.info}
-        onPress={() => item.r2_url && onPress(item)}
-        activeOpacity={0.7}
-      >
-        <Text style={cardStyles.dateText}>{formatDateLabel(item.logged_at)}</Text>
-        <Text style={cardStyles.timeText}>{formatTime(item.logged_at)}</Text>
-      </TouchableOpacity>
-      <TouchableOpacity
-        style={cardStyles.deleteBtn}
-        onPress={() => onDelete(item)}
-        activeOpacity={0.7}
-        hitSlop={{ top: 4, bottom: 4, left: 4, right: 4 }}
-      >
-        <Ionicons name="trash-outline" size={22} color="#F44336" />
-      </TouchableOpacity>
+      {isDiary && (
+        <TouchableOpacity style={cardStyles.diaryBtn} onPress={() => onOpenDiary(item)} activeOpacity={0.8}>
+          <Ionicons name="book-outline" size={20} color={Colors.primary} />
+          <Text style={cardStyles.diaryBtnText}>일기 보기</Text>
+        </TouchableOpacity>
+      )}
     </View>
   );
 }
 
 const cardStyles = StyleSheet.create({
   card: {
-    flexDirection: 'row',
-    alignItems: 'center',
     backgroundColor: Colors.white,
     borderRadius: 16,
     padding: 16,
-    gap: 14,
     marginBottom: 10,
     shadowColor: '#000',
     shadowOffset: { width: 0, height: 1 },
@@ -281,11 +301,36 @@ const cardStyles = StyleSheet.create({
     shadowRadius: 4,
     elevation: 2,
   },
+  topRow: { flexDirection: 'row', alignItems: 'center', gap: 14 },
   thumb: { position: 'relative', flexShrink: 0 },
   info: { flex: 1, gap: 4, justifyContent: 'center' },
   dateText: { fontSize: 20, fontWeight: '700', color: Colors.text },
   timeText: { fontSize: 18, color: Colors.textSub, fontWeight: '500' },
   deleteBtn: { padding: 8, flexShrink: 0 },
+  diaryBadge: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    alignSelf: 'flex-start',
+    backgroundColor: Colors.light,
+    borderRadius: 8,
+    paddingHorizontal: 8,
+    paddingVertical: 2,
+    marginTop: 2,
+  },
+  diaryBadgeText: { fontSize: 13, fontWeight: '700', color: Colors.primary },
+  diaryBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 8,
+    minHeight: 48,
+    borderRadius: 12,
+    borderWidth: 1.5,
+    borderColor: Colors.primary,
+    marginTop: 12,
+  },
+  diaryBtnText: { fontSize: 17, fontWeight: '700', color: Colors.primary },
 });
 
 // ── 풀스크린 플레이어 (expo-video) ───────────────────────────────────────────
@@ -681,6 +726,7 @@ export function VideoListScreen() {
   const { unreadCount } = useNotificationBadge();
   const dialog = useDialog();
   const [filter, setFilter] = useState<FilterType>('all');
+  const [excludeDiary, setExcludeDiary] = useState(false);
   const [sections, setSections] = useState<SectionData[]>([]);
   const [loading, setLoading] = useState(false);
   const [deleting, setDeleting] = useState(false);
@@ -700,7 +746,7 @@ export function VideoListScreen() {
     lastScrollY.current = currentY;
   };
 
-  const fetchVideos = useCallback(async (f: FilterType) => {
+  const fetchVideos = useCallback(async (f: FilterType, excludeDiaryArg: boolean) => {
     setLoading(true);
     try {
       const { data: { user } } = await supabase.auth.getUser();
@@ -726,11 +772,16 @@ export function VideoListScreen() {
 
       let query = supabase
         .from('media_logs')
-        .select('id, r2_url, r2_key, logged_at, duration_seconds')
+        .select('id, r2_url, r2_key, logged_at, duration_seconds, source')
         .eq('patient_id', patientId)
         .eq('media_type', 'video')
         .eq('category', 'body_state')
         .order('logged_at', { ascending: false });
+
+      // '일기 기록 영상 제외' 체크 시 source='diary' 행 숨김 (수동 저장분만 표시)
+      if (excludeDiaryArg) {
+        query = query.neq('source', 'diary');
+      }
 
       const range = getFilterRange(f);
       if (range) {
@@ -749,13 +800,23 @@ export function VideoListScreen() {
 
   useFocusEffect(
     useCallback(() => {
-      fetchVideos(filter);
-    }, [fetchVideos, filter])
+      fetchVideos(filter, excludeDiary);
+    }, [fetchVideos, filter, excludeDiary])
   );
 
   const handleFilterChange = (f: FilterType) => {
     setFilter(f);
-    fetchVideos(f);
+    fetchVideos(f, excludeDiary);
+  };
+
+  const handleToggleExcludeDiary = () => {
+    const next = !excludeDiary;
+    setExcludeDiary(next);
+    fetchVideos(filter, next);
+  };
+
+  const handleOpenDiary = (item: VideoLog) => {
+    navigateTo('Diary', { date: loggedAtToKstDateString(item.logged_at) });
   };
 
   const handleCardPress = (item: VideoLog) => {
@@ -798,7 +859,7 @@ export function VideoListScreen() {
         const { error } = await supabase.from('media_logs').delete().eq('id', item.id);
         if (error) throw error;
       }
-      fetchVideos(filter);
+      fetchVideos(filter, excludeDiary);
     } catch (e) {
       console.error('[VideoListScreen] 삭제 오류:', e);
       dialog.alert({ title: '삭제 실패', message: '영상 삭제에 실패했어요. 다시 시도해 주세요.' });
@@ -832,6 +893,20 @@ export function VideoListScreen() {
         ))}
       </View>
 
+      {/* 일기 기록 영상 제외 토글 */}
+      <TouchableOpacity
+        style={styles.excludeRow}
+        onPress={handleToggleExcludeDiary}
+        activeOpacity={0.7}
+      >
+        <Ionicons
+          name={excludeDiary ? 'checkbox' : 'square-outline'}
+          size={26}
+          color={excludeDiary ? Colors.primary : Colors.textSub}
+        />
+        <Text style={styles.excludeText}>일기 기록 영상 제외</Text>
+      </TouchableOpacity>
+
       {loading ? (
         <View style={styles.loadingBox}>
           <ActivityIndicator size="large" color={Colors.primary} />
@@ -864,6 +939,7 @@ export function VideoListScreen() {
               onDelete={handleDelete}
               previewingId={previewingId}
               onPreviewPress={handlePreviewPress}
+              onOpenDiary={handleOpenDiary}
             />
           )}
           stickySectionHeadersEnabled={false}
@@ -917,6 +993,17 @@ const styles = StyleSheet.create({
   filterPillActive: { backgroundColor: Colors.primary, borderColor: Colors.primary },
   filterText: { fontSize: 16, fontWeight: '600', color: Colors.textSub },
   filterTextActive: { color: Colors.white },
+  excludeRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 10,
+    paddingHorizontal: 20,
+    paddingVertical: 12,
+    backgroundColor: Colors.white,
+    borderBottomWidth: 1,
+    borderBottomColor: Colors.border,
+  },
+  excludeText: { fontSize: 17, fontWeight: '600', color: Colors.text },
   listContent: { paddingHorizontal: 20, paddingTop: 8, paddingBottom: 32 },
   sectionHeader: {
     flexDirection: 'row',

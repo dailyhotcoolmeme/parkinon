@@ -715,6 +715,8 @@ export function MedicationScreen() {
       <TopBar
         title="파킨온"
         showParkinon
+        showDiary
+        onDiaryPress={() => navigateTo('Diary')}
         showBell
         bellBadge={unreadCount}
         onBellPress={() => navigateTo('NotificationHistory', { mode: 'all' })}

@@ -16,6 +16,7 @@ import { CaregiverMeasurementScreen } from '../screens/measurement/CaregiverMeas
 import { MeasurementRecordsScreen } from '../screens/measurement/MeasurementRecordsScreen';
 import { RecordSoundScreen } from '../screens/sound/RecordSoundScreen';
 import { AlarmSoundSettingsScreen } from '../screens/sound/AlarmSoundSettingsScreen';
+import { DiaryScreen } from '../screens/diary/DiaryScreen';
 import type { MeasurementMedPhase } from '../types/database';
 
 export type RootStackParamList = {
@@ -53,6 +54,8 @@ export type RootStackParamList = {
   AlarmSoundSettings:
     | { updatedSound?: { id: string; label?: string; public_url?: string | null; duration_ms?: number | null } }
     | undefined;
+  // 종합 데일리 저널(일기) — date 미지정 시 오늘(KST). 영상 기록에서 '일기 보기'로 진입 시 해당 날짜 전달.
+  Diary: { date?: string } | undefined;
 };
 
 const Stack = createStackNavigator<RootStackParamList>();
@@ -84,6 +87,7 @@ export function RootNavigator() {
             <Stack.Screen name="MeasurementRecords" component={MeasurementRecordsScreen} />
             <Stack.Screen name="RecordSound" component={RecordSoundScreen} />
             <Stack.Screen name="AlarmSoundSettings" component={AlarmSoundSettingsScreen} />
+            <Stack.Screen name="Diary" component={DiaryScreen} />
           </>
         )}
       </Stack.Navigator>

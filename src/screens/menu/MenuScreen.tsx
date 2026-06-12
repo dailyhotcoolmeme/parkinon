@@ -61,6 +61,12 @@ const MENU_SECTIONS: MenuSection[] = [
         desc: '약복용·약효추적 기록을 확인해요',
       },
       {
+        key: 'Diary',
+        icon: 'book-outline',
+        label: '일기',
+        desc: '하루하루 종합 일기를 써요',
+      },
+      {
         key: 'VideoList',
         icon: 'videocam-outline',
         label: '영상 기록 보기',
@@ -246,6 +252,9 @@ export function MenuScreen() {
 
     if (key === 'Records') {
       navigation.navigate('Records');
+    } else if (key === 'Diary') {
+      // 일기 화면은 RootNavigator 스택에 있음
+      navigateTo('Diary');
     } else if (key === 'VideoList') {
       navigation.navigate('VideoList');
     } else if (key === 'Settings') {

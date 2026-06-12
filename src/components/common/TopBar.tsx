@@ -15,9 +15,11 @@ interface Props {
   showBell?: boolean;
   bellBadge?: number;
   onBellPress?: () => void;
+  showDiary?: boolean;
+  onDiaryPress?: () => void;
 }
 
-export function TopBar({ title, showBack, showClose, showParkinon, rightIcon, rightComponent, showBell, bellBadge, onBellPress }: Props) {
+export function TopBar({ title, showBack, showClose, showParkinon, rightIcon, rightComponent, showBell, bellBadge, onBellPress, showDiary, onDiaryPress }: Props) {
   const navigation = useNavigation();
 
   const badgeLabel = bellBadge && bellBadge > 0
@@ -63,21 +65,34 @@ export function TopBar({ title, showBack, showClose, showParkinon, rightIcon, ri
           )}
         </View>
         {!showParkinon && !!title && <Text style={styles.title}>{title}</Text>}
-        <View style={styles.right}>
-          {rightComponent ?? rightIcon ?? (showBell ? (
-            <TouchableOpacity
-              onPress={onBellPress}
-              hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
-              style={styles.bellWrap}
-            >
-              <Ionicons name="notifications-outline" size={26} color={Colors.textSub} />
-              {badgeLabel && (
-                <View style={styles.badge}>
-                  <Text style={styles.badgeText}>{badgeLabel}</Text>
-                </View>
+        <View style={[styles.right, (showDiary && showBell) && styles.rightWide]}>
+          {rightComponent ?? rightIcon ?? (
+            <View style={styles.rightIcons}>
+              {showDiary && (
+                <TouchableOpacity
+                  onPress={onDiaryPress}
+                  hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+                  style={styles.diaryWrap}
+                >
+                  <Ionicons name="book-outline" size={26} color={Colors.textSub} />
+                </TouchableOpacity>
               )}
-            </TouchableOpacity>
-          ) : null)}
+              {showBell && (
+                <TouchableOpacity
+                  onPress={onBellPress}
+                  hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+                  style={styles.bellWrap}
+                >
+                  <Ionicons name="notifications-outline" size={26} color={Colors.textSub} />
+                  {badgeLabel && (
+                    <View style={styles.badge}>
+                      <Text style={styles.badgeText}>{badgeLabel}</Text>
+                    </View>
+                  )}
+                </TouchableOpacity>
+              )}
+            </View>
+          )}
         </View>
       </View>
     </View>
@@ -99,6 +114,9 @@ const styles = StyleSheet.create({
   left: { width: 76, alignItems: 'flex-start' },
   leftExpanded: { width: 'auto', flex: 1 },
   right: { width: 76, alignItems: 'flex-end' },
+  rightWide: { width: 96 },
+  rightIcons: { flexDirection: 'row', alignItems: 'center', gap: 18 },
+  diaryWrap: { position: 'relative' },
   title: { flex: 1, fontSize: 20, fontWeight: '700', color: Colors.text, textAlign: 'center' },
   parkinonText: {
     fontSize: 20,

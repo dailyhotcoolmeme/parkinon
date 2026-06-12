@@ -269,11 +269,13 @@ export interface Database {
           r2_url: string;
           duration_seconds: number | null;
           category: 'body_state' | 'exercise';
+          // 미디어 출처. 'manual'(수동 저장) | 'diary'(일기 첨부). 기본 'manual'.
+          source: string;
           logged_at: string;
           expires_at: string;
           created_at: string;
         };
-        Insert: Omit<Database['public']['Tables']['media_logs']['Row'], 'id' | 'created_at' | 'duration_seconds'> & { id?: string; duration_seconds?: number | null };
+        Insert: Omit<Database['public']['Tables']['media_logs']['Row'], 'id' | 'created_at' | 'duration_seconds' | 'source'> & { id?: string; duration_seconds?: number | null; source?: string };
         Update: Partial<Database['public']['Tables']['media_logs']['Insert']>;
         Relationships: [
           {
