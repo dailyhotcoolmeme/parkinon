@@ -4,6 +4,25 @@
 // CLAUDE_API_KEY는 secrets에만 보관하고 클라이언트로 절대 노출하지 않습니다.
 
 import 'jsr:@supabase/functions-js/edge-runtime.d.ts';
+import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
+
+// 사용자별 in-memory rate limit (5분당 5회). ocr-prescription 과 동일 정책.
+const RATE_LIMIT_WINDOW_MS = 5 * 60 * 1000;
+const RATE_LIMIT_MAX = 5;
+const rateLimitMap = new Map<string, number[]>();
+
+function checkRateLimit(userId: string): boolean {
+  const now = Date.now();
+  const windowStart = now - RATE_LIMIT_WINDOW_MS;
+  const history = (rateLimitMap.get(userId) ?? []).filter((t) => t > windowStart);
+  if (history.length >= RATE_LIMIT_MAX) {
+    rateLimitMap.set(userId, history);
+    return false;
+  }
+  history.push(now);
+  rateLimitMap.set(userId, history);
+  return true;
+}
 
 const MASKING_PATTERNS = [
   { pattern: /\d{6}-\d{7}/g, replacement: '######-#######' },
@@ -89,6 +108,33 @@ Deno.serve(async (req: Request) => {
       });
     }
 
+    // 인증: 호출자 JWT 검증 (gateway 외에 함수 내부에서도 확인) + 사용자별 rate limit.
+    const authHeader = req.headers.get('Authorization');
+    if (!authHeader) {
+      return new Response(JSON.stringify({ error: '인증이 필요합니다.' }), {
+        status: 401,
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+      });
+    }
+    const authClient = createClient(
+      Deno.env.get('SUPABASE_URL')!,
+      Deno.env.get('SUPABASE_ANON_KEY')!,
+      { global: { headers: { Authorization: authHeader } } },
+    );
+    const { data: { user }, error: authError } = await authClient.auth.getUser();
+    if (authError || !user) {
+      return new Response(JSON.stringify({ error: '인증이 필요합니다.' }), {
+        status: 401,
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+      });
+    }
+    if (!checkRateLimit(user.id)) {
+      return new Response(JSON.stringify({ error: '요청이 너무 잦습니다. 잠시 후 다시 시도해주세요.' }), {
+        status: 429,
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+      });
+    }
+
     const body = (await req.json()) as ReqBody;
     if (!body.image_base64 || !body.image_type) {
       return new Response(JSON.stringify({ error: 'image_base64와 image_type이 필요합니다.' }), {
@@ -99,6 +145,13 @@ Deno.serve(async (req: Request) => {
     if (!['jpeg', 'png'].includes(body.image_type)) {
       return new Response(JSON.stringify({ error: 'image_type은 jpeg 또는 png만 허용됩니다.' }), {
         status: 400,
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+      });
+    }
+    // 이미지 크기 상한 (base64 길이 ≈ 6MB 원본). 과도한 요청 차단.
+    if (body.image_base64.length > 8_000_000) {
+      return new Response(JSON.stringify({ error: '이미지가 너무 큽니다.' }), {
+        status: 413,
         headers: { ...corsHeaders, 'Content-Type': 'application/json' },
       });
     }

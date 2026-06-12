@@ -429,7 +429,8 @@ export function SettingsScreen() {
       if (patientUser?.name) {
         setLinkedPatientName(patientUser.name);
       } else {
-        console.warn('[SettingsScreen] 환자 name이 없음:', patientUser);
+        // 보안: 환자 user 객체(이름·역할·그룹 등 PII)는 로그에 남기지 않음
+        console.warn('[SettingsScreen] 환자 name이 없음');
       }
       // 환자의 전체 알림(마스터) 상태 — '환자 알림 수정' 토글 게이팅용
       setPatientNotificationEnabled(patientUser?.notification_enabled ?? true);

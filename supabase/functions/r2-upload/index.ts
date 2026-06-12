@@ -116,8 +116,16 @@ Deno.serve(async (req) => {
       }
     }
 
-    // C6: 소유권 검증 — 본인 또는 같은 patient_group 멤버만 해당 경로에 업로드 가능
+    // C6: 소유권 검증
+    //  - sounds(개인 알림음): 본인만 업로드 가능 — 같은 그룹 멤버라도 타인 prefix 쓰기 금지.
+    //  - videos/photos: 본인 또는 같은 patient_group 멤버(보호자 대리 업로드 허용).
     if (ownerId !== user.id) {
+      if (soundMatch) {
+        return new Response(
+          JSON.stringify({ error: '본인 알림음 경로에만 업로드할 수 있습니다.' }),
+          { status: 403, headers: { ...corsHeaders, 'Content-Type': 'application/json' } },
+        );
+      }
       const { data: sameGroup, error: rpcErr } = await supabase
         .rpc('is_same_patient_group', { target_user_id: ownerId });
       if (rpcErr || sameGroup !== true) {

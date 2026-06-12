@@ -255,12 +255,15 @@ export function LoginScreen() {
           </TouchableOpacity>
         )}
 
-        <TouchableOpacity
-          style={styles.devButton}
-          onPress={devSignIn}
-        >
-          <Text style={styles.devButtonText}>테스트로 둘러보기</Text>
-        </TouchableOpacity>
+        {/* 게스트 둘러보기 — 개발 빌드에서만 노출(스토어 출시 빌드에서는 숨김) */}
+        {__DEV__ && (
+          <TouchableOpacity
+            style={styles.devButton}
+            onPress={devSignIn}
+          >
+            <Text style={styles.devButtonText}>테스트로 둘러보기</Text>
+          </TouchableOpacity>
+        )}
 
         <Text style={styles.terms}>
           {'시작하면 '}

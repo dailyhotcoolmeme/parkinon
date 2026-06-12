@@ -505,7 +505,8 @@ export function useAuthProvider(): UseAuthReturn {
         throw error;
       }
       if (!data?.action_link) {
-        console.error('[useAuth] action_link 없음:', data);
+        // 보안: action_link(매직링크 토큰 포함)는 로그에 남기지 않음
+        console.error('[useAuth] action_link 없음 (응답 비정상)');
         throw new Error('action_link 없음');
       }
 
@@ -513,7 +514,8 @@ export function useAuthProvider(): UseAuthReturn {
       const url = new URL(data.action_link);
       const tokenHash = url.searchParams.get('token');
       if (!tokenHash) {
-        console.error('[useAuth] action_link에서 token 파싱 실패:', data.action_link.substring(0, 100));
+        // 보안: action_link 값(토큰 포함)은 로그에 남기지 않음
+        console.error('[useAuth] action_link에서 token 파싱 실패');
         throw new Error('token 파싱 실패');
       }
 

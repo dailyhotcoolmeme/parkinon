@@ -54,6 +54,33 @@ Deno.serve(async (req: Request) => {
       Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!
     )
 
+    // 권한 가드(양 경로 공통): 호출자 본인이거나, 환자와 같은 그룹의 멤버(보호자 대리 입력)만 허용.
+    //  → 임의 patient_id 로 타 환자의 약효추적 큐를 생성/삭제하는 IDOR 차단.
+    if (patient_id !== user.id) {
+      const { data: patientRow } = await serviceClient
+        .from('users')
+        .select('patient_group_id')
+        .eq('id', patient_id)
+        .maybeSingle()
+      const gid = patientRow?.patient_group_id ?? null
+      let allowed = false
+      if (gid) {
+        const { data: membership } = await serviceClient
+          .from('patient_group_members')
+          .select('user_id')
+          .eq('group_id', gid)
+          .eq('user_id', user.id)
+          .maybeSingle()
+        allowed = !!membership
+      }
+      if (!allowed) {
+        return new Response(JSON.stringify({ error: 'not authorized for this patient' }), {
+          status: 403,
+          headers: { ...CORS_HEADERS, 'Content-Type': 'application/json' },
+        })
+      }
+    }
+
     const now = Date.now()
 
     // enabled: true 이고 minutes > 0 인 항목만 처리 (양 경로 공통)

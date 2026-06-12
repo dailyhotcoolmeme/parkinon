@@ -114,6 +114,18 @@ Deno.serve(async (req) => {
       );
     }
 
+    // 인증: 호출자 JWT 검증. 아래에서 측정 소유자 본인인지 추가 확인
+    // (타인의 measurement_id 로 보호자 푸시 스팸·알림로그 위조 방지).
+    const authHeader = req.headers.get('Authorization') ?? '';
+    const jwt = authHeader.replace(/^Bearer\s+/i, '');
+    const { data: { user: caller }, error: authErr } = await supabase.auth.getUser(jwt);
+    if (authErr || !caller) {
+      return new Response(
+        JSON.stringify({ error: 'unauthorized' }),
+        { status: 401, headers: { ...corsHeaders, 'Content-Type': 'application/json' } },
+      );
+    }
+
     // 1) measurement row 조회
     const { data: mRow, error: mErr } = await supabase
       .from('measurements')
@@ -143,6 +155,15 @@ Deno.serve(async (req) => {
 
     const patientId: string = mRow.user_id;
     const measurementType: string = mRow.type; // 'tap' | 'reaction'
+
+    // 소유자 검증: 측정한 환자 본인만 자신의 측정 완료 알림을 트리거할 수 있음
+    // (보호자 대리 측정 금지 — spec §5.1).
+    if (patientId !== caller.id) {
+      return new Response(
+        JSON.stringify({ error: 'forbidden' }),
+        { status: 403, headers: { ...corsHeaders, 'Content-Type': 'application/json' } },
+      );
+    }
 
     // 2) 환자 정보 (이름·patient_group_id)
     const { data: patientRow, error: pErr } = await supabase
