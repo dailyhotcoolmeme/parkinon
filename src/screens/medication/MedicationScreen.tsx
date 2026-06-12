@@ -111,6 +111,9 @@ type MedicationRouteParams = {
   doseSlotId?: string | null;
 };
 
+// 온보딩에서 초대번호를 건너뛴 첫 진입 회원에게 가족 연동을 1회 안내했는지 여부.
+const FAMILY_LINK_GUIDE_SHOWN_KEY = 'family_link_guide_shown';
+
 export function MedicationScreen() {
   const route = useRoute<RouteProp<{ Medication: MedicationRouteParams }, 'Medication'>>();
   const navigation = useNavigation<any>();
@@ -162,16 +165,54 @@ export function MedicationScreen() {
   // 중복으로 뜨지 않도록 막는 가드(3초 윈도우).
   const notifEntryGuardRef = useRef(0);
 
-  // 온보딩 완료 후 홈 최초 진입 시 알림 설정 팝업 1회 표시
+  // 가족 연동 안내(1회)가 이번 세션에서 이미 트리거됐는지 — 중복 표시 방지.
+  const familyGuideTriggeredRef = useRef(false);
+
+  // 온보딩에서 초대번호를 건너뛴 첫 진입 회원에게 가족 연동을 1회 안내.
+  //   - 이미 가족과 연동된 회원/이미 안내한 회원은 표시 안 함.
+  //   - 받은 초대번호가 있으면 입력해 연동 / 첫 가입자면 가족 초대 → '가족 연동하러 가기' 시 가족 연동 화면으로.
+  const maybeShowFamilyGuide = useCallback(async () => {
+    if (!user?.onboarding_done) return;
+    if (user?.patient_group_id) return; // 이미 연동됨
+    if (familyGuideTriggeredRef.current) return;
+    familyGuideTriggeredRef.current = true;
+    try {
+      const shown = await AsyncStorage.getItem(FAMILY_LINK_GUIDE_SHOWN_KEY);
+      if (shown) return;
+      await AsyncStorage.setItem(FAMILY_LINK_GUIDE_SHOWN_KEY, '1');
+    } catch {
+      return;
+    }
+    // 다른 모달 닫힘/화면 전환 후 표시
+    setTimeout(async () => {
+      const ok = await dialog.confirm({
+        title: '가족과 함께 사용해요',
+        message:
+          '받으신 초대번호가 있다면 입력해서 가족과 연동할 수 있어요.\n\n' +
+          '가족 중 처음 가입하셨다면, 가족을 초대해 환자와 보호자가 함께 사용할 수 있어요.',
+        confirmText: '가족 연동하러 가기',
+        cancelText: '나중에',
+      });
+      if (ok) {
+        navigateTo('Main', { screen: 'MyInfo', params: { screen: 'FamilyLink' } });
+      }
+    }, 400);
+  }, [user?.onboarding_done, user?.patient_group_id, dialog]);
+
+  // 온보딩 완료 후 홈 최초 진입 시 알림 설정 팝업 1회 표시.
+  //   알림 온보딩을 이미 본 회원이면 가족 연동 안내를 바로 확인.
   useEffect(() => {
     if (!user?.onboarding_done) return;
     AsyncStorage.getItem(NOTIF_ONBOARDING_SHOWN_KEY).then((val) => {
       if (!val) {
         // 약간의 딜레이 후 표시 (화면 전환 애니메이션 완료 후)
         setTimeout(() => setShowNotifOnboarding(true), 600);
+      } else {
+        // 알림 온보딩은 이미 봤지만 가족 연동 안내를 못 본 회원 → 가족 안내 표시
+        maybeShowFamilyGuide();
       }
     }).catch(() => {});
-  }, [user?.onboarding_done]);
+  }, [user?.onboarding_done, maybeShowFamilyGuide]);
 
   // 알림 탭 진입 시 MealTimeModal 자동 오픈
   // App.tsx에서 navigation params { autoOpen: true, mealTime: '아침' } 전달
@@ -932,7 +973,7 @@ export function MedicationScreen() {
         visible={showNotifOnboarding}
         isCaregiver={user?.role === 'caregiver'}
         userId={user?.id ?? ''}
-        onClose={() => setShowNotifOnboarding(false)}
+        onClose={() => { setShowNotifOnboarding(false); maybeShowFamilyGuide(); }}
       />
     </SafeAreaView>
   );
