@@ -129,7 +129,7 @@ Deno.serve(async (req) => {
     if (deleteError) {
       console.error('media_logs 삭제 오류:', deleteError);
       return new Response(
-        JSON.stringify({ error: 'DB 삭제에 실패했습니다.', detail: deleteError.message }),
+        JSON.stringify({ error: 'DB 삭제에 실패했습니다.' }),
         { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } },
       );
     }
@@ -140,8 +140,9 @@ Deno.serve(async (req) => {
     );
   } catch (err: any) {
     console.error('delete-r2-file error:', err);
+    // 보안: 내부 에러 문자열을 클라이언트에 노출하지 않음(상세는 로그에만).
     return new Response(
-      JSON.stringify({ error: err.message ?? '삭제 실패', detail: String(err) }),
+      JSON.stringify({ error: '삭제 중 오류가 발생했습니다.' }),
       { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } },
     );
   }

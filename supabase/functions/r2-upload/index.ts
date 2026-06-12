@@ -162,8 +162,9 @@ Deno.serve(async (req) => {
     );
   } catch (err: any) {
     console.error('r2-upload error:', err);
+    // 보안: 내부 에러 문자열을 클라이언트에 노출하지 않음(상세는 로그에만).
     return new Response(
-      JSON.stringify({ error: err.message ?? 'presigned URL 발급 실패', detail: String(err) }),
+      JSON.stringify({ error: 'presigned URL 발급 실패' }),
       { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } },
     );
   }

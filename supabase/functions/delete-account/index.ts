@@ -175,7 +175,8 @@ Deno.serve(async (req) => {
     })
   } catch (e) {
     console.error('[delete-account] 오류:', e)
-    return new Response(JSON.stringify({ error: String(e) }), {
+    // 보안: 내부 에러 문자열을 클라이언트에 노출하지 않음(상세는 로그에만).
+    return new Response(JSON.stringify({ error: '계정 삭제 중 오류가 발생했습니다.' }), {
       status: 500,
       headers: { ...corsHeaders, 'Content-Type': 'application/json' },
     })

@@ -83,8 +83,11 @@ Deno.serve(async (req: Request) => {
       });
     }
 
-    // verify_jwt=true 면 Supabase 게이트웨이가 미인증을 거른다. 추가로 user_id 단위 rate limit.
-    const userId = extractUserIdFromJwt(req.headers.get('authorization')) ?? 'anonymous';
+    // verify_jwt=true 면 Supabase 게이트웨이가 JWT 서명을 이미 검증하므로 sub는 신뢰 가능.
+    // 추가로 user_id 단위 rate limit. sub 파싱 실패 시 공유 버킷('anonymous') 대신 per-IP 키로 폴백
+    // → 한 사용자가 키를 비워 전체 공유 한도를 우회/소모하는 것을 방지.
+    const clientIp = (req.headers.get('x-forwarded-for')?.split(',')[0] ?? '').trim() || 'unknown';
+    const userId = extractUserIdFromJwt(req.headers.get('authorization')) ?? `ip:${clientIp}`;
     if (!rateLimit(userId)) {
       return new Response(JSON.stringify({ error: '요청이 너무 많습니다. 잠시 후 다시 시도해주세요.' }), {
         status: 429,
