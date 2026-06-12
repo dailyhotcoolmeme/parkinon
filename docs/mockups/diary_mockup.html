@@ -1,0 +1,242 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>파킨온 일기 — 시안</title>
+<style>
+  :root{
+    --page:#F4EEDF; --pageDeep:#EFE7D3; --surface:#FAF5E9;
+    --rule:#E0D4BC; --ink:#3A3128; --inkSoft:#7A6E5C; --inkFaint:#A99B82;
+    --placeholder:#BBAd92; --accent:#B5613E; --accentSoft:#ECDDCB; --mine:#B89A52;
+    --serif:Georgia,'Nanum Myeongjo','Apple SD Gothic Neo',serif;
+    --sans:-apple-system,'Apple SD Gothic Neo','Malgun Gothic',sans-serif;
+  }
+  *{box-sizing:border-box;-webkit-tap-highlight-color:transparent;}
+  body{margin:0;background:#2b2622;font-family:var(--sans);color:var(--ink);
+       display:flex;flex-wrap:wrap;gap:28px;justify-content:center;padding:28px 14px 60px;}
+  .caption{width:100%;text-align:center;color:#cdbfa6;font-size:13px;margin:-8px 0 14px;}
+  .col{display:flex;flex-direction:column;align-items:center;gap:10px;}
+  .label{color:#e7dcc4;font-size:14px;font-weight:700;letter-spacing:.5px;}
+  .phone{width:360px;background:var(--page);border-radius:34px;
+         box-shadow:0 18px 50px rgba(0,0,0,.45);overflow:hidden;position:relative;
+         border:8px solid #1c1814;display:flex;flex-direction:column;}
+  /* top bar */
+  .top{height:52px;display:flex;align-items:center;justify-content:space-between;
+       padding:0 14px;flex:0 0 auto;}
+  .top .ic{width:34px;height:34px;display:flex;align-items:center;justify-content:center;
+           color:var(--inkSoft);font-size:22px;}
+  .top .t{font-family:var(--serif);font-size:16px;color:var(--ink);font-weight:600;}
+  .scroll{flex:1;overflow:visible;padding:6px 20px 24px;}
+  .scroll::-webkit-scrollbar{display:none;}
+
+  /* date header */
+  .date{font-family:var(--serif);font-size:22px;font-weight:600;color:var(--ink);
+        margin:10px 0 2px;}
+  .date .chip{font-family:var(--sans);font-size:11px;font-weight:700;color:var(--accent);
+        background:var(--accentSoft);padding:2px 8px;border-radius:10px;margin-left:8px;vertical-align:middle;}
+  .dateRule{height:1px;width:44%;background:var(--rule);margin:8px 0 22px;}
+
+  /* author block */
+  .author{display:flex;align-items:center;gap:8px;margin-bottom:9px;}
+  .author .dot{width:7px;height:7px;border-radius:50%;background:var(--mine);}
+  .author .nm{font-family:var(--serif);font-size:15px;font-weight:600;color:var(--inkSoft);}
+  .author .role{font-size:12px;color:var(--inkFaint);}
+  .body{font-family:var(--serif);font-size:16px;line-height:26px;color:var(--ink);
+        white-space:pre-wrap;margin:0 0 14px;}
+
+  /* inline photos */
+  .photos{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin:0 0 14px;}
+  .photo{aspect-ratio:1/1;border-radius:8px;background-size:cover;background-position:center;
+         border:1px solid var(--rule);}
+  .photo.wide{grid-column:1/3;aspect-ratio:16/10;}
+
+  /* audio pill */
+  .audio{display:inline-flex;align-items:center;gap:8px;background:var(--surface);
+         border:1px solid var(--rule);border-radius:22px;height:44px;padding:0 16px;margin:0 0 14px;}
+  .audio .play{width:26px;height:26px;border-radius:50%;background:var(--accent);color:#fff;
+        display:flex;align-items:center;justify-content:center;font-size:13px;}
+  .audio .wave{display:flex;gap:3px;align-items:center;}
+  .audio .wave i{width:3px;background:var(--inkFaint);border-radius:2px;}
+  .audio .dur{font-size:13px;color:var(--inkSoft);}
+
+  /* video thumb */
+  .video{position:relative;width:62%;aspect-ratio:16/10;border-radius:10px;overflow:hidden;
+         background-size:cover;background-position:center;border:1px solid var(--rule);margin:0 0 14px;}
+  .video .scrim{position:absolute;inset:0;background:rgba(38,28,18,.32);}
+  .video .pc{position:absolute;inset:0;margin:auto;width:46px;height:46px;border-radius:50%;
+        background:rgba(255,255,255,.92);display:flex;align-items:center;justify-content:center;
+        color:var(--accent);font-size:20px;}
+  .video .badge{position:absolute;right:8px;bottom:8px;background:rgba(0,0,0,.55);color:#fff;
+        font-size:11px;padding:2px 7px;border-radius:8px;}
+
+  .blockRule{height:1px;background:var(--rule);margin:6px 0 22px;}
+
+  /* 오늘의 기록 박스 (상단, 색 다른 박스) */
+  .recBox{background:#EBDFC2;border:1px solid #D8C9A4;border-radius:14px;
+        padding:14px 16px;margin:4px 0 24px;}
+  .recHead{display:flex;justify-content:space-between;align-items:center;margin-bottom:13px;}
+  .recTitle{font-size:13px;font-weight:700;letter-spacing:2px;color:var(--inkSoft);}
+  .recTrend{font-size:13px;font-weight:600;color:var(--accent);}
+  .recRow{display:flex;gap:10px;font-size:13px;line-height:20px;margin-bottom:9px;align-items:baseline;}
+  .recRow:last-child{margin-bottom:0;}
+  .recRow .lab{font-weight:700;color:var(--ink);white-space:nowrap;flex:0 0 auto;}
+  .recRow .val{color:var(--inkSoft);}
+
+  /* health footnote (collapsible) */
+  .foot{border-top:1px solid var(--rule);margin-top:8px;padding-top:14px;}
+  .foot .fh{display:flex;align-items:center;justify-content:space-between;cursor:pointer;}
+  .foot .fl{font-size:12px;font-weight:700;letter-spacing:1px;color:var(--inkFaint);}
+  .foot .trend{font-size:13px;font-weight:600;color:var(--accent);}
+  .foot .sum{font-size:13px;color:var(--inkFaint);margin-top:10px;line-height:20px;}
+  .foot .detail{margin-top:12px;display:flex;flex-direction:column;gap:10px;}
+  .dose{font-size:13px;color:var(--inkSoft);}
+  .dose b{font-family:var(--serif);color:var(--ink);font-weight:600;margin-right:6px;}
+  .dose .g{color:var(--inkFaint);}
+
+  /* fab */
+  .fab{position:absolute;left:0;right:0;bottom:18px;display:flex;justify-content:center;pointer-events:none;}
+  .fab button{pointer-events:auto;background:var(--accent);color:#fff;border:none;
+        font-size:16px;font-weight:700;padding:13px 26px;border-radius:26px;
+        box-shadow:0 8px 20px rgba(0,0,0,.2);font-family:var(--sans);}
+
+  /* editor */
+  .ed{background:var(--pageDeep);}
+  .ed .save{color:var(--accent);font-weight:700;font-size:16px;}
+  .editArea{flex:1;overflow:visible;padding:18px 20px;}
+  .paper{background:var(--surface);border-radius:10px;padding:18px;min-height:190px;
+        background-image:repeating-linear-gradient(transparent,transparent 31px,var(--rule) 31px,var(--rule) 32px);
+        background-position:0 14px;}
+  .paper .typed{font-family:var(--serif);font-size:16px;line-height:32px;color:var(--ink);white-space:pre-wrap;}
+  .paper .ph{font-family:var(--serif);font-size:16px;line-height:32px;color:var(--placeholder);}
+  /* attached previews in editor */
+  .att{display:flex;flex-direction:column;gap:12px;margin-top:16px;}
+  .attPhotos{display:flex;gap:10px;}
+  .attPhoto{position:relative;width:74px;height:74px;border-radius:6px;background-size:cover;
+        background-position:center;border:1px solid var(--rule);}
+  .attPhoto .x,.attVid .x{position:absolute;top:-7px;right:-7px;width:22px;height:22px;border-radius:50%;
+        background:#fff;border:1px solid var(--rule);color:var(--accent);display:flex;
+        align-items:center;justify-content:center;font-size:14px;}
+  .attVid{position:relative;width:120px;height:74px;border-radius:8px;overflow:hidden;
+        background-size:cover;background-position:center;border:1px solid var(--rule);}
+  .attVid .scrim{position:absolute;inset:0;background:rgba(38,28,18,.3);}
+  .attVid .pc{position:absolute;inset:0;margin:auto;width:34px;height:34px;border-radius:50%;
+        background:rgba(255,255,255,.92);display:flex;align-items:center;justify-content:center;color:var(--accent);}
+  .attAudio{display:flex;align-items:center;gap:14px;background:var(--surface);border:1px solid var(--rule);
+        border-radius:12px;padding:10px 14px;}
+  .attAudio .play{width:30px;height:30px;border-radius:50%;background:var(--accent);color:#fff;
+        display:flex;align-items:center;justify-content:center;}
+  .attAudio .lk{font-size:13px;color:var(--inkSoft);}
+  .attAudio .lk.warn{color:var(--accent);}
+  /* toolbar above keyboard */
+  .toolbar{flex:0 0 auto;border-top:1px solid var(--rule);background:var(--page);
+        display:flex;gap:10px;padding:10px 14px;}
+  .tool{flex:1;display:flex;align-items:center;justify-content:center;gap:6px;height:46px;
+        background:var(--surface);border:1px solid var(--rule);border-radius:10px;
+        font-size:14px;color:var(--inkSoft);}
+  .kbd{flex:0 0 auto;height:120px;background:#cfc7b8;border-top:1px solid #b9b09e;
+        display:flex;align-items:center;justify-content:center;color:#6f6755;font-size:12px;}
+  /* overflow menu chip on read view */
+  .menuNote{position:absolute;top:54px;right:12px;background:#fff;border:1px solid var(--rule);
+        border-radius:10px;box-shadow:0 6px 16px rgba(0,0,0,.12);font-size:14px;}
+  .menuNote div{padding:10px 16px;}
+  .menuNote .del{color:#B23B2E;border-top:1px solid var(--rule);}
+</style>
+</head>
+<body>
+  <div class="caption">파킨온 일기 — 구조 시안 (색·글씨는 임시, 구성·버튼·미디어 동작 위주로 봐주세요)</div>
+
+  <!-- ============ 읽는 화면 ============ -->
+  <div class="col">
+    <div class="label">① 읽는 화면</div>
+    <div class="phone">
+      <div class="top">
+        <div class="ic">‹</div>
+        <div class="t">일기</div>
+        <div class="ic">⋯</div>
+      </div>
+      <div class="menuNote" style="display:none">
+        <div>✏️ 수정</div><div class="del">🗑 삭제</div>
+      </div>
+      <div class="scroll">
+        <div class="date">6월 12일 목요일 <span class="chip">오늘</span></div>
+        <div class="dateRule"></div>
+
+        <!-- 오늘의 기록 박스 (상단) -->
+        <div class="recBox">
+          <div class="recHead">
+            <span class="recTitle">• 오늘의 기록 •</span>
+            <span class="recTrend">추세보기 ›</span>
+          </div>
+          <div class="recRow"><span class="lab">💊 약복용 3회</span><span class="val">08:00 | 12:00 | 18:00</span></div>
+          <div class="recRow"><span class="lab">😊 몸상태</span><span class="val">복용직후 3.5점 | 30분후 3.0점 | 2시간후 4.0점</span></div>
+          <div class="recRow"><span class="lab">🙂 기분상태</span><span class="val">복용직후 3.0점 | 30분후 4.0점 | 2시간후 4.0점</span></div>
+          <div class="recRow"><span class="lab">🏃 운동 2회</span><span class="val">걷기 30분 | 근력 20분</span></div>
+        </div>
+
+        <!-- author 1 -->
+        <div class="author"><span class="dot"></span><span class="nm">최성철</span><span class="role">· 환자</span></div>
+        <div class="body">오늘은 날이 좋아서 한강까지 걸었다. 바람이 시원해서 기분이 한결 가벼웠다. 점심 약 먹고 좀 쉬었더니 손떨림도 덜했다.</div>
+        <div class="photos">
+          <div class="photo" style="background-image:url('https://picsum.photos/seed/park1/300');background-color:#cdbfa6"></div>
+          <div class="photo" style="background-image:url('https://picsum.photos/seed/park2/300');background-color:#cdbfa6"></div>
+        </div>
+        <div class="audio">
+          <span class="play">▶</span>
+          <span class="wave"><i style="height:8px"></i><i style="height:14px"></i><i style="height:20px"></i><i style="height:11px"></i><i style="height:16px"></i><i style="height:7px"></i></span>
+          <span class="dur">음성 0:42</span>
+        </div>
+
+        <div class="blockRule"></div>
+
+        <!-- author 2 -->
+        <div class="author"><span class="dot" style="background:#8a8a8a"></span><span class="nm">김영희</span><span class="role">· 보호자</span></div>
+        <div class="body">아버지 오늘 컨디션이 좋으셔서 같이 산책했다. 웃으시는 모습 보니 나도 좋았다.</div>
+        <div class="video" style="background-image:url('https://picsum.photos/seed/walk/400/250');background-color:#b5ab93">
+          <div class="scrim"></div><div class="pc">▶</div><div class="badge">0:30</div>
+        </div>
+      </div>
+    </div>
+    <div class="caption" style="margin-top:8px">오늘의 기록=상단 색다른 박스(약복용/몸상태/기분/운동, 시간대별 평균점수) · 그 아래 사람 글·사진·영상·음성 · ⋯=수정/삭제</div>
+  </div>
+
+  <!-- ============ 작성 화면 ============ -->
+  <div class="col">
+    <div class="label">② 작성/수정 화면</div>
+    <div class="phone ed">
+      <div class="top">
+        <div class="ic">✕</div>
+        <div class="t">일기 작성</div>
+        <div class="ic save">저장</div>
+      </div>
+      <div class="editArea">
+        <div class="paper">
+          <div class="typed">오늘은 날이 좋아서 한강까지 걸었다. 바람이 시원해서<span style="color:var(--placeholder)"> |</span></div>
+          <div class="att">
+          <div class="attPhotos">
+            <div class="attPhoto" style="background-image:url('https://picsum.photos/seed/park1/160');background-color:#cdbfa6"><span class="x">×</span></div>
+            <div class="attPhoto" style="background-image:url('https://picsum.photos/seed/park2/160');background-color:#cdbfa6"><span class="x">×</span></div>
+          </div>
+          <div class="attVid">
+            <div class="scrim"></div><div class="pc">▶</div><span class="x" style="top:-7px;right:-7px;">×</span>
+          </div>
+          <div class="attAudio">
+            <span class="play">▶</span>
+            <span class="lk">들어보기 · 0:42</span>
+            <span class="lk warn">다시 녹음</span>
+            <span class="lk warn">삭제</span>
+          </div>
+          </div>
+        </div>
+      </div>
+      <div class="toolbar">
+        <div class="tool">📷 사진</div>
+        <div class="tool">🎬 동영상</div>
+        <div class="tool">🎙 음성</div>
+      </div>
+      <div class="kbd">⌨︎ 키보드 (마이크 버튼으로 말하면 글로 받아쓰기)</div>
+    </div>
+    <div class="caption" style="margin-top:8px">글 영역(괘선) · 키보드 위 [사진][동영상][음성] · 첨부는 ✕로 빼기 · 음성/영상 미리보기 · 저장은 우상단</div>
+  </div>
+</body>
+</html>

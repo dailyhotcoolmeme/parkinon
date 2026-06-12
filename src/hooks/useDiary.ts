@@ -11,15 +11,12 @@ export interface MedSummary {
   times: string[]; // 'HH:MM' 형식 복용 시각 목록 (KST)
 }
 
-export interface OnOffScore {
+// 시간대(trigger_time_label)별 평균 점수 한 줄.
+// 같은 시점 라벨(복용직후/30분 후/2시간 후…)이 하루에 여러 복용 회차에 걸쳐
+// 반복되므로, 라벨별로 평균을 내어 소수 첫째 자리로 표현한다.
+export interface TimePointAvg {
   label: string; // 사람이 읽는 시점 라벨 (예: '복용직후', '30분 후', '2시간 후')
-  body: number | null; // 몸상태(body_state) 점수
-  mood: number | null; // 기분(mood) 점수
-}
-
-export interface OnOffSummary {
-  count: number;
-  scores: OnOffScore[]; // 그날 약효추적 몸상태·기분 점수 전체 (logged_at 순)
+  avg: number; // 해당 시점 라벨의 평균 점수 (소수 첫째 자리)
 }
 
 export interface ExerciseSummaryItem {
@@ -35,8 +32,10 @@ export interface MediaSummaryItem {
 
 export interface AutoSummary {
   med: MedSummary;
-  onOff: OnOffSummary;
+  bodyByTime: TimePointAvg[]; // 몸상태(body_state) 시간대별 평균
+  moodByTime: TimePointAvg[]; // 기분(mood) 시간대별 평균
   exercise: ExerciseSummaryItem[];
+  exerciseCount: number;
   media: MediaSummaryItem[];
 }
 
@@ -177,26 +176,41 @@ export function useDiary(dateStr: string): UseDiaryReturn {
       const mediaRows =
         (mediaRes.data as { id: string; media_type: 'video' | 'photo'; r2_url: string }[] | null) ?? [];
 
-      // 몸상태(body_state) 또는 기분(mood) 중 하나라도 있는 기록 전체를
-      // logged_at 순으로 (쿼리에서 이미 정렬됨) 라벨+점수 칩으로
-      const onOffScores: OnOffScore[] = onOffRows
-        .filter((r) => r.body_state != null || r.mood != null)
-        .map((r) => ({
-          label: triggerLabelToChip(r.trigger_time_label),
-          body: r.body_state ?? null,
-          mood: r.mood ?? null,
-        }));
+      // 약효추적 기록을 trigger_time_label(시점)별로 묶어 평균을 낸다.
+      // 하루에 약을 여러 번 먹으면 복용직후/30분/2시간 라벨이 회차마다 반복되므로
+      // 같은 시점끼리 평균(소수 첫째 자리)을 내어 한 줄로 요약한다.
+      // 몸상태(body_state)·기분(mood)을 각각 별도로 집계한다.
+      const aggregateByTime = (field: 'body_state' | 'mood'): TimePointAvg[] => {
+        // rawLabel별 { sum, count } 누적 (정렬 키로 rawLabel 분 환산값 사용)
+        const buckets = new Map<string, { sum: number; count: number }>();
+        for (const r of onOffRows) {
+          const v = r[field];
+          if (v == null) continue;
+          const key = r.trigger_time_label ?? 'after_medication';
+          const cur = buckets.get(key) ?? { sum: 0, count: 0 };
+          cur.sum += v;
+          cur.count += 1;
+          buckets.set(key, cur);
+        }
+        return Array.from(buckets.entries())
+          .map(([rawLabel, { sum, count }]) => ({
+            rawLabel,
+            label: triggerLabelToChip(rawLabel),
+            avg: Math.round((sum / count) * 10) / 10, // 소수 첫째 자리
+          }))
+          .sort((a, b) => triggerLabelToMinutes(a.rawLabel) - triggerLabelToMinutes(b.rawLabel))
+          .map(({ label, avg }) => ({ label, avg }));
+      };
 
       setAutoSummary({
         med: {
           count: medRows.length,
-          times: medRows.map((r) => utcToKstHHMM(r.taken_at)),
+          times: medRows.map((r) => utcToKstHHMM(r.taken_at)).sort(),
         },
-        onOff: {
-          count: onOffRows.length,
-          scores: onOffScores,
-        },
+        bodyByTime: aggregateByTime('body_state'),
+        moodByTime: aggregateByTime('mood'),
         exercise: exRows.map((r) => ({ type: r.exercise_type, minutes: r.duration_minutes })),
+        exerciseCount: exRows.length,
         media: mediaRows.map((r) => ({ id: r.id, mediaType: r.media_type, url: r.r2_url })),
       });
 

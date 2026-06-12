@@ -148,6 +148,9 @@ export function DiaryScreen() {
           contentContainerStyle={styles.scrollContent}
           showsVerticalScrollIndicator={false}
         >
+          {/* ── 오늘의 기록 = 상단 색다른 박스 (시안 §recBox) ── */}
+          <TodayRecordBox summary={autoSummary} dialog={dialog} />
+
           {/* ── 한마디 (본문, 주연) — 한 장의 페이지, 블록 사이 rule 1px §11-3 ── */}
           {entries.length === 0 && (
             <Text style={styles.emptyEntryText}>아직 작성한 글이 없어요.</Text>
@@ -166,9 +169,6 @@ export function DiaryScreen() {
               {myEntry ? '✏️ 수정' : '✏️ 글 쓰기'}
             </Text>
           </TouchableOpacity>
-
-          {/* ── 건강 데이터 = 페이지 하단 각주 블록 §11-3 ── */}
-          <AutoFootnote summary={autoSummary} dialog={dialog} />
 
           <View style={{ height: 28 }} />
         </ScrollView>
@@ -206,86 +206,61 @@ export function DiaryScreen() {
   );
 }
 
-// ─── 건강 데이터 — 페이지 하단 각주 블록 §11-3 ─────────────────────────────────
+// ─── 오늘의 기록 = 상단 색다른 박스 (시안 §recBox) ─────────────────────────────
+// 약복용/몸상태/기분/운동을 시간대별 평균으로 한 줄씩. 데이터 없는 줄은 통째로 생략.
 
-function AutoFootnote({ summary, dialog }: { summary: AutoSummary | null; dialog: ReturnType<typeof useDialog> }) {
+function TodayRecordBox({ summary, dialog }: { summary: AutoSummary | null; dialog: ReturnType<typeof useDialog> }) {
   if (!summary) return null;
-  const hasAny = summary.med.count > 0 || summary.onOff.scores.length > 0 || summary.exercise.length > 0;
+
+  const hasMed = summary.med.count > 0;
+  const hasBody = summary.bodyByTime.length > 0;
+  const hasMood = summary.moodByTime.length > 0;
+  const hasExercise = summary.exercise.length > 0;
+  const hasAny = hasMed || hasBody || hasMood || hasExercise;
 
   return (
-    <View style={styles.footnote}>
-      {/* 위 rule + 아주 작은 라벨 / 우측 끝 추세보기 */}
-      <View style={styles.footnoteRule} />
-      <View style={styles.footnoteHeaderRow}>
-        <Text style={styles.footnoteLabel}>오늘의 기록</Text>
+    <View style={styles.recBox}>
+      {/* 헤더: 좌=• 오늘의 기록 • / 우=추세보기 › */}
+      <View style={styles.recHead}>
+        <Text style={styles.recTitle}>• 오늘의 기록 •</Text>
         <WebTrendLink dialog={dialog} />
       </View>
 
       {!hasAny ? (
-        <Text style={styles.footnoteText}>이 날은 자동으로 모인 기록이 없어요.</Text>
+        <Text style={styles.recEmpty}>이 날은 모인 기록이 없어요</Text>
       ) : (
-        <View style={styles.footnoteRows}>
-          {summary.med.count > 0 && (
-            <Text style={styles.footnoteText} numberOfLines={2}>
-              💊 약 {summary.med.count}회
-              {summary.med.times.length > 0 ? ` · ${summary.med.times.join(' ')}` : ''}
-            </Text>
-          )}
-
-          {summary.onOff.scores.length > 0 && (
-            <View style={styles.onOffBlock}>
-              {/* 몸상태 줄 */}
-              {summary.onOff.scores.some((s) => s.body != null) && (
-                <View style={styles.footnoteScoreRow}>
-                  <Text style={styles.onOffLineLabel}>몸상태</Text>
-                  <ScrollView
-                    horizontal
-                    showsHorizontalScrollIndicator={false}
-                    style={styles.scoreScroll}
-                    contentContainerStyle={styles.scoreRow}
-                  >
-                    {summary.onOff.scores
-                      .filter((s) => s.body != null)
-                      .map((s, i) => (
-                        <View key={`b-${i}`} style={styles.scoreChip}>
-                          <Text style={styles.scoreChipLabel}>{s.label}</Text>
-                          <Text style={styles.scoreChipScore}>{s.body}</Text>
-                        </View>
-                      ))}
-                  </ScrollView>
-                </View>
-              )}
-
-              {/* 기분 줄 */}
-              {summary.onOff.scores.some((s) => s.mood != null) && (
-                <View style={styles.footnoteScoreRow}>
-                  <Text style={styles.onOffLineLabel}>기분</Text>
-                  <ScrollView
-                    horizontal
-                    showsHorizontalScrollIndicator={false}
-                    style={styles.scoreScroll}
-                    contentContainerStyle={styles.scoreRow}
-                  >
-                    {summary.onOff.scores
-                      .filter((s) => s.mood != null)
-                      .map((s, i) => (
-                        <View key={`m-${i}`} style={styles.scoreChip}>
-                          <Text style={styles.scoreChipLabel}>{s.label}</Text>
-                          <Text style={styles.scoreChipScore}>{s.mood}</Text>
-                        </View>
-                      ))}
-                  </ScrollView>
-                </View>
-              )}
+        <>
+          {hasMed && (
+            <View style={styles.recRow}>
+              <Text style={styles.recLab}>💊 약복용 {summary.med.count}회</Text>
+              <Text style={styles.recVal}>{summary.med.times.join(' | ')}</Text>
             </View>
           )}
-
-          {summary.exercise.length > 0 && (
-            <Text style={styles.footnoteText} numberOfLines={2}>
-              🏃 {summary.exercise.map((e) => `${e.type} ${e.minutes}분`).join(', ')}
-            </Text>
+          {hasBody && (
+            <View style={styles.recRow}>
+              <Text style={styles.recLab}>😊 몸상태</Text>
+              <Text style={styles.recVal}>
+                {summary.bodyByTime.map((s) => `${s.label} ${s.avg}점`).join(' | ')}
+              </Text>
+            </View>
           )}
-        </View>
+          {hasMood && (
+            <View style={styles.recRow}>
+              <Text style={styles.recLab}>🙂 기분상태</Text>
+              <Text style={styles.recVal}>
+                {summary.moodByTime.map((s) => `${s.label} ${s.avg}점`).join(' | ')}
+              </Text>
+            </View>
+          )}
+          {hasExercise && (
+            <View style={styles.recRow}>
+              <Text style={styles.recLab}>🏃 운동 {summary.exerciseCount}회</Text>
+              <Text style={styles.recVal}>
+                {summary.exercise.map((e) => `${e.type} ${e.minutes}분`).join(' | ')}
+              </Text>
+            </View>
+          )}
+        </>
       )}
     </View>
   );
@@ -497,6 +472,31 @@ interface EditorProps {
     videoMediaId: string | null;
   }) => Promise<void>;
   onDeleted: () => Promise<void>;
+}
+
+// ─── 괘선 종이 (시안 §paper) ───────────────────────────────────────────────────
+// RN엔 repeating-linear-gradient가 없으므로, 콘텐츠 높이를 onLayout으로 재서
+// 32px 간격마다 1px 가로선 View를 절대배치로 깔고, 그 위에 글·첨부를 얹는다.
+const RULE_SPACING = 32;
+
+function RuledPaper({ children }: { children: React.ReactNode }) {
+  const [height, setHeight] = useState(0);
+  const lineCount = Math.ceil(height / RULE_SPACING);
+  return (
+    <View
+      style={styles.paper}
+      onLayout={(e) => setHeight(e.nativeEvent.layout.height)}
+    >
+      {/* 괘선 레이어 (글·첨부 뒤) */}
+      <View style={styles.ruleLayer} pointerEvents="none">
+        {Array.from({ length: lineCount }).map((_, i) => (
+          <View key={i} style={[styles.ruleLine, { top: i * RULE_SPACING }]} />
+        ))}
+      </View>
+      {/* 콘텐츠 (글 + 첨부 미리보기) — 괘선 위 */}
+      <View style={styles.paperContent}>{children}</View>
+    </View>
+  );
 }
 
 function DiaryEditorModal({ visible, dateStr, patientId, existing, onClose, onSaved, onDeleted }: EditorProps) {
@@ -835,19 +835,99 @@ function DiaryEditorModal({ visible, dateStr, patientId, existing, onClose, onSa
             keyboardShouldPersistTaps="handled"
             showsVerticalScrollIndicator={false}
           >
-            {/* 무테 텍스트영역 (괘선 느낌) */}
-            <TextInput
-              style={styles.editorInput}
-              value={text}
-              onChangeText={setText}
-              placeholder="오늘 하루는 어떠셨나요?"
-              placeholderTextColor={Journal.placeholder}
-              multiline
-              textAlignVertical="top"
-            />
+            {/* 괘선 종이: 글 + 첨부 미리보기가 한 장의 괘선 위에 (시안 §paper) */}
+            <RuledPaper>
+              <TextInput
+                style={styles.editorInput}
+                value={text}
+                onChangeText={setText}
+                placeholder="오늘 하루는 어떠셨나요?"
+                placeholderTextColor={Journal.placeholder}
+                multiline
+                textAlignVertical="top"
+              />
 
-            {/* 조용한 첨부 칩 한 줄 */}
+              {/* 첨부 미리보기 묶음 — 괘선 위에 그냥 얹힘(정렬 없음) */}
+              {(hasAudio || hasVideo || photoUrls.length > 0 || newPhotoUris.length > 0) && (
+                <View style={styles.attBlock}>
+                  {/* 음성 첨부됨 표시 + 미리듣기 */}
+                  {hasAudio && !recording && (
+                    <View style={styles.attachedRow}>
+                      <Ionicons name="mic" size={22} color={Journal.accent} />
+                      <TouchableOpacity
+                        style={styles.audioPreviewBtn}
+                        onPress={handlePreviewAudio}
+                        activeOpacity={0.8}
+                      >
+                        <Ionicons name={previewPlaying ? 'pause' : 'play'} size={18} color={Journal.accent} />
+                        <Text style={styles.audioPreviewText}>{previewPlaying ? '멈춤' : '들어보기'}</Text>
+                      </TouchableOpacity>
+                      <TouchableOpacity onPress={handleRemoveAudio} style={styles.removeBtn}>
+                        <Text style={styles.removeBtnText}>빼기</Text>
+                      </TouchableOpacity>
+                    </View>
+                  )}
+
+                  {/* 영상 첨부됨 표시 + 미리보기(탭하면 재생) */}
+                  {hasVideo && (
+                    <View style={styles.attachedRow}>
+                      <TouchableOpacity
+                        style={styles.videoPreviewFrame}
+                        activeOpacity={0.85}
+                        onPress={() => setShowVideoPreview(true)}
+                      >
+                        <View style={styles.videoPreviewInner}>
+                          <View style={styles.playCircle}>
+                            <Ionicons name="play" size={18} color="#fff" />
+                          </View>
+                        </View>
+                      </TouchableOpacity>
+                      <Text style={styles.attachedText}>영상이 첨부되었어요</Text>
+                      <TouchableOpacity onPress={handleRemoveVideo} style={styles.removeBtn}>
+                        <Text style={styles.removeBtnText}>빼기</Text>
+                      </TouchableOpacity>
+                    </View>
+                  )}
+
+                  {/* 사진 미리보기 */}
+                  {(photoUrls.length > 0 || newPhotoUris.length > 0) && (
+                    <ScrollView horizontal showsHorizontalScrollIndicator={false}>
+                      <View style={styles.thumbRow}>
+                        {photoUrls.map((url, i) => (
+                          <View key={`ep-${i}`} style={styles.editorThumbWrap}>
+                            <Image source={{ uri: url }} style={styles.editorThumb} />
+                            <TouchableOpacity style={styles.thumbRemove} onPress={() => handleRemovePhoto(i, true)}>
+                              <Ionicons name="close-circle" size={24} color={Journal.accent} />
+                            </TouchableOpacity>
+                          </View>
+                        ))}
+                        {newPhotoUris.map((uri, i) => (
+                          <View key={`np-${i}`} style={styles.editorThumbWrap}>
+                            <Image source={{ uri }} style={styles.editorThumb} />
+                            <TouchableOpacity style={styles.thumbRemove} onPress={() => handleRemovePhoto(i, false)}>
+                              <Ionicons name="close-circle" size={24} color={Journal.accent} />
+                            </TouchableOpacity>
+                          </View>
+                        ))}
+                      </View>
+                    </ScrollView>
+                  )}
+                </View>
+              )}
+            </RuledPaper>
+
+            {/* 첨부 도구막대 (키보드 위) — [📷 사진] [🎬 동영상] [🎙 음성] */}
             <View style={styles.attachChipRow}>
+              <TouchableOpacity style={styles.attachChip} onPress={handleAddPhoto} activeOpacity={0.8}>
+                <Text style={styles.attachChipText}>📷 사진</Text>
+              </TouchableOpacity>
+              <TouchableOpacity
+                style={styles.attachChip}
+                onPress={hasVideo ? handleRemoveVideo : handlePickVideo}
+                activeOpacity={0.8}
+              >
+                <Text style={styles.attachChipText}>{hasVideo ? '🎬 동영상 ✓' : '🎬 동영상'}</Text>
+              </TouchableOpacity>
               <TouchableOpacity
                 style={[styles.attachChip, recording && styles.attachChipActive]}
                 onPress={handleToggleRecord}
@@ -857,84 +937,14 @@ function DiaryEditorModal({ visible, dateStr, patientId, existing, onClose, onSa
                   {recording ? '⏹ 녹음 멈추기' : hasAudio ? '🎙 음성 ✓' : '🎙 음성'}
                 </Text>
               </TouchableOpacity>
-              <TouchableOpacity style={styles.attachChip} onPress={handleAddPhoto} activeOpacity={0.8}>
-                <Text style={styles.attachChipText}>📷 사진</Text>
-              </TouchableOpacity>
-              <TouchableOpacity
-                style={styles.attachChip}
-                onPress={hasVideo ? handleRemoveVideo : handlePickVideo}
-                activeOpacity={0.8}
-              >
-                <Text style={styles.attachChipText}>{hasVideo ? '🎬 영상 ✓' : '🎬 영상'}</Text>
-              </TouchableOpacity>
             </View>
 
-            {/* 음성 첨부됨 표시 + 미리듣기 */}
-            {hasAudio && !recording && (
-              <View style={styles.attachedRow}>
-                <Ionicons name="mic" size={22} color={Journal.accent} />
-                <TouchableOpacity
-                  style={styles.audioPreviewBtn}
-                  onPress={handlePreviewAudio}
-                  activeOpacity={0.8}
-                >
-                  <Ionicons name={previewPlaying ? 'pause' : 'play'} size={18} color={Journal.accent} />
-                  <Text style={styles.audioPreviewText}>{previewPlaying ? '멈춤' : '들어보기'}</Text>
-                </TouchableOpacity>
-                <TouchableOpacity onPress={handleRemoveAudio} style={styles.removeBtn}>
-                  <Text style={styles.removeBtnText}>빼기</Text>
-                </TouchableOpacity>
-              </View>
-            )}
-
-            {/* 영상 첨부됨 표시 + 미리보기(탭하면 재생) */}
-            {hasVideo ? (
-              <View style={styles.attachedRow}>
-                <TouchableOpacity
-                  style={styles.videoPreviewFrame}
-                  activeOpacity={0.85}
-                  onPress={() => setShowVideoPreview(true)}
-                >
-                  <View style={styles.videoPreviewInner}>
-                    <View style={styles.playCircle}>
-                      <Ionicons name="play" size={18} color="#fff" />
-                    </View>
-                  </View>
-                </TouchableOpacity>
-                <Text style={styles.attachedText}>영상이 첨부되었어요</Text>
-                <TouchableOpacity onPress={handleRemoveVideo} style={styles.removeBtn}>
-                  <Text style={styles.removeBtnText}>빼기</Text>
-                </TouchableOpacity>
-              </View>
-            ) : (
+            {/* 영상 촬영 진입 (첨부 없을 때) */}
+            {!hasVideo && (
               <TouchableOpacity style={styles.recordVideoLink} onPress={handleRecordVideo} activeOpacity={0.8}>
                 <Ionicons name="camera-outline" size={20} color={Journal.inkSoft} />
                 <Text style={styles.recordVideoLinkText}>영상 촬영하기</Text>
               </TouchableOpacity>
-            )}
-
-            {/* 사진 미리보기 */}
-            {(photoUrls.length > 0 || newPhotoUris.length > 0) && (
-              <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ marginTop: 14 }}>
-                <View style={styles.thumbRow}>
-                  {photoUrls.map((url, i) => (
-                    <View key={`ep-${i}`} style={styles.editorThumbWrap}>
-                      <Image source={{ uri: url }} style={styles.editorThumb} />
-                      <TouchableOpacity style={styles.thumbRemove} onPress={() => handleRemovePhoto(i, true)}>
-                        <Ionicons name="close-circle" size={24} color={Journal.accent} />
-                      </TouchableOpacity>
-                    </View>
-                  ))}
-                  {newPhotoUris.map((uri, i) => (
-                    <View key={`np-${i}`} style={styles.editorThumbWrap}>
-                      <Image source={{ uri }} style={styles.editorThumb} />
-                      <TouchableOpacity style={styles.thumbRemove} onPress={() => handleRemovePhoto(i, false)}>
-                        <Ionicons name="close-circle" size={24} color={Journal.accent} />
-                      </TouchableOpacity>
-                    </View>
-                  ))}
-                </View>
-              </ScrollView>
             )}
 
             {/* 내가 쓴 글일 때만 — 조용한 삭제 버튼 (주연 아님) */}
@@ -1154,21 +1164,39 @@ const styles = StyleSheet.create({
   },
   writeEntryText: { fontFamily: SERIF, fontSize: 15, fontWeight: '600', color: Journal.accent },
 
-  // ── 건강 데이터 = 하단 각주 §11-3 ──
-  footnote: { marginTop: 36 },
-  footnoteRule: { height: 1, backgroundColor: Journal.rule, marginBottom: 12 },
-  footnoteHeaderRow: {
+  // ── 오늘의 기록 = 상단 색다른 박스 (시안 §recBox) ──
+  recBox: {
+    backgroundColor: '#EBDFC2',
+    borderWidth: 1,
+    borderColor: '#D8C9A4',
+    borderRadius: 14,
+    paddingVertical: 14,
+    paddingHorizontal: 16,
+    marginBottom: 24,
+  },
+  recHead: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
-    marginBottom: 10,
+    marginBottom: 13,
   },
-  footnoteLabel: {
-    fontSize: 12,
-    fontWeight: '600',
-    color: Journal.inkFaint,
-    letterSpacing: 1.5,
+  recTitle: {
+    fontSize: 13,
+    fontWeight: '700',
+    letterSpacing: 2,
+    color: Journal.inkSoft,
   },
+  recRow: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    alignItems: 'baseline',
+    gap: 10,
+    marginBottom: 9,
+  },
+  recLab: { fontSize: 13, fontWeight: '700', lineHeight: 20, color: Journal.ink },
+  recVal: { fontSize: 13, fontWeight: '500', lineHeight: 20, color: Journal.inkSoft, flexShrink: 1 },
+  recEmpty: { fontSize: 13, fontWeight: '500', lineHeight: 20, color: Journal.inkFaint },
+
   trendLink: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -1177,43 +1205,38 @@ const styles = StyleSheet.create({
   },
   trendLinkText: { fontSize: 13, fontWeight: '600', color: Journal.accent },
 
-  footnoteRows: { gap: 10 },
-  footnoteText: { fontSize: 13, fontWeight: '500', lineHeight: 20, color: Journal.inkFaint },
-  footnoteScoreRow: { flexDirection: 'row', alignItems: 'center' },
-  onOffBlock: { gap: 8 },
-  onOffLineLabel: {
-    fontSize: 13,
-    fontWeight: '600',
-    color: Journal.inkFaint,
-    width: 48,
-  },
-
-  scoreScroll: { flexShrink: 1 },
-  scoreRow: { flexDirection: 'row', gap: 6, alignItems: 'center', paddingRight: 4 },
-  scoreChip: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 4,
-    paddingHorizontal: 9,
-    paddingVertical: 4,
-    borderRadius: 12,
-    backgroundColor: Journal.accentSoft,
-  },
-  scoreChipLabel: { fontSize: 13, fontWeight: '600', color: Journal.inkSoft },
-  scoreChipScore: { fontSize: 13, fontWeight: '600', color: Journal.accent },
-
   // ── 에디터 (펼친 일기장) §11-4 ──
   editorSafe: { flex: 1, backgroundColor: Journal.pageDeep },
   editorContent: { padding: 20 },
-  editorInput: {
+
+  // 괘선 종이 (시안 §paper) — 글+첨부가 한 장의 괘선 위
+  paper: {
+    position: 'relative',
     backgroundColor: Journal.surface,
     borderRadius: 10,
-    padding: 18,
+    overflow: 'hidden',
+    minHeight: 224,
+  },
+  ruleLayer: { ...StyleSheet.absoluteFillObject },
+  ruleLine: {
+    position: 'absolute',
+    left: 0,
+    right: 0,
+    height: 1,
+    backgroundColor: Journal.rule,
+  },
+  // 콘텐츠 패딩: 상단 14px → 첫 줄 글이 첫 괘선(32px) 위에 앉도록
+  paperContent: { paddingHorizontal: 18, paddingTop: 14, paddingBottom: 18 },
+  // 첨부 미리보기 묶음 — 괘선 위에 그냥 얹힘
+  attBlock: { marginTop: 14, gap: 12 },
+
+  editorInput: {
     fontFamily: SERIF,
     fontSize: 16,
-    lineHeight: 26,
+    lineHeight: RULE_SPACING, // 괘선 간격과 동일 → 글이 줄에 맞음
     color: Journal.ink,
-    minHeight: 220,
+    minHeight: RULE_SPACING * 5,
+    padding: 0,
   },
   attachChipRow: { flexDirection: 'row', gap: 10, marginTop: 16 },
   attachChip: {
