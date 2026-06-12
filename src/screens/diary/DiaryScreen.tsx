@@ -16,20 +16,39 @@ import {
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useNavigation, useRoute } from '@react-navigation/native';
 import { Ionicons } from '@expo/vector-icons';
-import { Audio } from 'expo-av';
+import { Audio, Video as AVVideo, ResizeMode } from 'expo-av';
 import * as ImagePicker from 'expo-image-picker';
 import * as ImageManipulator from 'expo-image-manipulator';
 import { Video as VideoCompressor } from 'react-native-compressor';
-import { Colors } from '../../constants/colors';
 import { TopBar } from '../../components/common/TopBar';
 import { DatePickerModal } from '../../components/common/DatePickerModal';
+import { ImageGalleryViewer } from '../../components/common/ImageGalleryViewer';
 import { useAuth } from '../../context/AuthContext';
 import { useDialog } from '../../context/DialogContext';
 import { supabase } from '../../lib/supabase';
 import { useDiary, DiaryEntry, AutoSummary } from '../../hooks/useDiary';
 import { uploadPhoto, uploadVideo, uploadSound } from '../../lib/r2Upload';
 
-const WEEKDAYS = ['일', '월', '화', '수', '목', '금', '토'];
+// ─── 일기장 로컬 팔레트 (DiaryScreen 전용, 전역 Colors 미변경 / 녹색 0%) ───────────
+const Journal = {
+  page: '#F7F1E3', // 화면 배경(크림 종이)
+  pageDeep: '#F1E8D3', // 작성 모달 배경
+  card: '#FFFDF7', // 한마디 카드 표면
+  rule: '#E3D7BC', // 괘선·구분선·날짜 밑줄
+  cardBorder: '#EADFC6', // 카드 테두리 1px
+  ink: '#33291E', // 본문 잉크(따뜻한 진갈색)
+  inkSoft: '#6B5D4A', // 보조 텍스트
+  inkFaint: '#9A8B73', // 자동 기록 본문
+  placeholder: '#B6A68A', // 에디터 플레이스홀더
+  accent: '#C2613D', // 테라코타(저자명·추세보기·저장·액티브)
+  accentSoft: '#F0E0D2', // 악센트 배경칩
+  mine: '#A8843C', // 내 카드 좌측 북마크 바(머스터드)
+  videoScrim: 'rgba(38,28,18,0.45)', // 영상 썸네일 위
+} as const;
+
+const SERIF = Platform.select({ ios: 'Georgia', android: 'serif' });
+
+const WEEKDAYS_FULL = ['일요일', '월요일', '화요일', '수요일', '목요일', '금요일', '토요일'];
 const MAX_VIDEO_DURATION_SEC = 120;
 const UPLOAD_TIMEOUT_MS = 180_000;
 
@@ -43,12 +62,6 @@ function toKstDateString(date: Date): string {
 function dateStrToDate(dateStr: string): Date {
   const [y, m, d] = dateStr.split('-').map(Number);
   return new Date(y, m - 1, d, 12, 0, 0);
-}
-
-// '6/12 (목)' 형식 라벨
-function formatDateLabel(dateStr: string): string {
-  const dt = dateStrToDate(dateStr);
-  return `${dt.getMonth() + 1}/${dt.getDate()} (${WEEKDAYS[dt.getDay()]})`;
 }
 
 function shiftDate(dateStr: string, days: number): string {
@@ -77,39 +90,57 @@ export function DiaryScreen() {
 
   const myEntry = entries.find((e) => e.author_id === user?.id) ?? null;
 
+  const dt = dateStrToDate(dateStr);
+  const monthDay = `${dt.getMonth() + 1} / ${dt.getDate()}`;
+  const weekday = WEEKDAYS_FULL[dt.getDay()];
+
   return (
     <SafeAreaView style={styles.safeArea} edges={['top']}>
       <TopBar title="일기" showBack />
 
-      {/* 날짜 네비게이션 */}
-      <View style={styles.dateNav}>
-        <TouchableOpacity
-          style={styles.navArrowBtn}
-          onPress={() => setDateStr(shiftDate(dateStr, -1))}
-          hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
-        >
-          <Ionicons name="chevron-back" size={28} color={Colors.text} />
-        </TouchableOpacity>
+      {/* ── 날짜 헤더 (크림 종이 톤) ── */}
+      <View style={styles.dateHeader}>
+        <View style={styles.dateHeaderRow}>
+          <TouchableOpacity
+            style={styles.navArrowBtn}
+            onPress={() => setDateStr(shiftDate(dateStr, -1))}
+            hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+          >
+            <Ionicons name="chevron-back" size={28} color={Journal.inkSoft} />
+          </TouchableOpacity>
 
-        <TouchableOpacity style={styles.dateCenter} onPress={() => setShowDatePicker(true)} activeOpacity={0.7}>
-          <Text style={styles.dateLabel}>{formatDateLabel(dateStr)}</Text>
-          {isToday && <Text style={styles.todayBadge}>오늘</Text>}
-          <Ionicons name="calendar-outline" size={22} color={Colors.textSub} style={{ marginLeft: 8 }} />
-        </TouchableOpacity>
+          <View style={styles.dateCenter}>
+            <View style={styles.dateTopRow}>
+              <Text style={styles.dateNumber}>{monthDay}</Text>
+              {isToday && <Text style={styles.todayChip}>오늘</Text>}
+            </View>
+            <Text style={styles.dateWeekday}>{weekday}</Text>
+            <View style={styles.dateRule} />
+          </View>
 
-        <TouchableOpacity
-          style={[styles.navArrowBtn, !canGoNext && styles.navArrowDisabled]}
-          onPress={() => canGoNext && setDateStr(shiftDate(dateStr, 1))}
-          disabled={!canGoNext}
-          hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
-        >
-          <Ionicons name="chevron-forward" size={28} color={canGoNext ? Colors.text : Colors.border} />
-        </TouchableOpacity>
+          <View style={styles.dateRightCol}>
+            <TouchableOpacity
+              style={[styles.navArrowBtn, !canGoNext && styles.navArrowDisabled]}
+              onPress={() => canGoNext && setDateStr(shiftDate(dateStr, 1))}
+              disabled={!canGoNext}
+              hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+            >
+              <Ionicons name="chevron-forward" size={28} color={canGoNext ? Journal.inkSoft : Journal.rule} />
+            </TouchableOpacity>
+            <TouchableOpacity
+              style={styles.calBtn}
+              onPress={() => setShowDatePicker(true)}
+              hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+            >
+              <Ionicons name="calendar-outline" size={22} color={Journal.inkSoft} />
+            </TouchableOpacity>
+          </View>
+        </View>
       </View>
 
       {loading ? (
         <View style={styles.loadingBox}>
-          <ActivityIndicator size="large" color={Colors.primary} />
+          <ActivityIndicator size="large" color={Journal.accent} />
         </View>
       ) : (
         <ScrollView
@@ -117,13 +148,7 @@ export function DiaryScreen() {
           contentContainerStyle={styles.scrollContent}
           showsVerticalScrollIndicator={false}
         >
-          {/* ── 오늘의 기록(자동) ── */}
-          <SectionTitle text="오늘의 기록" sub="자동으로 모인 기록이에요" />
-          <AutoSummaryCard summary={autoSummary} />
-
-          {/* ── 한마디 ── */}
-          <SectionTitle text="한마디" sub="환자와 보호자가 함께 적어요" />
-
+          {/* ── 한마디 (HERO, 위로) ── */}
           {entries.length === 0 && (
             <View style={styles.emptyEntryCard}>
               <Text style={styles.emptyEntryText}>아직 적은 한마디가 없어요.</Text>
@@ -134,26 +159,17 @@ export function DiaryScreen() {
             <EntryCard key={entry.id} entry={entry} isMine={entry.author_id === user?.id} />
           ))}
 
-          {/* 내가 안 썼으면 쓰기 진입 */}
-          {!myEntry && (
-            <TouchableOpacity style={styles.writeEntryCard} onPress={() => setShowEditor(true)} activeOpacity={0.85}>
-              <Ionicons name="create-outline" size={26} color={Colors.primary} />
-              <Text style={styles.writeEntryText}>오늘 일기 쓰기</Text>
-            </TouchableOpacity>
-          )}
+          {/* 내가 안 썼으면 쓰기 진입 / 썼으면 수정 */}
+          <TouchableOpacity style={styles.writeEntryCard} onPress={() => setShowEditor(true)} activeOpacity={0.85}>
+            <Text style={styles.writeEntryText}>
+              {myEntry ? '✏️ 내 한마디 수정하기' : '✏️ 오늘 한마디 쓰기'}
+            </Text>
+          </TouchableOpacity>
 
-          {/* 내가 썼으면 수정 버튼 */}
-          {myEntry && (
-            <TouchableOpacity style={styles.editEntryBtn} onPress={() => setShowEditor(true)} activeOpacity={0.85}>
-              <Ionicons name="pencil-outline" size={22} color={Colors.primary} />
-              <Text style={styles.editEntryText}>내 한마디 수정하기</Text>
-            </TouchableOpacity>
-          )}
+          {/* ── 오늘의 기록 (자동, 조용한 푸터 스트립) ── */}
+          <AutoFooter summary={autoSummary} dialog={dialog} />
 
-          {/* 웹 추세 보기 */}
-          <WebTrendButton dialog={dialog} />
-
-          <View style={{ height: 24 }} />
+          <View style={{ height: 28 }} />
         </ScrollView>
       )}
 
@@ -185,93 +201,105 @@ export function DiaryScreen() {
   );
 }
 
-// ─── 섹션 제목 ────────────────────────────────────────────────────────────────
+// ─── 오늘의 기록 (자동) — 조용한 푸터 스트립 ───────────────────────────────────
 
-function SectionTitle({ text, sub }: { text: string; sub?: string }) {
-  return (
-    <View style={styles.sectionTitleWrap}>
-      <Text style={styles.sectionTitle}>{text}</Text>
-      {sub && <Text style={styles.sectionSub}>{sub}</Text>}
-    </View>
-  );
-}
-
-// ─── 자동 수집 카드 ───────────────────────────────────────────────────────────
-
-function AutoSummaryCard({ summary }: { summary: AutoSummary | null }) {
+function AutoFooter({ summary, dialog }: { summary: AutoSummary | null; dialog: ReturnType<typeof useDialog> }) {
   if (!summary) return null;
-  const hasAny =
-    summary.med.count > 0 ||
-    summary.onOff.count > 0 ||
-    summary.exercise.length > 0 ||
-    summary.media.length > 0;
-
-  if (!hasAny) {
-    return (
-      <View style={styles.autoCard}>
-        <Text style={styles.autoEmptyText}>이 날은 자동으로 모인 기록이 없어요.</Text>
-      </View>
-    );
-  }
+  const hasAny = summary.med.count > 0 || summary.onOff.scores.length > 0 || summary.exercise.length > 0;
 
   return (
-    <View style={styles.autoCard}>
-      {summary.med.count > 0 && (
-        <View style={styles.autoRow}>
-          <Text style={styles.autoEmoji}>💊</Text>
-          <Text style={styles.autoText}>
-            약 복용 {summary.med.count}회
-            {summary.med.times.length > 0 ? ` · ${summary.med.times.join(', ')}` : ''}
-          </Text>
-        </View>
-      )}
-      {summary.onOff.count > 0 && (
-        <View style={styles.autoRow}>
-          <Text style={styles.autoEmoji}>😊</Text>
-          <Text style={styles.autoText}>
-            약효 추적 {summary.onOff.count}건
-            {summary.onOff.representativeScore != null ? ` (${summary.onOff.representativeScore}점)` : ''}
-          </Text>
-        </View>
-      )}
-      {summary.exercise.length > 0 && (
-        <View style={styles.autoRow}>
-          <Text style={styles.autoEmoji}>🏃</Text>
-          <Text style={styles.autoText}>
-            {summary.exercise.map((e) => `${e.type} ${e.minutes}분`).join(', ')}
-          </Text>
-        </View>
-      )}
-      {summary.media.length > 0 && (
-        <View style={styles.autoMediaWrap}>
-          <Text style={styles.autoEmoji}>📷</Text>
-          <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ flex: 1 }}>
-            <View style={styles.thumbRow}>
-              {summary.media.map((m) => (
-                <View key={m.id} style={styles.autoThumb}>
-                  {m.mediaType === 'photo' ? (
-                    <Image source={{ uri: m.url }} style={styles.autoThumbImg} />
-                  ) : (
-                    <View style={[styles.autoThumbImg, styles.videoThumb]}>
-                      <Ionicons name="videocam" size={26} color="#fff" />
-                    </View>
-                  )}
-                </View>
-              ))}
+    <View style={styles.autoFooter}>
+      {/* 헤더: 좌 라벨 / 우 추세보기 pill */}
+      <View style={styles.autoHeaderRow}>
+        <Text style={styles.autoLabel}>오늘의 기록</Text>
+        <WebTrendPill dialog={dialog} />
+      </View>
+
+      {!hasAny ? (
+        <Text style={styles.autoEmptyText}>이 날은 자동으로 모인 기록이 없어요.</Text>
+      ) : (
+        <View style={styles.autoRows}>
+          {summary.med.count > 0 && (
+            <View style={styles.autoRow}>
+              <Text style={styles.autoEmoji}>💊</Text>
+              <Text style={styles.autoText}>
+                약 복용 {summary.med.count}회
+                {summary.med.times.length > 0 ? ` · ${summary.med.times.join(', ')}` : ''}
+              </Text>
             </View>
-          </ScrollView>
+          )}
+
+          {summary.onOff.scores.length > 0 && (
+            <View style={styles.autoRow}>
+              <Text style={styles.autoEmoji}>😊</Text>
+              <ScrollView
+                horizontal
+                showsHorizontalScrollIndicator={false}
+                style={styles.scoreScroll}
+                contentContainerStyle={styles.scoreRow}
+              >
+                {summary.onOff.scores.map((s, i) => (
+                  <View key={i} style={styles.scoreChip}>
+                    <Text style={styles.scoreChipLabel}>{s.label}</Text>
+                    <Text style={styles.scoreChipScore}>{s.score}</Text>
+                  </View>
+                ))}
+              </ScrollView>
+            </View>
+          )}
+
+          {summary.exercise.length > 0 && (
+            <View style={styles.autoRow}>
+              <Text style={styles.autoEmoji}>🏃</Text>
+              <Text style={styles.autoText}>
+                {summary.exercise.map((e) => `${e.type} ${e.minutes}분`).join(', ')}
+              </Text>
+            </View>
+          )}
         </View>
       )}
     </View>
   );
 }
 
-// ─── 한마디 카드 ──────────────────────────────────────────────────────────────
+// ─── 웹 추세 보기 pill (오늘의 기록 헤더 우측) ─────────────────────────────────
+
+function WebTrendPill({ dialog }: { dialog: ReturnType<typeof useDialog> }) {
+  const [webLoading, setWebLoading] = useState(false);
+  const handleWebOpen = async () => {
+    if (webLoading) return;
+    setWebLoading(true);
+    try {
+      const { data, error } = await supabase.functions.invoke('create-web-token');
+      if (error || !data?.url) throw new Error(error?.message || '링크 생성 실패');
+      await Linking.openURL(data.url as string);
+    } catch (e: any) {
+      dialog.alert({ title: '오류', message: e?.message || '잠시 후 다시 시도해주세요.' });
+    } finally {
+      setWebLoading(false);
+    }
+  };
+  return (
+    <TouchableOpacity style={styles.trendPill} onPress={handleWebOpen} activeOpacity={0.8} disabled={webLoading}>
+      {webLoading ? (
+        <ActivityIndicator size="small" color={Journal.accent} />
+      ) : (
+        <>
+          <Text style={styles.trendPillText}>추세보기</Text>
+          <Ionicons name="chevron-forward" size={16} color={Journal.accent} />
+        </>
+      )}
+    </TouchableOpacity>
+  );
+}
+
+// ─── 한마디 카드 (HERO) ───────────────────────────────────────────────────────
 
 function EntryCard({ entry, isMine }: { entry: DiaryEntry; isMine: boolean }) {
   const dialog = useDialog();
   const soundRef = useRef<Audio.Sound | null>(null);
   const [playing, setPlaying] = useState(false);
+  const [showVideo, setShowVideo] = useState(false);
 
   useEffect(() => {
     return () => {
@@ -309,7 +337,9 @@ function EntryCard({ entry, isMine }: { entry: DiaryEntry; isMine: boolean }) {
   const roleLabel = entry.author_role === 'caregiver' ? '보호자' : '환자';
 
   return (
-    <View style={[styles.entryCard, isMine && styles.entryCardMine]}>
+    <View style={styles.entryCard}>
+      {isMine && <View style={styles.mineBookmark} />}
+
       <View style={styles.entryHeader}>
         <Text style={styles.entryAuthor}>
           {roleIcon} {entry.author_name}
@@ -319,67 +349,78 @@ function EntryCard({ entry, isMine }: { entry: DiaryEntry; isMine: boolean }) {
 
       {!!entry.text && <Text style={styles.entryText}>{entry.text}</Text>}
 
-      {/* 첨부: 음성 / 사진 / 영상 */}
-      {(entry.audio_url || entry.photo_urls.length > 0 || entry.video_url) && (
-        <View style={styles.attachWrap}>
-          {entry.audio_url && (
-            <TouchableOpacity style={styles.audioBtn} onPress={handlePlayAudio} activeOpacity={0.8}>
-              <Ionicons name={playing ? 'stop-circle' : 'play-circle'} size={26} color={Colors.primary} />
-              <Text style={styles.audioBtnText}>{playing ? '음성 멈춤' : '음성 듣기'}</Text>
-            </TouchableOpacity>
-          )}
-          {(entry.photo_urls.length > 0 || entry.video_url) && (
-            <ScrollView horizontal showsHorizontalScrollIndicator={false}>
-              <View style={styles.thumbRow}>
-                {entry.photo_urls.map((url, i) => (
-                  <Image key={`p-${i}`} source={{ uri: url }} style={styles.entryThumb} />
-                ))}
-                {entry.video_url && (
-                  <View style={[styles.entryThumb, styles.videoThumb]}>
-                    <Ionicons name="videocam" size={26} color="#fff" />
-                  </View>
-                )}
-              </View>
-            </ScrollView>
-          )}
+      {/* 음성: 인라인 pill */}
+      {entry.audio_url && (
+        <TouchableOpacity style={styles.audioPill} onPress={handlePlayAudio} activeOpacity={0.8}>
+          <Ionicons name={playing ? 'stop' : 'play'} size={20} color={Journal.accent} />
+          <Text style={styles.audioPillText}>{playing ? '음성 멈춤' : '음성 듣기'}</Text>
+        </TouchableOpacity>
+      )}
+
+      {/* 사진: 폴라로이드 프레임 → ImageGalleryViewer 라이트박스 */}
+      {entry.photo_urls.length > 0 && (
+        <View style={styles.polaroidFrame}>
+          <ImageGalleryViewer urls={entry.photo_urls} />
         </View>
+      )}
+
+      {/* 영상: 썸네일 + play → 풀스크린 */}
+      {entry.video_url && (
+        <TouchableOpacity style={styles.videoThumb} activeOpacity={0.85} onPress={() => setShowVideo(true)}>
+          <View style={styles.videoScrim}>
+            <View style={styles.playCircle}>
+              <Ionicons name="play" size={28} color="#fff" />
+            </View>
+            <Text style={styles.videoThumbText}>영상 보기</Text>
+          </View>
+        </TouchableOpacity>
+      )}
+
+      {entry.video_url && showVideo && (
+        <FullscreenVideoModal url={entry.video_url} onClose={() => setShowVideo(false)} />
       )}
     </View>
   );
 }
 
-// ─── 웹 추세 보기 버튼 ────────────────────────────────────────────────────────
+// ─── 풀스크린 영상 재생 (expo-av Video) ───────────────────────────────────────
 
-function WebTrendButton({ dialog }: { dialog: ReturnType<typeof useDialog> }) {
-  const [webLoading, setWebLoading] = useState(false);
-  const handleWebOpen = async () => {
-    if (webLoading) return;
-    setWebLoading(true);
+function FullscreenVideoModal({ url, onClose }: { url: string; onClose: () => void }) {
+  const videoRef = useRef<AVVideo>(null);
+
+  const handleClose = async () => {
     try {
-      const { data, error } = await supabase.functions.invoke('create-web-token');
-      if (error || !data?.url) throw new Error(error?.message || '링크 생성 실패');
-      await Linking.openURL(data.url as string);
-    } catch (e: any) {
-      dialog.alert({ title: '오류', message: e?.message || '잠시 후 다시 시도해주세요.' });
-    } finally {
-      setWebLoading(false);
+      await videoRef.current?.pauseAsync();
+      await videoRef.current?.unloadAsync();
+    } catch (_) {
+      /* noop */
     }
+    onClose();
   };
+
   return (
-    <TouchableOpacity style={styles.webBtn} onPress={handleWebOpen} activeOpacity={0.85} disabled={webLoading}>
-      {webLoading ? (
-        <ActivityIndicator color={Colors.primary} />
-      ) : (
-        <>
-          <Ionicons name="bar-chart-outline" size={24} color={Colors.primary} />
-          <Text style={styles.webBtnText}>웹으로 추세 보기</Text>
-        </>
-      )}
-    </TouchableOpacity>
+    <Modal visible transparent={false} animationType="fade" statusBarTranslucent onRequestClose={handleClose}>
+      <View style={styles.videoModalBg}>
+        <SafeAreaView edges={['top']} style={styles.videoModalHeader}>
+          <TouchableOpacity style={styles.videoCloseBtn} onPress={handleClose} activeOpacity={0.8}>
+            <Ionicons name="close" size={26} color="#fff" />
+            <Text style={styles.videoCloseText}>닫기</Text>
+          </TouchableOpacity>
+        </SafeAreaView>
+        <AVVideo
+          ref={videoRef}
+          source={{ uri: url }}
+          style={styles.fullscreenVideo}
+          resizeMode={ResizeMode.CONTAIN}
+          useNativeControls
+          shouldPlay
+        />
+      </View>
+    </Modal>
   );
 }
 
-// ─── 작성/수정 모달 ───────────────────────────────────────────────────────────
+// ─── 작성/수정 에디터 (펼친 일기장) ───────────────────────────────────────────
 
 interface EditorProps {
   visible: boolean;
@@ -651,7 +692,7 @@ function DiaryEditorModal({ visible, dateStr, patientId, existing, onClose, onSa
 
   return (
     <Modal visible={visible} animationType="slide" onRequestClose={onClose}>
-      <SafeAreaView style={styles.safeArea} edges={['top', 'bottom']}>
+      <SafeAreaView style={styles.editorSafe} edges={['top', 'bottom']}>
         <TopBar title="오늘 한마디" showClose />
         <KeyboardAvoidingView
           style={styles.flex1}
@@ -663,95 +704,89 @@ function DiaryEditorModal({ visible, dateStr, patientId, existing, onClose, onSa
             keyboardShouldPersistTaps="handled"
             showsVerticalScrollIndicator={false}
           >
-            <Text style={styles.editorGuide}>
-              오늘 하루를 한마디로 남겨보세요. 글, 음성, 사진, 영상을 함께 넣을 수 있어요.
-            </Text>
-
-            {/* 글 입력 */}
-            <Text style={styles.editorLabel}>글</Text>
+            {/* 무테 텍스트영역 (괘선 느낌) */}
             <TextInput
               style={styles.editorInput}
               value={text}
               onChangeText={setText}
-              placeholder="예: 오늘은 컨디션이 좋았어요."
-              placeholderTextColor={Colors.textHint}
+              placeholder="오늘 하루는 어떠셨나요?"
+              placeholderTextColor={Journal.placeholder}
               multiline
               textAlignVertical="top"
             />
 
-            {/* 음성 첨부 */}
-            <Text style={styles.editorLabel}>음성</Text>
-            {hasAudio ? (
+            {/* 조용한 첨부 칩 한 줄 */}
+            <View style={styles.attachChipRow}>
+              <TouchableOpacity
+                style={[styles.attachChip, recording && styles.attachChipActive]}
+                onPress={handleToggleRecord}
+                activeOpacity={0.8}
+              >
+                <Text style={[styles.attachChipText, recording && styles.attachChipTextActive]}>
+                  {recording ? '⏹ 녹음 멈추기' : hasAudio ? '🎙 음성 ✓' : '🎙 음성'}
+                </Text>
+              </TouchableOpacity>
+              <TouchableOpacity style={styles.attachChip} onPress={handleAddPhoto} activeOpacity={0.8}>
+                <Text style={styles.attachChipText}>📷 사진</Text>
+              </TouchableOpacity>
+              <TouchableOpacity
+                style={styles.attachChip}
+                onPress={hasVideo ? handleRemoveVideo : handlePickVideo}
+                activeOpacity={0.8}
+              >
+                <Text style={styles.attachChipText}>{hasVideo ? '🎬 영상 ✓' : '🎬 영상'}</Text>
+              </TouchableOpacity>
+            </View>
+
+            {/* 음성 첨부됨 표시 */}
+            {hasAudio && !recording && (
               <View style={styles.attachedRow}>
-                <Ionicons name="mic" size={24} color={Colors.primary} />
+                <Ionicons name="mic" size={22} color={Journal.accent} />
                 <Text style={styles.attachedText}>음성이 첨부되었어요</Text>
                 <TouchableOpacity onPress={handleRemoveAudio} style={styles.removeBtn}>
                   <Text style={styles.removeBtnText}>빼기</Text>
                 </TouchableOpacity>
               </View>
-            ) : (
-              <TouchableOpacity
-                style={[styles.attachBtn, recording && styles.attachBtnActive]}
-                onPress={handleToggleRecord}
-                activeOpacity={0.85}
-              >
-                <Ionicons name={recording ? 'stop-circle' : 'mic-outline'} size={24} color={recording ? '#fff' : Colors.primary} />
-                <Text style={[styles.attachBtnText, recording && styles.attachBtnTextActive]}>
-                  {recording ? '녹음 멈추기' : '음성 녹음하기'}
-                </Text>
-              </TouchableOpacity>
             )}
 
-            {/* 사진 첨부 */}
-            <Text style={styles.editorLabel}>사진</Text>
-            <ScrollView horizontal showsHorizontalScrollIndicator={false}>
-              <View style={styles.thumbRow}>
-                {photoUrls.map((url, i) => (
-                  <View key={`ep-${i}`} style={styles.editorThumbWrap}>
-                    <Image source={{ uri: url }} style={styles.editorThumb} />
-                    <TouchableOpacity style={styles.thumbRemove} onPress={() => handleRemovePhoto(i, true)}>
-                      <Ionicons name="close-circle" size={24} color="#F44336" />
-                    </TouchableOpacity>
-                  </View>
-                ))}
-                {newPhotoUris.map((uri, i) => (
-                  <View key={`np-${i}`} style={styles.editorThumbWrap}>
-                    <Image source={{ uri }} style={styles.editorThumb} />
-                    <TouchableOpacity style={styles.thumbRemove} onPress={() => handleRemovePhoto(i, false)}>
-                      <Ionicons name="close-circle" size={24} color="#F44336" />
-                    </TouchableOpacity>
-                  </View>
-                ))}
-                {photoUrls.length + newPhotoUris.length < 5 && (
-                  <TouchableOpacity style={styles.addThumb} onPress={handleAddPhoto} activeOpacity={0.8}>
-                    <Ionicons name="add" size={32} color={Colors.textSub} />
-                    <Text style={styles.addThumbText}>사진</Text>
-                  </TouchableOpacity>
-                )}
-              </View>
-            </ScrollView>
-
-            {/* 영상 첨부 */}
-            <Text style={styles.editorLabel}>영상 (최대 2분)</Text>
+            {/* 영상 첨부됨 표시 + 촬영 옵션 */}
             {hasVideo ? (
               <View style={styles.attachedRow}>
-                <Ionicons name="videocam" size={24} color={Colors.primary} />
+                <Ionicons name="videocam" size={22} color={Journal.accent} />
                 <Text style={styles.attachedText}>영상이 첨부되었어요</Text>
                 <TouchableOpacity onPress={handleRemoveVideo} style={styles.removeBtn}>
                   <Text style={styles.removeBtnText}>빼기</Text>
                 </TouchableOpacity>
               </View>
             ) : (
-              <View style={styles.videoBtnRow}>
-                <TouchableOpacity style={styles.attachBtn} onPress={handleRecordVideo} activeOpacity={0.85}>
-                  <Ionicons name="camera-outline" size={24} color={Colors.primary} />
-                  <Text style={styles.attachBtnText}>촬영하기</Text>
-                </TouchableOpacity>
-                <TouchableOpacity style={styles.attachBtn} onPress={handlePickVideo} activeOpacity={0.85}>
-                  <Ionicons name="images-outline" size={24} color={Colors.primary} />
-                  <Text style={styles.attachBtnText}>갤러리</Text>
-                </TouchableOpacity>
-              </View>
+              <TouchableOpacity style={styles.recordVideoLink} onPress={handleRecordVideo} activeOpacity={0.8}>
+                <Ionicons name="camera-outline" size={20} color={Journal.inkSoft} />
+                <Text style={styles.recordVideoLinkText}>영상 촬영하기</Text>
+              </TouchableOpacity>
+            )}
+
+            {/* 사진 미리보기 */}
+            {(photoUrls.length > 0 || newPhotoUris.length > 0) && (
+              <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ marginTop: 14 }}>
+                <View style={styles.thumbRow}>
+                  {photoUrls.map((url, i) => (
+                    <View key={`ep-${i}`} style={styles.editorThumbWrap}>
+                      <Image source={{ uri: url }} style={styles.editorThumb} />
+                      <TouchableOpacity style={styles.thumbRemove} onPress={() => handleRemovePhoto(i, true)}>
+                        <Ionicons name="close-circle" size={24} color={Journal.accent} />
+                      </TouchableOpacity>
+                    </View>
+                  ))}
+                  {newPhotoUris.map((uri, i) => (
+                    <View key={`np-${i}`} style={styles.editorThumbWrap}>
+                      <Image source={{ uri }} style={styles.editorThumb} />
+                      <TouchableOpacity style={styles.thumbRemove} onPress={() => handleRemovePhoto(i, false)}>
+                        <Ionicons name="close-circle" size={24} color={Journal.accent} />
+                      </TouchableOpacity>
+                    </View>
+                  ))}
+                </View>
+              </ScrollView>
             )}
 
             <View style={{ height: 24 }} />
@@ -783,235 +818,311 @@ function DiaryEditorModal({ visible, dateStr, patientId, existing, onClose, onSa
 // ─── 스타일 ───────────────────────────────────────────────────────────────────
 
 const styles = StyleSheet.create({
-  safeArea: { flex: 1, backgroundColor: Colors.background },
+  safeArea: { flex: 1, backgroundColor: Journal.page },
   flex1: { flex: 1 },
-  scroll: { flex: 1 },
-  scrollContent: { padding: 16 },
-  loadingBox: { flex: 1, alignItems: 'center', justifyContent: 'center' },
+  scroll: { flex: 1, backgroundColor: Journal.page },
+  scrollContent: { padding: 18, paddingTop: 14 },
+  loadingBox: { flex: 1, alignItems: 'center', justifyContent: 'center', backgroundColor: Journal.page },
 
-  // 날짜 네비
-  dateNav: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    backgroundColor: Colors.white,
+  // 날짜 헤더 (크림 종이)
+  dateHeader: {
+    backgroundColor: Journal.page,
     paddingHorizontal: 16,
-    paddingVertical: 12,
-    borderBottomWidth: 1,
-    borderBottomColor: Colors.border,
+    paddingTop: 10,
+    paddingBottom: 14,
   },
+  dateHeaderRow: { flexDirection: 'row', alignItems: 'center' },
   navArrowBtn: {
     width: 48,
     height: 48,
     borderRadius: 24,
     alignItems: 'center',
     justifyContent: 'center',
-    backgroundColor: Colors.background,
   },
   navArrowDisabled: { opacity: 0.4 },
-  dateCenter: { flexDirection: 'row', alignItems: 'center' },
-  dateLabel: { fontSize: 22, fontWeight: '800', color: Colors.text },
-  todayBadge: {
-    marginLeft: 8,
+  dateCenter: { flex: 1, alignItems: 'center' },
+  dateTopRow: { flexDirection: 'row', alignItems: 'center', gap: 10 },
+  dateNumber: { fontFamily: SERIF, fontSize: 28, fontWeight: '700', color: Journal.ink },
+  todayChip: {
+    fontFamily: SERIF,
     fontSize: 14,
     fontWeight: '700',
-    color: Colors.primary,
-    backgroundColor: Colors.light,
-    paddingHorizontal: 8,
+    color: Journal.accent,
+    backgroundColor: Journal.accentSoft,
+    paddingHorizontal: 10,
     paddingVertical: 2,
-    borderRadius: 10,
+    borderRadius: 12,
     overflow: 'hidden',
   },
+  dateWeekday: { fontFamily: SERIF, fontSize: 18, fontWeight: '500', color: Journal.inkSoft, marginTop: 2 },
+  dateRule: { height: 1, width: '60%', backgroundColor: Journal.rule, marginTop: 8 },
+  dateRightCol: { flexDirection: 'row', alignItems: 'center' },
+  calBtn: { width: 48, height: 48, borderRadius: 24, alignItems: 'center', justifyContent: 'center' },
 
-  // 섹션 제목
-  sectionTitleWrap: { marginTop: 8, marginBottom: 10 },
-  sectionTitle: { fontSize: 20, fontWeight: '800', color: Colors.text },
-  sectionSub: { fontSize: 15, color: Colors.textSub, marginTop: 2 },
-
-  // 자동 카드
-  autoCard: {
-    backgroundColor: Colors.white,
-    borderRadius: 16,
-    padding: 16,
-    gap: 12,
-    marginBottom: 8,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 1 },
-    shadowOpacity: 0.06,
-    shadowRadius: 4,
-    elevation: 2,
-  },
-  autoRow: { flexDirection: 'row', alignItems: 'center', gap: 10 },
-  autoEmoji: { fontSize: 22 },
-  autoText: { fontSize: 18, color: Colors.text, fontWeight: '600', flex: 1 },
-  autoEmptyText: { fontSize: 17, color: Colors.textSub },
-  autoMediaWrap: { flexDirection: 'row', alignItems: 'center', gap: 10 },
-
-  thumbRow: { flexDirection: 'row', gap: 10, paddingVertical: 2 },
-  autoThumb: { width: 64, height: 64, borderRadius: 10, overflow: 'hidden' },
-  autoThumbImg: { width: 64, height: 64, borderRadius: 10, backgroundColor: '#1A1A1A' },
-  videoThumb: { alignItems: 'center', justifyContent: 'center' },
-
-  // 한마디 카드
+  // 한마디 비어있음
   emptyEntryCard: {
-    backgroundColor: Colors.white,
-    borderRadius: 16,
-    padding: 20,
+    backgroundColor: Journal.card,
+    borderRadius: 14,
+    borderWidth: 1,
+    borderColor: Journal.cardBorder,
+    padding: 24,
     alignItems: 'center',
-    marginBottom: 10,
+    marginBottom: 14,
   },
-  emptyEntryText: { fontSize: 17, color: Colors.textSub },
+  emptyEntryText: { fontFamily: SERIF, fontSize: 17, color: Journal.inkSoft },
+
+  // 한마디 EntryCard
   entryCard: {
-    backgroundColor: Colors.white,
-    borderRadius: 16,
-    padding: 16,
-    marginBottom: 10,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 1 },
-    shadowOpacity: 0.06,
-    shadowRadius: 4,
-    elevation: 2,
+    backgroundColor: Journal.card,
+    borderRadius: 14,
+    borderWidth: 1,
+    borderColor: Journal.cardBorder,
+    padding: 20,
+    marginBottom: 14,
+    overflow: 'hidden',
   },
-  entryCardMine: { borderWidth: 2, borderColor: Colors.primary },
-  entryHeader: { flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: 8 },
-  entryAuthor: { fontSize: 19, fontWeight: '800', color: Colors.text },
+  mineBookmark: {
+    position: 'absolute',
+    left: 0,
+    top: 0,
+    bottom: 0,
+    width: 4,
+    backgroundColor: Journal.mine,
+  },
+  entryHeader: { flexDirection: 'row', alignItems: 'center', gap: 10, marginBottom: 10 },
+  entryAuthor: { fontFamily: SERIF, fontSize: 18, fontWeight: '600', color: Journal.accent },
   entryRole: {
-    fontSize: 14,
-    fontWeight: '700',
-    color: Colors.textSub,
-    backgroundColor: Colors.background,
+    fontSize: 13,
+    fontWeight: '600',
+    color: Journal.inkSoft,
+    backgroundColor: Journal.accentSoft,
     paddingHorizontal: 8,
     paddingVertical: 2,
     borderRadius: 8,
     overflow: 'hidden',
   },
-  entryText: { fontSize: 18, color: Colors.text, lineHeight: 26, marginBottom: 4 },
-  attachWrap: { marginTop: 8, gap: 10 },
-  audioBtn: {
+  entryText: { fontFamily: SERIF, fontSize: 22, fontWeight: '400', color: Journal.ink, lineHeight: 36 },
+
+  // 음성 pill
+  audioPill: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: 8,
     alignSelf: 'flex-start',
-    paddingVertical: 8,
-    paddingHorizontal: 14,
-    borderRadius: 12,
-    backgroundColor: Colors.light,
+    minHeight: 48,
+    paddingVertical: 10,
+    paddingHorizontal: 16,
+    borderRadius: 24,
+    backgroundColor: Journal.accentSoft,
+    marginTop: 14,
   },
-  audioBtnText: { fontSize: 17, fontWeight: '700', color: Colors.primary },
-  entryThumb: { width: 72, height: 72, borderRadius: 10, backgroundColor: '#1A1A1A' },
+  audioPillText: { fontSize: 16, fontWeight: '700', color: Journal.accent },
 
-  // 쓰기/수정 진입
+  // 사진 폴라로이드 프레임
+  polaroidFrame: {
+    backgroundColor: '#FFFFFF',
+    borderWidth: 1,
+    borderColor: Journal.cardBorder,
+    borderRadius: 8,
+    padding: 8,
+    paddingBottom: 16,
+    marginTop: 14,
+    shadowColor: '#3A2E1E',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.1,
+    shadowRadius: 5,
+    elevation: 2,
+  },
+
+  // 영상 썸네일
+  videoThumb: {
+    height: 180,
+    borderRadius: 12,
+    overflow: 'hidden',
+    marginTop: 14,
+    backgroundColor: Journal.ink,
+  },
+  videoScrim: {
+    flex: 1,
+    backgroundColor: Journal.videoScrim,
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 10,
+  },
+  playCircle: {
+    width: 60,
+    height: 60,
+    borderRadius: 30,
+    backgroundColor: 'rgba(255,255,255,0.22)',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  videoThumbText: { fontSize: 15, fontWeight: '700', color: '#fff' },
+
+  // 풀스크린 영상
+  videoModalBg: { flex: 1, backgroundColor: '#000' },
+  videoModalHeader: { position: 'absolute', top: 0, left: 0, right: 0, zIndex: 10 },
+  videoCloseBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    alignSelf: 'flex-start',
+    margin: 12,
+    paddingHorizontal: 16,
+    paddingVertical: 12,
+    minHeight: 56,
+    minWidth: 90,
+    borderRadius: 28,
+    backgroundColor: 'rgba(255,255,255,0.15)',
+  },
+  videoCloseText: { color: '#fff', fontSize: 18, fontWeight: '700' },
+  fullscreenVideo: { flex: 1 },
+
+  // 쓰기/수정 진입 (테라코타 dashed)
   writeEntryCard: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
-    gap: 10,
-    backgroundColor: Colors.white,
-    borderRadius: 16,
-    borderWidth: 2,
-    borderColor: Colors.primary,
-    borderStyle: 'dashed',
-    minHeight: 64,
-    marginBottom: 12,
-  },
-  writeEntryText: { fontSize: 19, fontWeight: '800', color: Colors.primary },
-  editEntryBtn: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    gap: 8,
-    minHeight: 56,
-    marginBottom: 12,
-  },
-  editEntryText: { fontSize: 18, fontWeight: '700', color: Colors.primary },
-
-  // 웹 추세
-  webBtn: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    gap: 10,
-    backgroundColor: Colors.white,
-    borderRadius: 16,
+    borderRadius: 14,
     borderWidth: 1.5,
-    borderColor: Colors.primary,
-    minHeight: 60,
+    borderColor: Journal.accent,
+    borderStyle: 'dashed',
+    backgroundColor: Journal.card,
+    minHeight: 56,
+    marginBottom: 22,
+  },
+  writeEntryText: { fontSize: 18, fontWeight: '700', color: Journal.accent },
+
+  // 오늘의 기록 (자동 푸터)
+  autoFooter: {
+    borderTopWidth: 1,
+    borderTopColor: Journal.rule,
+    paddingTop: 16,
     marginTop: 4,
   },
-  webBtnText: { fontSize: 18, fontWeight: '800', color: Colors.primary },
-
-  // 에디터
-  editorContent: { padding: 16 },
-  editorGuide: { fontSize: 16, color: Colors.textSub, lineHeight: 24, marginBottom: 16 },
-  editorLabel: { fontSize: 18, fontWeight: '800', color: Colors.text, marginTop: 16, marginBottom: 8 },
-  editorInput: {
-    borderWidth: 1,
-    borderColor: Colors.border,
-    borderRadius: 12,
-    padding: 14,
-    fontSize: 18,
-    color: Colors.text,
-    minHeight: 110,
-    backgroundColor: Colors.white,
-  },
-  attachBtn: {
+  autoHeaderRow: {
     flexDirection: 'row',
     alignItems: 'center',
-    justifyContent: 'center',
-    gap: 8,
-    minHeight: 56,
-    borderRadius: 12,
-    borderWidth: 1.5,
-    borderColor: Colors.primary,
-    backgroundColor: Colors.white,
-    paddingHorizontal: 16,
-    flex: 1,
+    justifyContent: 'space-between',
+    marginBottom: 14,
   },
-  attachBtnActive: { backgroundColor: Colors.danger, borderColor: Colors.danger },
-  attachBtnText: { fontSize: 17, fontWeight: '700', color: Colors.primary },
-  attachBtnTextActive: { color: '#fff' },
-  videoBtnRow: { flexDirection: 'row', gap: 12 },
+  autoLabel: {
+    fontSize: 14,
+    fontWeight: '700',
+    color: Journal.inkSoft,
+    letterSpacing: 2,
+  },
+  trendPill: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 2,
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+    minHeight: 36,
+    borderRadius: 18,
+    backgroundColor: Journal.accentSoft,
+  },
+  trendPillText: { fontSize: 14, fontWeight: '700', color: Journal.accent },
+
+  autoRows: { gap: 12 },
+  autoRow: { flexDirection: 'row', alignItems: 'center', gap: 10 },
+  autoEmoji: { fontSize: 20 },
+  autoText: { fontSize: 16, fontWeight: '500', color: Journal.inkFaint, flex: 1 },
+  autoEmptyText: { fontSize: 16, color: Journal.inkFaint },
+
+  scoreScroll: { flex: 1 },
+  scoreRow: { flexDirection: 'row', gap: 8, alignItems: 'center', paddingRight: 4 },
+  scoreChip: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    paddingHorizontal: 12,
+    paddingVertical: 7,
+    borderRadius: 16,
+    backgroundColor: Journal.accentSoft,
+  },
+  scoreChipLabel: { fontSize: 15, fontWeight: '600', color: Journal.inkSoft },
+  scoreChipScore: { fontSize: 15, fontWeight: '700', color: Journal.accent },
+
+  // ── 에디터 (펼친 일기장) ──
+  editorSafe: { flex: 1, backgroundColor: Journal.pageDeep },
+  editorContent: { padding: 20 },
+  editorInput: {
+    backgroundColor: Journal.card,
+    borderWidth: 1,
+    borderColor: Journal.cardBorder,
+    borderRadius: 12,
+    padding: 18,
+    fontFamily: SERIF,
+    fontSize: 20,
+    lineHeight: 32,
+    color: Journal.ink,
+    minHeight: 200,
+  },
+  attachChipRow: { flexDirection: 'row', gap: 10, marginTop: 16 },
+  attachChip: {
+    flex: 1,
+    minHeight: 52,
+    borderRadius: 14,
+    backgroundColor: Journal.card,
+    borderWidth: 1,
+    borderColor: Journal.cardBorder,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  attachChipActive: { backgroundColor: Journal.accent, borderColor: Journal.accent },
+  attachChipText: { fontSize: 16, fontWeight: '700', color: Journal.inkSoft },
+  attachChipTextActive: { color: '#fff' },
+  recordVideoLink: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    alignSelf: 'flex-start',
+    minHeight: 48,
+    paddingVertical: 10,
+    marginTop: 12,
+  },
+  recordVideoLinkText: { fontSize: 16, fontWeight: '600', color: Journal.inkSoft },
   attachedRow: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: 10,
-    minHeight: 56,
+    minHeight: 52,
     borderRadius: 12,
-    backgroundColor: Colors.light,
+    backgroundColor: Journal.accentSoft,
     paddingHorizontal: 16,
+    marginTop: 12,
   },
-  attachedText: { fontSize: 17, fontWeight: '700', color: Colors.text, flex: 1 },
-  removeBtn: { paddingHorizontal: 12, paddingVertical: 8 },
-  removeBtnText: { fontSize: 16, fontWeight: '700', color: Colors.danger },
+  attachedText: { fontSize: 16, fontWeight: '700', color: Journal.ink, flex: 1 },
+  removeBtn: { paddingHorizontal: 12, paddingVertical: 10, minHeight: 48, justifyContent: 'center' },
+  removeBtnText: { fontSize: 16, fontWeight: '700', color: Journal.accent },
+
+  thumbRow: { flexDirection: 'row', gap: 12, paddingVertical: 2 },
   editorThumbWrap: { position: 'relative' },
-  editorThumb: { width: 80, height: 80, borderRadius: 10, backgroundColor: '#1A1A1A' },
-  thumbRemove: { position: 'absolute', top: -8, right: -8, backgroundColor: '#fff', borderRadius: 12 },
-  addThumb: {
-    width: 80,
-    height: 80,
+  editorThumb: {
+    width: 84,
+    height: 84,
     borderRadius: 10,
-    borderWidth: 1.5,
-    borderColor: Colors.border,
-    borderStyle: 'dashed',
-    alignItems: 'center',
-    justifyContent: 'center',
+    backgroundColor: Journal.rule,
+    borderWidth: 1,
+    borderColor: Journal.cardBorder,
   },
-  addThumbText: { fontSize: 14, color: Colors.textSub, fontWeight: '600' },
+  thumbRemove: { position: 'absolute', top: -8, right: -8, backgroundColor: '#fff', borderRadius: 12 },
 
   editorBottom: {
     padding: 16,
     borderTopWidth: 1,
-    borderTopColor: Colors.border,
-    backgroundColor: Colors.white,
+    borderTopColor: Journal.rule,
+    backgroundColor: Journal.pageDeep,
   },
   saveBtn: {
-    minHeight: 60,
+    minHeight: 56,
     borderRadius: 14,
-    backgroundColor: Colors.primary,
+    backgroundColor: Journal.accent,
     alignItems: 'center',
     justifyContent: 'center',
   },
   saveBtnDisabled: { opacity: 0.6 },
-  saveBtnText: { fontSize: 20, fontWeight: '800', color: '#fff' },
+  saveBtnText: { fontSize: 19, fontWeight: '800', color: '#fff' },
   savingRow: { flexDirection: 'row', alignItems: 'center', gap: 10 },
 });

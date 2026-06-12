@@ -2,6 +2,7 @@ import { useState, useEffect, useCallback } from 'react';
 import { supabase } from '../lib/supabase';
 import { useAuth } from '../context/AuthContext';
 import { usePatientId } from './usePatientId';
+import { triggerLabelToMinutes } from '../utils/medUtils';
 
 // ─── 자동 수집 요약 타입 ──────────────────────────────────────────────────────
 
@@ -10,9 +11,14 @@ export interface MedSummary {
   times: string[]; // 'HH:MM' 형식 복용 시각 목록 (KST)
 }
 
+export interface OnOffScore {
+  label: string; // 사람이 읽는 시점 라벨 (예: '복용직후', '30분 후', '2시간 후')
+  score: number; // body_state 점수
+}
+
 export interface OnOffSummary {
   count: number;
-  representativeScore: number | null; // 대표 몸상태 점수 (가장 이른 기록 기준)
+  scores: OnOffScore[]; // 그날 약효추적 body_state 점수 전체 (logged_at 순)
 }
 
 export interface ExerciseSummaryItem {
@@ -78,6 +84,18 @@ function utcToKstHHMM(iso: string): string {
   return `${hh}:${mm}`;
 }
 
+// trigger_time_label → 짧은 사람용 라벨 (칩용). 'after_medication'→'복용직후', '30min_after'→'30분 후', '2hour_after'→'2시간 후'
+// 공용 분 환산(triggerLabelToMinutes) 재사용해 일관성 유지.
+function triggerLabelToChip(label: string | null | undefined): string {
+  if (!label || label === 'after_medication') return '복용직후';
+  const min = triggerLabelToMinutes(label);
+  if (!isFinite(min) || min === 0) return '복용직후';
+  if (min < 60) return `${min}분 후`;
+  const h = Math.floor(min / 60);
+  const rem = min % 60;
+  return rem === 0 ? `${h}시간 후` : `${h}시간 ${rem}분 후`;
+}
+
 interface UseDiaryReturn {
   autoSummary: AutoSummary | null;
   entries: DiaryEntry[];
@@ -120,7 +138,7 @@ export function useDiary(dateStr: string): UseDiaryReturn {
           .order('taken_at', { ascending: true }),
         supabase
           .from('on_off_logs')
-          .select('id, body_state, logged_at')
+          .select('id, body_state, logged_at, trigger_time_label')
           .eq('patient_id', patientId)
           .gte('logged_at', startUtc)
           .lt('logged_at', endUtc)
@@ -143,13 +161,21 @@ export function useDiary(dateStr: string): UseDiaryReturn {
 
       const medRows = (medRes.data as { id: string; taken_at: string }[] | null) ?? [];
       const onOffRows =
-        (onOffRes.data as { id: string; body_state: number | null; logged_at: string }[] | null) ?? [];
+        (onOffRes.data as
+          | { id: string; body_state: number | null; logged_at: string; trigger_time_label: string | null }[]
+          | null) ?? [];
       const exRows =
         (exRes.data as { id: string; exercise_type: string; duration_minutes: number }[] | null) ?? [];
       const mediaRows =
         (mediaRes.data as { id: string; media_type: 'video' | 'photo'; r2_url: string }[] | null) ?? [];
 
-      const repScore = onOffRows.find((r) => r.body_state != null)?.body_state ?? null;
+      // body_state 가 있는 기록 전체를 logged_at 순으로 (쿼리에서 이미 정렬됨) 라벨+점수 칩으로
+      const onOffScores: OnOffScore[] = onOffRows
+        .filter((r) => r.body_state != null)
+        .map((r) => ({
+          label: triggerLabelToChip(r.trigger_time_label),
+          score: r.body_state as number,
+        }));
 
       setAutoSummary({
         med: {
@@ -158,7 +184,7 @@ export function useDiary(dateStr: string): UseDiaryReturn {
         },
         onOff: {
           count: onOffRows.length,
-          representativeScore: repScore,
+          scores: onOffScores,
         },
         exercise: exRows.map((r) => ({ type: r.exercise_type, minutes: r.duration_minutes })),
         media: mediaRows.map((r) => ({ id: r.id, mediaType: r.media_type, url: r.r2_url })),

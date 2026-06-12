@@ -95,3 +95,53 @@
 ## 9. 비고
 - 전부 OTA 가능(네이티브 모듈 추가 없음). STT는 키보드 받아쓰기라 새 빌드 불필요.
 - "🎤 말로 쓰기" 전용 실시간 STT 버튼은 네이티브 모듈→새 빌드 필요하므로 MVP 제외(추후 옵션).
+
+---
+
+# 10. 비주얼 디자인 v2 — 일기장 미감 (2026-06-12 재설계)
+
+> 1차 구현이 임상적·정신없음. 재설계 방향: **사람의 한마디가 주연, 자동 데이터는 조용한 배경.** 크림 종이 + 잉크 + 테라코타. 녹색 0%(이 화면 한정). 추후 ebook·수익화 대상이라 따뜻하고 간직하고 싶은 페이지여야 함. (디자인·심리 두 에이전트 합의 결과)
+
+## 10-1. 로컬 팔레트 `Journal` (DiaryScreen 전용, 전역 Colors 미변경)
+| 토큰 | HEX | 용도 |
+|---|---|---|
+| page | #F7F1E3 | 화면 배경(크림 종이) |
+| pageDeep | #F1E8D3 | 작성 모달 배경 |
+| card | #FFFDF7 | 한마디 카드 표면 |
+| rule | #E3D7BC | 괘선·구분선·날짜 밑줄 |
+| cardBorder | #EADFC6 | 카드 테두리 1px |
+| ink | #33291E | 본문 잉크(따뜻한 진갈색, 순흑 금지) |
+| inkSoft | #6B5D4A | 보조 텍스트 |
+| inkFaint | #9A8B73 | 자동 기록 본문 |
+| placeholder | #B6A68A | 에디터 플레이스홀더 |
+| accent | #C2613D | 테라코타(저자명·추세보기·저장·액티브) |
+| accentSoft | #F0E0D2 | 악센트 배경칩 |
+| mine | #A8843C | 내 카드 좌측 북마크 바(머스터드) |
+| videoScrim | rgba(38,28,18,0.45) | 영상 썸네일 위 |
+순백·순흑·녹색 금지.
+
+## 10-2. 타이포 (시스템 폰트만; serif=Platform.select({ios:'Georgia',android:'serif'}))
+- 날짜 숫자 28/700 serif ink · 요일 18/500 serif inkSoft
+- **한마디 본문(HERO) 22/400 serif ink, lineHeight 36** ← 화면 최대 글자
+- 저자명 18/600 serif accent · 역할 13/600 sans inkSoft
+- 자동 기록 행 16/500 sans inkFaint · 약효 점수칩 15/600
+- 섹션 라벨 14/700 sans inkSoft letterSpacing 2.0
+- 에디터 플레이스홀더 20/400 serif placeholder
+- 13px 미만 금지, 터치타깃 48~56 유지. 대비는 ink on card(~10:1).
+
+## 10-3. 레이아웃·위계 (정신없음 해소)
+1. **날짜 헤더**: 종이 톤(흰 바 제거), 날짜 아래 폭60% rule 1px 밑줄, "6 / 12" + "목요일", 오늘이면 accentSoft 칩, 좌우 화살표(48 터치).
+2. **한마디(HERO)를 위로**, 자동 기록은 아래 푸터로. (사람 글이 주연)
+3. **오늘의 기록(자동) = 조용한 푸터 스트립**: page와 거의 같은 톤, 상단 rule 1px, 그림자 없음.
+   - 헤더: 좌 "오늘의 기록"(라벨) / **우측 끝 "추세보기" pill**(accent 글자+accentSoft 배경, chevron, 텍스트 동반).
+   - 행: 💊약 복용 N회·시각 / 😊약효추적 **모든 점수 가로칩**(`[복용직후 4][30분 3][2시간 4]`, on_off_logs.trigger_time_label+body_state, 가로스크롤 scrollbar 숨김) / 🏃운동.
+   - **사진·영상 행 삭제**(한마디 첨부와 중복).
+4. **한마디 EntryCard**: card 배경 radius14 padding20, 내 카드=좌측 4px mine 북마크 바(테두리로 가두지 않음), 헤더(👤저자명 accent + 역할), 본문 22 serif, 첨부(사진 폴라로이드 프레임→ImageGalleryViewer / 영상 썸네일+play→풀스크린 / 음성 인라인 pill accentSoft).
+5. **작성 에디터=펼친 일기장**(폼 아님): pageDeep 배경, 무테 텍스트영역(card, 괘선 느낌, 20 serif), 플레이스홀더 "오늘 하루는 어떠셨나요?", 조용한 첨부 칩 한 줄([🎙음성][📷사진][🎬영상]), **저장 버튼 테라코타**(녹색 아님).
+
+## 10-4. 미디어 뷰잉
+- 사진 → 기존 `src/components/common/ImageGalleryViewer.tsx` 라이트박스 재사용(전체화면·스와이프·탭 닫기).
+- 영상 → 풀스크린 재생. **expo-video 대신 현재 빌드에 있는 expo-av Video 사용**(VideoRecord/List가 씀, OTA 크래시 방지). 검정 Modal + contentFit contain + 컨트롤 + "닫기"(아이콘+텍스트).
+
+## 10-5. useDiary 보강
+- on_off_logs select에 `trigger_time_label` 추가 → `AutoSummary.onOff.scores: { label, score }[]`(시각별 전체) 노출. representativeScore 단일은 폐기/대체.
