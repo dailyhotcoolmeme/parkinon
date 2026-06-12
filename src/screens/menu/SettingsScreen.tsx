@@ -40,6 +40,7 @@ import { provisionForUser } from '../../lib/alarmSound';
 import { AlarmSoundPickerRow, AlarmSoundOption } from '../../components/common/AlarmSoundPickerRow';
 import { DoseSlotSetList } from '../../components/settings/DoseSlotSetList';
 import { ensurePatientDoseSlots } from '../../hooks/useDoseSlots';
+import { MEASUREMENT_FEATURE_ENABLED } from '../../constants/featureFlags';
 
 interface CaregiverNotif {
   id: string;
@@ -54,7 +55,10 @@ const DEFAULT_CAREGIVER_NOTIFS: CaregiverNotif[] = [
   { id: 'body_state', label: '몸상태 기록 시', enabled: true },
   { id: 'mood', label: '기분상태 기록 시', enabled: true },
   { id: 'exercise', label: '운동 기록 시', enabled: true },
-  { id: 'measurement_completed', label: '컨디션 측정 완료 시', sub: '환자가 손가락·반응속도 측정을 마치면 알림을 받아요', enabled: true },
+  // 컨디션 측정 기능 숨김 시 측정 완료 알림도 비노출.
+  ...(MEASUREMENT_FEATURE_ENABLED
+    ? [{ id: 'measurement_completed', label: '컨디션 측정 완료 시', sub: '환자가 손가락·반응속도 측정을 마치면 알림을 받아요', enabled: true }]
+    : []),
   { id: 'sleep', label: '수면 기록 시', enabled: false },
   { id: 'constipation', label: '변비 기록 시', enabled: false },
 ];

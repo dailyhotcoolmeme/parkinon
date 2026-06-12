@@ -33,6 +33,7 @@ import { useRecordRealtime } from '../../hooks/useRecordRealtime';
 import { ensureNotGuest } from '../../utils/guestGuard';
 import { MeasurementInviteModal } from '../../components/measurement/MeasurementInviteModal';
 import { ensureMeasurementConsent } from '../../utils/measurementConsent';
+import { MEASUREMENT_FEATURE_ENABLED } from '../../constants/featureFlags';
 import { buildRecommendedMedNotifs } from '../../utils/recommendUtils';
 import type { MeasurementMedPhase } from '../../types/database';
 
@@ -927,6 +928,7 @@ export function BodyStateScreen() {
       //   비노출: 보호자 / 게스트 / 비레보도파 단독 / 자율 입력
       const phase = labelToMedPhase(savedLabel);
       if (
+        MEASUREMENT_FEATURE_ENABLED &&
         phase &&
         userRole === 'patient' &&
         savedTriggeredBy === 'notification' &&
@@ -1014,7 +1016,7 @@ export function BodyStateScreen() {
           )}
 
           {/* 컨디션 측정 진입점 (환자 본인만 노출) — 영상 두 항목 바로 위 */}
-          {userRole === 'patient' && (
+          {MEASUREMENT_FEATURE_ENABLED && userRole === 'patient' && (
             <View style={styles.videoButtonRow}>
               <TouchableOpacity
                 style={styles.outlineButton}

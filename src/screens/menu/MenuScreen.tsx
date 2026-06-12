@@ -20,6 +20,7 @@ import { supabase } from '../../lib/supabase';
 import { navigateTo } from '../../navigation/navigationRef';
 import { useDialog } from '../../context/DialogContext';
 import { ensureNotGuest } from '../../utils/guestGuard';
+import { MEASUREMENT_FEATURE_ENABLED } from '../../constants/featureFlags';
 
 type NavigationProp = StackNavigationProp<MenuStackParamList, 'MenuHome'>;
 type IoniconName = React.ComponentProps<typeof Ionicons>['name'];
@@ -194,6 +195,8 @@ export function MenuScreen() {
   //   3) 📹 영상 기록 보기 (VideoList)
   // 환자/보호자 노출 조건은 기존 유지. 위치만 '기록 보기'와 '영상 기록 보기' 사이로 변경.
   const menuSections = React.useMemo<MenuSection[]>(() => {
+    // 컨디션 측정 기능 숨김 시 측정 관련 메뉴 항목(환자/보호자) 모두 비노출.
+    if (!MEASUREMENT_FEATURE_ENABLED) return MENU_SECTIONS;
     const isPatient = user?.role === 'patient';
     const isCaregiverWithData = user?.role === 'caregiver' && hasPatientMeasurement;
     if (!isPatient && !isCaregiverWithData) return MENU_SECTIONS;
