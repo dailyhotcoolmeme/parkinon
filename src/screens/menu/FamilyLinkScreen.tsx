@@ -344,13 +344,8 @@ export function FamilyLinkScreen() {
                 : residenceType === 'separate'
                   ? '따로 거주'
                   : '거주 정보 없음';
-              const initials = name.slice(-1);
-
               return (
                 <View key={member.user_id} style={styles.familyCard}>
-                  <View style={styles.avatar}>
-                    <Text style={styles.avatarText}>{initials}</Text>
-                  </View>
                   <View style={styles.memberInfo}>
                     <Text style={styles.memberName}>{name}</Text>
                     <Text style={styles.memberSub}>
@@ -578,22 +573,9 @@ const styles = StyleSheet.create({
     padding: 16,
     marginBottom: 12,
   },
-  avatar: {
-    width: 56,
-    height: 56,
-    borderRadius: 28,
-    backgroundColor: Colors.light,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  avatarText: {
-    fontSize: 22,
-    fontWeight: '700',
-    color: Colors.dark,
-  },
   memberInfo: {
     flex: 1,
-    marginHorizontal: 14,
+    marginRight: 14,
   },
   memberName: {
     fontSize: 20,

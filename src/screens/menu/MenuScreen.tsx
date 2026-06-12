@@ -134,7 +134,13 @@ export function MenuScreen() {
     }, [refreshUser])
   );
 
-  const roleName = user?.role === 'caregiver' ? '보호자' : '환자';
+  // 프로필 카드 보조문구: 보호자는 '보호자', 환자는 진단연도(있으면)만 표시('환자' 글자 노출 안 함).
+  const profileSub =
+    user?.role === 'caregiver'
+      ? '보호자'
+      : user?.diagnosis_year
+        ? `${user.diagnosis_year}년 진단`
+        : '';
 
   // Phase 5A — 보호자: 환자의 측정이 1회라도 있는지 체크 → 진입점 노출 가드
   const [hasPatientMeasurement, setHasPatientMeasurement] = React.useState<boolean>(false);
@@ -346,12 +352,9 @@ export function MenuScreen() {
           }}
           activeOpacity={0.85}
         >
-          <View style={styles.profileAvatarWrap}>
-            <Ionicons name="person" size={24} color="#FFFFFF" />
-          </View>
           <View style={styles.profileInfo}>
             <Text style={styles.profileName}>{user?.name ?? '사용자'}</Text>
-            <Text style={styles.profileRole}>{roleName}</Text>
+            {profileSub ? <Text style={styles.profileRole}>{profileSub}</Text> : null}
           </View>
           <View style={styles.profileEditRow}>
             <Text style={styles.profileEditText}>프로필 수정</Text>
@@ -466,15 +469,6 @@ const styles = StyleSheet.create({
     shadowRadius: 4,
     elevation: 2,
     marginBottom: 4,
-  },
-  profileAvatarWrap: {
-    width: 40,
-    height: 40,
-    borderRadius: 20,
-    backgroundColor: 'rgba(255,255,255,0.25)',
-    alignItems: 'center',
-    justifyContent: 'center',
-    marginRight: 12,
   },
   profileInfo: {
     flex: 1,
