@@ -1279,42 +1279,43 @@ function RecordRow({
       borderBottomWidth: isLast ? 0 : 1,
       borderBottomColor: '#F0F0F0',
     }}>
-      {/* 트리거 배지 + 시간 */}
+      {/* 트리거 배지 + 시간(좌) / 수정·삭제 아이콘(우) */}
       <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 }}>
-        <View style={{
-          backgroundColor: badgeBg,
-          borderRadius: 20,
-          paddingHorizontal: 14,
-          paddingVertical: 5,
-        }}>
-          <Text style={{ fontSize: 17, fontWeight: '700', color: badgeText }}>
-            {record.trigger}
-          </Text>
-        </View>
-        {/* 시간 + 수정/삭제 아이콘 — 시간 오른쪽에 배치(알림 설정과 동일 아이콘) */}
+        {/* 배지 + 시간 — 시간은 배지 바로 오른쪽에 붙임 */}
         <View style={{ flexDirection: 'row', alignItems: 'center' }}>
-          <Text style={{ fontSize: 16, color: '#999' }}>{record.time}</Text>
-          {canCancel && (
-            <>
-              <TouchableOpacity
-                style={styles.recordIconBtn}
-                onPress={() => onEdit(record)}
-                hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
-                activeOpacity={0.7}
-              >
-                <Ionicons name="create-outline" size={22} color={Colors.textSub} />
-              </TouchableOpacity>
-              <TouchableOpacity
-                style={styles.recordIconBtnDelete}
-                onPress={() => onCancel(record.id)}
-                hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
-                activeOpacity={0.7}
-              >
-                <Ionicons name="trash-outline" size={22} color={Colors.danger} />
-              </TouchableOpacity>
-            </>
-          )}
+          <View style={{
+            backgroundColor: badgeBg,
+            borderRadius: 20,
+            paddingHorizontal: 14,
+            paddingVertical: 5,
+          }}>
+            <Text style={{ fontSize: 17, fontWeight: '700', color: badgeText }}>
+              {record.trigger}
+            </Text>
+          </View>
+          <Text style={{ fontSize: 16, color: '#999', marginLeft: 10 }}>{record.time}</Text>
         </View>
+        {/* 수정/삭제 아이콘 — 오른쪽 유지(알림 설정과 동일 아이콘) */}
+        {canCancel && (
+          <View style={{ flexDirection: 'row', alignItems: 'center' }}>
+            <TouchableOpacity
+              style={styles.recordIconBtn}
+              onPress={() => onEdit(record)}
+              hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+              activeOpacity={0.7}
+            >
+              <Ionicons name="create-outline" size={22} color={Colors.textSub} />
+            </TouchableOpacity>
+            <TouchableOpacity
+              style={styles.recordIconBtnDelete}
+              onPress={() => onCancel(record.id)}
+              hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+              activeOpacity={0.7}
+            >
+              <Ionicons name="trash-outline" size={22} color={Colors.danger} />
+            </TouchableOpacity>
+          </View>
+        )}
       </View>
 
       {/* 점수 한 줄 — 이모지 + 점수 | 구분 */}
