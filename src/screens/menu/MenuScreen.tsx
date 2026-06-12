@@ -57,7 +57,7 @@ const MENU_SECTIONS: MenuSection[] = [
         key: 'Records',
         icon: 'bar-chart-outline',
         label: '작성 기록 보기',
-        desc: '약복용 약효추적 기록을 확인해요',
+        desc: '약복용·약효추적 기록을 확인해요',
       },
       {
         key: 'VideoList',
@@ -92,7 +92,7 @@ const MENU_SECTIONS: MenuSection[] = [
         key: 'Settings',
         icon: 'notifications-outline',
         label: '알림 설정',
-        desc: '약복용 약효추적 운동 알림을 설정할 수 있어요',
+        desc: '약복용·약효추적·운동 알림 등을 관리해요',
       },
       {
         key: 'AlarmSoundSettings',
