@@ -1237,7 +1237,20 @@ function RecordRow({
             {record.trigger}
           </Text>
         </View>
-        <Text style={{ fontSize: 16, color: '#999' }}>{record.time}</Text>
+        {/* 시간 + 취소 버튼 — 취소는 시간 오른쪽에 배치 */}
+        <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10 }}>
+          <Text style={{ fontSize: 16, color: '#999' }}>{record.time}</Text>
+          {canCancel && (
+            <TouchableOpacity
+              style={styles.cancelRecordBtn}
+              onPress={() => onCancel(record.id)}
+              hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+              activeOpacity={0.7}
+            >
+              <Text style={styles.cancelRecordBtnText}>취소</Text>
+            </TouchableOpacity>
+          )}
+        </View>
       </View>
 
       {/* 점수 한 줄 — 이모지 + 점수 | 구분 */}
@@ -1267,19 +1280,6 @@ function RecordRow({
         )}
       </View>
 
-      {/* 기록 취소(삭제) 버튼 — 환자 본인 / 함께 거주 보호자만 노출 */}
-      {canCancel && (
-        <View style={{ flexDirection: 'row', justifyContent: 'flex-end', marginTop: 12 }}>
-          <TouchableOpacity
-            style={styles.cancelRecordBtn}
-            onPress={() => onCancel(record.id)}
-            hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
-            activeOpacity={0.7}
-          >
-            <Text style={styles.cancelRecordBtnText}>취소</Text>
-          </TouchableOpacity>
-        </View>
-      )}
     </View>
   );
 }
