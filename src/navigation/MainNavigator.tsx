@@ -47,7 +47,7 @@ const TAB_ITEMS: { name: keyof MainTabParamList; icon: IoniconName; iconFocused:
   { name: 'BodyStateTab', icon: 'happy-outline',     iconFocused: 'happy',     label: '약효추적', emoji: '😊' },
   { name: 'Exercise',     icon: 'fitness-outline',   iconFocused: 'fitness',   label: '운동',     emoji: '🏃' },
   { name: 'Feed',         icon: 'newspaper-outline', iconFocused: 'newspaper', label: '정보·나눔', emoji: '📰' },
-  { name: 'MyInfo',       icon: 'person-outline',    iconFocused: 'person',    label: '내 정보',  emoji: '👤' },
+  { name: 'MyInfo',       icon: 'person-outline',    iconFocused: 'person',    label: '기록·관리', emoji: '👤' },
 ];
 
 export function MainNavigator() {
