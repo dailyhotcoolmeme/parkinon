@@ -150,7 +150,8 @@ export function FamilyLinkScreen() {
           groupRow.invite_code_expires_at > now
         ) {
           const existingCode = groupRow.invite_code.trim();
-          if (existingCode.length === 6) {
+          // 6자리 숫자 코드(구버전 8자리도 호환) 모두 표시
+          if (existingCode.length >= 6) {
             setInviteCode(existingCode);
           }
         } else {
@@ -451,7 +452,7 @@ export function FamilyLinkScreen() {
 
           <Text style={styles.sheetTitle}>받은 번호 입력</Text>
           <Text style={styles.sheetDesc}>
-            가족에게 받은 6자리 연결 번호를 입력해주세요
+            가족에게 받은 연결 번호를 입력해주세요
           </Text>
 
           <TextInput
@@ -460,7 +461,7 @@ export function FamilyLinkScreen() {
             onChangeText={text =>
               setInputCode(text.replace(/[^0-9]/g, '').slice(0, 6))
             }
-            placeholder="6자리 숫자"
+            placeholder="초대 번호 (숫자)"
             placeholderTextColor={Colors.textHint}
             maxLength={6}
             keyboardType="number-pad"

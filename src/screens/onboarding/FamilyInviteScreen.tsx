@@ -40,6 +40,7 @@ if (
 }
 
 // 초대 번호: 순수 숫자 6자리 (DB 저장·공유 텍스트는 공백 없이, 화면 표시만 3-3 그룹)
+// brute-force 방어는 서버측 만료 강제 + 시도 제한으로 처리.
 function generateInviteCode(): string {
   let code = '';
   for (let i = 0; i < 6; i++) {
@@ -48,10 +49,11 @@ function generateInviteCode(): string {
   return code;
 }
 
-// "482910" → "482 910" (표시 전용)
+// "123456" → "123 456" (표시 전용). 구버전 8자리 코드는 4-4 으로 폴백.
 function formatInviteCode(code: string): string {
-  if (code.length !== 6) return code;
-  return `${code.slice(0, 3)} ${code.slice(3)}`;
+  if (code.length === 6) return `${code.slice(0, 3)} ${code.slice(3)}`;
+  if (code.length === 8) return `${code.slice(0, 4)} ${code.slice(4)}`;
+  return code;
 }
 
 export function FamilyInviteScreen() {

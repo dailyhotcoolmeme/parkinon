@@ -50,7 +50,7 @@ export function FamilyCheckScreen() {
   const handleCodeConfirm = async () => {
     const fullCode = code;
     if (fullCode.length < 6) {
-      dialog.alert({ message: '초대 코드 6자리를 모두 입력해주세요.' });
+      dialog.alert({ message: '초대 번호를 모두 입력해주세요.' });
       return;
     }
     setLoading(true);
@@ -61,7 +61,6 @@ export function FamilyCheckScreen() {
       //    온보딩 완료(handleFinish) 시 joinGroupId가 null이라 그룹 합류/멤버 INSERT가 통째로 누락되는
       //    치명적 버그가 있었다. 따라서 (1) 세션 토큰을 붙인 raw fetch로 조회하고,
       //    (2) 그룹이 확정되지 않으면(조회 실패·미존재·만료) 진행을 막는다.
-      const now = new Date().toISOString();
       const SUPABASE_URL = process.env.EXPO_PUBLIC_SUPABASE_URL!;
       const SUPABASE_ANON_KEY = process.env.EXPO_PUBLIC_SUPABASE_ANON_KEY!;
 
@@ -75,42 +74,49 @@ export function FamilyCheckScreen() {
         return;
       }
 
-      const lookupUrl =
-        `${SUPABASE_URL}/rest/v1/patient_groups` +
-        `?invite_code=eq.${encodeURIComponent(fullCode)}` +
-        `&select=id,invite_code_expires_at&limit=1`;
-      const res = await fetch(lookupUrl, {
-        method: 'GET',
+      // 코드→그룹 조회는 SECURITY DEFINER RPC로 일원화한다.
+      //   (광범위 patient_groups SELECT RLS 정책을 보안상 제거했으므로, 비멤버는
+      //    직접 SELECT 불가. RPC가 유효+미만료 코드의 그룹 id 만 반환한다.)
+      const lookupRes = await fetch(`${SUPABASE_URL}/rest/v1/rpc/lookup_group_id_by_invite_code`, {
+        method: 'POST',
         headers: {
           apikey: SUPABASE_ANON_KEY,
           Authorization: `Bearer ${accessToken}`,
+          'Content-Type': 'application/json',
           Accept: 'application/json',
         },
+        body: JSON.stringify({ p_code: fullCode }),
       });
 
-      if (!res.ok) {
+      if (!lookupRes.ok) {
         // 조회 자체가 실패하면 group_id를 확정할 수 없으므로 진행 금지(조용히 무시 금지).
-        const errText = await res.text().catch(() => '');
-        console.warn('[FamilyCheck] 코드 조회 실패:', res.status, errText);
+        const errText = await lookupRes.text().catch(() => '');
+        console.warn('[FamilyCheck] 코드 조회 실패:', lookupRes.status, errText);
         dialog.alert({ title: '확인 실패', message: '초대 코드 확인 중 문제가 생겼어요. 잠시 후 다시 시도해주세요.' });
         setLoading(false);
         return;
       }
 
-      const groups: Array<{ id: string; invite_code_expires_at: string | null }> = await res.json();
-      if (!Array.isArray(groups) || groups.length === 0) {
-        dialog.alert({ title: '코드 오류', message: '올바른 초대 코드가 아니에요. 다시 확인해주세요.' });
+      // 스칼라 uuid 반환: JSON 문자열("uuid") 또는 raw 문자열 / null.
+      let groupId: string | null = null;
+      try {
+        const parsed: any = await lookupRes.clone().json();
+        if (typeof parsed === 'string') groupId = parsed;
+        else if (parsed && typeof parsed === 'object' && typeof parsed.lookup_group_id_by_invite_code === 'string') {
+          groupId = parsed.lookup_group_id_by_invite_code;
+        }
+      } catch {
+        const txt = (await lookupRes.text().catch(() => '')).trim();
+        groupId = txt && txt !== 'null' ? txt.replace(/^"|"$/g, '') : null;
+      }
+
+      if (!groupId) {
+        dialog.alert({ title: '코드 오류', message: '올바른 초대 번호가 아니거나 만료됐어요. 다시 확인해주세요.' });
         setLoading(false);
         return;
       }
 
-      const group = groups[0];
-      // 만료 여부 확인
-      if (group.invite_code_expires_at && group.invite_code_expires_at < now) {
-        dialog.alert({ title: '코드 만료', message: '초대 코드가 만료됐어요. 가족에게 새 코드를 요청해주세요.' });
-        setLoading(false);
-        return;
-      }
+      const group = { id: groupId };
 
       // ── 환자명 확인 단계 ──────────────────────────────────────────────────
       // 그룹은 확정됐지만, 다음 화면으로 넘어가기 전에 "어떤 환자와 연동되는지"를
@@ -220,7 +226,7 @@ export function FamilyCheckScreen() {
           >
             <Text style={styles.title}>초대 코드를 입력해주세요</Text>
             <Text style={styles.subtitle}>
-              가족에게 받은 초대 코드 6자리를{'\n'}입력해주세요
+              가족에게 받은 초대 번호를{'\n'}입력해주세요
             </Text>
 
             <View style={styles.codeRow}>
@@ -228,7 +234,7 @@ export function FamilyCheckScreen() {
                 style={[styles.codeInput, code.length > 0 && styles.codeInputFilled]}
                 value={code}
                 onChangeText={handleCodeChange}
-                placeholder="6자리 숫자"
+                placeholder="초대 번호 (숫자)"
                 placeholderTextColor={Colors.textHint}
                 maxLength={6}
                 keyboardType="number-pad"

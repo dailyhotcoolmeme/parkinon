@@ -72,6 +72,11 @@ const MEDIA_KEY_PATTERN =
 const SOUND_KEY_PATTERN =
   /^parkinon\/sounds\/([0-9a-fA-F-]{36})\/[A-Za-z0-9_-]+\.(m4a|caf|ogg|mp3|wav|aac)$/;
 
+// 안전 화이트리스트: 모든 정상 R2 key 는 'parkinon/' 로 시작하고
+// [A-Za-z0-9._/-] 문자만 포함한다(업로드 경로 규칙). 콤마·괄호·% ·공백 등
+// PostgREST 필터 메타문자가 들어오면 거부 → .or()/.like() 필터 인젝션 차단.
+const SAFE_KEY_PATTERN = /^parkinon\/[A-Za-z0-9._/-]+$/;
+
 const PRESIGN_EXPIRES = 3600; // 1시간
 
 function json(body: unknown, status = 200) {
@@ -141,6 +146,12 @@ Deno.serve(async (req) => {
       return json({ error: 'key 형식이 올바르지 않습니다.' }, 400);
     }
 
+    // ── 보안: DB 조회 이전에 key 화이트리스트 검증(필터 인젝션 차단) ──
+    // 콤마/괄호/% 등 PostgREST 필터 메타문자가 섞인 key 는 즉시 거부한다.
+    if (!SAFE_KEY_PATTERN.test(key)) {
+      return json({ error: 'key 형식이 올바르지 않습니다.' }, 400);
+    }
+
     // ── 인가 1: 커뮤니티 피드 사진은 로그인 사용자 누구나 허용 ──
     // post_media 에 이 key 가 등록돼 있으면(피드 사진) 그룹 무관 통과.
     // service_role 로 조회(RLS 우회) — 존재 여부만 확인.
@@ -149,12 +160,24 @@ Deno.serve(async (req) => {
       const serviceKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY');
       if (serviceKey) {
         const admin = createClient(supabaseUrl, serviceKey);
-        const { data: pm } = await admin
+        // 문자열 보간(.or) 대신 빌더 메서드로 안전 조회(값은 supabase-js 가 인코딩).
+        // 1) r2_key 정확매칭. 2) 없으면 r2_url 에 key 가 포함된 행(전체 URL 저장 케이스).
+        const { data: pmByKey } = await admin
           .from('post_media')
           .select('id')
-          .or(`r2_key.eq.${key},r2_url.like.%${key}%`)
+          .eq('r2_key', key)
           .limit(1)
           .maybeSingle();
+        let pm = pmByKey;
+        if (!pm) {
+          const { data: pmByUrl } = await admin
+            .from('post_media')
+            .select('id')
+            .like('r2_url', `%${key}%`)
+            .limit(1)
+            .maybeSingle();
+          pm = pmByUrl;
+        }
         if (pm) isCommunityMedia = true;
       }
     }

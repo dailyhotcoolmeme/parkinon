@@ -2,7 +2,7 @@
  * useFamilyLink.ts
  * 가족 연동 관련 훅
  *
- * - generateInviteCode() - 6자리 코드 생성/갱신
+ * - generateInviteCode() - 6자리 숫자 코드 생성/갱신
  * - joinByCode(code) - 코드로 그룹 합류 (보호자가 사용)
  * - getGroupMembers() - 그룹 멤버 조회
  * - getPatientForCaregiver() - 보호자가 연동된 환자 정보 조회
@@ -51,9 +51,13 @@ export interface UseFamilyLinkReturn {
   leaveGroup: () => Promise<boolean>;
 }
 
-// 6자리 숫자 코드 생성
+// 6자리 숫자 코드 생성 (숫자 전용). brute-force 방어는 서버측 만료 강제 + 시도 제한으로 처리.
 function generateCode(): string {
-  return Math.floor(100000 + Math.random() * 900000).toString();
+  let code = '';
+  for (let i = 0; i < 6; i++) {
+    code += Math.floor(Math.random() * 10).toString();
+  }
+  return code;
 }
 
 // 직접 fetch 호출 타임아웃(ms). New Architecture 에서 네트워크 hang 시 화면이

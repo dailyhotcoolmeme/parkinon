@@ -81,6 +81,18 @@ Deno.serve(async (req: Request) => {
       }
     }
 
+    // 보안: 큐에 저장할 push_token 은 요청 본문을 신뢰하지 않고,
+    // 검증된 patient_id(본인/같은그룹) 의 DB 저장값(users.push_token)으로 서버에서 조회한다.
+    //  → 임의 토큰을 큐에 주입해 타 기기로 스팸 푸시를 보내는 행위 차단.
+    // (dose_slot 경로는 아래에서 slot.patient_id !== patient_id 면 403 이므로 여기 patient_id 가 정본)
+    const { data: patientUserRow } = await serviceClient
+      .from('users')
+      .select('push_token')
+      .eq('id', patient_id)
+      .maybeSingle()
+    // DB 값 우선. DB 가 비어있을 때만(토큰 미등록) 본문값으로 폴백해 정상 전송을 보존.
+    const resolvedPushToken = patientUserRow?.push_token ?? push_token
+
     const now = Date.now()
 
     // enabled: true 이고 minutes > 0 인 항목만 처리 (양 경로 공통)
@@ -148,7 +160,7 @@ Deno.serve(async (req: Request) => {
 
       const rows = validItems.map((n) => ({
         patient_id: slot.patient_id,    // 요청 바디 값이 아니라 검증된 슬롯 소유자로 고정
-        push_token,
+        push_token: resolvedPushToken,  // 본문이 아니라 DB(users.push_token) 조회값 사용
         meal_time: meal_time ?? null,   // 호환용으로 같이 보관(있으면)
         dose_slot_id,
         med_log_id,
@@ -222,7 +234,7 @@ Deno.serve(async (req: Request) => {
 
     const rows = validItems.map((n) => ({
       patient_id,
-      push_token,
+      push_token: resolvedPushToken, // 본문이 아니라 DB(users.push_token) 조회값 사용
       meal_time: meal_time ?? null,
       interval_minutes: n.minutes,
       send_at: new Date(now + n.minutes * 60 * 1000).toISOString(),
