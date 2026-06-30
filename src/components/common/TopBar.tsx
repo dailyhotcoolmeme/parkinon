@@ -1,6 +1,6 @@
 import React from 'react';
 import { View, Text, TouchableOpacity, StyleSheet, Image } from 'react-native';
-import { Ionicons } from '@expo/vector-icons';
+import { Ionicons, MaterialCommunityIcons } from '@expo/vector-icons';
 import { useNavigation } from '@react-navigation/native';
 import { Colors } from '../../constants/colors';
 import { navigateTo } from '../../navigation/navigationRef';
@@ -74,7 +74,7 @@ export function TopBar({ title, showBack, showClose, showParkinon, rightIcon, ri
                   hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
                   style={styles.diaryWrap}
                 >
-                  <Ionicons name="book-outline" size={26} color={Colors.textSub} />
+                  <MaterialCommunityIcons name="notebook-edit-outline" size={26} color={Colors.primary} />
                 </TouchableOpacity>
               )}
               {showBell && (

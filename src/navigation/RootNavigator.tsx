@@ -14,9 +14,9 @@ import { ReactionGameScreen } from '../screens/measurement/ReactionGameScreen';
 import { MeasurementResultScreen } from '../screens/measurement/MeasurementResultScreen';
 import { CaregiverMeasurementScreen } from '../screens/measurement/CaregiverMeasurementScreen';
 import { MeasurementRecordsScreen } from '../screens/measurement/MeasurementRecordsScreen';
-import { RecordSoundScreen } from '../screens/sound/RecordSoundScreen';
-import { AlarmSoundSettingsScreen } from '../screens/sound/AlarmSoundSettingsScreen';
 import { DiaryScreen } from '../screens/diary/DiaryScreen';
+import { useNotificationGate } from '../hooks/useNotificationGate';
+import { NotificationGateScreen } from '../components/common/NotificationGateScreen';
 import type { MeasurementMedPhase } from '../types/database';
 
 export type RootStackParamList = {
@@ -46,14 +46,6 @@ export type RootStackParamList = {
   // 측정 기록 보기 화면. 일별 그래프 + 개별 기록 리스트(30건).
   // 환자 본인: param 없음(본인 데이터). 보호자: { patientId, patientName }로 환자 데이터 관람(읽기 전용).
   MeasurementRecords: { patientId?: string; patientName?: string } | undefined;
-  // 알림음 녹음 화면 — 5초 이내 음성 녹음 → R2 업로드 + custom_sounds 기록
-  // editSoundId/editLabel 이 오면 수정 모드(기존 행 UPDATE). 없으면 신규 등록.
-  RecordSound: { editSoundId?: string; editLabel?: string } | undefined;
-  // 알림음 설정 화면 — 저장된 녹음 미리듣기/설정/삭제 + 새 녹음 진입
-  // updatedSound: RecordSound 수정 후 돌아올 때 변경분 전달(즉시 반영용)
-  AlarmSoundSettings:
-    | { updatedSound?: { id: string; label?: string; public_url?: string | null; duration_ms?: number | null } }
-    | undefined;
   // 종합 데일리 저널(일기) — date 미지정 시 오늘(KST). 영상 기록에서 '일기 보기'로 진입 시 해당 날짜 전달.
   Diary: { date?: string } | undefined;
 };
@@ -63,7 +55,32 @@ const Stack = createStackNavigator<RootStackParamList>();
 export function RootNavigator() {
   const { user, loading } = useAuth();
 
+  // 알림 권한 강제 게이트 — 온보딩까지 마친 로그인 사용자에게만 동작.
+  // 훅은 (조건부 호출 금지를 위해) 항상 호출하되, enabled 로 동작을 제어한다.
+  const gateEnabled = !!user && !!user.onboarding_done && !loading;
+  const { state: gateState, canAskAgain, canSkip, skipped, skip, recheck } =
+    useNotificationGate(gateEnabled);
+
   if (loading) return <LoadingScreen />;
+
+  // 게이트 검사 중에는 절대 게이트를 보여주지 않고 로딩만 노출(잘못된 차단 방지).
+  if (gateEnabled && gateState === 'checking') return <LoadingScreen />;
+
+  // 권한 미허용 → 게이트 노출.
+  // - 안드(canSkip=false): 하드 블록. 허용 전까지 MainNavigator 자체가 마운트되지 않음.
+  // - iOS(canSkip=true): 소프트. "나중에"(skip) 선택 시 skipped=true → 게이트 통과해 진입.
+  //   이때 gateState 는 여전히 'blocked'(실제 권한 없음) — 게이트 통과는 권한 허용과 별개.
+  if (gateEnabled && gateState === 'blocked' && !skipped) {
+    return (
+      <NotificationGateScreen
+        userId={user!.id}
+        canAskAgain={canAskAgain}
+        canSkip={canSkip}
+        onSkip={skip}
+        onRecheck={recheck}
+      />
+    );
+  }
 
   return (
     <NavigationContainer ref={navigationRef}>
@@ -85,8 +102,6 @@ export function RootNavigator() {
             <Stack.Screen name="MeasurementResult" component={MeasurementResultScreen} />
             <Stack.Screen name="CaregiverMeasurement" component={CaregiverMeasurementScreen} />
             <Stack.Screen name="MeasurementRecords" component={MeasurementRecordsScreen} />
-            <Stack.Screen name="RecordSound" component={RecordSoundScreen} />
-            <Stack.Screen name="AlarmSoundSettings" component={AlarmSoundSettingsScreen} />
             <Stack.Screen name="Diary" component={DiaryScreen} />
           </>
         )}

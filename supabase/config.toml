@@ -1,6 +1,9 @@
 [functions.r2-upload]
 verify_jwt = false
 
+[functions.r2-get-url]
+verify_jwt = true
+
 [auth]
 enabled = true
 

@@ -69,7 +69,7 @@ Deno.serve(async (req) => {
           .maybeSingle(),
         adminClient
           .from('users')
-          .select('id, patient_group_id, push_token')
+          .select('id, patient_group_id, push_token, notification_enabled')
           .eq('push_token', to)
           .maybeSingle(),
       ]);
@@ -105,6 +105,17 @@ Deno.serve(async (req) => {
       return new Response(
         JSON.stringify({ error: '해당 수신자에게 알림을 보낼 권한이 없습니다.' }),
         { status: 403, headers: { ...corsHeaders, 'Content-Type': 'application/json' } },
+      );
+    }
+
+    // 전체 알림 마스터 게이트: 수신자가 전체 알림 OFF(notification_enabled=false)면 발송 스킵.
+    // (개별 토글 caregiver_notif_prefs 는 호출 측 훅에서 이미 존중 — 여기선 마스터만 추가 차단)
+    // notify-measurement-completed / send-medication-reminders 와 동일한 정책.
+    // 스킵 시 푸시도 안 보내고 notification_logs 에도 남기지 않는다(알림함 일관성).
+    if ((ownerRow as any)?.notification_enabled === false) {
+      return new Response(
+        JSON.stringify({ skipped: true, reason: 'notifications_disabled' }),
+        { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } },
       );
     }
 

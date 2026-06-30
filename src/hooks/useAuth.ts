@@ -29,6 +29,8 @@ export interface UserProfile {
   role: 'patient' | 'caregiver';
   onboarding_done: boolean;
   notification_enabled: boolean;
+  /** Expo Push Token — 서버 푸시 알림(약효추적/보호자 연동) 라우팅에 필수. null이면 푸시 불가 */
+  push_token: string | null;
   patient_group_id: string | null;
   kakao_id: string | null;
   birth_year: number | null;
@@ -38,6 +40,10 @@ export interface UserProfile {
   diagnosis_year: number | null;
   sensitive_info_consented: boolean | null;
   sensitive_info_consent_version: number | null;
+  international_transfer_consented: boolean | null;
+  international_transfer_consent_version: number | null;
+  /** 커뮤니티 이용 제한(밴) 여부. true면 글/댓글 작성 차단 */
+  banned: boolean | null;
 }
 
 export type AuthUser = UserProfile;
@@ -50,7 +56,7 @@ export interface UseAuthReturn {
   signOut: () => Promise<void>;
   refreshUser: () => Promise<void>;
   devSignIn: () => Promise<void>;
-  forceCompleteOnboarding: () => void;
+  forceCompleteOnboarding: (patientGroupId?: string | null) => void;
 }
 
 // ─── WebBrowser 세션 초기화 (iOS에서 필수) ──────────────────────────────────
@@ -154,8 +160,9 @@ const USER_SCOPED_STORAGE_KEYS = [
   'settings_caregiver_notifs',
   // 피드 읽음 표시
   'parkinon_read_posts',
-  // 민감정보 동의
+  // 민감정보 동의 / 국외 이전 동의
   'sensitive_info_consented',
+  'international_transfer_consented',
   // 알림으로 진입 대기중인 임시 데이터
   'pendingMedNotif',
   'pendingBodyStateNotif',
@@ -175,6 +182,37 @@ const USER_SCOPED_STORAGE_KEYS = [
   'onboarding_invite_code',
   'onboarding_invite_code_generated',
 ] as const;
+
+// ─── 마지막 성공 프로필 캐시 ────────────────────────────────────────────────
+// DB 조회가 8초 타임아웃되면 catch가 onboarding_done:false 임시 프로필을 setUser 했고,
+// 그러면 RootNavigator 게이트가 이미 온보딩을 마친 사용자를 OnboardingNavigator(FamilyCheck)
+// 로 추방했다. (DB는 정상, 순수 부팅 타이밍 회귀.) 해결: users 행을 성공적으로 읽을 때마다
+// 게이트에 쓰이는 필드를 사용자별 키로 캐시하고, 타임아웃 폴백에서 임시 false 프로필 대신
+// 마지막 성공 프로필을 복원한다. 캐시 키는 user.id별 → 다른 사용자 프로필이 복원되지 않음.
+const PROFILE_CACHE_PREFIX = 'last_user_profile_v1:';
+const profileCacheKey = (userId: string) => `${PROFILE_CACHE_PREFIX}${userId}`;
+
+async function cacheProfile(profile: UserProfile): Promise<void> {
+  try {
+    await AsyncStorage.setItem(profileCacheKey(profile.id), JSON.stringify(profile));
+  } catch (e) {
+    if (__DEV__) console.warn('[useAuth] 프로필 캐시 저장 실패:', e);
+  }
+}
+
+async function readCachedProfile(userId: string): Promise<UserProfile | null> {
+  try {
+    const raw = await AsyncStorage.getItem(profileCacheKey(userId));
+    if (!raw) return null;
+    const parsed = JSON.parse(raw) as UserProfile;
+    // 다른 사용자 프로필이 섞이지 않도록 id 일치 확인
+    if (parsed?.id !== userId) return null;
+    return parsed;
+  } catch (e) {
+    if (__DEV__) console.warn('[useAuth] 프로필 캐시 읽기 실패:', e);
+    return null;
+  }
+}
 
 // supabase-js PostgREST 클라이언트 대신 직접 fetch 사용
 // (React Native 새 아키텍처에서 supabase-js PostgREST 요청이 응답 없이 행(hang)하는 버그 우회)
@@ -261,6 +299,7 @@ export function useAuthProvider(): UseAuthReturn {
           }
           if (kakaoRow) {
             setUser(kakaoRow);
+            cacheProfile(kakaoRow);
             provisionForUser(kakaoRow.id, kakaoRow.patient_group_id ?? null).catch(() => {});
           } else {
             // Edge Function 행이 끝내 안 보임 → 로그인 실패 처리(클라 INSERT 금지)
@@ -293,6 +332,9 @@ export function useAuthProvider(): UseAuthReturn {
           patient_group_id: null,
           sensitive_info_consented: false,
           sensitive_info_consent_version: null,
+          international_transfer_consented: false,
+          international_transfer_consent_version: null,
+          banned: false,
         };
         try {
           const inserted: UserProfile[] = await dbFetch('/users?select=*', token, {
@@ -300,12 +342,16 @@ export function useAuthProvider(): UseAuthReturn {
             headers: { 'Prefer': 'return=representation' },
             body: JSON.stringify(newUser),
           });
-          setUser(Array.isArray(inserted) ? inserted[0] : inserted);
+          const insertedProfile = Array.isArray(inserted) ? inserted[0] : inserted;
+          setUser(insertedProfile);
+          if (insertedProfile) cacheProfile(insertedProfile as UserProfile);
         } catch (insertErr: any) {
           // 23505: 중복 키 → 다른 이벤트에서 이미 insert됨 → 다시 select
           if (insertErr.message?.includes('23505')) {
             const retry: UserProfile[] = await dbFetch(`/users?id=eq.${userId}&select=*&limit=1`, token);
-            setUser(retry?.[0] ?? (newUser as UserProfile));
+            const retried = retry?.[0] ?? (newUser as UserProfile);
+            setUser(retried);
+            cacheProfile(retried);
           } else {
             console.error('[useAuth] users insert 오류:', insertErr);
             setUser(newUser as UserProfile);
@@ -321,6 +367,7 @@ export function useAuthProvider(): UseAuthReturn {
         }
       } else {
         setUser(rows[0]);
+        cacheProfile(rows[0]);
         // 알림음 채널 프로비저닝 (약 알림이 오기 전에 가족 목소리 채널을 미리 깔아둠)
         provisionForUser(rows[0].id, rows[0].patient_group_id ?? null).catch(() => {});
         // 로그인 성공 시 push token 항상 저장 (온보딩 완료 여부 무관)
@@ -336,17 +383,38 @@ export function useAuthProvider(): UseAuthReturn {
     } catch (e) {
       console.error('[useAuth] loadUserProfile 오류:', e);
       if ((e as Error).message?.includes('타임아웃')) {
-        console.warn('[useAuth] DB 타임아웃 → 임시 프로필 사용');
-        setUser({
-          id: userId,
-          name: userMeta?.full_name || userMeta?.name || '사용자',
-          role: 'patient', onboarding_done: false,
-          notification_enabled: true, patient_group_id: null, kakao_id: null,
-          birth_year: null, gender: null, caregiver_relation: null,
-          residence_type: null, diagnosis_year: null,
-          sensitive_info_consented: null,
-          sensitive_info_consent_version: null,
-        });
+        // ⚠️ DB 타임아웃을 "온보딩 미완료"로 단정하지 않는다.
+        // 마지막 성공 프로필이 캐시에 있으면 그것을 복원해, 이미 온보딩을 마친
+        // 사용자가 FamilyCheck(온보딩)로 추방되는 회귀를 막는다.
+        const cached = await readCachedProfile(userId);
+        if (cached) {
+          console.warn('[useAuth] DB 타임아웃 → 마지막 성공 프로필 캐시 복원');
+          setUser(cached);
+        } else {
+          // 캐시도 없음: 세션은 살아있는데 프로필을 끝내 확정하지 못한 상태.
+          // 여기서 onboarding_done:false 임시 프로필을 박으면(과거 회귀) 이미 가입된
+          // 사용자도 온보딩으로 빠지므로, 그러지 않고 한 번 더 재조회를 시도한다.
+          // 재조회도 실패하면 user는 그대로 두고(섣불리 온보딩/로그인 화면으로 보내지 않음)
+          // realtime/다음 onAuthStateChange/refreshUser가 확정하도록 맡긴다.
+          console.warn('[useAuth] DB 타임아웃 + 캐시 없음 → 1회 재조회 시도');
+          try {
+            let token = accessToken;
+            if (!token) {
+              const { data: { session } } = await supabase.auth.getSession();
+              token = session?.access_token;
+            }
+            if (token) {
+              const retryRows: UserProfile[] = await dbFetch(`/users?id=eq.${userId}&select=*&limit=1`, token);
+              if (retryRows && retryRows.length > 0) {
+                setUser(retryRows[0]);
+                cacheProfile(retryRows[0]);
+              }
+            }
+          } catch (retryErr) {
+            console.warn('[useAuth] 타임아웃 후 재조회도 실패:', retryErr);
+            // user 상태를 건드리지 않는다(온보딩 추방 방지).
+          }
+        }
       } else {
         setUser(null);
       }
@@ -448,6 +516,60 @@ export function useAuthProvider(): UseAuthReturn {
       appStateSub.remove();
     };
   }, [loadUserProfile, dialog]);
+
+  // 유저 프로필 새로고침
+  const refreshUser = useCallback(async () => {
+    const { data: { session } } = await supabase.auth.getSession();
+    if (session?.user) {
+      await loadUserProfile(session.user.id, session.user.user_metadata, session.access_token);
+    }
+  }, [loadUserProfile]);
+
+  // ─── 정지(banned) 등 자기 프로필 변경 즉시 반영 ──────────────────────────
+  // 문제: 로그인 시점의 user 스냅샷만 보면, 이미 로그인된 계정이 관리자에 의해
+  //       users.banned=true 로 바뀌어도 앱이 모른 채 글쓰기/댓글 UI 를 열어준다.
+  //       (서버 RLS 는 INSERT 를 42501 로 거부하지만, 선제 안내가 안 뜸)
+  // 해결: 현재 로그인 사용자의 public.users 자기 행을 realtime 구독하여 변경 시
+  //       메모리 user 에 즉시 병합(banned 외 필드 변경도 같이 반영).
+  //   ⚠️ users 테이블은 REPLICA IDENTITY FULL + realtime publication 포함이라
+  //      payload.new 는 "방금 커밋된 최신 행 전체"다(SettingsScreen 과 동일 원리).
+  //      → payload.new 를 그대로 병합하면 복제 지연 race 없이 항상 최신.
+  // 본인 users 행 realtime 구독 — banned 등 변경 즉시 메모리 user 에 반영.
+  useEffect(() => {
+    const userId = user?.id;
+    // 게스트/개발용 mock(GUEST_USER_ID)은 DB 행이 없으므로 구독하지 않는다.
+    if (!userId || userId === GUEST_USER_ID) return;
+
+    const topic = `auth-self-sync-${userId}`;
+    // 재진입 시 잔존 채널 제거(이미 subscribe() 된 채널 재사용 → .on() 크래시 방지)
+    supabase
+      .getChannels()
+      .filter((c) => c.topic === `realtime:${topic}` || c.topic === topic)
+      .forEach((c) => { supabase.removeChannel(c); });
+
+    const channel = supabase.channel(topic);
+    channel
+      .on(
+        'postgres_changes',
+        { event: 'UPDATE', schema: 'public', table: 'users', filter: `id=eq.${userId}` },
+        (payload) => {
+          const row = payload.new as Partial<UserProfile> | null;
+          if (!row) return;
+          // 방금 커밋된 최신 자기 행 전체 → 메모리 user 에 병합(banned 등 즉시 반영)
+          setUser((prev) => (prev ? { ...prev, ...row } : prev));
+        },
+      )
+      .subscribe();
+
+    // (성능) 포그라운드 복귀(AppState 'active') 시 refreshUser() 재조회 제거.
+    //   매 복귀(=거의 모든 알림 진입)마다 loadUserProfile(users select *) + provisionForUser
+    //   (쿼리 5개 + 알림채널 다운로드/설치)를 재실행해 알림 진입을 느리게 했다.
+    //   banned 등 본인 행 변경 즉시 반영은 위 realtime 구독(UPDATE → setUser 병합)이 담당하므로
+    //   AppState 보조 재조회는 중복·고비용 → 제거. provisionForUser는 최초 프로필 로드 시 1회면 충분.
+    return () => {
+      supabase.removeChannel(channel);
+    };
+  }, [user?.id]);
 
   // ─── 구글 로그인 (Android 전용) ───────────────────────────────────────────
   // Chrome Custom Tab(openAuthSessionAsync)으로 열기
@@ -564,6 +686,7 @@ export function useAuthProvider(): UseAuthReturn {
       role: 'patient',
       onboarding_done: true,
       notification_enabled: true,
+      push_token: null,
       patient_group_id: null,
       kakao_id: null,
       birth_year: 1960,
@@ -573,6 +696,9 @@ export function useAuthProvider(): UseAuthReturn {
       diagnosis_year: 2020,
       sensitive_info_consented: true,
       sensitive_info_consent_version: 1,
+      international_transfer_consented: true,
+      international_transfer_consent_version: 1,
+      banned: false,
     };
     setUser(mockUser);
   }, []);
@@ -582,9 +708,11 @@ export function useAuthProvider(): UseAuthReturn {
     setLoading(true);
 
     // 로그아웃 전 push_token 초기화 (다른 계정에 알림이 가는 것 방지)
+    let signedOutUserId: string | undefined;
     try {
       const { data: sessionData } = await supabase.auth.getSession();
       const userId = sessionData?.session?.user?.id;
+      signedOutUserId = userId;
       const accessToken = sessionData?.session?.access_token;
       if (userId && accessToken) {
         await fetch(`${SUPABASE_URL}/rest/v1/users?id=eq.${userId}`, {
@@ -610,7 +738,10 @@ export function useAuthProvider(): UseAuthReturn {
     // 사용자별 로컬 데이터 정리 (다음 로그인 사용자와 섞이지 않도록)
     // 기기 공용 설정은 USER_SCOPED_STORAGE_KEYS에 포함하지 않았으므로 유지된다.
     try {
-      await AsyncStorage.multiRemove([...USER_SCOPED_STORAGE_KEYS]);
+      const keysToRemove: string[] = [...USER_SCOPED_STORAGE_KEYS];
+      // 마지막 성공 프로필 캐시(사용자별 키)도 정리 — 다음 로그인 사용자 프로필이 복원되지 않게.
+      if (signedOutUserId) keysToRemove.push(profileCacheKey(signedOutUserId));
+      await AsyncStorage.multiRemove(keysToRemove);
     } catch (e) {
       console.warn('[signOut] 사용자별 로컬 데이터 정리 실패:', e);
     }
@@ -618,16 +749,19 @@ export function useAuthProvider(): UseAuthReturn {
     setLoading(false);
   }, []);
 
-  // 유저 프로필 새로고침
-  const refreshUser = useCallback(async () => {
-    const { data: { session } } = await supabase.auth.getSession();
-    if (session?.user) {
-      await loadUserProfile(session.user.id, session.user.user_metadata, session.access_token);
-    }
-  }, [loadUserProfile]);
-
-  const forceCompleteOnboarding = useCallback(() => {
-    setUser((prev) => (prev ? { ...prev, onboarding_done: true } : prev));
+  // 온보딩 완료를 메모리 user에 즉시 반영.
+  // patient_group_id 를 함께 넘기면 같이 반영해, 화면 전환 직후 "가족 연동 안내 팝업"이
+  // stale(null) 값을 보고 잘못 뜨는 레이스 컨디션을 방지한다.
+  const forceCompleteOnboarding = useCallback((patientGroupId?: string | null) => {
+    setUser((prev) =>
+      prev
+        ? {
+            ...prev,
+            onboarding_done: true,
+            patient_group_id: patientGroupId ?? prev.patient_group_id,
+          }
+        : prev,
+    );
   }, []);
 
   return { user, loading, signInWithKakao, signInWithGoogle, signOut, refreshUser, devSignIn, forceCompleteOnboarding };

@@ -13,42 +13,53 @@ import {
   Platform,
   PanResponder,
   Animated,
-  Linking,
+  Dimensions,
+  Switch,
+  Keyboard,
 } from 'react-native';
-import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
-import { useFocusEffect, useRoute, useNavigation } from '@react-navigation/native';
-import type { RouteProp } from '@react-navigation/native';
-import type { MenuStackParamList } from '../../navigation/MenuNavigator';
+import { SafeAreaView } from 'react-native-safe-area-context';
+import { useFocusEffect, useNavigation, useRoute, type RouteProp } from '@react-navigation/native';
 import { Ionicons } from '@expo/vector-icons';
 import * as ImagePicker from 'expo-image-picker';
 import { Colors } from '../../constants/colors';
 import { TopBar } from '../../components/common/TopBar';
+import { BrandProgressOverlay } from '../../components/common/BrandProgressOverlay';
 import { supabase } from '../../lib/supabase';
+import type { Json } from '../../types/database';
 import { useAuth } from '../../context/AuthContext';
 import { useFamilyLink } from '../../hooks/useFamilyLink';
+import { useBottomSheetPadding } from '../../hooks/useBottomSheetPadding';
 import { useNotificationBadge } from '../../context/NotificationBadgeContext';
-import { useSettings, MedNotif } from '../../context/SettingsContext';
+import { useSettings } from '../../context/SettingsContext';
 import { useDialog } from '../../context/DialogContext';
-import { buildRecommendedMedNotifs, resolveTrackingRecommendation } from '../../utils/recommendUtils';
-import { minutesToLabel } from '../../utils/medUtils';
-import {
-  getRecommendationMeta,
-  patchRecommendationMeta,
-  buildSourceMedSignature,
-} from '../../utils/medNotifRecommendationMeta';
 import {
   LEGACY_SLOT_ORDER,
   LEGACY_SLOT_META,
   labelToLegacyKey,
   normalizeHhmm,
   slotTitle,
+  periodEmoji,
   type LegacyMealKey,
 } from '../../constants/doseSlots';
 import {
   ensurePatientDoseSlots,
   syncMedicationDoseSlots,
   invalidateDoseSlotsCache,
+  setMedicationSlots,
+  fetchPatientDoseSlots,
+  type DoseSlot,
 } from '../../hooks/useDoseSlots';
+import { DoseSlotSetList } from '../../components/settings/DoseSlotSetList';
+import { AlarmSoundOption } from '../../components/common/AlarmSoundPickerRow';
+import {
+  turnOnImmediatePopup,
+  turnOffImmediatePopup,
+  trackChangePopup,
+  trackOffPopup,
+  hasTakenTodayKST,
+  deleteSlotCombinedPopup,
+} from '../../utils/notifActionFeedback';
+import type { MenuStackParamList } from '../../navigation/MenuNavigator';
 
 // ─── 타입 ────────────────────────────────────────────────────────────────────
 
@@ -67,6 +78,11 @@ const TIME_SLOTS: { key: TimeSlot; label: string; emoji: string; defaultTime: st
       bgColor: meta.bgColor,
     };
   });
+
+// 슬롯 좌측 이미지(이모지) — 시각대 기준 자동(공용 periodEmoji, 시간대 단어와 동일 범위).
+function slotEmojiFor(slot: DoseSlot): string {
+  return periodEmoji(slot.time);
+}
 
 type MealSchedules = Partial<Record<TimeSlot, string>>;
 
@@ -101,6 +117,10 @@ interface Medication {
   id: string;
   name: string;
   dosage?: string | null;
+  /** 복용 횟수(처방전 OCR). null=불명확. 슬롯 약넣기 가이드("1일 N회 중 M개 배정")에 사용. */
+  dailyCount?: number | null;
+  /** 복용횟수 기준 기간. 'day'="1일 N회"(기본) / 'week'="1주 N회". */
+  countUnit?: 'day' | 'week';
   times: TimeSlot[];
   schedules?: MealSchedules;
   drugInfo?: DrugInfo | null;
@@ -108,6 +128,25 @@ interface Medication {
   /** medication_dose_slots 조인(표시 우선). 없으면 legacy(times/schedules) 폴백. */
   doseSlots?: MedDoseSlot[];
 }
+
+/**
+ * 중단한 약(이력 표시 전용). is_active=false & ended_at 있음.
+ * startedAt=created_at(복용 시작 추정), endedAt=ended_at(중단 시점). 둘 다 ISO 문자열.
+ */
+interface StoppedMed {
+  id: string;
+  name: string;
+  dosage?: string | null;
+  dailyCount?: number | null;
+  countUnit?: 'day' | 'week';
+  startedAt?: string | null;
+  endedAt?: string | null;
+}
+
+// 복용횟수 표시: 단위(1일/1주) + 횟수. 횟수 없으면 "횟수 미정".
+const doseCountPrefix = (u?: 'day' | 'week') => (u === 'week' ? '1주' : '1일');
+const formatDoseCount = (n?: number | null, u?: 'day' | 'week') =>
+  n && n > 0 ? `${doseCountPrefix(u)} ${n}회` : '횟수 미정';
 
 type ChangeType = 'added' | 'updated' | 'deleted';
 
@@ -131,7 +170,7 @@ async function getAccessToken(): Promise<string> {
 async function callClaudeOCR(
   base64Image: string,
   mediaType: string,
-): Promise<{ medications: { name: string; ediCode: string; times: string[] }[]; rawText: string }> {
+): Promise<{ medications: { name: string; ediCode: string; dosage: string; dailyCount: number | null; times: string[] }[]; rawText: string }> {
   // image_type: 'jpeg' | 'png'
   const rawType = mediaType.replace('image/', '');
   const imageType: 'jpeg' | 'png' = rawType === 'png' ? 'png' : 'jpeg';
@@ -154,17 +193,28 @@ async function callClaudeOCR(
   if (!response.ok) throw new Error(`OCR 오류: ${response.status}`);
   const data = await response.json();
   const normalized = {
-    medications: (data.medications ?? []).map((m: any) => ({
-      name: String(m.name ?? ''),
-      ediCode: (m.ediCode ?? '').toString().trim(),
-      times: Array.isArray(m.times) ? m.times : [],
-    })),
+    medications: (data.medications ?? []).map((m: any) => {
+      // dailyCount: 정수 양수만, 그 외엔 null (엣지함수가 정규화하지만 방어적 재검).
+      let dailyCount: number | null = null;
+      const raw = m.dailyCount ?? m.daily_count;
+      if (raw !== null && raw !== undefined) {
+        const n = Math.trunc(Number(raw));
+        if (Number.isFinite(n) && n > 0) dailyCount = n;
+      }
+      return {
+        name: String(m.name ?? ''),
+        ediCode: (m.ediCode ?? '').toString().trim(),
+        dosage: (m.dosage ?? '').toString().trim(),
+        dailyCount,
+        times: Array.isArray(m.times) ? m.times : [],
+      };
+    }),
   };
   return { ...normalized, rawText: '' };
 }
 
 // mfds-proxy Edge Function 호출 헬퍼
-async function callMfdsProxy(endpoint: 'grn' | 'easy' | 'easy01', query: string, opts?: { numOfRows?: number; pageNo?: number }): Promise<any> {
+async function callMfdsProxy(endpoint: 'grn' | 'easy' | 'easy01' | 'permit-list' | 'permit-detail', query: string, opts?: { numOfRows?: number; pageNo?: number }): Promise<any> {
   const accessToken = await getAccessToken();
   const res = await fetch(`${SUPABASE_URL}/functions/v1/mfds-proxy`, {
     method: 'POST',
@@ -203,8 +253,14 @@ async function searchMfdsInfo(drugName: string): Promise<DrugInfo | null> {
     useMethodQesitm?: string;
   } | null = null;
 
+  // 'easy'(e약은요)와 'grn'(낱알식별)은 폴백 관계가 아니라 항상 둘 다 호출해 병합한다
+  //  (easy=브랜드명/효능, grn=모양·색·식별표시). 서로 독립 → 병렬 호출로 지연 단축.
+  const [easyData, grnData] = await Promise.all([
+    callMfdsProxy('easy', drugName, { numOfRows: 5, pageNo: 1 }).catch(() => null),
+    callMfdsProxy('grn', drugName, { numOfRows: 5, pageNo: 1 }).catch(() => null),
+  ]);
+
   try {
-    const easyData = await callMfdsProxy('easy', drugName, { numOfRows: 5, pageNo: 1 });
     if (easyData) {
       const rawEasy = easyData?.body?.items?.item ?? easyData?.body?.items;
       if (rawEasy) {
@@ -228,7 +284,7 @@ async function searchMfdsInfo(drugName: string): Promise<DrugInfo | null> {
   // 2차: 낱알식별 API (이미지/모양 정보 보강) — mfds-proxy 경유
   let grnHit: any = null;
   try {
-    const data = await callMfdsProxy('grn', drugName, { numOfRows: 5, pageNo: 1 });
+    const data = grnData;
     if (data) {
       const rawItems = data?.body?.items?.item ?? data?.body?.items;
       if (rawItems) {
@@ -264,6 +320,28 @@ async function searchMfdsInfo(drugName: string): Promise<DrugInfo | null> {
   };
 }
 
+// ─── 중단 약 날짜 표기(KST) ──────────────────────────────────────────────────
+
+/** timestamptz(ISO) → KST 기준 'YYYY.M.D'. 값 없으면 빈 문자열. */
+function formatKstYmd(iso?: string | null): string {
+  if (!iso) return '';
+  const d = new Date(iso);
+  if (isNaN(d.getTime())) return '';
+  // KST(UTC+9) 보정 후 UTC 게터로 연·월·일 추출
+  const kst = new Date(d.getTime() + 9 * 60 * 60 * 1000);
+  return `${kst.getUTCFullYear()}.${kst.getUTCMonth() + 1}.${kst.getUTCDate()}`;
+}
+
+/** "YYYY.M.D ~ YYYY.M.D" 형태(날짜 범위만). 시작/끝 한쪽만 있으면 가능한 만큼만. */
+function formatStoppedRange(startedAt?: string | null, endedAt?: string | null): string {
+  const start = formatKstYmd(startedAt);
+  const end = formatKstYmd(endedAt);
+  if (start && end) return `${start} ~ ${end}`;
+  if (end) return `~ ${end}`;
+  if (start) return `${start} ~`;
+  return '정보 없음';
+}
+
 // ─── 스와이프 다운 닫기 훅 ────────────────────────────────────────────────────
 
 function useSwipeToDismiss(onDismiss: () => void) {
@@ -291,261 +369,6 @@ function useSwipeToDismiss(onDismiss: () => void) {
   return { translateY, panResponder };
 }
 
-// ─── 시간 선택 모달 ────────────────────────────────────────────────────────────
-
-function TimePickerModal({
-  visible,
-  initialTime,
-  slotLabel,
-  onConfirm,
-  onClose,
-}: {
-  visible: boolean;
-  initialTime: string;
-  slotLabel: string;
-  onConfirm: (time: string) => void;
-  onClose: () => void;
-}) {
-  const parseTime = (t: string) => {
-    const [h, m] = t.split(':').map(Number);
-    return { hour: isNaN(h) ? 8 : h, minute: isNaN(m) ? 0 : Math.floor(m / 10) * 10 };
-  };
-
-  const [hour, setHour] = useState(() => parseTime(initialTime).hour);
-  const [minute, setMinute] = useState(() => parseTime(initialTime).minute);
-  const hourScrollRef = useRef<ScrollView>(null);
-
-  useEffect(() => {
-    if (visible) {
-      const parsed = parseTime(initialTime);
-      setHour(parsed.hour);
-      setMinute(parsed.minute);
-      // 현재 시(hour)로 스크롤 위치 이동 (아이템 높이 56 + marginBottom 4 = 60px)
-      setTimeout(() => {
-        hourScrollRef.current?.scrollTo({ y: parsed.hour * 60, animated: false });
-      }, 50);
-    }
-  }, [visible, initialTime]);
-
-  const hours = Array.from({ length: 24 }, (_, i) => i);
-  const minutes = [0, 10, 20, 30, 40, 50];
-
-  return (
-    <Modal visible={visible} transparent animationType="fade" onRequestClose={onClose}>
-      <TouchableOpacity style={tpStyles.overlay} activeOpacity={1} onPress={onClose}>
-        <TouchableOpacity style={tpStyles.sheet} activeOpacity={1} onPress={() => {}}>
-          <Text style={tpStyles.title}>{slotLabel} 시간 선택</Text>
-          <View style={tpStyles.pickerRow}>
-            <View style={tpStyles.pickerCol}>
-              <Text style={tpStyles.colLabel}>시</Text>
-              <ScrollView ref={hourScrollRef} style={tpStyles.scroll} showsVerticalScrollIndicator={false}>
-                {hours.map(h => (
-                  <TouchableOpacity
-                    key={h}
-                    style={[tpStyles.timeOption, h === hour && tpStyles.timeOptionSelected]}
-                    onPress={() => setHour(h)}
-                    activeOpacity={0.7}
-                  >
-                    <Text style={[tpStyles.timeOptionText, h === hour && tpStyles.timeOptionTextSelected]}>
-                      {String(h).padStart(2, '0')}
-                    </Text>
-                  </TouchableOpacity>
-                ))}
-              </ScrollView>
-            </View>
-            <Text style={tpStyles.colon}>:</Text>
-            <View style={tpStyles.pickerCol}>
-              <Text style={tpStyles.colLabel}>분</Text>
-              <ScrollView style={tpStyles.scroll} showsVerticalScrollIndicator={false}>
-                {minutes.map(m => (
-                  <TouchableOpacity
-                    key={m}
-                    style={[tpStyles.timeOption, m === minute && tpStyles.timeOptionSelected]}
-                    onPress={() => setMinute(m)}
-                    activeOpacity={0.7}
-                  >
-                    <Text style={[tpStyles.timeOptionText, m === minute && tpStyles.timeOptionTextSelected]}>
-                      {String(m).padStart(2, '0')}
-                    </Text>
-                  </TouchableOpacity>
-                ))}
-              </ScrollView>
-            </View>
-          </View>
-          <View style={tpStyles.btnRow}>
-            <TouchableOpacity style={tpStyles.cancelBtn} onPress={onClose} activeOpacity={0.8}>
-              <Text style={tpStyles.cancelBtnText}>취소</Text>
-            </TouchableOpacity>
-            <TouchableOpacity
-              style={tpStyles.confirmBtn}
-              onPress={() => {
-                onConfirm(`${String(hour).padStart(2, '0')}:${String(minute).padStart(2, '0')}`);
-                onClose();
-              }}
-              activeOpacity={0.8}
-            >
-              <Text style={tpStyles.confirmBtnText}>확인</Text>
-            </TouchableOpacity>
-          </View>
-        </TouchableOpacity>
-      </TouchableOpacity>
-    </Modal>
-  );
-}
-
-const tpStyles = StyleSheet.create({
-  overlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.5)', alignItems: 'center', justifyContent: 'center' },
-  sheet: {
-    backgroundColor: Colors.white,
-    borderRadius: 20,
-    padding: 24,
-    width: 280,
-    elevation: 8,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.15,
-    shadowRadius: 8,
-  },
-  title: { fontSize: 20, fontWeight: '700', color: Colors.text, textAlign: 'center', marginBottom: 16 },
-  pickerRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8, marginBottom: 20 },
-  pickerCol: { width: 80, alignItems: 'center' },
-  colLabel: { fontSize: 18, fontWeight: '600', color: Colors.textSub, marginBottom: 8 },
-  scroll: { height: 200, width: 72 },
-  colon: { fontSize: 28, fontWeight: '700', color: Colors.text, marginTop: 28 },
-  timeOption: {
-    height: 56,
-    alignItems: 'center',
-    justifyContent: 'center',
-    borderRadius: 10,
-    marginBottom: 4,
-  },
-  timeOptionSelected: { backgroundColor: Colors.primary },
-  timeOptionText: { fontSize: 20, fontWeight: '600', color: Colors.textSub },
-  timeOptionTextSelected: { color: Colors.white, fontWeight: '700' },
-  btnRow: { flexDirection: 'row', gap: 10 },
-  cancelBtn: {
-    flex: 1,
-    height: 56,
-    borderRadius: 12,
-    borderWidth: 1.5,
-    borderColor: Colors.border,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  cancelBtnText: { fontSize: 18, fontWeight: '600', color: Colors.textSub },
-  confirmBtn: {
-    flex: 1,
-    height: 56,
-    borderRadius: 12,
-    backgroundColor: Colors.primary,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  confirmBtnText: { fontSize: 18, fontWeight: '700', color: Colors.white },
-});
-
-// ─── 시간대 + 시간 선택 행 컴포넌트 ───────────────────────────────────────────
-
-function TimeSlotsWithTime({
-  selectedTimes,
-  schedules,
-  onToggle,
-  onTimeChange,
-}: {
-  selectedTimes: TimeSlot[];
-  schedules: MealSchedules;
-  onToggle: (slot: TimeSlot) => void;
-  onTimeChange: (slot: TimeSlot, time: string) => void;
-}) {
-  const [pickerSlot, setPickerSlot] = useState<TimeSlot | null>(null);
-
-  const openSlot = TIME_SLOTS.find(s => s.key === pickerSlot);
-
-  return (
-    <>
-      <View style={tsStyles.container}>
-        {TIME_SLOTS.map(t => {
-          const sel = selectedTimes.includes(t.key);
-          const time = schedules[t.key] ?? t.defaultTime;
-          return (
-            <View key={t.key} style={tsStyles.slotWrapper}>
-              <TouchableOpacity
-                style={[tsStyles.slotBtn, sel && tsStyles.slotBtnSelected]}
-                onPress={() => onToggle(t.key)}
-                activeOpacity={0.85}
-              >
-                <Text style={[tsStyles.slotLabel, sel && tsStyles.slotLabelSelected]}>{t.label}</Text>
-              </TouchableOpacity>
-              {sel && (
-                <TouchableOpacity
-                  style={tsStyles.timeChip}
-                  onPress={() => setPickerSlot(t.key)}
-                  activeOpacity={0.8}
-                >
-                  <Text style={tsStyles.timeChipText}>{time}</Text>
-                  <View style={tsStyles.timeEditBtn}>
-                    <Text style={tsStyles.timeEditText}>수정</Text>
-                  </View>
-                </TouchableOpacity>
-              )}
-            </View>
-          );
-        })}
-      </View>
-
-      <TimePickerModal
-        visible={pickerSlot !== null}
-        initialTime={pickerSlot ? (schedules[pickerSlot] ?? (TIME_SLOTS.find(s => s.key === pickerSlot)?.defaultTime ?? '08:00')) : '08:00'}
-        slotLabel={openSlot?.label ?? ''}
-        onConfirm={(time) => {
-          if (pickerSlot) onTimeChange(pickerSlot, time);
-        }}
-        onClose={() => setPickerSlot(null)}
-      />
-    </>
-  );
-}
-
-const tsStyles = StyleSheet.create({
-  container: { flexDirection: 'row', flexWrap: 'wrap', gap: 8, marginBottom: 16 },
-  slotWrapper: { width: '48%', alignItems: 'center', gap: 6 },
-  slotBtn: {
-    width: '100%',
-    height: 56,
-    borderRadius: 12,
-    borderWidth: 1.5,
-    borderColor: Colors.border,
-    alignItems: 'center',
-    justifyContent: 'center',
-    backgroundColor: Colors.white,
-    flexDirection: 'row',
-    gap: 6,
-  },
-  slotBtnSelected: { backgroundColor: Colors.primary, borderColor: Colors.primary },
-  slotLabel: { fontSize: 18, fontWeight: '600', color: Colors.textSub },
-  slotLabelSelected: { color: Colors.white },
-  timeChip: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    backgroundColor: '#E8F5E9',
-    borderRadius: 8,
-    paddingHorizontal: 8,
-    paddingVertical: 5,
-    width: '100%',
-  },
-  timeChipText: { fontSize: 18, fontWeight: '700', color: Colors.primary, flex: 1, textAlign: 'center' },
-  timeEditBtn: {
-    paddingHorizontal: 12,
-    paddingVertical: 6,
-    borderRadius: 8,
-    borderWidth: 1,
-    borderColor: Colors.primary,
-    backgroundColor: Colors.white,
-  },
-  timeEditText: { fontSize: 15, fontWeight: '600', color: Colors.primary },
-});
-
 // ─── DrugInfoModal ─────────────────────────────────────────────────────────────
 
 function stripHtml(html: string): string {
@@ -559,38 +382,188 @@ function stripHtml(html: string): string {
     .trim();
 }
 
+/** HTML/XML 엔티티 디코드 (DOC_DATA 안에 &nbsp; 등이 섞여 들어옴) */
+function decodeEntities(s: string): string {
+  return s
+    .replace(/&nbsp;/g, ' ')
+    .replace(/&lt;/g, '<')
+    .replace(/&gt;/g, '>')
+    .replace(/&quot;/g, '"')
+    .replace(/&#39;/g, "'")
+    .replace(/&apos;/g, "'")
+    .replace(/&amp;/g, '&'); // &amp; 는 마지막에 (이중 디코드 방지)
+}
+
+/**
+ * 식약처 허가정보 DOC_DATA(escape된 XML 문자열, <DOC><SECTION><ARTICLE><PARAGRAPH><![CDATA[...]]>)에서
+ * 사람이 읽을 텍스트만 추출한다.
+ * - ARTICLE title(원문이 가진 소제목)과 PARAGRAPH 본문(CDATA 또는 태그 사이 텍스트)을 등장 순서대로 추출.
+ * - 태그 제거 + 엔티티 디코드만 수행. 원문 텍스트 임의 요약·가공 금지(의료 규칙).
+ * - 태그가 전혀 없으면(이미 평문) 엔티티 디코드만 해서 그대로 반환(방어적).
+ * - 빈 값/파싱 실패 시 빈 문자열.
+ */
+function parseDocData(raw?: string | null): string {
+  if (!raw) return '';
+  let s = String(raw).trim();
+  if (!s) return '';
+
+  // 일부 응답은 DOC_DATA 값 자체가 한 번 더 escape돼 올 수 있어 방어적으로 1차 디코드된 형태를 본다.
+  // (이미 평문이면 아래 태그 매칭이 안 걸려 그대로 떨어짐)
+  const hasTags = /<\s*(DOC|SECTION|ARTICLE|PARAGRAPH)/i.test(s) || s.includes('<![CDATA[');
+  if (!hasTags) {
+    // 태그 없음 → 이미 평문. 엔티티만 정리.
+    return decodeEntities(s).replace(/\r\n/g, '\n').replace(/\n{3,}/g, '\n\n').trim();
+  }
+
+  const out: string[] = [];
+  // ARTICLE title / PARAGRAPH 본문을 등장 순서대로 토큰화
+  // - ARTICLE 여는 태그의 title="..." 속성(비어있지 않으면 소제목으로 추가)
+  // - PARAGRAPH ... >내용</PARAGRAPH> 의 내용(CDATA 우선)
+  const tokenRe = /<ARTICLE\b[^>]*\btitle="([^"]*)"[^>]*>|<PARAGRAPH\b[^>]*>([\s\S]*?)<\/PARAGRAPH>/gi;
+  let m: RegExpExecArray | null;
+  while ((m = tokenRe.exec(s)) !== null) {
+    if (m[1] !== undefined) {
+      // ARTICLE title 속성
+      const title = decodeEntities(m[1]).trim();
+      if (title) out.push(title);
+    } else if (m[2] !== undefined) {
+      let inner = m[2];
+      // CDATA 안쪽 텍스트만 (여러 개면 이어붙임)
+      const cdata = [...inner.matchAll(/<!\[CDATA\[([\s\S]*?)\]\]>/g)].map((c) => c[1]);
+      let text = cdata.length > 0 ? cdata.join('') : inner;
+      // 남은 태그 제거
+      text = text.replace(/<[^>]*>/g, '');
+      text = decodeEntities(text).replace(/\r\n/g, '\n').replace(/[ \t]+/g, ' ').trim();
+      if (text) out.push(text);
+    }
+  }
+
+  if (out.length === 0) {
+    // 구조가 예상과 달라 토큰을 못 뽑았으면, 통째로 태그만 제거하는 최후 폴백
+    const fallback = s
+      .replace(/<!\[CDATA\[([\s\S]*?)\]\]>/g, '$1')
+      .replace(/<[^>]*>/g, '\n');
+    return decodeEntities(fallback).replace(/\r\n/g, '\n').replace(/\n{3,}/g, '\n\n').trim();
+  }
+
+  return out.join('\n').replace(/\n{3,}/g, '\n\n').trim();
+}
+
 function DrugInfoModal({ drug, onClose }: { drug: Medication | null; onClose: () => void }) {
-  const insets = useSafeAreaInsets();
+  const sheetBottomPad = useBottomSheetPadding(32, 24);
   const [easyInfo, setEasyInfo] = useState<{
     efficacy?: string;
     dosage?: string;
     caution?: string;
+    sideEffect?: string;
+    deposit?: string;
   } | null>(null);
   const [easyLoading, setEasyLoading] = useState(false);
-  const { translateY, panResponder } = useSwipeToDismiss(onClose);
+  const [easyNotFound, setEasyNotFound] = useState(false);
+  // 약 정보를 실제로 표시한 출처 구분: 'easy'=e약은요, 'permit'=허가정보
+  const [infoSource, setInfoSource] = useState<'easy' | 'permit' | null>(null);
 
   useEffect(() => {
     if (!drug?.name) return;
+    const drugName = drug.name;
+    const savedItemSeq = drug.drugInfo?.itemSeq; // 등록 시 저장된 허가정보 식별자(이름매칭 우회용)
+    let cancelled = false;
+
     setEasyInfo(null);
+    setEasyNotFound(false);
+    setInfoSource(null);
     setEasyLoading(true);
-    callMfdsProxy('easy01', drug.name, { numOfRows: 3, pageNo: 1 })
-      .then(data => {
-        if (!data) return;
-        // 공공 API 응답: data.response.body 또는 data.body
-        const body = data?.response?.body ?? data?.body;
-        const rawItems = body?.items?.item ?? body?.items;
-        const item = Array.isArray(rawItems) ? rawItems[0] : rawItems;
-        if (item) {
-          setEasyInfo({
-            efficacy: item.EE_DOC_DATA ? stripHtml(item.EE_DOC_DATA) : undefined,
-            dosage: item.UD_DOC_DATA ? stripHtml(item.UD_DOC_DATA) : undefined,
-            caution: item.NB_DOC_DATA ? stripHtml(item.NB_DOC_DATA) : undefined,
-          });
+
+    // 허가정보 상세(item_seq) → EE/UD/NB_DOC_DATA 파싱 → easyInfo 형태로 변환
+    const loadPermitDetail = async (itemSeq: string): Promise<boolean> => {
+      const detail = await callMfdsProxy('permit-detail', itemSeq, { numOfRows: 1, pageNo: 1 });
+      if (!detail) return false;
+      const body = detail?.body ?? detail?.response?.body;
+      const rawItems = body?.items?.item ?? body?.items;
+      const list = rawItems ? (Array.isArray(rawItems) ? rawItems : [rawItems]) : [];
+      const item = list[0];
+      if (!item) return false;
+      const efficacy = parseDocData(item.EE_DOC_DATA);
+      const dosage = parseDocData(item.UD_DOC_DATA);
+      const caution = parseDocData(item.NB_DOC_DATA);
+      const deposit = item.STORAGE_METHOD ? String(item.STORAGE_METHOD).trim() : '';
+      if (!efficacy && !dosage && !caution && !deposit) return false;
+      if (!cancelled) {
+        setEasyInfo({
+          efficacy: efficacy || undefined,
+          dosage: dosage || undefined,
+          caution: caution || undefined,
+          sideEffect: undefined, // 허가정보엔 별도 부작용 섹션 없음(주의사항에 포함)
+          deposit: deposit || undefined,
+        });
+        setInfoSource('permit');
+      }
+      return true;
+    };
+
+    (async () => {
+      try {
+        // ── 1차: e약은요(easy) 이름검색 (일반약은 소비자친화 텍스트라 우선) ──
+        const easyData = await callMfdsProxy('easy', drugName, { numOfRows: 5, pageNo: 1 });
+        if (!cancelled && easyData) {
+          const body = easyData?.body ?? easyData?.response?.body;
+          const rawItems = body?.items?.item ?? body?.items;
+          const list = rawItems ? (Array.isArray(rawItems) ? rawItems : [rawItems]) : [];
+          const item = list.find((it: any) => isNameMatched(drugName, it?.itemName ?? '')) ?? list[0];
+          if (item) {
+            const clean = (v?: string) => (v ? stripHtml(v) : undefined);
+            const caution = [item.atpnWarnQesitm, item.atpnQesitm]
+              .filter(Boolean)
+              .map((v: string) => stripHtml(v))
+              .join('\n\n') || undefined;
+            const efficacy = clean(item.efcyQesitm);
+            const dosage = clean(item.useMethodQesitm);
+            if (efficacy || dosage || caution) {
+              if (!cancelled) {
+                setEasyInfo({
+                  efficacy,
+                  dosage,
+                  caution,
+                  sideEffect: clean(item.seQesitm),
+                  deposit: clean(item.depositMethodQesitm),
+                });
+                setInfoSource('easy');
+              }
+              return; // e약은요로 충분
+            }
+          }
         }
-      })
-      .catch((e) => { if (__DEV__) console.error('[DrugInfo] easyDrug API 오류:', e); })
-      .finally(() => setEasyLoading(false));
-  }, [drug?.name]);
+
+        // ── 2차: e약은요 0건 → 허가정보(전문약 포함) ──
+        if (cancelled) return;
+        // 2-1) 저장된 item_seq 있으면 이름매칭 건너뛰고 상세 직행
+        if (savedItemSeq) {
+          if (await loadPermitDetail(savedItemSeq)) return;
+        }
+        // 2-2) item_seq 없으면 permit-list(item_name)로 검색 → ITEM_SEQ → 상세
+        if (cancelled) return;
+        const listData = await callMfdsProxy('permit-list', drugName, { numOfRows: 5, pageNo: 1 });
+        if (!cancelled && listData) {
+          const lbody = listData?.body ?? listData?.response?.body;
+          const lraw = lbody?.items?.item ?? lbody?.items;
+          const plist = lraw ? (Array.isArray(lraw) ? lraw : [lraw]) : [];
+          const phit = plist.find((it: any) => isNameMatched(drugName, it?.ITEM_NAME ?? '')) ?? plist[0];
+          const seq = phit?.ITEM_SEQ ? String(phit.ITEM_SEQ) : null;
+          if (seq && (await loadPermitDetail(seq))) return;
+        }
+
+        // ── 3차: 둘 다 없음 ──
+        if (!cancelled) setEasyNotFound(true);
+      } catch (e) {
+        if (__DEV__) console.error('[DrugInfo] 약정보 로드 오류:', e);
+        if (!cancelled) setEasyNotFound(true);
+      } finally {
+        if (!cancelled) setEasyLoading(false);
+      }
+    })();
+
+    return () => { cancelled = true; };
+  }, [drug?.name, drug?.drugInfo?.itemSeq]);
 
   if (!drug) return null;
   const info = drug.drugInfo;
@@ -601,14 +574,24 @@ function DrugInfoModal({ drug, onClose }: { drug: Medication | null; onClose: ()
 
   return (
     <Modal visible transparent animationType="slide" onRequestClose={onClose}>
-      <TouchableOpacity style={modalStyles.overlay} activeOpacity={1} onPress={onClose}>
-        <Animated.View
-          style={[modalStyles.sheet, { paddingBottom: Math.max(32, insets.bottom + 16), transform: [{ translateY }] }]}
-          {...panResponder.panHandlers}
-        >
-          <TouchableOpacity activeOpacity={1} onPress={() => {}}>
-            <View style={modalStyles.dragHandle} />
-            <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={modalStyles.scrollContent}>
+      {/* 배경(backdrop) 탭으로 닫기 */}
+      <TouchableOpacity style={modalStyles.overlay} activeOpacity={1} onPress={onClose} />
+      {/* 시트: 일반 View. backdrop 위에 형제로 렌더돼 시트 영역 탭은 시트가 받아 backdrop까지 안 감(responder 가로채기 없음 → ScrollView 스크롤 정상) */}
+      <View style={modalStyles.sheetWrap} pointerEvents="box-none">
+        <View style={modalStyles.sheet}>
+            {/* 장식용 그랩바 (제스처 없음) */}
+            <View style={modalStyles.dragHandleArea}>
+              <View style={modalStyles.dragHandle} />
+            </View>
+            <ScrollView
+              style={[modalStyles.scrollArea, { maxHeight: SCREEN_HEIGHT * 0.72 }]}
+              showsVerticalScrollIndicator
+              nestedScrollEnabled
+              contentContainerStyle={[
+                modalStyles.scrollContent,
+                { paddingBottom: sheetBottomPad },
+              ]}
+            >
               <View style={modalStyles.imageContainer}>
                 {info?.itemImage ? (
                   <Image source={{ uri: info.itemImage }} style={modalStyles.drugImage} resizeMode="contain" />
@@ -619,6 +602,16 @@ function DrugInfoModal({ drug, onClose }: { drug: Medication | null; onClose: ()
                 )}
               </View>
               <Text style={modalStyles.drugName}>{drug.name}</Text>
+              {!easyLoading && easyInfo && infoSource && (
+                <View style={[modalStyles.sourceRow, { marginTop: 6 }]}>
+                  <Ionicons name="shield-checkmark" size={14} color={Colors.primary} style={modalStyles.sourceIcon} />
+                  <Text style={modalStyles.sourceText}>
+                    {infoSource === 'easy'
+                      ? '출처: 식품의약품안전처 의약품개요정보(e약은요)'
+                      : '출처: 식품의약품안전처 의약품 제품 허가정보'}
+                  </Text>
+                </View>
+              )}
               {info?.entpName && <Text style={modalStyles.companyName}>{info.entpName}</Text>}
               {!info && (
                 <View style={modalStyles.noInfoContainer}>
@@ -652,41 +645,74 @@ function DrugInfoModal({ drug, onClose }: { drug: Medication | null; onClose: ()
               )}
               {easyLoading && (
                 <View style={modalStyles.section}>
-                  <Text style={modalStyles.easyLoadingText}>정보 불러오는 중...</Text>
+                  <Text style={modalStyles.easyLoadingText}>약 정보를 불러오고 있어요…</Text>
                 </View>
               )}
               {!easyLoading && easyInfo?.efficacy && (
                 <View style={modalStyles.section}>
                   <Text style={modalStyles.sectionHeader}>효능효과</Text>
                   <Text style={modalStyles.sectionContent}>
-                    {easyInfo.efficacy.slice(0, 300)}
+                    {easyInfo.efficacy}
+                  </Text>
+                </View>
+              )}
+              {!easyLoading && easyInfo?.dosage && (
+                <View style={modalStyles.section}>
+                  <Text style={modalStyles.sectionHeader}>용법·복용법</Text>
+                  <Text style={modalStyles.sectionContent}>
+                    {easyInfo.dosage}
                   </Text>
                 </View>
               )}
               {!easyLoading && easyInfo?.caution && (
                 <View style={modalStyles.section}>
-                  <Text style={modalStyles.cautionHeader}>주의사항·부작용</Text>
+                  <Text style={modalStyles.cautionHeader}>주의사항</Text>
                   <Text style={modalStyles.sectionContent}>
-                    {easyInfo.caution.slice(0, 300)}
+                    {easyInfo.caution}
                   </Text>
+                </View>
+              )}
+              {!easyLoading && easyInfo?.sideEffect && (
+                <View style={modalStyles.section}>
+                  <Text style={modalStyles.cautionHeader}>부작용</Text>
+                  <Text style={modalStyles.sectionContent}>
+                    {easyInfo.sideEffect}
+                  </Text>
+                </View>
+              )}
+              {!easyLoading && easyInfo?.deposit && (
+                <View style={modalStyles.section}>
+                  <Text style={modalStyles.sectionHeader}>보관법</Text>
+                  <Text style={modalStyles.sectionContent}>
+                    {easyInfo.deposit}
+                  </Text>
+                </View>
+              )}
+              {!easyLoading && easyNotFound && !easyInfo && (
+                <View style={modalStyles.section}>
+                  <Text style={modalStyles.easyLoadingText}>약 정보를 찾지 못했어요</Text>
                 </View>
               )}
               <TouchableOpacity style={modalStyles.closeBtn} onPress={onClose} activeOpacity={0.85}>
                 <Text style={modalStyles.closeBtnText}>닫기</Text>
               </TouchableOpacity>
             </ScrollView>
-          </TouchableOpacity>
-        </Animated.View>
-      </TouchableOpacity>
+        </View>
+      </View>
     </Modal>
   );
 }
 
+const SCREEN_HEIGHT = Dimensions.get('window').height;
+
 const modalStyles = StyleSheet.create({
-  overlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.5)', justifyContent: 'flex-end' },
-  sheet: { backgroundColor: Colors.white, borderTopLeftRadius: 24, borderTopRightRadius: 24, maxHeight: '80%', paddingBottom: 32 },
-  dragHandle: { width: 40, height: 5, backgroundColor: '#DDDDDD', borderRadius: 3, alignSelf: 'center', marginTop: 12, marginBottom: 8 },
-  scrollContent: { paddingHorizontal: 24, paddingBottom: 8 },
+  overlay: { ...StyleSheet.absoluteFillObject, backgroundColor: 'rgba(0,0,0,0.5)' },
+  sheetWrap: { ...StyleSheet.absoluteFillObject, justifyContent: 'flex-end' },
+  sheet: { backgroundColor: Colors.white, borderTopLeftRadius: 24, borderTopRightRadius: 24, maxHeight: '85%' },
+  dragHandleArea: { paddingTop: 12, paddingBottom: 4, alignItems: 'center' },
+  dragHandle: { width: 40, height: 5, backgroundColor: '#DDDDDD', borderRadius: 3 },
+  scrollArea: { flexGrow: 0, flexShrink: 1 },
+  scrollContent: { paddingHorizontal: 24, paddingTop: 4, paddingBottom: 8 },
   imageContainer: { alignItems: 'center', marginVertical: 16 },
   drugImage: { width: 160, height: 100, resizeMode: 'contain', borderRadius: 8, backgroundColor: '#F5F5F5' },
   imagePlaceholder: { width: 100, height: 100, borderRadius: 50, backgroundColor: Colors.light, alignItems: 'center', justifyContent: 'center' },
@@ -700,352 +726,524 @@ const modalStyles = StyleSheet.create({
   sectionContent: { fontSize: 18, color: Colors.textSub, lineHeight: 28 },
   cautionHeader: { fontSize: 18, fontWeight: '700', color: '#C62828', marginBottom: 8 },
   easyLoadingText: { fontSize: 18, color: Colors.textSub, textAlign: 'center', paddingVertical: 8 },
+  sourceRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', flexWrap: 'wrap', marginBottom: 16 },
+  sourceIcon: { marginRight: 5 },
+  sourceText: { fontSize: 13, fontWeight: '600', color: Colors.primary, textAlign: 'center', lineHeight: 18 },
   closeBtn: { backgroundColor: Colors.primary, borderRadius: 12, minHeight: 56, alignItems: 'center', justifyContent: 'center', marginTop: 8 },
   closeBtnText: { fontSize: 18, fontWeight: '700', color: Colors.white },
 });
 
-// ─── 시간대 수정 바텀시트 ──────────────────────────────────────────────────────
-
-interface SlotEditBottomSheetProps {
-  visible: boolean;
-  slot: { key: TimeSlot; emoji: string; label: string; defaultTime: string; bgColor: string } | null;
+// ─── 슬롯 약 넣기 바텀시트 (확정안 D) ──────────────────────────────────────────
+// 슬롯 카드의 [약 넣기]/[약 넣기·빼기] → 이 시트.
+// "이 시간대(슬롯)에 먹는 약을 내 약에서 고르기".
+//   - 그 슬롯 기준으로 active 약을 전부 보여주고, 각 약에 체크(이미 이 슬롯에
+//     배정됐으면 체크됨). 토글하면 이 슬롯-약 매핑을 즉시 추가/제거.
+//   - 각 약 옆에 "1일 N회 중 M개 슬롯 배정됨" 가이드(daily_count 대비 현재
+//     medication_dose_slots 수). N 모르면(null) "배정: M개 슬롯".
+// 처방전/직접등록 진입 버튼 없음 — "내 약 추가는 상단에서" 안내(처방전은 슬롯 단위 아님).
+// 시각 입력 없음 — 시간은 슬롯(dose_slots)이 단일 소스. 매핑만 변경.
+function MedToSlotSheet({
+  slot,
+  slots,
+  medications,
+  medSlotMap,
+  onClose,
+  onCommitMedSlot,
+  onGoRegister,
+}: {
+  slot: DoseSlot | null;
+  slots: DoseSlot[];
   medications: Medication[];
+  medSlotMap: Record<string, string[]>;
   onClose: () => void;
-  onSave: (updatedMeds: Medication[], newTime: string) => Promise<void>;
-}
-
-function SlotEditBottomSheet({ visible, slot, medications, onClose, onSave }: SlotEditBottomSheetProps) {
-  const insets = useSafeAreaInsets();
-  // 이 시간대의 약들 (초기 체크 상태)
-  const slotMeds = medications.filter(m => slot ? m.times.includes(slot.key) : false);
-  // 다른 시간대에만 있는 약들 (추가 가능)
-  const otherMeds = medications.filter(m => slot ? !m.times.includes(slot.key) : false);
-
-  const [checkedIds, setCheckedIds] = useState<Set<string>>(new Set());
-  const [addedIds, setAddedIds] = useState<Set<string>>(new Set());
-  const [currentTime, setCurrentTime] = useState(slot?.defaultTime ?? '08:00');
-  const [showTimePicker, setShowTimePicker] = useState(false);
-  const [isSaving, setIsSaving] = useState(false);
-
+  /** "완료" 눌렀을 때만 호출 — 이 슬롯의 최종 약 목록으로 일괄 커밋. */
+  onCommitMedSlot: (slotId: string, finalMedIds: string[]) => Promise<void>;
+  /** 빈 상태(내 약 0개)에서 "약 등록하러 가기" → 시트 닫고 복용약 등록 진입. */
+  onGoRegister: () => void;
+}) {
+  const sheetBottomPad = useBottomSheetPadding(28, 12);
   const { translateY, panResponder } = useSwipeToDismiss(onClose);
+  // 스테이징: 이 슬롯에 넣을 약 id 로컬 선택 상태(체크/해제는 여기만 토글, DB write 없음).
+  // 시트 열 때 그 슬롯의 현재 약 목록으로 초기화. "완료" 눌러야 일괄 커밋.
+  const [localMedIds, setLocalMedIds] = useState<Set<string>>(new Set());
+  // "완료" 커밋 진행 중(이때만 스피너)
+  const [committing, setCommitting] = useState(false);
+
+  const visible = slot !== null;
+  const slotId = slot?.id ?? null;
 
   useEffect(() => {
-    if (visible && slot) {
-      // 이 시간대에 있는 약들 기본 체크
-      const ids = new Set(slotMeds.map(m => m.id));
-      setCheckedIds(ids);
-      setAddedIds(new Set());
-      // 이 시간대의 시간 (첫 번째 약 기준)
-      const firstTime = slotMeds[0]?.schedules?.[slot.key] ?? slot.defaultTime;
-      setCurrentTime(firstTime);
+    // 시트가 열리거나 다른 슬롯으로 바뀔 때마다 로컬 선택을 그 슬롯의 현재 약으로 리셋.
+    if (visible && slotId) {
+      setLocalMedIds(new Set(medSlotMap[slotId] ?? []));
+      setCommitting(false);
     }
-  }, [visible, slot?.key]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [visible, slotId]);
 
-  if (!slot) return null;
+  if (!slot || !slot.id) return null;
+  const thisSlotId = slot.id;
+  // 이 슬롯에 "선택된" 약 id 집합(로컬 스테이징 상태).
+  const assignedHere = localMedIds;
 
-  const toggleCheck = (id: string) => {
-    setCheckedIds(prev => {
+  // 약별 현재 배정 슬롯 수(모든 슬롯 통틀어). 이 슬롯은 로컬 선택 기준(스테이징 반영).
+  const assignedSlotCount = (medId: string): number => {
+    let n = 0;
+    slots.forEach((s) => {
+      if (!s.id) return;
+      const inThisSlot = s.id === thisSlotId
+        ? assignedHere.has(medId)
+        : (medSlotMap[s.id] ?? []).includes(medId);
+      if (inThisSlot) n += 1;
+    });
+    return n;
+  };
+
+  const guideText = (med: Medication): string => {
+    const m = assignedSlotCount(med.id);
+    const n = med.dailyCount ?? null;
+    if (n && n > 0) return `1일 ${n}회 중 ${m}곳 시간대에 넣음`;
+    return `${m}곳 시간대에 넣음`;
+  };
+
+  // 약 탭 = 로컬 선택만 토글(즉각 체크 표시, DB write·스피너·깜빡임 없음).
+  const handleToggle = (medId: string) => {
+    if (committing) return;
+    setLocalMedIds((prev) => {
       const next = new Set(prev);
-      if (next.has(id)) next.delete(id);
-      else next.add(id);
+      if (next.has(medId)) next.delete(medId); else next.add(medId);
       return next;
     });
   };
 
-  const toggleAdd = (id: string) => {
-    setAddedIds(prev => {
-      const next = new Set(prev);
-      if (next.has(id)) next.delete(id);
-      else next.add(id);
-      return next;
-    });
-  };
-
-  const handleSave = async () => {
-    setIsSaving(true);
+  // "완료" = 로컬 선택을 이 슬롯의 최종 약 목록으로 일괄 커밋 후 시트 닫기.
+  const handleDone = async () => {
+    if (committing) return;
+    setCommitting(true);
     try {
-      // 변경된 약 목록 계산
-      const updatedMeds: Medication[] = medications.map(med => {
-        const wasInSlot = slotMeds.some(m => m.id === med.id);
-        const isChecked = checkedIds.has(med.id);
-        const isAdded = addedIds.has(med.id);
-
-        let newTimes = [...med.times];
-        let newSchedules = { ...(med.schedules ?? {}) };
-
-        if (wasInSlot && !isChecked) {
-          // 체크 해제 → 이 시간대에서 제거
-          newTimes = newTimes.filter(t => t !== slot.key);
-          delete newSchedules[slot.key];
-        } else if (wasInSlot && isChecked) {
-          // 체크 유지 → 시간 업데이트
-          newSchedules[slot.key] = currentTime;
-        } else if (!wasInSlot && isAdded) {
-          // 새로 추가
-          if (!newTimes.includes(slot.key)) newTimes = [...newTimes, slot.key];
-          newSchedules[slot.key] = currentTime;
-        }
-
-        return { ...med, times: newTimes, schedules: newSchedules };
-      });
-
-      await onSave(updatedMeds, currentTime);
+      await onCommitMedSlot(thisSlotId, [...localMedIds]);
       onClose();
-    } finally {
-      setIsSaving(false);
+    } catch {
+      // 실패 안내는 부모(onCommitMedSlot)에서 처리 — 시트는 닫지 않고 재시도 가능하게 유지.
+      setCommitting(false);
     }
   };
 
   return (
+    <>
     <Modal visible={visible} transparent animationType="slide" onRequestClose={onClose}>
-      <TouchableOpacity style={seBsStyles.overlay} activeOpacity={1} onPress={onClose}>
+      <TouchableOpacity style={mtsStyles.overlay} activeOpacity={1} onPress={onClose}>
         <Animated.View
-          style={[seBsStyles.sheet, { paddingBottom: Math.max(32, insets.bottom + 16), transform: [{ translateY }] }]}
+          style={[mtsStyles.sheet, { paddingBottom: sheetBottomPad, transform: [{ translateY }] }]}
           {...panResponder.panHandlers}
         >
-          <TouchableOpacity activeOpacity={1} onPress={() => {}} style={{ flex: 1, flexDirection: 'column' }}>
-            <View style={seBsStyles.dragHandle} />
+          <TouchableOpacity activeOpacity={1} onPress={() => {}}>
+            <View style={mtsStyles.grab} />
+            <Text style={mtsStyles.title}>
+              {slotTitle(slot.label, slot.legacyKey, slot.time)}에 먹는 약
+            </Text>
+            <Text style={mtsStyles.sub}>
+              복용하는 약을 체크하고 "완료"를 눌러주세요.
+            </Text>
 
-            {/* 헤더 */}
-            <View style={[seBsStyles.header, { backgroundColor: slot.bgColor }]}>
-              <Text style={seBsStyles.headerTitle}>{slot.emoji} {slotTitle(slot.label, slot.key, currentTime)} 수정</Text>
-              <TouchableOpacity onPress={onClose} style={seBsStyles.closeBtn} activeOpacity={0.7}>
-                <Text style={seBsStyles.closeBtnText}>닫기</Text>
+            {/* 새 약 추가 안내 = 박스 전체 버튼 → 복용약 관리 메뉴로 이동 */}
+            {medications.length > 0 && (
+              <TouchableOpacity
+                style={mtsStyles.guideBanner}
+                onPress={onGoRegister}
+                activeOpacity={0.8}
+              >
+                <Ionicons name="information-circle-outline" size={20} color={Colors.primary} />
+                <Text style={mtsStyles.guideBannerText}>
+                  새 약 추가는 "복용약 관리" 메뉴에서 해주세요
+                </Text>
+                <Ionicons name="chevron-forward" size={20} color={Colors.primary} />
               </TouchableOpacity>
-            </View>
+            )}
 
-            <ScrollView style={seBsStyles.scroll} showsVerticalScrollIndicator={false}>
-              {/* 복용 시간 변경 */}
-              <View style={seBsStyles.section}>
-                <Text style={seBsStyles.sectionLabel}>복용 시간</Text>
-                <TouchableOpacity
-                  style={seBsStyles.timeChangeBtn}
-                  onPress={() => setShowTimePicker(true)}
-                  activeOpacity={0.8}
-                >
-                  <Text style={seBsStyles.timeChangeBtnText}>{currentTime} 변경</Text>
-                  <Ionicons name="time-outline" size={20} color={Colors.primary} />
-                </TouchableOpacity>
-              </View>
-
-              <View style={seBsStyles.divider} />
-
-              {/* 이 시간대의 약 */}
-              <View style={seBsStyles.section}>
-                <Text style={seBsStyles.sectionLabel}>이 시간대에 복용하는 약</Text>
-                {slotMeds.length === 0 && (
-                  <Text style={seBsStyles.emptyText}>이 시간대에 복용하는 약이 없어요</Text>
-                )}
-                {slotMeds.map(med => {
-                  const checked = checkedIds.has(med.id);
+            {/* 약 ~4개 높이까지만, 그 이상은 스크롤(내용 적으면 그만큼만 차지) */}
+            <ScrollView style={{ maxHeight: 360 }} showsVerticalScrollIndicator={false}>
+              {medications.length === 0 ? (
+                <View style={mtsStyles.emptyWrap}>
+                  <Ionicons name="medkit-outline" size={52} color={Colors.textHint} />
+                  <Text style={mtsStyles.emptyText}>
+                    아직 등록된 약이 없어요.{'\n'}먼저 드시는 약을 등록해주세요.
+                  </Text>
+                  <TouchableOpacity
+                    style={mtsStyles.emptyRegisterBtn}
+                    onPress={onGoRegister}
+                    activeOpacity={0.85}
+                  >
+                    <Ionicons name="add-circle-outline" size={24} color={Colors.white} />
+                    <Text style={mtsStyles.emptyRegisterBtnText}>약 등록하러 가기</Text>
+                  </TouchableOpacity>
+                </View>
+              ) : (
+                medications.map((m) => {
+                  const checked = assignedHere.has(m.id);
                   return (
                     <TouchableOpacity
-                      key={med.id}
-                      style={seBsStyles.medRow}
-                      onPress={() => toggleCheck(med.id)}
+                      key={m.id}
+                      style={[mtsStyles.medRow, checked && mtsStyles.medRowOn]}
+                      onPress={() => handleToggle(m.id)}
                       activeOpacity={0.8}
+                      disabled={committing}
                     >
-                      <View style={[seBsStyles.checkbox, checked && seBsStyles.checkboxChecked]}>
-                        {checked && <Ionicons name="checkmark" size={14} color={Colors.white} />}
-                      </View>
-                      {med.drugInfo?.itemImage ? (
-                        <Image source={{ uri: med.drugInfo.itemImage }} style={seBsStyles.medImg} resizeMode="contain" />
+                      {m.drugInfo?.itemImage ? (
+                        <Image source={{ uri: m.drugInfo.itemImage }} style={mtsStyles.medImg} resizeMode="contain" />
                       ) : (
-                        <View style={seBsStyles.medImg} />
+                        <View style={[mtsStyles.medImg, mtsStyles.medImgPlaceholder]}>
+                          <Text style={{ fontSize: 18 }}>💊</Text>
+                        </View>
                       )}
-                      <View style={seBsStyles.medTextGroup}>
-                        <Text style={seBsStyles.medName}>{med.name}</Text>
-                        {med.dosage ? <Text style={seBsStyles.medDosage}>{med.dosage}</Text> : null}
+                      <View style={{ flex: 1 }}>
+                        <Text style={mtsStyles.medName}>{m.name}</Text>
+                        <Text style={mtsStyles.medGuide}>{guideText(m)}</Text>
+                      </View>
+                      <View style={[mtsStyles.chkBox, checked && mtsStyles.chkBoxOn]}>
+                        {checked && <Ionicons name="checkmark-sharp" size={18} color={Colors.white} />}
                       </View>
                     </TouchableOpacity>
                   );
-                })}
-              </View>
-
-              {/* 다른 약 추가 */}
-              {otherMeds.length > 0 && (
-                <>
-                  <View style={seBsStyles.divider} />
-                  <View style={seBsStyles.section}>
-                    <Text style={seBsStyles.sectionLabel}>다른 약 추가</Text>
-                    {otherMeds.map(med => {
-                      const added = addedIds.has(med.id);
-                      return (
-                        <TouchableOpacity
-                          key={med.id}
-                          style={seBsStyles.medRow}
-                          onPress={() => toggleAdd(med.id)}
-                          activeOpacity={0.8}
-                        >
-                          <View style={[seBsStyles.checkbox, added && seBsStyles.checkboxChecked]}>
-                            {added && <Ionicons name="checkmark" size={14} color={Colors.white} />}
-                          </View>
-                          {med.drugInfo?.itemImage ? (
-                            <Image source={{ uri: med.drugInfo.itemImage }} style={seBsStyles.medImg} resizeMode="contain" />
-                          ) : (
-                            <View style={seBsStyles.medImg} />
-                          )}
-                          <View style={seBsStyles.medTextGroup}>
-                            <Text style={[seBsStyles.medName, { color: Colors.textSub }]}>{med.name}</Text>
-                            {med.dosage ? <Text style={seBsStyles.medDosage}>{med.dosage}</Text> : null}
-                          </View>
-                        </TouchableOpacity>
-                      );
-                    })}
-                  </View>
-                </>
+                })
               )}
+              <View style={{ height: 20 }} />
             </ScrollView>
 
-            {/* 저장 버튼 — ScrollView 밖 고정 */}
-            <View style={seBsStyles.saveSection}>
+            {/* 취소 · 완료 한 줄. 체크는 임시(로컬)이고 "완료"를 눌러야 실제 반영. */}
+            <View style={mtsStyles.btnRow}>
               <TouchableOpacity
-                style={seBsStyles.saveBtn}
-                onPress={handleSave}
-                activeOpacity={0.85}
-                disabled={isSaving}
+                style={mtsStyles.cancelBtn}
+                onPress={onClose}
+                activeOpacity={0.7}
+                disabled={committing}
               >
-                {isSaving ? (
-                  <ActivityIndicator color={Colors.white} />
-                ) : (
-                  <Text style={seBsStyles.saveBtnText}>저장</Text>
-                )}
+                <Text style={mtsStyles.cancelBtnText}>취소</Text>
+              </TouchableOpacity>
+              <TouchableOpacity
+                style={[mtsStyles.doneBtn, committing && mtsStyles.doneBtnDisabled]}
+                onPress={handleDone}
+                activeOpacity={0.85}
+                disabled={committing}
+              >
+                <Text style={mtsStyles.doneBtnText}>완료</Text>
               </TouchableOpacity>
             </View>
           </TouchableOpacity>
         </Animated.View>
       </TouchableOpacity>
-
-      <TimePickerModal
-        visible={showTimePicker}
-        initialTime={currentTime}
-        slotLabel={slot.label}
-        onConfirm={(time) => setCurrentTime(time)}
-        onClose={() => setShowTimePicker(false)}
-      />
     </Modal>
+    <BrandProgressOverlay
+      visible={committing}
+      title="약을 저장하고 있어요"
+      minVisibleMs={500}
+    />
+    </>
   );
 }
 
-const seBsStyles = StyleSheet.create({
-  overlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.5)', justifyContent: 'flex-end' },
+const mtsStyles = StyleSheet.create({
+  overlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.45)', justifyContent: 'flex-end' },
   sheet: {
     backgroundColor: Colors.white,
     borderTopLeftRadius: 24,
     borderTopRightRadius: 24,
-    height: '85%',
-    paddingBottom: 32,
-  },
-  dragHandle: { width: 40, height: 5, backgroundColor: '#DDDDDD', borderRadius: 3, alignSelf: 'center', marginTop: 12, marginBottom: 8 },
-  header: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
+    maxHeight: '90%', // 내용 높이에 맞춰 줄고/늘되, 화면 90% 넘지 않게(안전 상한)
     paddingHorizontal: 20,
-    paddingVertical: 16,
-    borderTopLeftRadius: 16,
-    borderTopRightRadius: 16,
+    paddingTop: 10,
   },
-  headerTitle: { fontSize: 22, fontWeight: '700', color: Colors.text },
-  closeBtn: { paddingHorizontal: 16, paddingVertical: 10, borderRadius: 8, backgroundColor: 'rgba(0,0,0,0.08)' },
-  closeBtnText: { fontSize: 18, fontWeight: '600', color: Colors.text },
-  scroll: { flex: 1 },
-  section: { paddingHorizontal: 20, paddingVertical: 16 },
-  sectionLabel: { fontSize: 18, fontWeight: '700', color: Colors.textSub, marginBottom: 12 },
-  divider: { height: 1, backgroundColor: Colors.border, marginHorizontal: 20 },
-  emptyText: { fontSize: 18, color: Colors.textHint, textAlign: 'center', paddingVertical: 12 },
-  timeChangeBtn: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 10,
-    height: 56,
-    paddingHorizontal: 20,
-    borderRadius: 14,
-    borderWidth: 2,
-    borderColor: Colors.primary,
-    backgroundColor: Colors.white,
+  grab: { width: 42, height: 5, borderRadius: 3, backgroundColor: '#D7DBE1', alignSelf: 'center', marginBottom: 12 },
+  title: { fontSize: 22, fontWeight: '800', color: Colors.text, marginBottom: 4 },
+  sub: { fontSize: 15, color: Colors.textSub, marginBottom: 14, lineHeight: 22 },
+  guideBanner: {
+    flexDirection: 'row', alignItems: 'center', gap: 8,
+    backgroundColor: Colors.light, borderRadius: 12, paddingHorizontal: 14, paddingVertical: 12, marginBottom: 14,
   },
-  timeChangeBtnText: { fontSize: 20, fontWeight: '700', color: Colors.primary, flex: 1 },
+  guideBannerText: { flex: 1, fontSize: 16, color: Colors.dark, fontWeight: '600', lineHeight: 22 },
+  emptyWrap: { alignItems: 'center', paddingVertical: 32, gap: 16 },
+  emptyText: { fontSize: 18, color: Colors.textSub, textAlign: 'center', lineHeight: 27 },
+  emptyRegisterBtn: {
+    flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8,
+    minHeight: 56, borderRadius: 14, backgroundColor: Colors.primary,
+    paddingHorizontal: 24, marginTop: 4,
+  },
+  emptyRegisterBtnText: { fontSize: 18, fontWeight: '800', color: Colors.white },
   medRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 14,
-    paddingVertical: 12,
-    paddingHorizontal: 4,
-    borderBottomWidth: 1,
-    borderBottomColor: '#F0F0F0',
+    flexDirection: 'row', alignItems: 'center', gap: 14, paddingVertical: 14, paddingHorizontal: 10,
+    borderRadius: 12, marginBottom: 8,
+    borderWidth: 1.6, borderColor: '#F0F2F5', backgroundColor: Colors.white,
   },
-  checkbox: {
-    width: 32,
-    height: 32,
-    borderRadius: 8,
-    borderWidth: 2,
-    borderColor: Colors.border,
-    alignItems: 'center',
-    justifyContent: 'center',
-    backgroundColor: Colors.white,
-  },
-  checkboxChecked: { backgroundColor: Colors.primary, borderColor: Colors.primary },
-  medImg: { width: 40, height: 40, borderRadius: 6, backgroundColor: '#F5F5F5' },
-  medEmoji: { fontSize: 28, width: 40, textAlign: 'center' },
-  medTextGroup: { flex: 1 },
+  medRowOn: { borderColor: Colors.primary, backgroundColor: Colors.light },
+  medImg: { width: 48, height: 48, borderRadius: 10, backgroundColor: '#F5F5F5' },
+  medImgPlaceholder: { alignItems: 'center', justifyContent: 'center', backgroundColor: '#EEF1F4' },
   medName: { fontSize: 20, fontWeight: '700', color: Colors.text },
-  medDosage: { fontSize: 18, color: Colors.textSub, marginTop: 2 },
-  saveSection: { paddingHorizontal: 20, paddingTop: 8, paddingBottom: 16 },
-  saveBtn: {
-    backgroundColor: Colors.primary,
-    borderRadius: 14,
-    height: 56,
-    alignItems: 'center',
-    justifyContent: 'center',
+  medGuide: { fontSize: 16, color: Colors.textSub, marginTop: 3, fontWeight: '600' },
+  chkBox: {
+    width: 30, height: 30, borderRadius: 8, borderWidth: 2, borderColor: '#CDD2DA',
+    alignItems: 'center', justifyContent: 'center',
   },
-  saveBtnText: { fontSize: 20, fontWeight: '700', color: Colors.white },
+  chkBoxOn: { backgroundColor: Colors.primary, borderColor: Colors.primary },
+  // 닫기·완료 한 줄
+  btnRow: { flexDirection: 'row', gap: 12, marginTop: 8 },
+  cancelBtn: {
+    flex: 1, minHeight: 58, borderRadius: 14,
+    borderWidth: 1.5, borderColor: Colors.border, backgroundColor: Colors.white,
+    alignItems: 'center', justifyContent: 'center',
+  },
+  cancelBtnText: { fontSize: 19, fontWeight: '700', color: Colors.textSub },
+  doneBtn: {
+    flex: 1, minHeight: 58, borderRadius: 14, backgroundColor: Colors.primary,
+    alignItems: 'center', justifyContent: 'center',
+  },
+  doneBtnText: { fontSize: 19, fontWeight: '800', color: Colors.white },
+  doneBtnDisabled: { opacity: 0.7 },
 });
 
 // ─── 메인 컴포넌트 ─────────────────────────────────────────────────────────────
 
 export function MedicationManageScreen() {
   const { user } = useAuth();
-  const route = useRoute<RouteProp<MenuStackParamList, 'MedicationManage'>>();
-  const openSlotParam = (route.params as any)?.openSlot as ('morning' | 'lunch' | 'dinner' | 'bedtime') | undefined;
   const { getPatientForCaregiver } = useFamilyLink();
   const { unreadCount } = useNotificationBadge();
-  const { medNotifs, setMedNotifs } = useSettings();
+  const { medNotifs } = useSettings();
   const dialog = useDialog();
+  // 바텀시트 하단 버튼이 안드 3버튼 내비에 가리지 않도록(글로벌 규칙).
+  const sheetBottomPad = useBottomSheetPadding(40);
   const navigation = useNavigation<any>();
+  const route = useRoute<RouteProp<MenuStackParamList, 'MedicationManage'>>();
+  // 진입 mode: 'meds'(내 약) | 'slots'(복용 시간·알림). 기본 'slots'(기존 진입 호환).
+  const mode: 'meds' | 'slots' = route.params?.mode ?? 'slots';
   const [medications, setMedications] = useState<Medication[]>([]);
+  // 복용약 realtime — 채널 이름은 마운트당 고유 1회만 생성(인라인 Math.random() 금지).
+  //  인라인으로 매 구독 effect 마다 새 난수를 쓰면 채널이 계속 다른 이름으로 재생성된다.
+  const medRtChannelId = useRef(Math.random().toString(36).slice(2, 10));
+  // 콜백 stale 클로저 방지: 구독은 항상 ref 로 최신 loadMedications 를 호출한다.
+  //  (loadMedications 를 구독 effect deps 에 넣으면 user 참조 변동마다 채널이 끊겼다
+  //   붙어 그 사이 medications 이벤트를 놓친다 — dose_slots 가 안 끊기는 것과 대비됨.)
+  const loadMedicationsRef = useRef<(opts?: { silent?: boolean }) => void>(() => {});
   // 환자에게 dose_slots(이관/신규)가 1개 이상 있으면 true → 표시 슬롯/시각 폴백의 단일 기준.
   // (true면 약 카드/섹션 시각은 dose_slots 조인 우선, false면 legacy meal_schedules)
   const [hasDoseSlots, setHasDoseSlots] = useState(false);
-  // 약효 확인 시간 재추천 제안 다이얼로그 진행 중복 방지
-  const reRecommendInFlight = useRef(false);
+
+  // ── 통합 복용 관리(슬롯 중심) 상태 ──────────────────────────────────────────
+  // 슬롯 목록(시간 빠른 순) — dose_slots 단일 소스. 각 슬롯에 어떤 약이 매핑됐는지는
+  // medication_dose_slots 조인으로 medSlotMap(slotId → medId[])에 담는다.
+  const [doseSlotList, setDoseSlotList] = useState<DoseSlot[]>([]);
+  const [medSlotMap, setMedSlotMap] = useState<Record<string, string[]>>({}); // slotId → medId[]
+  // 최신 loadDoseSlots 를 참조하는 ref — 콜백/모달 닫기에서 deps 안정적으로 재조회 호출용.
+  // (loadDoseSlots 는 아래에서 선언되지만, ref 는 실제 호출 시점에 이미 채워져 있다.)
+  const loadDoseSlotsRef = useRef<() => void>(() => {});
+  // [안전망] 0슬롯 환자 1회 자동 생성 가드 — 환자(patientId)당 1번만 시도(무한 루프 방지).
+  const autoEnsuredSlotsForRef = useRef<string | null>(null);
+  // 약 넣기·빼기 바텀시트(이 슬롯에 약을 배정/해제)
+  const [medSheetSlot, setMedSheetSlot] = useState<DoseSlot | null>(null);
+  // 시간·알림 수정(DoseSlotSetList 재사용) 모달
+  const [slotAlarmEditVisible, setSlotAlarmEditVisible] = useState(false);
+  // 슬롯 카드 "시간·알림 바꾸기" 진입 시 펼칠 슬롯 id(없으면 전체 관리).
+  const [slotAlarmFocusId, setSlotAlarmFocusId] = useState<string | null>(null);
+  // 같은 슬롯을 다시 열어도 포커스가 재적용되도록 하는 진입 토큰.
+  const [slotAlarmFocusNonce, setSlotAlarmFocusNonce] = useState(0);
+  // "복용 시간대 추가"로 진입할 때 모달 안에서 곧장 시간 추가 시트를 열게 하는 토큰.
+  // 0이면 전체 관리 모드(추가 시트 자동 안 열림). >0이면 마운트 즉시 시간 추가 시트.
+  const [slotAlarmAddNonce, setSlotAlarmAddNonce] = useState(0);
+  // 추가 전용 진입 여부 — true면 전체 슬롯 목록(관리 UI)을 렌더하지 않고 시간 선택 시트만
+  // 띄운다(시트 2겹 방지). 시트를 닫거나 저장하면 모달 전체를 닫아 본 화면으로 복귀.
+  const [slotAlarmAddOnly, setSlotAlarmAddOnly] = useState(false);
+  // 시간·알림 모달 내부 ScrollView ref — 포커스 슬롯으로 스크롤 위임용.
+  const slotAlarmScrollRef = useRef<ScrollView>(null);
+  // 특정 슬롯으로 포커스(펼침+스크롤)해서 모달 열기(슬롯 카드 "수정" 진입).
+  const openSlotAlarmEdit = useCallback((slotId: string | null) => {
+    setSlotAlarmFocusId(slotId);
+    setSlotAlarmFocusNonce((n) => n + 1);
+    setSlotAlarmAddNonce(0); // 수정 진입은 추가 시트 자동 열기 안 함
+    setSlotAlarmAddOnly(false);
+    setSlotAlarmEditVisible(true);
+  }, []);
+  // "복용 시간대 추가" 진입 — 전체 관리 목록(관리 모달 UI) 없이 시간 선택 시트만 띄운다.
+  // addOnly=true 로 DoseSlotSetList 가 목록을 렌더하지 않게 하고, 시트를 닫거나 저장하면
+  // onAddDone(=closeSlotAlarmEdit) 으로 모달 전체를 닫아 본 화면(슬롯 목록)으로 복귀한다.
+  const openSlotAlarmAdd = useCallback(() => {
+    setSlotAlarmFocusId(null);
+    setSlotAlarmAddNonce((n) => n + 1);
+    setSlotAlarmAddOnly(true);
+    setSlotAlarmEditVisible(true);
+  }, []);
+  const closeSlotAlarmEdit = useCallback(() => {
+    setSlotAlarmEditVisible(false);
+    // 닫을 때 포커스/추가모드 초기화 — 다음에 전체 관리로 열면 포커스 없이 뜸.
+    setSlotAlarmFocusId(null);
+    setSlotAlarmAddNonce(0);
+    setSlotAlarmAddOnly(false);
+    // 슬롯 수정(시각/라벨/알림설정) 후 닫을 때 본 화면 슬롯 리스트를 즉시 재조회한다.
+    // (추가/삭제는 별도 경로에서 이미 loadDoseSlots 를 부르지만, 단일 슬롯 "수정"은
+    //  realtime UPDATE 전달에만 의존해 늦거나 누락되면 화면을 떠났다 와야 반영됐다.
+    //  명시 재조회로 추가/삭제와 동일하게 닫는 즉시 최신값을 반영한다. realtime 은 보강책으로 유지.)
+    loadDoseSlotsRef.current();
+  }, []);
+  // "복용 시간대 추가" 시간 선택 시트 처리 완료 콜백.
+  //  - newSlotId 있음(저장 성공) → 모달을 닫지 않고 그 새 슬롯의 수정 시트(soloSlotId 단일 편집)로 전환.
+  //    addOnly 호스트(시간 시트) 인스턴스가 언마운트되고 soloSlotId 편집 인스턴스가 마운트되며,
+  //    같은 Modal 안에서 내용만 교체되어 깜빡임/전체목록 노출 없이 곧바로 알림·소리·약효추적 설정 화면으로 진입.
+  //  - newSlotId 없음(취소/닫기 또는 id 확보 실패) → 기존처럼 모달 닫고 본 화면(슬롯 목록)으로 복귀.
+  const handleSlotAlarmAddDone = useCallback((newSlotId?: string) => {
+    if (newSlotId) {
+      setSlotAlarmAddOnly(false);
+      setSlotAlarmAddNonce(0);
+      setSlotAlarmFocusId(newSlotId);
+      setSlotAlarmFocusNonce((n) => n + 1);
+      setSlotAlarmEditVisible(true); // 이미 열려 있지만 명시(전환 보장)
+    } else {
+      closeSlotAlarmEdit();
+    }
+  }, [closeSlotAlarmEdit]);
+  // 슬롯(복용 시간대) 삭제 — DoseSlotSetList.onDeleteSlot 와 동일 정책으로 일원화.
+  // 흐름: 이 시각에 쌓인 기록(med_logs+on_off_logs) 건수를 먼저 조회 →
+  //   · 0건  : 기존처럼 확인 후 슬롯만 soft delete(is_active=false). 기록 없음.
+  //   · 1건+ : "이 시간대에 기록이 N건 있어요. 기록도 함께 삭제할까요?" 2버튼.
+  //       - 기록도 함께 삭제 → 서버 RPC(delete_dose_slot_with_records)로 슬롯+기록 일괄 삭제.
+  //       - 기록은 남기기   → 기존 soft delete(슬롯만). 기록은 보존.
+  // (이전엔 이 핸들러가 항상 옛 확인 팝업만 띄워, DoseSlotSetList 에 넣은 새 분기가 안 보였음.)
+  const handleDeleteSlot = async (slot: DoseSlot) => {
+    if (!slot.id) return;
+    const id = slot.id;
+    const pid = targetPatientId;
+
+    // 삭제 성공 후 공통 로컬 정리(캐시 무효화 + 재조회).
+    const finishRemoval = () => {
+      if (pid) invalidateDoseSlotsCache(pid);
+      loadDoseSlots();
+    };
+
+    // 슬롯만 soft delete(기록 보존).
+    const softDeleteOnly = async () => {
+      const takenToday = await hasTakenTodayKST(pid, id);
+      try {
+        const { error } = await supabase.from('dose_slots').update({ is_active: false }).eq('id', id);
+        if (error) throw error;
+        finishRemoval();
+        await dialog.alert(deleteSlotCombinedPopup(takenToday));
+      } catch (e) {
+        console.error('[MedicationManageScreen] dose_slot 삭제 실패:', e);
+        await dialog.alert({ message: '삭제에 실패했어요. 다시 시도해주세요.' });
+      }
+    };
+
+    // 슬롯 + 이 시각의 기록까지 서버에서 함께 삭제(RPC).
+    const deleteWithRecords = async () => {
+      const takenToday = await hasTakenTodayKST(pid, id);
+      try {
+        const { error } = await supabase.rpc('delete_dose_slot_with_records', { p_dose_slot_id: id });
+        if (error) throw error;
+        finishRemoval();
+        await dialog.alert(deleteSlotCombinedPopup(takenToday));
+      } catch (e) {
+        console.error('[MedicationManageScreen] 슬롯+기록 삭제(RPC) 실패:', e);
+        await dialog.alert({ message: '삭제에 실패했어요. 다시 시도해주세요.' });
+      }
+    };
+
+    // 1) 이 슬롯에 연결된 기록 건수 조회(med_logs + on_off_logs). RLS 로 권한 제한됨.
+    //    조회가 실패하면 보수적으로 "기록이 있을 수 있다"고 보고 함께-삭제 분기를 띄운다
+    //    (조용히 0 취급해 옛 팝업으로 빠지지 않게).
+    let recordCount: number | null = 0;
+    try {
+      let medQ = supabase
+        .from('med_logs')
+        .select('id', { count: 'exact', head: true })
+        .eq('dose_slot_id', id);
+      let onoffQ = supabase
+        .from('on_off_logs')
+        .select('id', { count: 'exact', head: true })
+        .eq('dose_slot_id', id);
+      if (pid) {
+        medQ = medQ.eq('patient_id', pid);
+        onoffQ = onoffQ.eq('patient_id', pid);
+      }
+      const [medRes, onoffRes] = await Promise.all([medQ, onoffQ]);
+      if (medRes.error || onoffRes.error) throw medRes.error ?? onoffRes.error;
+      recordCount = (medRes.count ?? 0) + (onoffRes.count ?? 0);
+    } catch (e) {
+      console.error('[MedicationManageScreen] 슬롯 기록 건수 조회 실패:', e);
+      recordCount = null; // 불명 → 보수적으로 함께-삭제 선택지를 띄움
+    }
+
+    // 2) 기록 0건 → 기존처럼 확인 후 슬롯만 삭제.
+    if (recordCount === 0) {
+      const ok = await dialog.confirm({
+        title: '이 복용 시간대를 삭제할까요?',
+        message: `${slotTitle(slot.label, slot.legacyKey, slot.time)} 시간대가 삭제돼요.`,
+        confirmText: '삭제',
+        cancelText: '취소',
+        destructive: true,
+      });
+      if (!ok) return;
+      await softDeleteOnly();
+      return;
+    }
+
+    // 3) 기록 1건 이상(또는 조회 불명) → 기록까지 함께 삭제할지 2버튼 선택.
+    const choice = await dialog.show({
+      title:
+        recordCount === null
+          ? '이 시간대에 기록이 있을 수 있어요'
+          : `이 시간대에 기록이 ${recordCount}건 있어요`,
+      message: '기록도 함께 삭제할까요?',
+      buttons: [
+        { id: 'withRecords', text: '기록도 삭제', style: 'destructiveSolid', row: true },
+        { id: 'keepRecords', text: '기록은 유지', style: 'destructive', row: true },
+        { id: 'cancel', text: '닫기', style: 'cancel' },
+      ],
+    });
+    if (choice === 'withRecords') {
+      await deleteWithRecords();
+    } else if (choice === 'keepRecords') {
+      await softDeleteOnly();
+    }
+    // choice === 'cancel'(닫기 버튼) / null(배경·뒤로 닫음) → 아무 동작 없음(취소).
+  };
+  // 메뉴 3등분(1단계): 진입 mode 로 뷰 고정.
+  //  - 'meds'  = 내 약(약 등록·목록·수정). 슬롯/시간대 일절 없음.
+  //  - 'slots' = 복용 시간·알림(슬롯 카드·약 넣기·시간/알림). 기본값(기존 진입 호환).
+  // (showAllMeds 토글 → mode 로 대체. 두 메뉴가 각 뷰로 직행, 화면 내 전환 버튼 없음.)
+  const isMedsMode = mode === 'meds';
+  // 중단한 약(is_active=false & ended_at 있음) — 이력 표시 전용. (가) 가벼운 방식.
+  const [stoppedMeds, setStoppedMeds] = useState<StoppedMed[]>([]);
+  // 알림 소리 옵션(그룹 녹음) — DoseSlotSetList 에 전달.
+  const [alarmSounds, setAlarmSounds] = useState<AlarmSoundOption[]>([]);
+
   const [isOcrLoading, setIsOcrLoading] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
   const [selectedDrug, setSelectedDrug] = useState<Medication | null>(null);
   const [targetPatientId, setTargetPatientId] = useState<string | null>(null);
+  // 대상 환자 해석 완료 여부 — 로딩 중(false)과 "미연동(true+null)" 구분. 깜빡임/오판 방지.
+  const [targetLoadDone, setTargetLoadDone] = useState(false);
 
-  // 전체 수정 영역 (직접 추가 폼 / 약 목록 수정)
-  const [showAddForm, setShowAddForm] = useState(false);
-  const [showEditList, setShowEditList] = useState(false);
+  // 직접 입력 폼 ("내 약 전체 보기" = 복용약 등록·관리 페이지의 상시 노출 폼).
   const [addName, setAddName] = useState('');
   const [addDosage, setAddDosage] = useState('');
-  const [addTimes, setAddTimes] = useState<TimeSlot[]>([]);
-  const [addSchedules, setAddSchedules] = useState<MealSchedules>({});
+  // 복용량 단위 칩 선택값 (숫자칸이 비어도 유지). 기본 '정' — OCR 시트와 동일 패턴.
+  const [addDosageUnit, setAddDosageUnit] = useState<'정' | 'mg'>('정');
+  // 복용횟수 = 숫자만(저장 시 daily_count 정수). 단위(1일/1주)는 addCountUnit.
+  const [addDailyCount, setAddDailyCount] = useState('');
+  // 횟수 입력값 ref(재렌더로 controlled state 흔들려도 보존) + 제출 후 입력칸 리마운트용 nonce.
+  const addCountRef = useRef('');
+  const [addCountNonce, setAddCountNonce] = useState(0);
+  const [addCountUnit, setAddCountUnit] = useState<'day' | 'week'>('day');
   const [addDrugInfo, setAddDrugInfo] = useState<DrugInfo | null | undefined>(undefined);
   const [isMfdsLoading, setIsMfdsLoading] = useState(false);
 
-  // 인라인 수정 모드 (전체 수정 내 약 수정)
+  // 인라인 수정 모드 (등록된 약 수정)
   const [editingId, setEditingId] = useState<string | null>(null);
   const [editName, setEditName] = useState('');
   const [editDosage, setEditDosage] = useState('');
-  const [editTimes, setEditTimes] = useState<TimeSlot[]>([]);
-  const [editSchedules, setEditSchedules] = useState<MealSchedules>({});
+  // 복용량 단위 칩 선택값 (숫자칸이 비어도 유지). 기본 '정' — OCR 시트/직접등록과 동일 패턴.
+  const [editDosageUnit, setEditDosageUnit] = useState<'정' | 'mg'>('정');
+  const [editDailyCount, setEditDailyCount] = useState('');
+  // 횟수 입력값을 ref로도 보관 — 재렌더로 controlled state가 흔들려도 저장 시점에 확실히 캡처.
+  const editCountRef = useRef('');
+  const [editCountUnit, setEditCountUnit] = useState<'day' | 'week'>('day');
   const [editDrugInfo, setEditDrugInfo] = useState<DrugInfo | null | undefined>(undefined);
   const [isEditMfdsLoading, setIsEditMfdsLoading] = useState(false);
-
-  // 시간대 수정 바텀시트
-  const [slotEditTarget, setSlotEditTarget] = useState<typeof TIME_SLOTS[0] | null>(null);
-  const openSlotHandled = useRef(false);
 
   // OCR 결과 확인 바텀시트
   const [ocrResultVisible, setOcrResultVisible] = useState(false);
@@ -1054,42 +1252,85 @@ export function MedicationManageScreen() {
     id: string;
     name: string;
     ediCode: string;
+    dailyCount?: number | null;
+    countUnit?: 'day' | 'week';
     dosage?: string | null;
+    /** 1회 투약량 단위 칩 선택값 (숫자칸이 비어도 유지). 기본 '정' */
+    dosageUnit?: '정' | 'mg';
     times: TimeSlot[];
     schedules?: MealSchedules;
     drugInfo?: DrugInfo | null;
     doseSlots?: MedDoseSlot[];
     checked: boolean;
+    /** 식약처 불러오기 결과 상태: undefined=아직 안 누름, true=확인됨, false=못 찾음 */
+    mfdsFetched?: boolean;
   }>>([]);
+  // OCR 결과 시트에서 행별 식약처 불러오기 로딩 표시(약 id 집합).
+  const [ocrMfdsLoadingIds, setOcrMfdsLoadingIds] = useState<Set<string>>(new Set());
 
+  // OCR 결과 시트 키보드 회피 — Modal 안 바텀시트라 안드 adjustResize가 적용 안 됨.
+  // (PostDetailScreen과 동일 패턴) 안드는 키보드 높이를 직접 받아 ScrollView 하단에
+  // 그만큼 스페이서를 줘 포커스된 입력칸이 키보드 위로 스크롤되게 한다. iOS는 KeyboardAvoidingView가 처리.
+  const ocrScrollRef = useRef<ScrollView>(null);
+  // 카드별 ScrollView 내 y 오프셋(onLayout). 포커스 시 그 카드로 스크롤.
+  const ocrCardY = useRef<Record<string, number>>({});
+  const [ocrKbHeight, setOcrKbHeight] = useState(0);
   useEffect(() => {
-    if (!openSlotParam || openSlotHandled.current) return;
-    if (medications.length === 0) return;
-    const slot = TIME_SLOTS.find(s => s.key === openSlotParam);
-    if (slot) {
-      openSlotHandled.current = true;
-      setSlotEditTarget(slot);
+    if (Platform.OS !== 'android') return;
+    const showSub = Keyboard.addListener('keyboardDidShow', (e) => {
+      setOcrKbHeight(e.endCoordinates?.height ?? 0);
+    });
+    const hideSub = Keyboard.addListener('keyboardDidHide', () => setOcrKbHeight(0));
+    return () => { showSub.remove(); hideSub.remove(); };
+  }, []);
+  // 포커스된 카드를 키보드 위로 올림 — TextInput onFocus에서 카드 y로 스크롤.
+  const scrollOcrFocusedInput = useCallback((y: number) => {
+    setTimeout(() => ocrScrollRef.current?.scrollTo({ y: Math.max(0, y - 12), animated: true }), 80);
+  }, []);
+
+  // OCR 결과 시트 — 특정 행의 (수정된) 이름으로 식약처 정보 불러오기.
+  const handleFetchMfdsForOcrRow = useCallback(async (medId: string) => {
+    const target = ocrEnrichedMeds.find(m => m.id === medId);
+    const name = (target?.name ?? '').trim();
+    if (!name) { await dialog.alert({ message: '약 이름을 먼저 입력해주세요.' }); return; }
+    setOcrMfdsLoadingIds(prev => { const next = new Set(prev); next.add(medId); return next; });
+    try {
+      const info = await searchMfdsInfo(name);
+      setOcrEnrichedMeds(prev => prev.map(m =>
+        m.id === medId ? { ...m, drugInfo: info, mfdsFetched: true } : m
+      ));
+    } finally {
+      setOcrMfdsLoadingIds(prev => { const next = new Set(prev); next.delete(medId); return next; });
     }
-  }, [openSlotParam, medications]);
+  }, [ocrEnrichedMeds, dialog]);
 
   // 대상 환자 id 결정
   useEffect(() => {
     if (!user) return;
     if (user.role === 'caregiver') {
+      setTargetLoadDone(false);
       getPatientForCaregiver().then(patient => {
         setTargetPatientId(patient?.id ?? null);
+        setTargetLoadDone(true);
       });
     } else {
       setTargetPatientId(user.id);
+      setTargetLoadDone(true);
     }
   }, [user, getPatientForCaregiver]);
 
+  // 미연동 보호자: 보호자인데 환자 해석 끝났고 대상 환자 없음 → 환자 본인 경로는 절대 영향 없음
+  const caregiverUnlinked = user?.role === 'caregiver' && targetLoadDone && targetPatientId == null;
+
   // ── DB 로드 ────────────────────────────────────────────────────────────
 
-  const loadMedications = useCallback(async () => {
+  // silent=true: 백그라운드 realtime 갱신 — 전체 스켈레톤(setIsLoading)을 켜지 않고 데이터만 갱신.
+  // (스켈레톤 early-return 이 editSheet Modal 을 언마운트해 약 토글마다 시트가 닫혔다 열리던 버그 차단.)
+  const loadMedications = useCallback(async (opts?: { silent?: boolean }) => {
+    const silent = opts?.silent === true;
     const pid = targetPatientId;
     if (!user || !pid) return;
-    setIsLoading(true);
+    if (!silent) setIsLoading(true);
     try {
       const { data, error } = await supabase
         .from('medications')
@@ -1102,9 +1343,14 @@ export function MedicationManageScreen() {
         id: row.id,
         name: row.name,
         dosage: row.dosage ?? null,
+        dailyCount: row.daily_count ?? null,
+        countUnit: (row.count_unit ?? 'day') as 'day' | 'week',
         times: (row.meal_times ?? []) as TimeSlot[],
         schedules: (row.meal_schedules ?? {}) as MealSchedules,
-        drugInfo: row.drug_image_url ? { itemName: row.name, itemImage: row.drug_image_url } : undefined,
+        // drug_image_url 또는 item_seq 중 하나라도 있으면 drugInfo 구성(itemSeq=허가정보 직행용)
+        drugInfo: (row.drug_image_url || row.item_seq)
+          ? { itemName: row.name, itemImage: row.drug_image_url ?? undefined, itemSeq: row.item_seq ?? undefined }
+          : undefined,
       }));
 
       // ── 표시용 dose_slots 조인 (읽기 전용) ──────────────────────────────────
@@ -1156,6 +1402,34 @@ export function MedicationManageScreen() {
       setHasDoseSlots(patientHasDoseSlots);
       setMedications(medsWithSlots);
 
+      // ── 중단한 약(이력 표시 전용) 조회 ─────────────────────────────────────
+      // is_active=false & ended_at 있음 → "○○ · YYYY.M.D ~ YYYY.M.D 복용".
+      // 슬롯/매핑·기록(med_logs)은 건드리지 않음. 최근 중단 순으로 정렬.
+      try {
+        const { data: stoppedData, error: stoppedErr } = await supabase
+          .from('medications')
+          .select('id, name, dosage, daily_count, count_unit, created_at, ended_at')
+          .eq('patient_id', pid)
+          .eq('is_active', false)
+          .not('ended_at', 'is', null)
+          .order('ended_at', { ascending: false });
+        if (stoppedErr) throw stoppedErr;
+        setStoppedMeds(
+          (stoppedData ?? []).map((row: any) => ({
+            id: row.id,
+            name: row.name,
+            dosage: row.dosage ?? null,
+            dailyCount: row.daily_count ?? null,
+            countUnit: (row.count_unit ?? 'day') as 'day' | 'week',
+            startedAt: row.created_at ?? null,
+            endedAt: row.ended_at ?? null,
+          }))
+        );
+      } catch (stoppedE) {
+        console.warn('[MedicationManageScreen] 중단 약 조회 실패(계속):', stoppedE);
+        setStoppedMeds([]);
+      }
+
       // drug_image_url 없는 약은 식약처 API로 이미지 보충 시도
       const medsWithoutImage = baseMeds.filter(m => !m.drugInfo?.itemImage);
       if (medsWithoutImage.length > 0) {
@@ -1178,8 +1452,7 @@ export function MedicationManageScreen() {
                     ...(found.drugInfo.itemSeq ? { item_seq: found.drugInfo.itemSeq } : {}),
                   })
                   .eq('id', med.id)
-                  .then(() => {})
-                  .catch(() => {});
+                  .then(() => {}, () => {});
               }
               return { ...med, drugInfo: found.drugInfo ?? med.drugInfo };
             })
@@ -1189,9 +1462,14 @@ export function MedicationManageScreen() {
     } catch (e) {
       console.error('[MedicationManageScreen] loadMedications 오류:', e);
     } finally {
-      setIsLoading(false);
+      if (!silent) setIsLoading(false);
     }
   }, [user, targetPatientId]);
+
+  // 구독 콜백용 ref 를 항상 최신 loadMedications 로 유지(채널 재생성 없이 최신 fetch 호출).
+  useEffect(() => {
+    loadMedicationsRef.current = loadMedications;
+  }, [loadMedications]);
 
   useEffect(() => {
     if (targetPatientId) loadMedications();
@@ -1202,6 +1480,120 @@ export function MedicationManageScreen() {
       if (targetPatientId) loadMedications();
     }, [loadMedications, targetPatientId])
   );
+
+  // ── 슬롯 중심 데이터 로드 (dose_slots + 약↔슬롯 매핑) ───────────────────────
+  // 시간 단일 소스 = dose_slots. 각 슬롯에 매핑된 약 id 목록(medSlotMap)을 함께 만든다.
+  // 슬롯 시간/알림 편집(DoseSlotSetList)이 끝나면 realtime/refresh 로 다시 호출됨.
+  const loadDoseSlots = useCallback(async () => {
+    const pid = targetPatientId;
+    if (!pid) { setDoseSlotList([]); setMedSlotMap({}); return; }
+    try {
+      invalidateDoseSlotsCache(pid);
+      let slots = await fetchPatientDoseSlots(pid);
+
+      // [안전망] 기존 0슬롯 환자 구제 — fetch 가 명확히 0개를 반환했고(로딩 중 아님),
+      // 화면을 보는 사람이 환자 본인이며, 이 환자에 대해 아직 자동 생성을 시도한 적이 없으면
+      // 기본 4슬롯을 1회 생성한다. 멱등 헬퍼라 이미 슬롯 있으면 만들지 않는다(보수적).
+      // ⚠️ 0개일 때만 — fetch 가 던지면 catch 로 가므로 여기엔 안 옴(로딩 중과 0개 구분됨).
+      if (
+        slots.length === 0 &&
+        user?.role === 'patient' &&
+        pid === user.id &&
+        autoEnsuredSlotsForRef.current !== pid
+      ) {
+        autoEnsuredSlotsForRef.current = pid;
+        console.warn('[MedicationManageScreen] 0슬롯 환자 감지 → 기본 4슬롯 자동 생성(안전망)');
+        await ensurePatientDoseSlots(pid, null);
+        invalidateDoseSlotsCache(pid);
+        slots = await fetchPatientDoseSlots(pid);
+      }
+
+      setDoseSlotList(slots);
+
+      // medication_dose_slots → slotId 별 medId 목록
+      const slotIds = slots.map((s) => s.id).filter((id): id is string => !!id);
+      const map: Record<string, string[]> = {};
+      if (slotIds.length > 0) {
+        const { data: rows, error } = await supabase
+          .from('medication_dose_slots')
+          .select('medication_id, dose_slot_id')
+          .in('dose_slot_id', slotIds);
+        if (error) throw error;
+        (rows ?? []).forEach((r: any) => {
+          const list = map[r.dose_slot_id] ?? [];
+          list.push(r.medication_id);
+          map[r.dose_slot_id] = list;
+        });
+      }
+      setMedSlotMap(map);
+    } catch (e) {
+      console.warn('[MedicationManageScreen] loadDoseSlots 실패:', e);
+    }
+  }, [targetPatientId, user?.role, user?.id]);
+
+  useEffect(() => {
+    if (targetPatientId) loadDoseSlots();
+  }, [loadDoseSlots, targetPatientId, medications]);
+
+  // 슬롯 realtime — 슬롯 추가/삭제/시각·알림 변경 즉시 반영(DoseSlotSetList 편집 결과).
+  // (이 구독은 deps 가 loadDoseSlots=[targetPatientId] 라 안정적 — 잘 동작하는 기준점.)
+  const doseRtChannelId = useRef(Math.random().toString(36).slice(2, 10));
+  useEffect(() => {
+    loadDoseSlotsRef.current = loadDoseSlots;
+  }, [loadDoseSlots]);
+  useEffect(() => {
+    if (!targetPatientId) return;
+    const ch = supabase
+      .channel(`dose-manage-slots-${targetPatientId}-${doseRtChannelId.current}`)
+      .on(
+        'postgres_changes',
+        { event: '*', schema: 'public', table: 'dose_slots', filter: `patient_id=eq.${targetPatientId}` },
+        () => { loadDoseSlotsRef.current(); },
+      )
+      .subscribe();
+    return () => { supabase.removeChannel(ch); };
+  }, [targetPatientId]);
+
+  // 복용약 realtime — 환자/보호자 한쪽이 약을 추가·수정·삭제(중단)하면 다른쪽도 새로고침 없이 즉시 반영.
+  // ⚠️ dose_slots realtime(위)과 100% 동일 패턴으로 맞춤:
+  //   - 채널 이름: 마운트당 고유(ref) — 인라인 Math.random() 으로 매 effect 재생성 금지.
+  //   - 콜백: loadMedicationsRef 로 최신 fetch 호출(채널 재생성 없이 deps 안정).
+  //   - deps: [targetPatientId] 만 — loadMedications(deps=[user,targetPatientId]) 를 넣으면
+  //     user 참조 변동마다 채널이 끊겼다 붙어 그 사이 medications 이벤트를 놓쳤음(이번 버그 원인).
+  // medication_dose_slots 매핑까지 반영되도록 약 목록을 다시 로드한다.
+  useEffect(() => {
+    if (!targetPatientId) return;
+    const ch = supabase
+      .channel(`med-manage-meds-${targetPatientId}-${medRtChannelId.current}`)
+      .on(
+        'postgres_changes',
+        { event: '*', schema: 'public', table: 'medications', filter: `patient_id=eq.${targetPatientId}` },
+        // 백그라운드 갱신 — silent 로 호출해 스켈레톤을 안 켬(편집 시트가 닫히지 않게).
+        () => { loadMedicationsRef.current({ silent: true }); },
+      )
+      .subscribe();
+    return () => { supabase.removeChannel(ch); };
+  }, [targetPatientId]);
+
+  // 그룹 녹음(알림 소리) 로드 — DoseSlotSetList(시간·알림 수정)용.
+  useEffect(() => {
+    const gid = user?.patient_group_id;
+    if (!gid) { setAlarmSounds([]); return; }
+    supabase
+      .from('custom_sounds' as any)
+      .select('id, label, public_url')
+      .eq('group_id', gid)
+      .order('created_at', { ascending: false })
+      .then(({ data }: any) => {
+        setAlarmSounds(
+          ((data as any[]) ?? []).map((s) => ({
+            id: s.id,
+            label: s.label?.trim() || '내 녹음',
+            previewUrl: s.public_url ?? null,
+          })),
+        );
+      });
+  }, [user?.patient_group_id]);
 
   // ── OCR ────────────────────────────────────────────────────────────────
 
@@ -1238,6 +1630,9 @@ export function MedicationManageScreen() {
         id: (Date.now() + i).toString(),
         name: med.name,
         ediCode: (med.ediCode ?? '').trim(),
+        dosage: (med.dosage ?? '').trim() || null,
+        // 1일 횟수: OCR 추출값 우선, 없으면 times 개수로 보조 추정(0이면 null).
+        dailyCount: med.dailyCount ?? (med.times.length > 0 ? med.times.length : null),
         times: med.times.filter((t): t is TimeSlot => validSlots.includes(t as TimeSlot)),
         schedules: {},
       }));
@@ -1253,7 +1648,13 @@ export function MedicationManageScreen() {
 
       // DB 저장 대신 바텀시트로 결과 표시
       setOcrRawText(parsed.rawText ?? '');
-      setOcrEnrichedMeds(enriched.map(m => ({ ...m, ediCode: m.ediCode ?? '', checked: true })));
+      setOcrEnrichedMeds(enriched.map(m => ({
+        ...m,
+        ediCode: m.ediCode ?? '',
+        countUnit: 'day' as const,
+        dosageUnit: /mg/i.test(m.dosage ?? '') ? 'mg' as const : '정' as const,
+        checked: true,
+      })));
       setOcrResultVisible(true);
     } catch {
       await dialog.alert({ message: '분석에 실패했어요. 다시 시도해주세요.' });
@@ -1278,32 +1679,6 @@ export function MedicationManageScreen() {
     const sorted = order.filter(s => slots.includes(s));
     return sorted.map(s => TIME_SLOTS.find(t => t.key === s)?.label.replace('약', '') ?? s).join(',') || '없음';
   };
-
-  // ── 표시 슬롯 단일 진입점 (읽기 전용) ─────────────────────────────────────
-  // dose_slots 조인(med.doseSlots)이 있으면 그걸로, 없으면 legacy(times/schedules).
-  // ⚠️ 쓰기에는 절대 사용하지 않음 — 약 카드/섹션의 라벨·시각 표시 전용.
-
-  /** 약이 속한 표시용 표준 슬롯 키 목록(LEGACY_SLOT_ORDER 순서). */
-  const medDisplaySlotKeys = useCallback((med: Medication): TimeSlot[] => {
-    if (hasDoseSlots && med.doseSlots && med.doseSlots.length > 0) {
-      // dose_slots 조인 우선. 표준 4슬롯으로 역매핑되는 것만(비표준 라벨은 6단계 세트카드에서 처리).
-      const keys = med.doseSlots
-        .map((s) => s.key)
-        .filter((k): k is TimeSlot => k != null);
-      return LEGACY_SLOT_ORDER.filter((k) => keys.includes(k));
-    }
-    // legacy 폴백
-    return LEGACY_SLOT_ORDER.filter((k) => med.times.includes(k));
-  }, [hasDoseSlots]);
-
-  /** 특정 약·슬롯의 표시 시각('HH:MM'). dose_slots 우선, 없으면 legacy schedules, 최후 defaultTime. */
-  const medDisplaySlotTime = useCallback((med: Medication, key: TimeSlot): string => {
-    if (hasDoseSlots && med.doseSlots && med.doseSlots.length > 0) {
-      const ds = med.doseSlots.find((s) => s.key === key);
-      if (ds?.time) return ds.time;
-    }
-    return med.schedules?.[key] ?? (LEGACY_SLOT_META[key]?.defaultTime ?? '08:00');
-  }, [hasDoseSlots]);
 
   type DiffEntry =
     | { type: 'added'; name: string; ediCode?: string; key: string }
@@ -1343,8 +1718,9 @@ export function MedicationManageScreen() {
         prescriptionId = rxRow?.id ?? null;
 
         if (prescriptionId) {
+          const pid = prescriptionId; // 위 가드로 non-null 확정 (컬럼 prescription_id NOT NULL)
           const itemRows = selected.map(med => ({
-            prescription_id: prescriptionId,
+            prescription_id: pid,
             edi_code: med.ediCode && med.ediCode.trim() ? med.ediCode.trim() : null,
             product_name: med.name,
             dose_per_take: 1,
@@ -1352,7 +1728,7 @@ export function MedicationManageScreen() {
             total_days: null,
             timing_slots: med.times,
             meal_relation: 'none',
-            free_text: null,
+            free_text: med.dosage?.trim() ? med.dosage.trim() : null,
           }));
           if (itemRows.length > 0) {
             const { error: itemErr } = await supabase
@@ -1367,8 +1743,22 @@ export function MedicationManageScreen() {
 
       // 2) medications 동기화 — diff 기반 (EDI코드 우선 매칭)
       const addedKeys = new Set(diffs.filter(d => d.type === 'added').map(d => d.key));
-      // 2-1) 신규 약: insert
-      const toInsert = selected.filter(m => addedKeys.has(matchKey(m)));
+      // 2-0) 등록 보장: 선택한 약 중 '내 약 목록(medications)'에 실제 행이 없는 것은
+      // 변경이력상 added가 아니어도(=unchanged/변경) 반드시 insert한다.
+      // unchanged/timing_changed/dose_changed 는 prevMedId 가 있어야 진짜 medications 행이 존재.
+      // prevMedId 가 없으면 처방전 항목만 있고 내 약엔 없는 상태 → 등록이 안 되던 케이스.
+      const keysWithMedRow = new Set(
+        diffs
+          .filter(d => (d.type === 'unchanged' || d.type === 'timing_changed' || d.type === 'dose_changed') && !!(d as any).prevMedId)
+          .map(d => d.key)
+      );
+      const ensureInsertKeys = new Set(addedKeys);
+      selected.forEach(m => {
+        const k = matchKey(m);
+        if (!keysWithMedRow.has(k)) ensureInsertKeys.add(k);
+      });
+      // 2-1) 신규 약 + 등록 보장 약: insert (선택했는데 내 약에 없는 모든 약)
+      const toInsert = selected.filter(m => ensureInsertKeys.has(matchKey(m)));
       let insertedDbMeds: Medication[] = [];
       if (toInsert.length > 0) {
         const { data: inserted, error: insertError } = await supabase
@@ -1377,10 +1767,14 @@ export function MedicationManageScreen() {
             toInsert.map(med => ({
               patient_id: targetPatientId,
               name: med.name,
-              dosage: null,
-              meal_times: med.times,
+              dosage: med.dosage?.trim() ? med.dosage.trim() : null,
+              // 처방전 등록 = "내 약"에만 추가. 슬롯 자동배정 안 함 → meal_times 비움.
+              // daily_count(1일 횟수)만 보유 → 사용자가 슬롯에서 직접 배정(가이드 기준).
+              meal_times: [] as TimeSlot[],
               meal_schedules: {},
               scheduled_times: [] as string[],
+              daily_count: med.dailyCount ?? null,
+              count_unit: med.countUnit ?? 'day',
               drug_code: null,
               drug_image_url: med.drugInfo?.itemImage ?? null,
               item_seq: med.drugInfo?.itemSeq ?? null,
@@ -1394,7 +1788,8 @@ export function MedicationManageScreen() {
           return {
             id: row.id,
             name: row.name,
-            dosage: null,
+            dosage: row.dosage ?? matched?.dosage ?? null,
+            dailyCount: row.daily_count ?? matched?.dailyCount ?? null,
             times: (row.meal_times ?? []) as TimeSlot[],
             schedules: (row.meal_schedules ?? {}) as MealSchedules,
             drugInfo: matched?.drugInfo ?? null,
@@ -1412,12 +1807,12 @@ export function MedicationManageScreen() {
         if (!d.prevMedId) continue;
         const newMed = selected.find(s => matchKey(s) === d.key);
         if (!newMed) continue;
+        // 처방전 재등록 = 약 정보(1일 횟수) 갱신만. 슬롯 배정(meal_times/medication_dose_slots)은
+        // 사용자가 슬롯에서 직접 관리하므로 건드리지 않는다(기존 슬롯 배정 보존).
         const { error: upErr } = await supabase
           .from('medications')
           .update({
-            meal_times: newMed.times,
-            meal_schedules: {},
-            scheduled_times: [] as string[],
+            daily_count: newMed.dailyCount ?? null,
             is_active: true,
           })
           .eq('id', d.prevMedId);
@@ -1447,46 +1842,24 @@ export function MedicationManageScreen() {
         }
       }
 
-      // 2-4) dose_slots dual-write: 신규/변경 약의 약↔슬롯 매핑 동기화 + 중단 약 매핑 정리.
-      // OCR 경로는 medications.meal_schedules 를 {} 로 두므로 dose_slot.time 은 환자
-      // users.meal_schedules(기존 시각) 기준으로 보장한다. 실패해도 throw 안 함.
+      // 2-4) 슬롯 자동배정 제거(확정안): 처방전 등록은 "내 약"에만 추가하고
+      // 어느 슬롯에도 자동 배정하지 않는다. 신규/변경 약의 medication_dose_slots
+      // 자동 insert 안 함(사용자가 슬롯 "약 넣기"에서 직접 배정). dose_slots 시간/슬롯
+      // 자동생성도 안 함(시간 단일 소스·슬롯은 사용자 배정).
+      // 단, 중단 약은 슬롯에 남아 있으면 안 되므로 매핑만 정리한다.
       try {
-        const { data: freshUser } = await supabase
-          .from('users')
-          .select('meal_schedules')
-          .eq('id', targetPatientId)
-          .single();
-        const mergedSchedules = (freshUser?.meal_schedules ?? {}) as MealSchedules;
-        await ensureDoseSlotsForPatient(mergedSchedules);
-        // 신규 약 매핑
         await Promise.all(
-          insertedDbMeds.map((m) =>
-            syncMedicationDoseSlots(targetPatientId, m.id, (m.times ?? []) as LegacyMealKey[])
-          )
-        );
-        // 변경 약 매핑(새 meal_times 기준)
-        await Promise.all(
-          toUpdate.map((d) => {
-            if (!d.prevMedId) return Promise.resolve();
-            const newMed = selected.find((s) => matchKey(s) === d.key);
-            if (!newMed) return Promise.resolve();
-            return syncMedicationDoseSlots(
-              targetPatientId!,
-              d.prevMedId,
-              (newMed.times ?? []) as LegacyMealKey[]
-            );
-          })
-        );
-        // 중단 약 매핑 비움(빈 배열 → 기존 매핑 delete)
-        await Promise.all(
-          stoppedIds.map((id) => syncMedicationDoseSlots(targetPatientId!, id, []))
+          stoppedIds.map((id) => setMedicationSlots(id, [], targetPatientId!))
         );
         invalidateDoseSlotsCache(targetPatientId);
       } catch (dsErr) {
-        console.warn('[OCR confirm] dose_slots 동기화 실패(계속):', dsErr);
+        console.warn('[OCR confirm] 중단 약 슬롯 매핑 정리 실패(계속):', dsErr);
       }
 
       // 3) 화면 상태 동기화
+      //    ⚠️ 이력 저장(side effect)은 setMedications 업데이터 "밖"에서 한 번만 호출한다.
+      //    업데이터 내부에서 호출하면 React 18 strict/이중 호출 시 added 이력이 중복 기록될 수 있음.
+      let nextMedsForHistory: Medication[] = [];
       setMedications(prev => {
         const next = prev
           .filter(m => !stoppedIds.includes(m.id))
@@ -1495,15 +1868,18 @@ export function MedicationManageScreen() {
             if (!upd) return m;
             const newMed = selected.find(s => matchKey(s) === upd.key);
             if (!newMed) return m;
-            return { ...m, times: newMed.times, schedules: {} };
+            // 슬롯/시각은 사용자 배정 유지 → times/schedules 보존. 1일 횟수만 갱신.
+            return { ...m, dailyCount: newMed.dailyCount ?? m.dailyCount ?? null };
           })
           .concat(insertedDbMeds);
-        insertedDbMeds.forEach(m => {
-          saveMedicationHistory(targetPatientId!, m.id, 'added', next);
-        });
-        // 처방전 등록으로 약 변경 → 재추천 제안(비강제 §3-C)
-        proposeReRecommend(next);
+        nextMedsForHistory = next;
         return next;
+      });
+      // 새로 insert된 약에만 added 이력 — updater 밖에서 insertedDbMeds 순회로 1회만 저장.
+      // 약 등록(처방전)은 "내 약"에 추가만 — 약효추적 추천/안내 팝업은 띄우지 않음.
+      // (약효추적 설정·추천은 슬롯/알림 관리에서 별개로 진입)
+      insertedDbMeds.forEach(m => {
+        saveMedicationHistory(targetPatientId!, m.id, 'added', nextMedsForHistory);
       });
     } catch (e) {
       console.error('[OCR confirm] 저장 오류:', e);
@@ -1582,7 +1958,10 @@ export function MedicationManageScreen() {
             const prev = prevByKey.get(key);
             // medications 테이블 매칭은 이름 키로 (edi_code 컬럼 없을 수 있음)
             const prevMedId = medByNameKey.get('name:' + normalizeNameKey(s.name))?.id;
-            if (!prev) {
+            // EDI가 같아 prev로 매칭됐어도 사용자가 이름을 고쳤다면(이름 키 불일치)
+            // 같은 약이 아니라 '새 약'으로 본다. (이름만 고쳐도 등록 안 되던 버그 수정)
+            const renamed = !!prev && normalizeNameKey(prev.product_name ?? '') !== normalizeNameKey(s.name ?? '');
+            if (!prev || renamed) {
               diffs.push({ type: 'added', name: s.name, ediCode: s.ediCode, key });
               continue;
             }
@@ -1695,7 +2074,7 @@ export function MedicationManageScreen() {
         });
       lines.push(...addedLines, ...timingLines, ...doseLines, ...stoppedLines);
       if (lines.length === 0) {
-        lines.push('직전 처방과 동일합니다.');
+        lines.push('이전 처방과 내용이 같아요. 선택한 약을 그대로 등록할게요.');
       }
     }
     if (pkTips.length > 0) {
@@ -1705,7 +2084,7 @@ export function MedicationManageScreen() {
 
     // 공용 다이얼로그로 확인
     const ok = await dialog.confirm({
-      title: '직전 처방과 비교',
+      title: '처방 등록 확인',
       message: lines.join('\n'),
       confirmText: '등록하기',
       cancelText: '취소',
@@ -1727,6 +2106,20 @@ export function MedicationManageScreen() {
     });
     if (choice === 'camera') pickImageAndRunOCR(true);
     else if (choice === 'gallery') pickImageAndRunOCR(false);
+  };
+
+  // ── 복용약 등록 통합 진입(처방전 / 직접 입력 선택) ──────────────────────────
+  // 메뉴 3등분(1단계): 약 등록은 "내 약" 메뉴로 이관.
+  //  - meds 모드(내 약): 처방전 OCR / 직접 입력 폼(상시 노출)으로 등록.
+  //  - slots 모드(복용 시간·알림): 약 등록은 "내 약"에서 → 이 함수는 "내 약" 메뉴로 이동시킴.
+  const handleRegisterPress = async () => {
+    if (!isMedsMode) {
+      // 슬롯 뷰에서 등록 요청(약 넣기 빈 상태 등) → "내 약" 메뉴로 이동.
+      navigation.navigate('MedicationManage', { mode: 'meds' });
+      return;
+    }
+    // 내 약 메뉴: 처방전 OCR. (직접 입력 폼은 화면에 상시 노출돼 있음)
+    handleOcrPress();
   };
 
   // ── 식약처 정보 조회 ──────────────────────────────────────────────────
@@ -1774,151 +2167,12 @@ export function MedicationManageScreen() {
         patient_id: patientId,
         changed_medication_id: changedMedicationId,
         change_type: changeType,
-        snapshot,
+        snapshot: snapshot as unknown as Json,
       });
     } catch (e) {
       console.warn('[saveMedicationHistory] 이력 저장 실패:', e);
     }
   }, []);
-
-  // ── 약효 확인 시간 재추천(§3-C 비강제) / 사용자 수정값 보존(§13-6) ───────────
-
-  /** 현재 등록 약 목록 → 추천 입력 형태 */
-  const toRecommendInput = useCallback((meds: Medication[]) =>
-    meds.map(m => ({
-      name: m.name,
-      mfdsClassName: m.drugInfo?.className ?? undefined,
-    })), []);
-
-  /** 현재 등록 약 목록 → 약/용량 시그니처(§8.1) */
-  const toSignature = useCallback((meds: Medication[]) =>
-    buildSourceMedSignature(
-      meds.map(m => ({
-        name: m.name,
-        className: m.drugInfo?.className ?? null,
-        dosage: m.dosage ?? null,
-      }))
-    ), []);
-
-  /** 등록 레보도파 약 중 식약처 itemSeq 보유한 것(원문 링크용) */
-  const findLevodopaSeq = useCallback((meds: Medication[]): { name: string; itemSeq?: string } | null => {
-    const levo = meds.filter(m => {
-      const rec = resolveTrackingRecommendation(m.name, m.drugInfo?.className ?? undefined);
-      return rec?.active === true;
-    });
-    if (levo.length === 0) return null;
-    const withSeq = levo.find(m => m.drugInfo?.itemSeq);
-    const pick = withSeq ?? levo[0];
-    return { name: pick.name, itemSeq: pick.drugInfo?.itemSeq };
-  }, []);
-
-  /** 식약처 원문 직접 보기 (§4-A / 외부 브라우저 — 60대 고지 동반) */
-  const openMfdsDetail = useCallback(async (target: { name: string; itemSeq?: string } | null) => {
-    if (!target) return;
-    const url = target.itemSeq
-      ? `https://nedrug.mfds.go.kr/pbp/CCBBB01/getItemDetail?itemSeq=${target.itemSeq}`
-      : `https://nedrug.mfds.go.kr/searchDrug?searchYn=true&keyword=${encodeURIComponent(target.name)}`;
-    const ok = await dialog.confirm({
-      title: '식약처 약 정보',
-      message: '인터넷 창이 열려요.\n보고 나서 ◀(뒤로)로 돌아오시면 돼요.',
-      confirmText: '식약처 정보 열기',
-      cancelText: '취소',
-      cancelable: true,
-    });
-    if (ok) { Linking.openURL(url).catch(() => {}); }
-  }, [dialog]);
-
-  /**
-   * 약효 확인 시간 재추천 제안(비강제 — §3-C / §13-6).
-   *
-   * @param meds 평가 대상 약 목록(변경 직후 최신)
-   * @param opts.manual true=사용자가 진입점에서 직접 요청(시그니처 동일해도 표시)
-   */
-  const proposeReRecommend = useCallback(async (meds: Medication[], opts?: { manual?: boolean }) => {
-    if (reRecommendInFlight.current) return;
-    try {
-      const meta = await getRecommendationMeta();
-      const userEdited = meta?.userEdited === true;
-      const prevSig = meta?.sourceMedSignature;
-      const nextSig = toSignature(meds);
-
-      const result = buildRecommendedMedNotifs(toRecommendInput(meds));
-      const hasLevodopa = result.notifs.length > 0;
-
-      // 레보도파가 하나도 없게 됨 → 강제 변경 금지, 안심 안내만(§7-X 비레보도파 카피)
-      if (!hasLevodopa) {
-        // 시그니처는 갱신해 두되(다이얼로그 반복 방지) medNotifs 는 사용자 것 유지
-        await patchRecommendationMeta({ sourceMedSignature: nextSig });
-        if (opts?.manual || (prevSig !== undefined && prevSig !== nextSig)) {
-          await dialog.alert({
-            title: '약효 확인 시간',
-            message: '지금 등록하신 약은 약효추적 알림 대상이 아니에요.\n약은 평소대로 잘 챙기시면 돼요. 알림은 안 와도 괜찮아요.',
-            confirmText: '알겠어요',
-          });
-        }
-        return;
-      }
-
-      // 시그니처 변화 없음 + 수동 호출 아님 → 제안 안 함
-      const changed = prevSig === undefined || prevSig !== nextSig;
-      if (!changed && !opts?.manual) return;
-
-      const levoTarget = findLevodopaSeq(meds);
-      const timeList = result.notifs
-        .map(n => `• 복용 ${minutesToLabel(n.minutes)}`)
-        .join('\n');
-
-      const baseMsg =
-        '약이 바뀌었어요. 약에 맞춰 컨디션 확인 시간을 새로 잡아드릴까요?\n\n' +
-        '이렇게 맞춰드릴 수 있어요:\n' + timeList;
-      const editedWarn = userEdited
-        ? '\n\n직접 정하신 시간이 있어요. 바꾸면 그 설정은 사라져요.'
-        : '';
-
-      const applyNew = async () => {
-        const applied: MedNotif[] = result.notifs.map(n => ({ ...n, enabled: true }));
-        setMedNotifs(applied);
-        await patchRecommendationMeta({
-          recommendedFromClasses: result.activeClasses,
-          userEdited: false,            // 사용자가 명시 적용 → 새 기준 확정(§8.1)
-          lastAppliedAt: new Date().toISOString(),
-          sourceMedSignature: nextSig,
-        });
-        await dialog.alert({ title: '맞췄어요', message: '약에 맞춰 컨디션 확인 시간을 새로 맞췄어요.\n주치의와 상의해 언제든 바꾸실 수 있어요.', confirmText: '알겠어요' });
-      };
-
-      const keepAsIs = async () => {
-        // 사용자 값 불변 — 시그니처만 갱신해 다이얼로그 반복 방지
-        await patchRecommendationMeta({ sourceMedSignature: nextSig });
-      };
-
-      reRecommendInFlight.current = true;
-      // 버튼/배경탭/스와이프/백버튼 어느 경로로 닫혀도 dialog.show가
-      // 단 한 번만 resolve → 정리 로직 1회·가드 해제 1회 보장.
-      const picked = await dialog.show({
-        title: '약효 확인 시간',
-        message: baseMsg + editedWarn,
-        buttons: [
-          { id: 'apply', text: '새 시간으로 맞출게요', style: 'primary' },
-          { id: 'keep', text: '그대로 둘게요', style: 'cancel' },
-        ],
-        cancelable: true,
-      });
-      try {
-        // 'apply'만 새 시간 적용, 그 외(그대로 둘게요/배경탭/스와이프/null) = keepAsIs
-        if (picked === 'apply') {
-          await applyNew();
-        } else {
-          await keepAsIs();
-        }
-      } finally {
-        reRecommendInFlight.current = false;
-      }
-    } catch (e) {
-      console.warn('[proposeReRecommend] 오류:', e);
-      reRecommendInFlight.current = false;
-    }
-  }, [toSignature, toRecommendInput, findLevodopaSeq, setMedNotifs]);
 
   // ── dose_slots dual-write 헬퍼 (5단계) ────────────────────────────────────
   // legacy(meal_times/meal_schedules) 쓰기 직후 신규 dose_slots/medication_dose_slots
@@ -1957,18 +2211,19 @@ export function MedicationManageScreen() {
     [targetPatientId, enabledTrackMinutes]
   );
 
-  // ── 추가 ────────────────────────────────────────────────────────────────
-
-  const handleAddSubmit = async () => {
+  // ── 직접 입력으로 등록 ("내 약"에만 추가, 슬롯 자동배정 없음) ────────────────
+  // 메인의 "복용약 등록 → 직접 입력으로 등록" 인라인 폼 제출.
+  // 처방전 등록과 동일하게 "내 약" 목록에만 추가하고 어느 슬롯에도 자동 배정하지 않는다.
+  // (복용 시간대 배정은 메인 슬롯 카드의 "약 넣기·빼기"에서 직접) → meal_times/schedules 비움.
+  const handleAddSubmitMyMedOnly = async () => {
     const trimmed = addName.trim();
     if (!trimmed) { await dialog.alert({ message: '약 이름을 입력해주세요.' }); return; }
-    if (addTimes.length === 0) { await dialog.alert({ message: '복용 시간대를 하나 이상 선택해주세요.' }); return; }
     if (!user || !targetPatientId) return;
 
-    const finalSchedules: MealSchedules = {};
-    addTimes.forEach(slot => {
-      finalSchedules[slot] = addSchedules[slot] ?? TIME_SLOTS.find(s => s.key === slot)?.defaultTime ?? '08:00';
-    });
+    // 복용횟수: ref 값 우선(재렌더에도 보존), 숫자만 → daily_count(양의 정수). 비었거나 0이하면 null.
+    const rawCount = (addCountRef.current || addDailyCount).replace(/[^0-9]/g, '');
+    const parsedCount = parseInt(rawCount, 10);
+    const dailyCount = Number.isFinite(parsedCount) && parsedCount > 0 ? parsedCount : null;
 
     try {
       const { data, error } = await supabase
@@ -1977,8 +2232,11 @@ export function MedicationManageScreen() {
           patient_id: targetPatientId,
           name: trimmed,
           dosage: addDosage.trim() || null,
-          meal_times: addTimes,
-          meal_schedules: finalSchedules,
+          daily_count: dailyCount,
+          count_unit: addCountUnit,
+          // "내 약"에만 추가 — 슬롯 자동배정 안 함(시간 단일 소스는 dose_slots).
+          meal_times: [] as TimeSlot[],
+          meal_schedules: {},
           scheduled_times: [] as string[],
           drug_code: null,
           drug_image_url: addDrugInfo?.itemImage ?? null,
@@ -1989,65 +2247,33 @@ export function MedicationManageScreen() {
         .single();
       if (error) throw error;
 
-      // users.meal_schedules 업데이트 (약 미등록 시에도 알림 발송 가능하도록)
-      try {
-        const { data: userData } = await supabase
-          .from('users')
-          .select('meal_schedules')
-          .eq('id', targetPatientId)
-          .single();
-
-        const currentMealSchedules = (userData?.meal_schedules ?? {}) as MealSchedules;
-        const updatedMealSchedules = { ...currentMealSchedules, ...finalSchedules };
-
-        await supabase
-          .from('users')
-          .update({ meal_schedules: updatedMealSchedules })
-          .eq('id', targetPatientId);
-      } catch (userError) {
-        console.warn('[MedicationManageScreen] users.meal_schedules 업데이트 실패:', userError);
-      }
-
-      // dose_slots dual-write: 환자 슬롯 보장(병합된 meal_schedules 기준) → 약↔슬롯 재배정.
-      // ensure 가 syncMedicationDoseSlots 의 선행조건이므로 순서 유지. 실패해도 throw 안 함.
-      try {
-        const { data: freshUser } = await supabase
-          .from('users')
-          .select('meal_schedules')
-          .eq('id', targetPatientId)
-          .single();
-        const mergedSchedules = (freshUser?.meal_schedules ?? finalSchedules) as MealSchedules;
-        await ensureDoseSlotsForPatient(mergedSchedules);
-        await syncMedicationDoseSlots(targetPatientId, data.id, addTimes);
-        invalidateDoseSlotsCache(targetPatientId);
-      } catch (dsErr) {
-        console.warn('[MedicationManageScreen] dose_slots 동기화 실패(계속):', dsErr);
-      }
-
       const newMed: Medication = {
         id: data.id,
         name: data.name,
         dosage: data.dosage ?? null,
+        dailyCount: data.daily_count ?? dailyCount ?? null,
+        countUnit: (data.count_unit ?? addCountUnit) as 'day' | 'week',
         times: (data.meal_times ?? []) as TimeSlot[],
         schedules: (data.meal_schedules ?? {}) as MealSchedules,
         drugInfo: addDrugInfo ?? null,
       };
       setMedications(prev => {
         const next = [...prev, newMed];
-        // 스냅샷 저장 (비동기, 실패해도 무시)
         saveMedicationHistory(targetPatientId!, data.id, 'added', next);
-        // 약 추가 → 약효 확인 시간 재추천 제안(비강제 §3-C)
-        proposeReRecommend(next);
+        // 약 등록(직접 입력)은 "내 약"에 추가만 — 약효추적 추천/안내 팝업은 띄우지 않음.
+        // (약효추적 설정·추천은 슬롯/알림 관리에서 별개로 진입)
         return next;
       });
       setAddName('');
       setAddDosage('');
-      setAddTimes([]);
-      setAddSchedules({});
+      setAddDosageUnit('정');
+      setAddDailyCount('');
+      addCountRef.current = '';
+      setAddCountNonce(n => n + 1); // 입력칸 리마운트 → defaultValue 초기화
+      setAddCountUnit('day');
       setAddDrugInfo(undefined);
-      setShowAddForm(false);
     } catch (e) {
-      console.error('[MedicationManageScreen] 약 추가 오류:', e);
+      console.error('[MedicationManageScreen] 약 직접 등록 오류:', e);
       await dialog.alert({ message: '약 추가에 실패했어요. 다시 시도해주세요.' });
     }
   };
@@ -2058,88 +2284,57 @@ export function MedicationManageScreen() {
     setEditingId(med.id);
     setEditName(med.name);
     setEditDosage(med.dosage ?? '');
-    setEditTimes([...med.times]);
-    setEditSchedules({ ...(med.schedules ?? {}) });
+    // 단위 칩: dosage 문자열에 mg가 있으면 'mg', 아니면 기본 '정'
+    setEditDosageUnit(/mg/i.test(med.dosage ?? '') ? 'mg' : '정');
+    const initialCount = med.dailyCount && med.dailyCount > 0 ? String(med.dailyCount) : '';
+    setEditDailyCount(initialCount);
+    editCountRef.current = initialCount;
+    setEditCountUnit(med.countUnit ?? 'day');
     setEditDrugInfo(med.drugInfo);
   };
 
+  // 약 수정 = 약 정보(이름·복용량)만. 복용 시간대(슬롯) 배정은 별개(슬롯 카드 "약 넣기"에서).
+  // ⚠️ meal_times/meal_schedules/medication_dose_slots 는 절대 건드리지 않는다(기존 슬롯 배정 보존).
   const handleEditSave = async () => {
     const trimmed = editName.trim();
     if (!trimmed) { await dialog.alert({ message: '약 이름을 입력해주세요.' }); return; }
-    if (editTimes.length === 0) { await dialog.alert({ message: '복용 시간대를 하나 이상 선택해주세요.' }); return; }
     const savedId = editingId;
     if (!savedId) return;
 
-    const finalSchedules: MealSchedules = {};
-    editTimes.forEach(slot => {
-      finalSchedules[slot] = editSchedules[slot] ?? TIME_SLOTS.find(s => s.key === slot)?.defaultTime ?? '08:00';
-    });
+    // 복용횟수: ref 값 우선(state가 재렌더로 흔들려도 입력값 보존), 숫자만 → daily_count(양의 정수).
+    const rawCount = (editCountRef.current || editDailyCount).replace(/[^0-9]/g, '');
+    const parsedCount = parseInt(rawCount, 10);
+    const dailyCount = Number.isFinite(parsedCount) && parsedCount > 0 ? parsedCount : null;
 
     setMedications(prev => {
       const next = prev.map(m =>
         m.id === savedId
-          ? { ...m, name: trimmed, dosage: editDosage.trim() || null, times: editTimes, schedules: finalSchedules, drugInfo: editDrugInfo }
+          ? { ...m, name: trimmed, dosage: editDosage.trim() || null, dailyCount, countUnit: editCountUnit, drugInfo: editDrugInfo }
           : m
       );
       // 스냅샷 저장 (비동기, 실패해도 무시)
       if (targetPatientId) {
         saveMedicationHistory(targetPatientId, savedId, 'updated', next);
       }
-      // 약 수정(계열/제형/용량 변경 포함) → 재추천 제안(비강제 §3-C)
-      proposeReRecommend(next);
+      // 약 수정은 약효추적 추천/안내 팝업과 완전 분리 (재추천 제안 호출 제거)
       return next;
     });
     setEditingId(null);
 
     try {
+      // 약 정보(이름·복용량·복용횟수·식약처 메타)만 update. 슬롯 배정(meal_times/medication_dose_slots)은 미변경.
       const { error } = await supabase
         .from('medications')
         .update({
           name: trimmed,
           dosage: editDosage.trim() || null,
-          meal_times: editTimes,
-          meal_schedules: finalSchedules,
+          daily_count: dailyCount,
+          count_unit: editCountUnit,
           drug_image_url: editDrugInfo?.itemImage ?? null,
           item_seq: editDrugInfo?.itemSeq ?? null,
         })
         .eq('id', savedId);
       if (error) throw error;
-
-      // users.meal_schedules 업데이트 (약 미등록 시에도 알림 발송 가능하도록)
-      if (targetPatientId) {
-        try {
-          const { data: userData } = await supabase
-            .from('users')
-            .select('meal_schedules')
-            .eq('id', targetPatientId)
-            .single();
-
-          const currentMealSchedules = (userData?.meal_schedules ?? {}) as MealSchedules;
-          const updatedMealSchedules = { ...currentMealSchedules, ...finalSchedules };
-
-          await supabase
-            .from('users')
-            .update({ meal_schedules: updatedMealSchedules })
-            .eq('id', targetPatientId);
-        } catch (userError) {
-          console.warn('[MedicationManageScreen] users.meal_schedules 업데이트 실패:', userError);
-        }
-
-        // dose_slots dual-write: 슬롯 보장(이미 있을 수 있으나 안전위해 ensure 먼저) → 약↔슬롯 재배정.
-        try {
-          const { data: freshUser } = await supabase
-            .from('users')
-            .select('meal_schedules')
-            .eq('id', targetPatientId)
-            .single();
-          const mergedSchedules = (freshUser?.meal_schedules ?? finalSchedules) as MealSchedules;
-          await ensureDoseSlotsForPatient(mergedSchedules);
-          await syncMedicationDoseSlots(targetPatientId, savedId, editTimes);
-          invalidateDoseSlotsCache(targetPatientId);
-        } catch (dsErr) {
-          console.warn('[MedicationManageScreen] dose_slots 동기화 실패(계속):', dsErr);
-        }
-      }
     } catch (e) {
       console.error('[MedicationManageScreen] 약 수정 오류:', e);
       await dialog.alert({ message: '약 수정에 실패했어요.' });
@@ -2151,8 +2346,10 @@ export function MedicationManageScreen() {
     setEditingId(null);
     setEditName('');
     setEditDosage('');
-    setEditTimes([]);
-    setEditSchedules({});
+    setEditDosageUnit('정');
+    setEditDailyCount('');
+    editCountRef.current = '';
+    setEditCountUnit('day');
     setEditDrugInfo(undefined);
   };
 
@@ -2160,9 +2357,9 @@ export function MedicationManageScreen() {
 
   const handleDelete = async (med: Medication) => {
     const ok = await dialog.confirm({
-      title: '약 삭제',
-      message: `${med.name}을(를) 삭제할까요?\n삭제해도 복용 기록은 유지돼요.`,
-      confirmText: '삭제',
+      title: '약 중단',
+      message: `${med.name}을(를) 더 이상 안 드시나요?\n중단해도 복용 기록은 남아요.`,
+      confirmText: '중단',
       cancelText: '취소',
       destructive: true,
     });
@@ -2173,16 +2370,30 @@ export function MedicationManageScreen() {
       if (targetPatientId) {
         saveMedicationHistory(targetPatientId, med.id, 'deleted', next);
       }
-      // 약 삭제 → 재추천 제안(레보도파 전삭제 시 강제변경 없이 안심 안내 §13-6)
-      proposeReRecommend(next);
+      // 약 중단은 약효추적 추천/안내 팝업과 완전 분리 (재추천 제안 호출 제거)
       return next;
     });
+    // 중단 처리: 하드 삭제 대신 is_active=false + ended_at=now() (이력 보존, §4 가벼운 방식).
+    const endedAtIso = new Date().toISOString();
     try {
-      const { error } = await supabase
+      let { error } = await supabase
         .from('medications')
-        .update({ is_active: false })
+        .update({ is_active: false, ended_at: endedAtIso } as any)
         .eq('id', med.id);
-      if (error) throw error;
+      // ended_at 업데이트 실패 시(컬럼/권한) is_active만이라도 처리
+      if (error) {
+        console.warn('[MedicationManageScreen] ended_at 기록 실패, is_active만 처리:', error);
+        const { error: err2 } = await supabase
+          .from('medications')
+          .update({ is_active: false })
+          .eq('id', med.id);
+        if (err2) throw err2;
+      }
+      // 중단 약을 이력 목록에 즉시 반영(낙관적 — created_at은 다음 새로고침에 정확히 채워짐)
+      setStoppedMeds(prev => [
+        { id: med.id, name: med.name, dosage: med.dosage ?? null, dailyCount: med.dailyCount ?? null, startedAt: null, endedAt: endedAtIso },
+        ...prev.filter(s => s.id !== med.id),
+      ]);
 
       // dose_slots dual-write: 환자 시간표(dose_slots)는 유지하고, 이 약의 약↔슬롯
       // 매핑(medication_dose_slots)만 비운다(빈 배열 → 기존 매핑 delete). 실패해도 throw 안 함.
@@ -2195,98 +2406,217 @@ export function MedicationManageScreen() {
         }
       }
     } catch (e) {
-      console.error('[MedicationManageScreen] 약 삭제 오류:', e);
-      await dialog.alert({ message: '삭제에 실패했어요.' });
+      console.error('[MedicationManageScreen] 약 중단 오류:', e);
+      await dialog.alert({ message: '중단 처리에 실패했어요.' });
       loadMedications();
     }
   };
 
-  // ── 시간대 수정 저장 ────────────────────────────────────────────────────
-
-  const handleSlotEditSave = async (updatedMeds: Medication[], newTime: string) => {
-    // 낙관적 UI 업데이트
-    setMedications(updatedMeds);
-
-    // DB 업데이트 (변경된 약만)
-    const changes = updatedMeds.filter((updated, idx) => {
-      const original = medications[idx];
-      if (!original) return false;
-      const timesChanged = JSON.stringify(updated.times.sort()) !== JSON.stringify(original.times.sort());
-      const schedulesChanged = JSON.stringify(updated.schedules) !== JSON.stringify(original.schedules);
-      return timesChanged || schedulesChanged;
+  // ── 지난 약 기록 완전 삭제 ────────────────────────────────────────────────
+  // 잘못 등록했다가 중단되어 지난약으로 내려온 항목 등을 영구 제거(하드 삭제).
+  // 중단 약은 이미 슬롯 매핑이 비워진 상태지만, 방어적으로 매핑부터 정리 후 medications 삭제.
+  const handleDeleteStoppedMed = async (med: StoppedMed) => {
+    const ok = await dialog.confirm({
+      title: '지난 약 기록 삭제',
+      message: `"${med.name}" 기록을 완전히 삭제할까요?\n되돌릴 수 없어요.`,
+      confirmText: '삭제',
+      cancelText: '취소',
+      destructive: true,
     });
-
-    await Promise.all(
-      changes.map(med =>
-        supabase.from('medications').update({
-          meal_times: med.times,
-          meal_schedules: med.schedules ?? {},
-        }).eq('id', med.id)
-      )
-    );
-
-    // dose_slots dual-write: 이 화면은 users.meal_schedules 를 직접 쓰지 않으므로,
-    // 변경된 약들의 슬롯 시각을 모아 환자 dose_slot.time 을 동기화한다(홈/알림 시각 불일치 방지).
-    // newTime 은 이번에 편집된 슬롯의 새 시각. 이후 약↔슬롯 매핑도 변경 약만 재배정.
-    if (targetPatientId && changes.length > 0) {
-      try {
-        // 변경된 약들의 슬롯별 시각을 병합(legacy key → 'HH:MM'). 동일 슬롯은 마지막 값 사용.
-        const mergedSchedules: MealSchedules = {};
-        updatedMeds.forEach((med) => {
-          const sched = med.schedules ?? {};
-          (Object.keys(sched) as TimeSlot[]).forEach((k) => {
-            if (sched[k]) mergedSchedules[k] = sched[k];
-          });
-        });
-        await ensureDoseSlotsForPatient(mergedSchedules);
-        await Promise.all(
-          changes.map((med) => syncMedicationDoseSlots(targetPatientId, med.id, med.times))
-        );
-        invalidateDoseSlotsCache(targetPatientId);
-      } catch (dsErr) {
-        console.warn('[MedicationManageScreen] dose_slots 동기화 실패(계속):', dsErr);
-      }
+    if (!ok) return;
+    // 낙관적 제거
+    setStoppedMeds(prev => prev.filter(s => s.id !== med.id));
+    try {
+      // 방어적: 남아있을 수 있는 약↔슬롯 매핑 먼저 제거(FK 보호).
+      await supabase.from('medication_dose_slots').delete().eq('medication_id', med.id);
+      const { error } = await supabase.from('medications').delete().eq('id', med.id);
+      if (error) throw error;
+    } catch (e) {
+      console.error('[MedicationManageScreen] 지난 약 삭제 오류:', e);
+      await dialog.alert({ message: '삭제에 실패했어요. 다시 시도해주세요.' });
+      loadMedications();
     }
   };
 
-  const toggleAddTime = (t: TimeSlot) => {
-    setAddTimes(prev => {
-      if (prev.includes(t)) return prev.filter(x => x !== t);
-      const defaultTime = TIME_SLOTS.find(s => s.key === t)?.defaultTime ?? '08:00';
-      setAddSchedules(sched => ({ ...sched, [t]: sched[t] ?? defaultTime }));
-      return [...prev, t];
-    });
-  };
+  // ── 약 넣기·빼기: medication_dose_slots 매핑을 "완료" 눌렀을 때 일괄 커밋. ──
+  // 스테이징 방식: 시트에서 약 체크/해제는 로컬 상태만 바꾸고(DB write 없음),
+  // "완료" 버튼을 누르면 이 슬롯의 최종 약 목록(finalMedIds)으로 한 번에 반영한다.
+  // 이 슬롯에 한정해서 diff(추가분 insert / 해제분 delete)만 수행 → 다른 슬롯 배정 보존.
+  // 탭마다 즉시 write(스피너·깜빡임) 하던 toggleMedSlot 을 대체. realtime 트리거는 커밋 1회만 발생.
+  const commitMedSlot = useCallback(async (slotId: string, finalMedIds: string[]): Promise<void> => {
+    if (!targetPatientId || !slotId) return;
+    const prevIds = new Set(medSlotMap[slotId] ?? []);
+    const nextIds = new Set(finalMedIds.filter(Boolean));
+    const toAdd = [...nextIds].filter((id) => !prevIds.has(id));
+    const toRemove = [...prevIds].filter((id) => !nextIds.has(id));
 
-  const toggleEditTime = (t: TimeSlot) => {
-    setEditTimes(prev => {
-      if (prev.includes(t)) return prev.filter(x => x !== t);
-      const defaultTime = TIME_SLOTS.find(s => s.key === t)?.defaultTime ?? '08:00';
-      setEditSchedules(sched => ({ ...sched, [t]: sched[t] ?? defaultTime }));
-      return [...prev, t];
-    });
-  };
+    // 변경 없으면 DB 접근 없이 종료(불필요한 write·realtime 방지).
+    if (toAdd.length === 0 && toRemove.length === 0) return;
 
-  // ── 섹션 생성 ────────────────────────────────────────────────────────────
+    try {
+      if (toRemove.length > 0) {
+        const { error: delErr } = await supabase
+          .from('medication_dose_slots')
+          .delete()
+          .eq('dose_slot_id', slotId)
+          .in('medication_id', toRemove);
+        if (delErr) throw delErr;
+      }
+      if (toAdd.length > 0) {
+        const rows = toAdd.map((medication_id) => ({ medication_id, dose_slot_id: slotId }));
+        const { error: insErr } = await supabase
+          .from('medication_dose_slots')
+          .insert(rows as any);
+        if (insErr) throw insErr;
+      }
+      // 낙관적: 이 슬롯의 약 목록을 최종값으로 교체.
+      setMedSlotMap((prev) => ({ ...prev, [slotId]: [...nextIds] }));
+      invalidateDoseSlotsCache(targetPatientId);
+    } catch (e) {
+      console.error('[MedicationManageScreen] 약 배정 커밋 실패:', e);
+      await dialog.alert({ message: '약 배정 저장에 실패했어요. 다시 시도해주세요.' });
+      throw e;
+    } finally {
+      loadDoseSlots();
+    }
+  }, [targetPatientId, medSlotMap, dialog, loadDoseSlots]);
 
-  const activeSections = TIME_SLOTS.filter(slot =>
-    medications.some(m => medDisplaySlotKeys(m).includes(slot.key))
+  // 약효추적 인터벌 요약. 예: "복용직후 30분 후". 없으면 빈 문자열.
+  const slotTrackIntervalSummary = useCallback((slot: DoseSlot): string => {
+    if (slot.trackIntervals.length === 0) return '';
+    return [...slot.trackIntervals]
+      .sort((a, b) => a - b)
+      .map((m) => {
+        if (m === 0) return '복용직후';
+        if (m < 60) return `${m}분 후`;
+        const h = Math.floor(m / 60); const r = m % 60;
+        return r === 0 ? `${h}시간 후` : `${h}시간 ${r}분 후`;
+      })
+      .join(' · ');
+  }, []);
+
+  // ── 슬롯 인라인 토글: 약 복용 알림(remind_enabled) / 약효추적(track_enabled) 즉시 업데이트. ──
+  // DoseSlotSetList.onToggleRemind/onToggleTrack 와 동일 dose_slots 컬럼 업데이트.
+  // 낙관적으로 doseSlotList 갱신 후 supabase update, 실패 시 롤백 + 안내, 끝에 refresh.
+  const updateSlotFlag = useCallback(
+    async (slotId: string, dbPatch: Record<string, unknown>, localPatch: Partial<DoseSlot>) => {
+      let prev: DoseSlot | undefined;
+      setDoseSlotList((list) => {
+        prev = list.find((s) => s.id === slotId);
+        return list.map((s) => (s.id === slotId ? { ...s, ...localPatch } : s));
+      });
+      try {
+        const { error } = await supabase.from('dose_slots').update(dbPatch as any).eq('id', slotId);
+        if (error) throw error;
+        if (targetPatientId) invalidateDoseSlotsCache(targetPatientId);
+      } catch (e) {
+        console.error('[MedicationManageScreen] dose_slots 토글 update 실패:', e);
+        if (prev) {
+          const rollback = prev;
+          setDoseSlotList((list) => list.map((s) => (s.id === slotId ? rollback : s)));
+        }
+        await dialog.alert({ message: '알림 설정 저장에 실패했어요. 다시 시도해주세요.' });
+      } finally {
+        loadDoseSlots();
+      }
+    },
+    [targetPatientId, dialog, loadDoseSlots],
   );
+
+  const toggleSlotRemind = useCallback(
+    (slot: DoseSlot, value: boolean) => {
+      if (!slot.id) return;
+      void updateSlotFlag(slot.id, { remind_enabled: value }, { remindEnabled: value });
+      // 결과 안내(DoseSlotSetList.onToggleRemind 와 동일): 켜기=즉시(시각 지났는지 판정) / 끄기=즉시 중단.
+      dialog.alert(value ? turnOnImmediatePopup(slot.time) : turnOffImmediatePopup());
+    },
+    [updateSlotFlag, dialog],
+  );
+
+  const toggleSlotTrack = useCallback(
+    (slot: DoseSlot, value: boolean) => {
+      if (!slot.id) return;
+      // 켜는데 추적 시각이 없으면 기본값으로 채움(DoseSlotSetList 동작과 동일).
+      if (value && slot.trackIntervals.length === 0) {
+        const defaults = [0, 30];
+        void updateSlotFlag(
+          slot.id,
+          { track_enabled: true, track_intervals: defaults },
+          { trackEnabled: true, trackIntervals: defaults },
+        );
+      } else {
+        void updateSlotFlag(slot.id, { track_enabled: value }, { trackEnabled: value });
+      }
+      // 결과 안내(DoseSlotSetList.onToggleTrack 와 동일): 약효추적은 지연형 → 오늘 이미 복용했는지 확인해 맞춤 문구.
+      const slotId = slot.id;
+      void (async () => {
+        const taken = await hasTakenTodayKST(targetPatientId, slotId);
+        dialog.alert(value ? trackChangePopup(taken) : trackOffPopup(taken));
+      })();
+    },
+    [updateSlotFlag, dialog, targetPatientId],
+  );
+
+  // 약 id → Medication 빠른 조회(슬롯 카드 약 목록 표시용).
+  const medById = useCallback((id: string) => medications.find((m) => m.id === id), [medications]);
+
+  // 약이 배정된 슬롯명 목록(시간 빠른 순). medication_dose_slots 매핑(medSlotMap) 기준.
+  // "내 약 전체 보기"의 약별 "배정 슬롯" 뱃지 표시 전용(읽기). 예: ["아침", "점심"].
+  const medAssignedSlotLabels = useCallback((medId: string): string[] => {
+    const labels: string[] = [];
+    doseSlotList.forEach((s) => {
+      if (s.id && (medSlotMap[s.id] ?? []).includes(medId)) {
+        labels.push(slotTitle(s.label, s.legacyKey, s.time));
+      }
+    });
+    return labels;
+  }, [doseSlotList, medSlotMap]);
+
+  // 어느 복용 시간대에도 안 넣은 약(active). 등록만 하고 시간대 배정 안 한 약 → 메인 안내.
+  // medSlotMap 의 모든 슬롯을 통틀어 한 곳도 없는 약만.
+  const assignedMedIdSet = (() => {
+    const set = new Set<string>();
+    Object.values(medSlotMap).forEach((ids) => ids.forEach((id) => set.add(id)));
+    return set;
+  })();
+  const unassignedMeds = medications.filter((m) => !assignedMedIdSet.has(m.id));
 
   // ── 렌더 ────────────────────────────────────────────────────────────────
 
   if (isLoading) {
     return (
-      <SafeAreaView style={styles.safeArea} edges={['top', 'bottom']}>
+      <SafeAreaView style={styles.safeArea} edges={['top']}>
         <TopBar
-          title="약 관리"
+          title={isMedsMode ? '복용약 관리' : '복용시간 설정·알림'}
           showBack
           showBell
           bellBadge={unreadCount}
           onBellPress={() => navigation.navigate('NotificationHistory', { mode: 'all' })}
         />
-        <View style={{ flex: 1, alignItems: 'center', justifyContent: 'center' }}>
-          <ActivityIndicator size="large" color={Colors.primary} />
+        {/* 가벼운 스켈레톤: 약 카드 형태의 회색 플레이스홀더 3개 — 빈 스피너보다 로딩 체감 개선 */}
+        <View style={{ flex: 1, paddingHorizontal: 16, paddingTop: 16 }}>
+          {[0, 1, 2].map((i) => (
+            <View
+              key={i}
+              style={{
+                flexDirection: 'row',
+                alignItems: 'center',
+                backgroundColor: Colors.white,
+                borderRadius: 16,
+                padding: 16,
+                marginBottom: 12,
+              }}
+            >
+              <View style={{ width: 52, height: 52, borderRadius: 12, backgroundColor: Colors.border }} />
+              <View style={{ flex: 1, marginLeft: 14 }}>
+                <View style={{ width: '55%', height: 18, borderRadius: 6, backgroundColor: Colors.border }} />
+                <View style={{ width: '35%', height: 14, borderRadius: 6, backgroundColor: Colors.border, marginTop: 10 }} />
+              </View>
+            </View>
+          ))}
+          <View style={{ alignItems: 'center', marginTop: 12 }}>
+            <ActivityIndicator size="large" color={Colors.primary} />
+          </View>
         </View>
       </SafeAreaView>
     );
@@ -2295,12 +2625,33 @@ export function MedicationManageScreen() {
   return (
     <SafeAreaView style={styles.safeArea} edges={['top']}>
       <TopBar
-        title="약 관리"
+        title={isMedsMode ? '복용약 관리' : '복용시간 설정·알림'}
         showBack
         showBell
         bellBadge={unreadCount}
         onBellPress={() => navigation.navigate('NotificationHistory', { mode: 'all' })}
       />
+      {/* 미연동 보호자: 환자 약 대신 가족 연동 안내만 노출. 기준 화면(기록 보기)과 동일하게
+          TopBar 아래 남는 영역 전체를 차지하며 세로·가로 중앙 정렬(ScrollView 바깥 flex:1). */}
+      {caregiverUnlinked ? (
+        <View style={styles.unlinkedWrap}>
+          <Ionicons name="people-outline" size={56} color={Colors.textHint} />
+          <Text style={styles.unlinkedTitle}>환자를 먼저 연동해주세요</Text>
+          <Text style={styles.unlinkedDesc}>
+            {isMedsMode
+              ? '가족을 연동하면 환자분의\n약을 대신 등록할 수 있어요'
+              : '가족을 연동하면 환자분의\n복용 시간대를 대신 설정할 수 있어요'}
+          </Text>
+          <TouchableOpacity
+            style={styles.linkFamilyBtn}
+            onPress={() => navigation.navigate('FamilyLink')}
+            activeOpacity={0.85}
+          >
+            <Ionicons name="person-add-outline" size={22} color={Colors.white} />
+            <Text style={styles.linkFamilyBtnText}>가족 연동하기</Text>
+          </TouchableOpacity>
+        </View>
+      ) : (
       <KeyboardAvoidingView style={{ flex: 1 }} behavior={Platform.OS === 'ios' ? 'padding' : 'height'}>
         <ScrollView
           style={styles.scroll}
@@ -2308,276 +2659,419 @@ export function MedicationManageScreen() {
           showsVerticalScrollIndicator={false}
           keyboardShouldPersistTaps="handled"
         >
-          {/* ── 처방전으로 등록하기 ── */}
+          {/* ══════════════════════════════════════════════════════════════
+              통합 복용 관리(슬롯 중심) — 와이어프레임 ①
+              슬롯마다 ①시간 ②알림/약효추적 요약 ③그 슬롯에 먹는 약 + [약 넣기·빼기].
+              "내 약 전체 보기"로 약별 목록(아래 기존 화면)으로 전환.
+              ══════════════════════════════════════════════════════════════ */}
+          {!isMedsMode && (
+            <View style={styles.slotCentric}>
+              {/* 시간대에 아직 안 넣은 약 안내 — 등록만 하고 배정 안 한 약이 있을 때 */}
+              {doseSlotList.length > 0 && unassignedMeds.length > 0 && (
+                <TouchableOpacity
+                  style={styles.unassignedBanner}
+                  onPress={() => {
+                    const firstSlot = doseSlotList.find((s) => !!s.id);
+                    if (firstSlot) setMedSheetSlot(firstSlot);
+                  }}
+                  activeOpacity={0.85}
+                >
+                  <Ionicons name="alert-circle" size={26} color={Colors.accent} />
+                  <View style={{ flex: 1 }}>
+                    <Text style={styles.unassignedBannerTitle}>
+                      아직 시간대에 안 넣은 약 {unassignedMeds.length}개
+                    </Text>
+                    <Text style={styles.unassignedBannerSub}>
+                      이 약들을 드시는 시간대에 넣어주세요
+                    </Text>
+                  </View>
+                  <Ionicons name="chevron-forward" size={24} color={Colors.accent} />
+                </TouchableOpacity>
+              )}
+
+              {doseSlotList.length === 0 ? (
+                <View style={styles.emptyCard}>
+                  <Ionicons name="time-outline" size={56} color={Colors.textHint} />
+                  <Text style={styles.emptyTitle}>복용 시간대가 없어요</Text>
+                  <Text style={styles.emptyDesc}>{'아래 버튼으로 복용 시간대를\n먼저 추가해주세요'}</Text>
+                </View>
+              ) : (
+                doseSlotList.map((slot) => {
+                  if (!slot.id) return null;
+                  const sid = slot.id;
+                  const medIds = medSlotMap[sid] ?? [];
+                  const slotMeds = medIds
+                    .map((id) => medById(id))
+                    .filter((m): m is Medication => !!m);
+                  return (
+                    <View key={sid} style={styles.slotCard}>
+                      {/* 좌측 이미지 + 슬롯명·시간 + 수정/삭제(아이콘만) */}
+                      <View style={styles.slotCardHead}>
+                        <View style={styles.slotHeadEmoji}>
+                          <Text style={styles.slotHeadEmojiText}>{slotEmojiFor(slot)}</Text>
+                        </View>
+                        <Text style={styles.slotCardTitle}>
+                          {slotTitle(slot.label, slot.legacyKey, slot.time)}
+                        </Text>
+                        <View style={styles.slotHeadIcons}>
+                          <TouchableOpacity
+                            activeOpacity={0.7}
+                            hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+                            style={styles.slotHeadIconBtn}
+                            onPress={() => openSlotAlarmEdit(sid)}
+                            accessibilityLabel="복용 시간대 수정"
+                          >
+                            <Ionicons name="create-outline" size={24} color={Colors.textSub} />
+                          </TouchableOpacity>
+                          <TouchableOpacity
+                            activeOpacity={0.7}
+                            hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+                            style={styles.slotHeadIconBtn}
+                            onPress={() => handleDeleteSlot(slot)}
+                            accessibilityLabel="복용 시간대 삭제"
+                          >
+                            <Ionicons name="trash-outline" size={24} color={Colors.danger} />
+                          </TouchableOpacity>
+                        </View>
+                      </View>
+
+                      {/* 순서: 약 복용 알림 → 약효추적 → 약 */}
+                      <View style={styles.slotToggleGroup}>
+                        <View style={styles.slotToggleRow}>
+                          <Text style={[styles.slotToggleLabel, !slot.remindEnabled && styles.slotToggleLabelOff]}>
+                            약 복용 알림
+                          </Text>
+                          <Switch
+                            value={slot.remindEnabled}
+                            onValueChange={(v) => toggleSlotRemind(slot, v)}
+                            trackColor={{ false: Colors.border, true: Colors.primary }}
+                            thumbColor={Colors.white}
+                            style={styles.slotToggleSwitch}
+                          />
+                        </View>
+                        <View style={styles.slotToggleRow}>
+                          <Text style={[styles.slotToggleLabel, !slot.trackEnabled && styles.slotToggleLabelOff]}>
+                            약효추적
+                            {slot.trackEnabled && slotTrackIntervalSummary(slot) ? (
+                              <Text style={styles.slotTrackSummary}>
+                                {`  ${slotTrackIntervalSummary(slot)}`}
+                              </Text>
+                            ) : null}
+                          </Text>
+                          <Switch
+                            value={slot.trackEnabled}
+                            onValueChange={(v) => toggleSlotTrack(slot, v)}
+                            trackColor={{ false: Colors.border, true: Colors.primary }}
+                            thumbColor={Colors.white}
+                            style={styles.slotToggleSwitch}
+                          />
+                        </View>
+
+                      {/* 복용약: 제목 + 약 이름(가나다순·중간점) — 토글 그룹 안에 두어 정렬 일치 */}
+                      <View style={styles.slotDrugRow}>
+                        <Text style={styles.slotDrugList}>
+                          <Text style={styles.slotDrugTitle}>복용약  </Text>
+                          {slotMeds.length === 0 ? (
+                            <Text style={styles.slotDrugNone}>아직 넣은 약이 없어요</Text>
+                          ) : (
+                            [...slotMeds]
+                              .sort((a, b) => a.name.localeCompare(b.name, 'ko'))
+                              .map((m, i) => (
+                                <Text
+                                  key={m.id}
+                                  style={styles.slotDrugNameItem}
+                                  onPress={() => setSelectedDrug(m)}
+                                >
+                                  {i > 0 ? ' · ' : ''}{m.name}
+                                </Text>
+                              ))
+                          )}
+                        </Text>
+                        <TouchableOpacity
+                          style={styles.slotDrugBtn}
+                          onPress={() => setMedSheetSlot(slot)}
+                          activeOpacity={0.8}
+                          accessibilityLabel="약 넣기·빼기"
+                        >
+                          <Ionicons name="create-outline" size={24} color={Colors.textSub} />
+                        </TouchableOpacity>
+                      </View>
+                      </View>
+                    </View>
+                  );
+                })
+              )}
+
+              {/* 복용 시간대 추가 버튼 — 슬롯 목록 하단. 누르면 곧장 시간 선택 시트(한 단계).
+                  미연동 보호자는 대상 환자가 없으므로 추가 버튼 숨김(환자 본인 경로는 그대로). */}
+              {!caregiverUnlinked && (
+                <TouchableOpacity style={styles.addSlotBtn} onPress={openSlotAlarmAdd} activeOpacity={0.85}>
+                  <Ionicons name="add-circle-outline" size={22} color={Colors.primary} />
+                  <Text style={styles.addSlotBtnText}>복용 시간대 추가</Text>
+                </TouchableOpacity>
+              )}
+
+            </View>
+          )}
+
+          {/* ══════════════════════════════════════════════════════════════
+              내 약 (meds 모드) — 슬롯/시간대 일절 없음
+              ⓞ 처방전으로 등록  ① 약 직접 입력  ② 등록된 약  ③ 지난 약 기록
+              ══════════════════════════════════════════════════════════════ */}
+          {isMedsMode && (
+          <>
+          {/* ── ⓞ 처방전으로 등록 (OCR) ── */}
           <TouchableOpacity
             style={styles.prescriptionBtn}
             onPress={handleOcrPress}
             activeOpacity={0.8}
           >
             <View style={styles.prescriptionIconCircle}>
-              <Ionicons name="document-text-outline" size={32} color={Colors.primary} />
+              <Ionicons name="camera-outline" size={32} color={Colors.primary} />
             </View>
             <View style={styles.prescriptionTextGroup}>
-              <Text style={styles.prescriptionTitle}>처방전으로 등록하기</Text>
-              <Text style={styles.prescriptionSub}>사진 한 장으로 자동 입력돼요</Text>
+              <Text style={styles.prescriptionTitle}>처방전으로 등록</Text>
+              <Text style={styles.prescriptionSub}>처방전 사진을 찍거나 골라 자동으로 등록해요</Text>
             </View>
             <Ionicons name="chevron-forward" size={24} color={Colors.primary} />
           </TouchableOpacity>
 
-          {/* ── 섹션형 약 리스트 ── */}
-          {!showEditList && (medications.length === 0 ? (
-            <View style={styles.emptyCard}>
-              <Ionicons name="medkit-outline" size={56} color={Colors.textHint} />
-              <Text style={styles.emptyTitle}>등록된 약이 없어요</Text>
-              <Text style={styles.emptyDesc}>{'처방전 등록 또는 아래 버튼으로\n약을 추가해보세요'}</Text>
+          {/* ── ① 약 직접 입력 (섹션 제목은 박스 바깥) ── */}
+          <Text style={styles.regSecTitle}>약 직접 입력</Text>
+          <View style={styles.regBox}>
+            {/* 약 이름 + 식약처 확인 한 줄 */}
+            <Text style={styles.regLabel}>약 이름</Text>
+            <View style={styles.regRow}>
+              <TextInput
+                style={[styles.regInput, { flex: 1 }]}
+                value={addName}
+                onChangeText={(v) => { setAddName(v); setAddDrugInfo(undefined); }}
+                placeholder="예) 마도파"
+                placeholderTextColor="#C2C8D0"
+                returnKeyType="done"
+              />
+              <TouchableOpacity
+                style={[styles.mfdsConfirmBtn, addDrugInfo ? styles.mfdsConfirmBtnOk : null]}
+                onPress={handleFetchMfdsForAdd}
+                activeOpacity={0.85}
+                disabled={isMfdsLoading}
+              >
+                {isMfdsLoading ? (
+                  <ActivityIndicator size="small" color={addDrugInfo ? Colors.white : Colors.dark} />
+                ) : addDrugInfo ? (
+                  <View style={styles.mfdsConfirmInner}>
+                    <Ionicons name="checkmark-sharp" size={16} color={Colors.white} />
+                    <Text style={[styles.mfdsConfirmBtnText, styles.mfdsConfirmBtnTextOk]}>확인됨</Text>
+                  </View>
+                ) : (
+                  <Text style={styles.mfdsConfirmBtnText}>식약처 확인</Text>
+                )}
+              </TouchableOpacity>
             </View>
-          ) : (
-            <View style={styles.sectionListContainer}>
-              {activeSections.map(slot => {
-                const slotMeds = medications.filter(m => medDisplaySlotKeys(m).includes(slot.key));
-                const slotTime = slotMeds[0] ? medDisplaySlotTime(slotMeds[0], slot.key) : slot.defaultTime;
+            {addDrugInfo === null && (
+              <Text style={styles.mfdsInlineFail}>식약처 정보 없음 · 이름 확인 필요</Text>
+            )}
+            {addDrugInfo && addDrugInfo.entpName ? (
+              <Text style={styles.mfdsInlineOk}>{addDrugInfo.entpName}</Text>
+            ) : null}
 
-                return (
-                  <View key={slot.key} style={styles.sectionCard}>
-                    {/* 섹션 헤더 */}
-                    <View style={[styles.sectionHeader, { backgroundColor: slot.bgColor }]}>
-                      <View style={styles.sectionHeaderLeft}>
-                        <Text style={styles.sectionHeaderEmoji}>{slot.emoji}</Text>
-                        <Text style={styles.sectionHeaderLabel}>{slotTitle(slot.label, slot.key, slotTime)}</Text>
-                      </View>
+            {/* 복용량 + 복용횟수 한 줄 */}
+            <View style={styles.regRowTop}>
+              <View style={styles.regHalf}>
+                <Text style={styles.regLabel}>복용량</Text>
+                {(() => {
+                  // OCR 시트와 동일 패턴: 숫자 입력 + 정/mg 칩, "숫자+단위" 합성해 dosage 문자열에 저장.
+                  const numMatch = addDosage.match(/[0-9]+(?:\.[0-9]+)?/);
+                  const numStr = numMatch ? numMatch[0] : '';
+                  const writeDosage = (n: string, u: '정' | 'mg') => {
+                    setAddDosageUnit(u);
+                    setAddDosage(n.trim() ? `${n.trim()}${u}` : '');
+                  };
+                  return (
+                    <View style={styles.regDosageWrap}>
+                      <TextInput
+                        style={styles.regDosageInput}
+                        value={numStr}
+                        onChangeText={(v) => writeDosage(v.replace(/[^0-9.]/g, ''), addDosageUnit)}
+                        placeholder="1"
+                        placeholderTextColor="#C2C8D0"
+                        keyboardType="decimal-pad"
+                        maxLength={6}
+                        returnKeyType="done"
+                      />
                       <TouchableOpacity
-                        style={styles.slotEditBtn}
-                        onPress={() => setSlotEditTarget(slot)}
-                        activeOpacity={0.8}
+                        style={styles.regCountUnitBtn}
+                        onPress={() => writeDosage(numStr, addDosageUnit === '정' ? 'mg' : '정')}
+                        activeOpacity={0.7}
+                        accessibilityLabel="복용량 단위 정/mg 전환"
                       >
-                        <Text style={styles.slotEditBtnText}>수정</Text>
+                        <Text style={styles.regCountUnitText}>{addDosageUnit}</Text>
+                        <Ionicons name="swap-horizontal" size={13} color={Colors.dark} />
                       </TouchableOpacity>
                     </View>
-
-                    {/* 약 아이템 */}
-                    {slotMeds.map((med, idx) => (
-                      <TouchableOpacity
-                        key={med.id}
-                        style={[
-                          styles.medItem,
-                          idx < slotMeds.length - 1 && styles.medItemBorder,
-                        ]}
-                        onPress={() => setSelectedDrug(med)}
-                        activeOpacity={0.75}
-                      >
-                        {med.drugInfo?.itemImage ? (
-                          <Image source={{ uri: med.drugInfo.itemImage }} style={styles.medItemImg} resizeMode="contain" />
-                        ) : (
-                          <View style={styles.medItemImg} />
-                        )}
-                        <View style={styles.medItemTextGroup}>
-                          <Text style={styles.medItemName}>
-                            {med.name}{med.dosage ? `  ${med.dosage}` : ''}
-                          </Text>
-                        </View>
-                        {med.drugInfo === null && (
-                          <Text style={styles.noInfoBadge}>!</Text>
-                        )}
-                      </TouchableOpacity>
-                    ))}
-                  </View>
-                );
-              })}
-            </View>
-          ))}
-
-          {/* ── 약효 확인 시간 맞춰보기 (§7.2-bis 비강제 진입점) ── */}
-          {!showEditList && !showAddForm && medications.length > 0 && (
-            <View style={styles.effectCard}>
-              <View style={styles.effectCardHeader}>
-                <Ionicons name="time-outline" size={26} color={Colors.primary} />
-                <Text style={styles.effectCardTitle}>약효 확인 시간</Text>
+                  );
+                })()}
               </View>
-              <Text style={styles.effectCardDesc}>
-                등록하신 약에 맞춰 컨디션 확인 시간을 맞춰드릴 수 있어요.{'\n'}
-                바꿀지는 직접 정하시면 돼요.
-              </Text>
-              <Text style={styles.effectCardNote}>
-                ⓘ 확정 처방은 아니에요. 주치의와 상의해 조정하세요.
-              </Text>
-              <TouchableOpacity
-                style={styles.effectPrimaryBtn}
-                onPress={() => proposeReRecommend(medications, { manual: true })}
-                activeOpacity={0.85}
-              >
-                <Ionicons name="time-outline" size={22} color={Colors.white} />
-                <Text style={styles.effectPrimaryBtnText}>약효 확인 시간 맞춰보기</Text>
-              </TouchableOpacity>
-              <TouchableOpacity
-                style={styles.effectMfdsBtn}
-                onPress={() => openMfdsDetail(findLevodopaSeq(medications))}
-                activeOpacity={0.85}
-              >
-                <Ionicons name="document-text-outline" size={22} color={Colors.primary} />
-                <Text style={styles.effectMfdsBtnText}>식약처 약 정보 직접 보기</Text>
-              </TouchableOpacity>
+              <View style={styles.regHalf}>
+                <Text style={styles.regLabel}>복용횟수</Text>
+                <View style={styles.regCountWrap}>
+                  <TouchableOpacity
+                    style={styles.regCountUnitBtn}
+                    onPress={() => setAddCountUnit(u => (u === 'day' ? 'week' : 'day'))}
+                    activeOpacity={0.7}
+                    accessibilityLabel="복용횟수 기준 1일/1주 전환"
+                  >
+                    <Text style={styles.regCountUnitText}>{addCountUnit === 'week' ? '1주' : '1일'}</Text>
+                    <Ionicons name="swap-horizontal" size={13} color={Colors.dark} />
+                  </TouchableOpacity>
+                  <TextInput
+                    key={`addcount-${addCountNonce}`}
+                    style={styles.regCountInput}
+                    defaultValue={addDailyCount}
+                    onChangeText={(v) => {
+                      const clean = v.replace(/[^0-9]/g, '');
+                      addCountRef.current = clean;
+                      setAddDailyCount(clean);
+                    }}
+                    placeholder="3"
+                    placeholderTextColor="#C2C8D0"
+                    keyboardType="number-pad"
+                    maxLength={2}
+                    returnKeyType="done"
+                  />
+                  <Text style={styles.regCountFix}>회</Text>
+                </View>
+              </View>
             </View>
-          )}
 
-          {/* ── 버튼 2개: 약 직접 등록 / 약 전체 수정 ── */}
-          <View style={styles.dualBtnRow}>
             <TouchableOpacity
-              style={styles.addRegisterBtn}
-              onPress={() => {
-                setShowAddForm(v => !v);
-                setShowEditList(false);
-                setEditingId(null);
-              }}
-              activeOpacity={0.8}
+              style={[styles.regSubmitBtn, !addName.trim() && styles.regSubmitBtnDisabled]}
+              onPress={handleAddSubmitMyMedOnly}
+              activeOpacity={0.85}
+              disabled={!addName.trim()}
             >
-              <Text style={styles.addRegisterBtnText}>
-                {showAddForm ? '직접 등록 닫기' : '약 직접 등록'}
-              </Text>
-            </TouchableOpacity>
-            <TouchableOpacity
-              style={styles.allEditBtn}
-              onPress={() => {
-                setShowEditList(v => !v);
-                setShowAddForm(false);
-                setEditingId(null);
-              }}
-              activeOpacity={0.8}
-            >
-              <Text style={styles.allEditBtnText}>
-                {showEditList ? '전체 수정 닫기' : '약 전체 수정'}
-              </Text>
+              <Text style={styles.regSubmitBtnText}>등록</Text>
             </TouchableOpacity>
           </View>
 
-          {/* ── 약 직접 등록 폼 ── */}
-          {showAddForm && (
-            <View style={styles.allEditArea}>
-              <Text style={styles.allEditSectionTitle}>약 직접 등록</Text>
-              <View style={styles.addFormCard}>
-                <TextInput
-                  style={styles.medInput}
-                  value={addName}
-                  onChangeText={(v) => { setAddName(v); setAddDrugInfo(undefined); }}
-                  placeholder="약 이름 입력 (예: 마도파)"
-                  placeholderTextColor={Colors.textHint}
-                  returnKeyType="done"
-                />
-
-                <TouchableOpacity
-                  style={styles.mfdsBtn}
-                  onPress={handleFetchMfdsForAdd}
-                  activeOpacity={0.85}
-                  disabled={isMfdsLoading}
-                >
-                  {isMfdsLoading ? (
-                    <ActivityIndicator size="small" color={Colors.white} />
-                  ) : (
-                    <Text style={styles.mfdsBtnText}>식약처 정보 불러오기</Text>
-                  )}
-                </TouchableOpacity>
-
-                {addDrugInfo !== undefined && (
-                  <View style={[styles.mfdsResult, addDrugInfo ? styles.mfdsResultOk : styles.mfdsResultFail]}>
-                    <Text style={[styles.mfdsResultText, addDrugInfo ? styles.mfdsResultTextOk : styles.mfdsResultTextFail]}>
-                      {addDrugInfo
-                        ? `확인됨${addDrugInfo.entpName ? ` (${addDrugInfo.entpName})` : ''}`
-                        : '식약처 정보 없음'}
-                    </Text>
-                  </View>
-                )}
-
-                <TextInput
-                  style={styles.medInput}
-                  value={addDosage}
-                  onChangeText={setAddDosage}
-                  placeholder="복용량 (예) 1정, 0.5정, 500mg)"
-                  placeholderTextColor={Colors.textHint}
-                  returnKeyType="done"
-                />
-
-                <Text style={styles.inputLabel}>복용 시간대</Text>
-                <TimeSlotsWithTime
-                  selectedTimes={addTimes}
-                  schedules={addSchedules}
-                  onToggle={toggleAddTime}
-                  onTimeChange={(slot, time) => setAddSchedules(prev => ({ ...prev, [slot]: time }))}
-                />
-
-                <TouchableOpacity
-                  style={[styles.addSubmitBtn, (!addName.trim() || addTimes.length === 0) && styles.addSubmitBtnDisabled]}
-                  onPress={handleAddSubmit}
-                  activeOpacity={0.85}
-                  disabled={!addName.trim() || addTimes.length === 0}
-                >
-                  <Text style={(!addName.trim() || addTimes.length === 0) ? styles.addSubmitBtnTextDisabled : styles.addSubmitBtnText}>+ 추가하기</Text>
-                </TouchableOpacity>
-              </View>
-
+          {/* ── ② 등록된 약 (섹션 제목 바깥) ── */}
+          <Text style={[styles.regSecTitle, styles.regSecTitleMt]}>등록된 약</Text>
+          {medications.length === 0 ? (
+            <View style={styles.emptyCard}>
+              <Ionicons name="medkit-outline" size={56} color={Colors.textHint} />
+              <Text style={styles.emptyTitle}>등록된 약이 없어요</Text>
+              <Text style={styles.emptyDesc}>{'위 "약 직접 입력"으로\n드시는 약을 추가해보세요'}</Text>
             </View>
-          )}
-
-          {/* ── 약 전체 수정 영역 (약 목록 수정/삭제) ── */}
-          {showEditList && (
-            <View style={styles.allEditArea}>
-              <Text style={styles.allEditSectionTitle}>등록된 약 수정 / 삭제</Text>
-              {medications.length === 0 && (
-                <Text style={styles.emptyDesc}>등록된 약이 없어요</Text>
-              )}
+          ) : (
+            <View style={styles.allMedsList}>
               {medications.map(med => {
                 const isEditing = editingId === med.id;
 
                 if (isEditing) {
                   return (
                     <View key={med.id} style={styles.medCardEditing}>
-                      <TextInput
-                        style={styles.medInput}
-                        value={editName}
-                        onChangeText={(v) => { setEditName(v); setEditDrugInfo(undefined); }}
-                        placeholder="약 이름"
-                        placeholderTextColor={Colors.textHint}
-                        returnKeyType="done"
-                        autoFocus
-                      />
-
-                      <TouchableOpacity
-                        style={styles.mfdsBtn}
-                        onPress={handleFetchMfdsForEdit}
-                        activeOpacity={0.85}
-                        disabled={isEditMfdsLoading}
-                      >
-                        {isEditMfdsLoading ? (
-                          <ActivityIndicator size="small" color={Colors.white} />
-                        ) : (
-                          <Text style={styles.mfdsBtnText}>식약처 정보 불러오기</Text>
-                        )}
-                      </TouchableOpacity>
-
-                      {editDrugInfo !== undefined && (
-                        <View style={[styles.mfdsResult, editDrugInfo ? styles.mfdsResultOk : styles.mfdsResultFail]}>
-                          <Text style={[styles.mfdsResultText, editDrugInfo ? styles.mfdsResultTextOk : styles.mfdsResultTextFail]}>
-                            {editDrugInfo
-                              ? `확인됨${editDrugInfo.entpName ? ` (${editDrugInfo.entpName})` : ''}`
-                              : '식약처 정보 없음'}
-                          </Text>
-                        </View>
+                      <Text style={styles.regLabel}>약 이름</Text>
+                      <View style={styles.regRow}>
+                        <TextInput
+                          style={[styles.regInput, { flex: 1 }]}
+                          value={editName}
+                          onChangeText={(v) => { setEditName(v); setEditDrugInfo(undefined); }}
+                          placeholder="예) 마도파"
+                          placeholderTextColor="#C2C8D0"
+                          returnKeyType="done"
+                          autoFocus
+                        />
+                        <TouchableOpacity
+                          style={[styles.mfdsConfirmBtn, editDrugInfo ? styles.mfdsConfirmBtnOk : null]}
+                          onPress={handleFetchMfdsForEdit}
+                          activeOpacity={0.85}
+                          disabled={isEditMfdsLoading}
+                        >
+                          {isEditMfdsLoading ? (
+                            <ActivityIndicator size="small" color={editDrugInfo ? Colors.white : Colors.dark} />
+                          ) : editDrugInfo ? (
+                            <View style={styles.mfdsConfirmInner}>
+                              <Ionicons name="checkmark-sharp" size={16} color={Colors.white} />
+                              <Text style={[styles.mfdsConfirmBtnText, styles.mfdsConfirmBtnTextOk]}>확인됨</Text>
+                            </View>
+                          ) : (
+                            <Text style={styles.mfdsConfirmBtnText}>식약처 확인</Text>
+                          )}
+                        </TouchableOpacity>
+                      </View>
+                      {editDrugInfo === null && (
+                        <Text style={styles.mfdsInlineFail}>식약처 정보 없음 · 이름 확인 필요</Text>
                       )}
+                      {editDrugInfo && editDrugInfo.entpName ? (
+                        <Text style={styles.mfdsInlineOk}>{editDrugInfo.entpName}</Text>
+                      ) : null}
 
-                      <TextInput
-                        style={styles.medInput}
-                        value={editDosage}
-                        onChangeText={setEditDosage}
-                        placeholder="복용량 (예) 1정, 0.5정, 500mg)"
-                        placeholderTextColor={Colors.textHint}
-                        returnKeyType="done"
-                      />
-
-                      <Text style={styles.inputLabel}>복용 시간대</Text>
-                      <TimeSlotsWithTime
-                        selectedTimes={editTimes}
-                        schedules={editSchedules}
-                        onToggle={toggleEditTime}
-                        onTimeChange={(slot, time) => setEditSchedules(prev => ({ ...prev, [slot]: time }))}
-                      />
+                      <View style={styles.regRowTop}>
+                        <View style={styles.regHalf}>
+                          <Text style={styles.regLabel}>복용량</Text>
+                          {(() => {
+                            // OCR 시트/직접등록과 동일 패턴: 숫자 입력 + 정/mg 칩 → dosage 문자열에 합성 저장.
+                            const numMatch = editDosage.match(/[0-9]+(?:\.[0-9]+)?/);
+                            const numStr = numMatch ? numMatch[0] : '';
+                            const writeDosage = (n: string, u: '정' | 'mg') => {
+                              setEditDosageUnit(u);
+                              setEditDosage(n.trim() ? `${n.trim()}${u}` : '');
+                            };
+                            return (
+                              <View style={styles.regDosageWrap}>
+                                <TextInput
+                                  style={styles.regDosageInput}
+                                  value={numStr}
+                                  onChangeText={(v) => writeDosage(v.replace(/[^0-9.]/g, ''), editDosageUnit)}
+                                  placeholder="1"
+                                  placeholderTextColor="#C2C8D0"
+                                  keyboardType="decimal-pad"
+                                  maxLength={6}
+                                  returnKeyType="done"
+                                />
+                                <TouchableOpacity
+                                  style={styles.regCountUnitBtn}
+                                  onPress={() => writeDosage(numStr, editDosageUnit === '정' ? 'mg' : '정')}
+                                  activeOpacity={0.7}
+                                  accessibilityLabel="복용량 단위 정/mg 전환"
+                                >
+                                  <Text style={styles.regCountUnitText}>{editDosageUnit}</Text>
+                                  <Ionicons name="swap-horizontal" size={13} color={Colors.dark} />
+                                </TouchableOpacity>
+                              </View>
+                            );
+                          })()}
+                        </View>
+                        <View style={styles.regHalf}>
+                          <Text style={styles.regLabel}>복용횟수</Text>
+                          <View style={styles.regCountWrap}>
+                            <TouchableOpacity
+                              style={styles.regCountUnitBtn}
+                              onPress={() => setEditCountUnit(u => (u === 'day' ? 'week' : 'day'))}
+                              activeOpacity={0.7}
+                              accessibilityLabel="복용횟수 기준 1일/1주 전환"
+                            >
+                              <Text style={styles.regCountUnitText}>{editCountUnit === 'week' ? '1주' : '1일'}</Text>
+                              <Ionicons name="swap-horizontal" size={13} color={Colors.dark} />
+                            </TouchableOpacity>
+                            <TextInput
+                              style={styles.regCountInput}
+                              defaultValue={editDailyCount}
+                              onChangeText={(v) => {
+                                const clean = v.replace(/[^0-9]/g, '');
+                                editCountRef.current = clean;
+                                setEditDailyCount(clean);
+                              }}
+                              placeholder="3"
+                              placeholderTextColor="#C2C8D0"
+                              keyboardType="number-pad"
+                              maxLength={2}
+                              returnKeyType="done"
+                            />
+                            <Text style={styles.regCountFix}>회</Text>
+                          </View>
+                        </View>
+                      </View>
 
                       <View style={styles.editActionRow}>
                         <TouchableOpacity style={styles.editCancelBtn} onPress={handleEditCancel} activeOpacity={0.85}>
@@ -2591,42 +3085,38 @@ export function MedicationManageScreen() {
                   );
                 }
 
+                const dosageText = med.dosage && med.dosage.trim() ? med.dosage.trim() : '—';
+                const countText = formatDoseCount(med.dailyCount, med.countUnit);
                 return (
-                  <View key={med.id} style={styles.medCard}>
-                    {/* 약 이름 + 복용량 */}
-                    <TouchableOpacity onPress={() => setSelectedDrug(med)} activeOpacity={0.7}>
-                      <Text style={styles.medName}>
-                        {med.name}{med.dosage ? `  ${med.dosage}` : ''}
+                  <View key={med.id} style={styles.regMedCard}>
+                    <View style={styles.regMedLeft}>
+                      <Text style={styles.regMedName}>{med.name}</Text>
+                      <Text style={styles.regMedMeta}>
+                        복용량 {dosageText} · <Text style={styles.regMedMetaCount}>{countText}</Text>
                       </Text>
-                    </TouchableOpacity>
-
-                    {/* 복용 시간대 세로 배치 (dose_slots 조인 우선, 없으면 legacy) */}
-                    {medDisplaySlotKeys(med).length > 0 && (
-                      <View style={styles.medSlotList}>
-                        {medDisplaySlotKeys(med).map(t => {
-                          const slot = TIME_SLOTS.find(s => s.key === t);
-                          if (!slot) return null;
-                          const time = medDisplaySlotTime(med, t);
-                          return (
-                            <Text key={t} style={styles.medSlotRow}>
-                              {slotTitle(slot.label, slot.key, time)}
-                            </Text>
-                          );
-                        })}
-                      </View>
-                    )}
-
-                    {med.drugInfo === null && (
-                      <Text style={styles.noInfoBadge}>식약처 정보 없음 · 이름 확인 필요</Text>
-                    )}
-
-                    {/* 수정/삭제 버튼 — 카드 하단 우측 */}
-                    <View style={styles.medCardBtnRow}>
-                      <TouchableOpacity style={styles.medEditBtn} onPress={() => handleEditStart(med)} activeOpacity={0.7}>
-                        <Text style={styles.medEditBtnText}>수정</Text>
+                      {med.drugInfo === null && (
+                        <Text style={styles.noInfoBadge}>식약처 정보 없음 · 이름 확인 필요</Text>
+                      )}
+                    </View>
+                    {/* 우측 수정/삭제 = 아이콘만 (DoseSlotSetList 규칙) */}
+                    <View style={styles.regMedIcons}>
+                      <TouchableOpacity
+                        activeOpacity={0.7}
+                        hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+                        style={styles.regMedIconBtn}
+                        onPress={() => handleEditStart(med)}
+                        accessibilityLabel="약 수정"
+                      >
+                        <Ionicons name="create-outline" size={24} color={Colors.textSub} />
                       </TouchableOpacity>
-                      <TouchableOpacity style={styles.medDeleteBtn} onPress={() => handleDelete(med)} activeOpacity={0.7}>
-                        <Text style={styles.medDeleteBtnText}>삭제</Text>
+                      <TouchableOpacity
+                        activeOpacity={0.7}
+                        hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+                        style={styles.regMedIconBtn}
+                        onPress={() => handleDelete(med)}
+                        accessibilityLabel="약 삭제"
+                      >
+                        <Ionicons name="trash-outline" size={24} color={Colors.danger} />
                       </TouchableOpacity>
                     </View>
                   </View>
@@ -2635,20 +3125,54 @@ export function MedicationManageScreen() {
             </View>
           )}
 
-          {/* ── 약관리 과거 기록 보기 ── */}
-          <MedicationHistoryTimeline patientId={targetPatientId} />
+          {/* ── ③ 지난 약 기록 (섹션 제목 바깥) — 표시 전용 ── */}
+          {stoppedMeds.length > 0 && (
+            <>
+              <Text style={[styles.regSecTitle, styles.regSecTitleMt]}>지난 약 기록</Text>
+              <View style={styles.allMedsList}>
+                {stoppedMeds.map(med => {
+                  const dosageText = med.dosage && med.dosage.trim() ? med.dosage.trim() : '—';
+                  const countText = formatDoseCount(med.dailyCount, med.countUnit);
+                  return (
+                    <View key={med.id} style={styles.pastCard}>
+                      <View style={styles.pastLeft}>
+                        <Text style={styles.pastName}>{med.name}</Text>
+                        <Text style={styles.pastMeta}>
+                          복용량 {dosageText} · {countText}
+                        </Text>
+                        <Text style={styles.pastPeriod}>
+                          {formatStoppedRange(med.startedAt, med.endedAt)} 복용
+                        </Text>
+                      </View>
+                      <TouchableOpacity
+                        activeOpacity={0.7}
+                        hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+                        style={styles.regMedIconBtn}
+                        onPress={() => handleDeleteStoppedMed(med)}
+                        accessibilityLabel="지난 약 기록 삭제"
+                      >
+                        <Ionicons name="trash-outline" size={22} color={Colors.danger} />
+                      </TouchableOpacity>
+                    </View>
+                  );
+                })}
+              </View>
+            </>
+          )}
 
-          <View style={{ height: 80 }} />
+          </>
+          )}
         </ScrollView>
       </KeyboardAvoidingView>
+      )}
 
       {/* OCR 로딩 오버레이 */}
       {isOcrLoading && (
         <View style={styles.ocrOverlay}>
           <View style={styles.ocrCard}>
             <ActivityIndicator size="large" color={Colors.primary} />
-            <Text style={styles.ocrText}>처방전 분석 중...</Text>
-            <Text style={styles.ocrSubText}>잠시만 기다려주세요</Text>
+            <Text style={styles.ocrText}>처방전을 읽고 있어요</Text>
+            <Text style={styles.ocrSubText}>잠시 후 약 정보가 채워져요…</Text>
           </View>
         </View>
       )}
@@ -2656,14 +3180,89 @@ export function MedicationManageScreen() {
       {/* 약 상세 모달 */}
       <DrugInfoModal drug={selectedDrug} onClose={() => setSelectedDrug(null)} />
 
-      {/* 시간대 수정 바텀시트 */}
-      <SlotEditBottomSheet
-        visible={slotEditTarget !== null}
-        slot={slotEditTarget}
+      {/* 약 넣기·빼기 바텀시트 (와이어프레임 ②) — 시각 입력 없이 슬롯 체크 */}
+      <MedToSlotSheet
+        slot={medSheetSlot}
+        slots={doseSlotList}
         medications={medications}
-        onClose={() => setSlotEditTarget(null)}
-        onSave={handleSlotEditSave}
+        medSlotMap={medSlotMap}
+        onClose={() => setMedSheetSlot(null)}
+        onCommitMedSlot={commitMedSlot}
+        onGoRegister={() => { setMedSheetSlot(null); handleRegisterPress(); }}
       />
+
+      {/* ── "복용 시간대 추가"(addOnly) = 1겹 ──
+          이전엔 호스트 Modal(딤 없는 투명 껍데기) 안에 DoseSlotSetList(addOnly)를 넣어
+          그 안의 TimePickerSheet(또 다른 Modal)를 띄웠다 → 화면엔 Modal 이 2겹이라
+          닫기 버튼 누르면 [시트 Modal 닫힘] + [호스트 Modal 닫힘]이 연속으로 보여
+          "닫히고 또 한 번 닫힘"이 났다.
+          이제 호스트 Modal 을 아예 렌더하지 않고, DoseSlotSetList(addOnly)를 화면에
+          직접 마운트한다. addOnly 모드의 DoseSlotSetList 는 목록을 일절 렌더하지 않고
+          (visibleSlots=[]) 내부 TimePickerSheet(Modal) 하나만 띄우므로, 화면에 실제로
+          보이는 Modal 은 시간 선택 시트 단 1겹이다.
+          닫기/취소 → 시트 onClose 가 setTimeSheet(null)[시트 Modal 1개만 닫힘] + onAddDone()
+          으로 부모 state 초기화 → 이 빈 View(DoseSlotSetList 컨테이너)가 언마운트되지만
+          그건 Modal 이 아니라 보이지 않는 빈 컨테이너라 슬라이드/닫힘 효과가 없다.
+          저장 → onAddDone(newSlotId) → addOnly 해제 + soloSlotId 설정 → 아래 호스트 Modal
+          (soloSlot 편집 시트)이 순차로 뜸(중첩 아님). */}
+      {slotAlarmEditVisible && slotAlarmAddOnly && (
+        <View style={dmStyles.addOnlyHost} pointerEvents="box-none">
+          <DoseSlotSetList
+            alarmSounds={alarmSounds}
+            autoOpenAddNonce={slotAlarmAddNonce}
+            addOnly
+            onAddDone={handleSlotAlarmAddDone}
+          />
+        </View>
+      )}
+
+      {/* 시간·알림 수정 (DoseSlotSetList 재사용) — 단일 슬롯/전체 관리 편집(비-addOnly) */}
+      <Modal
+        visible={slotAlarmEditVisible && !slotAlarmAddOnly}
+        transparent
+        animationType="slide"
+        onRequestClose={closeSlotAlarmEdit}
+      >
+        <View style={dmStyles.editOverlay}>
+          <View style={dmStyles.editSheet}>
+            {/* 전체 관리 진입에서만 헤더 표시. 단일 슬롯 수정은 카드 제목 줄에 닫기를 둠(중복 제거). */}
+            {!slotAlarmFocusId && (
+              <View style={dmStyles.editHead}>
+                <Text style={dmStyles.editTitle}>복용 시간대·알림 전체 관리</Text>
+                <TouchableOpacity
+                  style={dmStyles.editCloseBtn}
+                  onPress={closeSlotAlarmEdit}
+                  activeOpacity={0.8}
+                >
+                  <Ionicons name="close" size={20} color={Colors.dark} />
+                  <Text style={dmStyles.editCloseText}>닫기</Text>
+                </TouchableOpacity>
+              </View>
+            )}
+            <ScrollView
+              ref={slotAlarmScrollRef}
+              style={{ flex: 1 }}
+              contentContainerStyle={{ paddingHorizontal: 16, paddingTop: slotAlarmFocusId ? 12 : 0, paddingBottom: sheetBottomPad }}
+              showsVerticalScrollIndicator={false}
+            >
+              <DoseSlotSetList
+                alarmSounds={alarmSounds}
+                soloSlotId={slotAlarmFocusId}
+                onSoloClose={closeSlotAlarmEdit}
+                focusSlotId={slotAlarmFocusId}
+                focusNonce={slotAlarmFocusNonce}
+                autoOpenAddNonce={slotAlarmAddNonce}
+                onFocusScrollTo={(y) =>
+                  slotAlarmScrollRef.current?.scrollTo({
+                    y: Math.max(0, y - 12),
+                    animated: true,
+                  })
+                }
+              />
+            </ScrollView>
+          </View>
+        </View>
+      </Modal>
 
       {/* OCR 결과 확인 바텀시트 */}
       <Modal
@@ -2672,505 +3271,438 @@ export function MedicationManageScreen() {
         animationType="slide"
         onRequestClose={() => setOcrResultVisible(false)}
       >
-        <View style={{ flex: 1, justifyContent: 'flex-end', backgroundColor: 'rgba(0,0,0,0.45)' }}>
+        <KeyboardAvoidingView
+          style={{ flex: 1, justifyContent: 'flex-end', backgroundColor: 'rgba(0,0,0,0.45)' }}
+          behavior={Platform.OS === 'ios' ? 'padding' : undefined}
+        >
           <View style={{
-            backgroundColor: '#fff',
+            backgroundColor: Colors.white,
             borderTopLeftRadius: 20,
             borderTopRightRadius: 20,
             paddingHorizontal: 20,
             paddingTop: 20,
-            paddingBottom: 32,
+            paddingBottom: sheetBottomPad,
             maxHeight: '80%',
           }}>
-            <Text style={{ fontSize: 18, fontWeight: '700', color: '#222', marginBottom: 4 }}>
+            <Text style={{ fontSize: 20, fontWeight: '800', color: Colors.text, marginBottom: 12 }}>
               처방전 인식 결과
             </Text>
-            <Text style={{ fontSize: 14, color: '#888', marginBottom: 16 }}>
-              추가할 약을 선택해주세요
-            </Text>
-            <ScrollView>
-              {ocrEnrichedMeds.map((med, idx) => (
-                <TouchableOpacity
+            {/* OCR 정확성 강조 안내 — 경고 톤 박스 + 아이콘 */}
+            <View style={{
+              flexDirection: 'row', alignItems: 'flex-start', gap: 8,
+              backgroundColor: '#FFF3E0', borderRadius: 12, borderLeftWidth: 4, borderLeftColor: Colors.accent,
+              paddingVertical: 12, paddingHorizontal: 14, marginBottom: 16,
+            }}>
+              <Ionicons name="alert-circle" size={22} color={Colors.accent} style={{ marginTop: 1 }} />
+              <Text style={{ flex: 1, fontSize: 18, fontWeight: '600', color: '#8A5200', lineHeight: 26 }}>
+                인식 결과가 틀릴 수 있어요. 약 이름과 복용량을 꼭 확인·수정한 뒤 등록할 약을 선택해 주세요.
+              </Text>
+            </View>
+            <ScrollView
+              ref={ocrScrollRef}
+              keyboardShouldPersistTaps="handled"
+              contentContainerStyle={{ paddingBottom: 8 + ocrKbHeight }}
+            >
+              {ocrEnrichedMeds.map((med, idx) => {
+                const rowLoading = ocrMfdsLoadingIds.has(med.id);
+                // 오른쪽 "식약처 확인" 버튼 상태 3종: 확인됨(초록 채움) / 못 찾음(빨강 외곽선) / 미확인(주황 외곽선)
+                const mfdsConfirmed = !!med.drugInfo;
+                const mfdsNotFound = !med.drugInfo && med.mfdsFetched;
+                const mfdsBtnBg = mfdsConfirmed ? Colors.primary : '#fff';
+                const mfdsBtnBorder = mfdsConfirmed ? Colors.primary : (mfdsNotFound ? '#E57373' : '#CFE3D2');
+                const mfdsBtnText = mfdsConfirmed ? '#fff' : (mfdsNotFound ? '#C62828' : Colors.dark);
+                // 왼쪽 확인 체크박스(이 약 등록 선택 토글) 상태색
+                const checkBg = med.checked ? Colors.primary : '#fff';
+                const checkBorder = med.checked ? Colors.primary : '#CDD3DC';
+                return (
+                <View
                   key={med.id}
-                  onPress={() => setOcrEnrichedMeds(prev =>
-                    prev.map((m, i) => i === idx ? { ...m, checked: !m.checked } : m)
-                  )}
+                  onLayout={(e) => { ocrCardY.current[med.id] = e.nativeEvent.layout.y; }}
                   style={{
-                    flexDirection: 'row',
-                    alignItems: 'center',
-                    paddingVertical: 12,
-                    borderBottomWidth: 1,
-                    borderBottomColor: '#f0f0f0',
+                    borderWidth: 1,
+                    borderColor: '#EEF1F4',
+                    borderRadius: 14,
+                    padding: 16,
+                    marginBottom: 12,
+                    backgroundColor: '#fff',
                   }}
                 >
-                  {/* 체크박스 */}
-                  <View style={{
-                    width: 24, height: 24, borderRadius: 6,
-                    borderWidth: 2,
-                    borderColor: med.checked ? '#FF6B35' : '#ccc',
-                    backgroundColor: med.checked ? '#FF6B35' : '#fff',
-                    alignItems: 'center', justifyContent: 'center',
-                    marginRight: 12,
-                  }}>
-                    {med.checked && <Ionicons name="checkmark" size={14} color="#fff" />}
-                  </View>
-
-                  {/* 약 이미지 */}
-                  {med.drugInfo?.itemImage ? (
-                    <Image
-                      source={{ uri: med.drugInfo.itemImage }}
-                      style={{ width: 48, height: 28, borderRadius: 4, marginRight: 12, backgroundColor: '#f5f5f5' }}
-                      resizeMode="contain"
+                  {/* 1행: 약 이름 + 식약처 확인 버튼 */}
+                  <Text style={ocrStyles.fieldLabel}>약 이름</Text>
+                  <View style={{ flexDirection: 'row', alignItems: 'center', gap: 9 }}>
+                    <TextInput
+                      style={[ocrStyles.fieldInput, { flex: 1, fontWeight: '700' }]}
+                      value={med.name}
+                      onFocus={() => scrollOcrFocusedInput(ocrCardY.current[med.id] ?? 0)}
+                      onChangeText={(v) => setOcrEnrichedMeds(prev =>
+                        prev.map((m, i) => i === idx
+                          ? { ...m, name: v, drugInfo: null, mfdsFetched: false }
+                          : m)
+                      )}
+                      placeholder="약 이름"
+                      placeholderTextColor="#C2C8D0"
+                      returnKeyType="done"
                     />
-                  ) : (
-                    <View style={{
-                      width: 48, height: 28, borderRadius: 4, marginRight: 12,
-                      backgroundColor: '#f5f5f5', alignItems: 'center', justifyContent: 'center'
-                    }}>
-                      <Text style={{ fontSize: 18 }}>💊</Text>
-                    </View>
-                  )}
-
-                  {/* 약 이름 + 뱃지 */}
-                  <View style={{ flex: 1 }}>
-                    <Text style={{ fontSize: 16, fontWeight: '600', color: '#222' }}>{med.name}</Text>
-                    <View style={{ flexDirection: 'row', marginTop: 4 }}>
-                      {med.drugInfo ? (
-                        <View style={{
-                          paddingHorizontal: 8, paddingVertical: 2,
-                          backgroundColor: '#E8F5E9', borderRadius: 10,
-                        }}>
-                          <Text style={{ fontSize: 12, color: '#2E7D32', fontWeight: '600' }}>✅ 확인됨</Text>
+                    <TouchableOpacity
+                      onPress={() => handleFetchMfdsForOcrRow(med.id)}
+                      disabled={rowLoading}
+                      activeOpacity={0.85}
+                      style={{
+                        minWidth: 96, minHeight: 52, paddingHorizontal: 10, borderRadius: 10,
+                        backgroundColor: mfdsBtnBg,
+                        borderWidth: mfdsConfirmed ? 0 : 1.6,
+                        borderColor: mfdsBtnBorder,
+                        alignItems: 'center', justifyContent: 'center',
+                      }}
+                    >
+                      {mfdsConfirmed ? (
+                        <View style={{ flexDirection: 'row', alignItems: 'center', gap: 3 }}>
+                          <Ionicons name="checkmark-sharp" size={16} color="#fff" />
+                          <Text style={{ fontSize: 15, fontWeight: '800', color: mfdsBtnText }}>확인됨</Text>
                         </View>
                       ) : (
-                        <View style={{
-                          paddingHorizontal: 8, paddingVertical: 2,
-                          backgroundColor: '#FFF3E0', borderRadius: 10,
-                        }}>
-                          <Text style={{ fontSize: 12, color: '#E65100', fontWeight: '600' }}>⚠️ 이름만 인식</Text>
-                        </View>
+                        <Text style={{ fontSize: 15, fontWeight: '800', color: mfdsBtnText, textAlign: 'center' }}>식약처 확인</Text>
                       )}
+                    </TouchableOpacity>
+                  </View>
+                  {/* 식약처 연결 실패 안내 (직접입력 폼과 동일 패턴) */}
+                  {mfdsNotFound && (
+                    <View style={ocrStyles.mfdsFailRow}>
+                      <Ionicons name="alert-circle" size={20} color={Colors.danger} style={{ marginTop: 2 }} />
+                      <Text style={ocrStyles.mfdsFail}>식약처에서 약 정보를 찾지 못했어요. 약 이름이 정확한지 확인해 주세요.</Text>
+                    </View>
+                  )}
+                  {mfdsConfirmed && med.drugInfo?.entpName ? (
+                    <Text style={ocrStyles.mfdsOk}>{med.drugInfo.entpName}</Text>
+                  ) : null}
+
+                  {/* 2·3행: 복용량 / 복용횟수 (직접등록 폼과 명칭 통일) */}
+                  <View style={{ flexDirection: 'row', alignItems: 'flex-start', gap: 10, marginTop: 14 }}>
+                    <View style={{ flex: 1 }}>
+                      <Text style={ocrStyles.fieldLabel}>복용량</Text>
+                      {(() => {
+                        const dUnit: '정' | 'mg' = med.dosageUnit ?? '정';
+                        // dosage 문자열에서 숫자(소수 포함)만 추출해 숫자칸 초기값으로
+                        const numMatch = (med.dosage ?? '').match(/[0-9]+(?:\.[0-9]+)?/);
+                        const numStr = numMatch ? numMatch[0] : '';
+                        const writeDosage = (n: string, u: '정' | 'mg') =>
+                          setOcrEnrichedMeds(prev => prev.map((m, i) =>
+                            i === idx ? { ...m, dosageUnit: u, dosage: n.trim() ? `${n.trim()}${u}` : null } : m));
+                        return (
+                          <View style={ocrStyles.dosageWrap}>
+                            <TextInput
+                              style={ocrStyles.dosageInput}
+                              value={numStr}
+                              onFocus={() => scrollOcrFocusedInput((ocrCardY.current[med.id] ?? 0) + 90)}
+                              onChangeText={(v) => {
+                                const clean = v.replace(/[^0-9.]/g, '');
+                                writeDosage(clean, dUnit);
+                              }}
+                              placeholder="1"
+                              placeholderTextColor="#C2C8D0"
+                              keyboardType="decimal-pad"
+                              maxLength={6}
+                              returnKeyType="done"
+                            />
+                            <TouchableOpacity
+                              style={ocrStyles.countUnitBtn}
+                              onPress={() => writeDosage(numStr, dUnit === '정' ? 'mg' : '정')}
+                              activeOpacity={0.7}
+                              accessibilityLabel="복용량 단위 정/mg 전환"
+                            >
+                              <Text style={ocrStyles.countUnitText}>{dUnit}</Text>
+                              <Ionicons name="swap-horizontal" size={13} color={Colors.dark} />
+                            </TouchableOpacity>
+                          </View>
+                        );
+                      })()}
+                    </View>
+                    <View style={{ flex: 1 }}>
+                      <Text style={ocrStyles.fieldLabel}>복용횟수</Text>
+                      <View style={ocrStyles.countWrap}>
+                        <TouchableOpacity
+                          style={ocrStyles.countUnitBtn}
+                          onPress={() => setOcrEnrichedMeds(prev => prev.map((m, i) =>
+                            i === idx ? { ...m, countUnit: m.countUnit === 'week' ? 'day' : 'week' } : m))}
+                          activeOpacity={0.7}
+                          accessibilityLabel="복용횟수 기준 1일/1주 전환"
+                        >
+                          <Text style={ocrStyles.countUnitText}>{med.countUnit === 'week' ? '1주' : '1일'}</Text>
+                          <Ionicons name="swap-horizontal" size={13} color={Colors.dark} />
+                        </TouchableOpacity>
+                        <TextInput
+                          style={ocrStyles.countInput}
+                          value={med.dailyCount && med.dailyCount > 0 ? String(med.dailyCount) : ''}
+                          onFocus={() => scrollOcrFocusedInput((ocrCardY.current[med.id] ?? 0) + 90)}
+                          onChangeText={(v) => {
+                            const clean = v.replace(/[^0-9]/g, '');
+                            const n = clean ? parseInt(clean, 10) : null;
+                            setOcrEnrichedMeds(prev => prev.map((m, i) =>
+                              i === idx ? { ...m, dailyCount: (n && n > 0) ? n : null } : m));
+                          }}
+                          placeholder="3"
+                          placeholderTextColor="#C2C8D0"
+                          keyboardType="number-pad"
+                          maxLength={2}
+                          returnKeyType="done"
+                        />
+                        <Text style={ocrStyles.countFix}>회</Text>
+                      </View>
                     </View>
                   </View>
-                </TouchableOpacity>
-              ))}
+
+                  {/* 하단: 등록 선택 체크박스(입력 행과 분리) */}
+                  <TouchableOpacity
+                    onPress={() => setOcrEnrichedMeds(prev =>
+                      prev.map((m, i) => i === idx ? { ...m, checked: !m.checked } : m)
+                    )}
+                    activeOpacity={0.8}
+                    accessibilityLabel="이 약 등록 선택"
+                    style={{ flexDirection: 'row', alignItems: 'center', gap: 9, marginTop: 14 }}
+                  >
+                    <View style={{
+                      width: 28, height: 28, borderRadius: 8,
+                      backgroundColor: checkBg, borderWidth: 1.8, borderColor: checkBorder,
+                      alignItems: 'center', justifyContent: 'center',
+                    }}>
+                      {med.checked ? <Ionicons name="checkmark-sharp" size={18} color="#fff" /> : null}
+                    </View>
+                    <Text style={{ fontSize: 18, fontWeight: '700', color: med.checked ? Colors.dark : Colors.textSub }}>
+                      이 약 등록하기
+                    </Text>
+                  </TouchableOpacity>
+                </View>
+                );
+              })}
             </ScrollView>
 
             <TouchableOpacity
               onPress={handleOcrConfirm}
               style={{
                 marginTop: 20,
-                backgroundColor: '#FF6B35',
+                backgroundColor: Colors.primary,
                 borderRadius: 12,
                 paddingVertical: 16,
                 alignItems: 'center',
               }}
             >
-              <Text style={{ color: '#fff', fontSize: 17, fontWeight: '700' }}>
+              <Text style={{ color: '#fff', fontSize: 18, fontWeight: '700' }}>
                 선택한 약 추가하기 ({ocrEnrichedMeds.filter(m => m.checked).length}개)
               </Text>
             </TouchableOpacity>
           </View>
-        </View>
+
+          {/* 식약처 조회 중 — 시트 중앙 큰 스피너 오버레이 */}
+          {ocrMfdsLoadingIds.size > 0 && (
+            <View style={styles.ocrOverlay}>
+              <View style={styles.ocrCard}>
+                <ActivityIndicator size="large" color={Colors.primary} />
+                <Text style={[styles.ocrText, { textAlign: 'center', lineHeight: 28 }]}>식약처에서 약 정보를{'\n'}확인하고 있어요</Text>
+                <Text style={styles.ocrSubText}>잠시만 기다려 주세요…</Text>
+              </View>
+            </View>
+          )}
+        </KeyboardAvoidingView>
       </Modal>
     </SafeAreaView>
   );
 }
 
-// ─── 약관리 과거 기록 보기 타임라인 ──────────────────────────────────────────────
-
-const MED_SLOT_ORDER: TimeSlot[] = ['morning', 'lunch', 'dinner', 'bedtime'];
-const MED_SLOT_LABELS: Record<TimeSlot, string> = {
-  morning: '아침약',
-  lunch: '점심약',
-  dinner: '저녁약',
-  bedtime: '취침약',
-};
-
-const CHANGE_TYPE_LABEL: Record<string, string> = {
-  added: '추가',
-  updated: '변경',
-  deleted: '삭제',
-};
-
-const CHANGE_TYPE_COLOR: Record<string, string> = {
-  added: '#1565C0',
-  updated: '#E65100',
-  deleted: '#B71C1C',
-};
-
-const CHANGE_TYPE_BG: Record<string, string> = {
-  added: '#E3F2FD',
-  updated: '#FFF3E0',
-  deleted: '#FFEBEE',
-};
-
-function medHistoryDateTimeLabel(isoString: string): string {
-  const d = new Date(isoString);
-  const kst = new Date(d.getTime() + 9 * 60 * 60 * 1000);
-  const m = kst.getMonth() + 1;
-  const day = kst.getDate();
-  const h = kst.getHours();
-  const min = kst.getMinutes();
-  const dayNames = ['일', '월', '화', '수', '목', '금', '토'];
-  return `${m}.${day}(${dayNames[kst.getDay()]}) ${String(h).padStart(2, '0')}:${String(min).padStart(2, '0')}`;
-}
-
-const MH_PAGE_SIZE = 20;
-
-interface HistoryRow {
-  id: string;
-  changed_at: string;
-  changed_medication_id: string | null;
-  change_type: string;
-  snapshot: MedSnapshot[];
-}
-
-function MedicationHistoryTimeline({ patientId }: { patientId: string | null }) {
-  const [expanded, setExpanded] = useState(false);
-  const [loading, setLoading] = useState(false);
-  const [initialLoaded, setInitialLoaded] = useState(false);
-  const [rows, setRows] = useState<HistoryRow[]>([]);
-  const [displayCount, setDisplayCount] = useState(MH_PAGE_SIZE);
-
-  const fetchHistory = useCallback(async () => {
-    if (!patientId) return;
-    setLoading(true);
-    try {
-      const { data, error } = await supabase
-        .from('medication_history')
-        .select('id, changed_at, changed_medication_id, change_type, snapshot')
-        .eq('patient_id', patientId)
-        .order('changed_at', { ascending: false })
-        .limit(200);
-
-      if (error) throw error;
-      setRows((data ?? []) as HistoryRow[]);
-    } catch (err) {
-      console.error('[MedicationHistoryTimeline] 오류:', err);
-    } finally {
-      setLoading(false);
-    }
-  }, [patientId]);
-
-  const handleExpand = useCallback(async () => {
-    setExpanded(true);
-    if (initialLoaded) return;
-    await fetchHistory();
-    setInitialLoaded(true);
-  }, [initialLoaded, fetchHistory]);
-
-  const visibleRows = rows.slice(0, displayCount);
-  const hasMore = rows.length > displayCount;
-
-  if (!expanded) {
-    return (
-      <View style={mhStyles.toggleWrap}>
-        <TouchableOpacity style={mhStyles.toggleButton} onPress={handleExpand} activeOpacity={0.8}>
-          <Text style={mhStyles.toggleButtonText}>과거 기록 보기</Text>
-          <Text style={mhStyles.toggleArrow}>▼</Text>
-        </TouchableOpacity>
-      </View>
-    );
-  }
-
-  return (
-    <View style={mhStyles.container}>
-      <TouchableOpacity style={mhStyles.toggleButton} onPress={() => setExpanded(false)} activeOpacity={0.8}>
-        <Text style={mhStyles.toggleButtonText}>과거 기록 접기</Text>
-        <Text style={mhStyles.toggleArrow}>▲</Text>
-      </TouchableOpacity>
-
-      {loading ? (
-        <View style={mhStyles.loadingWrap}>
-          <ActivityIndicator size="large" color={Colors.primary} />
-          <Text style={mhStyles.loadingText}>기록을 불러오는 중...</Text>
-        </View>
-      ) : rows.length === 0 ? (
-        <View style={mhStyles.emptyWrap}>
-          <Text style={mhStyles.emptyText}>아직 기록이 없어요</Text>
-          <Text style={mhStyles.emptySubText}>약을 추가·수정·삭제하면 여기에 기록돼요</Text>
-        </View>
-      ) : (
-        <View style={mhStyles.timeline}>
-          {visibleRows.map((row, idx) => {
-            const isLast = idx === visibleRows.length - 1;
-            const changeLabel = CHANGE_TYPE_LABEL[row.change_type] ?? row.change_type;
-            const changeColor = CHANGE_TYPE_COLOR[row.change_type] ?? '#555';
-            const changeBg = CHANGE_TYPE_BG[row.change_type] ?? '#F5F5F5';
-
-            // snapshot에서 약 목록 그룹핑 (시간대별)
-            const slotMap: Partial<Record<TimeSlot, MedSnapshot[]>> = {};
-            (row.snapshot ?? []).forEach(med => {
-              (med.meal_times ?? []).forEach(slot => {
-                if (!slotMap[slot]) slotMap[slot] = [];
-                slotMap[slot]!.push(med);
-              });
-            });
-
-            return (
-              <View key={row.id} style={mhStyles.dayRow}>
-                {/* 가운데: 세로줄 + 원 */}
-                <View style={mhStyles.lineCol}>
-                  <View style={[mhStyles.lineTop, idx === 0 && mhStyles.lineInvisible]} />
-                  <View style={mhStyles.dotFilled} />
-                  <View style={[mhStyles.lineBottom, isLast && mhStyles.lineInvisible]} />
-                </View>
-
-                {/* 오른쪽: 날짜 + 변경 약 목록 */}
-                <View style={mhStyles.contentCol}>
-                  {/* 날짜·시간 + 변경 유형 뱃지 */}
-                  <View style={mhStyles.headerRow}>
-                    <Text style={mhStyles.dateLabel}>{medHistoryDateTimeLabel(row.changed_at)}</Text>
-                    <View style={[mhStyles.changeBadge, { backgroundColor: changeBg }]}>
-                      <Text style={[mhStyles.changeBadgeText, { color: changeColor }]}>{changeLabel}</Text>
-                    </View>
-                  </View>
-
-                  {/* 시간대별 약 목록 */}
-                  {MED_SLOT_ORDER.map(slot => {
-                    const meds = slotMap[slot];
-                    if (!meds || meds.length === 0) return null;
-                    return (
-                      <View key={slot} style={mhStyles.slotGroup}>
-                        <Text style={mhStyles.slotLabel}>{MED_SLOT_LABELS[slot]}</Text>
-                        {meds.map(med => {
-                          const isChanged = med.id === row.changed_medication_id;
-                          return (
-                            <View key={med.id} style={mhStyles.medRow}>
-                              {isChanged && (
-                                <View style={[mhStyles.changeBadgeSmall, { backgroundColor: changeBg }]}>
-                                  <Text style={[mhStyles.changeBadgeSmallText, { color: changeColor }]}>{changeLabel}</Text>
-                                </View>
-                              )}
-                              <Text style={[
-                                mhStyles.medName,
-                                isChanged && mhStyles.medNameHighlight,
-                              ]}>
-                                {med.name}{med.dosage ? `  ${med.dosage}` : ''}
-                              </Text>
-                            </View>
-                          );
-                        })}
-                      </View>
-                    );
-                  })}
-
-                  {/* 삭제된 경우 삭제된 약도 별도 표시 */}
-                  {row.change_type === 'deleted' && row.changed_medication_id && (
-                    (() => {
-                      // snapshot에 없는 경우(삭제 후 목록) → 삭제된 약 표시
-                      const inSnapshot = (row.snapshot ?? []).some(m => m.id === row.changed_medication_id);
-                      if (inSnapshot) return null;
-                      return (
-                        <View style={mhStyles.deletedMedRow}>
-                          <View style={[mhStyles.changeBadgeSmall, { backgroundColor: CHANGE_TYPE_BG['deleted'] }]}>
-                            <Text style={[mhStyles.changeBadgeSmallText, { color: CHANGE_TYPE_COLOR['deleted'] }]}>삭제</Text>
-                          </View>
-                          <Text style={[mhStyles.medName, { color: CHANGE_TYPE_COLOR['deleted'] }]}>이 약이 삭제되었어요</Text>
-                        </View>
-                      );
-                    })()
-                  )}
-
-                  {row.snapshot?.length === 0 && (
-                    <Text style={mhStyles.emptyDay}>등록된 약 없음</Text>
-                  )}
-                </View>
-              </View>
-            );
-          })}
-
-          {hasMore && (
-            <TouchableOpacity
-              style={mhStyles.moreButton}
-              onPress={() => setDisplayCount(c => c + MH_PAGE_SIZE)}
-              activeOpacity={0.8}
-            >
-              <Text style={mhStyles.moreButtonText}>더보기</Text>
-            </TouchableOpacity>
-          )}
-        </View>
-      )}
-    </View>
-  );
-}
-
-const MH_LINE_TOP_H = 12;
-const MH_FIRST_ROW_PT = 10;
-
-const mhStyles = StyleSheet.create({
-  toggleWrap: { paddingBottom: 32 },
-  toggleButton: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    minHeight: 56,
-    backgroundColor: Colors.white,
-    borderRadius: 14,
-    borderWidth: 1,
-    borderColor: Colors.border,
-    gap: 8,
-    marginBottom: 8,
-    elevation: 1,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 1 },
-    shadowOpacity: 0.05,
-    shadowRadius: 3,
-  },
-  toggleButtonText: { fontSize: 18, fontWeight: '600', color: Colors.textSub },
-  toggleArrow: { fontSize: 14, color: Colors.textHint },
-
-  container: { paddingBottom: 40 },
-
-  loadingWrap: { alignItems: 'center', paddingVertical: 32, gap: 12 },
-  loadingText: { fontSize: 17, color: Colors.textSub },
-
-  emptyWrap: { alignItems: 'center', paddingVertical: 32, gap: 8 },
-  emptyText: { fontSize: 18, color: Colors.textHint },
-  emptySubText: { fontSize: 15, color: Colors.textHint, textAlign: 'center' },
-
-  timeline: { paddingTop: 8 },
-
-  dayRow: {
-    flexDirection: 'row',
-    alignItems: 'flex-start',
-    minHeight: 48,
-    marginBottom: 4,
-  },
-
-  lineCol: {
-    width: 24,
-    alignItems: 'center',
-    flexDirection: 'column',
-    marginTop: MH_FIRST_ROW_PT,
-  },
-  lineTop: {
-    width: 2,
-    height: MH_LINE_TOP_H,
-    backgroundColor: '#E0E0E0',
-  },
-  lineBottom: {
-    width: 2,
-    flex: 1,
-    minHeight: 20,
-    backgroundColor: '#E0E0E0',
-  },
-  lineInvisible: { backgroundColor: 'transparent' },
-  dotFilled: {
-    width: 12,
-    height: 12,
-    borderRadius: 6,
-    backgroundColor: '#4CAF50',
-  },
-
-  contentCol: {
-    flex: 1,
-    paddingLeft: 12,
-    paddingTop: MH_FIRST_ROW_PT,
-    paddingBottom: 16,
-    borderBottomWidth: 1,
-    borderBottomColor: '#F0F0F0',
-    marginBottom: 4,
-  },
-
-  headerRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 8,
-    marginBottom: 10,
-    flexWrap: 'wrap',
-  },
-  dateLabel: {
-    fontSize: 14,
-    color: '#888888',
-    fontWeight: '500',
-  },
-  changeBadge: {
-    paddingHorizontal: 10,
-    paddingVertical: 3,
-    borderRadius: 20,
-  },
-  changeBadgeText: {
-    fontSize: 13,
-    fontWeight: '700',
-  },
-
-  slotGroup: {
-    marginBottom: 8,
-  },
-  slotLabel: {
-    fontSize: 13,
-    fontWeight: '600',
-    color: Colors.textSub,
-    marginBottom: 4,
-  },
-  medRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 6,
-    paddingVertical: 3,
-  },
-  medName: {
-    fontSize: 16,
-    color: Colors.text,
-    flexShrink: 1,
-  },
-  medNameHighlight: {
-    fontWeight: '700',
-    color: Colors.text,
-  },
-  changeBadgeSmall: {
-    paddingHorizontal: 7,
-    paddingVertical: 2,
-    borderRadius: 10,
-  },
-  changeBadgeSmallText: {
-    fontSize: 12,
-    fontWeight: '700',
-  },
-  deletedMedRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 6,
-    paddingVertical: 3,
-  },
-
-  emptyDay: {
-    fontSize: 15,
-    color: '#CCCCCC',
-    lineHeight: 22,
-  },
-
-  moreButton: {
-    alignItems: 'center',
-    justifyContent: 'center',
-    minHeight: 56,
-    marginTop: 8,
-    marginBottom: 8,
-    backgroundColor: Colors.white,
-    borderRadius: 14,
-    borderWidth: 1,
-    borderColor: Colors.border,
-    elevation: 1,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 1 },
-    shadowOpacity: 0.05,
-    shadowRadius: 3,
-  },
-  moreButtonText: {
-    fontSize: 18,
-    fontWeight: '600',
-    color: Colors.primary,
-  },
-});
-
 // ─── 스타일 ───────────────────────────────────────────────────────────────────
+
+// 시간·알림 수정(DoseSlotSetList) 모달 스타일
+const dmStyles = StyleSheet.create({
+  editOverlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.45)', justifyContent: 'flex-end' },
+  // 추가 전용 진입 — 관리 모달 껍데기 없이 시간 시트(TimePickerSheet=Modal)만 띄우는
+  // 빈 투명 호스트. 이제 Modal 안이 아니라 화면 트리에 직접 마운트되므로, 본문 ScrollView
+  // 등 형제 레이아웃을 밀지 않도록 absolute fill + box-none(터치 통과)로 둔다.
+  // 보이는 건 자식 TimePickerSheet(Modal, 루트 렌더)뿐이라 이 컨테이너 자체는 무영향.
+  addOnlyHost: { ...StyleSheet.absoluteFillObject },
+  editSheet: {
+    backgroundColor: Colors.white,
+    borderTopLeftRadius: 24, borderTopRightRadius: 24,
+    // 고정 height (maxHeight 아님). 바닥 고정(flex-end) + 콘텐츠 기준 maxHeight 였을 때는
+    // 약효추적 recBox 가 토글로 생겼다/사라지며 콘텐츠 높이가 변해 시트 윗변이 점프했다.
+    // 외곽 높이를 콘텐츠와 무관하게 고정하면 윗변이 고정되어 점프가 구조적으로 사라진다.
+    // 내부 콘텐츠는 아래 ScrollView(flex:1) 안에서만 늘었다 줄었다 하므로 윗변에 영향 없음.
+    // 92% 는 단일 슬롯 편집에서 빈 공간이 과해 80% 로 (점수 제거가 최우선, 빈 공간 절충).
+    height: '80%', paddingTop: 8,
+  },
+  editHead: {
+    flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between',
+    paddingHorizontal: 20, paddingVertical: 14,
+  },
+  editTitle: { fontSize: 20, fontWeight: '800', color: Colors.text },
+  editCloseBtn: {
+    flexDirection: 'row', alignItems: 'center', gap: 4,
+    paddingHorizontal: 12, paddingVertical: 8, borderRadius: 10, backgroundColor: '#EEF0F3',
+  },
+  editCloseText: { fontSize: 15, fontWeight: '700', color: Colors.dark },
+});
 
 const styles = StyleSheet.create({
   safeArea: { flex: 1, backgroundColor: Colors.white },
   scroll: { flex: 1, backgroundColor: Colors.background },
-  scrollContent: { padding: 20, paddingBottom: 60 },
+  scrollContent: { padding: 20, paddingBottom: 40 },
+
+  // ── 통합 복용 관리(슬롯 중심) ──
+  slotCentric: { marginBottom: 8 },
+  slotCentricHint: { fontSize: 16, color: Colors.textSub, marginBottom: 14, marginLeft: 2 },
+  addSlotBtn: {
+    flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 7,
+    minHeight: 56, borderRadius: 14, borderWidth: 1.6, borderColor: Colors.primary,
+    backgroundColor: Colors.light, marginBottom: 16, paddingHorizontal: 12,
+  },
+  addSlotBtnText: { fontSize: 16, fontWeight: '700', color: Colors.dark },
+  unassignedBanner: {
+    flexDirection: 'row', alignItems: 'center', gap: 12,
+    backgroundColor: Colors.white, borderWidth: 1.6, borderColor: Colors.accent,
+    borderRadius: 14, paddingHorizontal: 16, paddingVertical: 16, marginBottom: 16,
+  },
+  unassignedBannerTitle: { fontSize: 18, fontWeight: '800', color: Colors.text },
+  unassignedBannerSub: { fontSize: 15, color: Colors.textSub, marginTop: 3 },
+  slotCard: {
+    backgroundColor: Colors.white, borderWidth: 1, borderColor: '#EAEDF1',
+    borderRadius: 18, padding: 16, marginBottom: 13,
+    shadowColor: '#000', shadowOffset: { width: 0, height: 1 }, shadowOpacity: 0.03, shadowRadius: 3, elevation: 1,
+  },
+  slotCardHead: { flexDirection: 'row', alignItems: 'center', gap: 10, marginBottom: 12 },
+  // 좌측 이미지(이모지) 원형 — 편집 시트와 동일 느낌
+  slotHeadEmoji: {
+    width: 40, height: 40, borderRadius: 20, backgroundColor: Colors.light,
+    alignItems: 'center', justifyContent: 'center',
+  },
+  slotHeadEmojiText: { fontSize: 20 },
+  slotCardTitle: { flex: 1, fontSize: 19, fontWeight: '800', color: Colors.text },
+  // 우측 수정/삭제 — 아이콘만(글자 없음)
+  slotHeadIcons: { flexDirection: 'row', alignItems: 'center', gap: 6 },
+  slotHeadIconBtn: { padding: 6 },
+  slotEditPill: {
+    flexDirection: 'row', alignItems: 'center', gap: 4,
+    backgroundColor: '#F1F3F6', borderRadius: 9, paddingHorizontal: 12, paddingVertical: 9,
+  },
+  slotEditPillText: { fontSize: 15, fontWeight: '700', color: '#5B6472' },
+  // 박스 제거 — 토글 행과 같은 정렬(좌측 패딩 0)로 '복용약'이 약효추적 라인에 맞춰짐
+  slotDrugRow: {
+    flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 10,
+    minHeight: 48, paddingVertical: 4,
+  },
+  slotDrugList: { flex: 1, fontSize: 17, lineHeight: 26 },
+  slotDrugTitle: { fontSize: 17, fontWeight: '800', color: Colors.text },
+  slotDrugNameItem: { fontSize: 17, fontWeight: '700', color: Colors.dark },
+  slotDrugNone: { fontSize: 17, color: '#A6AEBA', fontWeight: '500' },
+  drugPill: { backgroundColor: Colors.light, borderRadius: 8, paddingHorizontal: 12, paddingVertical: 8 },
+  drugPillText: { fontSize: 17, fontWeight: '700', color: Colors.dark },
+  slotDrugBtn: { paddingVertical: 8, paddingHorizontal: 4 },
+  slotDrugBtnText: { fontSize: 16, fontWeight: '700', color: Colors.primary },
+  slotToggleGroup: {
+    borderTopWidth: 1, borderTopColor: '#EEF1F4', paddingTop: 6, marginTop: 2, gap: 2,
+  },
+  slotToggleRow: {
+    flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between',
+    minHeight: 48, paddingVertical: 4,
+  },
+  slotToggleLabel: { flex: 1, fontSize: 17, fontWeight: '700', color: Colors.text, paddingRight: 10 },
+  slotToggleLabelOff: { color: '#A6AEBA', fontWeight: '600' },
+  // 약효추적 요약(복용직후 30분 후…) — 녹색
+  slotTrackSummary: { color: Colors.dark, fontWeight: '700' },
+  slotToggleSwitch: { transform: [{ scaleX: 1.15 }, { scaleY: 1.15 }] },
+  viewAllBtn: {
+    flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 7,
+    minHeight: 56, borderWidth: 1, borderColor: '#DCE0E6', backgroundColor: Colors.white,
+    borderRadius: 13, marginTop: 6, paddingHorizontal: 12,
+  },
+  viewAllBtnText: { fontSize: 16, fontWeight: '700', color: '#3A414C' },
+  // 슬롯 뷰 → "내 약" 메뉴 안내 버튼 (약 등록 이관)
+  goMyMedsBtn: {
+    flexDirection: 'row', alignItems: 'center', gap: 8,
+    minHeight: 56, borderRadius: 14, borderWidth: 1.4, borderColor: '#CFE3D2',
+    backgroundColor: '#F1F8F2', marginBottom: 16, paddingHorizontal: 14,
+  },
+  goMyMedsBtnText: { flex: 1, fontSize: 16, fontWeight: '700', color: Colors.primary },
+
+  // ── 내 약 (meds 모드) 등록·관리 페이지 ──
+  // ① 섹션 제목(박스 바깥)
+  regSecTitle: { fontSize: 18, fontWeight: '800', color: Colors.text, marginTop: 6, marginBottom: 10, marginLeft: 2 },
+  regSecTitleMt: { marginTop: 24 },
+
+  // 약 직접 입력 박스
+  regBox: {
+    backgroundColor: Colors.white, borderWidth: 1, borderColor: '#EAEDF1',
+    borderRadius: 16, padding: 16,
+    shadowColor: '#000', shadowOffset: { width: 0, height: 1 }, shadowOpacity: 0.03, shadowRadius: 3, elevation: 1,
+  },
+  regLabel: { fontSize: 13.5, fontWeight: '800', color: '#4A515C', marginBottom: 6, marginLeft: 2 },
+  regRow: { flexDirection: 'row', alignItems: 'center', gap: 9 },
+  regRowTop: { flexDirection: 'row', alignItems: 'flex-start', gap: 10, marginTop: 14 },
+  regHalf: { flex: 1 },
+  regInput: {
+    minHeight: 52, borderWidth: 1.4, borderColor: '#E0E4EA', borderRadius: 10,
+    paddingHorizontal: 12, paddingVertical: 12, fontSize: 16, color: Colors.text, backgroundColor: Colors.white,
+  },
+  // 식약처 확인 버튼(미확인=연초록 외곽선, 확인됨=초록 채움) — 앱 메인 컬러(초록)에 맞춤
+  mfdsConfirmBtn: {
+    width: 104, minHeight: 52, borderRadius: 10,
+    borderWidth: 1.6, borderColor: '#CFE3D2', backgroundColor: Colors.white,
+    alignItems: 'center', justifyContent: 'center',
+  },
+  mfdsConfirmBtnOk: { backgroundColor: Colors.primary, borderColor: Colors.primary },
+  mfdsConfirmInner: { flexDirection: 'row', alignItems: 'center', gap: 3 },
+  mfdsConfirmBtnText: { fontSize: 15, fontWeight: '800', color: Colors.dark, textAlign: 'center' },
+  mfdsConfirmBtnTextOk: { color: Colors.white },
+  mfdsInlineOk: { fontSize: 14, fontWeight: '600', color: '#2E7D32', marginTop: 8, marginLeft: 2 },
+  mfdsInlineFail: { fontSize: 14, fontWeight: '600', color: '#E65100', marginTop: 8, marginLeft: 2 },
+  // 복용횟수 "1일 [숫자] 회"
+  regCountWrap: {
+    flexDirection: 'row', alignItems: 'center', gap: 6,
+    minHeight: 52, borderWidth: 1.4, borderColor: '#E0E4EA', borderRadius: 10,
+    paddingHorizontal: 12, backgroundColor: Colors.white,
+  },
+  regCountFix: { fontSize: 16, fontWeight: '700', color: '#4A515C' },
+  // 1일/1주 단위 토글 버튼 (탭하면 전환)
+  regCountUnitBtn: {
+    flexDirection: 'row', alignItems: 'center', gap: 3,
+    backgroundColor: Colors.light, borderRadius: 8, paddingHorizontal: 9, paddingVertical: 7,
+  },
+  regCountUnitText: { fontSize: 16, fontWeight: '800', color: Colors.dark, minWidth: 30, textAlign: 'center' },
+  regCountInput: { flex: 1, fontSize: 18, fontWeight: '800', color: Colors.text, textAlign: 'center', paddingVertical: 12 },
+  // 복용량: 숫자 입력 + 단위 토글(정↔mg, 복용횟수 1일/1주 토글과 동일) — 복용횟수 박스와 같은 골격
+  regDosageWrap: {
+    flexDirection: 'row', alignItems: 'center', gap: 8,
+    minHeight: 52, borderWidth: 1.4, borderColor: '#E0E4EA', borderRadius: 10,
+    paddingHorizontal: 10, backgroundColor: Colors.white,
+  },
+  regDosageInput: { flex: 1, fontSize: 18, fontWeight: '800', color: Colors.text, textAlign: 'center', paddingVertical: 12 },
+  regSubmitBtn: {
+    minHeight: 56, borderRadius: 12, backgroundColor: Colors.primary,
+    alignItems: 'center', justifyContent: 'center', marginTop: 16,
+  },
+  regSubmitBtnDisabled: { backgroundColor: '#A5D6A7' },
+  regSubmitBtnText: { fontSize: 17, fontWeight: '800', color: Colors.white },
+
+  // ② 등록된 약 카드
+  regMedCard: {
+    flexDirection: 'row', alignItems: 'center',
+    backgroundColor: Colors.white, borderWidth: 1, borderColor: '#EAEDF1',
+    borderRadius: 14, padding: 16, marginBottom: 10,
+  },
+  regMedLeft: { flex: 1 },
+  regMedName: { fontSize: 17, fontWeight: '800', color: Colors.text },
+  regMedMeta: { fontSize: 15, fontWeight: '600', color: '#3A414C', marginTop: 6 },
+  regMedMetaCount: { color: '#3A414C', fontWeight: '800' },
+  regMedIcons: { flexDirection: 'row', alignItems: 'center', gap: 6, paddingLeft: 10 },
+  regMedIconBtn: { padding: 8 },
+
+  // ③ 지난 약 기록 카드
+  pastCard: {
+    flexDirection: 'row', alignItems: 'center',
+    backgroundColor: '#FAFBFC', borderWidth: 1, borderColor: '#EEF1F4',
+    borderRadius: 14, paddingHorizontal: 16, paddingVertical: 14, marginBottom: 8,
+  },
+  pastLeft: { flex: 1 },
+  pastName: { fontSize: 16, fontWeight: '700', color: '#8A929E' },
+  pastMeta: { fontSize: 15, fontWeight: '600', color: '#8A929E', marginTop: 5 },
+  pastPeriod: { fontSize: 14, fontWeight: '600', color: '#AEB4BE', marginTop: 3 },
 
   // 처방전 버튼
   prescriptionBtn: {
@@ -3197,136 +3729,9 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
   },
-  prescriptionIconEmoji: { fontSize: 28 },
   prescriptionTextGroup: { flex: 1, marginHorizontal: 16 },
   prescriptionTitle: { fontSize: 20, fontWeight: '700', color: Colors.primary },
-  prescriptionSub: { fontSize: 15, color: Colors.textSub, marginTop: 4 },
-
-  // 섹션형 약 리스트
-  sectionListContainer: { marginBottom: 16 },
-  sectionCard: {
-    backgroundColor: Colors.white,
-    borderRadius: 16,
-    overflow: 'hidden',
-    marginBottom: 14,
-    elevation: 2,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 1 },
-    shadowOpacity: 0.08,
-    shadowRadius: 4,
-  },
-  sectionHeader: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    paddingHorizontal: 16,
-    paddingVertical: 14,
-  },
-  sectionHeaderLeft: { flexDirection: 'row', alignItems: 'center', gap: 8 },
-  sectionHeaderEmoji: { fontSize: 24 },
-  sectionHeaderLabel: { fontSize: 20, fontWeight: '700', color: Colors.text },
-  sectionHeaderTime: { fontSize: 18, fontWeight: '600', color: Colors.textSub, marginLeft: 4 },
-  slotEditBtn: {
-    paddingHorizontal: 14,
-    paddingVertical: 8,
-    borderRadius: 10,
-    backgroundColor: 'rgba(0,0,0,0.06)',
-    minHeight: 40,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  slotEditBtnText: { fontSize: 16, fontWeight: '700', color: Colors.text },
-  medItem: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 14,
-    paddingHorizontal: 16,
-    paddingVertical: 14,
-    backgroundColor: Colors.white,
-  },
-  medItemBorder: {
-    borderBottomWidth: 1,
-    borderBottomColor: '#F0F0F0',
-  },
-  medItemImg: { width: 40, height: 40, borderRadius: 6, backgroundColor: '#F5F5F5' },
-  medItemEmoji: { fontSize: 28, width: 40, textAlign: 'center' },
-  medItemTextGroup: { flex: 1 },
-  medItemName: { fontSize: 20, fontWeight: '700', color: Colors.text },
-  medItemDosage: { fontSize: 18, color: Colors.textSub, marginTop: 2 },
-
-  // 약효 확인 시간 진입 카드 (§7.2-bis)
-  effectCard: {
-    backgroundColor: Colors.white,
-    borderRadius: 16,
-    borderWidth: 2,
-    borderColor: Colors.primary,
-    paddingHorizontal: 18,
-    paddingVertical: 18,
-    marginBottom: 16,
-    elevation: 2,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 1 },
-    shadowOpacity: 0.08,
-    shadowRadius: 4,
-  },
-  effectCardHeader: { flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: 8 },
-  effectCardTitle: { fontSize: 20, fontWeight: '700', color: Colors.text },
-  effectCardDesc: { fontSize: 18, lineHeight: 26, color: Colors.text },
-  effectCardNote: { fontSize: 15, lineHeight: 22, color: Colors.textSub, marginTop: 10, marginBottom: 14 },
-  effectPrimaryBtn: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    gap: 8,
-    minHeight: 56,
-    borderRadius: 16,
-    backgroundColor: Colors.primary,
-    paddingHorizontal: 16,
-  },
-  effectPrimaryBtnText: { fontSize: 18, fontWeight: '700', color: Colors.white },
-  effectMfdsBtn: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    gap: 8,
-    minHeight: 56,
-    borderRadius: 16,
-    borderWidth: 2,
-    borderColor: Colors.primary,
-    backgroundColor: Colors.white,
-    paddingHorizontal: 16,
-    marginTop: 10,
-  },
-  effectMfdsBtnText: { fontSize: 18, fontWeight: '700', color: Colors.primary },
-
-  // 버튼 2개 행
-  dualBtnRow: {
-    flexDirection: 'row',
-    gap: 12,
-    marginBottom: 40,
-  },
-  // 약 직접 등록 버튼 (outline)
-  addRegisterBtn: {
-    flex: 1,
-    height: 56,
-    borderRadius: 16,
-    borderWidth: 2,
-    borderColor: Colors.primary,
-    backgroundColor: Colors.white,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  addRegisterBtnText: { fontSize: 18, fontWeight: '700', color: Colors.primary },
-  // 약 전체 수정 버튼 (filled)
-  allEditBtn: {
-    flex: 1,
-    height: 56,
-    borderRadius: 16,
-    backgroundColor: Colors.primary,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  allEditBtnText: { fontSize: 18, fontWeight: '700', color: Colors.white },
+  prescriptionSub: { fontSize: 16, color: Colors.textSub, marginTop: 4 },
 
   // 전체 수정 영역
   allEditArea: {
@@ -3389,18 +3794,8 @@ const styles = StyleSheet.create({
   mfdsResultTextOk: { color: '#2E7D32' },
   mfdsResultTextFail: { color: '#E65100' },
 
-  inputLabel: { fontSize: 18, fontWeight: '700', color: Colors.text, marginBottom: 12 },
-  addSubmitBtn: {
-    backgroundColor: Colors.primary,
-    borderRadius: 12,
-    height: 60,
-    alignItems: 'center',
-    justifyContent: 'center',
-    marginTop: 4,
-  },
+  addFormHint: { fontSize: 16, color: Colors.textSub, lineHeight: 24, marginBottom: 12 },
   addSubmitBtnDisabled: { backgroundColor: Colors.border },
-  addSubmitBtnText: { fontSize: 20, fontWeight: '700', color: Colors.white },
-  addSubmitBtnTextDisabled: { fontSize: 20, fontWeight: '700', color: '#666666' },
 
   // 빈 상태
   emptyCard: {
@@ -3413,6 +3808,27 @@ const styles = StyleSheet.create({
   },
   emptyTitle: { fontSize: 20, color: Colors.textSub, marginTop: 16, fontWeight: '600' },
   emptyDesc: { fontSize: 18, color: Colors.textHint, textAlign: 'center', marginTop: 8, lineHeight: 26 },
+
+  // 미연동 보호자 안내(가족 연동 유도) — 기준 화면(기록 보기·영상 기록)과 동일한 중앙 심플 안내
+  unlinkedWrap: { flex: 1, alignItems: 'center', justifyContent: 'center', paddingHorizontal: 32 },
+  unlinkedTitle: { fontSize: 20, color: Colors.textSub, marginTop: 16, fontWeight: '600' },
+  unlinkedDesc: { fontSize: 18, color: Colors.textHint, textAlign: 'center', marginTop: 8, lineHeight: 26 },
+  linkFamilyBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 8,
+    height: 56,
+    paddingHorizontal: 24,
+    borderRadius: 12,
+    backgroundColor: Colors.primary,
+    marginTop: 24,
+  },
+  linkFamilyBtnText: {
+    fontSize: 18,
+    fontWeight: '700',
+    color: Colors.white,
+  },
 
   // 약 카드 (전체 수정 영역 내)
   medCard: {
@@ -3432,23 +3848,7 @@ const styles = StyleSheet.create({
     padding: 16,
     marginBottom: 10,
   },
-  medTopRow: { flexDirection: 'row', alignItems: 'flex-start' },
-  medThumbnail: { width: 56, height: 56, borderRadius: 8, backgroundColor: '#F5F5F5' },
-  medIconCircle: {
-    width: 56,
-    height: 56,
-    borderRadius: 28,
-    backgroundColor: '#E8F5E9',
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  medIconEmoji: { fontSize: 24 },
-  medInfoGroup: { flex: 1, marginLeft: 14 },
-  medNameRow: { flexDirection: 'row', alignItems: 'flex-start', justifyContent: 'space-between' },
-  medNameTouchable: { flexDirection: 'row', alignItems: 'center', flexWrap: 'wrap', flex: 1 },
   medName: { fontSize: 20, fontWeight: '700', color: Colors.text },
-  medInfoIndicator: { fontSize: 18 },
-  medIconBtns: { flexDirection: 'row', gap: 4, marginLeft: 4 },
   medEditBtn: {
     paddingHorizontal: 16,
     paddingVertical: 8,
@@ -3469,11 +3869,27 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
   },
   medDeleteBtnText: { fontSize: 16, fontWeight: '700', color: '#F44336' },
-  medScheduleSmall: { fontSize: 16, color: Colors.textSub, marginTop: 6 },
-  medSlotList: { marginTop: 10, marginBottom: 4, gap: 4 },
-  medSlotRow: { fontSize: 18, color: Colors.textSub, lineHeight: 28 },
   medCardBtnRow: { flexDirection: 'row', justifyContent: 'flex-end', gap: 8, marginTop: 12 },
   noInfoBadge: { fontSize: 16, color: Colors.danger, marginTop: 4 },
+
+  // 내 약 전체 보기 — 약별 평면 목록
+  allMedsTitle: { fontSize: 20, fontWeight: '800', color: Colors.text, marginTop: 4, marginBottom: 12 },
+  allMedsList: { marginBottom: 16 },
+  medDailyCount: { fontSize: 17, fontWeight: '700', color: Colors.dark, marginTop: 6 },
+  medSlotBadgeRow: { flexDirection: 'row', flexWrap: 'wrap', gap: 6, marginTop: 10 },
+  medSlotBadge: { backgroundColor: Colors.light, borderRadius: 8, paddingHorizontal: 12, paddingVertical: 8 },
+  medSlotBadgeText: { fontSize: 17, fontWeight: '700', color: Colors.dark },
+  medSlotBadgeNone: { fontSize: 17, color: Colors.textHint, fontWeight: '600' },
+  medInfoBtn: {
+    paddingHorizontal: 16,
+    paddingVertical: 8,
+    borderRadius: 8,
+    backgroundColor: '#E8F5E9',
+    minHeight: 44,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  medInfoBtnText: { fontSize: 16, fontWeight: '700', color: '#2E7D32' },
 
   // 인라인 수정 액션
   editActionRow: { flexDirection: 'row', gap: 10, marginTop: 8 },
@@ -3514,4 +3930,57 @@ const styles = StyleSheet.create({
   },
   ocrText: { fontSize: 20, fontWeight: '700', color: Colors.text },
   ocrSubText: { fontSize: 18, color: Colors.textSub },
+
+  // ── 중단한 약(이력) 섹션 — "복용 중인 약"과 같은 골격(제목 + 약별 카드). 카드 톤만 흐림 ──
+  stoppedSection: { marginTop: 12, marginBottom: 20 },
+  stoppedSectionDesc: { fontSize: 16, color: Colors.textHint, marginTop: -6, marginBottom: 12 },
+  // 복용 중 medCard 와 동일 골격(개별 카드). 톤만 흐리게(회색 배경·연한 테두리).
+  stoppedCard: {
+    backgroundColor: '#FAFAFA',
+    borderRadius: 16,
+    borderWidth: 1,
+    borderColor: Colors.border,
+    padding: 16,
+    marginBottom: 10,
+  },
+  stoppedName: {
+    fontSize: 20,
+    fontWeight: '700',
+    color: Colors.textHint,
+    textDecorationLine: 'line-through',
+    marginBottom: 6,
+  },
+  stoppedRange: { fontSize: 16, color: Colors.textHint },
+});
+
+// ── OCR 결과 바텀시트 약 카드 입력 스타일 (목업 step4 레이아웃) ──
+const ocrStyles = StyleSheet.create({
+  fieldLabel: { fontSize: 16, fontWeight: '800', color: '#4A515C', marginBottom: 6, marginLeft: 2 },
+  fieldInput: {
+    minHeight: 52, borderWidth: 1.4, borderColor: '#E0E4EA', borderRadius: 10,
+    paddingHorizontal: 12, paddingVertical: 12, fontSize: 18, color: Colors.text, backgroundColor: Colors.white,
+  },
+  mfdsOk: { fontSize: 18, fontWeight: '600', color: '#2E7D32', marginTop: 8, marginLeft: 2 },
+  // 행잉 인덴트용: 아이콘 분리 후 텍스트만 담는 스타일 (flex:1로 둘째 줄 정렬)
+  mfdsFail: { flex: 1, fontSize: 18, fontWeight: '700', color: Colors.danger, lineHeight: 26 },
+  mfdsFailRow: { flexDirection: 'row', alignItems: 'flex-start', gap: 6, marginTop: 8, marginLeft: 2 },
+  countWrap: {
+    flexDirection: 'row', alignItems: 'center', gap: 6,
+    minHeight: 52, borderWidth: 1.4, borderColor: '#E0E4EA', borderRadius: 10,
+    paddingHorizontal: 10, backgroundColor: Colors.white,
+  },
+  countUnitBtn: {
+    flexDirection: 'row', alignItems: 'center', gap: 3,
+    backgroundColor: Colors.light, borderRadius: 8, paddingHorizontal: 9, paddingVertical: 7,
+  },
+  countUnitText: { fontSize: 16, fontWeight: '800', color: Colors.dark, minWidth: 30, textAlign: 'center' },
+  countInput: { flex: 1, fontSize: 18, fontWeight: '800', color: Colors.text, textAlign: 'center', paddingVertical: 12 },
+  countFix: { fontSize: 16, fontWeight: '700', color: '#4A515C' },
+  // 1회 투약량: 숫자 입력 + 단위 칩(정/mg) — 투여횟수 행과 같은 박스 골격
+  dosageWrap: {
+    flexDirection: 'row', alignItems: 'center', gap: 8,
+    minHeight: 52, borderWidth: 1.4, borderColor: '#E0E4EA', borderRadius: 10,
+    paddingHorizontal: 10, backgroundColor: Colors.white,
+  },
+  dosageInput: { flex: 1, fontSize: 18, fontWeight: '800', color: Colors.text, textAlign: 'center', paddingVertical: 12 },
 });

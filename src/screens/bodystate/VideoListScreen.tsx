@@ -9,16 +9,19 @@ import {
   Modal,
   ActivityIndicator,
   StatusBar,
-  PanResponder,
+  Platform,
 } from 'react-native';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useFocusEffect, useNavigation } from '@react-navigation/native';
-import { Ionicons } from '@expo/vector-icons';
+import { Ionicons, MaterialCommunityIcons } from '@expo/vector-icons';
 import { VideoView, useVideoPlayer } from 'expo-video';
+import { useEventListener } from 'expo';
+import { Video as AVVideo, ResizeMode } from 'expo-av';
 import { navigateTo } from '../../navigation/navigationRef';
 import { Colors } from '../../constants/colors';
 import { TopBar } from '../../components/common/TopBar';
 import { supabase } from '../../lib/supabase';
+import { resolveMediaUrl, resolveMediaUrlSync, prefetchMediaUrls } from '../../lib/r2Get';
 import { useNotificationBadge } from '../../context/NotificationBadgeContext';
 import { useDialog } from '../../context/DialogContext';
 
@@ -120,13 +123,46 @@ interface VideoPreviewProps {
 }
 
 function VideoPreview({ uri, isPlaying, onPreviewPress, durationSeconds }: VideoPreviewProps) {
-  const [remainingSec, setRemainingSec] = useState<number | null>(
-    durationSeconds && durationSeconds > 0 ? durationSeconds : null
-  );
+  // 저장값(DB duration_seconds)이 있으면 그 값을 최우선으로 즉시 배지 표시.
+  const storedSec = durationSeconds && durationSeconds > 0 ? durationSeconds : null;
+  // 저장값이 없는 영상(일기 출처 구버전 등)은 썸네일 플레이어가 마운트 시 로드하는
+  // 메타데이터(sourceLoad.duration)에서 길이를 폴백으로 읽어 배지 표시(재생 없이).
+  const [metaSec, setMetaSec] = useState<number | null>(null);
+  // 재생 중 카운트다운(남은 시간). 정지 상태에서는 저장값/메타 길이로 배지를 표시한다.
+  const [remainingSec, setRemainingSec] = useState<number | null>(storedSec);
+  // 🔒 비공개(워커) 경유: 캐시 히트면 즉시 워커 URL, 미스면 워커 presigned 발급 후 마운트.
+  //    (영상은 비공개 유지 — 공개 URL 즉시 반환 분기는 제거됨.) 같은 key 는 전체화면과 캐시 공유.
+  const [resolvedUri, setResolvedUri] = useState<string | null>(() => resolveMediaUrlSync(uri));
+  useEffect(() => {
+    const s = resolveMediaUrlSync(uri);
+    if (s != null) {
+      // 캐시 히트: 즉시 확정.
+      setResolvedUri(s);
+      return;
+    }
+    // 캐시 미스: 워커 presigned 발급(실패 시 원본 공개 URL 폴백).
+    let active = true;
+    setResolvedUri(null);
+    resolveMediaUrl(uri).then((u) => {
+      if (active) setResolvedUri(u || uri);
+    });
+    return () => {
+      active = false;
+    };
+  }, [uri]);
 
-  const player = useVideoPlayer({ uri }, p => {
+  const player = useVideoPlayer(resolvedUri ? { uri: resolvedUri } : null, p => {
     p.muted = true;
     p.loop = false;
+  });
+
+  // 저장값이 없을 때만 메타 폴백: 썸네일 마운트로 소스 로드가 끝나면(sourceLoad)
+  // duration 을 읽어 배지로 표시한다(자동재생 금지 — 음소거 정지 프레임 유지).
+  useEventListener(player, 'sourceLoad', ({ duration }) => {
+    if (storedSec != null) return; // 저장값 우선: 메타 무시
+    if (typeof duration === 'number' && duration > 0) {
+      setMetaSec(Math.round(duration));
+    }
   });
 
   useEffect(() => {
@@ -166,6 +202,15 @@ function VideoPreview({ uri, isPlaying, onPreviewPress, durationSeconds }: Video
     return `${m}:${s.toString().padStart(2, '0')}`;
   }
 
+  // 배지에 표시할 길이(초):
+  //  - 재생 중: 폴링이 갱신하는 remainingSec(남은 시간 카운트다운).
+  //    단 재생 시작 직후 첫 폴링 전엔 remainingSec 이 아직 유효하지 않을 수 있어
+  //    그 사이 빈 프레임(배지 깜빡임)이 생긴다 → storedSec ?? metaSec 로 메워 깜빡임 제거.
+  //  - 정지 중: 저장값 > 메타 폴백 > 직전 폴링값 순. 못 구하면 null(배지 숨김)
+  const displaySec = isPlaying
+    ? (remainingSec ?? storedSec ?? metaSec)
+    : (storedSec ?? metaSec ?? remainingSec);
+
   return (
     <View style={thumbStyles.container}>
       <VideoView
@@ -187,10 +232,10 @@ function VideoPreview({ uri, isPlaying, onPreviewPress, durationSeconds }: Video
         {!isPlaying && (
           <Ionicons name="play-circle" size={36} color="rgba(255,255,255,0.85)" />
         )}
-        {/* 정지/재생 모두 남은 시간(또는 전체 길이) 표시 */}
-        {remainingSec !== null && (
+        {/* 정지/재생 모두 남은 시간(또는 전체 길이) 표시. 길이 미확보 시 숨김(깜빡임 방지). */}
+        {displaySec !== null && (
           <View style={thumbStyles.countdownBadge}>
-            <Text style={thumbStyles.countdownText}>{formatRemaining(remainingSec)}</Text>
+            <Text style={thumbStyles.countdownText}>{formatRemaining(displaySec)}</Text>
           </View>
         )}
       </TouchableOpacity>
@@ -264,9 +309,20 @@ function VideoCard({ item, onPress, onDelete, previewingId, onPreviewPress, onOp
           <Text style={cardStyles.dateText}>{formatDateLabel(item.logged_at)}</Text>
           <Text style={cardStyles.timeText}>{formatTime(item.logged_at)}</Text>
           {isDiary && (
-            <View style={cardStyles.diaryBadge}>
-              <Ionicons name="book-outline" size={14} color={Colors.primary} />
-              <Text style={cardStyles.diaryBadgeText}>일기 기록</Text>
+            <View style={cardStyles.diaryRow}>
+              <View style={cardStyles.diaryBadge}>
+                <MaterialCommunityIcons name="notebook-edit-outline" size={14} color={Colors.primary} />
+                <Text style={cardStyles.diaryBadgeText}>일기 기록</Text>
+              </View>
+              <TouchableOpacity
+                style={cardStyles.diaryLink}
+                onPress={() => onOpenDiary(item)}
+                activeOpacity={0.6}
+                hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
+              >
+                <Text style={cardStyles.diaryLinkText}>일기보기</Text>
+                <Ionicons name="chevron-forward" size={15} color={Colors.textSub} />
+              </TouchableOpacity>
             </View>
           )}
         </TouchableOpacity>
@@ -279,12 +335,6 @@ function VideoCard({ item, onPress, onDelete, previewingId, onPreviewPress, onOp
           <Ionicons name="trash-outline" size={22} color="#F44336" />
         </TouchableOpacity>
       </View>
-      {isDiary && (
-        <TouchableOpacity style={cardStyles.diaryBtn} onPress={() => onOpenDiary(item)} activeOpacity={0.8}>
-          <Ionicons name="book-outline" size={20} color={Colors.primary} />
-          <Text style={cardStyles.diaryBtnText}>일기 보기</Text>
-        </TouchableOpacity>
-      )}
     </View>
   );
 }
@@ -307,6 +357,12 @@ const cardStyles = StyleSheet.create({
   dateText: { fontSize: 20, fontWeight: '700', color: Colors.text },
   timeText: { fontSize: 18, color: Colors.textSub, fontWeight: '500' },
   deleteBtn: { padding: 8, flexShrink: 0 },
+  diaryRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    marginTop: 2,
+  },
   diaryBadge: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -316,300 +372,140 @@ const cardStyles = StyleSheet.create({
     borderRadius: 8,
     paddingHorizontal: 8,
     paddingVertical: 2,
-    marginTop: 2,
   },
   diaryBadgeText: { fontSize: 13, fontWeight: '700', color: Colors.primary },
-  diaryBtn: {
+  diaryLink: {
     flexDirection: 'row',
     alignItems: 'center',
-    justifyContent: 'center',
-    gap: 8,
-    minHeight: 48,
-    borderRadius: 12,
-    borderWidth: 1.5,
-    borderColor: Colors.primary,
-    marginTop: 12,
+    gap: 1,
+    backgroundColor: 'transparent',
   },
-  diaryBtnText: { fontSize: 17, fontWeight: '700', color: Colors.primary },
+  diaryLinkText: { fontSize: 14, fontWeight: '600', color: Colors.textSub },
 });
 
-// ── 풀스크린 플레이어 (expo-video) ───────────────────────────────────────────
+// ── 풀스크린 플레이어 (expo-av + 네이티브 컨트롤) ──────────────────────────
+// ⚠️ expo-video 전환 후 자동재생이 깨지는 회귀로 expo-av 로 복귀(재생 안정성 최우선).
+//    <AVVideo useNativeControls shouldPlay> 가 자동재생을 확실히 보장하며,
+//    네이티브 컨트롤이 재생바·seek·시간표시를 제공한다.
+//    expo-av useNativeControls 특성상 우측 하단 "전체화면" 버튼이 다시 노출되지만
+//    재생 안정성을 우선해 감수한다(오너 합의).
+//    safe-area 보정(insetTop/insetBottom, navigationBarTranslucent={false},
+//    상단 닫기버튼 paddingTop, 하단 안드 내비바 padding)은 그대로 유지한다.
 
 interface VideoPlayerModalProps {
   url: string | null;
   onClose: () => void;
+  // 모달 밖(루트 SafeAreaProvider)에서 구한 safe-area inset.
+  // RN <Modal> 은 안드에서 별도 윈도우라 내부 useSafeAreaInsets() 의 bottom 이
+  // 0/부정확하게 나와 paddingBottom 이 안 먹는 함정이 있다 → 부모에서 받아 쓴다.
+  insetTop: number;
+  insetBottom: number;
 }
 
-function formatTimeMs(ms: number): string {
-  const sec = Math.floor(ms / 1000);
-  const m = Math.floor(sec / 60);
-  const s = sec % 60;
-  return `${m}:${s.toString().padStart(2, '0')}`;
+// 안드 3버튼 내비바 높이 추정(모달 내부 inset 이 0 으로 떨어질 때의 fallback).
+// screen 높이 - window 높이 = (상태바 + 내비바). statusBarTranslucent 모달이라
+// 상태바를 분리하기 어려우므로 보수적으로 적정 하단 여백(48dp)을 하한으로 둔다.
+function estimateAndroidNavBarPad(insetBottom: number): number {
+  if (Platform.OS !== 'android') return insetBottom;
+  const screenH = Dimensions.get('screen').height;
+  const windowH = Dimensions.get('window').height;
+  const diff = Math.max(0, Math.round(screenH - windowH));
+  // diff 가 너무 작으면(제스처 내비/측정 실패) 부모 inset 사용, 그래도 0 이면 48dp 하한.
+  const candidate = Math.max(insetBottom, diff > 0 ? Math.min(diff, 60) : 0);
+  return candidate > 0 ? candidate : 48;
 }
 
-function VideoPlayerModal({ url, onClose }: VideoPlayerModalProps) {
-  const [positionMs, setPositionMs] = useState(0);
-  const [durationMs, setDurationMs] = useState(0);
-  const [isPlaying, setIsPlaying] = useState(false);
-  const [isSeeking, setIsSeeking] = useState(false);
-  const [seekRatio, setSeekRatio] = useState(0);
-  const [buffering, setBuffering] = useState(false);
-  const [showControls, setShowControls] = useState(true);
-  const sliderWidthRef = useRef(0);
-  const sliderXRef = useRef(0);
-  const sliderRef = useRef<View>(null);
-  const positionRef = useRef(0);
-  const durationRef = useRef(0);
-  const isSeekingRef = useRef(false);
-  const hideTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-  // stale closure 방지: PanResponder가 최신 player를 참조하도록 seekRef 사용
-  const seekRef = useRef<(sec: number) => void>(() => {});
-
-  const player = useVideoPlayer(url ? { uri: url } : null, p => {
-    if (url) {
-      p.muted = false;
-      p.loop = false;
-      p.play();
-    }
-  });
-
-  // player 또는 url이 바뀔 때마다 seekRef 갱신 (stale closure 방지)
+function VideoPlayerModal({ url, onClose, insetTop, insetBottom }: VideoPlayerModalProps) {
+  // 모달 밖에서 받은 inset 을 신뢰. 안드에서 0 으로 떨어지면 내비바 높이 추정으로 보강.
+  const bottomPad = estimateAndroidNavBarPad(insetBottom);
+  const videoRef = useRef<AVVideo>(null);
+  // 🔒 비공개(워커) 경유: 캐시 히트면 finalUrl 즉시 채워져 스피너 없이 자동재생,
+  //    미스면 짧은 스피너 후 워커 presigned URL 로 마운트(shouldPlay 로 자동재생).
+  //    리스트 썸네일이 먼저 같은 key 를 발급해 두면 전체화면은 캐시 히트로 즉시 뜬다.
+  const [finalUrl, setFinalUrl] = useState<string | null>(() => (url ? resolveMediaUrlSync(url) : null));
   useEffect(() => {
-    seekRef.current = (sec: number) => {
-      try {
-        const wasPlaying = player.playing;
-        // seekBy(delta)는 ExoPlayer 내부적으로 SEEK_TO_CLOSEST_SYNC 모드를 사용해
-        // 절대 위치 설정(currentTime =)보다 가장 가까운 키프레임으로 빠르게 이동함
-        const delta = sec - player.currentTime;
-        player.seekBy(delta);
-        if (wasPlaying) {
-          try { player.play(); } catch (_) {}
-        }
-      } catch (e) {
-        console.error('[Seek]', e);
-      }
-    };
-  }, [player, url]);
-
-  const triggerShowControls = () => {
-    setShowControls(true);
-    if (hideTimerRef.current) clearTimeout(hideTimerRef.current);
-    if (player.playing) {
-      hideTimerRef.current = setTimeout(() => setShowControls(false), 3000);
+    if (!url) {
+      setFinalUrl(null);
+      return;
     }
-  };
-
-  // 재생 위치 폴링 (expo-video는 timeUpdate 이벤트 지원)
-  useEffect(() => {
-    if (!url) return;
-    setPositionMs(0);
-    setDurationMs(0);
-    setIsSeeking(false);
-    setSeekRatio(0);
-    setShowControls(true);
-    positionRef.current = 0;
-    durationRef.current = 0;
-    isSeekingRef.current = false;
-
-    let prevPlaying = false;
-    let intervalId: ReturnType<typeof setInterval> | null = null;
-    intervalId = setInterval(() => {
-      try {
-        if (player) {
-          const pos = (player.currentTime ?? 0) * 1000;
-          const dur = (player.duration ?? 0) * 1000;
-          if (!isSeekingRef.current) {
-            // seek 직후 플레이어가 아직 이전 위치를 반환하는 경우 보정
-            const expectedMs = positionRef.current;
-            const diff = Math.abs(pos - expectedMs);
-            // 500ms 이상 차이나면 seek 중이므로 무시 (플레이어가 seek 완료 전)
-            if (diff < 500 || pos > expectedMs) {
-              setPositionMs(pos);
-              setDurationMs(dur);
-              positionRef.current = pos;
-              durationRef.current = dur;
-            }
-          }
-          const playing = player.playing ?? false;
-          if (playing !== prevPlaying) {
-            setIsPlaying(playing);
-            if (playing) {
-              // 재생 시작 → 3초 후 컨트롤 숨김
-              if (hideTimerRef.current) clearTimeout(hideTimerRef.current);
-              hideTimerRef.current = setTimeout(() => setShowControls(false), 3000);
-            } else {
-              // 일시정지 → 컨트롤 항상 표시
-              if (hideTimerRef.current) clearTimeout(hideTimerRef.current);
-              setShowControls(true);
-            }
-            prevPlaying = playing;
-          }
-        }
-      } catch (_) {}
-    }, 250);
-
+    const s = resolveMediaUrlSync(url);
+    if (s != null) {
+      setFinalUrl(s);
+      return;
+    }
+    let active = true;
+    setFinalUrl(null);
+    resolveMediaUrl(url).then((u) => {
+      if (active) setFinalUrl(u || url);
+    });
     return () => {
-      if (intervalId) clearInterval(intervalId);
-      if (hideTimerRef.current) clearTimeout(hideTimerRef.current);
+      active = false;
     };
   }, [url]);
 
-  const handleTogglePlay = () => {
-    try {
-      if (player.playing) {
-        player.pause();
-        setIsPlaying(false);
-      } else {
-        player.play();
-        setIsPlaying(true);
-      }
-    } catch (_) {}
+  const handleClose = () => {
+    // expo-av: 닫기 시 명시적으로 일시정지·언로드(백그라운드 재생/리소스 누수 방지).
+    (async () => {
+      try {
+        await videoRef.current?.pauseAsync();
+      } catch (_) {}
+      try {
+        await videoRef.current?.unloadAsync();
+      } catch (_) {}
+    })();
+    onClose();
   };
-
-  const panResponder = useRef(
-    PanResponder.create({
-      onStartShouldSetPanResponder: () => true,
-      onMoveShouldSetPanResponder: () => true,
-      onPanResponderGrant: (evt) => {
-        isSeekingRef.current = true;
-        setIsSeeking(true);
-        setBuffering(true);
-        const x = evt.nativeEvent.pageX - sliderXRef.current;
-        const w = sliderWidthRef.current;
-        if (w > 0) setSeekRatio(Math.min(Math.max(x / w, 0), 1));
-      },
-      onPanResponderMove: (evt, gestureState) => {
-        const x = gestureState.moveX - sliderXRef.current;
-        const w = sliderWidthRef.current;
-        if (w > 0) setSeekRatio(Math.min(Math.max(x / w, 0), 1));
-      },
-      onPanResponderRelease: (evt, gestureState) => {
-        const x = gestureState.moveX - sliderXRef.current;
-        const w = sliderWidthRef.current;
-        if (w > 0) {
-          const ratio = Math.min(Math.max(x / w, 0), 1);
-          setSeekRatio(ratio);
-          const targetSec = ratio * (durationRef.current / 1000);
-          const targetMs = targetSec * 1000;
-          setPositionMs(targetMs);
-          positionRef.current = targetMs;
-          setBuffering(true);
-          seekRef.current(targetSec);
-          setTimeout(() => setBuffering(false), 1500);
-        }
-        // seek 완료 대기 후 폴링 재개 (race condition 방지)
-        setTimeout(() => {
-          isSeekingRef.current = false;
-          setIsSeeking(false);
-        }, 500);
-      },
-      onPanResponderTerminate: () => {
-        isSeekingRef.current = false;
-        setIsSeeking(false);
-      },
-    })
-  ).current;
-
-  const displayRatio = durationMs > 0
-    ? (isSeeking ? seekRatio : positionMs / durationMs)
-    : 0;
 
   return (
     <Modal
       visible={url !== null}
+      transparent={false}
       animationType="fade"
       statusBarTranslucent
-      onRequestClose={onClose}
+      navigationBarTranslucent={false}
+      onRequestClose={handleClose}
     >
       <StatusBar backgroundColor="#000" barStyle="light-content" />
-      <View style={playerStyles.container}>
-        {url && (
-          <VideoView
-            player={player}
-            style={playerStyles.video}
-            nativeControls={false}
-            contentFit="contain"
-            allowsFullscreen={false}
-          />
-        )}
-
-        {/* 로딩 오버레이: 영상 duration이 0이면 아직 로딩 중 */}
-        {durationMs === 0 && url && (
-          <View style={playerStyles.loadingOverlay}>
-            <ActivityIndicator size="large" color={Colors.white} />
-            <Text style={playerStyles.loadingText}>영상 불러오는 중...</Text>
-          </View>
-        )}
-
-        {/* seek 버퍼링 오버레이 */}
-        {buffering && durationMs > 0 && (
-          <View style={playerStyles.loadingOverlay}>
-            <ActivityIndicator size="large" color={Colors.white} />
-            <Text style={playerStyles.loadingText}>이동 중...</Text>
-          </View>
-        )}
-
-        {/* 배경 탭 영역 - controls 토글만 담당 */}
-        <TouchableOpacity
-          style={playerStyles.playOverlay}
-          onPress={() => {
-            if (showControls) {
-              setShowControls(false);
-              if (hideTimerRef.current) clearTimeout(hideTimerRef.current);
-            } else {
-              triggerShowControls();
-            }
-          }}
-          activeOpacity={1}
-        />
-
-        {/* 가운데 재생/일시정지 버튼 - 재생 토글만 담당 */}
-        {showControls && (
-          <TouchableOpacity
-            style={playerStyles.centerPlayBtn}
-            onPress={() => {
-              handleTogglePlay();
-              triggerShowControls();
-            }}
-            activeOpacity={0.8}
-          >
-            <Ionicons
-              name={isPlaying ? 'pause-circle' : 'play-circle'}
-              size={64}
-              color="rgba(255,255,255,0.85)"
-            />
+      {/* RN <Modal> 은 안드에서 별도 윈도우라 내부 useSafeAreaInsets() 가 0/부정확.
+          → 부모(모달 밖)에서 받은 insetTop/insetBottom 을 직접 사용한다.
+          또한 navigationBarTranslucent={false} 로 모달 윈도우가 내비바를 침범하지 않게 해
+          영상·네이티브 컨트롤(스크러버)이 안드 3버튼 내비바에 가리지 않게 한다.
+          - 상단 닫기 버튼: paddingTop=insetTop → 노치/다이나믹아일랜드 아래에 위치
+          - 하단 paddingBottom=bottomPad → 스크러버가 안드 3버튼/홈인디케이터 위로 올라옴 */}
+      <View
+        style={[
+          playerStyles.container,
+          { paddingTop: insetTop, paddingBottom: bottomPad },
+        ]}
+      >
+        <View style={[playerStyles.header, { top: insetTop }]}>
+          <TouchableOpacity style={playerStyles.closeBtn} onPress={handleClose} activeOpacity={0.8}>
+            <Ionicons name="close" size={26} color="#fff" />
+            <Text style={playerStyles.closeText}>닫기</Text>
           </TouchableOpacity>
-        )}
+        </View>
 
-        {/* 타임라인 슬라이더 */}
-        {showControls && (
-          <View style={playerStyles.timelineContainer}>
-            <View style={playerStyles.timeRow}>
-              <Text style={playerStyles.timeText}>
-                {formatTimeMs(isSeeking ? seekRatio * durationMs : positionMs)}
-              </Text>
-              <Text style={playerStyles.timeText}>{formatTimeMs(durationMs)}</Text>
+        {/* presigned 해결 전에는 스피너, 해결되면 finalUrl 하나로 AVVideo 를 마운트.
+            shouldPlay 로 자동재생을 보장(expo-video 와 달리 확실히 동작), useNativeControls 가
+            재생바·시킹을 제공. useNativeControls 특성상 우측 하단 "전체화면" 버튼이 노출되나
+            재생 안정성을 우선해 그대로 둔다. */}
+        {finalUrl ? (
+          <AVVideo
+            ref={videoRef}
+            source={{ uri: finalUrl }}
+            useNativeControls
+            shouldPlay
+            resizeMode={ResizeMode.CONTAIN}
+            style={playerStyles.video}
+          />
+        ) : (
+          url && (
+            <View style={playerStyles.loadingOverlay}>
+              <ActivityIndicator size="large" color={Colors.white} />
+              <Text style={playerStyles.loadingText}>영상을 불러오고 있어요…</Text>
             </View>
-            <View
-              ref={sliderRef}
-              style={playerStyles.sliderTrack}
-              onLayout={() => {
-                sliderRef.current?.measure((_x, _y, width, _height, pageX) => {
-                  sliderWidthRef.current = width;
-                  sliderXRef.current = pageX;
-                });
-              }}
-              {...panResponder.panHandlers}
-            >
-              <View style={[playerStyles.sliderFill, { width: `${displayRatio * 100}%` }]} />
-              <View style={[playerStyles.sliderHandle, { left: `${displayRatio * 100}%` }]} />
-            </View>
-          </View>
+          )
         )}
-
-        <TouchableOpacity style={playerStyles.closeBtn} onPress={onClose} activeOpacity={0.8}>
-          <Ionicons name="close-circle" size={40} color="rgba(255,255,255,0.9)" />
-        </TouchableOpacity>
       </View>
     </Modal>
   );
@@ -619,81 +515,34 @@ const playerStyles = StyleSheet.create({
   container: {
     flex: 1,
     backgroundColor: '#000',
-    alignItems: 'center',
-    justifyContent: 'center',
   },
-  video: {
-    width: Dimensions.get('window').width,
-    height: Dimensions.get('window').height,
-  },
-  playOverlay: {
+  header: {
     position: 'absolute',
-    top: 0,
-    bottom: 0,
+    // top 은 인라인으로 insets.top 적용(노치/다이나믹아일랜드 아래)
     left: 0,
     right: 0,
-    alignItems: 'center',
-    justifyContent: 'center',
-    zIndex: 5,
-  },
-  timelineContainer: {
-    position: 'absolute',
-    bottom: 60,
-    left: 20,
-    right: 20,
     zIndex: 10,
-    gap: 8,
-  },
-  timeRow: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-  },
-  timeText: {
-    fontSize: 14,
-    color: 'rgba(255,255,255,0.9)',
-    fontWeight: '600',
-  },
-  sliderTrack: {
-    height: 6,
-    backgroundColor: 'rgba(255,255,255,0.3)',
-    borderRadius: 3,
-    position: 'relative',
-    justifyContent: 'center',
-    marginVertical: 12,
-  },
-  sliderFill: {
-    height: 6,
-    backgroundColor: Colors.primary,
-    borderRadius: 3,
-    position: 'absolute',
-    left: 0,
-    top: 0,
-  },
-  sliderHandle: {
-    width: 24,
-    height: 24,
-    borderRadius: 12,
-    backgroundColor: Colors.primary,
-    position: 'absolute',
-    top: -9,
-    marginLeft: -12,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.3,
-    shadowRadius: 3,
-    elevation: 4,
-  },
-  centerPlayBtn: {
-    position: 'absolute',
-    zIndex: 6,
-    alignItems: 'center',
-    justifyContent: 'center',
+    paddingHorizontal: 12,
+    paddingVertical: 8,
   },
   closeBtn: {
-    position: 'absolute',
-    top: 52,
-    right: 20,
-    zIndex: 10,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    paddingVertical: 8,
+    paddingHorizontal: 8,
+    alignSelf: 'flex-start',
+  },
+  closeText: {
+    color: '#fff',
+    fontSize: 18,
+    fontWeight: '600',
+  },
+  video: {
+    // flex 로 container 의 padding(top=insets.top / bottom=insets.bottom) 안쪽을 채운다.
+    // 일기 FullscreenVideoModal 과 동일 — 네이티브 컨트롤(스크러버)이 영상 뷰 하단에
+    // 그려지므로 영상 영역이 시스템 바를 침범하지 않아야 컨트롤이 안 가린다.
+    flex: 1,
   },
   loadingOverlay: {
     position: 'absolute',
@@ -729,12 +578,16 @@ export function VideoListScreen() {
   const [excludeDiary, setExcludeDiary] = useState(false);
   const [sections, setSections] = useState<SectionData[]>([]);
   const [loading, setLoading] = useState(false);
+  // 미연동 보호자: 보호자인데 연동 환자 없음(해석 완료 후). 본인 빈 목록을 환자처럼 보여주지 않음.
+  const [unlinkedCaregiver, setUnlinkedCaregiver] = useState(false);
   const [deleting, setDeleting] = useState(false);
   const [playingUrl, setPlayingUrl] = useState<string | null>(null);
   const [previewingId, setPreviewingId] = useState<string | null>(null);
   const previewTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const [fabExpanded, setFabExpanded] = useState(true);
   const lastScrollY = useRef(0);
+  // 진행 중인(in-flight) 동일 조회 키 — 포커스 재발화 + 필터 변경 직접호출 등 중복 동시호출만 차단.
+  const fetchInFlightKey = useRef<string | null>(null);
 
   const handleScroll = (event: any) => {
     const currentY = event.nativeEvent.contentOffset.y;
@@ -747,6 +600,12 @@ export function VideoListScreen() {
   };
 
   const fetchVideos = useCallback(async (f: FilterType, excludeDiaryArg: boolean) => {
+    // 중복 동시호출 가드: 같은 (필터×일기제외) 조합 조회가 이미 진행 중이면 스킵.
+    // (포커스 재발화 + handleFilterChange 직접호출이 같은 키로 겹치는 중복만 차단.
+    //  다른 조합은 통과 → 필터 전환·갱신 동작 자체는 유지.)
+    const reqKey = `${f}|${excludeDiaryArg}`;
+    if (fetchInFlightKey.current === reqKey) return;
+    fetchInFlightKey.current = reqKey;
     setLoading(true);
     try {
       const { data: { user } } = await supabase.auth.getUser();
@@ -758,7 +617,8 @@ export function VideoListScreen() {
         .eq('id', user.id)
         .single();
 
-      let patientId = user.id;
+      // ⚠️ 미연동 보호자는 절대 user.id 로 폴백하지 않는다(본인 빈 영상 목록을 환자처럼 보여주는 버그).
+      let patientId: string | null = userData?.role === 'caregiver' ? null : user.id;
 
       if (userData?.role === 'caregiver' && userData?.patient_group_id) {
         const { data: member } = await supabase
@@ -769,6 +629,14 @@ export function VideoListScreen() {
           .single();
         if (member?.user_id) patientId = member.user_id;
       }
+
+      // 보호자인데 연동 환자가 없으면 조회하지 않고 안내 카드로 전환.
+      if (!patientId) {
+        setUnlinkedCaregiver(true);
+        setSections([]);
+        return;
+      }
+      setUnlinkedCaregiver(false);
 
       let query = supabase
         .from('media_logs')
@@ -790,11 +658,17 @@ export function VideoListScreen() {
 
       const { data, error: queryError } = await query;
       if (queryError) console.error('[VideoListScreen] 조회 오류:', queryError);
-      setSections(groupBySections((data as VideoLog[]) ?? []));
+      const logs = (data as VideoLog[]) ?? [];
+      setSections(groupBySections(logs));
+      // 🔒 비공개(워커) 경유 유지: 리스트 로드 직후 영상들의 워커 presigned URL 을
+      //    병렬로 미리 발급해 캐시에 채워둔다(동시성 제한). 썸네일·전체화면이 캐시 히트로 즉시 뜸.
+      //    기존 캐시/in-flight 합치기 로직이 중복 발급·레이스를 막으며, 실패는 조용히 무시(백그라운드).
+      prefetchMediaUrls(logs.map((l) => l.r2_url));
     } catch (e) {
       console.error('[VideoListScreen] fetchVideos 오류:', e);
     } finally {
       setLoading(false);
+      if (fetchInFlightKey.current === reqKey) fetchInFlightKey.current = null;
     }
   }, []);
 
@@ -869,7 +743,7 @@ export function VideoListScreen() {
   };
 
   return (
-    <SafeAreaView style={styles.safeArea} edges={['top', 'bottom']}>
+    <SafeAreaView style={styles.safeArea} edges={['top']}>
       <TopBar
         title="영상 기록"
         showBack
@@ -878,6 +752,22 @@ export function VideoListScreen() {
         onBellPress={() => navigation.navigate('NotificationHistory', { mode: 'all' })}
       />
 
+      {unlinkedCaregiver ? (
+        <View style={styles.unlinkedWrap}>
+          <Ionicons name="people-outline" size={56} color={Colors.textHint} />
+          <Text style={styles.unlinkedTitle}>환자를 먼저 연동해주세요</Text>
+          <Text style={styles.unlinkedDesc}>{'가족을 연동하면 환자분의\n영상 기록을 함께 볼 수 있어요'}</Text>
+          <TouchableOpacity
+            style={styles.linkFamilyBtn}
+            onPress={() => navigation.navigate('Main', { screen: 'MyInfo', params: { screen: 'FamilyLink' } })}
+            activeOpacity={0.85}
+          >
+            <Ionicons name="person-add-outline" size={22} color={Colors.white} />
+            <Text style={styles.linkFamilyBtnText}>가족 연동하기</Text>
+          </TouchableOpacity>
+        </View>
+      ) : (
+      <>
       <View style={styles.filterRow}>
         {FILTERS.map(f => (
           <TouchableOpacity
@@ -921,13 +811,13 @@ export function VideoListScreen() {
         <SectionList
           sections={sections}
           keyExtractor={item => item.id}
-          contentContainerStyle={styles.listContent}
+          contentContainerStyle={[styles.listContent, { paddingBottom: 110 + insets.bottom }]}
           showsVerticalScrollIndicator={false}
           removeClippedSubviews={false}
           onScroll={handleScroll}
           scrollEventThrottle={16}
           renderSectionHeader={({ section }) => (
-            <View style={styles.sectionHeader}>
+            <View style={[styles.sectionHeader, section === sections[0] && styles.sectionHeaderFirst]}>
               <Text style={styles.sectionHeaderText}>{section.title}</Text>
               <View style={styles.sectionDivider} />
             </View>
@@ -945,7 +835,11 @@ export function VideoListScreen() {
           stickySectionHeadersEnabled={false}
         />
       )}
+      </>
+      )}
 
+      {/* 미연동 보호자는 대신 기록할 환자가 없으므로 기록 FAB 숨김(환자 본인·연동 보호자는 그대로) */}
+      {!unlinkedCaregiver && (
       <TouchableOpacity
         style={[
           styles.fab,
@@ -958,15 +852,21 @@ export function VideoListScreen() {
         <Ionicons name="videocam-outline" size={24} color={Colors.white} />
         {fabExpanded && <Text style={styles.fabText}>기록하기</Text>}
       </TouchableOpacity>
+      )}
 
       {deleting && (
         <View style={styles.deletingOverlay}>
           <ActivityIndicator size="large" color={Colors.white} />
-          <Text style={styles.deletingText}>삭제 중...</Text>
+          <Text style={styles.deletingText}>삭제하고 있어요…</Text>
         </View>
       )}
 
-      <VideoPlayerModal url={playingUrl} onClose={() => setPlayingUrl(null)} />
+      <VideoPlayerModal
+        url={playingUrl}
+        onClose={() => setPlayingUrl(null)}
+        insetTop={insets.top}
+        insetBottom={insets.bottom}
+      />
     </SafeAreaView>
   );
 }
@@ -1004,7 +904,7 @@ const styles = StyleSheet.create({
     borderBottomColor: Colors.border,
   },
   excludeText: { fontSize: 17, fontWeight: '600', color: Colors.text },
-  listContent: { paddingHorizontal: 20, paddingTop: 8, paddingBottom: 32 },
+  listContent: { paddingHorizontal: 16, paddingTop: 16, paddingBottom: 40 },
   sectionHeader: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -1012,6 +912,7 @@ const styles = StyleSheet.create({
     marginTop: 20,
     marginBottom: 12,
   },
+  sectionHeaderFirst: { marginTop: 0 },
   sectionHeaderText: { fontSize: 18, fontWeight: '700', color: '#555555', flexShrink: 0 },
   sectionDivider: { flex: 1, height: 1, backgroundColor: Colors.border },
   loadingBox: { flex: 1, alignItems: 'center', justifyContent: 'center' },
@@ -1021,6 +922,17 @@ const styles = StyleSheet.create({
   },
   emptyTitle: { fontSize: 20, fontWeight: '700', color: Colors.textSub },
   emptyDesc: { fontSize: 17, color: Colors.textHint },
+
+  // 미연동 보호자 안내(가족 연동 유도)
+  unlinkedWrap: { flex: 1, alignItems: 'center', justifyContent: 'center', paddingHorizontal: 32 },
+  unlinkedTitle: { fontSize: 20, color: Colors.textSub, marginTop: 16, fontWeight: '600' },
+  unlinkedDesc: { fontSize: 18, color: Colors.textHint, textAlign: 'center', marginTop: 8, lineHeight: 26 },
+  linkFamilyBtn: {
+    flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8,
+    height: 56, paddingHorizontal: 24, borderRadius: 12,
+    backgroundColor: Colors.primary, marginTop: 24,
+  },
+  linkFamilyBtnText: { fontSize: 18, fontWeight: '700', color: Colors.white },
   fab: {
     position: 'absolute',
     right: 20,

@@ -9,7 +9,10 @@ import {
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useNavigation } from '@react-navigation/native';
+import type { CompositeNavigationProp } from '@react-navigation/native';
 import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
+import type { StackNavigationProp } from '@react-navigation/stack';
+import type { RootStackParamList } from '../../navigation/RootNavigator';
 import { Ionicons } from '@expo/vector-icons';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { Colors } from '../../constants/colors';
@@ -19,7 +22,11 @@ import type { ExerciseStackParamList } from '../../navigation/ExerciseNavigator'
 import { useNotificationBadge } from '../../context/NotificationBadgeContext';
 import { useDialog } from '../../context/DialogContext';
 
-type Nav = NativeStackNavigationProp<ExerciseStackParamList, 'ExerciseRecord'>;
+// NotificationHistory 등 루트 스택 라우트로도 이동하므로 부모(Root) 네비게이션 타입과 합성한다.
+type Nav = CompositeNavigationProp<
+  NativeStackNavigationProp<ExerciseStackParamList, 'ExerciseRecord'>,
+  StackNavigationProp<RootStackParamList>
+>;
 type MCIName = React.ComponentProps<typeof MaterialCommunityIcons>['name'];
 type IoniconName = React.ComponentProps<typeof Ionicons>['name'];
 
@@ -100,7 +107,7 @@ export function ExerciseRecordScreen() {
   };
 
   return (
-    <SafeAreaView style={styles.safe}>
+    <SafeAreaView style={styles.safe} edges={['top']}>
       <TopBar
         title="운동 기록하기"
         showBack

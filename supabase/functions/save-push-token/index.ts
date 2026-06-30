@@ -29,7 +29,7 @@ Deno.serve(async (req: Request) => {
     })
   }
 
-  let body: { push_token?: string }
+  let body: { push_token?: string; push_platform?: string }
   try {
     body = await req.json()
   } catch {
@@ -39,7 +39,7 @@ Deno.serve(async (req: Request) => {
     })
   }
 
-  const { push_token } = body
+  const { push_token, push_platform } = body
   if (!push_token) {
     return new Response(JSON.stringify({ error: 'push_token required' }), {
       status: 400,
@@ -47,10 +47,16 @@ Deno.serve(async (req: Request) => {
     })
   }
 
-  // service_role로 push_token 저장 (RLS 우회)
+  // push_platform 검증(ios|android|web). 미전달/이상값이면 저장 생략(기존 값 보존).
+  const platform =
+    push_platform === 'ios' || push_platform === 'android' || push_platform === 'web'
+      ? push_platform
+      : undefined
+
+  // service_role로 push_token(+platform) 저장 (RLS 우회)
   const { error } = await supabase
     .from('users')
-    .update({ push_token })
+    .update({ push_token, ...(platform ? { push_platform: platform } : {}) })
     .eq('id', user.id)
 
   if (error) {

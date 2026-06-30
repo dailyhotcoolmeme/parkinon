@@ -13,13 +13,19 @@ import { Ionicons } from '@expo/vector-icons';
 import { useFocusEffect, useRoute, useNavigation } from '@react-navigation/native';
 import { Audio } from 'expo-av';
 import notifee from '@notifee/react-native';
-import { ensureRecordedChannel, provisionForUser } from '../../lib/alarmSound';
+import * as Notifications from 'expo-notifications';
+import {
+  ensureRecordedChannel,
+  ensureRecordedSoundIOS,
+  provisionForUser,
+} from '../../lib/alarmSound';
+import * as AlarmSoundNative from '../../../modules/alarm-sound';
 import { Colors } from '../../constants/colors';
 import { TopBar } from '../../components/common/TopBar';
 import { useAuth } from '../../context/AuthContext';
 import { useDialog } from '../../context/DialogContext';
 import { supabase } from '../../lib/supabase';
-import { navigateTo } from '../../navigation/navigationRef';
+import { resolveMediaUrl } from '../../lib/r2Get';
 
 const DEFAULT_LABEL = '내 녹음';
 
@@ -50,6 +56,7 @@ export function AlarmSoundSettingsScreen() {
   const [loading, setLoading] = useState(true);
   const [sounds, setSounds] = useState<CustomSound[]>([]);
   const [playingId, setPlayingId] = useState<string | null>(null);
+  const [preparingId, setPreparingId] = useState<string | null>(null);
   const [testingId, setTestingId] = useState<string | null>(null);
   const [deletingId, setDeletingId] = useState<string | null>(null);
 
@@ -168,12 +175,16 @@ export function AlarmSoundSettingsScreen() {
       await stopPreview();
       if (wasPlaying) return;
 
+      // 원격 음원 로딩 동안 스피너 표시(누르고 소리 날 때까지 텀 대비)
+      setPreparingId(item.id);
       await Audio.setAudioModeAsync({
         allowsRecordingIOS: false,
         playsInSilentModeIOS: true,
       });
+      // presigned GET URL 로 변환(실패 시 원본 공개 URL 폴백)
+      const previewUri = await resolveMediaUrl(item.public_url);
       const { sound } = await Audio.Sound.createAsync(
-        { uri: item.public_url },
+        { uri: previewUri },
         { shouldPlay: true },
       );
       soundRef.current = sound;
@@ -191,25 +202,57 @@ export function AlarmSoundSettingsScreen() {
         title: '재생할 수 없어요',
         message: '인터넷 연결을 확인하고 다시 시도해 주세요.',
       });
+    } finally {
+      setPreparingId(null);
     }
   };
 
-  // ── [PoC] 실제 알림으로 테스트 (notifee 커스텀 사운드 검증) ──
-  // 런타임에 다운로드한 녹음 파일을 Android 알림 채널 사운드로 실제 재생되는지 확인.
+  // ── 실제 알림으로 테스트 (커스텀 사운드 검증) ──
+  // Android: 런타임 녹음 파일을 알림 채널 사운드로 설치해 실제 재생되는지 확인(검증 완료).
+  // iOS: caf 를 Library/Sounds 에 설치한 뒤 로컬 알림 sound 에 그 파일명을 지정해 확인.
+  //   ⚠️ 네이티브 모듈은 새 빌드부터 활성 → 빌드 전(현재 OTA 런타임)에는 AlarmSoundNative
+  //      .isAvailable=false 라 설치/재생이 불가하므로 크래시 없이 안내만 한다.
   const handleTestAlarm = async (item: CustomSound) => {
     if (!item.public_url) {
       dialog.alert({ title: '테스트할 수 없어요', message: '재생 정보가 없는 녹음이에요.' });
       return;
     }
-    if (Platform.OS !== 'android') {
-      dialog.alert({
-        title: '안드로이드에서 확인해요',
-        message: 'iOS 알림음 테스트는 다음 단계에서 진행해요.',
-      });
-      return;
-    }
     setTestingId(item.id);
     try {
+      if (Platform.OS === 'ios') {
+        // 네이티브 알림음 모듈이 없으면(빌드 전) caf 설치 불가 → 안전 안내(크래시 방지).
+        if (!AlarmSoundNative.isAvailable) {
+          dialog.alert({
+            title: '앱 업데이트 후 사용할 수 있어요',
+            message:
+              '아이폰 알림음 테스트는 다음 앱 업데이트부터 사용할 수 있어요.\n그때까지는 기본 알림음으로 울려요.',
+          });
+          return;
+        }
+        // Library/Sounds/<파일명>.caf 설치(이미 있으면 skip) 후 그 파일명으로 로컬 알림 발송
+        const fileName = await ensureRecordedSoundIOS(item.id, item.public_url);
+        if (!fileName) {
+          dialog.alert({
+            title: '테스트 준비 실패',
+            message: '알림음 파일을 준비하지 못했어요.\n인터넷 연결을 확인하고 다시 시도해 주세요.',
+          });
+          return;
+        }
+        await Notifications.requestPermissionsAsync();
+        await Notifications.scheduleNotificationAsync({
+          content: {
+            title: '🔔 파킨온 약 알림 (테스트)',
+            body: `${item.label?.trim() || DEFAULT_LABEL} 목소리로 울리면 성공이에요!\n휴대폰이 무음 모드면 소리가 들리지 않아요.`,
+            // iOS 는 Library/Sounds/<파일명> 에 설치된 caf 파일명을 sound 에 지정.
+            // (서버 푸시도 동일 파일명 alarmSoundFileNameIOS(item.id) 를 보냄)
+            sound: fileName,
+          },
+          trigger: null, // 즉시
+        });
+        return;
+      }
+
+      // ── Android ──
       await notifee.requestPermission();
       // 실제 적용과 동일한 채널로 프로비저닝한 뒤 테스트 알림 발송
       const channelId = await ensureRecordedChannel(
@@ -219,7 +262,7 @@ export function AlarmSoundSettingsScreen() {
       );
       await notifee.displayNotification({
         title: '🔔 파킨온 약 알림 (테스트)',
-        body: `${item.label?.trim() || DEFAULT_LABEL} 목소리로 울리면 성공이에요!`,
+        body: `${item.label?.trim() || DEFAULT_LABEL} 목소리로 울리면 성공이에요!\n휴대폰이 진동 모드면 소리가 들리지 않아요.`,
         android: {
           channelId,
           smallIcon: 'ic_launcher',
@@ -285,12 +328,18 @@ export function AlarmSoundSettingsScreen() {
     return (
       <SafeAreaView style={styles.safeArea}>
         <TopBar title="알림음 관리" showBack />
-        <View style={styles.emptyWrap}>
-          <Text style={styles.emptyTitle}>가족 연동이 필요해요</Text>
-          <Text style={styles.emptyText}>
-            알림음을 만들려면 먼저 가족 연동을 해 주세요.{'\n'}
-            메뉴에서 가족 연동을 진행할 수 있어요.
-          </Text>
+        <View style={styles.unlinkedWrap}>
+          <Ionicons name="people-outline" size={56} color={Colors.textHint} />
+          <Text style={styles.unlinkedTitle}>환자를 먼저 연동해주세요</Text>
+          <Text style={styles.unlinkedDesc}>{'가족을 연동하면 환자분의\n알림음을 만들 수 있어요'}</Text>
+          <TouchableOpacity
+            style={styles.linkFamilyBtn}
+            onPress={() => navigation.navigate('FamilyLink')}
+            activeOpacity={0.85}
+          >
+            <Ionicons name="person-add-outline" size={22} color={Colors.white} />
+            <Text style={styles.linkFamilyBtnText}>가족 연동하기</Text>
+          </TouchableOpacity>
         </View>
       </SafeAreaView>
     );
@@ -308,7 +357,7 @@ export function AlarmSoundSettingsScreen() {
         {loading ? (
           <View style={styles.loadingWrap}>
             <ActivityIndicator size="large" color={Colors.primary} />
-            <Text style={styles.loadingText}>불러오는 중...</Text>
+            <Text style={styles.loadingText}>불러오고 있어요…</Text>
           </View>
         ) : (
           <>
@@ -327,6 +376,7 @@ export function AlarmSoundSettingsScreen() {
             ) : (
               sounds.map((item) => {
                 const isPlaying = playingId === item.id;
+                const isPreparing = preparingId === item.id;
                 const isDeleting = deletingId === item.id;
                 const isTesting = testingId === item.id;
                 return (
@@ -340,9 +390,6 @@ export function AlarmSoundSettingsScreen() {
                         <Text style={styles.cardTitle}>
                           {item.label?.trim() || DEFAULT_LABEL}
                         </Text>
-                        <Text style={styles.cardSub}>
-                          {formatDate(item.created_at)}
-                        </Text>
                       </View>
                       <View style={styles.headerActions}>
                         <TouchableOpacity
@@ -350,7 +397,7 @@ export function AlarmSoundSettingsScreen() {
                           hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
                           style={styles.iconBtn}
                           onPress={() =>
-                            navigateTo('RecordSound', {
+                            navigation.navigate('RecordSound', {
                               editSoundId: item.id,
                               editLabel: item.label?.trim() || DEFAULT_LABEL,
                             })
@@ -374,32 +421,52 @@ export function AlarmSoundSettingsScreen() {
                       </View>
                     </View>
 
-                    {/* 알림음 들어보기 (큰 버튼, 녹색) */}
-                    <TouchableOpacity
-                      style={[styles.playBtn, isPlaying && styles.playBtnStop]}
-                      onPress={() => handlePlay(item)}
-                      activeOpacity={0.85}
-                    >
-                      <Text style={styles.playBtnText}>
-                        {isPlaying ? '■ 멈추기' : '▶ 알림음 들어보기'}
-                      </Text>
-                    </TouchableOpacity>
+                    {/* 들어보기 · 알림 테스트 (한 줄) */}
+                    <View style={styles.btnRow}>
+                      <TouchableOpacity
+                        style={[styles.playBtn, isPlaying && styles.playBtnStop]}
+                        onPress={() => handlePlay(item)}
+                        activeOpacity={0.85}
+                        disabled={isPreparing}
+                      >
+                        {isPreparing ? (
+                          <ActivityIndicator color={Colors.dark} />
+                        ) : (
+                          <>
+                            <Ionicons
+                              name={isPlaying ? 'stop' : 'play'}
+                              size={20}
+                              color={Colors.dark}
+                              style={styles.btnIcon}
+                            />
+                            <Text style={styles.playBtnText}>
+                              {isPlaying ? '멈추기' : '들어보기'}
+                            </Text>
+                          </>
+                        )}
+                      </TouchableOpacity>
 
-                    {/* 실제 알림 테스트해보기 (보조, 점선 회색) */}
-                    <TouchableOpacity
-                      style={styles.testBtn}
-                      onPress={() => handleTestAlarm(item)}
-                      activeOpacity={0.85}
-                      disabled={isTesting}
-                    >
-                      {isTesting ? (
-                        <ActivityIndicator color={Colors.textSub} />
-                      ) : (
-                        <Text style={styles.testBtnText}>
-                          🔔 실제 알림 테스트해보기
-                        </Text>
-                      )}
-                    </TouchableOpacity>
+                      <TouchableOpacity
+                        style={styles.testBtn}
+                        onPress={() => handleTestAlarm(item)}
+                        activeOpacity={0.85}
+                        disabled={isTesting}
+                      >
+                        {isTesting ? (
+                          <ActivityIndicator color={Colors.textSub} />
+                        ) : (
+                          <>
+                            <Ionicons
+                              name="notifications"
+                              size={20}
+                              color={Colors.dark}
+                              style={styles.btnIcon}
+                            />
+                            <Text style={styles.testBtnText}>알림 테스트</Text>
+                          </>
+                        )}
+                      </TouchableOpacity>
+                    </View>
                     <Text style={styles.testHint}>
                       ⓘ 휴대폰이 진동 모드면 소리가 들리지 않아요
                     </Text>
@@ -411,7 +478,7 @@ export function AlarmSoundSettingsScreen() {
             {/* 새 알림음 등록 */}
             <TouchableOpacity
               style={styles.addButton}
-              onPress={() => navigateTo('RecordSound')}
+              onPress={() => navigation.navigate('RecordSound')}
               activeOpacity={0.85}
             >
               <Text style={styles.addButtonText}>＋ 새 알림음 등록</Text>
@@ -511,14 +578,24 @@ const styles = StyleSheet.create({
     marginTop: 3,
   },
 
+  // 들어보기 · 알림 테스트 한 줄
+  btnRow: {
+    flexDirection: 'row',
+    gap: 12,
+    marginTop: 16,
+  },
+  btnIcon: {
+    marginRight: 6,
+  },
   // 알림음 들어보기 (심플 — 설정 행 스타일 차용)
   playBtn: {
+    flex: 1,
     minHeight: 54,
     borderRadius: 14,
+    flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
     backgroundColor: Colors.light,
-    marginTop: 16,
   },
   playBtnStop: {
     backgroundColor: '#E6E6E6',
@@ -563,12 +640,13 @@ const styles = StyleSheet.create({
 
   // 실제 알림 테스트 (심플 — 들어보기와 동일 높이·스타일)
   testBtn: {
+    flex: 1,
     minHeight: 54,
     borderRadius: 14,
+    flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
     backgroundColor: Colors.light,
-    marginTop: 12,
   },
   testBtnText: {
     fontSize: 17,
@@ -614,24 +692,40 @@ const styles = StyleSheet.create({
     color: '#fff',
   },
 
-  // 가족 연동 안내
-  emptyWrap: {
+  // 미연동 보호자 안내(가족 연동 유도) — 기준 화면(기록 보기·영상 기록)과 동일한 중앙 심플 안내
+  unlinkedWrap: {
     flex: 1,
     alignItems: 'center',
     justifyContent: 'center',
-    padding: 32,
-    gap: 12,
+    paddingHorizontal: 32,
   },
-  emptyTitle: {
-    fontSize: 24,
-    fontWeight: '800',
-    color: Colors.text,
-  },
-  emptyText: {
-    fontSize: 18,
+  unlinkedTitle: {
+    fontSize: 20,
     color: Colors.textSub,
-    lineHeight: 26,
-    fontWeight: '500',
+    marginTop: 16,
+    fontWeight: '600',
+  },
+  unlinkedDesc: {
+    fontSize: 18,
+    color: Colors.textHint,
     textAlign: 'center',
+    marginTop: 8,
+    lineHeight: 26,
+  },
+  linkFamilyBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 8,
+    height: 56,
+    paddingHorizontal: 24,
+    borderRadius: 12,
+    backgroundColor: Colors.primary,
+    marginTop: 24,
+  },
+  linkFamilyBtnText: {
+    fontSize: 18,
+    fontWeight: '700',
+    color: Colors.white,
   },
 });

@@ -40,6 +40,8 @@ export async function cancelMissedMedRemindNotif(mealTime: string): Promise<void
 Notifications.setNotificationHandler({
   handleNotification: async () => ({
     shouldShowAlert: true,
+    shouldShowBanner: true,
+    shouldShowList: true,
     shouldPlaySound: true,
     shouldSetBadge: false,
   }),
@@ -155,7 +157,8 @@ export async function requestPermissionsAndSaveToken(
         'Content-Type': 'application/json',
         'Prefer': 'return=minimal',
       },
-      body: JSON.stringify({ push_token: token }),
+      // push_platform: iOS/Android 구분 동시 저장 (푸시 라우팅 — 알림음 채널/사운드 분기용)
+      body: JSON.stringify({ push_token: token, push_platform: Platform.OS }),
     });
 
     if (!res.ok) {
@@ -210,7 +213,11 @@ export async function scheduleEffectTrackingNotifications(medNotifs: MedNotif[])
     await Notifications.scheduleNotificationAsync({
       content: {
         title: '😊 몸 상태는 어때요?',
-        body: `약 복용 ${minutesToLabel(n.minutes)} 몸 상태를 기록해보세요.`,
+        // 로컬 폴백은 슬롯 시간대/시각을 모르므로 시간대 없는 폴백 문구 사용.
+        // (서버 약효추적 본문과 동일 체계: "복용약의 {N분 후}" / "복용약 드신 직후")
+        body: n.minutes === 0
+          ? `복용약 드신 직후 몸 상태를 기록해보세요.`
+          : `복용약의 ${minutesToLabel(n.minutes)} 몸 상태를 기록해보세요.`,
         data: { type: 'effect_tracking', minutes: n.minutes },
       },
       trigger: {
@@ -223,49 +230,27 @@ export async function scheduleEffectTrackingNotifications(medNotifs: MedNotif[])
 
 const EXERCISE_NOTIF_IDS_KEY = 'exerciseNotifIds';
 
-/** 운동 알림 스케줄 (매일 반복) — 운동 알림만 선택적으로 취소하여 약효추적 알림 보존 */
-export async function scheduleExerciseReminders(exerciseNotifs: ExerciseNotif[]): Promise<void> {
-  // 이전에 등록된 운동 알림 ID 목록 조회 후 해당 ID들만 취소
+/**
+ * 운동 예정 알림 — 서버 푸시(send-medication-reminders 섹션4)로 전담 발송.
+ * 로컬 알림 등록 제거 (서버 푸시와 중복 발송 방지).
+ * 기존 사용자 기기에 등록된 로컬 운동 알림(exercise-*)이 있으면 취소만 수행.
+ * 인자는 호출처 호환을 위해 유지하나 더 이상 사용하지 않음.
+ */
+export async function scheduleExerciseReminders(_exerciseNotifs: ExerciseNotif[]): Promise<void> {
+  // 기존에 등록된 로컬 운동 알림 취소 (하위 호환 — exercise-{id} 식별자)
   try {
-    const savedIds = await AsyncStorage.getItem(EXERCISE_NOTIF_IDS_KEY);
-    if (savedIds) {
-      const ids: string[] = JSON.parse(savedIds);
-      for (const id of ids) {
-        try {
-          await Notifications.cancelScheduledNotificationAsync(id);
-        } catch {}
+    const scheduled = await Notifications.getAllScheduledNotificationsAsync();
+    for (const n of scheduled) {
+      if (n.identifier.startsWith('exercise-')) {
+        await Notifications.cancelScheduledNotificationAsync(n.identifier);
       }
     }
   } catch {}
-
-  const newIds: string[] = [];
-
-  for (const notif of exerciseNotifs) {
-    if (!notif.enabled) continue;
-
-    let hour = notif.hour;
-    if (notif.ampm === '오후' && hour !== 12) hour += 12;
-    if (notif.ampm === '오전' && hour === 12) hour = 0;
-
-    const identifier = `exercise-${notif.id}`;
-    await Notifications.scheduleNotificationAsync({
-      identifier,
-      content: {
-        title: '🏃 운동할 시간이에요!',
-        body: '오늘 운동 기록을 남겨보세요.',
-        data: { type: 'exercise_reminder' },
-      },
-      trigger: {
-        type: Notifications.SchedulableTriggerInputTypes.DAILY,
-        hour,
-        minute: notif.minute,
-      },
-    });
-    newIds.push(identifier);
-  }
-
-  // 새로 등록한 운동 알림 ID 목록 저장
-  await AsyncStorage.setItem(EXERCISE_NOTIF_IDS_KEY, JSON.stringify(newIds));
+  // 구버전이 AsyncStorage에 저장해둔 운동 알림 ID 목록 잔여분도 정리
+  try {
+    await AsyncStorage.removeItem(EXERCISE_NOTIF_IDS_KEY);
+  } catch {}
+  // 새 로컬 알림 등록하지 않음 — 서버 푸시가 전담
 }
 
 /**

@@ -9,7 +9,8 @@ import {
   Platform,
   ScrollView,
 } from 'react-native';
-import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
+import { SafeAreaView } from 'react-native-safe-area-context';
+import { useBottomSheetPadding } from '../../hooks/useBottomSheetPadding';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useNavigation } from '@react-navigation/native';
 import type { StackNavigationProp } from '@react-navigation/stack';
@@ -29,7 +30,7 @@ export function FamilyCheckScreen() {
   const navigation = useNavigation<Nav>();
   const { signOut } = useAuth();
   const dialog = useDialog();
-  const { bottom: bottomInset } = useSafeAreaInsets();
+  const bottomPadding = useBottomSheetPadding(24);
   const [viewMode, setViewMode] = useState<ViewMode>('question');
   const [selectedChoice, setSelectedChoice] = useState<ChoiceKey | null>(null);
   // 초대 코드는 항상 6자리 숫자 (generateInviteCode가 숫자 코드만 생성).
@@ -146,20 +147,27 @@ export function FamilyCheckScreen() {
       }
 
       const trimmedName = (maskedName ?? '').trim();
-      if (!trimmedName || trimmedName === 'null') {
-        // 그룹은 찾았으나 환자 정보 확인 불가 → 코드 오류와 동일하게 처리.
-        dialog.alert({ title: '코드 오류', message: '올바른 초대 코드가 아니에요. 다시 확인해주세요.' });
-        setLoading(false);
-        return;
-      }
+      const hasPatient = !!trimmedName && trimmedName !== 'null';
 
+      // 그룹은 확정됐다. 환자 유무에 따라 확인 문구만 달라진다.
+      //  - 환자 있는 그룹: 마스킹된 환자명으로 "○○님과 연동돼요" 확인.
+      //  - 환자 없는 보호자 선(先)그룹(결정 A): 아직 환자 없이 가족(보호자)끼리 먼저
+      //    연결되는 경우 → 코드 오류로 막지 말고 안내 후 진행. (나중에 환자 후합류 가능)
+      //    ※ 환자 2명/환자 이동 위험은 서버 RPC(join_family_by_code) + DB 제약이 막는다.
       setLoading(false);
-      const ok = await dialog.confirm({
-        title: '연동할 환자 확인',
-        message: `${trimmedName} 님과 가족으로 연동돼요.\n맞으신가요?`,
-        confirmText: '네, 맞아요',
-        cancelText: '아니요, 다시 입력할게요',
-      });
+      const ok = hasPatient
+        ? await dialog.confirm({
+            title: '연동할 가족 확인',
+            message: `${trimmedName} 님과 가족으로 연동돼요.\n맞으신가요?`,
+            confirmText: '네, 맞아요',
+            cancelText: '아니요, 다시 입력할게요',
+          })
+        : await dialog.confirm({
+            title: '가족 연결 확인',
+            message: '아직 환자가 등록되지 않은 가족 그룹이에요.\n가족(보호자)끼리 먼저 연결되고, 환자분은 나중에 함께 연결할 수 있어요.\n이 가족과 연결할까요?',
+            confirmText: '네, 연결할게요',
+            cancelText: '아니요, 다시 입력할게요',
+          });
       if (!ok) {
         // 취소 → 저장하지 않고 코드 입력 화면에 머무름(입력값 비우기)
         setCode('');
@@ -228,13 +236,10 @@ export function FamilyCheckScreen() {
                 autoFocus
               />
             </View>
-
-            {/* 임시 디버그 마커 — OTA 적용 확인용 */}
-            <Text style={styles.otaMarker}>연동 점검판 v3 (2026-05-29)</Text>
           </ScrollView>
 
           {/* 하단 버튼 */}
-          <View style={[styles.bottomArea, { paddingBottom: 40 + bottomInset }]}>
+          <View style={[styles.bottomArea, { paddingBottom: bottomPadding }]}>
             <PrimaryButton
               title="확인하기"
               onPress={handleCodeConfirm}
@@ -269,7 +274,7 @@ export function FamilyCheckScreen() {
           가족 중에 파킨온을{'\n'}쓰고 있는 분이 계신가요?
         </Text>
         <Text style={styles.subtitle}>
-          가족과 연결하면 서로 건강 상태를{'\n'}확인할 수 있어요
+          가족 연결하면 환자분의 기록을{'\n'}실시간으로 확인할 수 있어요
         </Text>
 
         <View style={styles.btnGroup}>
@@ -300,7 +305,7 @@ export function FamilyCheckScreen() {
       </ScrollView>
 
       {/* 하단 버튼 */}
-      <View style={[styles.bottomArea, { paddingBottom: 40 + bottomInset }]}>
+      <View style={[styles.bottomArea, { paddingBottom: bottomPadding }]}>
         <PrimaryButton
           title="다음으로"
           onPress={handleConfirm}
@@ -347,7 +352,7 @@ const styles = StyleSheet.create({
   },
   contentScroll: {
     paddingHorizontal: 24,
-    paddingTop: 16,
+    paddingTop: 8,
     paddingBottom: 220,
   },
   scrollContent: {
@@ -356,18 +361,18 @@ const styles = StyleSheet.create({
     paddingBottom: 24,
   },
   title: {
-    fontSize: 26,
+    fontSize: 23,
     fontWeight: '700',
     color: Colors.text,
-    marginBottom: 12,
-    lineHeight: 38,
+    marginBottom: 8,
+    lineHeight: 32,
     textAlign: 'center',
   },
   subtitle: {
-    fontSize: 18,
+    fontSize: 17,
     color: Colors.textSub,
-    marginBottom: 28,
-    lineHeight: 28,
+    marginBottom: 20,
+    lineHeight: 25,
     textAlign: 'center',
   },
   btnGroup: {
@@ -440,7 +445,8 @@ const styles = StyleSheet.create({
   codeInput: {
     width: '100%',
     maxWidth: 320,
-    height: 76,
+    minHeight: 76,
+    paddingVertical: 14,
     borderRadius: 14,
     borderWidth: 2,
     borderColor: Colors.border,
@@ -450,20 +456,17 @@ const styles = StyleSheet.create({
     letterSpacing: 10,
     color: Colors.text,
     textAlign: 'center',
+    textAlignVertical: 'center',
+    includeFontPadding: false,
   },
   codeInputFilled: {
     borderColor: Colors.primary,
     backgroundColor: Colors.light,
     color: Colors.dark,
   },
-  otaMarker: {
-    fontSize: 12,
-    color: '#BBB',
-    textAlign: 'center',
-    marginTop: 12,
-  },
   bottomArea: {
     paddingHorizontal: 24,
+    paddingTop: 16,
     gap: 12,
   },
   closeBtn: {

@@ -3,6 +3,7 @@ import { supabase } from '../lib/supabase';
 import { useAuth } from '../context/AuthContext';
 import { usePatientId } from './usePatientId';
 import { triggerLabelToMinutes } from '../utils/medUtils';
+import { normalizeMediaOrder } from '../utils/diaryMedia';
 
 // ─── 자동 수집 요약 타입 ──────────────────────────────────────────────────────
 
@@ -36,6 +37,8 @@ export interface AutoSummary {
   moodByTime: TimePointAvg[]; // 기분(mood) 시간대별 평균
   exercise: ExerciseSummaryItem[];
   exerciseCount: number;
+  sleep: number | null; // 수면 점수(1~5). 그날 첫 기록값. 없으면 null
+  constipation: boolean | null; // 변비 있음/없음. 그날 마지막 기록값. 없으면 null
   media: MediaSummaryItem[];
 }
 
@@ -54,6 +57,9 @@ export interface DiaryEntry {
   photo_urls: string[];
   video_media_id: string | null;
   video_url: string | null; // video_media_id로 조인한 media_logs.r2_url
+  video_duration_seconds: number | null; // video_media_id로 조인한 media_logs.duration_seconds (없으면 null → 썸네일이 메타로 폴백)
+  // 첨부 표시 순서 토큰('photo:<url>'|'video'|'audio'). null이면 기본 순서(사진→영상→음성) 폴백.
+  media_order: string[] | null;
   created_at: string;
   updated_at: string;
 }
@@ -64,6 +70,46 @@ export interface SaveMyEntryInput {
   audioR2Key: string | null;
   photoUrls: string[];
   videoMediaId: string | null;
+  // 사용자가 정한 첨부 순서 토큰 배열. 저장 시 현재 첨부 구성에 맞춰 정합화 후 upsert.
+  mediaOrder: string[] | null;
+}
+
+// ─── 일기 영상 media_logs 행 + R2 파일 삭제 (베스트에포트) ────────────────────
+// 일기에서 영상을 제거/교체/글삭제하면 그 video_media_id가 가리키던 media_logs
+// 행과 R2 파일도 함께 지워, 영상 기록(VideoList)에서 사라지게 한다.
+// VideoListScreen.handleDelete와 동일한 패턴(delete-r2-file Edge Function +
+// 실패 시 DB 행만 삭제 fallback)을 재사용한다.
+// diary_entries.video_media_id FK는 ON DELETE SET NULL이라, media_logs 행을
+// 먼저 지워도 참조하던 일기 행의 video_media_id가 자동으로 null이 된다.
+// 삭제 실패는 throw하지 않고 로그만 남긴다(일기 저장/삭제 자체를 막지 않음).
+async function deleteDiaryVideoMedia(mediaId: string | null | undefined): Promise<void> {
+  if (!mediaId) return;
+  try {
+    // r2_key 조회 (있으면 R2 파일까지, 없으면 DB 행만 삭제)
+    const { data: ml } = await supabase
+      .from('media_logs')
+      .select('id, r2_key')
+      .eq('id', mediaId)
+      .maybeSingle();
+    if (!ml) return; // 이미 없음
+
+    const r2Key = (ml as { r2_key: string | null }).r2_key;
+    if (r2Key) {
+      const { error: efError } = await supabase.functions.invoke('delete-r2-file', {
+        body: { r2_key: r2Key, media_log_id: mediaId },
+      });
+      if (efError) {
+        console.error('[useDiary] 일기 영상 R2 삭제 실패, DB 행만 삭제 시도:', efError);
+        const { error: dbError } = await supabase.from('media_logs').delete().eq('id', mediaId);
+        if (dbError) console.error('[useDiary] 일기 영상 media_logs 삭제 실패:', dbError);
+      }
+    } else {
+      const { error } = await supabase.from('media_logs').delete().eq('id', mediaId);
+      if (error) console.error('[useDiary] 일기 영상 media_logs 삭제 실패:', error);
+    }
+  } catch (e) {
+    console.error('[useDiary] 일기 영상 정리 중 오류(무시):', e);
+  }
 }
 
 // ─── KST 날짜 → UTC 경계 변환 ─────────────────────────────────────────────────
@@ -94,6 +140,49 @@ function triggerLabelToChip(label: string | null | undefined): string {
   const h = Math.floor(min / 60);
   const rem = min % 60;
   return rem === 0 ? `${h}시간 후` : `${h}시간 ${rem}분 후`;
+}
+
+// ─── 달력용: 작성 이력 있는 날짜 조회 ─────────────────────────────────────────
+// "작성 이력" = 사람이 쓴 일기 엔트리. 그룹(patient_id) 누군가가 그 날짜에
+// 글(text)·사진(photo_urls)·영상(video_media_id)·음성(audio_url) 중 하나라도
+// 가진 diary_entries 행이 있는 날. (자동 기록인 약/약효/운동만 있는 날은 제외 —
+// diary_entries는 사람이 쓴 한마디 테이블이라 그 행의 내용 유무로 판별한다.)
+//
+// 주어진 KST 월(year, month0=0~11)의 [1일, 말일] 범위 entry_date를 가진 행만 조회해
+// 내용 있는 날짜(YYYY-MM-DD)들의 Set을 반환한다. RLS는 기존 일기 조회와 동일.
+export async function fetchDiaryEntryDates(
+  patientId: string,
+  year: number,
+  month0: number,
+): Promise<Set<string>> {
+  const pad = (n: number) => String(n).padStart(2, '0');
+  const firstDay = `${year}-${pad(month0 + 1)}-01`;
+  const lastDate = new Date(year, month0 + 1, 0).getDate();
+  const lastDay = `${year}-${pad(month0 + 1)}-${pad(lastDate)}`;
+
+  const { data, error } = await supabase
+    .from('diary_entries' as any)
+    .select('entry_date, text, photo_urls, video_media_id, audio_url')
+    .eq('patient_id', patientId)
+    .gte('entry_date', firstDay)
+    .lte('entry_date', lastDay);
+
+  if (error) {
+    console.error('[useDiary] fetchDiaryEntryDates 오류:', error);
+    return new Set();
+  }
+
+  const result = new Set<string>();
+  for (const r of (data as any[] | null) ?? []) {
+    const hasText = typeof r.text === 'string' && r.text.trim().length > 0;
+    const hasPhoto = Array.isArray(r.photo_urls) && r.photo_urls.length > 0;
+    const hasVideo = !!r.video_media_id;
+    const hasAudio = !!r.audio_url;
+    if (hasText || hasPhoto || hasVideo || hasAudio) {
+      result.add(r.entry_date);
+    }
+  }
+  return result;
 }
 
 interface UseDiaryReturn {
@@ -139,7 +228,7 @@ export function useDiary(dateStr: string): UseDiaryReturn {
           .order('taken_at', { ascending: true }),
         supabase
           .from('on_off_logs')
-          .select('id, body_state, mood, logged_at, trigger_time_label')
+          .select('id, body_state, mood, sleep_quality, constipation, logged_at, trigger_time_label')
           .eq('patient_id', patientId)
           .gte('logged_at', startUtc)
           .lt('logged_at', endUtc)
@@ -167,6 +256,8 @@ export function useDiary(dateStr: string): UseDiaryReturn {
               id: string;
               body_state: number | null;
               mood: number | null;
+              sleep_quality: number | null;
+              constipation: boolean | null;
               logged_at: string;
               trigger_time_label: string | null;
             }[]
@@ -202,6 +293,12 @@ export function useDiary(dateStr: string): UseDiaryReturn {
           .map(({ label, avg }) => ({ label, avg }));
       };
 
+      // 수면: 그날 첫 기록(가장 이른 logged_at)의 sleep_quality. onOffRows는 오름차순 정렬.
+      // 변비: 그날 마지막 기록(가장 늦은 logged_at)의 constipation. 값이 없으면 null.
+      const sleep = onOffRows.find((r) => r.sleep_quality != null)?.sleep_quality ?? null;
+      const constipation =
+        [...onOffRows].reverse().find((r) => r.constipation != null)?.constipation ?? null;
+
       setAutoSummary({
         med: {
           count: medRows.length,
@@ -211,6 +308,8 @@ export function useDiary(dateStr: string): UseDiaryReturn {
         moodByTime: aggregateByTime('mood'),
         exercise: exRows.map((r) => ({ type: r.exercise_type, minutes: r.duration_minutes })),
         exerciseCount: exRows.length,
+        sleep,
+        constipation,
         media: mediaRows.map((r) => ({ id: r.id, mediaType: r.media_type, url: r.r2_url })),
       });
 
@@ -240,13 +339,18 @@ export function useDiary(dateStr: string): UseDiaryReturn {
       // video_media_id → media_logs.r2_url 조회
       const videoIds = diaryRows.map((r) => r.video_media_id).filter((v): v is string => !!v);
       let videoUrlMap: Record<string, string> = {};
+      // 영상 길이(초) 맵 — 저장돼 있으면 썸네일에서 재생 전에도 길이 배지 표시(몸상태와 동일).
+      let videoDurationMap: Record<string, number> = {};
       if (videoIds.length > 0) {
         const { data: vData } = await supabase
           .from('media_logs')
-          .select('id, r2_url')
+          .select('id, r2_url, duration_seconds')
           .in('id', videoIds);
-        for (const v of (vData as { id: string; r2_url: string }[] | null) ?? []) {
+        for (const v of (vData as { id: string; r2_url: string; duration_seconds: number | null }[] | null) ?? []) {
           videoUrlMap[v.id] = v.r2_url;
+          if (typeof v.duration_seconds === 'number' && v.duration_seconds > 0) {
+            videoDurationMap[v.id] = v.duration_seconds;
+          }
         }
       }
 
@@ -263,6 +367,8 @@ export function useDiary(dateStr: string): UseDiaryReturn {
         photo_urls: Array.isArray(r.photo_urls) ? r.photo_urls : [],
         video_media_id: r.video_media_id ?? null,
         video_url: r.video_media_id ? videoUrlMap[r.video_media_id] ?? null : null,
+        video_duration_seconds: r.video_media_id ? videoDurationMap[r.video_media_id] ?? null : null,
+        media_order: Array.isArray(r.media_order) ? r.media_order : null,
         created_at: r.created_at,
         updated_at: r.updated_at,
       }));
@@ -284,6 +390,27 @@ export function useDiary(dateStr: string): UseDiaryReturn {
     async (input: SaveMyEntryInput) => {
       if (!patientId || !user) throw new Error('저장에 필요한 정보가 없어요.');
       const nowIso = new Date().toISOString();
+      // 최종 첨부 구성에 맞춰 순서 토큰을 정합화(삭제된 토큰 제거·신규 토큰 append).
+      // input.mediaOrder가 null이면 기본 순서(사진→영상→음성)로 만들어진다.
+      const mediaOrder = normalizeMediaOrder(input.mediaOrder, {
+        photoUrls: input.photoUrls,
+        hasVideo: !!input.videoMediaId,
+        hasAudio: !!input.audioUrl,
+      });
+
+      // 저장 전 기존 행의 video_media_id를 조회해 둔다.
+      // 사용자가 영상을 ✕로 제거(새 video_media_id=null)했거나 다른 영상으로
+      // 교체(새 id≠이전 id)한 경우, 더 이상 참조되지 않는 이전 영상의
+      // media_logs 행 + R2 파일을 정리하기 위함이다.
+      const { data: prevRow } = await supabase
+        .from('diary_entries' as any)
+        .select('video_media_id')
+        .eq('patient_id', patientId)
+        .eq('entry_date', dateStr)
+        .eq('author_id', user.id)
+        .maybeSingle();
+      const prevVideoMediaId = (prevRow as { video_media_id: string | null } | null)?.video_media_id ?? null;
+
       const { error } = await supabase
         .from('diary_entries' as any)
         .upsert(
@@ -296,11 +423,20 @@ export function useDiary(dateStr: string): UseDiaryReturn {
             audio_r2_key: input.audioR2Key,
             photo_urls: input.photoUrls,
             video_media_id: input.videoMediaId,
+            media_order: mediaOrder,
             updated_at: nowIso,
           },
           { onConflict: 'patient_id,entry_date,author_id' },
         );
       if (error) throw new Error(error.message);
+
+      // 저장(diary_entries.video_media_id 갱신) 후에 이전 영상을 정리한다.
+      // 순서상 일기 행이 먼저 새 값을 가리키므로 FK(SET NULL) 충돌 없이 안전하다.
+      // 이전 영상이 있고 + 더 이상 참조되지 않으면(제거 또는 교체) 삭제. 베스트에포트.
+      if (prevVideoMediaId && prevVideoMediaId !== input.videoMediaId) {
+        await deleteDiaryVideoMedia(prevVideoMediaId);
+      }
+
       await fetchAll();
     },
     [patientId, user, dateStr, fetchAll],
@@ -309,6 +445,17 @@ export function useDiary(dateStr: string): UseDiaryReturn {
   // 내가 쓴 그날의 글 삭제 (RLS: author 본인만 삭제 허용)
   const deleteMyEntry = useCallback(async () => {
     if (!patientId || !user) throw new Error('삭제에 필요한 정보가 없어요.');
+
+    // 글에 첨부된 영상(video_media_id)을 미리 조회 → 글 삭제 후 함께 정리.
+    const { data: row } = await supabase
+      .from('diary_entries' as any)
+      .select('video_media_id')
+      .eq('patient_id', patientId)
+      .eq('entry_date', dateStr)
+      .eq('author_id', user.id)
+      .maybeSingle();
+    const videoMediaId = (row as { video_media_id: string | null } | null)?.video_media_id ?? null;
+
     const { error } = await supabase
       .from('diary_entries' as any)
       .delete()
@@ -316,6 +463,10 @@ export function useDiary(dateStr: string): UseDiaryReturn {
       .eq('entry_date', dateStr)
       .eq('author_id', user.id);
     if (error) throw new Error(error.message);
+
+    // 글 삭제 성공 후 그 글의 영상 media_logs 행 + R2 파일 정리(베스트에포트).
+    await deleteDiaryVideoMedia(videoMediaId);
+
     await fetchAll();
   }, [patientId, user, dateStr, fetchAll]);
 

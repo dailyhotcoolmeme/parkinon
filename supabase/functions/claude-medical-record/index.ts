@@ -66,7 +66,7 @@ const PROMPT_MEDICAL_RECORD = `이 처방전 사진에서 약 이름과 용량�
 {"medications":[{"name":"약 이름","dosage":"용량 또는 빈 문자열"}]}
 약이 보이지 않거나 읽기 어려우면 {"medications":[]} 를 반환하세요.`;
 
-const PROMPT_MEDICATION_MANAGE = `이 사진에서 약 이름, EDI코드, 복용 시간대를 추출해주세요.
+const PROMPT_MEDICATION_MANAGE = `이 사진에서 약 이름, EDI코드, 복용량, 1일 복용 횟수, 복용 시간대를 추출해주세요.
 
 규칙:
 - 사진에 명확하게 보이는 약 이름만 추출하세요. 확실하지 않으면 추출하지 마세요.
@@ -75,6 +75,17 @@ const PROMPT_MEDICATION_MANAGE = `이 사진에서 약 이름, EDI코드, 복용
 - 약봉투/약봉지이면: 봉투에 인쇄된 약품명을 읽으세요
 - 복용 시간대가 명확히 표시된 경우만 포함하세요. 불명확하면 빈 배열로 두세요.
 
+복용량 규칙 (dosage):
+- 1회 복용량(예: "1정", "1포", "2캡슐", "5mg", "10mL" 등)이 처방전/약봉투에 명확히 표시된 경우 그대로 dosage에 채우세요.
+- 보통 처방전의 "1회 투약량" 컬럼 또는 약봉투의 1회 복용량에 표기됩니다.
+- 명확하지 않거나 보이지 않으면 dosage를 빈 문자열 ""로 두세요. 추측 금지.
+
+1일 복용 횟수 규칙 (dailyCount, 매우 중요):
+- 처방전/약봉투에 "1일 3회", "1일 투여횟수 3", "1일 3번", "하루 2회" 등으로 표시된 1일 복용 횟수를 정수로 추출하세요. 예: "1일 3회" → 3.
+- 보통 처방전의 "1일투여량/투여횟수" 또는 "투약 횟수" 컬럼에 있습니다.
+- 숫자가 명확히 보일 때만 dailyCount에 그 정수를 채우세요.
+- 1일 횟수를 알 수 없거나 명확하지 않으면 dailyCount를 null로 두세요. 추측 금지.
+
 EDI코드 규칙 (매우 중요):
 - 처방전(처방전 양식이 명확한 경우)에는 각 약품마다 EDI코드(건강보험 표준코드)가 인쇄되어 있습니다. 9자리 숫자 (예: 664601180)입니다.
 - 보통 약품명 옆에 "EDI코드" 또는 "코드" 컬럼에 표기됩니다.
@@ -82,8 +93,10 @@ EDI코드 규칙 (매우 중요):
 - 약봉투/약봉지에는 EDI코드가 없습니다. 코드가 없거나 읽을 수 없으면 ediCode를 빈 문자열 ""로 두세요. 추측 금지.
 
 반드시 아래 JSON 형식으로만 응답하세요 (다른 텍스트 없이):
-{"medications":[{"name":"약 이름","ediCode":"664601180","times":["morning","lunch","dinner","bedtime"]}]}
+{"medications":[{"name":"약 이름","ediCode":"664601180","dosage":"1정","dailyCount":3,"times":["morning","lunch","dinner","bedtime"]}]}
 복용 시간대: morning(아침)/lunch(점심)/dinner(저녁)/bedtime(취침)
+dosage: 1회 복용량. 모르면 "".
+dailyCount: 1일 복용 횟수(정수). 모르면 null.
 개인정보(이름, 주민번호 등)는 무시하세요.
 약이 보이지 않거나 읽기 어려우면 {"medications":[]} 를 반환하세요.`;
 
@@ -222,11 +235,22 @@ Deno.serve(async (req: Request) => {
     }
 
     if (mode === 'medication_manage') {
-      const medications = (parsed.medications ?? []).map((m: any) => ({
-        name: String(m.name ?? '').trim(),
-        ediCode: m.ediCode ? String(m.ediCode).trim() : '',
-        times: Array.isArray(m.times) ? m.times.map((t: any) => String(t)) : [],
-      })).filter((m: any) => m.name.length > 0);
+      const medications = (parsed.medications ?? []).map((m: any) => {
+        // dailyCount: 정수 양수만 채택. 그 외(null/0/문자열/음수)는 null.
+        let dailyCount: number | null = null;
+        const rawCount = m.dailyCount ?? m.daily_count;
+        if (rawCount !== null && rawCount !== undefined) {
+          const n = Math.trunc(Number(rawCount));
+          if (Number.isFinite(n) && n > 0) dailyCount = n;
+        }
+        return {
+          name: String(m.name ?? '').trim(),
+          ediCode: m.ediCode ? String(m.ediCode).trim() : '',
+          dosage: m.dosage ? String(m.dosage).trim() : '',
+          dailyCount,
+          times: Array.isArray(m.times) ? m.times.map((t: any) => String(t)) : [],
+        };
+      }).filter((m: any) => m.name.length > 0);
       return new Response(JSON.stringify({ medications }), {
         status: 200,
         headers: { ...corsHeaders, 'Content-Type': 'application/json' },

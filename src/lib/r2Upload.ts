@@ -12,6 +12,39 @@ import { supabase } from './supabase';
 
 export const R2_BUCKET = 'parkinon-media';
 
+/**
+ * 미디어 프록시 워커 호스트(커뮤니티 사진 공개 서빙용).
+ * 커뮤니티(정보/나눔) 사진은 이 워커의 /parkinon/community/... 경로로 토큰 없이 공개 서빙된다.
+ * 의료/영상은 비공개(서명 URL) 유지 — 이 호스트와 무관하게 r2-get-url 을 탄다.
+ */
+export const MEDIA_PROXY_HOST = 'parkinon-media-proxy.dailyhotcoolmeme.workers.dev';
+
+/**
+ * 저장된 커뮤니티 사진 값(공개 URL 또는 key)을 워커 공개 URL 로 변환.
+ * - 이미 워커 공개 URL 이면 그대로.
+ * - parkinon/community/... key 또는 (구) r2.dev 공개 URL 이면 워커 공개 URL 로 정규화.
+ * - 그 외(유튜브 등 비R2)는 원본 그대로.
+ * 서명/엣지함수 왕복 없음 → 즉시 로딩.
+ */
+export function getCommunityPhotoUrl(input: string | null | undefined): string {
+  const s = input ? String(input).trim() : '';
+  if (!s) return '';
+  // 이미 워커 공개 URL
+  if (s.includes(`${MEDIA_PROXY_HOST}/parkinon/community/`)) return s;
+  // key 추출(parkinon/community/... 또는 parkinon/...)
+  const idx = s.indexOf('parkinon/');
+  if (idx < 0) return s; // 비R2
+  let key = s.slice(idx);
+  const q = key.indexOf('?');
+  if (q >= 0) key = key.slice(0, q);
+  // 구 데이터 호환: photos/ → community/ 로 매핑(마이그레이션된 키와 일치)
+  if (key.startsWith('parkinon/photos/')) {
+    key = key.replace('parkinon/photos/', 'parkinon/community/');
+  }
+  const encoded = key.split('/').map((seg) => encodeURIComponent(seg)).join('/');
+  return `https://${MEDIA_PROXY_HOST}/${encoded}`;
+}
+
 /** 6개월 후 만료일 계산 */
 function calcExpiresAt(): string {
   const d = new Date();
@@ -107,11 +140,26 @@ async function uploadToR2(
       }, timeoutMs);
     }
 
-    // fetch blob from local URI and send
-    fetch(localUri)
+    // fetch blob from local URI and send.
+    // 로컬 URI blob 변환이 hang 되면 업로드 자체가 영원히 안 끝나므로
+    // AbortController 로 타임아웃 가드(기본 15초). XHR 업로드 타임아웃과 별개.
+    const blobController = new AbortController();
+    const blobTimeoutMs = timeoutMs ?? 15000;
+    const blobTimer = setTimeout(() => blobController.abort(), blobTimeoutMs);
+    fetch(localUri, { signal: blobController.signal })
       .then((r) => r.blob())
-      .then((blob) => xhr.send(blob))
-      .catch(reject);
+      .then((blob) => {
+        clearTimeout(blobTimer);
+        xhr.send(blob);
+      })
+      .catch((err: any) => {
+        clearTimeout(blobTimer);
+        if (err?.name === 'AbortError') {
+          reject(new Error('UPLOAD_TIMEOUT'));
+        } else {
+          reject(err);
+        }
+      });
   });
 
   return publicUrl;
@@ -193,6 +241,30 @@ export async function uploadPhoto(
   const yearMonth = getYearMonth();
   const uuid = generateUuid();
   const key = `parkinon/photos/${patientId}/${yearMonth}/${uuid}.jpg`;
+  const expiresAt = calcExpiresAt();
+
+  const url = await uploadToR2(localUri, 'image/jpeg', key);
+
+  return { url, key, expires_at: expiresAt };
+}
+
+/**
+ * 커뮤니티(정보/나눔) 게시판 사진을 R2 에 업로드합니다.
+ *
+ * 의료 사진과 달리 민감정보가 아니므로 **공개 prefix** 로 올린다:
+ *   parkinon/community/{uploaderUserId}/{YYYY-MM}/{uuid}.jpg
+ * r2-upload 엣지함수가 이 prefix 를 인식해 워커 공개 URL 을 반환한다(토큰 불필요 → 즉시 로딩).
+ *
+ * @param localUri 로컬 파일 URI (업로드 전 1280px/quality 0.7 압축 권장 — 기존대로)
+ * @param userId   업로더(작성자) user id
+ */
+export async function uploadCommunityPhoto(
+  localUri: string,
+  userId: string,
+): Promise<UploadResult> {
+  const yearMonth = getYearMonth();
+  const uuid = generateUuid();
+  const key = `parkinon/community/${userId}/${yearMonth}/${uuid}.jpg`;
   const expiresAt = calcExpiresAt();
 
   const url = await uploadToR2(localUri, 'image/jpeg', key);

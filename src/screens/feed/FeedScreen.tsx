@@ -21,11 +21,20 @@ import { useScrollTopOnTabPress } from '../../hooks/useScrollTopOnTabPress';
 import { useAuth } from '../../context/AuthContext';
 import { useDialog } from '../../context/DialogContext';
 import { ensureNotGuest } from '../../utils/guestGuard';
+import { ensureNotBanned } from '../../utils/banGuard';
+import { useBlocks } from '../../hooks/useBlocks';
+import { getCommunityPhotoUrl } from '../../lib/r2Upload';
 
 type Nav = NativeStackNavigationProp<FeedStackParamList, 'FeedMain'>;
 type IoniconName = React.ComponentProps<typeof Ionicons>['name'];
 
 const PAGE_SIZE = 20;
+
+// 목록에서 실제 사용하는 컬럼만 명시 (select('*') 대비 페이로드 축소).
+// mapPost 가 쓰는 필드: id, is_news, post_type, author_id, created_at,
+//   view_count, title, content, comment_count, like_count + author/post_media 조인.
+const POST_SELECT =
+  'id, is_news, post_type, author_id, created_at, view_count, title, content, comment_count, like_count, author:public_user_profiles(name, role), post_media(r2_url, sort_order, media_type)';
 
 export interface PostItem {
   id: string;
@@ -35,6 +44,7 @@ export interface PostItem {
   categoryIcon: IoniconName;
   author: string;
   authorId?: string;
+  authorRole?: string;  // 작성자 역할 표시 라벨 ('환자' | '보호자'). 뉴스 등은 undefined.
   date: string;
   views: number;
   title: string;
@@ -91,12 +101,6 @@ function formatDate(isoString: string): string {
   return `${month}월 ${date}일 (${day}) ${hh}:${mm}`;
 }
 
-function getThumbnailUrl(url: string | undefined): string | undefined {
-  if (!url) return undefined;
-  const sep = url.includes('?') ? '&' : '?';
-  return `${url}${sep}width=200&quality=75&format=webp`;
-}
-
 type MainTab = 'all' | 'bookmarks' | 'mine';
 
 export function FeedScreen() {
@@ -106,6 +110,8 @@ export function FeedScreen() {
   const { toastMsg, toastVisible, showToast } = useToast();
   const { user, signOut } = useAuth();
   const dialog = useDialog();
+  // 차단한 사용자 글 제외 (App Store 1.2 UGC)
+  const { blockedIds, refresh: refreshBlocks } = useBlocks();
   const scrollY = useRef(new Animated.Value(0)).current;
   const lastScrollY = useRef(0);
   // 탭 버튼 누를 때 항상 맨 위로
@@ -160,6 +166,10 @@ export function FeedScreen() {
     categoryIcon: POST_TYPE_ICON[p.post_type] ?? 'chatbubble-outline',
     author: p.author?.name ?? '알 수 없음',
     authorId: p.author_id ?? undefined,
+    // 작성자 역할 라벨 (DiaryScreen 과 동일 규칙: caregiver→보호자, 그 외→환자)
+    authorRole: p.author?.role
+      ? (p.author.role === 'caregiver' ? '보호자' : '환자')
+      : undefined,
     date: formatDate(p.created_at),
     views: p.view_count ?? 0,
     title: p.title ?? '',
@@ -220,7 +230,7 @@ export function FeedScreen() {
         if (!session?.user) { setPosts([]); setLoading(false); setLoadingMore(false); return; }
         const { data, error } = await supabase
           .from('post_bookmarks')
-          .select('post_id, posts!inner(*, author:users(name), post_media(r2_url, sort_order, media_type))')
+          .select(`post_id, posts!inner(${POST_SELECT})`)
           .eq('user_id', session.user.id)
           .order('created_at', { ascending: false })
           .range(from, to);
@@ -238,7 +248,7 @@ export function FeedScreen() {
         if (!session?.user) { setPosts([]); setLoading(false); setLoadingMore(false); return; }
         let q = supabase
           .from('posts')
-          .select('*, author:users(name), post_media(r2_url, sort_order, media_type)')
+          .select(POST_SELECT)
           .eq('author_id', session.user.id)
           .order('created_at', { ascending: false })
           .range(from, to);
@@ -269,23 +279,28 @@ export function FeedScreen() {
       if (currentCategory === 'info') {
         let query = supabase
           .from('posts')
-          .select('*, author:users(name), post_media(r2_url, sort_order, media_type)')
+          .select(POST_SELECT)
           .eq('post_type', 'info')
           .order('created_at', { ascending: false })
           .range(from, to);
         if (currentSearch.trim()) query = query.ilike('title', `%${currentSearch.trim()}%`);
-        const { data: postsData, error: postsError } = await query;
+
+        // 게시글 + 뉴스를 병렬 조회 (순차 await 제거)
+        const wantNews = !currentSearch.trim() && reset;
+        const newsPromise = wantNews
+          ? supabase
+              .from('news_feed')
+              .select('id, title, description, published_at, source_name, url')
+              .order('published_at', { ascending: false })
+              .limit(5)
+          : Promise.resolve({ data: null });
+        const [{ data: postsData, error: postsError }, { data: newsData }] = await Promise.all([
+          query,
+          newsPromise,
+        ]);
         if (postsError) throw postsError;
         mappedPosts = (postsData ?? []).map(mapPost);
-
-        if (!currentSearch.trim() && reset) {
-          const { data: newsData } = await supabase
-            .from('news_feed')
-            .select('id, title, description, published_at, source_name, url')
-            .order('published_at', { ascending: false })
-            .limit(5);
-          newsFeedItems = (newsData ?? []).map(mapNews);
-        }
+        if (wantNews) newsFeedItems = (newsData ?? []).map(mapNews);
 
         if (reset) {
           if (newsFeedItems.length > 0) {
@@ -309,24 +324,28 @@ export function FeedScreen() {
 
       let query = supabase
         .from('posts')
-        .select('*, author:users(name), post_media(r2_url, sort_order, media_type)')
+        .select(POST_SELECT)
         .order('created_at', { ascending: false })
         .range(from, to);
       if (currentCategory !== 'all') query = query.eq('post_type', currentCategory);
       if (currentSearch.trim()) query = query.ilike('title', `%${currentSearch.trim()}%`);
-      const { data: postsData, error: postsError } = await query;
+
+      // 전체 탭: 게시글 + 뉴스 인터리빙 → 병렬 조회 (순차 await 제거)
+      const wantNews = currentCategory === 'all' && !currentSearch.trim() && reset;
+      const newsPromise = wantNews
+        ? supabase
+            .from('news_feed')
+            .select('id, title, description, published_at, source_name, url')
+            .order('published_at', { ascending: false })
+            .limit(5)
+        : Promise.resolve({ data: null });
+      const [{ data: postsData, error: postsError }, { data: newsData }] = await Promise.all([
+        query,
+        newsPromise,
+      ]);
       if (postsError) throw postsError;
       mappedPosts = (postsData ?? []).map(mapPost);
-
-      // 전체 탭: 뉴스 인터리빙
-      if (currentCategory === 'all' && !currentSearch.trim() && reset) {
-        const { data: newsData } = await supabase
-          .from('news_feed')
-          .select('id, title, description, published_at, source_name, url')
-          .order('published_at', { ascending: false })
-          .limit(5);
-        newsFeedItems = (newsData ?? []).map(mapNews);
-      }
+      if (wantNews) newsFeedItems = (newsData ?? []).map(mapNews);
 
       if (reset) {
         if (newsFeedItems.length > 0) {
@@ -353,14 +372,26 @@ export function FeedScreen() {
     }
   }, [mapPost]);
 
-  // 화면 포커스 시 북마크 먼저 fetch 후 게시글 로드
+  // 화면 포커스 시 북마크 + 게시글을 병렬 로드 (순차 then 제거).
+  // 목록 행에는 북마크 표시가 없고 상세 화면이 북마크 상태를 재조회하므로
+  // 두 요청의 완료 순서는 사용자 경험에 영향 없음 → 병렬화로 첫 로딩 단축.
+  const focusFetchingRef = useRef(false);
   useFocusEffect(
     useCallback(() => {
-      fetchBookmarks().then(() => {
-        fetchPosts(true, searchQueryRef.current, typeFilterRef.current, mainTabRef.current);
+      refreshBlocks();
+      if (focusFetchingRef.current) return; // 중복 동시호출 가드
+      focusFetchingRef.current = true;
+      Promise.all([
+        fetchBookmarks(),
+        fetchPosts(true, searchQueryRef.current, typeFilterRef.current, mainTabRef.current),
+      ]).finally(() => {
+        focusFetchingRef.current = false;
       });
-    }, [fetchPosts, fetchBookmarks])
+    }, [fetchPosts, fetchBookmarks, refreshBlocks])
   );
+
+  // 차단한 사용자의 게시글 제외 (뉴스는 authorId 없음 → 항상 표시)
+  const visiblePosts = posts.filter((p) => !p.authorId || !blockedIds.has(p.authorId));
 
   const handleLoadMore = useCallback(() => {
     if (!loadingMore && hasMore && !loading) {
@@ -423,7 +454,6 @@ export function FeedScreen() {
   };
 
   const renderItem = ({ item }: { item: PostItem }) => {
-    const isRead = readPostIds.has(item.id);
     return (
       <TouchableOpacity
         style={styles.row}
@@ -433,16 +463,13 @@ export function FeedScreen() {
         }}
         activeOpacity={0.75}
       >
-        {/* 불릿 — 읽은 글은 숨김 */}
-        <Text style={[styles.bullet, isRead && { opacity: 0 }]}>•</Text>
-
         {/* 중앙 콘텐츠 */}
         <View style={styles.rowContent}>
           <View style={styles.rowMain}>
-            <Text style={[styles.rowTitle, isRead && styles.rowTitleRead]} numberOfLines={2}>{item.title}</Text>
+            <Text style={styles.rowTitle} numberOfLines={2}>{item.title}</Text>
             {item.thumbnail ? (
               <Image
-                source={{ uri: getThumbnailUrl(item.thumbnail) }}
+                source={{ uri: getCommunityPhotoUrl(item.thumbnail) }}
                 style={styles.rowThumb}
                 resizeMode="cover"
               />
@@ -469,6 +496,8 @@ export function FeedScreen() {
       <TopBar
         title="파킨온"
         showParkinon
+        showDiary
+        onDiaryPress={() => navigateTo('Diary')}
         showBell
         bellBadge={unreadCount}
         onBellPress={() => navigateTo('NotificationHistory', { mode: 'all' })}
@@ -534,16 +563,25 @@ export function FeedScreen() {
 
       <View style={styles.flex}>
         {loading ? (
-          <View style={styles.loadingWrap}>
-            <ActivityIndicator size="large" color={Colors.primary} />
+          <View style={styles.listContent}>
+            {Array.from({ length: 6 }).map((_, i) => (
+              <View key={i} style={styles.skelRow}>
+                <View style={styles.skelContent}>
+                  <View style={[styles.skelLine, { width: '85%' }]} />
+                  <View style={[styles.skelLine, { width: '55%', marginTop: 10 }]} />
+                  <View style={[styles.skelMeta, { marginTop: 12 }]} />
+                </View>
+                <View style={styles.skelComment} />
+              </View>
+            ))}
           </View>
         ) : (
           <FlatList
             ref={listRef}
-            data={posts}
+            data={visiblePosts}
             keyExtractor={(item) => item.id}
             renderItem={renderItem}
-            contentContainerStyle={styles.listContent}
+            contentContainerStyle={[styles.listContent, { paddingBottom: 110 + insets.bottom }]}
             showsVerticalScrollIndicator={false}
             onScroll={handleScroll}
             scrollEventThrottle={16}
@@ -565,6 +603,7 @@ export function FeedScreen() {
           style={[styles.fab, !fabExpanded && styles.fabCircle, { bottom: 28 + insets.bottom }]}
           onPress={async () => {
             if (await ensureNotGuest(user, dialog, { signOut })) return;
+            if (ensureNotBanned(user, dialog)) return;
             navigation.navigate('PostWrite');
           }}
           activeOpacity={0.85}
@@ -582,6 +621,35 @@ const styles = StyleSheet.create({
   safe: { flex: 1, backgroundColor: Colors.white },
   flex: { flex: 1, backgroundColor: Colors.white },
   loadingWrap: { flex: 1, alignItems: 'center', justifyContent: 'center' },
+
+  /* ── 로딩 스켈레톤 (더미 행) ── */
+  skelRow: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    paddingHorizontal: 16,
+    paddingVertical: 18,
+    borderBottomWidth: 1,
+    borderBottomColor: '#F0F0F0',
+  },
+  skelContent: { flex: 1 },
+  skelLine: {
+    height: 16,
+    borderRadius: 5,
+    backgroundColor: '#ECECEC',
+  },
+  skelMeta: {
+    height: 12,
+    width: '40%',
+    borderRadius: 5,
+    backgroundColor: '#F1F1F1',
+  },
+  skelComment: {
+    width: 52,
+    height: 52,
+    borderRadius: 8,
+    backgroundColor: '#F1F1F1',
+    marginLeft: 10,
+  },
   listContent: { paddingTop: 0, paddingBottom: 110 },
   emptyText: {
     textAlign: 'center',

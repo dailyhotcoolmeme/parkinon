@@ -11,6 +11,14 @@ const corsHeaders = {
 const KEY_PATTERN =
   /^parkinon\/(videos|photos)\/([0-9a-fA-F-]{36})\/(\d{4})-(\d{2})\/[A-Za-z0-9_-]+\.(mp4|jpg|jpeg|png|heic)$/;
 
+// 커뮤니티(정보/나눔) 게시판 사진: parkinon/community/{UUID(uploader user id)}/YYYY-MM/{slug}.(jpg|jpeg|png|heic)
+// videos/photos 와 분리된 prefix — 워커가 이 경로만 토큰 없이 공개 서빙(민감정보 아님).
+const COMMUNITY_KEY_PATTERN =
+  /^parkinon\/community\/([0-9a-fA-F-]{36})\/(\d{4})-(\d{2})\/[A-Za-z0-9_-]+\.(jpg|jpeg|png|heic)$/;
+
+// 커뮤니티 사진은 토큰 없이 워커 공개 URL 로 직접 서빙. (R2_PUBLIC_URL=r2.dev 는 비공개 전환됨)
+const R2_PROXY_HOST = Deno.env.get('R2_PROXY_HOST') ?? '';
+
 // 알림음(개인 녹음): parkinon/sounds/{UUID(uploader user id)}/{slug}.(m4a|caf|ogg|mp3|wav|aac)
 const SOUND_KEY_PATTERN =
   /^parkinon\/sounds\/([0-9a-fA-F-]{36})\/[A-Za-z0-9_-]+\.(m4a|caf|ogg|mp3|wav|aac)$/;
@@ -79,14 +87,33 @@ Deno.serve(async (req) => {
       );
     }
 
-    // C6: key 패턴 검증 (sounds 우선 → videos/photos)
+    // C6: key 패턴 검증 (sounds 우선 → community → videos/photos)
     let ownerId: string;
+    let isCommunity = false;
     const soundMatch = key.match(SOUND_KEY_PATTERN);
+    const communityMatch = key.match(COMMUNITY_KEY_PATTERN);
     if (soundMatch) {
       ownerId = soundMatch[1];
       if (!ALLOWED_AUDIO_TYPES.has(contentType)) {
         return new Response(
           JSON.stringify({ error: '허용되지 않는 오디오 contentType 입니다.' }),
+          { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } },
+        );
+      }
+    } else if (communityMatch) {
+      // 커뮤니티 사진: 업로더 본인 경로에만(=ownerId 가 곧 user.id). 이미지 타입만.
+      isCommunity = true;
+      ownerId = communityMatch[1];
+      const month = Number(communityMatch[3]);
+      if (month < 1 || month > 12) {
+        return new Response(
+          JSON.stringify({ error: 'key YYYY-MM 값이 올바르지 않습니다.' }),
+          { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } },
+        );
+      }
+      if (!ALLOWED_IMAGE_TYPES.has(contentType)) {
+        return new Response(
+          JSON.stringify({ error: '허용되지 않는 contentType 입니다.' }),
           { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } },
         );
       }
@@ -120,9 +147,9 @@ Deno.serve(async (req) => {
     //  - sounds(개인 알림음): 본인만 업로드 가능 — 같은 그룹 멤버라도 타인 prefix 쓰기 금지.
     //  - videos/photos: 본인 또는 같은 patient_group 멤버(보호자 대리 업로드 허용).
     if (ownerId !== user.id) {
-      if (soundMatch) {
+      if (soundMatch || isCommunity) {
         return new Response(
-          JSON.stringify({ error: '본인 알림음 경로에만 업로드할 수 있습니다.' }),
+          JSON.stringify({ error: '본인 경로에만 업로드할 수 있습니다.' }),
           { status: 403, headers: { ...corsHeaders, 'Content-Type': 'application/json' } },
         );
       }
@@ -154,7 +181,12 @@ Deno.serve(async (req) => {
     });
 
     const presignedUrl = await getSignedUrl(R2, command, { expiresIn: 300 });
-    const publicUrl = `${R2_PUBLIC_URL.replace(/\/$/, '')}/${key}`;
+    // 커뮤니티 사진은 워커 공개 URL(토큰 불필요)을 저장값으로 반환 → 즉시 로딩.
+    // 의료/영상/알림음은 기존대로 R2_PUBLIC_URL 기반(저장 후 r2-get-url 로 서명 URL 발급).
+    const host = R2_PROXY_HOST.replace(/^https?:\/\//, '').replace(/\/$/, '');
+    const publicUrl = isCommunity && host
+      ? `https://${host}/${key.split('/').map((s) => encodeURIComponent(s)).join('/')}`
+      : `${R2_PUBLIC_URL.replace(/\/$/, '')}/${key}`;
 
     return new Response(
       JSON.stringify({ presignedUrl, publicUrl }),

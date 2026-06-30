@@ -13,7 +13,7 @@ import { supabase } from '../lib/supabase';
 import { useAuth } from '../context/AuthContext';
 import type { Database } from '../types/database';
 import { triggerLabelToText, triggerLabelToMinutes } from '../utils/medUtils';
-import { fetchPatientDoseSlots, type DoseSlot } from './useDoseSlots';
+import { fetchPatientLabelDoseSlots, type DoseSlot } from './useDoseSlots';
 import { formatSlotTime, slotSortValue, slotTitle } from '../constants/doseSlots';
 
 type Period = '이번 주' | '이번 달' | '최근 3개월';
@@ -296,8 +296,11 @@ export function useRecordDetailData(type: ItemKey, period: Period): UseRecordDet
           .gte('taken_at', totalStart)
           .lte('taken_at', totalEnd);
         medLogs = data ?? [];
-        // 활성 dose_slots(시각순, N개). 없으면 [] → legacy meal_time 폴백 경로로 자연 처리.
-        doseSlots = await fetchPatientDoseSlots(patientId);
+        // 표시/라벨 전용(비활성 포함) dose_slots(시각순, N개). 없으면 [] → legacy meal_time 폴백.
+        // 삭제(soft delete)된 슬롯도 포함해 과거 기록이 '이전 복용' 으로 격하되지 않고
+        // 원래 시간대 이름(label/time)으로 트렌드/현황에 표시되게 한다.
+        // (이 hook 은 과거 기록 표시 전용 — 게이팅/스케줄 로직 없음.)
+        doseSlots = await fetchPatientLabelDoseSlots(patientId);
       } else if (type === 'exercise') {
         const { data } = await supabase
           .from('exercise_logs')
@@ -364,6 +367,9 @@ export function useRecordDetailData(type: ItemKey, period: Period): UseRecordDet
           log.meal_time ??
           null;
 
+        // 로그별 정규 키를 1회만 계산해 이후 모든 순회에서 재사용(반복 logSlotKey 호출 제거).
+        const logKeyCache: Array<string | null> = medLogs.map(logSlotKey);
+
         // 슬롯 메타 맵 (정규 키 → 라벨/색/정렬). 활성 dose_slots 로 먼저 구성.
         const slotMetaByKey = new Map<string, MedSlotMeta>();
         doseSlots.forEach((s) => {
@@ -390,8 +396,9 @@ export function useRecordDetailData(type: ItemKey, period: Period): UseRecordDet
           morning: 0, lunch: 1, dinner: 2, bedtime: 3,
         };
         let extraSeq = doseSlots.length; // 합집합 슬롯 색/정렬 순번(활성 뒤에 이어붙임)
-        for (const log of medLogs) {
-          const key = logSlotKey(log);
+        for (let i = 0; i < medLogs.length; i++) {
+          const log = medLogs[i];
+          const key = logKeyCache[i];
           if (!key || slotMetaByKey.has(key)) continue;
           // 활성 목록에 없는 키 → 합집합 추가.
           const mealKey = log.meal_time ?? '';
@@ -408,15 +415,29 @@ export function useRecordDetailData(type: ItemKey, period: Period): UseRecordDet
           extraSeq += 1;
         }
 
-        const countInRange = (logs: MedLogRow[], slotKey: string) =>
-          logs.filter(l => logSlotKey(l) === slotKey).length;
+        // 슬롯키 × 구간 카운트를 1회 순회로 집계 (기존 countInRange 의 O(슬롯×구간×로그) 제거).
+        // filterMed 와 동일한 inclusive 경계로 각 로그를 해당 구간(들)에 누적 → 출력 동일.
+        const rangeCounts: Array<Map<string, number>> = ranges.map(() => new Map<string, number>());
+        for (let i = 0; i < medLogs.length; i++) {
+          const key = logKeyCache[i];
+          if (!key) continue;
+          const t = new Date(medLogs[i].taken_at);
+          for (let ri = 0; ri < ranges.length; ri++) {
+            const r = ranges[ri];
+            if (t >= r.start && t <= r.end) {
+              rangeCounts[ri].set(key, (rangeCounts[ri].get(key) ?? 0) + 1);
+            }
+          }
+        }
+        const currIdx = ranges.length - 1;
+        const prevIdx = ranges.length >= 2 ? ranges.length - 2 : 0;
+        const countInRangeIdx = (ri: number, slotKey: string) => rangeCounts[ri].get(slotKey) ?? 0;
 
         // 표시 대상: 조회 구간(전체 ranges) 내 실제 복용 데이터가 1건이라도 있는 슬롯만.
         // (기존 동작 보존 — 데이터 없는 슬롯은 현황/트렌드에 노출하지 않음.
         //  과거 합집합 슬롯도 데이터가 있어야 등장하므로 자연히 만족.)
         const slotsWithData = new Set<string>();
-        for (const log of medLogs) {
-          const key = logSlotKey(log);
+        for (const key of logKeyCache) {
           if (key) slotsWithData.add(key);
         }
         // 정렬된 슬롯 키 목록 (sortOrder→시각순). 데이터 있는 슬롯만.
@@ -427,15 +448,15 @@ export function useRecordDetailData(type: ItemKey, period: Period): UseRecordDet
         const mealTimeSlots: Record<string, { current: number; prev: number }> = {};
         for (const meta of sortedSlotMetas) {
           mealTimeSlots[meta.slotKey] = {
-            current: countInRange(currLogs, meta.slotKey),
-            prev: countInRange(prevLogs, meta.slotKey),
+            current: countInRangeIdx(currIdx, meta.slotKey),
+            prev: countInRangeIdx(prevIdx, meta.slotKey),
           };
         }
 
         const mealTSM: TimeSeriesMap = {};
         for (const meta of sortedSlotMetas) {
-          const mealPoints = ranges.map(r => ({
-            value: countInRange(filterMed(medLogs, r.start, r.end), meta.slotKey),
+          const mealPoints = ranges.map((r, ri) => ({
+            value: countInRangeIdx(ri, meta.slotKey),
             label: r.label,
           }));
           const maxVal = Math.max(...mealPoints.map(p => p.value), 1);

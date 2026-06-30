@@ -6,7 +6,6 @@ import {
   StyleSheet,
   TouchableOpacity,
   TextInput,
-  ActivityIndicator,
   Modal,
   PanResponder,
   Animated,
@@ -18,6 +17,7 @@ import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context'
 import { useFocusEffect, useNavigation } from '@react-navigation/native';
 import { Ionicons } from '@expo/vector-icons';
 import { TopBar } from '../../components/common/TopBar';
+import { BrandProgressOverlay } from '../../components/common/BrandProgressOverlay';
 import { Colors } from '../../constants/colors';
 import { useFamilyLink } from '../../hooks/useFamilyLink';
 import { useAuth } from '../../context/AuthContext';
@@ -25,6 +25,7 @@ import { useNotificationBadge } from '../../context/NotificationBadgeContext';
 import { supabase } from '../../lib/supabase';
 import { useDialog } from '../../context/DialogContext';
 import { ensureNotGuest } from '../../utils/guestGuard';
+import { useBottomSheetPadding } from '../../hooks/useBottomSheetPadding';
 
 const RELATION_MAP: Record<string, string> = {
   spouse: '배우자',
@@ -37,6 +38,8 @@ const RELATION_MAP: Record<string, string> = {
 export function FamilyLinkScreen() {
   const navigation = useNavigation<any>();
   const insets = useSafeAreaInsets();
+  // 바텀시트 하단 패딩 — 안드 3버튼/홈 인디케이터 잘림 방지 (글로벌 규칙, 하드코딩 금지)
+  const sheetPaddingBottom = useBottomSheetPadding(36);
   const { user, signOut } = useAuth();
   const { generateInviteCode, joinByCode, joinByCodeForce, getGroupMembers, leaveGroup, loading, error: familyLinkError } = useFamilyLink();
   const { unreadCount } = useNotificationBadge();
@@ -293,14 +296,10 @@ export function FamilyLinkScreen() {
               activeOpacity={0.85}
               disabled={loadingCode}
             >
-              {loadingCode ? (
-                <ActivityIndicator color="#3C1E1E" size="small" />
-              ) : (
-                <View style={styles.btnInner}>
-                  <Ionicons name="chatbubble" size={24} color="#3C1E1E" />
-                  <Text style={styles.primaryBtnText}>카카오톡으로 초대하기</Text>
-                </View>
-              )}
+              <View style={styles.btnInner}>
+                <Ionicons name="chatbubble" size={24} color="#3C1E1E" />
+                <Text style={styles.primaryBtnText}>카카오톡으로 초대하기</Text>
+              </View>
             </TouchableOpacity>
 
             <TouchableOpacity
@@ -370,14 +369,10 @@ export function FamilyLinkScreen() {
                 activeOpacity={0.85}
                 disabled={loadingCode}
               >
-                {loadingCode ? (
-                  <ActivityIndicator color={Colors.white} size="small" />
-                ) : (
-                  <View style={styles.btnInner}>
-                    <Ionicons name="add-circle-outline" size={24} color={Colors.white} />
-                    <Text style={styles.addFamilyBtnText}>가족 초대하기</Text>
-                  </View>
-                )}
+                <View style={styles.btnInner}>
+                  <Ionicons name="add-circle-outline" size={24} color={Colors.white} />
+                  <Text style={styles.addFamilyBtnText}>가족 초대하기</Text>
+                </View>
               </TouchableOpacity>
 
               <TouchableOpacity
@@ -393,6 +388,35 @@ export function FamilyLinkScreen() {
             </View>
           </View>
         )}
+
+        {/* 가족 연동 흐름 안내 */}
+        <View style={styles.famGuideBox}>
+          <Text style={styles.famGuideTitle}>💡 가족 연동은 이렇게 진행돼요</Text>
+
+          <View style={styles.famGuideSection}>
+            <Text style={styles.famGuideHead}>전체 흐름</Text>
+            <Text style={styles.famGuideFlow}>
+              초대자가 ‘가족 초대하기’ → 카카오톡으로 가족에게 초대번호 전송 → 가족이 앱 설치 → ‘받은 번호 입력하기’에 번호 입력
+            </Text>
+          </View>
+
+          <View style={styles.famGuideSection}>
+            <Text style={styles.famGuideHead}>📨 가족을 초대할 때</Text>
+            <Text style={styles.famGuideFlow}>
+              ‘가족 초대하기’ → 카카오톡으로 전송 (초대번호 자동 전송)
+            </Text>
+          </View>
+
+          <View style={styles.famGuideSection}>
+            <Text style={styles.famGuideHead}>🔑 초대를 받았을 때</Text>
+            <Text style={styles.famGuideFlow}>
+              앱 설치 → 가입/로그인 → 최초 로그인 시 가족 연동 안내가 떠요 → 초대번호 입력
+            </Text>
+            <Text style={styles.famGuideNote}>
+              ※ 수동으로 입력하려면 가입/로그인 → 기록·관리 → 가족 연동 → ‘받은 번호 입력하기’ → 초대번호 입력
+            </Text>
+          </View>
+        </View>
       </ScrollView>
 
       {/* ── 받은 번호 입력 바텀시트 ── */}
@@ -416,7 +440,7 @@ export function FamilyLinkScreen() {
               paddingBottom:
                 keyboardHeight > 0
                   ? keyboardHeight + 16
-                  : Math.max(36, 20 + insets.bottom),
+                  : sheetPaddingBottom,
             },
           ]}
         >
@@ -452,11 +476,7 @@ export function FamilyLinkScreen() {
             activeOpacity={0.85}
             disabled={inputCode.length < 6 || connecting}
           >
-            {connecting ? (
-              <ActivityIndicator color={Colors.white} size="small" />
-            ) : (
-              <Text style={styles.sheetConnectBtnText}>연결하기</Text>
-            )}
+            <Text style={styles.sheetConnectBtnText}>연결하기</Text>
           </TouchableOpacity>
 
           <View style={styles.sheetInfoRow}>
@@ -465,11 +485,31 @@ export function FamilyLinkScreen() {
           </View>
         </Animated.View>
       </Modal>
+      <BrandProgressOverlay
+        visible={loadingCode}
+        title="초대 번호를 만들고 있어요"
+        minVisibleMs={500}
+      />
+      <BrandProgressOverlay
+        visible={connecting}
+        title="가족을 연결하고 있어요"
+        minVisibleMs={500}
+      />
     </SafeAreaView>
   );
 }
 
 const styles = StyleSheet.create({
+  // 가족 연동 흐름 안내 카드
+  famGuideBox: {
+    backgroundColor: Colors.white, borderRadius: 16, borderWidth: 1, borderColor: Colors.border,
+    padding: 18, marginTop: 24, gap: 14,
+  },
+  famGuideTitle: { fontSize: 17, fontWeight: '700', color: Colors.text, marginBottom: 2 },
+  famGuideSection: { gap: 4 },
+  famGuideHead: { fontSize: 15, fontWeight: '800', color: Colors.text },
+  famGuideFlow: { fontSize: 15, lineHeight: 24, color: Colors.textSub },
+  famGuideNote: { fontSize: 15, lineHeight: 24, color: Colors.textSub, marginTop: 6 },
   safeArea: {
     flex: 1,
     backgroundColor: Colors.white,
@@ -649,7 +689,7 @@ const styles = StyleSheet.create({
     backgroundColor: Colors.white,
     borderTopLeftRadius: 24,
     borderTopRightRadius: 24,
-    paddingBottom: 36,
+    // paddingBottom 은 인라인에서 useBottomSheetPadding(36) 값으로 적용 (하드코딩 금지)
     elevation: 20,
     shadowColor: '#000',
     shadowOffset: { width: 0, height: -4 },
@@ -685,7 +725,8 @@ const styles = StyleSheet.create({
   },
   sheetInput: {
     marginHorizontal: 24,
-    height: 68,
+    minHeight: 68,
+    paddingVertical: 12,
     borderWidth: 2,
     borderColor: Colors.border,
     borderRadius: 14,
@@ -693,6 +734,8 @@ const styles = StyleSheet.create({
     fontWeight: '700',
     letterSpacing: 8,
     textAlign: 'center',
+    textAlignVertical: 'center',
+    includeFontPadding: false,
     color: Colors.text,
     marginBottom: 16,
   },

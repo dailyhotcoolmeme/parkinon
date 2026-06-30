@@ -59,6 +59,10 @@
 - push_token이 null이면 모든 서버 푸시 알림 불가
 - FCM 설정 없이는 Expo Push Token 발급 불가
 
+⚠️ **알림 권한을 앱 이용 필수로 강제(하드 블록)하지 말 것 — iOS 심사 거부 위험**
+- 파킨온은 iOS 출시 대상이다. 알림 권한 미허용 시 앱 자체를 막는 하드 게이트는 **App Store 심사에서 거부**될 수 있다.
+- 안드로이드는 허용되더라도 iOS는 강제 금지 → **플랫폼별 분기 필요**(iOS는 권한 거부해도 앱을 계속 쓸 수 있게, 권한은 권유/재요청 수준으로).
+
 ## 디버깅 체크리스트
 
 1. [ ] `users.push_token`이 null이 아닌지 확인
@@ -77,7 +81,7 @@
 
 **앱명**: 파킨온 (ParkinON)  
 **회사**: 아워마인  
-**플랫폼**: Android 전용 (React Native / Expo Managed Workflow)  
+**플랫폼**: Android + iOS 양쪽 출시 대상 (React Native / Expo Managed Workflow)  
 **타겟**: 파킨슨 환자 (60대 이상) + 보호자 (30대 이상)  
 
 ---
@@ -91,7 +95,7 @@
 - **처방전 OCR**: Claude API Vision (Haiku 모델)
 - **의약품 정보**: 식품의약품안전처 공공 API + 낱알식별 API
 - **뉴스 크롤링**: GitHub Actions (매일 자동)
-- **로그인**: 카카오 OAuth only (Android 전용, iOS 출시 시 Apple 추가 예정)
+- **로그인**: 카카오 OAuth (Android·iOS 공통). iOS 출시 대상이므로 Apple 로그인 추가 필요(App Store 심사 요건).
 
 ---
 
@@ -103,7 +107,8 @@
 - 텍스트 입력 최소화 → 탭/선택 위주
 - 고대비 색상
 - 아이콘 + 텍스트 항상 함께
-- 수정/삭제 등 액션 버튼은 아이콘 단독 사용 금지 → 반드시 텍스트 단독("수정") 또는 아이콘+텍스트("✏️ 수정") 형태로
+- **수정/삭제 버튼 통일 규칙 (2026-06-16 오너 확정, 최우선):** 수정/삭제 버튼은 **글자 버튼(텍스트 큰 버튼) 금지**. 오너가 따로 언급하지 않는 한, **알림 설정 슬롯의 수정/삭제 아이콘으로 통일** = `Ionicons create-outline`(수정, Colors.textSub) / `trash-outline`(삭제, Colors.danger), **아이콘만, 우측 배치**(참조: `src/components/settings/DoseSlotSetList.tsx:710·718`). (이 규칙이 위 "아이콘 단독 금지"보다 우선 — 수정/삭제에 한해 아이콘 단독 허용.)
+- **바텀시트·하단버튼 안드 3버튼 잘림 방지 (2026-06-16 오너 확정, 글로벌·최우선):** 모든 바텀시트/모달/화면 하단 고정 버튼의 `paddingBottom` 은 **반드시** `useBottomSheetPadding()`(`src/hooks/useBottomSheetPadding.ts`, = `max(base, safeArea.bottom + 16)`) 값을 사용한다. `paddingBottom: 32` 같은 **하드코딩 금지** — 안드 3버튼 내비/홈 인디케이터에 가려 잘린다. 새 시트 만들 때도 이 훅 기본 적용. (오너가 "매번 발생한다"고 누차 지적 — 위반 시 반복 위반으로 간주.)
 - 스와이프 제스처 최소화
 - 작은 텍스트 링크 금지
 - 굳이 한 화면에 다 안 나와도 됨 → 스크롤로 해결
@@ -288,7 +293,7 @@
 ## 미결 항목
 
 - [ ] 에이전트 설계
-- [ ] iOS 출시 시 Apple 로그인 추가
+- [ ] Apple 로그인 추가 (iOS 출시 대상 — App Store 심사 요건)
 
 ---
 

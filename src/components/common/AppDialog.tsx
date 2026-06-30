@@ -15,7 +15,8 @@ export type AppDialogButtonStyle =
   | 'default'
   | 'primary'
   | 'cancel'
-  | 'destructive';
+  | 'destructive'
+  | 'destructiveSolid';
 
 export interface AppDialogButton {
   text: string;
@@ -23,6 +24,12 @@ export interface AppDialogButton {
   style?: AppDialogButtonStyle;
   /** 아이콘은 선택 사항 (텍스트 단독 허용) — 예: '✏️' */
   icon?: string;
+  /**
+   * opt-in 가로 배치 플래그. 연속된 row:true 버튼들은 한 줄에 가로로 나란히
+   * (각 flex:1, min 56dp 유지) 렌더된다. 미지정/false면 기존처럼 세로 풀폭.
+   * 기존 다이얼로그는 이 플래그를 쓰지 않으므로 세로 스택 동작이 그대로 보존된다.
+   */
+  row?: boolean;
   onPress?: () => void;
 }
 
@@ -92,6 +99,18 @@ export function AppDialog({
   // 안전장치: 버튼 최대 3개
   const safeButtons = buttons.slice(0, 3);
 
+  // 연속된 row:true 버튼은 가로 한 줄로 묶는다. 나머지는 각자 세로 풀폭.
+  // (row 플래그를 안 쓰는 기존 다이얼로그는 전부 길이 1 그룹 → 기존 세로 스택과 동일.)
+  const btnGroups: AppDialogButton[][] = [];
+  safeButtons.forEach((btn) => {
+    const last = btnGroups[btnGroups.length - 1];
+    if (btn.row && last && last[0].row) {
+      last.push(btn);
+    } else {
+      btnGroups.push([btn]);
+    }
+  });
+
   return (
     <Modal
       visible={visible}
@@ -118,11 +137,41 @@ export function AppDialog({
           {!!message && <Text style={styles.message}>{message}</Text>}
 
           <View style={styles.btnStack}>
-            {safeButtons.map((btn, idx) => {
+            {btnGroups.map((group, gIdx) => {
+              // 가로 묶음(2개 이상): 한 줄에 flex:1 로 나란히.
+              if (group.length > 1) {
+                return (
+                  <View key={`row-${gIdx}`} style={styles.btnRow}>
+                    {group.map((btn, idx) => {
+                      const variant = btn.style ?? 'default';
+                      return (
+                        <TouchableOpacity
+                          key={`${btn.text}-${idx}`}
+                          style={[
+                            styles.btnBase,
+                            styles.btnRowItem,
+                            idx > 0 && styles.btnRowItemGap,
+                            btnContainerStyle[variant],
+                          ]}
+                          activeOpacity={0.8}
+                          onPress={() => btn.onPress?.()}
+                        >
+                          <Text style={[styles.btnText, btnTextStyle[variant]]}>
+                            {btn.icon ? `${btn.icon} ` : ''}
+                            {btn.text}
+                          </Text>
+                        </TouchableOpacity>
+                      );
+                    })}
+                  </View>
+                );
+              }
+              // 세로 풀폭(기존 동작).
+              const btn = group[0];
               const variant = btn.style ?? 'default';
               return (
                 <TouchableOpacity
-                  key={`${btn.text}-${idx}`}
+                  key={`${btn.text}-${gIdx}`}
                   style={[styles.btnBase, btnContainerStyle[variant]]}
                   activeOpacity={0.8}
                   onPress={() => btn.onPress?.()}
@@ -208,6 +257,19 @@ const styles = StyleSheet.create({
     width: '100%',
     marginTop: 10,
   },
+  // 가로 묶음 행: 자식 버튼이 화면 절반씩 차지하도록.
+  btnRow: {
+    flexDirection: 'row',
+    width: '100%',
+  },
+  btnRowItem: {
+    flex: 1,
+    width: undefined,
+  },
+  // 가로 묶음 내 버튼 사이 간격(첫 버튼 제외).
+  btnRowItemGap: {
+    marginLeft: 12,
+  },
   btnText: {
     fontSize: 18,
     fontWeight: '700',
@@ -221,6 +283,8 @@ const btnContainerStyle = StyleSheet.create({
   primary: { backgroundColor: Colors.primary },
   // 삭제/위험: 흰 배경 + 빨강 텍스트 (DESIGN_SYSTEM 삭제 버튼)
   destructive: { backgroundColor: Colors.white, borderWidth: 2, borderColor: Colors.danger },
+  // 삭제/위험(강조): 빨강 배경 + 흰 텍스트 (꽉 채운 빨강)
+  destructiveSolid: { backgroundColor: Colors.danger },
   // 취소: 중립 아웃라인
   cancel: { backgroundColor: Colors.white, borderWidth: 2, borderColor: Colors.border },
   // 기본: 연한 초록 톤(아웃라인 초록)
@@ -230,6 +294,7 @@ const btnContainerStyle = StyleSheet.create({
 const btnTextStyle = StyleSheet.create({
   primary: { color: Colors.white },
   destructive: { color: Colors.danger },
+  destructiveSolid: { color: Colors.white },
   cancel: { color: Colors.textSub },
   default: { color: Colors.primary },
 });

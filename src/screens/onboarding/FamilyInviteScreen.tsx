@@ -6,14 +6,19 @@ import {
   TouchableOpacity,
   ScrollView,
   Share,
-  ActivityIndicator,
+  LayoutAnimation,
+  Platform,
+  UIManager,
+  Clipboard,
 } from 'react-native';
-import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
+import { SafeAreaView } from 'react-native-safe-area-context';
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import { useBottomSheetPadding } from '../../hooks/useBottomSheetPadding';
 import { useNavigation } from '@react-navigation/native';
 import type { StackNavigationProp } from '@react-navigation/stack';
 import type { OnboardingStackParamList } from '../../navigation/OnboardingNavigator';
 import { Colors } from '../../constants/colors';
+import { BrandProgressOverlay } from '../../components/common/BrandProgressOverlay';
 import { useAuth } from '../../context/AuthContext';
 import { useDialog } from '../../context/DialogContext';
 import { supabase } from '../../lib/supabase';
@@ -27,13 +32,26 @@ import type { LegacyMealKey } from '../../constants/doseSlots';
 
 type Nav = StackNavigationProp<OnboardingStackParamList, 'FamilyInvite'>;
 
+if (
+  Platform.OS === 'android' &&
+  UIManager.setLayoutAnimationEnabledExperimental
+) {
+  UIManager.setLayoutAnimationEnabledExperimental(true);
+}
+
+// 초대 번호: 순수 숫자 6자리 (DB 저장·공유 텍스트는 공백 없이, 화면 표시만 3-3 그룹)
 function generateInviteCode(): string {
-  const chars = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
   let code = '';
   for (let i = 0; i < 6; i++) {
-    code += chars[Math.floor(Math.random() * chars.length)];
+    code += Math.floor(Math.random() * 10).toString();
   }
   return code;
+}
+
+// "482910" → "482 910" (표시 전용)
+function formatInviteCode(code: string): string {
+  if (code.length !== 6) return code;
+  return `${code.slice(0, 3)} ${code.slice(3)}`;
 }
 
 export function FamilyInviteScreen() {
@@ -43,7 +61,18 @@ export function FamilyInviteScreen() {
   const [inviteCode, setInviteCode] = useState('');
   const [userName, setUserName] = useState('');
   const [isSaving, setIsSaving] = useState(false);
-  const { bottom: bottomInset } = useSafeAreaInsets();
+  const [inviteExpanded, setInviteExpanded] = useState(false);
+  const bottomPadding = useBottomSheetPadding(24);
+
+  const toggleInvite = () => {
+    LayoutAnimation.configureNext(LayoutAnimation.Presets.easeInEaseOut);
+    setInviteExpanded((v) => !v);
+  };
+
+  const handleCopyCode = () => {
+    Clipboard.setString(inviteCode);
+    dialog.alert({ message: '초대 번호를 복사했어요.' });
+  };
 
   useEffect(() => {
     initCode();
@@ -64,7 +93,7 @@ export function FamilyInviteScreen() {
   const handleKakaoShare = async () => {
     try {
       await Share.share({
-        message: `💊 파킨온 - 파킨슨 케어 앱\n\n${userName || '가족'}님이 파킨온에 초대했어요!\n\n🔑 초대 코드: ${inviteCode}\n앱 설치 후 초대 코드를 입력하면 가족으로 등록돼요.\n\n파킨온은 파킨슨 환자와 가족이 함께 사용하는 건강 관리 앱이에요.\n✅ 약 복용 알림 & 기록\n✅ 약효 추적 (복용 후 상태 체크)\n✅ 몸 상태·운동 기록\n✅ 가족과 실시간 공유\n\n📱 구글 플레이에서 설치하기\nhttps://play.google.com/store/apps/details?id=com.ourmine.parkinon`,
+        message: `💊 파킨온 - 파킨슨 케어 앱\n\n${userName || '가족'}님이 파킨온에 초대했어요.\n\n🔑 초대 번호: ${formatInviteCode(inviteCode)}\n앱 설치 후 보호자로 시작하고 이 번호를 입력하면 가족으로 연결돼요.\n\n파킨온은 파킨슨 환자와 가족이 함께 사용하는 건강 관리 앱이에요.\n✅ 약 복용 알림 및 기록\n✅ 약효 추적 (복용 후 상태 확인)\n✅ 몸 상태·운동 기록\n✅ 가족과 실시간 공유\n\n📱 구글 플레이에서 설치하기\nhttps://play.google.com/store/apps/details?id=com.ourmine.parkinon`,
         title: '파킨온 가족 초대',
       });
     } catch {
@@ -88,6 +117,7 @@ export function FamilyInviteScreen() {
         caregiverRelation,
         caregiverLiving,
         joinGroupId,
+        joinInviteCode,
       ] = await AsyncStorage.multiGet([
         'onboarding_name',
         'onboarding_role',
@@ -100,6 +130,7 @@ export function FamilyInviteScreen() {
         'onboarding_relation',
         'onboarding_living',
         'onboarding_group_id',
+        'onboarding_invite_code',
       ]).then((pairs) => pairs.map(([, v]) => v));
 
       // 세션에서 userId / accessToken 획득
@@ -141,9 +172,17 @@ export function FamilyInviteScreen() {
       // 그룹이 없는 보호자 단독 가입(환자 코드 미입력)은 group_id가 없으므로 멤버 INSERT를 건너뛰고
       // 온보딩을 정상 완료시킨다. (보호자는 환자 코드를 나중에 입력 가능 — 그룹 없이도 가입 완료돼야 정상)
       const resolvedJoinGroupId = joinGroupId?.trim() || null;
-      if (resolvedJoinGroupId) {
+      const resolvedJoinCode = joinInviteCode?.trim() || null;
+      // ⚠️ 코드로 합류하는 경로는 patient_group_id 를 여기서 미리 세팅하지 않는다.
+      //   방향-무관 안전 RPC(join_family_by_code)가 멤버십+denorm을 서버에서 원자적으로 처리하고,
+      //   환자2명/환자 이동 위험을 서버에서 막는다. (denorm 선세팅 시 멤버 INSERT 실패하면 불일치 발생)
+      //   코드가 없고 group_id만 있는 구버전 폴백 경로에서만 denorm 선세팅 유지.
+      if (resolvedJoinGroupId && !resolvedJoinCode) {
         userUpdateData.patient_group_id = resolvedJoinGroupId;
       }
+      // 화면 전환 직후 메모리 user에 즉시 반영할 최종 그룹 id.
+      // 환자 본인이 그룹을 새로 생성하는 경로(아래)에서는 newGroupId로 갱신된다.
+      let finalGroupId: string | null = resolvedJoinGroupId;
 
       const updateRes = await fetch(`${SUPABASE_URL}/rest/v1/users?id=eq.${userId}`, {
         method: 'PATCH',
@@ -172,6 +211,7 @@ export function FamilyInviteScreen() {
           const groupData = await groupRes.json();
           const newGroupId = Array.isArray(groupData) ? groupData[0]?.id : groupData?.id;
           if (newGroupId) {
+            finalGroupId = newGroupId;
             // users.patient_group_id 업데이트
             await fetch(`${SUPABASE_URL}/rest/v1/users?id=eq.${userId}`, {
               method: 'PATCH',
@@ -187,15 +227,48 @@ export function FamilyInviteScreen() {
         }
       }
 
-      // 초대 코드로 가입한 경우 → patient_group_members에도 반드시 추가
-      // (이 멤버 행이 누락되면 RLS is_same_patient_group()이 항상 false가 되어
-      //  같은 그룹 가족의 이름·정보가 전부 차단되는 치명적 버그 발생 → 조용히 무시 금지)
-      if (resolvedJoinGroupId && role) {
+      // 초대 코드로 가입한 경우 → 방향-무관 안전 RPC로 합류 처리.
+      //   서버가 4-사실 판정 후 멤버십+denorm(users.patient_group_id)을 원자적으로 갱신하고,
+      //   환자2명/환자 이동 위험을 막는다. 온보딩 시점엔 갈아타기(need_confirm) 대상이 없으므로
+      //   force=true 로 호출(기존 임시그룹 없음·신규 가입자라 안전).
+      if (resolvedJoinCode && role) {
+        const rpcRes = await fetch(`${SUPABASE_URL}/rest/v1/rpc/join_family_by_code`, {
+          method: 'POST',
+          headers: baseHeaders,
+          body: JSON.stringify({ p_code: resolvedJoinCode, p_force: true }),
+        });
+        if (rpcRes.ok) {
+          const rpcResult: { ok?: boolean; code?: string; message?: string } = await rpcRes.json();
+          if (rpcResult?.ok) {
+            // 서버가 denorm을 갱신했으므로 finalGroupId를 그룹 id로 확정.
+            finalGroupId = resolvedJoinGroupId;
+          } else if (rpcResult?.code === 'two_patients') {
+            // 환자 2명 → 명확히 안내하고 그룹 합류 없이 단독 가입 완료(데이터 안전 우선).
+            finalGroupId = null;
+            await dialog.alert({
+              title: '연결할 수 없어요',
+              message: rpcResult.message ?? '환자 두 분은 한 가족으로 묶을 수 없어요. 가입을 마친 뒤 가족 연동에서 다시 시도해주세요.',
+            });
+          } else {
+            // already_member 등 → finalGroupId 유지(이미 같은 그룹일 수 있음). 안내만 생략.
+            console.warn('[FamilyInviteScreen] join_family_by_code 비정상 결과:', rpcResult);
+          }
+        } else {
+          const errText = await rpcRes.text().catch(() => '');
+          console.warn('[FamilyInviteScreen] join_family_by_code 실패 (계속 진행):', rpcRes.status, errText);
+          finalGroupId = null;
+        }
+      } else if (resolvedJoinGroupId && role) {
+        // 구버전 폴백: 코드 없이 group_id만 있는 경우 → 기존 방식(멤버 직접 추가).
+        // (이 멤버 행이 누락되면 RLS is_same_patient_group()이 항상 false가 되어
+        //  같은 그룹 가족의 이름·정보가 전부 차단되는 치명적 버그 발생 → 조용히 무시 금지)
         await ensureGroupMember(SUPABASE_URL, baseHeaders, resolvedJoinGroupId, userId, role);
       }
 
       // 모든 DB INSERT 완료 후 로컬 상태 반영 (화면 전환은 여기서부터)
-      forceCompleteOnboarding();
+      // patient_group_id 도 함께 넘겨, 홈 진입 직후 "가족 연동 안내 팝업"이 stale(null) 값을
+      // 보고 잘못 뜨는 레이스 컨디션을 방지한다.
+      forceCompleteOnboarding(finalGroupId);
 
       // 알림 설정 반영: 온보딩에서 설정한 값을 settings_med_notifs + DB med_notif_prefs에 저장
       // (§13-2 옵션1) NotificationSetupScreen이 추천 MedNotif[]를 onboarding_med_notifs에
@@ -229,6 +302,32 @@ export function FamilyInviteScreen() {
         console.warn('[FamilyInviteScreen] med notifs 브리지 파싱 오류:', parseErr);
       }
 
+      // [근본 수정] track_intervals 기본값용 notifMinutes — onboarding_med_notifs에서 enabled 분 추출.
+      // (없으면 ensurePatientDoseSlots 헬퍼가 [30,120] 기본값을 사용한다.)
+      let notifMinutes: number[] | null = null;
+      try {
+        if (medNotifsJson) {
+          const parsedNotifs = JSON.parse(medNotifsJson);
+          if (Array.isArray(parsedNotifs)) {
+            notifMinutes = parsedNotifs
+              .filter((n: any) => n && n.enabled !== false && typeof n.minutes === 'number' && n.minutes > 0)
+              .map((n: any) => n.minutes);
+          }
+        }
+      } catch {
+        notifMinutes = null;
+      }
+
+      // [근본 수정] 환자 dose_slots 기본 4슬롯 보장 — 약 등록 여부와 무관하게 항상.
+      // 신규 환자가 약을 한 개도 안 넣고 온보딩을 끝내면 dose_slots가 0개로 시작해
+      // 복용/추적 기록이 게이트에 걸리고, 슬롯 추가 화면에서도 pid가 안 잡히는 악순환이 발생한다.
+      // meal_schedules 미설정 → 헬퍼가 기본 4슬롯 시각(08/12/18/22) 사용. 멱등·실패해도 throw 안 함.
+      // 보호자(caregiver)는 환자가 아니므로 호출하지 않는다(연동 환자 슬롯은 환자 본인 가입 시 보장).
+      // 이 호출은 아래 medications 배선(syncMedicationDoseSlots)의 선행조건(환자 슬롯 보장)도 겸한다.
+      if (role === 'patient') {
+        await ensurePatientDoseSlots(userId, null, undefined, notifMinutes);
+      }
+
       // medications 저장 (환자 본인 또는 보호자가 대신 입력한 경우 모두 저장)
       // 보호자가 온보딩 중 약 데이터를 입력했을 때도 medications 테이블에 저장
       // patient_id: 환자는 자신의 userId, 보호자는 joinGroupId가 있으면 그룹의 환자 ID를 찾아야 하지만
@@ -245,27 +344,14 @@ export function FamilyInviteScreen() {
 
         if (meds.length > 0) {
           // [5단계 dual-write] medications 영속화 직후 dose_slots/medication_dose_slots 배선.
-          // 순서: ensurePatientDoseSlots → medications POST(representation) → 각 약 syncMedicationDoseSlots → invalidate.
-          // 신규 온보딩 환자는 dose_slots가 0개이므로, 약 배정 전에 환자 슬롯 4개를 먼저 보장해야 한다.
-          // 헬퍼는 멱등·실패해도 throw 안 함 → 온보딩 흐름을 막지 않는다.
-
-          // track_intervals 기본값용 notifMinutes — onboarding_med_notifs에서 enabled 분 추출(있으면).
-          let notifMinutes: number[] | null = null;
-          try {
-            if (medNotifsJson) {
-              const parsedNotifs = JSON.parse(medNotifsJson);
-              if (Array.isArray(parsedNotifs)) {
-                notifMinutes = parsedNotifs
-                  .filter((n: any) => n && n.enabled !== false && typeof n.minutes === 'number' && n.minutes > 0)
-                  .map((n: any) => n.minutes);
-              }
-            }
-          } catch {
-            notifMinutes = null;
+          // 순서: ensurePatientDoseSlots(선행) → medications POST(representation)
+          //       → 각 약 syncMedicationDoseSlots → invalidate.
+          // 환자(role==='patient')는 위 블록에서 이미 슬롯을 보장했으므로 멱등 호출이 생략된다.
+          // 보호자가 환자 약을 대신 입력한 경로는 위 블록을 안 타므로, 약 배선의 선행조건(슬롯 보장)을
+          // 여기서 보장한다(기존 동작 유지 — 멱등이라 중복돼도 안전).
+          if (role !== 'patient') {
+            await ensurePatientDoseSlots(userId, null, undefined, notifMinutes);
           }
-
-          // 환자 dose_slots 보장 (meal_schedules 미설정 → 헬퍼가 기본 4슬롯 시각 사용).
-          await ensurePatientDoseSlots(userId, null, undefined, notifMinutes);
 
           // representation으로 POST해 각 약의 id를 확보 (slot 배정에 필요).
           const medRes = await fetch(`${SUPABASE_URL}/rest/v1/medications`, {
@@ -339,8 +425,6 @@ export function FamilyInviteScreen() {
     }
   };
 
-  const codeChars = inviteCode.split('');
-
   return (
     <SafeAreaView style={styles.container}>
       {/* 헤더 */}
@@ -353,59 +437,73 @@ export function FamilyInviteScreen() {
 
       <ScrollView contentContainerStyle={styles.scrollContent}>
         <View style={styles.heroArea}>
-          <Text style={styles.title}>가족을 초대해드릴게요</Text>
+          <Text style={styles.title}>준비가 끝났어요</Text>
           <Text style={styles.subtitle}>
-            초대 코드를 가족에게 전달하면{'\n'}서로 연결할 수 있어요
+            바로 시작하거나,{'\n'}가족을 초대할 수 있어요
           </Text>
         </View>
 
-        {/* 초대 코드 카드 */}
-        <View style={styles.codeCard}>
-          <Text style={styles.codeCardTitle}>초대 코드</Text>
+        {/* 가족 초대 — 펼친 내용 (트리거는 하단 "가족 초대하기" 버튼) */}
+        {inviteExpanded && (
+          <View style={styles.expandedCard}>
+            <Text style={styles.guideText}>가족에게 이 번호를 알려주세요</Text>
 
-          <View style={styles.codeRow}>
-            {codeChars.map((char, i) => (
-              <View key={i} style={styles.codeBox}>
-                <Text style={styles.codeChar}>{char}</Text>
-              </View>
-            ))}
+            {/* 초대 번호 박스 */}
+            <View style={styles.codeBox}>
+              <Text style={styles.codeNumber}>{formatInviteCode(inviteCode)}</Text>
+              <TouchableOpacity
+                style={styles.copyBtn}
+                onPress={handleCopyCode}
+                activeOpacity={0.7}
+              >
+                <Text style={styles.copyBtnText}>복사하기</Text>
+              </TouchableOpacity>
+            </View>
+            <Text style={styles.codeExpiry}>이 번호는 24시간 동안 유효해요</Text>
+
+            {/* 사용법 3단계 */}
+            <View style={styles.steps}>
+              <Text style={styles.step}>1. 가족이 파킨온 앱을 설치해요</Text>
+              <Text style={styles.step}>2. 이 번호를 입력하면 연결돼요</Text>
+            </View>
+
+            {/* 카카오톡으로 번호 보내기 (보조) */}
+            <TouchableOpacity
+              style={[styles.kakaoBtn, isSaving && styles.disabledBtn]}
+              onPress={handleKakaoShare}
+              activeOpacity={0.85}
+              disabled={isSaving}
+            >
+              <Text style={styles.kakaoBtnText}>카카오톡으로 번호 보내기</Text>
+            </TouchableOpacity>
           </View>
-
-          <Text style={styles.codeExpiry}>24시간 동안 유효해요</Text>
-        </View>
-
-        {/* 안내 */}
-        <View style={styles.infoCard}>
-          <Text style={styles.infoTitle}>이렇게 사용해요</Text>
-          <View style={styles.infoSteps}>
-            <Text style={styles.infoStep}>1. 가족이 파킨온 앱을 설치해요</Text>
-            <Text style={styles.infoStep}>2. 회원가입 후 초대 코드를 입력해요</Text>
-            <Text style={styles.infoStep}>3. 서로의 건강 정보를 함께 볼 수 있어요</Text>
-          </View>
-        </View>
+        )}
       </ScrollView>
 
-      <View style={[styles.bottomArea, { paddingBottom: 40 + bottomInset }]}>
+      {/* 하단 버튼: 바로 시작하기(메인) + 가족 초대하기(보조) */}
+      <View style={[styles.bottomArea, { paddingBottom: bottomPadding }]}>
         <TouchableOpacity
-          style={[styles.kakaoBtn, isSaving && styles.disabledBtn]}
-          onPress={handleKakaoShare}
+          style={[styles.startBtn, isSaving && styles.disabledBtn]}
+          onPress={handleFinish}
           activeOpacity={0.85}
           disabled={isSaving}
         >
-          <Text style={styles.kakaoBtnText}>카카오톡으로 공유하기</Text>
+          <Text style={styles.startBtnText}>바로 시작하기</Text>
         </TouchableOpacity>
         <TouchableOpacity
-          style={[styles.closeBtn, isSaving && styles.disabledBtn]}
-          onPress={handleFinish}
+          style={[styles.inviteBtn, isSaving && styles.disabledBtn]}
+          onPress={toggleInvite}
+          activeOpacity={0.85}
           disabled={isSaving}
         >
-          {isSaving ? (
-            <ActivityIndicator size="small" color={Colors.white} />
-          ) : (
-            <Text style={styles.closeBtnText}>시작하기 →</Text>
-          )}
+          <Text style={styles.inviteBtnText}>가족 초대하기</Text>
         </TouchableOpacity>
       </View>
+      <BrandProgressOverlay
+        visible={isSaving}
+        title="준비하고 있어요"
+        minVisibleMs={500}
+      />
     </SafeAreaView>
   );
 }
@@ -459,76 +557,65 @@ const styles = StyleSheet.create({
     lineHeight: 28,
     textAlign: 'center',
   },
-  codeCard: {
-    backgroundColor: Colors.white,
-    borderRadius: 20,
-    padding: 28,
-    alignItems: 'center',
-    marginBottom: 16,
-    borderWidth: 2,
-    borderColor: Colors.light,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.06,
-    shadowRadius: 8,
-    elevation: 3,
-  },
-  codeCardTitle: {
-    fontSize: 16,
-    color: Colors.textSub,
-    marginBottom: 20,
-    fontWeight: '600',
-  },
-  codeRow: {
-    flexDirection: 'row',
-    gap: 10,
-    marginBottom: 16,
-  },
-  codeBox: {
-    width: 46,
-    height: 58,
-    borderRadius: 10,
-    backgroundColor: Colors.light,
-    borderWidth: 2,
-    borderColor: Colors.primary,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  codeChar: {
-    fontSize: 26,
-    fontWeight: '700',
-    color: Colors.dark,
-    letterSpacing: 0,
-  },
-  codeExpiry: {
-    fontSize: 14,
-    color: Colors.textHint,
-    marginTop: 4,
-  },
-  infoCard: {
+
+  /* 펼친 보조 카드 */
+  expandedCard: {
     backgroundColor: Colors.white,
     borderRadius: 16,
     padding: 20,
     borderWidth: 1,
     borderColor: Colors.border,
   },
-  infoTitle: {
-    fontSize: 18,
-    fontWeight: '700',
+  guideText: {
+    fontSize: 16,
+    fontWeight: '600',
     color: Colors.text,
-    marginBottom: 14,
+    marginBottom: 12,
   },
-  infoSteps: {
-    gap: 12,
+  codeBox: {
+    backgroundColor: Colors.light,
+    borderRadius: 12,
+    borderWidth: 2,
+    borderColor: Colors.primary,
+    paddingVertical: 20,
+    paddingHorizontal: 16,
+    alignItems: 'center',
   },
-  infoStep: {
+  codeNumber: {
+    fontSize: 38,
+    fontWeight: '800',
+    color: Colors.dark,
+    letterSpacing: 4,
+    marginBottom: 12,
+  },
+  copyBtn: {
+    paddingVertical: 8,
+    paddingHorizontal: 20,
+    borderRadius: 8,
+    backgroundColor: Colors.white,
+    borderWidth: 1,
+    borderColor: Colors.primary,
+  },
+  copyBtnText: {
+    fontSize: 15,
+    fontWeight: '700',
+    color: Colors.primary,
+  },
+  codeExpiry: {
+    fontSize: 14,
+    color: Colors.textHint,
+    marginTop: 8,
+    textAlign: 'center',
+  },
+  steps: {
+    gap: 10,
+    marginTop: 20,
+    marginBottom: 20,
+  },
+  step: {
     fontSize: 16,
     color: Colors.textSub,
     lineHeight: 24,
-  },
-  bottomArea: {
-    paddingHorizontal: 24,
-    gap: 12,
   },
   kakaoBtn: {
     flexDirection: 'row',
@@ -536,7 +623,7 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     backgroundColor: '#FEE500',
     borderRadius: 12,
-    minHeight: 60,
+    minHeight: 56,
     gap: 10,
   },
   kakaoBtnText: {
@@ -544,16 +631,37 @@ const styles = StyleSheet.create({
     fontWeight: '700',
     color: '#3C1E1E',
   },
-  closeBtn: {
-    minHeight: 60,
+
+  /* 메인 CTA */
+  bottomArea: {
+    paddingHorizontal: 24,
+    paddingTop: 16,
+    gap: 12,
+  },
+  startBtn: {
+    minHeight: 56,
     borderRadius: 12,
     backgroundColor: Colors.primary,
     alignItems: 'center',
     justifyContent: 'center',
   },
-  closeBtnText: {
+  startBtnText: {
     fontSize: 18,
     color: Colors.white,
+    fontWeight: '700',
+  },
+  inviteBtn: {
+    minHeight: 56,
+    borderRadius: 12,
+    backgroundColor: Colors.white,
+    borderWidth: 1,
+    borderColor: Colors.border,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  inviteBtnText: {
+    fontSize: 18,
+    color: Colors.text,
     fontWeight: '700',
   },
   disabledBtn: {

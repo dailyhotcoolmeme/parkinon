@@ -10,6 +10,7 @@ import type {
   MeasurementType,
   MeasurementMedPhase,
   Database,
+  Json,
 } from '../types/database';
 
 /** 본인 baseline 학습 기간 컷오프 (n) — 14회 측정 누적 시 화면 비교 활성 (§6.1) */
@@ -76,7 +77,7 @@ export async function recordMeasurement(
       type: input.type,
       med_phase: input.medPhase,
       med_intake_id: input.medIntakeId ?? null,
-      context: input.context ?? {},
+      context: (input.context ?? {}) as unknown as Json,
       started_at: input.startedAt ?? new Date().toISOString(),
       ended_at: input.endedAt ?? null,
     })
@@ -95,7 +96,7 @@ export async function recordMeasurement(
       measurement_id: measurementId,
       feature_key: f.feature_key,
       value_numeric: f.value_numeric ?? null,
-      value_jsonb: f.value_jsonb ?? null,
+      value_jsonb: (f.value_jsonb ?? null) as unknown as Json,
     }));
 
     const { error: fErr } = await supabase.from('measurement_features').insert(rows);
@@ -595,23 +596,27 @@ export interface MeasurementWithFeatures {
 export async function getMeasurementById(
   measurementId: string
 ): Promise<MeasurementWithFeatures | null> {
-  const { data: mRow, error: mErr } = await supabase
-    .from('measurements')
-    .select('*')
-    .eq('id', measurementId)
-    .is('deleted_at', null)
-    .maybeSingle();
+  // measurementId 가 이미 있어 두 조회가 서로 독립이므로 병렬 실행(로딩 워터폴 제거).
+  const [mResult, fResult] = await Promise.all([
+    supabase
+      .from('measurements')
+      .select('*')
+      .eq('id', measurementId)
+      .is('deleted_at', null)
+      .maybeSingle(),
+    supabase
+      .from('measurement_features')
+      .select('feature_key, value_numeric')
+      .eq('measurement_id', measurementId),
+  ]);
 
+  const { data: mRow, error: mErr } = mResult;
   if (mErr) {
     throw new Error(`[biomarker] getMeasurementById measurement 실패: ${mErr.message}`);
   }
   if (!mRow) return null;
 
-  const { data: fRows, error: fErr } = await supabase
-    .from('measurement_features')
-    .select('feature_key, value_numeric')
-    .eq('measurement_id', measurementId);
-
+  const { data: fRows, error: fErr } = fResult;
   if (fErr) {
     throw new Error(`[biomarker] getMeasurementById features 실패: ${fErr.message}`);
   }

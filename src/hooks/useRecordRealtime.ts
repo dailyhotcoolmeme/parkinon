@@ -19,14 +19,24 @@ export function useRecordRealtime(
 
   useEffect(() => {
     if (!patientId) return;
-    const channel = supabase
-      .channel(`records-${table}-${patientId}`)
-      .on(
-        'postgres_changes',
-        { event: '*', schema: 'public', table, filter: `patient_id=eq.${patientId}` },
-        () => { cb.current(); },
-      )
-      .subscribe();
+
+    const topic = `records-${table}-${patientId}`;
+    // 같은 topic 의 잔존 채널 제거(재진입/StrictMode 이중 호출 시 이미 subscribe() 된
+    // 채널을 supabase.channel() 이 재사용 → .on() 추가 시도하다 throw 하는 크래시 방지).
+    supabase
+      .getChannels()
+      .filter((c) => c.topic === `realtime:${topic}` || c.topic === topic)
+      .forEach((c) => { supabase.removeChannel(c); });
+
+    // .on('postgres_changes', ...) 는 반드시 .subscribe() 이전에 모두 등록.
+    const channel = supabase.channel(topic);
+    channel.on(
+      'postgres_changes',
+      { event: '*', schema: 'public', table, filter: `patient_id=eq.${patientId}` },
+      () => { cb.current(); },
+    );
+    channel.subscribe();
+
     return () => { supabase.removeChannel(channel); };
   }, [table, patientId]);
 }

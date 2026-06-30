@@ -127,21 +127,32 @@ export function ExerciseScreen() {
     return dateKst.toISOString().slice(0, 10) === todayStr;
   };
 
+  // 진행 중인(in-flight) 동일 날짜 로드 키 — 포커스+마운트 동시 발화 등 중복 동시호출만 차단.
+  const loadLogsInFlightKey = useRef<string | null>(null);
+
   // 날짜 선택 시 해당 날짜 기록 조회
   const loadLogsForDate = useCallback(async (date: Date) => {
-    if (isToday(date)) {
-      await refresh();
-      return;
-    }
-    setDateLoading(true);
     const kstOffset = 9 * 60 * 60 * 1000;
     const dateStr = new Date(date.getTime() + kstOffset).toISOString().slice(0, 10);
-    const { logs, error: fetchError } = await getExerciseLogs(dateStr);
-    if (fetchError) {
-      dialog.alert({ title: '불러오기 실패', message: fetchError });
+    // 중복 동시호출 가드: 같은 날짜 로드가 이미 진행 중이면 스킵.
+    // (포커스 시 갱신 동작 자체는 유지 — 진행 중인 '동일' 호출만 막는다. 다른 날짜는 통과.)
+    if (loadLogsInFlightKey.current === dateStr) return;
+    loadLogsInFlightKey.current = dateStr;
+    try {
+      if (isToday(date)) {
+        await refresh();
+        return;
+      }
+      setDateLoading(true);
+      const { logs, error: fetchError } = await getExerciseLogs(dateStr);
+      if (fetchError) {
+        dialog.alert({ title: '불러오기 실패', message: fetchError });
+      }
+      setDateLogs(logs);
+      setDateLoading(false);
+    } finally {
+      if (loadLogsInFlightKey.current === dateStr) loadLogsInFlightKey.current = null;
     }
-    setDateLogs(logs);
-    setDateLoading(false);
   }, [refresh, getExerciseLogs]);
 
   // 화면 복귀 시마다 운동 기록 재조회 (저장 후 리스트 갱신)
@@ -210,6 +221,8 @@ export function ExerciseScreen() {
       <TopBar
         title="파킨온"
         showParkinon
+        showDiary
+        onDiaryPress={() => navigateTo('Diary')}
         showBell
         bellBadge={unreadCount}
         onBellPress={() => navigateTo('NotificationHistory', { mode: 'all' })}

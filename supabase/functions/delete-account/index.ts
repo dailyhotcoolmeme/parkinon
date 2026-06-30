@@ -51,9 +51,14 @@ async function deleteUserR2Objects(userId: string) {
     responseChecksumValidation: 'WHEN_REQUIRED',
   })
 
+  // 사용자가 업로드하는 모든 미디어 prefix (r2Upload.ts 와 동기화 유지)
+  //   - videos : 몸상태·운동·일기 영상 (parkinon/videos/{userId}/...)
+  //   - photos : 몸상태 사진 + 게시글 사진(post_media) (parkinon/photos/{userId}/...)
+  //   - sounds : 가족 목소리 알림음 + 일기 음성 녹음 (parkinon/sounds/{userId}/...)
   const prefixes = [
     `parkinon/videos/${userId}/`,
     `parkinon/photos/${userId}/`,
+    `parkinon/sounds/${userId}/`,
   ]
 
   for (const Prefix of prefixes) {

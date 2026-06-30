@@ -131,16 +131,31 @@ export function formatSlotTime(hhmm: string | null | undefined): string {
  * 구간: 새벽(00–04) / 아침(05–10) / 점심(11–13) / 오후(14–17) / 저녁(18–20) / 밤(21–23).
  * 파싱 실패 시 빈 문자열.
  */
+// 시간대 구분 기준(오너 확정 2026-06):
+//   새벽 0–6 / 아침 6–11 / 점심 11–13 / 오후 13–17 / 저녁 17–21 / 밤 21–24
 export function periodWord(time: string | null | undefined): string {
   if (!time) return '';
   const h = parseInt(time.split(':')[0] ?? '', 10);
   if (Number.isNaN(h)) return '';
-  if (h <= 4) return '새벽';
-  if (h <= 10) return '아침';
-  if (h <= 13) return '점심';
-  if (h <= 17) return '오후';
-  if (h <= 20) return '저녁';
+  if (h < 6) return '새벽';
+  if (h < 11) return '아침';
+  if (h < 13) return '점심';
+  if (h < 17) return '오후';
+  if (h < 21) return '저녁';
   return '밤'; // 21–23
+}
+
+/** 시간대 이모지 — periodWord 와 동일 범위. 슬롯 좌측 이모지 단일 출처. */
+export function periodEmoji(time: string | null | undefined): string {
+  if (!time) return '🌙';
+  const h = parseInt(time.split(':')[0] ?? '', 10);
+  if (Number.isNaN(h)) return '🌙';
+  if (h < 6) return '🌌';
+  if (h < 11) return '🌅';
+  if (h < 13) return '☀️';
+  if (h < 17) return '🌤️';
+  if (h < 21) return '🌆';
+  return '🌙';
 }
 
 /**
@@ -231,10 +246,12 @@ export function slotTitle(
   legacyKey: LegacyMealKey | null | undefined,
   time: string | null | undefined
 ): string {
-  const t = formatSlotTime(time);
-  if (labelContainsTime(label, legacyKey)) return (label ?? '').trim();
-  if (label && label.trim()) return `${label.trim()} ${t}`;
-  return t;
+  // 시간대 단어(시각 범위 자동 판정) + 시각(오전/오후 없이) — 예: '아침 8:00'.
+  // autoSlotLabel 이 정확히 그 형식(periodWord + 12시간 시각)을 만든다.
+  const t = autoSlotLabel(time);
+  if (t) return t;
+  if (label && label.trim()) return (label ?? '').trim();
+  return '';
 }
 
 /**

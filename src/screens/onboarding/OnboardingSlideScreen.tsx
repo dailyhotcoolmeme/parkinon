@@ -7,6 +7,7 @@ import type { OnboardingStackParamList } from '../../navigation/OnboardingNaviga
 import { Colors } from '../../constants/colors';
 import { PrimaryButton } from '../../components/common/PrimaryButton';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { useBottomSheetPadding } from '../../hooks/useBottomSheetPadding';
 
 const SCREEN_WIDTH = Dimensions.get('window').width;
 
@@ -34,7 +35,8 @@ export function OnboardingSlideScreen() {
   const navigation = useNavigation<Nav>();
   const [currentIndex, setCurrentIndex] = useState(0);
   const flatListRef = useRef<FlatList>(null);
-  const { top: topInset, bottom: bottomInset } = useSafeAreaInsets();
+  const { top: topInset } = useSafeAreaInsets();
+  const bottomPadding = useBottomSheetPadding(24);
 
   const handleNext = async () => {
     if (currentIndex < SLIDES.length - 1) {
@@ -86,7 +88,7 @@ export function OnboardingSlideScreen() {
         ))}
       </View>
 
-      <View style={[styles.btnWrapper, { paddingBottom: 40 + bottomInset }]}>
+      <View style={[styles.btnWrapper, { paddingBottom: bottomPadding, paddingTop: 16 }]}>
         <PrimaryButton
           title={currentIndex < SLIDES.length - 1 ? '다음' : '시작하기'}
           onPress={handleNext}

@@ -10,13 +10,20 @@ import {
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { useNavigation } from '@react-navigation/native';
+import type { CompositeNavigationProp } from '@react-navigation/native';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
+import type { StackNavigationProp } from '@react-navigation/stack';
 import { Colors } from '../../constants/colors';
 import { TopBar } from '../../components/common/TopBar';
 import { ExerciseStackParamList } from '../../navigation/ExerciseNavigator';
+import type { RootStackParamList } from '../../navigation/RootNavigator';
 import { useNotificationBadge } from '../../context/NotificationBadgeContext';
 
-type NavProp = NativeStackNavigationProp<ExerciseStackParamList, 'ExerciseVideo'>;
+// NotificationHistory 등 루트 스택 라우트로도 이동하므로 부모(Root) 네비게이션 타입과 합성한다.
+type NavProp = CompositeNavigationProp<
+  NativeStackNavigationProp<ExerciseStackParamList, 'ExerciseVideo'>,
+  StackNavigationProp<RootStackParamList>
+>;
 
 interface VideoItem {
   id: string;
@@ -92,7 +99,7 @@ export function ExerciseVideoScreen() {
   const videos = getVideos(activeTab);
 
   return (
-    <SafeAreaView style={styles.safe}>
+    <SafeAreaView style={styles.safe} edges={['top']}>
       <TopBar
         title="운동 영상"
         showBack

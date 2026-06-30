@@ -43,6 +43,8 @@ export interface ShowButton {
   text: string;
   style?: AppDialogButtonStyle;
   icon?: string;
+  /** opt-in 가로 배치. 연속된 row:true 버튼은 한 줄에 가로로 나란히 렌더된다. */
+  row?: boolean;
 }
 
 export interface ShowOptions {
@@ -217,6 +219,7 @@ export function DialogProvider({ children }: { children: React.ReactNode }) {
             text: b.text,
             style: b.style,
             icon: b.icon,
+            row: b.row,
             onPress: () => settle(b.id ?? String(i)),
           })),
           onDismiss: () => settle(null),

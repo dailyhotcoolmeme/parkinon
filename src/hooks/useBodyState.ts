@@ -134,14 +134,34 @@ export function useBodyState(): UseBodyStateReturn {
       if (data.dose_slot_id !== undefined) insertData.dose_slot_id = data.dose_slot_id;
       if (data.med_log_id !== undefined) insertData.med_log_id = data.med_log_id;
 
-      const { error: insertError } = await supabase
+      const { data: insertedRows, error: insertError } = await supabase
         .from('on_off_logs')
-        .insert(insertData);
+        .insert(insertData)
+        .select();
 
       if (insertError) throw insertError;
 
-      // 오늘 기록 갱신
-      await fetchTodayLogs();
+      // 낙관적 반영 — insert().select() 로 받은 실제 행을 todayLogs 에 즉시 머지.
+      //   재조회(void fetchTodayLogs)나 realtime 재조회 푸시(RTT)를 기다리지 않고
+      //   몸상태 리스트에 바로 보이게 한다. 오늘 날짜인 경우에만 의미가 있지만,
+      //   화면(BodyStateScreen)이 isToday 일 때만 todayLogs 를 표시하므로 항상 prepend 해도 무해하다.
+      //   정렬: todayLogs 는 logged_at 내림차순(최신 먼저) → prepend.
+      //   dedupe: 같은 id 가 이미 있으면(재조회가 먼저 끝난 경우 등) 새 행으로 교체.
+      //           이후의 fetchTodayLogs/realtime 재조회는 전체 setTodayLogs(data) 로 덮어쓰므로
+      //           중복이 누적되지 않는다(머지는 그 사이 짧은 구간의 신선도만 보장).
+      const insertedRow = insertedRows?.[0];
+      if (insertedRow) {
+        setTodayLogs((prev) => {
+          const filtered = prev.filter((r) => r.id !== insertedRow.id);
+          return [insertedRow, ...filtered];
+        });
+      }
+
+      // 오늘 기록 갱신 — await 하지 않는다(비대기).
+      //   재조회 완료를 기다리면 호출부(handleSaveRecord)의 다음 안내 팝업 표시가
+      //   그만큼 지연된다. 리스트 신선도는 on_off_logs realtime 구독 + 호출부의 refresh()로
+      //   이미 보장되므로, 여기서는 백그라운드로만 갱신한다(낙관적 행을 서버 실제 상태로 정정).
+      void fetchTodayLogs();
 
       // 보호자에게 푸시 알림 — 기록 직후 다음 안내 팝업을 즉시 띄우기 위해 백그라운드로(await 안 함)
       void (async () => {

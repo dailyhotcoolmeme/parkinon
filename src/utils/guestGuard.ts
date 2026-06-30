@@ -13,7 +13,7 @@
  *   if (blocked) return;
  */
 import type { DialogApi } from '../context/DialogContext';
-import type { UserProfile } from '../types/database';
+import type { UserProfile } from '../hooks/useAuth';
 import { navigateTo } from '../navigation/navigationRef';
 
 /** useAuth.devSignIn이 주입하는 mock 사용자 id (useAuth.ts와 동기화 필요) */

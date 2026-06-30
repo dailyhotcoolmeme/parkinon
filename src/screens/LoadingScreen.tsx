@@ -1,15 +1,6 @@
 import React from 'react';
-import { View, ActivityIndicator, StyleSheet } from 'react-native';
-import { Colors } from '../constants/colors';
+import { FullscreenBoot } from '../components/common/FullscreenBoot';
 
 export function LoadingScreen() {
-  return (
-    <View style={styles.container}>
-      <ActivityIndicator size="large" color={Colors.primary} />
-    </View>
-  );
+  return <FullscreenBoot message="파킨온을 준비하고 있어요" />;
 }
-
-const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: Colors.white, alignItems: 'center', justifyContent: 'center' },
-});

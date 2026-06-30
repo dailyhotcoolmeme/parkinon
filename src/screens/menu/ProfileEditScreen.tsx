@@ -8,6 +8,10 @@ import {
   StyleSheet,
   Modal,
   FlatList,
+  KeyboardAvoidingView,
+  Keyboard,
+  Platform,
+  ActivityIndicator,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useNavigation } from '@react-navigation/native';
@@ -16,9 +20,11 @@ import { useFocusEffect } from '@react-navigation/native';
 import { Ionicons } from '@expo/vector-icons';
 import { Colors } from '../../constants/colors';
 import { TopBar } from '../../components/common/TopBar';
+import { BrandProgressOverlay } from '../../components/common/BrandProgressOverlay';
 import { useAuth } from '../../context/AuthContext';
 import { supabase } from '../../lib/supabase';
 import { useDialog } from '../../context/DialogContext';
+import { useBottomSheetPadding } from '../../hooks/useBottomSheetPadding';
 
 type Gender = 'male' | 'female';
 type Cohabiting = 'together' | 'apart';
@@ -26,6 +32,61 @@ type Cohabiting = 'together' | 'apart';
 const BIRTH_YEARS = Array.from({ length: 60 }, (_, i) => 1930 + i);
 const DIAGNOSIS_YEARS = Array.from({ length: 40 }, (_, i) => 1985 + i);
 const RELATIONS = ['배우자', '자녀', '형제/자매', '기타'];
+
+const SUPABASE_URL = process.env.EXPO_PUBLIC_SUPABASE_URL!;
+const SUPABASE_ANON_KEY = process.env.EXPO_PUBLIC_SUPABASE_ANON_KEY!;
+
+// 서버 무응답 시 await가 매달리지 않도록 모든 네트워크 호출에 타임아웃(기본 15초)을 건다.
+const NET_TIMEOUT_MS = 15000;
+
+// Promise에 타임아웃을 거는 헬퍼. supabase.auth.getSession()처럼 AbortController를
+// 직접 받지 않는 호출에 사용한다. 타임아웃 시 명확한 에러를 throw한다.
+function withTimeout<T>(p: Promise<T>, ms: number, label: string): Promise<T> {
+  return new Promise<T>((resolve, reject) => {
+    const t = setTimeout(
+      () => reject(new Error(`${label} 응답이 지연되고 있어요. 네트워크를 확인하고 다시 시도해주세요.`)),
+      ms,
+    );
+    p.then(
+      (v) => { clearTimeout(t); resolve(v); },
+      (e) => { clearTimeout(t); reject(e); },
+    );
+  });
+}
+
+// supabase-js .update()는 New Architecture에서 hang됨(resolve/reject 안 됨) → fetch API 직접 사용.
+// (참조: SettingsScreen.tsx patchUser, utils/notifications.ts)
+// prefer='representation'이면 갱신된 행 배열을 응답으로 받아 RLS로 0행 처리됐는지 감지할 수 있다.
+// AbortController + 타임아웃으로 서버 무응답 시 무한 대기(무한 스피너) 방지.
+async function patchUser(
+  userId: string,
+  accessToken: string,
+  body: Record<string, unknown>,
+  prefer: 'minimal' | 'representation' = 'minimal',
+) {
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), NET_TIMEOUT_MS);
+  try {
+    return await fetch(`${SUPABASE_URL}/rest/v1/users?id=eq.${userId}`, {
+      method: 'PATCH',
+      headers: {
+        'apikey': SUPABASE_ANON_KEY,
+        'Authorization': `Bearer ${accessToken}`,
+        'Content-Type': 'application/json',
+        'Prefer': `return=${prefer}`,
+      },
+      body: JSON.stringify(body),
+      signal: controller.signal,
+    });
+  } catch (e: any) {
+    if (e?.name === 'AbortError') {
+      throw new Error('저장 요청 응답이 지연되고 있어요. 네트워크를 확인하고 다시 시도해주세요.');
+    }
+    throw e;
+  } finally {
+    clearTimeout(timer);
+  }
+}
 
 export function ProfileEditScreen() {
   const navigation = useNavigation<any>();
@@ -54,6 +115,51 @@ export function ProfileEditScreen() {
   const [saving, setSaving] = useState(false);
   const [patientId, setPatientId] = useState<string | null>(null);
 
+  // 초기 데이터 로딩 상태 — 폼이 기본값(1960/남자 등)으로 깜빡인 뒤 채워지는 것처럼 보이는 체감 지연을
+  // 막기 위해 내 정보가 도착하기 전까지 스피너를 보여준다. (UX 개선 전용, 저장 로직과 무관)
+  const [loading, setLoading] = useState(true);
+  // 보호자 화면의 '담당 환자 정보' 카드만 별도 로딩 — 내 정보는 먼저 보여주고(부분 렌더)
+  // 워터폴로 뒤따라오는 환자 정보는 카드 안에서 따로 스피너를 돌린다.
+  const [patientLoading, setPatientLoading] = useState(false);
+  // useFocusEffect + useEffect가 진입 시 동시에 loadFormData를 호출해 같은 로드를 2번 네트워크
+  // 태우는 것을 막는 동시-중복 호출 가드.
+  const loadingGuardRef = useRef(false);
+
+  // 환자 기본정보 원본값(로드 시점) — 저장 시 dirty 비교용.
+  // 보호자가 자기 정보만 바꾼 경우 환자 PATCH(RLS상 항상 0행 → throw)를 아예 건너뛰기 위함.
+  type PatientSnapshot = {
+    name: string;
+    birthYear: number;
+    gender: Gender;
+    diagnosisYear: number;
+  };
+  const patientOriginalRef = useRef<PatientSnapshot | null>(null);
+
+  // 스피너(BrandProgressOverlay·Modal)가 "완전히 사라진 뒤" 단독으로 띄울 알림을 담아둔다.
+  // setSaving(false) → 오버레이가 내려가고 onHidden 콜백이 불릴 때 여기 담긴 알림을 표시한다.
+  // 이렇게 하면 닫히는 스피너 Modal 위에 AppDialog Modal을 올리는 적층(=무한 스피너/알림 미표시)이
+  // 구조적으로 불가능해진다. afterClose가 있으면 알림 확인 후 실행한다(예: goBack).
+  const pendingAlertRef = useRef<{ title: string; message: string; afterClose?: () => void } | null>(null);
+
+  // 저장 버튼이 안드 3버튼/홈 인디케이터에 가리지 않도록 (글로벌 규칙)
+  const bottomPad = useBottomSheetPadding(40);
+  // 하단 입력 필드(환자 이름 등) 포커스 시 키보드 위로 끌어올리기 위한 ScrollView ref
+  const scrollViewRef = useRef<ScrollView>(null);
+  // 안드로이드 edge-to-edge(Expo SDK 54+)에서는 키보드가 inset으로 들어와 하단 필드가 가려질 수 있다
+  // → 키보드 높이만큼 하단 스페이서를 주고 포커스 필드를 키보드 위로 올린다. (iOS는 automaticallyAdjustKeyboardInsets 처리)
+  const [kbHeight, setKbHeight] = useState(0);
+  useEffect(() => {
+    if (Platform.OS !== 'android') return;
+    const showSub = Keyboard.addListener('keyboardDidShow', (e) => {
+      setKbHeight(e.endCoordinates?.height ?? 0);
+    });
+    const hideSub = Keyboard.addListener('keyboardDidHide', () => setKbHeight(0));
+    return () => {
+      showSub.remove();
+      hideSub.remove();
+    };
+  }, []);
+
 
   const relEngToKor: Record<string, string> = {
     spouse: '배우자', child: '자녀', sibling: '형제/자매', other: '기타',
@@ -69,70 +175,100 @@ export function ProfileEditScreen() {
 
   const loadFormData = useCallback(async () => {
     if (!user) return;
+    // 동시 중복 호출 방지 (useFocusEffect + useEffect 동시 발화) — 같은 로드를 두 번 네트워크 태우지 않음
+    if (loadingGuardRef.current) return;
+    loadingGuardRef.current = true;
 
-    const { data: freshUser, error } = await supabase
-      .from('users')
-      .select('*')
-      .eq('id', user.id)
-      .single();
+    const isCaregiver = user.role === 'caregiver';
+    setLoading(true);
+    if (isCaregiver) setPatientLoading(true);
 
-    if (error || !freshUser) {
-      // DB 조회 실패 시 AuthContext user 값으로 폴백
-      setName(user.name ?? '');
-      setBirthYear(user.birth_year ?? 1960);
-      setGender((user.gender as Gender) ?? 'male');
-      setDiagnosisYear(user.diagnosis_year ?? 2020);
-      setRelation(relEngToKor[user.caregiver_relation ?? ''] ?? '배우자');
-      setCohabiting(user.residence_type === 'separate' ? 'apart' : 'together');
-    } else {
-      setName(freshUser.name ?? '');
-      setBirthYear(freshUser.birth_year ?? 1960);
-      setGender((freshUser.gender as Gender) ?? 'male');
-      setDiagnosisYear(freshUser.diagnosis_year ?? 2020);
-      setRelation(relEngToKor[freshUser.caregiver_relation ?? ''] ?? '배우자');
-      setRelationOther((freshUser as any).relation_note ?? '');
-      setCohabiting(freshUser.residence_type === 'separate' ? 'apart' : 'together');
-    }
+    // 재로드 시 이전 환자 스냅샷이 남아 잘못된 dirty 판정을 하지 않도록 초기화
+    patientOriginalRef.current = null;
 
+    try {
+      // 화면에 필요한 컬럼만 select (select('*') 대비 페이로드/파싱 비용 축소)
+      const { data: freshUser, error } = await supabase
+        .from('users')
+        .select('id, name, birth_year, gender, diagnosis_year, caregiver_relation, relation_note, residence_type, patient_group_id')
+        .eq('id', user.id)
+        .single();
 
-    if (user.role === 'caregiver') {
-      // patient_group_id 우선, 없으면 patient_group_members 직접 쿼리
-      const groupId = freshUser?.patient_group_id ?? user.patient_group_id ?? null;
-      let resolvedGroupId: string | null = groupId;
-
-      if (!resolvedGroupId) {
-        const { data: myMember } = await supabase
-          .from('patient_group_members')
-          .select('group_id')
-          .eq('user_id', user.id)
-          .maybeSingle();
-        resolvedGroupId = myMember?.group_id ?? null;
+      if (error || !freshUser) {
+        // DB 조회 실패 시 AuthContext user 값으로 폴백
+        setName(user.name ?? '');
+        setBirthYear(user.birth_year ?? 1960);
+        setGender((user.gender as Gender) ?? 'male');
+        setDiagnosisYear(user.diagnosis_year ?? 2020);
+        setRelation(relEngToKor[user.caregiver_relation ?? ''] ?? '배우자');
+        setCohabiting(user.residence_type === 'separate' ? 'apart' : 'together');
+      } else {
+        setName(freshUser.name ?? '');
+        setBirthYear(freshUser.birth_year ?? 1960);
+        setGender((freshUser.gender as Gender) ?? 'male');
+        setDiagnosisYear(freshUser.diagnosis_year ?? 2020);
+        setRelation(relEngToKor[freshUser.caregiver_relation ?? ''] ?? '배우자');
+        setRelationOther((freshUser as any).relation_note ?? '');
+        setCohabiting(freshUser.residence_type === 'separate' ? 'apart' : 'together');
       }
 
-      if (resolvedGroupId) {
-        const { data: patientMember } = await supabase
-          .from('patient_group_members')
-          .select('user_id')
-          .eq('group_id', resolvedGroupId)
-          .eq('role', 'patient')
-          .single();
+      // 내 정보가 준비됐으니 폼을 먼저 노출(부분 렌더). 환자 정보는 아래에서 별도 스피너로 처리.
+      setLoading(false);
 
-        if (patientMember?.user_id && patientMember.user_id !== user.id) {
-          const { data: patient } = await supabase
-            .from('users')
-            .select('*')
-            .eq('id', patientMember.user_id)
+      if (isCaregiver) {
+        // patient_group_id 우선, 없으면 patient_group_members 직접 쿼리
+        const groupId = freshUser?.patient_group_id ?? user.patient_group_id ?? null;
+        let resolvedGroupId: string | null = groupId;
+
+        if (!resolvedGroupId) {
+          const { data: myMember } = await supabase
+            .from('patient_group_members')
+            .select('group_id')
+            .eq('user_id', user.id)
+            .maybeSingle();
+          resolvedGroupId = myMember?.group_id ?? null;
+        }
+
+        if (resolvedGroupId) {
+          const { data: patientMember } = await supabase
+            .from('patient_group_members')
+            .select('user_id')
+            .eq('group_id', resolvedGroupId)
+            .eq('role', 'patient')
             .single();
 
-          if (patient) {
-            setPatientId(patient.id);
-            setPatientName(patient.name ?? '');
-            setPatientBirthYear(patient.birth_year ?? 1955);
-            setPatientGender((patient.gender as Gender) ?? 'male');
-            setPatientDiagnosisYear(patient.diagnosis_year ?? 2020);
+          if (patientMember?.user_id && patientMember.user_id !== user.id) {
+            const { data: patient } = await supabase
+              .from('users')
+              .select('id, name, birth_year, gender, diagnosis_year')
+              .eq('id', patientMember.user_id)
+              .single();
+
+            if (patient) {
+              const pName = patient.name ?? '';
+              const pBirth = patient.birth_year ?? 1955;
+              const pGender = (patient.gender as Gender) ?? 'male';
+              const pDiag = patient.diagnosis_year ?? 2020;
+              setPatientId(patient.id);
+              setPatientName(pName);
+              setPatientBirthYear(pBirth);
+              setPatientGender(pGender);
+              setPatientDiagnosisYear(pDiag);
+              // dirty 비교 기준이 될 원본값 스냅샷 저장 (저장 시 dirty 비교 보존)
+              patientOriginalRef.current = {
+                name: pName,
+                birthYear: pBirth,
+                gender: pGender,
+                diagnosisYear: pDiag,
+              };
+            }
           }
         }
       }
+    } finally {
+      setLoading(false);
+      setPatientLoading(false);
+      loadingGuardRef.current = false;
     }
   }, [user]);
 
@@ -184,65 +320,125 @@ export function ProfileEditScreen() {
     }
     if (!user) return;
 
+    // ⚠️ 무한 스피너(프리징) 방지 — 두 개의 Modal을 절대 적층하지 않는다.
+    // BrandProgressOverlay(Modal)와 AppDialog(Modal)가 동시에 뜨거나, 닫히는 중인
+    // 스피너 Modal 위에 AppDialog를 present하면 iOS에서 알림이 안 뜨고 await가 영영 멈춘다.
+    // 해결: 알림이 필요한 분기는 pendingAlertRef에 담아두기만 하고 setSaving(false)만 호출 →
+    // 스피너 Modal이 "완전히 사라진 뒤"(BrandProgressOverlay onHidden) 단독으로 AppDialog를 띄운다.
+    // 성공 경로는 차단 모달을 아예 쓰지 않고 비차단 CenterToast(=Modal 아님)로 피드백한다.
+    const queueAlertThenLeave = (opts: { title: string; message: string }) => {
+      pendingAlertRef.current = { ...opts, afterClose: () => navigation.goBack() };
+      setSaving(false); // → onHidden에서 알림 표시 → 확인 시 goBack
+    };
+
     setSaving(true);
     try {
-      const { error } = await supabase
-        .from('users')
-        .update({
-          name: name.trim(),
-          birth_year: birthYear,
-          gender: gender,
-          ...(isPatient
-            ? { diagnosis_year: diagnosisYear }
-            : {
-                caregiver_relation: (relKorToEng[relation] ?? 'other') as 'spouse' | 'child' | 'sibling' | 'other',
-                residence_type: cohabiting === 'together' ? 'together' : 'separate',
-                relation_note: relation === '기타' ? relationOther.trim() : null,
-              }),
-        })
-        .eq('id', user.id);
+      // 세션 토큰 확보 (direct-fetch PATCH 인증용) — 무응답 대비 타임아웃
+      const { data: { session } } = await withTimeout(
+        supabase.auth.getSession(),
+        NET_TIMEOUT_MS,
+        '세션 확인',
+      );
+      const accessToken = session?.access_token;
+      if (!accessToken) throw new Error('세션이 만료되었어요. 다시 로그인해주세요.');
 
-      if (error) throw error;
+      // 내 정보 저장 (본인 행 → users UPDATE RLS 통과)
+      const res = await patchUser(user.id, accessToken, {
+        name: name.trim(),
+        birth_year: birthYear,
+        gender: gender,
+        ...(isPatient
+          ? { diagnosis_year: diagnosisYear }
+          : {
+              caregiver_relation: (relKorToEng[relation] ?? 'other') as 'spouse' | 'child' | 'sibling' | 'other',
+              residence_type: cohabiting === 'together' ? 'together' : 'separate',
+              relation_note: relation === '기타' ? relationOther.trim() : null,
+            }),
+      });
+      if (!res.ok) {
+        const txt = await res.text().catch(() => '');
+        throw new Error(`내 정보 저장 실패 (HTTP ${res.status})${txt ? `: ${txt}` : ''}`);
+      }
 
-      // 보호자이고 환자 정보도 수정한 경우
+      // 보호자 + 환자 연동된 경우: 환자 기본정보가 "실제로 변경됐을 때만" PATCH 시도.
+      // (변경 없는데 PATCH하면 RLS상 항상 0행 → 과거 전체 저장 실패로 회귀했던 버그)
+      let patientPartialFail = false;
       if (!isPatient && patientId) {
-        const { error: patientError } = await supabase
-          .from('users')
-          .update({
-            name: patientName.trim(),
-            birth_year: patientBirthYear,
-            gender: patientGender,
-            diagnosis_year: patientDiagnosisYear,
-          })
-          .eq('id', patientId);
+        const orig = patientOriginalRef.current;
+        const patientDirty =
+          !orig ||
+          orig.name !== patientName.trim() ||
+          orig.birthYear !== patientBirthYear ||
+          orig.gender !== patientGender ||
+          orig.diagnosisYear !== patientDiagnosisYear;
 
-        if (patientError) throw patientError;
-      } else if (!isPatient && !patientId) {
-        // 보호자인데 연동된 환자가 없으면 본인 정보는 저장됐음을 알리고 환자 미연동 안내
-        await dialog.alert({
+        if (patientDirty) {
+          // ⚠️ 환자 행은 users UPDATE RLS(본인 행만 허용)에 막혀 0행 갱신될 수 있다.
+          // return=representation으로 갱신 행 수를 확인 → 0행이거나 HTTP 실패면 "부분 실패(비치명적)"로 처리.
+          // 본인 정보는 이미 저장됐으므로 전체를 throw로 실패시키지 않는다.
+          const patientRes = await patchUser(
+            patientId,
+            accessToken,
+            {
+              name: patientName.trim(),
+              birth_year: patientBirthYear,
+              gender: patientGender,
+              diagnosis_year: patientDiagnosisYear,
+            },
+            'representation',
+          );
+          if (!patientRes.ok) {
+            patientPartialFail = true;
+          } else {
+            const updatedRows = await patientRes.json().catch(() => []);
+            if (!Array.isArray(updatedRows) || updatedRows.length === 0) {
+              patientPartialFail = true;
+            }
+          }
+        }
+        // patientDirty가 false면 환자 PATCH 분기를 통째로 건너뜀 (보호자가 자기 정보만 바꾼 흔한 경우)
+      }
+
+      // 데이터 갱신은 스피너가 떠 있는 동안 마친다(차단 모달 없음).
+      await refreshUser();
+
+      // 보호자인데 연동된 환자가 없으면 본인 정보는 저장됐음을 알리고 환자 미연동 안내.
+      // (정보성 안내 → 스피너가 완전히 사라진 뒤 단독 AppDialog, 확인 시 goBack)
+      if (!isPatient && !patientId) {
+        queueAlertThenLeave({
           title: '저장 완료 (환자 미연동)',
           message: '내 정보는 저장됐어요.\n\n담당 환자가 연동되어 있지 않아 환자 정보는 저장할 수 없어요. 가족 연동 메뉴에서 환자를 먼저 연동해주세요.',
         });
-        await refreshUser();
-        navigation.goBack();
-        setSaving(false);
         return;
       }
 
-      // refreshUser는 Alert 확인 후 goBack 전에 호출하지 않고
-      // goBack 직전에 호출해 user 변경이 현재 화면에 영향을 주지 않도록 함
-      await dialog.alert({ title: '저장 완료', message: '프로필이 저장됐어요.' });
-      await refreshUser();
+      // 환자 정보 PATCH가 RLS 등으로 막힌 경우: 본인 정보 저장은 성공으로 처리하고 안내만 별도 표시
+      if (patientPartialFail) {
+        queueAlertThenLeave({
+          title: '내 정보 저장 완료',
+          message: '내 정보는 저장됐어요.\n\n환자 정보는 환자 본인 계정에서 수정할 수 있어요.',
+        });
+        return;
+      }
+
+      // 정상 저장 — 차단 모달 없이 비차단 토스트(CenterToast, Modal 아님)로 피드백 후 즉시 복귀.
+      // 토스트는 앱 루트(DialogProvider)에 떠서 화면을 떠나도 유지되며, 스피너 Modal과 절대 겹치지 않는다.
+      dialog.alert({ message: '프로필이 저장됐어요.', toast: true });
+      setSaving(false);
       navigation.goBack();
     } catch (e: any) {
-      dialog.alert({ title: '오류', message: e.message ?? '저장 중 문제가 생겼어요. 다시 시도해주세요.' });
-    } finally {
+      // 오류 알림: pendingAlertRef에 담아 setSaving(false)만 호출 → 스피너가 완전히
+      // 사라진 뒤 onHidden에서 단독 AppDialog로 표시한다(적층 hang 불가). 화면은 유지(재시도 가능).
+      pendingAlertRef.current = {
+        title: '오류',
+        message: e.message ?? '저장 중 문제가 생겼어요. 다시 시도해주세요.',
+      };
       setSaving(false);
     }
   };
 
   return (
-    <SafeAreaView style={styles.safeArea} edges={['top', 'bottom']}>
+    <SafeAreaView style={styles.safeArea} edges={['top']}>
       <TopBar
         title="프로필 수정"
         showBack
@@ -251,10 +447,20 @@ export function ProfileEditScreen() {
         onBellPress={() => navigation.navigate('NotificationHistory', { mode: 'all' })}
       />
 
+      {loading ? (
+        <View style={styles.loadingWrap}>
+          <ActivityIndicator size="large" color={Colors.primary} />
+          <Text style={styles.loadingText}>불러오는 중...</Text>
+        </View>
+      ) : (
+      <KeyboardAvoidingView style={{ flex: 1 }} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
       <ScrollView
+        ref={scrollViewRef}
         style={styles.scroll}
-        contentContainerStyle={styles.scrollContent}
+        contentContainerStyle={[styles.scrollContent, { paddingBottom: bottomPad }]}
         keyboardShouldPersistTaps="handled"
+        // iOS는 키보드 높이만큼 자동으로 하단 인셋을 잡아 입력칸이 가려지지 않게 함 (RN 0.70+)
+        automaticallyAdjustKeyboardInsets={Platform.OS === 'ios'}
       >
         {/* Section 1: 내 정보 */}
         <View style={styles.card}>
@@ -426,16 +632,32 @@ export function ProfileEditScreen() {
                 </View>
               </View>
 
-              {/* 환자 미연동 안내 배너 */}
-              {!patientId && (
-                <View style={styles.noPatientBanner}>
-                  <Ionicons name="alert-circle-outline" size={20} color="#B45309" />
-                  <Text style={styles.noPatientBannerText}>
-                    연동된 환자가 없어요. 가족 연동 메뉴에서 환자를 먼저 연동해주세요.
-                  </Text>
+              {/* 환자 미연동: 안내 배너 + 가족 연동 버튼만 노출, 환자 입력 필드는 숨김
+                  (더미값 1955/남자/2020 노출 방지) */}
+              {patientLoading ? (
+                <View style={styles.patientLoadingWrap}>
+                  <ActivityIndicator color={Colors.primary} />
+                  <Text style={styles.patientLoadingText}>환자 정보를 불러오고 있어요...</Text>
                 </View>
-              )}
-
+              ) : !patientId ? (
+                <>
+                  <View style={styles.noPatientBanner}>
+                    <Ionicons name="alert-circle-outline" size={20} color="#B45309" />
+                    <Text style={styles.noPatientBannerText}>
+                      아직 연동된 환자가 없어요. 가족을 연동하면 환자분의 정보를 함께 관리할 수 있어요.
+                    </Text>
+                  </View>
+                  <TouchableOpacity
+                    style={styles.linkFamilyBtn}
+                    onPress={() => navigation.navigate('FamilyLink')}
+                    activeOpacity={0.8}
+                  >
+                    <Ionicons name="person-add-outline" size={22} color={Colors.white} />
+                    <Text style={styles.linkFamilyBtnText}>가족 연동하기</Text>
+                  </TouchableOpacity>
+                </>
+              ) : (
+                <>
               {/* 환자 이름 */}
               <Text style={styles.label}>환자 이름</Text>
               <TextInput
@@ -445,6 +667,10 @@ export function ProfileEditScreen() {
                 placeholder="환자 이름을 입력해주세요"
                 placeholderTextColor={Colors.textHint}
                 returnKeyType="done"
+                onFocus={() => {
+                  // 하단 필드 — 키보드 애니메이션 후 키보드 바로 위로 끌어올림 (특히 안드)
+                  setTimeout(() => scrollViewRef.current?.scrollToEnd({ animated: true }), 250);
+                }}
               />
 
               {/* 환자 출생연도 */}
@@ -491,6 +717,8 @@ export function ProfileEditScreen() {
                 <Text style={styles.pickerText}>{patientDiagnosisYear}년</Text>
                 <Ionicons name="chevron-down" size={22} color={Colors.textSub} />
               </TouchableOpacity>
+                </>
+              )}
             </View>
           </>
         )}
@@ -546,9 +774,26 @@ export function ProfileEditScreen() {
 
         {/* 저장 버튼 */}
         <TouchableOpacity style={styles.saveBtn} onPress={handleSave} activeOpacity={0.85} disabled={saving}>
-          <Text style={styles.saveBtnText}>{saving ? '저장 중...' : '저장하기'}</Text>
+          <Text style={styles.saveBtnText}>저장하기</Text>
         </TouchableOpacity>
+
+        {/* 안드: 키보드 높이만큼 하단 스페이서 — 하단 입력 필드 포커스 시 키보드 위로 올림 (iOS는 automaticallyAdjustKeyboardInsets) */}
+        {Platform.OS === 'android' && kbHeight > 0 ? <View style={{ height: kbHeight }} /> : null}
       </ScrollView>
+      </KeyboardAvoidingView>
+      )}
+      <BrandProgressOverlay
+        visible={saving}
+        title="저장하고 있어요"
+        minVisibleMs={500}
+        // 스피너 Modal이 완전히 사라진 뒤에만 단독으로 알림을 띄운다(두 Modal 적층 불가 → 멈춤 0).
+        onHidden={() => {
+          const p = pendingAlertRef.current;
+          if (!p) return;
+          pendingAlertRef.current = null;
+          dialog.alert({ title: p.title, message: p.message }).then(() => p.afterClose?.());
+        }}
+      />
     </SafeAreaView>
   );
 }
@@ -556,6 +801,32 @@ export function ProfileEditScreen() {
 const styles = StyleSheet.create({
   safeArea: { flex: 1, backgroundColor: Colors.background },
   scroll: { flex: 1 },
+
+  // 초기 로딩 스피너 (내 정보 도착 전)
+  loadingWrap: {
+    flex: 1,
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 12,
+  },
+  loadingText: {
+    fontSize: 18,
+    fontWeight: '600',
+    color: Colors.textSub,
+  },
+  // 담당 환자 정보 카드 내부 로딩 스피너
+  patientLoadingWrap: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 10,
+    paddingVertical: 24,
+  },
+  patientLoadingText: {
+    fontSize: 16,
+    fontWeight: '600',
+    color: Colors.textSub,
+  },
   scrollContent: {
     paddingHorizontal: 20,
     paddingTop: 16,
@@ -711,6 +982,20 @@ const styles = StyleSheet.create({
     fontSize: 16,
     color: '#92400E',
     lineHeight: 22,
+  },
+  linkFamilyBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 8,
+    height: 56,
+    borderRadius: 12,
+    backgroundColor: Colors.primary,
+  },
+  linkFamilyBtnText: {
+    fontSize: 18,
+    fontWeight: '700',
+    color: Colors.white,
   },
 
   // Save button

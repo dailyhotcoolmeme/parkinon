@@ -16,7 +16,12 @@
     "ios": {
       "supportsTablet": false,
       "bundleIdentifier": "com.ourmine.parkinon",
-      "usesAppleSignIn": true
+      "buildNumber": "2",
+      "usesAppleSignIn": true,
+      "infoPlist": {
+        "ITSAppUsesNonExemptEncryption": false,
+        "NSMicrophoneUsageDescription": "일기 음성 녹음과 가족 목소리 알림음 녹음을 위해 마이크를 사용합니다."
+      }
     },
     "android": {
       "googleServicesFile": "./google-services.json",
@@ -30,6 +35,7 @@
       "predictiveBackGestureEnabled": false,
       "permissions": [
         "android.permission.CAMERA",
+        "android.permission.RECORD_AUDIO",
         "android.permission.READ_MEDIA_VIDEO",
         "android.permission.READ_MEDIA_IMAGES",
         "android.permission.POST_NOTIFICATIONS",

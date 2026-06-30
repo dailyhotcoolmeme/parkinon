@@ -13,6 +13,70 @@ const MEAL_LABELS: Record<string, string> = {
   bedtime: '취침',
 }
 
+// ─── {시간대} {시각} 표기 (send-medication-reminders 와 1:1 동일 복제) ──────────
+const STANDARD_LABELS = new Set(['아침', '점심', '저녁', '취침'])
+
+const LEGACY_MEAL_DEFAULT_TIME: Record<string, string> = {
+  morning: '08:00',
+  lunch: '12:00',
+  dinner: '18:00',
+  bedtime: '22:00',
+}
+
+/** 'HH:MM[:SS]' → 시간대 단어(앱 doseSlots.periodWord 와 1:1 동일). */
+function periodWord(time: string | null | undefined): string {
+  if (!time) return ''
+  const h = parseInt(time.split(':')[0] ?? '', 10)
+  if (Number.isNaN(h)) return ''
+  if (h < 6) return '새벽'
+  if (h < 11) return '아침'
+  if (h < 13) return '점심'
+  if (h < 17) return '오후'
+  if (h < 21) return '저녁'
+  return '밤'
+}
+
+/** 푸시 문구 {시간대} 라벨. 표준 라벨 우선, 없으면 시각 기반 periodWord. */
+function periodLabelFor(label: string | null | undefined, time: string | null | undefined): string {
+  const trimmed = (label ?? '').trim()
+  if (trimmed && STANDARD_LABELS.has(trimmed)) return trimmed
+  const p = periodWord(time)
+  if (p) return p
+  return ''
+}
+
+/** 'HH:MM[:SS]' → 12시간제 'H:MM' (오전/오후 없이). 예 '18:00'→'6:00'. */
+function formatClockTime(hhmm: string | null | undefined): string {
+  if (!hhmm) return ''
+  const parts = hhmm.split(':')
+  const h = parseInt(parts[0], 10)
+  const m = parseInt(parts[1] ?? '0', 10)
+  if (Number.isNaN(h)) return ''
+  let displayH = h % 12
+  if (displayH === 0) displayH = 12
+  const mm = String(Number.isNaN(m) ? 0 : m).padStart(2, '0')
+  return `${displayH}:${mm}`
+}
+
+/** periodLabel + clock → "{시간대} {시각}" (한쪽만 있으면 그것만, 둘 다 없으면 ''). */
+function periodWithTime(periodLabel: string, clock: string): string {
+  return [periodLabel, clock].filter(Boolean).join(' ')
+}
+
+/** 환자 미복용 body: "아직 {시간대} {시각} 약을 드시지 않으셨어요." */
+function missedBody(label: string | null | undefined, time: string | null | undefined): string {
+  const head = periodWithTime(periodLabelFor(label, time), formatClockTime(time))
+  return head ? `아직 ${head} 약을 드시지 않으셨어요.` : '아직 약을 드시지 않으셨어요.'
+}
+
+/** 보호자 미복용 body: "{환자명}님이 아직 {시간대} {시각} 약을 안 드셨어요. 약 드시도록 챙겨주세요." */
+function caregiverMissedBody(subject: string, label: string | null | undefined, time: string | null | undefined): string {
+  const head = periodWithTime(periodLabelFor(label, time), formatClockTime(time))
+  return head
+    ? `${subject}이 아직 ${head} 약을 안 드셨어요. 약 드시도록 챙겨주세요.`
+    : `${subject}이 아직 약을 안 드셨어요. 약 드시도록 챙겨주세요.`
+}
+
 async function sendPush(to: string, title: string, body: string, data: Record<string, unknown>) {
   await fetch('https://exp.host/--/api/v2/push/send', {
     method: 'POST',
@@ -62,7 +126,7 @@ Deno.serve(async (req: Request) => {
   if (dose_slot_id) {
     const { data: slot } = await supabase
       .from('dose_slots')
-      .select('id, patient_id, label, remind_enabled, is_active')
+      .select('id, patient_id, label, time, remind_enabled, is_active')
       .eq('id', dose_slot_id)
       .maybeSingle()
 
@@ -112,12 +176,10 @@ Deno.serve(async (req: Request) => {
       })
     }
 
-    const label = (slot.label && slot.label.trim()) || (meal_time ? MEAL_LABELS[meal_time] : '') || '약'
-
     await sendPush(
       patient.push_token,
       '💊 약을 아직 안 드셨어요',
-      `${label} 약을 아직 드시지 않으셨어요.`,
+      missedBody((slot as any).label, (slot as any).time),
       { type: 'missed_medication', mealTime: meal_time ?? null, doseSlotId: dose_slot_id },
     )
     patientSent++
@@ -138,8 +200,8 @@ Deno.serve(async (req: Request) => {
 
         const patientName = (patient as any).name?.trim()
         const subject = patientName ? `${patientName}님` : '환자분'
-        const cgTitle = '💊 약을 안 드셨어요'
-        const cgBody = `${subject}이 ${label} 약을 아직 안 드셨어요.`
+        const cgTitle = '💊 약을 아직 안 드셨어요'
+        const cgBody = caregiverMissedBody(subject, (slot as any).label, (slot as any).time)
 
         for (const cu of caregiverUsers ?? []) {
           if (!cu.push_token) continue
@@ -204,7 +266,7 @@ Deno.serve(async (req: Request) => {
     await sendPush(
       patient.push_token,
       '💊 약을 아직 안 드셨어요',
-      `${MEAL_LABELS[meal_time!]} 약을 아직 드시지 않으셨어요.`,
+      missedBody(MEAL_LABELS[meal_time!], LEGACY_MEAL_DEFAULT_TIME[meal_time!]),
       { type: 'missed_medication', mealTime: meal_time },
     )
     patientSent++
@@ -230,8 +292,9 @@ Deno.serve(async (req: Request) => {
 
           const patientName = (patient as any).name?.trim()
           const subject = patientName ? `${patientName}님` : '환자분'
-          const cgTitle = '💊 약을 안 드셨어요'
-          const cgBody = `${subject}이 ${MEAL_LABELS[meal_time!]} 약을 아직 안 드셨어요.`
+          const cgTitle = '💊 약을 아직 안 드셨어요'
+          // 구 경로: meal_time → 라벨 + 기본 시각으로 {시간대} {시각} 구성.
+          const cgBody = caregiverMissedBody(subject, MEAL_LABELS[meal_time!], LEGACY_MEAL_DEFAULT_TIME[meal_time!])
           await sendPush(
             cu.push_token,
             cgTitle,

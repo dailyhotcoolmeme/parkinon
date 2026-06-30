@@ -8,12 +8,14 @@ import {
   StyleSheet,
   ActivityIndicator,
   KeyboardAvoidingView,
+  Keyboard,
   Platform,
   Image,
   Modal,
   FlatList,
+  Switch,
 } from 'react-native';
-import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
+import { SafeAreaView } from 'react-native-safe-area-context';
 import { useNavigation, useRoute, RouteProp } from '@react-navigation/native';
 import { StackNavigationProp } from '@react-navigation/stack';
 import * as ImagePicker from 'expo-image-picker';
@@ -22,13 +24,14 @@ import * as FileSystem from 'expo-file-system/legacy';
 import { Ionicons } from '@expo/vector-icons';
 import { Colors } from '../../constants/colors';
 import { TopBar } from '../../components/common/TopBar';
+import { BrandProgressOverlay } from '../../components/common/BrandProgressOverlay';
 import { useAuth } from '../../context/AuthContext';
 import { usePatientId } from '../../hooks/usePatientId';
 import { supabase } from '../../lib/supabase';
 import { MenuStackParamList } from '../../navigation/MenuNavigator';
-import { uploadPhoto } from '../../lib/r2Upload';
 import { useNotificationBadge } from '../../context/NotificationBadgeContext';
 import { useDialog } from '../../context/DialogContext';
+import { useBottomSheetPadding } from '../../hooks/useBottomSheetPadding';
 
 type NavProp = StackNavigationProp<MenuStackParamList>;
 type RouteType = RouteProp<{ MedicalRecordWrite: { recordId?: string } }, 'MedicalRecordWrite'>;
@@ -108,7 +111,7 @@ function DatePickerModal({
   onYearChange: (v: number) => void; onMonthChange: (v: number) => void;
   onDayChange: (v: number) => void; onConfirm: () => void; onClose: () => void;
 }) {
-  const insets = useSafeAreaInsets();
+  const sheetBottomPad = useBottomSheetPadding(40, 20);
   // 오늘 이후 날짜 선택 불가
   const availableMonths = year === CUR_YEAR
     ? PICKER_MONTHS.filter(m => m <= CUR_MONTH)
@@ -122,7 +125,7 @@ function DatePickerModal({
     <Modal visible={visible} transparent animationType="slide">
       <View style={mpStyles.container}>
         <TouchableOpacity style={mpStyles.overlay} onPress={onClose} activeOpacity={1} />
-        <View style={[mpStyles.sheet, { paddingBottom: Math.max(40, insets.bottom + 20) }]}>
+        <View style={[mpStyles.sheet, { paddingBottom: sheetBottomPad }]}>
           <View style={mpStyles.handle} />
           <Text style={mpStyles.title}>날짜 선택</Text>
           <View style={mpStyles.colsRow}>
@@ -161,12 +164,12 @@ function TimePickerModal({
   onHourChange: (v: number) => void; onMinuteChange: (v: number) => void;
   onConfirm: () => void; onClose: () => void;
 }) {
-  const insets = useSafeAreaInsets();
+  const sheetBottomPad = useBottomSheetPadding(40, 20);
   return (
     <Modal visible={visible} transparent animationType="slide">
       <View style={mpStyles.container}>
         <TouchableOpacity style={mpStyles.overlay} onPress={onClose} activeOpacity={1} />
-        <View style={[mpStyles.sheet, { paddingBottom: Math.max(40, insets.bottom + 20) }]}>
+        <View style={[mpStyles.sheet, { paddingBottom: sheetBottomPad }]}>
           <View style={mpStyles.handle} />
           <Text style={mpStyles.title}>시간 선택</Text>
           <View style={mpStyles.colsRow}>
@@ -237,9 +240,34 @@ export function MedicalRecordWriteScreen() {
   const route = useRoute<RouteType>();
   const recordId = (route.params as any)?.recordId as string | undefined;
   const { user } = useAuth();
-  const { patientId } = usePatientId();
+  const { patientId, loading: pidLoading } = usePatientId();
   const { unreadCount } = useNotificationBadge();
   const dialog = useDialog();
+
+  // 저장 버튼이 안드 3버튼/홈 인디케이터에 가리지 않도록 (글로벌 규칙)
+  const bottomPad = useBottomSheetPadding(40);
+  // 상담 내용 multiline 포커스/입력 시 커서가 키보드 위에 보이게 끌어올리기 위한 ScrollView ref
+  const scrollViewRef = useRef<ScrollView>(null);
+  // 안드로이드 edge-to-edge(Expo SDK 54+)에서는 키보드가 inset으로 들어와
+  // 흐름 안 입력칸이 가려질 수 있다 → 키보드 높이만큼 하단 스페이서를 주고 scrollToEnd 로 입력칸을 키보드 위로 올린다.
+  // (iOS는 ScrollView automaticallyAdjustKeyboardInsets 가 처리하므로 안드만)
+  const [kbHeight, setKbHeight] = useState(0);
+  useEffect(() => {
+    if (Platform.OS !== 'android') return;
+    const showSub = Keyboard.addListener('keyboardDidShow', (e) => {
+      setKbHeight(e.endCoordinates?.height ?? 0);
+    });
+    const hideSub = Keyboard.addListener('keyboardDidHide', () => setKbHeight(0));
+    return () => {
+      showSub.remove();
+      hideSub.remove();
+    };
+  }, []);
+
+  // 미연동 보호자: 보호자인데 환자 해석이 끝났고 연동 환자 없음.
+  // patientId ?? user.id 폴백이 보호자 본인 id로 저장돼 유령 기록이 생기므로
+  // 작성 화면 진입을 막고 가족 연동을 안내한다(환자 본인 경로는 영향 없음).
+  const caregiverUnlinked = user?.role === 'caregiver' && !pidLoading && patientId == null;
 
   // 날짜/시간 상태 (기본: 오늘 오전 9시)
   const [selYear, setSelYear] = useState(NOW.getFullYear());
@@ -260,12 +288,17 @@ export function MedicalRecordWriteScreen() {
   const [hospitalName, setHospitalName] = useState('');
   const [doctorName, setDoctorName] = useState('');
   const [consultationNotes, setConsultationNotes] = useState('');
+  const [prescriptionChanged, setPrescriptionChanged] = useState(false);
   const [prescriptionImageUri, setPrescriptionImageUri] = useState<string | null>(null);
   const [ocrMeds, setOcrMeds] = useState<OcrMed[]>([]);
   const [isOcrLoading, setIsOcrLoading] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
   const [isLoadingEdit, setIsLoadingEdit] = useState(false);
   const [isFirstRecord, setIsFirstRecord] = useState(false);
+  // 1회 로드 가드: user 참조 변동(컨텍스트 갱신)으로 effect 가 재실행돼 폼이 재조회/덮어쓰기
+  //  되는 것을 막는다. 자동완성은 첫 진입 1회만, 수정 로드는 recordId 당 1회만.
+  const didAutoFillRef = useRef(false);
+  const loadedEditIdRef = useRef<string | null>(null);
 
   const getToken = async () => {
     const { data: { session } } = await supabase.auth.getSession();
@@ -287,6 +320,8 @@ export function MedicalRecordWriteScreen() {
   // 신규: 이전 진료 기록에서 병원/의사 자동완성
   useEffect(() => {
     if (recordId || !user) return;
+    if (didAutoFillRef.current) return; // 첫 진입 1회만
+    didAutoFillRef.current = true;
     (async () => {
       try {
         const token = await getToken();
@@ -310,13 +345,15 @@ export function MedicalRecordWriteScreen() {
   // 수정 모드: 기존 데이터 로드
   useEffect(() => {
     if (!recordId || !user) return;
+    if (loadedEditIdRef.current === recordId) return; // 같은 기록은 1회만 로드(편집 중 덮어쓰기 방지)
+    loadedEditIdRef.current = recordId;
     (async () => {
       setIsLoadingEdit(true);
       try {
         const token = await getToken();
         const headers = { apikey: SUPABASE_ANON_KEY, Authorization: `Bearer ${token}` };
         const res = await fetch(
-          `${SUPABASE_URL}/rest/v1/medical_records?id=eq.${recordId}&select=*,medical_record_medications(*)`,
+          `${SUPABASE_URL}/rest/v1/medical_records?id=eq.${recordId}&select=id,visit_date,hospital_name,doctor_name,consultation_notes,prescription_changed,prescription_image_url,medical_record_medications(medication_name,dosage)`,
           { headers },
         );
         if (!res.ok) throw new Error('데이터 로드 실패');
@@ -332,6 +369,7 @@ export function MedicalRecordWriteScreen() {
           setHospitalName(rec.hospital_name ?? '');
           setDoctorName(rec.doctor_name ?? '');
           setConsultationNotes(rec.consultation_notes ?? '');
+          setPrescriptionChanged(!!rec.prescription_changed);
           if (rec.prescription_image_url) setPrescriptionImageUri(rec.prescription_image_url);
           if (rec.medical_record_medications?.length > 0) {
             setOcrMeds(rec.medical_record_medications.map((m: any) => ({
@@ -409,6 +447,11 @@ export function MedicalRecordWriteScreen() {
 
   const handleSave = async () => {
     if (!user) return;
+    // 미연동 보호자는 저장 직전 차단(폴백 본인 id 저장으로 유령 기록 생기는 것 방지).
+    if (caregiverUnlinked) {
+      await dialog.alert({ title: '환자 연동 후 가능해요', message: '가족 연동 메뉴에서 환자를 먼저 연동해주세요.' });
+      return;
+    }
 
     const visitDateISO = new Date(selYear, selMonth - 1, selDay, selHour, selMinute).toISOString();
 
@@ -422,105 +465,27 @@ export function MedicalRecordWriteScreen() {
         Prefer: 'return=representation',
       };
 
-      // 처방전 이미지 R2 업로드
-      let prescriptionUrl: string | null = null;
-      if (prescriptionImageUri && !prescriptionImageUri.startsWith('http')) {
-        const uploadResult = await uploadPhoto(prescriptionImageUri, user.id);
-        prescriptionUrl = uploadResult.url;
-      } else if (prescriptionImageUri?.startsWith('http')) {
-        prescriptionUrl = prescriptionImageUri;
-      }
-
-      let savedRecordId: string;
+      // 진료 기록 기본 필드만 저장. 처방약은 '약 관리'에서 관리(처방전 사진 미보관 — 개인정보 보호).
+      const recordBody = {
+        visit_date: visitDateISO,
+        hospital_name: hospitalName.trim() || null,
+        doctor_name: doctorName.trim() || null,
+        consultation_notes: consultationNotes.trim() || null,
+        prescription_changed: prescriptionChanged,
+      };
 
       if (recordId) {
-        // UPDATE
         const updateRes = await fetch(
           `${SUPABASE_URL}/rest/v1/medical_records?id=eq.${recordId}`,
-          {
-            method: 'PATCH', headers,
-            body: JSON.stringify({
-              visit_date: visitDateISO,
-              hospital_name: hospitalName.trim() || null,
-              doctor_name: doctorName.trim() || null,
-              consultation_notes: consultationNotes.trim() || null,
-              prescription_image_url: prescriptionUrl,
-            }),
-          },
+          { method: 'PATCH', headers, body: JSON.stringify(recordBody) },
         );
         if (!updateRes.ok) throw new Error('진료 기록 수정에 실패했어요.');
-        savedRecordId = recordId;
-
-        // 기존 medications 삭제 후 재삽입
-        await fetch(
-          `${SUPABASE_URL}/rest/v1/medical_record_medications?medical_record_id=eq.${recordId}`,
-          { method: 'DELETE', headers },
-        );
       } else {
-        // INSERT
         const insertRes = await fetch(
           `${SUPABASE_URL}/rest/v1/medical_records`,
-          {
-            method: 'POST', headers,
-            body: JSON.stringify({
-              patient_id: patientId ?? user.id,
-              visit_date: visitDateISO,
-              hospital_name: hospitalName.trim() || null,
-              doctor_name: doctorName.trim() || null,
-              consultation_notes: consultationNotes.trim() || null,
-              prescription_image_url: prescriptionUrl,
-            }),
-          },
+          { method: 'POST', headers, body: JSON.stringify({ patient_id: patientId ?? user.id, ...recordBody }) },
         );
         if (!insertRes.ok) throw new Error('진료 기록 저장에 실패했어요.');
-        const inserted = await insertRes.json();
-        savedRecordId = Array.isArray(inserted) ? inserted[0].id : inserted.id;
-      }
-
-      // 직전 기록의 처방약 조회 (change_type 비교용)
-      const prevRes = await fetch(
-        `${SUPABASE_URL}/rest/v1/medical_records?patient_id=eq.${patientId ?? user.id}&visit_date=lt.${visitDateISO}&order=visit_date.desc&limit=1&select=id`,
-        { headers: { apikey: SUPABASE_ANON_KEY, Authorization: `Bearer ${token}` } },
-      );
-      let prevMeds: PrevMed[] = [];
-      if (prevRes.ok) {
-        const prevRecs = await prevRes.json();
-        if (prevRecs.length > 0) {
-          const prevMedRes = await fetch(
-            `${SUPABASE_URL}/rest/v1/medical_record_medications?medical_record_id=eq.${prevRecs[0].id}`,
-            { headers: { apikey: SUPABASE_ANON_KEY, Authorization: `Bearer ${token}` } },
-          );
-          if (prevMedRes.ok) {
-            const prevMedData = await prevMedRes.json();
-            prevMeds = prevMedData.map((m: any) => ({ name: m.medication_name, dosage: m.dosage ?? '' }));
-          }
-        }
-      }
-
-      const currentNames = ocrMeds.map(m => m.name.replace(/\s/g, '').toLowerCase());
-      const removedMeds = prevMeds.filter(p => !currentNames.includes(p.name.replace(/\s/g, '').toLowerCase()));
-
-      const medsToInsert = [
-        ...ocrMeds.map(m => ({
-          medical_record_id: savedRecordId,
-          medication_name: m.name,
-          dosage: m.dosage || null,
-          change_type: computeChangeType(m.name, m.dosage, prevMeds),
-        })),
-        ...removedMeds.map(p => ({
-          medical_record_id: savedRecordId,
-          medication_name: p.name,
-          dosage: p.dosage || null,
-          change_type: 'removed',
-        })),
-      ];
-
-      if (medsToInsert.length > 0) {
-        const medInsertRes = await fetch(
-          `${SUPABASE_URL}/rest/v1/medical_record_medications`,
-          { method: 'POST', headers, body: JSON.stringify(medsToInsert) },
-        );
-        if (!medInsertRes.ok) console.warn('처방약 저장 실패:', await medInsertRes.text());
       }
 
       await dialog.alert({ title: '저장 완료', message: '진료 기록이 저장되었어요.' });
@@ -547,11 +512,38 @@ export function MedicalRecordWriteScreen() {
     );
   }
 
+  if (caregiverUnlinked) {
+    return (
+      <SafeAreaView style={styles.container} edges={['top']}>
+        <TopBar title={recordId ? '진료 기록 수정' : '진료 기록 추가'} showBack />
+        <View style={styles.unlinkedWrap}>
+          <Ionicons name="people-outline" size={56} color={Colors.textHint} />
+          <Text style={styles.unlinkedTitle}>환자를 먼저 연동해주세요</Text>
+          <Text style={styles.unlinkedDesc}>{'가족을 연동하면 환자분의\n진료 기록을 대신 작성할 수 있어요'}</Text>
+          <TouchableOpacity
+            style={styles.linkFamilyBtn}
+            onPress={() => navigation.navigate('FamilyLink')}
+            activeOpacity={0.85}
+          >
+            <Ionicons name="person-add-outline" size={22} color={Colors.white} />
+            <Text style={styles.linkFamilyBtnText}>가족 연동하기</Text>
+          </TouchableOpacity>
+        </View>
+      </SafeAreaView>
+    );
+  }
+
   return (
     <SafeAreaView style={styles.container} edges={['top']}>
       <TopBar title={recordId ? '진료 기록 수정' : '진료 기록 추가'} showBack />
       <KeyboardAvoidingView style={{ flex: 1 }} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
-        <ScrollView contentContainerStyle={styles.scroll} keyboardShouldPersistTaps="handled">
+        <ScrollView
+          ref={scrollViewRef}
+          contentContainerStyle={[styles.scroll, { paddingBottom: bottomPad }]}
+          keyboardShouldPersistTaps="handled"
+          // iOS는 키보드 높이만큼 자동으로 하단 인셋을 잡아 입력칸이 가려지지 않게 함 (RN 0.70+)
+          automaticallyAdjustKeyboardInsets={Platform.OS === 'ios'}
+        >
 
           {/* 진료 날짜 */}
           <Text style={styles.label}>진료 날짜</Text>
@@ -606,56 +598,49 @@ export function MedicalRecordWriteScreen() {
             placeholderTextColor={Colors.textHint}
             value={consultationNotes}
             onChangeText={t => setConsultationNotes(t.slice(0, 500))}
+            onFocus={() => {
+              // 키보드 애니메이션이 끝난 뒤 입력칸을 키보드 바로 위로 끌어올림 (특히 안드 — automaticallyAdjustKeyboardInsets 미지원)
+              setTimeout(() => scrollViewRef.current?.scrollToEnd({ animated: true }), 250);
+            }}
+            onContentSizeChange={() => {
+              // 줄이 늘어나 커서가 키보드에 가릴 위험 — 입력 중에도 맨 아래로 따라가게 함 (안드)
+              if (Platform.OS === 'android' && kbHeight > 0) {
+                scrollViewRef.current?.scrollToEnd({ animated: true });
+              }
+            }}
             multiline
             numberOfLines={5}
             textAlignVertical="top"
           />
           <Text style={styles.charCount}>{consultationNotes.length}/500</Text>
 
-          {/* 처방전 등록 */}
-          <Text style={[styles.label, { marginTop: 8 }]}>처방전 등록</Text>
-          <View style={styles.prescriptionBtnRow}>
-            <TouchableOpacity
-              style={styles.prescriptionBtn}
-              onPress={() => pickAndOcr(true)}
-              activeOpacity={0.8}
-              disabled={isOcrLoading}
-            >
-              <Ionicons name="camera-outline" size={22} color={Colors.primary} style={{ marginRight: 6 }} />
-              <Text style={styles.prescriptionBtnText}>카메라로 촬영</Text>
-            </TouchableOpacity>
-            <TouchableOpacity
-              style={styles.prescriptionBtn}
-              onPress={() => pickAndOcr(false)}
-              activeOpacity={0.8}
-              disabled={isOcrLoading}
-            >
-              <Ionicons name="images-outline" size={22} color={Colors.primary} style={{ marginRight: 6 }} />
-              <Text style={styles.prescriptionBtnText}>갤러리 선택</Text>
-            </TouchableOpacity>
+          {/* 처방 변경 — 사용자가 직접 변경 여부 등록. 실제 약은 약 관리에서. (처방전 사진 미보관) */}
+          <Text style={[styles.label, { marginTop: 8 }]}>처방 변경</Text>
+          <View style={styles.prescChangeRow}>
+            <View style={{ flex: 1 }}>
+              <Text style={styles.prescChangeTitle}>이번 진료에서 처방이 바뀌었어요</Text>
+              <Text style={styles.prescChangeSub}>약 종류·복용량·복용주기가 바뀌었으면 켜주세요</Text>
+            </View>
+            <Switch
+              value={prescriptionChanged}
+              onValueChange={setPrescriptionChanged}
+              trackColor={{ false: Colors.border, true: Colors.primary }}
+              thumbColor={Colors.white}
+            />
           </View>
-
-          {prescriptionImageUri ? (
-            <Image source={{ uri: prescriptionImageUri }} style={styles.prescriptionPreview} resizeMode="contain" />
-          ) : null}
-
-          {isOcrLoading ? (
-            <View style={styles.ocrLoading}>
-              <ActivityIndicator size="large" color={Colors.primary} />
-              <Text style={styles.ocrLoadingText}>처방전 분석 중...</Text>
-            </View>
-          ) : null}
-
-          {ocrMeds.length > 0 ? (
-            <View style={styles.ocrResult}>
-              <Text style={styles.ocrResultTitle}>인식된 처방약 목록</Text>
-              {ocrMeds.map((m, i) => (
-                <View key={i} style={styles.ocrMedRow}>
-                  <Text style={styles.ocrMedName}>{m.name}</Text>
-                  {m.dosage ? <Text style={styles.ocrMedDosage}>{m.dosage}</Text> : null}
-                </View>
-              ))}
-            </View>
+          {prescriptionChanged ? (
+            <TouchableOpacity
+              style={styles.medManageLink}
+              onPress={() => navigation.navigate('MedicationManage', { mode: 'meds' } as any)}
+              activeOpacity={0.8}
+            >
+              <Ionicons name="medical-outline" size={24} color={Colors.primary} style={{ marginRight: 10 }} />
+              <View style={{ flex: 1 }}>
+                <Text style={styles.medManageLinkTitle}>약 관리에서 약 변경하기</Text>
+                <Text style={styles.medManageLinkSub}>실제 약은 ‘약 관리’에서 등록·수정해요</Text>
+              </View>
+              <Ionicons name="chevron-forward" size={22} color={Colors.primary} />
+            </TouchableOpacity>
           ) : null}
 
           {/* 저장 버튼 */}
@@ -665,11 +650,11 @@ export function MedicalRecordWriteScreen() {
             activeOpacity={0.8}
             disabled={isSaving}
           >
-            {isSaving
-              ? <ActivityIndicator size="small" color={Colors.white} />
-              : <Text style={styles.saveBtnText}>저장하기</Text>
-            }
+            <Text style={styles.saveBtnText}>저장하기</Text>
           </TouchableOpacity>
+
+          {/* 안드: 키보드 높이만큼 하단 스페이서 — 긴 상담 내용 입력 시 커서가 키보드 위로 보이게 (iOS는 automaticallyAdjustKeyboardInsets) */}
+          {Platform.OS === 'android' && kbHeight > 0 ? <View style={{ height: kbHeight }} /> : null}
         </ScrollView>
       </KeyboardAvoidingView>
 
@@ -684,6 +669,11 @@ export function MedicalRecordWriteScreen() {
         hour={tmpHour} minute={tmpMinute}
         onHourChange={setTmpHour} onMinuteChange={setTmpMinute}
         onConfirm={confirmTime} onClose={() => setShowTimePicker(false)}
+      />
+      <BrandProgressOverlay
+        visible={isSaving}
+        title="저장하고 있어요"
+        minVisibleMs={500}
       />
     </SafeAreaView>
   );
@@ -722,6 +712,21 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
   },
   prescriptionBtnText: { fontSize: 17, fontWeight: '700', color: Colors.primary },
+  // 약 관리 연결 링크
+  medManageLink: {
+    flexDirection: 'row', alignItems: 'center',
+    backgroundColor: Colors.white, borderWidth: 1.5, borderColor: Colors.primary,
+    borderRadius: 12, paddingHorizontal: 16, paddingVertical: 14, minHeight: 56,
+  },
+  medManageLinkTitle: { fontSize: 17, fontWeight: '700', color: Colors.text },
+  medManageLinkSub: { fontSize: 14, color: Colors.textSub, marginTop: 2 },
+  prescChangeRow: {
+    flexDirection: 'row', alignItems: 'center', gap: 10,
+    backgroundColor: Colors.white, borderRadius: 12,
+    paddingHorizontal: 16, paddingVertical: 14, marginBottom: 10,
+  },
+  prescChangeTitle: { fontSize: 17, fontWeight: '700', color: Colors.text },
+  prescChangeSub: { fontSize: 14, color: Colors.textSub, marginTop: 2 },
   prescriptionPreview: { width: '100%', height: 200, borderRadius: 12, marginTop: 16, backgroundColor: Colors.border },
   ocrLoading: { alignItems: 'center', paddingVertical: 20 },
   ocrLoadingText: { fontSize: 17, color: Colors.textSub, marginTop: 10 },
@@ -739,6 +744,17 @@ const styles = StyleSheet.create({
   },
   saveBtnDisabled: { backgroundColor: Colors.textHint },
   saveBtnText: { fontSize: 19, fontWeight: '700', color: Colors.white },
+
+  // 미연동 보호자 안내(가족 연동 유도) — 기준 화면(기록 보기)과 동일
+  unlinkedWrap: { flex: 1, alignItems: 'center', justifyContent: 'center', paddingHorizontal: 32 },
+  unlinkedTitle: { fontSize: 20, color: Colors.textSub, marginTop: 16, fontWeight: '600' },
+  unlinkedDesc: { fontSize: 18, color: Colors.textHint, textAlign: 'center', marginTop: 8, lineHeight: 26 },
+  linkFamilyBtn: {
+    flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8,
+    height: 56, paddingHorizontal: 24, borderRadius: 12,
+    backgroundColor: Colors.primary, marginTop: 24,
+  },
+  linkFamilyBtnText: { fontSize: 18, fontWeight: '700', color: Colors.white },
 });
 
 const colStyles = StyleSheet.create({

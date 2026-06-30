@@ -12,7 +12,7 @@ export function TermsScreen() {
   const navigation = useNavigation<any>();
   const { unreadCount } = useNotificationBadge();
   return (
-    <SafeAreaView style={styles.safeArea} edges={['top', 'bottom']}>
+    <SafeAreaView style={styles.safeArea} edges={['top']}>
       <TopBar
         title="이용약관"
         showBack

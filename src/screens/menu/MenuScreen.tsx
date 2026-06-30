@@ -10,10 +10,11 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { useNavigation } from '@react-navigation/native';
 import { useFocusEffect } from '@react-navigation/native';
 import { StackNavigationProp } from '@react-navigation/stack';
-import { Ionicons } from '@expo/vector-icons';
+import { Ionicons, MaterialCommunityIcons } from '@expo/vector-icons';
 import { Colors } from '../../constants/colors';
 import { MenuStackParamList } from '../../navigation/MenuNavigator';
 import { TopBar } from '../../components/common/TopBar';
+import { BrandProgressOverlay } from '../../components/common/BrandProgressOverlay';
 import { useAuth } from '../../context/AuthContext';
 import { useNotificationBadge } from '../../context/NotificationBadgeContext';
 import { supabase } from '../../lib/supabase';
@@ -25,10 +26,13 @@ import { useScrollTopOnTabPress } from '../../hooks/useScrollTopOnTabPress';
 
 type NavigationProp = StackNavigationProp<MenuStackParamList, 'MenuHome'>;
 type IoniconName = React.ComponentProps<typeof Ionicons>['name'];
+type MaterialCommunityIconName = React.ComponentProps<typeof MaterialCommunityIcons>['name'];
 
 interface MenuItem {
   key: string;
-  icon: IoniconName;
+  icon: IoniconName | MaterialCommunityIconName;
+  /** 아이콘 세트. 기본은 Ionicons. 톱바와 일관성을 위해 일기 항목만 MaterialCommunityIcons 사용. */
+  iconSet?: 'ionicons' | 'material-community';
   label: string;
   desc: string;
 }
@@ -55,16 +59,17 @@ const MENU_SECTIONS: MenuSection[] = [
     title: '기록',
     items: [
       {
+        key: 'Diary',
+        icon: 'notebook-edit-outline',
+        iconSet: 'material-community',
+        label: '파킨온 일기',
+        desc: '하루하루 종합 일기를 써요',
+      },
+      {
         key: 'Records',
         icon: 'bar-chart-outline',
         label: '작성 기록 보기',
         desc: '약복용·약효추적 기록을 확인해요',
-      },
-      {
-        key: 'Diary',
-        icon: 'book-outline',
-        label: '일기',
-        desc: '하루하루 종합 일기를 써요',
       },
       {
         key: 'VideoList',
@@ -74,7 +79,8 @@ const MENU_SECTIONS: MenuSection[] = [
       },
       {
         key: 'MedicalRecordList',
-        icon: 'medical-outline',
+        icon: 'stethoscope',
+        iconSet: 'material-community',
         label: '진료 기록',
         desc: '병원 진료 기록을 확인해요',
       },
@@ -90,16 +96,23 @@ const MENU_SECTIONS: MenuSection[] = [
         desc: '__FAMILY_LINK_DESC__',
       },
       {
-        key: 'MedicationManage',
-        icon: 'medkit-outline',
+        key: 'MyMeds',
+        icon: 'pill',
+        iconSet: 'material-community',
         label: '복용약 관리',
-        desc: '복용 중인 약을 추가·수정해요',
+        desc: '드시는 약을 등록하고 관리해요',
+      },
+      {
+        key: 'DoseSlots',
+        icon: 'alarm-outline',
+        label: '복용시간 설정·알림',
+        desc: '약 드시는 시간과 알림을 설정해요',
       },
       {
         key: 'Settings',
         icon: 'notifications-outline',
-        label: '알림 설정',
-        desc: '약복용·약효추적·운동 알림 등을 관리해요',
+        label: '그 밖의 알림',
+        desc: '미복용·운동 등 그 밖의 알림을 설정해요',
       },
       {
         key: 'AlarmSoundSettings',
@@ -112,6 +125,12 @@ const MENU_SECTIONS: MenuSection[] = [
   {
     title: '기타',
     items: [
+      {
+        key: 'BlockedUsers',
+        icon: 'person-remove-outline',
+        label: '차단한 사용자 관리',
+        desc: '차단한 사용자를 확인하고 해제해요',
+      },
       {
         key: 'Terms',
         icon: 'document-text-outline',
@@ -158,6 +177,7 @@ export function MenuScreen() {
   // 보호자 모드에서 같은 그룹 환자의 user_id / 이름 — 측정 기록 화면으로 넘길 때 사용.
   const [patientId, setPatientId] = React.useState<string | null>(null);
   const [patientName, setPatientName] = React.useState<string | null>(null);
+  const [deleting, setDeleting] = React.useState(false);
   useFocusEffect(
     React.useCallback(() => {
       let cancelled = false;
@@ -212,11 +232,31 @@ export function MenuScreen() {
   //   3) 📹 영상 기록 보기 (VideoList)
   // 환자/보호자 노출 조건은 기존 유지. 위치만 '기록 보기'와 '영상 기록 보기' 사이로 변경.
   const menuSections = React.useMemo<MenuSection[]>(() => {
+    // 보호자: '복용시간 설정·알림'은 보호자 알림 설정 화면 하단에서 환자 대신 설정하므로 메뉴에선 숨김.
+    // 또한 보호자의 'Settings'(그 밖의 알림) 항목은 보호자용 알림 설정 화면(환자 알림 수정 포함)이므로
+    // label/desc를 보호자 문구로 교체한다(환자 본인은 기존 '그 밖의 알림' 유지).
+    const base =
+      user?.role === 'caregiver'
+        ? MENU_SECTIONS.map((section) => ({
+            ...section,
+            items: section.items
+              .filter((i) => i.key !== 'DoseSlots')
+              .map((i) =>
+                i.key === 'Settings'
+                  ? {
+                      ...i,
+                      label: '보호자용 알림',
+                      desc: '미복용·약효추적·운동 등 알림을 설정해요',
+                    }
+                  : i,
+              ),
+          }))
+        : MENU_SECTIONS;
     // 컨디션 측정 기능 숨김 시 측정 관련 메뉴 항목(환자/보호자) 모두 비노출.
-    if (!MEASUREMENT_FEATURE_ENABLED) return MENU_SECTIONS;
+    if (!MEASUREMENT_FEATURE_ENABLED) return base;
     const isPatient = user?.role === 'patient';
     const isCaregiverWithData = user?.role === 'caregiver' && hasPatientMeasurement;
-    if (!isPatient && !isCaregiverWithData) return MENU_SECTIONS;
+    if (!isPatient && !isCaregiverWithData) return base;
     // 보호자 항목 라벨/설명 — 환자 이름+님 사용. 이름 로드 전이면 잠시 '환자' fallback.
     const pName = patientName ?? '환자';
     const caregiverItem: MenuItem = {
@@ -225,7 +265,7 @@ export function MenuScreen() {
       label: `${pName}님 컨디션 보기`,
       desc: `${pName}님의 손가락·반응속도 결과를 확인해요`,
     };
-    return MENU_SECTIONS.map((section) => {
+    return base.map((section) => {
       if (section.title !== '기록') return section;
       const extraItem = isPatient
         ? PATIENT_ONLY_MEASUREMENT_ITEM
@@ -259,8 +299,10 @@ export function MenuScreen() {
       navigation.navigate('VideoList');
     } else if (key === 'Settings') {
       navigation.navigate('Settings');
-    } else if (key === 'MedicationManage') {
-      navigation.navigate('MedicationManage');
+    } else if (key === 'MyMeds') {
+      navigation.navigate('MedicationManage', { mode: 'meds' });
+    } else if (key === 'DoseSlots') {
+      navigation.navigate('MedicationManage', { mode: 'slots' });
     } else if (key === 'FamilyLink') {
       navigation.navigate('FamilyLink');
     } else if (key === 'Terms') {
@@ -269,9 +311,11 @@ export function MenuScreen() {
       navigation.navigate('Privacy');
     } else if (key === 'MedicalRecordList') {
       navigation.navigate('MedicalRecordList');
+    } else if (key === 'BlockedUsers') {
+      navigation.navigate('BlockedUsers');
     } else if (key === 'AlarmSoundSettings') {
-      // 알림음 설정 화면 — RootNavigator 스택으로 이동 (녹음은 설정 화면 안에서 진입)
-      navigateTo('AlarmSoundSettings');
+      // 알림음 설정 화면 — MenuNavigator(기록·관리 탭) 스택 내 이동 → 탭바 유지
+      navigation.navigate('AlarmSoundSettings');
     } else if (key === 'MeasurementRecords') {
       // 환자 본인 측정 기록 보기 — params 없이 본인 데이터.
       navigateTo('MeasurementRecords');
@@ -304,6 +348,7 @@ export function MenuScreen() {
       destructive: true,
     });
     if (!ok) return;
+    setDeleting(true);
     try {
       // 세션 토큰 확보
       const { data: { session } } = await supabase.auth.getSession();
@@ -328,6 +373,8 @@ export function MenuScreen() {
         throw new Error('탈퇴 실패');
       }
 
+      // 무거운 정리 작업이 끝났으니 로딩 오버레이를 내리고 완료 안내
+      setDeleting(false);
       // 탈퇴 완료 안내 후 로컬 세션 정리
       await dialog.alert({
         title: '탈퇴 완료',
@@ -339,14 +386,17 @@ export function MenuScreen() {
       //  RootNavigator가 OnboardingGuest(로그인)가 아닌 온보딩 중간 화면으로 빠질 수 있음)
       await signOut();
     } catch (e: any) {
+      setDeleting(false);
       dialog.alert({ title: '오류', message: '탈퇴 처리 중 문제가 생겼어요. 다시 시도해주세요.' });
     }
   };
 
   return (
-    <SafeAreaView style={styles.safeArea} edges={['top', 'bottom']}>
+    <SafeAreaView style={styles.safeArea} edges={['top']}>
       <TopBar
         showParkinon
+        showDiary
+        onDiaryPress={() => navigateTo('Diary')}
         showBell
         bellBadge={unreadCount}
         onBellPress={() => navigation.navigate('NotificationHistory', { mode: 'all' })}
@@ -394,11 +444,19 @@ export function MenuScreen() {
                     <View style={[
                       styles.menuIconCircle,
                     ]}>
-                      <Ionicons
-                        name={item.icon}
-                        size={28}
-                        color={item.key === 'EmergencyContacts' ? '#F44336' : Colors.primary}
-                      />
+                      {item.iconSet === 'material-community' ? (
+                        <MaterialCommunityIcons
+                          name={item.icon as MaterialCommunityIconName}
+                          size={28}
+                          color={item.key === 'EmergencyContacts' ? '#F44336' : Colors.primary}
+                        />
+                      ) : (
+                        <Ionicons
+                          name={item.icon as IoniconName}
+                          size={28}
+                          color={item.key === 'EmergencyContacts' ? '#F44336' : Colors.primary}
+                        />
+                      )}
                     </View>
                     <View style={styles.menuTextWrap}>
                       <Text style={styles.menuLabel}>{item.label}</Text>
@@ -453,6 +511,12 @@ export function MenuScreen() {
           </TouchableOpacity>
         </View>
       </ScrollView>
+
+      <BrandProgressOverlay
+        visible={deleting}
+        title="탈퇴 처리 중이에요"
+        subtitle="계정을 정리하고 있어요"
+      />
     </SafeAreaView>
   );
 }

@@ -8,8 +8,6 @@ import { RoleSelectScreen } from '../screens/onboarding/RoleSelectScreen';
 import { FamilyCheckScreen } from '../screens/onboarding/FamilyCheckScreen';
 import { PatientInfoScreen } from '../screens/onboarding/PatientInfoScreen';
 import { CaregiverInfoScreen } from '../screens/onboarding/CaregiverInfoScreen';
-import { MedicationRegisterScreen } from '../screens/onboarding/MedicationRegisterScreen';
-import { NotificationSetupScreen } from '../screens/onboarding/NotificationSetupScreen';
 import { FamilyInviteScreen } from '../screens/onboarding/FamilyInviteScreen';
 import { SensitiveInfoConsentScreen } from '../screens/onboarding/SensitiveInfoConsentScreen';
 import { useAuth } from '../context/AuthContext';
@@ -23,8 +21,6 @@ export type OnboardingStackParamList = {
   FamilyCheck: undefined;
   PatientInfo: { step: number };
   CaregiverInfo: { step: number };
-  MedicationRegister: undefined;
-  NotificationSetup: undefined;
   FamilyInvite: undefined;
 };
 
@@ -62,8 +58,6 @@ export function OnboardingNavigator() {
       <Stack.Screen name="RoleSelect" component={RoleSelectScreen} />
       <Stack.Screen name="PatientInfo" component={PatientInfoScreen} />
       <Stack.Screen name="CaregiverInfo" component={CaregiverInfoScreen} />
-      <Stack.Screen name="MedicationRegister" component={MedicationRegisterScreen} />
-      <Stack.Screen name="NotificationSetup" component={NotificationSetupScreen} />
       <Stack.Screen name="FamilyInvite" component={FamilyInviteScreen} />
     </Stack.Navigator>
   );

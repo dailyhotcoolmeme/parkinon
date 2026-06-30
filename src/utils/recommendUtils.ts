@@ -120,3 +120,79 @@ export function buildRecommendedMedNotifs(
     nonTrackedNotes: Array.from(noteSet),
   };
 }
+
+/** 슬롯 단위 안내용 입력 약 항목 (복용 시각에 묶인 약) */
+export type SlotMedInput = { name: string; mfdsClassName?: string | null };
+
+/**
+ * 추천근거 = "출처 표기" 한 줄(§7.5).
+ *
+ * 오너 확정: 추천근거 자리는 약효를 구구절절 설명하는 문장(rationale)이 아니라,
+ * "이 정보가 어디서 온 근거인지"를 밝히는 짧은 출처 한 줄이다.
+ *
+ * 데이터 정직성(사칭 금지·§7.5 출처 검증 완료): 약효 발현·지속 시간 수치는 미국 FDA 제품
+ * 허가정보(제품 라벨)와 제조사 제품정보(SmPC)로 검증됐다. 한국 식약처 원문 PK 는 직접 확보하지
+ * 못했으므로 "식약처 기준"으로 단독 표기하지 않는다(부정확·사칭). 검증된 1차 근거만 표기한다.
+ *
+ * ⚠️ 출처 범위 주의(오인 금지): 이 출처는 "약효 시간(발현·지속) 정보"의 근거다.
+ * "복용 후 30분·2시간 확인"이라는 추적 시점 자체를 FDA 가 권고한 것은 아니며,
+ * 그 약효 시간을 바탕으로 앱이 안내하는 참고 시점이다(면책 줄에서 명시).
+ *
+ * 문구(오케스트레이터가 오너에게 선택받음 — 둘 다 같은 SOURCE_LABEL 값 사용):
+ *   라벨 A: '추천근거: ' + SOURCE_LABEL
+ *   라벨 B: '약효 시간 출처: ' + SOURCE_LABEL
+ * UI 는 'recommendUtils.SOURCE_LABEL' 만 보면 된다(60대 일반어·전문어 "약동학" 제거).
+ */
+export const SOURCE_LABEL = '미국 FDA·제조사 의약품 정보';
+
+/** 슬롯 단위 안내 결과 (DoseSlotSetList 박스2 안내 렌더용 — §7.3·"슬롯 단위 안내" 절) */
+export type SlotRecommendation = {
+  /** 이 슬롯에 등록된 약이 1개 이상인가 */
+  hasMeds: boolean;
+  /** 레보도파 계열로 판정된 약명 목록(중복 제거, 등록 순서 유지) */
+  levodopaNames: string[];
+  /** 레보도파 계열 union 권장 시점(분, 중복 제거·오름차순). 레보도파 0개면 빈 배열 */
+  offsets: number[];
+  /**
+   * 추천근거 "출처 표기" 한 줄(§7.5). 레보도파 약이 1개 이상이면 SOURCE_LABEL,
+   * 없으면 빈 문자열. 약효 설명 문장(rationale)은 더 이상 쓰지 않는다.
+   */
+  source: string;
+};
+
+/**
+ * 한 복용 시각(슬롯)에 묶인 약 목록 → 슬롯 단위 안내 데이터(§3-A, §6 union 로직 재사용).
+ *
+ * - 레보도파 계열(IR/CR/복합제) 약만 추려 약명 수집 + offsets union(중복 제거·정렬).
+ *   판정·union 은 buildRecommendedMedNotifs 와 동일 규칙(recommendUtils 단일 출처).
+ * - 비레보도파/매칭 실패 약은 offsets 에 기여하지 않으며 안내 분기는 호출측(UI)이
+ *   hasMeds & offsets.length 로 판단한다(레보도파 있음 / 약은 있으나 비레보도파 / 약 없음).
+ *
+ * 안내(표시)만을 위한 순수 헬퍼다 — track_intervals 값을 바꾸지 않는다(비강제 — §3-C).
+ */
+export function recommendForSlotMeds(meds: SlotMedInput[]): SlotRecommendation {
+  const list = meds ?? [];
+  const offsetSet = new Set<number>();
+  const levodopaNames: string[] = [];
+  const seenName = new Set<string>();
+
+  for (const med of list) {
+    const rec = resolveTrackingRecommendation(med.name, med.mfdsClassName ?? undefined);
+    if (rec?.active) {
+      for (const o of rec.offsets) offsetSet.add(o);
+      const nm = (med.name ?? '').trim();
+      if (nm && !seenName.has(nm)) {
+        seenName.add(nm);
+        levodopaNames.push(nm);
+      }
+    }
+  }
+
+  return {
+    hasMeds: list.length > 0,
+    levodopaNames,
+    offsets: Array.from(offsetSet).sort((a, b) => a - b),
+    // 추천근거 = 출처 표기 한 줄. 레보도파 약이 있을 때만 노출(없으면 빈 문자열).
+    source: levodopaNames.length > 0 ? SOURCE_LABEL : '',
+  };
+}

@@ -53,6 +53,8 @@ export interface UseDoseSlotsReturn {
   slots: DoseSlot[];
   /** dose_slots 행이 1개 이상 있으면 true → 폴백 분기의 단일 기준 */
   hasDoseSlots: boolean;
+  /** 슬롯 조회가 실패해 slots 가 비었는지(=판정 불가). 게이팅이 통과 처리하는 신호. */
+  slotsError: boolean;
   loading: boolean;
   getSlotById: (id: string) => DoseSlot | undefined;
   getSlotByLegacyKey: (key: LegacyMealKey) => DoseSlot | undefined;
@@ -79,20 +81,32 @@ function rowToDoseSlot(row: DoseSlotRow): DoseSlot {
 }
 
 function sortSlots(slots: DoseSlot[]): DoseSlot[] {
-  // sort_order → time 으로 일원화 (4슬롯 가정 금지, N개 안전)
+  // 시각(time) 오름차순 우선 정렬 — 추가한 슬롯이 sort_order(=max+1)로 항상 맨 뒤에
+  // 붙던 문제 수정. 이제 저장 순서와 무관하게 "이른 시각이 위"로 표시된다.
+  // (동일 시각이면 sort_order 로 안정 정렬.) 표준 4슬롯도 08<12<18<22 라 순서 유지됨.
   return [...slots].sort((a, b) => {
-    if (a.sortOrder !== b.sortOrder) return a.sortOrder - b.sortOrder;
-    return slotSortValue(a.time) - slotSortValue(b.time);
+    const ta = slotSortValue(a.time);
+    const tb = slotSortValue(b.time);
+    if (ta !== tb) return ta - tb;
+    return a.sortOrder - b.sortOrder;
   });
 }
 
 // ─── 모듈 레벨 가벼운 캐시 (patientId → slots) ────────────────────────────────
 // 약 관리에서 변경 후 invalidate 가능하게 refresh + invalidateDoseSlotsCache 제공.
 const slotsCache = new Map<string, DoseSlot[]>();
+// 표시/라벨 전용 캐시 — 비활성(soft delete) 슬롯까지 포함한 결과를 별도로 보관.
+// 활성 전용 slotsCache 와 절대 섞지 않는다(게이팅/스케줄에 삭제 슬롯이 새지 않게).
+const labelSlotsCache = new Map<string, DoseSlot[]>();
 
 export function invalidateDoseSlotsCache(patientId?: string): void {
-  if (patientId) slotsCache.delete(patientId);
-  else slotsCache.clear();
+  if (patientId) {
+    slotsCache.delete(patientId);
+    labelSlotsCache.delete(patientId);
+  } else {
+    slotsCache.clear();
+    labelSlotsCache.clear();
+  }
 }
 
 async function fetchDoseSlots(patientId: string): Promise<DoseSlot[]> {
@@ -101,8 +115,8 @@ async function fetchDoseSlots(patientId: string): Promise<DoseSlot[]> {
     .select('*')
     .eq('patient_id', patientId)
     .eq('is_active', true)
-    .order('sort_order', { ascending: true })
-    .order('time', { ascending: true });
+    .order('time', { ascending: true })
+    .order('sort_order', { ascending: true });
 
   if (error) {
     console.error('[useDoseSlots] fetch 오류:', error);
@@ -131,10 +145,100 @@ export async function fetchPatientDoseSlots(patientId: string): Promise<DoseSlot
   }
 }
 
+// ─── 표시/라벨 전용 슬롯 조회 (비활성 포함) ───────────────────────────────────
+// "기록은 남기기"로 soft delete 된 슬롯의 label/time 도 함께 읽어, 과거 기록이
+// 자기 슬롯의 원래 시간대 이름으로 계속 렌더되게 한다(라벨 보존).
+//
+// ⚠️ 라벨 해석(과거 기록 리스트/트렌드)에만 쓸 것.
+//    쓰기/판정/스케줄/오늘 현황 카드/게이팅(getLastActiveSlotId 등)에는 절대 쓰지 말 것 —
+//    삭제된 슬롯이 설정/오늘카드/알림에 되살아난다. 그 경로는 fetchPatientDoseSlots(활성 전용).
+//
+// trade-off: soft delete 된 슬롯의 현재 label/time 을 사용하므로, 나중에 슬롯 시각을
+//    수정하면 그 슬롯의 과거 기록도 새 시각 라벨로 보일 수 있다(알려진 절충).
+async function fetchLabelDoseSlots(patientId: string): Promise<DoseSlot[]> {
+  const { data, error } = await supabase
+    .from('dose_slots')
+    .select('*')
+    .eq('patient_id', patientId)
+    // is_active 필터 없음 — 비활성(삭제) 슬롯도 라벨 복원용으로 포함.
+    .order('time', { ascending: true })
+    .order('sort_order', { ascending: true });
+
+  if (error) {
+    console.error('[useDoseSlots] label fetch 오류:', error);
+    throw error;
+  }
+
+  const slots = sortSlots((data ?? []).map(rowToDoseSlot));
+  labelSlotsCache.set(patientId, slots);
+  return slots;
+}
+
+/**
+ * 훅 바깥에서 "표시/라벨용"(비활성 포함) 환자 dose_slots 를 읽는 진입점.
+ * - 별도 캐시(labelSlotsCache) 사용. invalidateDoseSlotsCache 가 함께 무효화한다.
+ * - 오류 시 [] 반환 → 호출처는 resolveDisplaySlots 로 legacy 폴백.
+ *
+ * ⚠️ 라벨 해석 전용. 활성 전용 로직에는 fetchPatientDoseSlots 를 쓸 것.
+ */
+export async function fetchPatientLabelDoseSlots(patientId: string): Promise<DoseSlot[]> {
+  if (!patientId) return [];
+  if (labelSlotsCache.has(patientId)) return labelSlotsCache.get(patientId)!;
+  try {
+    return await fetchLabelDoseSlots(patientId);
+  } catch {
+    return [];
+  }
+}
+
+/**
+ * "등록 완료(setupComplete)" 판정 — 그 환자/그룹에 활성(is_active) dose_slot 이
+ * 1개 이상이면 true. 약 유무는 무관(스펙 §38: 시간대만으로 게이트 해제).
+ *
+ * 훅 바깥(async)에서 쓰는 진입점. 모듈 캐시를 재사용/갱신한다.
+ * 오류 시 false 반환(보수적 — 등록 안 된 것으로 간주). 게이팅(B차)에서 import.
+ *
+ * @param patientId 대상 환자 id (보호자면 연동 환자 id 를 정확히 전달)
+ */
+export async function fetchPatientSetupComplete(patientId: string): Promise<boolean> {
+  if (!patientId) return false;
+  try {
+    const slots = await fetchPatientDoseSlots(patientId);
+    return slots.length > 0;
+  } catch {
+    return false;
+  }
+}
+
+/**
+ * 등록 완료(setupComplete) 상태 훅 — 게이팅(B차)에서 "기록 차단 해제" 여부 판단용.
+ * - setupComplete: 활성 dose_slot 1개 이상이면 true.
+ * - usePatientId 로 보호자→연동 환자 일관성 유지(그룹 단위 판정).
+ * - dose_slots realtime 으로 슬롯 추가/삭제 즉시 반영.
+ *
+ * ⚠️ 이번 차수(B 이전)에는 차단 적용 안 함 — 헬퍼/훅만 export. 차단은 B차.
+ */
+export function useSetupComplete(): {
+  setupComplete: boolean;
+  /** 아직 판정 불가(로딩 중이거나 슬롯 조회 실패). 게이팅은 이때 막지 말고 통과시킨다. */
+  setupUnknown: boolean;
+  loading: boolean;
+  refresh: () => Promise<void>;
+} {
+  const { slots, hasDoseSlots, slotsError, loading, refresh } = useDoseSlots();
+  const setupComplete = hasDoseSlots || slots.length > 0;
+  // 로딩 중이거나 조회 실패면 "확정 0" 이 아니므로 판정 불가 → 게이팅 통과.
+  const setupUnknown = loading || slotsError;
+  return { setupComplete, setupUnknown, loading, refresh };
+}
+
 export function useDoseSlots(): UseDoseSlotsReturn {
   const { patientId, loading: patientLoading } = usePatientId();
   const [slots, setSlots] = useState<DoseSlot[]>([]);
   const [loading, setLoading] = useState(true);
+  // 슬롯 조회가 실패해 slots 가 비었는지(=판정 불가) vs 정말 0개인지 구분용.
+  // 게이팅(B차)이 "조회 실패는 통과, 확정 0 만 차단" 하도록 한다(오차단 방지).
+  const [slotsError, setSlotsError] = useState(false);
   const mounted = useRef(true);
   // realtime 채널 이름은 훅 인스턴스마다 고유해야 한다. (여러 화면이 같은 환자의
   // useDoseSlots 를 동시에 쓰면 같은 이름의 채널을 재사용 → subscribe 후 .on() 추가
@@ -171,9 +275,15 @@ export function useDoseSlots(): UseDoseSlotsReturn {
       if (mounted.current) setLoading(true);
       try {
         const next = await fetchDoseSlots(patientId);
-        if (mounted.current) setSlots(next);
+        if (mounted.current) {
+          setSlots(next);
+          setSlotsError(false); // 조회 성공 → 빈 배열이면 "확정 0"
+        }
       } catch {
-        if (mounted.current) setSlots([]);
+        if (mounted.current) {
+          setSlots([]);
+          setSlotsError(true); // 조회 실패 → "판정 불가"(게이트 통과시킴)
+        }
       } finally {
         if (mounted.current) setLoading(false);
       }
@@ -223,10 +333,102 @@ export function useDoseSlots(): UseDoseSlotsReturn {
   return {
     slots,
     hasDoseSlots: slots.length > 0,
+    slotsError,
     loading: loading || patientLoading,
     getSlotById,
     getSlotByLegacyKey,
     refresh,
+  };
+}
+
+/**
+ * 그날 활성 슬롯 중 시간이 가장 늦은(마지막) 슬롯의 id 를 반환.
+ *
+ * 변비(constipation) 게이팅 전용 — "마지막 복용 슬롯의 기록일 때만 변비를 묻는다".
+ * - 시간(HH:MM) 최댓값 기준, 동률이면 sortOrder 큰 것.
+ * - 파싱 불가/빈 time 슬롯은 정렬에서 제외(Infinity 로 맨 뒤 가지 않도록).
+ * - id 가 null 인 legacy 가상 슬롯은 식별 불가하므로 제외(legacy 경로는 meal_time 게이팅 사용).
+ *
+ * @param slots resolveDisplaySlots / useDoseSlots().slots 결과
+ * @returns 마지막 활성 실제 슬롯의 id, 없으면 null
+ */
+export function getLastActiveSlotId(slots: DoseSlot[]): string | null {
+  let best: DoseSlot | null = null;
+  let bestTime = -Infinity;
+  for (const s of slots) {
+    if (!s.id) continue; // legacy 가상 슬롯(id null) 제외
+    const t = slotSortValue(s.time);
+    if (!Number.isFinite(t)) continue; // 파싱 불가 time 제외
+    if (t > bestTime || (t === bestTime && best && s.sortOrder > best.sortOrder)) {
+      best = s;
+      bestTime = t;
+    }
+  }
+  return best?.id ?? null;
+}
+
+/**
+ * 그날 활성 슬롯 중 시간이 가장 이른(첫) 슬롯의 id 를 반환.
+ *
+ * 수면(sleep) 게이팅 전용 — "그날 첫 복용 슬롯의 기록일 때만 수면을 묻는다".
+ * getLastActiveSlotId 의 대칭형(min/max 만 반대):
+ * - 시간(HH:MM) 최솟값 기준, 동률이면 sortOrder 작은 것.
+ * - 파싱 불가/빈 time 슬롯은 정렬에서 제외(Infinity 로 맨 뒤 가지 않도록).
+ * - id 가 null 인 legacy 가상 슬롯은 식별 불가하므로 제외(legacy 경로는 meal_time 게이팅 사용).
+ *
+ * @param slots resolveDisplaySlots / useDoseSlots().slots 결과
+ * @returns 첫 활성 실제 슬롯의 id, 없으면 null
+ */
+export function getFirstActiveSlotId(slots: DoseSlot[]): string | null {
+  let best: DoseSlot | null = null;
+  let bestTime = Infinity;
+  for (const s of slots) {
+    if (!s.id) continue; // legacy 가상 슬롯(id null) 제외
+    const t = slotSortValue(s.time);
+    if (!Number.isFinite(t)) continue; // 파싱 불가 time 제외
+    if (t < bestTime || (t === bestTime && best && s.sortOrder < best.sortOrder)) {
+      best = s;
+      bestTime = t;
+    }
+  }
+  return best?.id ?? null;
+}
+
+/**
+ * 그날 약효추적(med-effect tracking) 시점의 경계(분, 자정 기준)를 계산 — 변비/수면 게이팅 전용.
+ *
+ * 활성 실제 슬롯(id 있음 + trackEnabled + trackIntervals 비어있지 않음)별로
+ *   "약효추적 시점 = 슬롯시각 + interval" 을 모두 펼친 뒤:
+ *   - firstTrackingMin : 그날 가장 이른 약효추적 시점 = min over slots (시각 + min(intervals))  → 수면 게이팅용
+ *   - lastTrackingMin  : 그날 가장 늦은 약효추적 시점 = max over slots (시각 + max(intervals))  → 변비 게이팅용
+ *
+ * ⚠️ 슬롯별 interval 이 달라 "가장 늦은 약효추적"이 "가장 늦은 슬롯"과 다를 수 있으므로
+ *    단순 슬롯 시각 비교가 아니라 (시각+interval) 합으로 비교한다.
+ *    예) 18:00[30,120] 과 21:00[30] → last = max(18:00+120=20:00, 21:00+30=21:30)=21:30.
+ *
+ * - id 가 null 인 legacy 가상 슬롯, 추적 OFF, 빈 interval, 파싱 불가 시각은 제외.
+ * - 약효추적이 하나도 없으면 둘 다 null(게이팅 측에서 "표시 안 함"으로 처리).
+ *
+ * @param slots resolveDisplaySlots / useDoseSlots().slots 결과
+ */
+export function getTrackingDayBounds(
+  slots: DoseSlot[]
+): { firstTrackingMin: number | null; lastTrackingMin: number | null } {
+  let first = Infinity;
+  let last = -Infinity;
+  for (const s of slots) {
+    if (!s.id) continue; // legacy 가상 슬롯(id null) 제외
+    if (!s.trackEnabled) continue; // 추적 OFF 슬롯은 약효추적 시점 없음
+    const intervals = s.trackIntervals ?? [];
+    if (intervals.length === 0) continue;
+    const base = slotSortValue(s.time);
+    if (!Number.isFinite(base)) continue; // 파싱 불가 시각 제외
+    first = Math.min(first, base + Math.min(...intervals));
+    last = Math.max(last, base + Math.max(...intervals));
+  }
+  return {
+    firstTrackingMin: Number.isFinite(first) ? first : null,
+    lastTrackingMin: Number.isFinite(last) ? last : null,
   };
 }
 
@@ -371,12 +573,12 @@ export async function ensurePatientDoseSlots(
 
       const existingId = byLabel.get(label);
       if (existingId) {
-        // 멱등 update: time + remind_enabled 만 갱신(track 설정/소리는 6단계 세트카드 소관).
-        const { error: updErr } = await supabase
-          .from('dose_slots')
-          .update({ time, remind_enabled: remindEnabled })
-          .eq('id', existingId);
-        if (updErr) console.warn(`[ensurePatientDoseSlots] update(${label}) 실패(계속):`, updErr);
+        // ⚠️ 시간 단일 소스 원칙(통합 복용 관리 재설계):
+        //   dose_slots.time 은 "슬롯 편집(DoseSlotSetList)" 경로로만 변경한다.
+        //   약 추가/수정/OCR 경로에서 흘러온 meal_schedules 로 기존 슬롯 time 을
+        //   덮어쓰면 슬롯이 정본인데도 약쪽 값에 끌려가 divergence 가 생긴다.
+        //   → 기존 슬롯은 그대로 둔다(time/remind_enabled update 안 함).
+        //   (신규 환자 0슬롯일 때 아래 insert 로 4슬롯 생성만 수행.)
       } else {
         // insert: 신규 온보딩/미이관 환자
         const { error: insErr } = await supabase
@@ -401,6 +603,50 @@ export async function ensurePatientDoseSlots(
     invalidateDoseSlotsCache(patientId);
   } catch (e) {
     console.warn('[ensurePatientDoseSlots] 예외(계속):', e);
+  }
+}
+
+/**
+ * 약 1개를 "선택된 슬롯 집합"에 정확히 배정한다(시각·meal_schedules 안 건드림).
+ *
+ * 통합 복용 관리 화면의 "약 넣기·빼기" 전용. dose_slot.time 은 절대 수정하지 않고
+ * medication_dose_slots(M:N) 매핑만 set-reconcile 한다(delete-then-insert).
+ *  - 슬롯 체크 = 그 슬롯에 약을 배정(insert), 해제 = 매핑 제거(delete).
+ *  - slotIds 가 빈 배열이면 이 약의 모든 매핑 제거(어느 슬롯에도 안 먹음).
+ * 멱등: 매번 전체 delete 후 현재 선택분만 insert.
+ *
+ * ⚠️ medications.meal_times/meal_schedules 는 표시/legacy 용 — 여기서 안 만짐.
+ *    시간 단일 소스 = dose_slots(슬롯 편집에서만 변경).
+ *
+ * @param medicationId 대상 medications.id
+ * @param slotIds      배정할 dose_slots.id 목록(현재 체크된 슬롯들)
+ * @param patientId    캐시 무효화용(선택)
+ */
+export async function setMedicationSlots(
+  medicationId: string,
+  slotIds: string[],
+  patientId?: string,
+): Promise<void> {
+  if (!medicationId) return;
+  const ids = [...new Set(slotIds.filter(Boolean))];
+  try {
+    const { error: delErr } = await supabase
+      .from('medication_dose_slots')
+      .delete()
+      .eq('medication_id', medicationId);
+    if (delErr) throw delErr;
+
+    if (ids.length > 0) {
+      const rows = ids.map((dose_slot_id) => ({ medication_id: medicationId, dose_slot_id }));
+      const { error: insErr } = await supabase
+        .from('medication_dose_slots')
+        .insert(rows as any);
+      if (insErr) throw insErr;
+    }
+    if (patientId) invalidateDoseSlotsCache(patientId);
+  } catch (e) {
+    console.error('[setMedicationSlots] 매핑 저장 실패:', e);
+    throw e;
   }
 }
 

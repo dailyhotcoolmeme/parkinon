@@ -454,13 +454,13 @@ export function VideoRecordScreen() {
 // ─── 업로드 로딩 오버레이 ─────────────────────────────────────────────────────
 
 const TIPS = [
-  { icon: '👨‍👩‍👧', title: '기록을 남기면 보호자도 알 수 있어요', desc: '가족이 함께 건강 상태를 확인할 수 있어요' },
-  { icon: '📊', title: '꾸준한 기록이 힘이에요', desc: '약효 패턴은 반복 기록이 쌓여야 보여요' },
-  { icon: '⏰', title: '정해진 시간에 기록해요', desc: '알림 시간에 맞춰 기록하면 더 정확해요' },
-  { icon: '💊', title: '복용 직후 기록이 중요해요', desc: '약효 시작 시점을 정확히 파악할 수 있어요' },
-  { icon: '🏃', title: '몸 상태가 좋으면 운동도 해봐요', desc: '파킨슨엔 꾸준한 운동이 큰 도움이 돼요' },
-  { icon: '🎯', title: '기록할수록 정확해져요', desc: '데이터가 쌓일수록 의미 있는 분석이 가능해요' },
-];
+  { icon: 'people-outline', title: '기록을 남기면 보호자도 알 수 있어요', desc: '가족이 함께 건강 상태를 확인할 수 있어요' },
+  { icon: 'bar-chart-outline', title: '꾸준한 기록이 힘이에요', desc: '약효 패턴은 반복 기록이 쌓여야 보여요' },
+  { icon: 'time-outline', title: '정해진 시간에 기록해요', desc: '알림 시간에 맞춰 기록하면 더 정확해요' },
+  { icon: 'medical-outline', title: '복용 직후 기록이 중요해요', desc: '약효 시작 시점을 정확히 파악할 수 있어요' },
+  { icon: 'walk-outline', title: '몸 상태가 좋으면 운동도 해봐요', desc: '파킨슨엔 꾸준한 운동이 큰 도움이 돼요' },
+  { icon: 'analytics-outline', title: '기록할수록 정확해져요', desc: '데이터가 쌓일수록 의미 있는 분석이 가능해요' },
+] as const;
 
 const STAGES = [
   { key: 'compressing', label: '압축 중' },
@@ -526,9 +526,8 @@ function UploadOverlay({
               {/* 타이틀 + 경과시간 */}
               <View style={ovStyles.titleRow}>
                 <Text style={ovStyles.stageTitle}>영상을 저장하고 있어요</Text>
-                <Text style={ovStyles.stageTitle}> · {elapsedStr}</Text>
+                <Text style={ovStyles.stageElapsed}> · {elapsedStr}</Text>
               </View>
-              <Text style={ovStyles.stageTitle}>잠시만 기다려 주세요 😊</Text>
 
               {/* 에너지바 단계 표시 */}
               <View style={ovStyles.stepsRow}>
@@ -563,7 +562,9 @@ function UploadOverlay({
 
               {/* 팁 카드 */}
               <Animated.View style={[ovStyles.tipCard, { opacity: fadeAnim }]}>
-                <Text style={ovStyles.tipIcon}>{tip.icon}</Text>
+                <View style={ovStyles.tipIconWrap}>
+                  <Ionicons name={tip.icon} size={22} color="#4CAF50" />
+                </View>
                 <Text style={ovStyles.tipTitle}>{tip.title}</Text>
                 <Text style={ovStyles.tipDesc}>{tip.desc}</Text>
               </Animated.View>
@@ -583,27 +584,37 @@ function UploadOverlay({
 const ovStyles = StyleSheet.create({
   backdrop: {
     flex: 1,
-    backgroundColor: 'rgba(0,0,0,0.6)',
+    backgroundColor: 'rgba(17,17,17,0.32)',
     justifyContent: 'center',
     alignItems: 'center',
     padding: 28,
   },
   card: {
-    backgroundColor: '#fff',
-    borderRadius: 24,
+    backgroundColor: '#FFFFFF',
+    borderRadius: 20,
     padding: 28,
     width: '100%',
     alignItems: 'center',
-    gap: 20,
+    gap: 16,
+    shadowColor: '#111111',
+    shadowOffset: { width: 0, height: 8 },
+    shadowOpacity: 0.10,
+    shadowRadius: 24,
+    elevation: 8,
   },
   titleRow: {
     flexDirection: 'row',
     alignItems: 'center',
   },
   stageTitle: {
-    fontSize: 20,
-    fontWeight: '700',
-    color: '#222',
+    fontSize: 17,
+    fontWeight: '600',
+    color: '#111111',
+  },
+  stageElapsed: {
+    fontSize: 14,
+    fontWeight: '400',
+    color: '#666666',
   },
 
   // 완료 체크마크
@@ -613,9 +624,9 @@ const ovStyles = StyleSheet.create({
     marginBottom: 4,
   },
   stageTitleLarge: {
-    fontSize: 24,
+    fontSize: 20,
     fontWeight: '700',
-    color: '#222',
+    color: '#2E7D32',
     textAlign: 'center',
   },
 
@@ -676,18 +687,27 @@ const ovStyles = StyleSheet.create({
     borderWidth: 1,
     borderColor: '#E8F5E9',
   },
-  tipIcon: { fontSize: 40 },
+  tipIconWrap: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    backgroundColor: '#E8F5E9',
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginBottom: 2,
+  },
   tipTitle: {
-    fontSize: 20,
-    fontWeight: '700',
-    color: '#222',
+    fontSize: 17,
+    fontWeight: '600',
+    color: '#111111',
     textAlign: 'center',
   },
   tipDesc: {
-    fontSize: 16,
-    color: '#666',
+    fontSize: 14,
+    fontWeight: '400',
+    color: '#666666',
     textAlign: 'center',
-    lineHeight: 22,
+    lineHeight: 20,
   },
 
   // 취소 버튼

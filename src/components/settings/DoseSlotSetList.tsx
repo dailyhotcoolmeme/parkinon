@@ -28,8 +28,13 @@ import {
   Platform,
   UIManager,
   Dimensions,
+  ScrollView,
+  FlatList,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
+import { useNavigation } from '@react-navigation/native';
+import type { StackNavigationProp } from '@react-navigation/stack';
+import type { MenuStackParamList } from '../../navigation/MenuNavigator';
 import { Colors } from '../../constants/colors';
 import { supabase } from '../../lib/supabase';
 import {
@@ -37,17 +42,32 @@ import {
   invalidateDoseSlotsCache,
   type DoseSlot,
 } from '../../hooks/useDoseSlots';
+import { useSlotMedications } from '../../hooks/useSlotMedications';
+import { useMedication } from '../../hooks/useMedication';
+import { recommendForSlotMeds } from '../../utils/recommendUtils';
 import { usePatientId } from '../../hooks/usePatientId';
 import {
   formatSlotTime,
   slotSortValue,
   autoSlotLabel,
   labelContainsTime,
+  periodEmoji,
   LEGACY_SLOT_META,
 } from '../../constants/doseSlots';
 import { useSwipeDownDismiss } from '../../hooks/useSwipeDownDismiss';
+import { useBottomSheetPadding } from '../../hooks/useBottomSheetPadding';
 import { AlarmSoundPickerRow, AlarmSoundOption } from '../common/AlarmSoundPickerRow';
 import { useDialog } from '../../context/DialogContext';
+import {
+  timeChangeImmediatePopup,
+  timeChangeWhileOffPopup,
+  turnOnImmediatePopup,
+  turnOffImmediatePopup,
+  trackChangePopup,
+  trackOffPopup,
+  deleteSlotCombinedPopup,
+  hasTakenTodayKST,
+} from '../../utils/notifActionFeedback';
 
 if (
   Platform.OS === 'android' &&
@@ -58,8 +78,8 @@ if (
 
 const { width: SCREEN_WIDTH } = Dimensions.get('window');
 
-// 박스1(약 복용 알림) 배경색 — 연한 파랑. boxAlarm 스타일과 AlarmSoundPickerRow 양쪽에서 재사용.
-const BOX_ALARM_BG = '#EAF2FB';
+// 박스1(약 복용 알림) 배경색 — 연한 파랑(약효추적 박스와 살짝 구분).
+const BOX_ALARM_BG = '#EEF4FC';
 
 // ── 추적 시간 체크줄 항목 (분 단위, 0 = 복용 직후) ──────────────────────
 interface TrackOption {
@@ -88,8 +108,9 @@ function minutesToCheckLabel(min: number): string {
   return rem === 0 ? `${h}시간 후` : `${h}시간 ${rem}분 후`;
 }
 
-// "직접 추가" 바텀시트의 자주 쓰는 추가 시간 큰 버튼 (분)
-const EXTRA_MINUTE_PRESETS = [240, 300, 360];
+// "직접 추가" 휠 아이템: 시간 0~12, 분 0·5·…·55(5분 단위, 기존 스텝퍼 범위와 동일)
+const INTERVAL_HOURS = Array.from({ length: 13 }, (_, i) => i);
+const INTERVAL_MINS = Array.from({ length: 12 }, (_, i) => i * 5);
 
 // 추적 시간 리스트 → 접힌 카드 요약 ("복용 직후, 30분 후")
 function summarizeTrackIntervals(intervals: number[]): string {
@@ -98,36 +119,134 @@ function summarizeTrackIntervals(intervals: number[]): string {
   return sorted.map(minutesToCheckLabel).join(', ');
 }
 
-// ── 슬롯 이모지 (legacy 매핑이 있으면 그 이모지, 없으면 시각대 기준) ───────────────
-function slotEmoji(slot: DoseSlot): string {
-  if (slot.legacyKey) return LEGACY_SLOT_META[slot.legacyKey].emoji;
-  const v = slotSortValue(slot.time);
-  if (v < 6 * 60) return '🌙';
-  if (v < 11 * 60) return '🌅';
-  if (v < 17 * 60) return '☀️';
-  if (v < 21 * 60) return '🌆';
-  return '🌙';
+// 한글 받침 유무로 주격 조사(은/는) 선택. 약명 끝글자 기준(영문/숫자/기타는 '는').
+function topicParticle(word: string): '은' | '는' {
+  const ch = (word ?? '').trim().slice(-1);
+  const code = ch.charCodeAt(0);
+  if (Number.isNaN(code) || code < 0xac00 || code > 0xd7a3) return '는'; // 비한글
+  return (code - 0xac00) % 28 === 0 ? '는' : '은'; // 받침 없음→는, 있음→은
 }
 
-// 시각 제목 ("아침 오전 8:00" 또는 비표준 "오후 3:00")
-// 비표준 슬롯은 label 이 이미 "시간대 시각"(예 "오후 3:00")이므로 시각을 또 붙이지 않는다.
+// 약명 목록 → "마도파와 스타레보" 식 자연스러운 나열(주어용).
+function joinNames(names: string[]): string {
+  if (names.length <= 1) return names[0] ?? '';
+  return names.slice(0, -1).join(', ') + '와 ' + names[names.length - 1];
+}
+
+// 시점 한 개를 메인 문장용 어구로: 0='복용 직후', 그 외는 minutesToCheckLabel.
+function offsetPhrase(min: number): string {
+  return min === 0 ? '복용 직후' : minutesToCheckLabel(min);
+}
+
+// 권장 시점들 → "30분 후와 2시간 후" / "30분 후, 1시간 후와 2시간 후" 자연 나열.
+function joinOffsets(offsets: number[]): string {
+  const parts = [...offsets].sort((a, b) => a - b).map(offsetPhrase);
+  if (parts.length <= 1) return parts[0] ?? '';
+  return parts.slice(0, -1).join(', ') + '와 ' + parts[parts.length - 1];
+}
+
+// 메인 안내 문장 조립: "{약명}는(은) {시점들}에 몸 상태를 확인하는 걸 추천해요."
+// '복용 직후'가 섞이면 "에"가 어색하므로, 직후만 단독이면 "복용 직후에", 시점이면 "{시점}에".
+function buildMainSentence(names: string[], offsets: number[]): {
+  subject: string;
+  particle: string;
+  timing: string;
+} {
+  const subject = joinNames(names);
+  const particle = topicParticle(subject);
+  const timing = joinOffsets(offsets);
+  return { subject, particle, timing };
+}
+
+// ── 슬롯 이모지 — 시각대 기준 자동(시간대 단어와 동일 범위) ───────────────
+function slotEmoji(slot: DoseSlot): string {
+  return periodEmoji(slot.time);
+}
+
+// 시간대 단어(자동) + 시각(오전/오후 없이) — 예: '아침 8:00'. autoSlotLabel 이 그 형식.
 function slotTitle(slot: DoseSlot): string {
-  const t = formatSlotTime(slot.time);
-  if (labelContainsTime(slot.label, slot.legacyKey)) return slot.label!.trim();
-  if (slot.label && slot.label.trim()) return `${slot.label.trim()} ${t}`;
-  return t;
+  const t = autoSlotLabel(slot.time);
+  if (t) return t;
+  if (slot.label && slot.label.trim()) return slot.label.trim();
+  return '';
 }
 
 interface Props {
   /** 그룹 녹음 목록 (알림별 소리 선택용) */
   alarmSounds: AlarmSoundOption[];
+  /**
+   * 진입 시 이 슬롯을 펼쳐서 보여줄 id(복용 관리 슬롯 카드 "시간·알림 바꾸기"용).
+   * 값이 있으면 마운트/변경 시 해당 슬롯을 expandedId 로 펼친다(없으면 기존처럼 전체 목록).
+   * 같은 값이라도 매번 새 진입을 구분하려면 focusNonce 와 함께 갱신해서 넘긴다.
+   */
+  focusSlotId?: string | null;
+  /**
+   * 같은 슬롯을 다시 열 때도 포커스가 재적용되도록 하는 진입 토큰(모달 열 때마다 +1).
+   * focusSlotId 가 같아도 이 값이 바뀌면 다시 펼침/스크롤한다.
+   */
+  focusNonce?: number;
+  /**
+   * 포커스 슬롯 카드의 목록 내 Y 위치를 부모에게 알려 best-effort 스크롤하게 함.
+   * (이 컴포넌트는 자체 ScrollView 가 없고 부모 ScrollView 안에 렌더되므로 위치만 위임.)
+   */
+  onFocusScrollTo?: (y: number) => void;
+  /**
+   * 단일 슬롯만 편집(이 슬롯만 렌더, 안내·추가 버튼 숨김). 슬롯 카드 "수정" 진입용.
+   * 다른 슬롯이 같이 보여 헷갈리지 않게 해당 슬롯 하나만 노출한다.
+   */
+  soloSlotId?: string | null;
+  /** 단일 슬롯 편집 모달 닫기 — 슬롯 제목 줄 오른쪽 끝 "닫기" 버튼에 연결. */
+  onSoloClose?: () => void;
+  /**
+   * 진입 즉시 "복용 시간대 추가"(시간 선택 시트)를 바로 열기 위한 토큰.
+   * 값이 0보다 크고 바뀌면 마운트/변경 시 곧장 시간 추가 시트를 띄운다 → 전체 목록을
+   * 다시 보여주는 중간 단계 없이 한 번에 시각 선택으로 진입(추가 경로 단순화).
+   * 시트를 닫으면 그대로 전체 관리 목록이 남아 방금 추가한 슬롯이 보인다.
+   */
+  autoOpenAddNonce?: number;
+  /**
+   * "추가 전용" 경로 — 전체 슬롯 목록/안내/헤더/추가 버튼을 일절 렌더하지 않고(빈 배경),
+   * autoOpenAddNonce 로 띄운 시간 선택 시트 하나만 보이게 한다(시트 2겹 방지).
+   * 시간 시트를 닫거나(취소) 저장 완료하면 onAddDone 으로 모달 전체를 닫아 본 화면으로 복귀.
+   */
+  addOnly?: boolean;
+  /**
+   * addOnly 경로에서 시간 시트가 처리됐을 때 호출.
+   * - 저장 성공(새 슬롯 생성) → newSlotId(실제 DB id) 전달. 부모는 그 슬롯의 수정 시트로 전환한다.
+   * - 취소/닫기(미저장) → 인자 없이 호출. 부모는 모달을 닫아 본 화면으로 복귀한다.
+   */
+  onAddDone?: (newSlotId?: string) => void;
 }
 
-export function DoseSlotSetList({ alarmSounds }: Props) {
+export function DoseSlotSetList({
+  alarmSounds,
+  focusSlotId,
+  focusNonce,
+  onFocusScrollTo,
+  soloSlotId,
+  onSoloClose,
+  autoOpenAddNonce,
+  addOnly,
+  onAddDone,
+}: Props) {
   const dialog = useDialog();
+  const navigation = useNavigation<StackNavigationProp<MenuStackParamList>>();
   const { slots, loading, refresh } = useDoseSlots();
+  const { bySlot: slotMeds, loading: slotMedsLoading, refresh: refreshSlotMeds } =
+    useSlotMedications();
+  // 환자에게 등록된 약이 하나라도 있는지(전역 판정 소스).
+  // '약 등록하러 가기' 빈 상태 CTA 는 이 값이 0개일 때만 떠야 한다(슬롯 연결 여부와 무관).
+  const { medications } = useMedication();
+  const hasAnyMed = medications.length > 0;
   const { patientId: resolvedPatientId } = usePatientId();
   const [expandedId, setExpandedId] = useState<string | null>(null);
+
+  // 포커스 슬롯 카드의 목록 내 Y 위치(onLayout 수집). best-effort 스크롤용.
+  const slotLayoutY = useRef<Map<string, number>>(new Map());
+  // 마지막으로 적용한 (focusSlotId, focusNonce) — 중복 적용 방지.
+  const appliedFocusRef = useRef<string | null>(null);
+  // 펼침 직후 스크롤을 한 번 예약하기 위한 플래그(레이아웃 측정 후 실행).
+  const pendingScrollIdRef = useRef<string | null>(null);
 
   // ── 낙관적 오버레이 ─────────────────────────────────────────────────────────
   // base = useDoseSlots().slots, 그 위에 슬롯별 즉시 반영분(overrides)을 머지해서 렌더.
@@ -141,6 +260,13 @@ export function DoseSlotSetList({ alarmSounds }: Props) {
   const writeSeqRef = useRef<Map<string, number>>(new Map());
   // insert(슬롯 추가)만 중복 탭 방지 — 같은 시각 슬롯 연속 생성 방지용(단일 동작).
   const insertingRef = useRef(false);
+
+  // ── 슬롯-약 연결(복용약 체크리스트) 낙관적 상태 ─────────────────────────────────
+  // slotId → 이 시각에 드시는 약 id 집합. 펼친 편집뷰의 "이 시간에 드시는 약" 체크리스트가
+  // 이 값을 진실원으로 렌더한다(슬롯당 1회 slotMeds 로 시드 후엔 로컬이 권위).
+  // 새 슬롯 생성 시 등록 약 전부를 medication_dose_slots 로 자동 연결하므로 기본 전부 체크.
+  // 사용자는 안 드시는 약만 해제 → 토글 즉시 medication_dose_slots insert/delete(낙관적).
+  const [medChecked, setMedChecked] = useState<Record<string, Set<string>>>({});
 
   // ── 낙관적 "추가" 슬롯 ─────────────────────────────────────────────────────────
   // 복용 시각 추가는 dose_slots insert + refresh 로 반영되는데, insert→재fetch
@@ -183,7 +309,14 @@ export function DoseSlotSetList({ alarmSounds }: Props) {
   const pendingAdded = addedSlots.filter(
     (a) => !slots.some((s) => s.time === a.time && (s.label ?? '') === (a.label ?? '')),
   );
-  const displaySlots: DoseSlot[] = [...mergedSlots, ...pendingAdded];
+  // 시각(time) 오름차순으로 표시 — 새로 추가한 슬롯도 하단이 아니라 제 시각 자리에 끼워 보임.
+  // (낙관적 추가분 포함. 동일 시각이면 sortOrder 로 안정 정렬.)
+  const displaySlots: DoseSlot[] = [...mergedSlots, ...pendingAdded].sort((a, b) => {
+    const ta = slotSortValue(a.time);
+    const tb = slotSortValue(b.time);
+    if (ta !== tb) return ta - tb;
+    return a.sortOrder - b.sortOrder;
+  });
 
   // base(slots)가 갱신되어 오버레이 값과 같아졌으면 해당 필드 오버레이를 정리한다.
   // (오버레이가 영구히 쌓여 외부(타 화면/refresh) 변경을 가리지 않도록.)
@@ -233,6 +366,34 @@ export function DoseSlotSetList({ alarmSounds }: Props) {
     LayoutAnimation.configureNext(LayoutAnimation.Presets.easeInEaseOut);
     setExpandedId((prev) => (prev === id ? null : id));
   }, []);
+
+  // ── 외부 포커스(복용 관리 슬롯 카드 "시간·알림 바꾸기") 반영 ──────────────────
+  // focusSlotId 가 있으면 그 슬롯을 펼치고, 레이아웃이 잡히면 부모에게 스크롤을 위임한다.
+  // focusNonce 를 키에 포함해 같은 슬롯을 다시 열어도 재적용된다.
+  // focusSlotId 가 없으면(전체 관리/다른 진입) 아무것도 하지 않아 기존 동작과 100% 동일.
+  useEffect(() => {
+    if (!focusSlotId) {
+      appliedFocusRef.current = null;
+      return;
+    }
+    const key = `${focusSlotId}:${focusNonce ?? 0}`;
+    if (appliedFocusRef.current === key) return;
+    appliedFocusRef.current = key;
+    setExpandedId(focusSlotId);
+    // 펼친 카드의 위치가 잡힌 뒤 스크롤하도록 예약(onLayout 에서 소비).
+    pendingScrollIdRef.current = focusSlotId;
+    // 이미 레이아웃이 측정돼 있으면(재오픈 등) 즉시 스크롤.
+    const y = slotLayoutY.current.get(focusSlotId);
+    if (y != null && onFocusScrollTo) {
+      // 펼침 애니메이션 후 위치가 바뀔 수 있어 살짝 지연.
+      setTimeout(() => {
+        if (pendingScrollIdRef.current === focusSlotId) {
+          onFocusScrollTo(y);
+          pendingScrollIdRef.current = null;
+        }
+      }, 120);
+    }
+  }, [focusSlotId, focusNonce, onFocusScrollTo]);
 
   // dose_slots 1건 update (낙관적). DB 컬럼 patch 와 그에 대응하는 로컬 DoseSlot 패치를 받는다.
   //  1) overrides 에 즉시 반영 → UI 바로 바뀜
@@ -295,13 +456,87 @@ export function DoseSlotSetList({ alarmSounds }: Props) {
     [slots, overrides],
   );
 
+  // ── 복용약 체크리스트 시드: 슬롯별 1회만 slotMeds(연결된 약)로 초기화 ──────────────
+  // slotMedsLoading 동안엔 시드하지 않는다(빈 상태로 오시드 → 전부 해제 표시 방지).
+  // 한 번 medChecked 에 들어간 슬롯은 다시 시드하지 않아 사용자의 토글/외부 변경을 덮지 않는다.
+  useEffect(() => {
+    if (slotMedsLoading) return;
+    setMedChecked((prev) => {
+      let changed = false;
+      const next = { ...prev };
+      for (const s of slots) {
+        const sid = s.id;
+        if (!sid || sid in prev) continue;
+        next[sid] = new Set((slotMeds[sid] ?? []).map((m) => m.id));
+        changed = true;
+      }
+      return changed ? next : prev;
+    });
+  }, [slots, slotMeds, slotMedsLoading]);
+
+  // 복용약 체크 토글 — medication_dose_slots insert(체크)/delete(해제)를 낙관적으로 즉시 반영.
+  // ⚠️ 쓰기 방식: supabase-js .insert()/.delete() 사용(.update() 아님 — New Arch hang 회피).
+  //   MedicationManageScreen.commitMedSlot 과 동일한 medication_dose_slots 직접 쓰기 패턴.
+  const onToggleMedLink = useCallback(
+    (slotId: string, medId: string) => {
+      // ⚠️ 깜빡임 방지: 이 토글은 "낙관적 로컬 상태(medChecked)"만 즉시 갱신하고,
+      //   어떤 전체 새로고침/캐시 무효화도 하지 않는다(시트 리마운트 유발 금지).
+      //   - 아직 시드 전이면(medChecked[slotId] 미존재) 빈 셋이 아니라 slotMeds(DB 연결분)에서
+      //     출발해 has 판정을 정확히 한다 → 잘못된 insert/delete 방지(연결 저장 정확성 유지).
+      //   - invalidateDoseSlotsCache 호출 안 함: 이는 dose_slots(슬롯) 캐시라 M:N 링크와 무관하고,
+      //     시트가 열린 동안 데이터 churn 을 유발할 수 있다. 슬롯 목록은 시트를 닫을 때
+      //     호스트(MedicationManageScreen.closeSlotAlarmEdit→loadDoseSlots)가 새로 읽어 정합성 보장.
+      //   - 타 화면/기기 동기화는 DB 쓰기 자체가 realtime 으로 전파하므로 깨지지 않는다.
+      const current =
+        medChecked[slotId] ??
+        new Set<string>((slotMeds[slotId] ?? []).map((m) => m.id));
+      const has = current.has(medId);
+      const next = new Set(current);
+      if (has) next.delete(medId);
+      else next.add(medId);
+      // 1) 낙관적 반영(체크 즉시 표시) — 이 상태가 진실원, 리렌더만 발생(리마운트 없음)
+      setMedChecked((prev) => ({ ...prev, [slotId]: next }));
+      // 2) 백그라운드 쓰기(insert/delete). 실패 시 직전 값으로 롤백.
+      void (async () => {
+        try {
+          if (has) {
+            const { error } = await supabase
+              .from('medication_dose_slots')
+              .delete()
+              .eq('dose_slot_id', slotId)
+              .eq('medication_id', medId);
+            if (error) throw error;
+          } else {
+            const { error } = await supabase
+              .from('medication_dose_slots')
+              .insert({ medication_id: medId, dose_slot_id: slotId } as any);
+            if (error) throw error;
+          }
+          // 성공 시 캐시 무효화/refresh 하지 않음 — 낙관적 medChecked 가 이미 정확.
+        } catch (e) {
+          console.error('[DoseSlotSetList] 슬롯-약 연결 토글 실패:', e);
+          setMedChecked((prev) => ({ ...prev, [slotId]: current }));
+        }
+      })();
+      // ⚠️ 토글은 "약 연결 on/off + medChecked 갱신"만 한다 — 추적시간(track_intervals)은
+      //   절대 건드리지 않는다. 추천 시점 자동 체크는 "새 슬롯 생성 시"에만 일어난다
+      //   (onSaveTime add 분기 참조). 기존 슬롯에서 사용자가 직접 설정한 추적시간을 보존.
+    },
+    [medChecked, slotMeds],
+  );
+
   // 약 드실 시간 알림 토글
   const onToggleRemind = useCallback(
     (slot: DoseSlot, value: boolean) => {
       if (!slot.id) return;
       patchSlot(slot.id, { remind_enabled: value }, { remindEnabled: value });
+      // 결과 안내: 켜기=즉시(시각 지났는지 판정) / 끄기=즉시 중단.
+      const popup = value
+        ? turnOnImmediatePopup(slot.time)
+        : turnOffImmediatePopup();
+      dialog.alert(popup);
     },
-    [patchSlot],
+    [patchSlot, dialog],
   );
 
   // 약 알림 소리 변경
@@ -327,8 +562,14 @@ export function DoseSlotSetList({ alarmSounds }: Props) {
       } else {
         patchSlot(slot.id, { track_enabled: value }, { trackEnabled: value });
       }
+      // 결과 안내: 약효추적은 지연형 → 오늘 이미 복용했는지 확인해 맞춤 문구.
+      const slotId = slot.id;
+      void (async () => {
+        const taken = await hasTakenTodayKST(patientIdRef.current, slotId);
+        dialog.alert(value ? trackChangePopup(taken) : trackOffPopup(taken));
+      })();
     },
-    [patchSlot],
+    [patchSlot, dialog],
   );
 
   // 추적 알림 소리 변경
@@ -350,7 +591,8 @@ export function DoseSlotSetList({ alarmSounds }: Props) {
         ? slot.trackIntervals.filter((m) => m !== minutes)
         : [...slot.trackIntervals, minutes];
       next = [...new Set(next)].sort((a, b) => a - b);
-      if (next.length === 0) {
+      const turnedOff = next.length === 0;
+      if (turnedOff) {
         // 마지막 항목까지 끄면 약효추적 자체를 끔
         patchSlot(
           slot.id,
@@ -360,8 +602,14 @@ export function DoseSlotSetList({ alarmSounds }: Props) {
       } else {
         patchSlot(slot.id, { track_intervals: next }, { trackIntervals: next });
       }
+      // 결과 안내(지연형): 간격 변경 → 오늘 복용했는지 확인. 마지막 항목 해제=꺼짐 문구.
+      const slotId = slot.id;
+      void (async () => {
+        const taken = await hasTakenTodayKST(patientIdRef.current, slotId);
+        dialog.alert(turnedOff ? trackOffPopup(taken) : trackChangePopup(taken));
+      })();
     },
-    [patchSlot],
+    [patchSlot, dialog],
   );
 
   // "다른 시간 더하기"로 임의 분을 track_intervals 에 추가(정렬·중복제거).
@@ -381,33 +629,32 @@ export function DoseSlotSetList({ alarmSounds }: Props) {
       const next = [...new Set([...base, minutes])].sort((a, b) => a - b);
       setIntervalSheet(null);
       patchSlot(slotId, { track_intervals: next }, { trackIntervals: next });
+      // 결과 안내(지연형): 추적 시각 추가도 다음 복용부터/오늘분 분기.
+      void (async () => {
+        const taken = await hasTakenTodayKST(patientIdRef.current, slotId);
+        dialog.alert(trackChangePopup(taken));
+      })();
     },
-    [slots, overrides, patchSlot],
+    [slots, overrides, patchSlot, dialog],
   );
 
-  // 비표준 추가 슬롯 삭제(is_active=false). 표준 4슬롯은 호출 안 됨.
+  // 비표준 추가 슬롯 삭제. 표준 4슬롯은 호출 안 됨(상위에서 게이팅).
+  // 흐름: 이 시각에 쌓인 기록(med_logs+on_off_logs) 건수를 먼저 조회 →
+  //   · 0건  : 기존처럼 확인 후 슬롯만 soft delete(is_active=false). 기록 없음.
+  //   · 1건+ : "기록도 함께 삭제할까요?" 2버튼.
+  //       - 기록도 함께 삭제 → 서버 RPC(delete_dose_slot_with_records)로 슬롯+기록 일괄 삭제.
+  //       - 기록은 남기기   → 기존 soft delete(슬롯만). 기록은 보존.
   // 삭제는 목록에서 사라져야 하므로 낙관적 오버레이가 아니라 refresh 로 반영.
+  // (약효추적 미발송 큐 정리는 서버 트리거/RPC 담당 — 클라에서 큐를 직접 건드리지 않음.)
   const onDeleteSlot = useCallback(
     async (slot: DoseSlot) => {
       if (!slot.id) return;
-      const ok = await dialog.confirm({
-        title: '이 복용 시간을 삭제할까요?',
-        message: `'${slotTitle(slot)}' 복용 시간 알림이 삭제돼요.`,
-        confirmText: '삭제',
-        cancelText: '취소',
-        destructive: true,
-      });
-      if (!ok) return;
       const id = slot.id;
-      setExpandedId(null);
-      try {
-        const { error } = await supabase
-          .from('dose_slots')
-          .update({ is_active: false })
-          .eq('id', id);
-        if (error) throw error;
+      const pid = patientIdRef.current;
+
+      // 삭제 성공 후 공통 로컬 정리(캐시 무효화 + 잔여 오버레이 제거 + base refresh).
+      const finishRemoval = async () => {
         if (patientIdRef.current) invalidateDoseSlotsCache(patientIdRef.current);
-        // 삭제된 슬롯의 잔여 오버레이 제거 후 base 갱신.
         setOverrides((prev) => {
           if (!(id in prev)) return prev;
           const next = { ...prev };
@@ -415,9 +662,104 @@ export function DoseSlotSetList({ alarmSounds }: Props) {
           return next;
         });
         await refresh();
+      };
+
+      // 슬롯만 soft delete(기록 보존). 기존 트리거가 미발송 추적 큐를 정리.
+      const softDeleteOnly = async () => {
+        setExpandedId(null);
+        // 삭제 전에 오늘 복용 여부 조회(약효추적 안내 분기에 필요).
+        const takenToday = await hasTakenTodayKST(patientIdRef.current, id);
+        try {
+          const { error } = await supabase
+            .from('dose_slots')
+            .update({ is_active: false })
+            .eq('id', id);
+          if (error) throw error;
+          await finishRemoval();
+          // 결과 안내: 약 복용(즉시 중단)+약효추적(오늘 예약분)을 한 번에(통합 1회 팝업).
+          dialog.alert(deleteSlotCombinedPopup(takenToday));
+        } catch (e) {
+          console.error('[DoseSlotSetList] dose_slots 삭제 실패:', e);
+          dialog.alert({
+            title: '삭제하지 못했어요',
+            message: '잠시 후 다시 시도해 주세요.',
+          });
+        }
+      };
+
+      // 슬롯 + 이 시각의 기록까지 서버에서 함께 삭제(RPC). 큐 정리도 서버 담당.
+      const deleteWithRecords = async () => {
+        setExpandedId(null);
+        const takenToday = await hasTakenTodayKST(patientIdRef.current, id);
+        try {
+          const { error } = await supabase.rpc('delete_dose_slot_with_records', {
+            p_dose_slot_id: id,
+          });
+          if (error) throw error;
+          await finishRemoval();
+          dialog.alert(deleteSlotCombinedPopup(takenToday));
+        } catch (e) {
+          console.error('[DoseSlotSetList] 슬롯+기록 삭제(RPC) 실패:', e);
+          dialog.alert({
+            title: '삭제하지 못했어요',
+            message: '잠시 후 다시 시도해 주세요.',
+          });
+        }
+      };
+
+      // 1) 이 슬롯에 연결된 기록 건수 조회(med_logs + on_off_logs). RLS 로 권한 제한됨.
+      let recordCount = 0;
+      try {
+        let medQ = supabase
+          .from('med_logs')
+          .select('id', { count: 'exact', head: true })
+          .eq('dose_slot_id', id);
+        let onoffQ = supabase
+          .from('on_off_logs')
+          .select('id', { count: 'exact', head: true })
+          .eq('dose_slot_id', id);
+        if (pid) {
+          medQ = medQ.eq('patient_id', pid);
+          onoffQ = onoffQ.eq('patient_id', pid);
+        }
+        const [medRes, onoffRes] = await Promise.all([medQ, onoffQ]);
+        recordCount = (medRes.count ?? 0) + (onoffRes.count ?? 0);
       } catch (e) {
-        console.error('[DoseSlotSetList] dose_slots 삭제 실패:', e);
+        // 조회 실패 시 보수적으로 0 취급 → 기록은 건드리지 않는 기존 삭제 흐름으로.
+        console.error('[DoseSlotSetList] 슬롯 기록 건수 조회 실패:', e);
+        recordCount = 0;
       }
+
+      // 2) 기록 0건 → 기존처럼 확인 후 슬롯만 삭제.
+      if (recordCount === 0) {
+        const ok = await dialog.confirm({
+          title: '이 복용 시간대를 삭제할까요?',
+          message: `'${slotTitle(slot)}' 복용 시간대 알림이 삭제돼요.`,
+          confirmText: '삭제',
+          cancelText: '취소',
+          destructive: true,
+        });
+        if (!ok) return;
+        await softDeleteOnly();
+        return;
+      }
+
+      // 3) 기록 1건 이상 → 기록까지 함께 삭제할지 2버튼 선택.
+      const choice = await dialog.show({
+        title: `이 시간대에 기록이 ${recordCount}건 있어요`,
+        message: '기록도 함께 삭제할까요?',
+        buttons: [
+          { id: 'withRecords', text: '기록도 삭제', style: 'destructiveSolid', row: true },
+          { id: 'keepRecords', text: '기록은 유지', style: 'destructive', row: true },
+          { id: 'cancel', text: '닫기', style: 'cancel' },
+        ],
+      });
+      if (choice === 'withRecords') {
+        await deleteWithRecords();
+      } else if (choice === 'keepRecords') {
+        await softDeleteOnly();
+      }
+      // choice === 'cancel'(닫기 버튼) / null(배경·뒤로 닫음) → 아무 동작 없음(취소).
     },
     [refresh, dialog],
   );
@@ -428,7 +770,13 @@ export function DoseSlotSetList({ alarmSounds }: Props) {
       // 편집: 기존 시각으로 초기화
       const parts = slot.time.split(':');
       const h24 = parseInt(parts[0] ?? '8', 10);
-      const minute = parseInt(parts[1] ?? '0', 10);
+      // 분은 5분 단위만 선택 가능 → 기존 비-5분값(예 42)이면 가장 가까운 5분으로 스냅(0~55).
+      // (스냅은 편집 시트를 열 때만 — 저장 안 하면 DB 원본값은 그대로 유지.)
+      const rawMinute = parseInt(parts[1] ?? '0', 10);
+      const minute = Math.min(
+        55,
+        Math.round((Number.isNaN(rawMinute) ? 0 : rawMinute) / 5) * 5,
+      );
       let ampm: '오전' | '오후';
       let hour: number;
       if (h24 === 0) { ampm = '오전'; hour = 12; }
@@ -441,6 +789,18 @@ export function DoseSlotSetList({ alarmSounds }: Props) {
       setTimeSheet({ mode: 'add', slotId: null, ampm: '오전', hour: 9, minute: 0 });
     }
   }, []);
+
+  // 진입 즉시 시간 추가 시트 열기(추가 경로 단순화). autoOpenAddNonce 가 바뀌면 1회 실행.
+  // soloSlotId(단일 슬롯 수정 진입)일 땐 무시 — 그건 추가가 아니라 특정 슬롯 편집이므로.
+  const appliedAddNonceRef = useRef<number | null>(null);
+  useEffect(() => {
+    if (soloSlotId) return;
+    const n = autoOpenAddNonce ?? 0;
+    if (n <= 0) return;
+    if (appliedAddNonceRef.current === n) return;
+    appliedAddNonceRef.current = n;
+    openTimeSheet(null);
+  }, [autoOpenAddNonce, soloSlotId, openTimeSheet]);
 
   const sheetToHHMM = (s: { ampm: '오전' | '오후'; hour: number; minute: number }): string => {
     let h24: number;
@@ -470,12 +830,31 @@ export function DoseSlotSetList({ alarmSounds }: Props) {
           { time: newTime, label: newLabel },
         );
       }
+      // 결과 안내: remind 켜진 슬롯이면 즉시형(시각 지났는지), 꺼진 슬롯이면 "꺼져 있어요".
+      const remindOn = target?.remindEnabled ?? true;
+      dialog.alert(
+        remindOn ? timeChangeImmediatePopup(newTime) : timeChangeWhileOffPopup(),
+      );
     } else {
       // 추가: dose_slots insert.
       // insert→refresh 왕복 동안 화면이 비는 걸 막으려고 새 슬롯을 즉시 낙관적으로 띄운다.
       const pid = patientIdRef.current;
       setTimeSheet(null);
-      if (!pid) return;
+      // ⚠️ addOnly 경로(추가 후 곧바로 수정 시트 전환): 여기서 onAddDone 을 미리 부르지 않는다.
+      //   insert 가 반환하는 실제 슬롯 id 를 확보한 뒤(아래 try), 그 id 로 onAddDone(newSlotId)
+      //   를 불러 부모가 "그 슬롯의 수정 시트"로 매끄럽게 전환하게 한다(엉뚱한 슬롯 편집 방지).
+      //   pid 가 없으면(드문 경우) 조용히 닫지 말고 사용자에게 재시도를 안내한다.
+      //   (보통 수정1·2로 환자 슬롯/patientId 가 해결되지만, 환자 정보 로딩 직후 등
+      //    드문 타이밍에서 pid 가 아직 null 일 수 있어 방어선으로 둔다.)
+      if (!pid) {
+        console.warn('[DoseSlotSetList] 슬롯 추가 시 patientId 미해결 → 저장 보류, 재시도 안내');
+        dialog.alert({
+          title: '잠시만요',
+          message: '준비 중이에요. 잠시 후 다시 시도해 주세요.',
+        });
+        if (addOnly) onAddDone?.();
+        return;
+      }
       if (insertingRef.current) return;
       insertingRef.current = true;
 
@@ -483,7 +862,24 @@ export function DoseSlotSetList({ alarmSounds }: Props) {
       const newSort = maxSort + 1;
       // 비표준(추가) 슬롯 라벨 = "[시간대] [12시간 시각]" (예 "오후 3:00"). 기존 '추가' 폐기.
       const newLabel = autoSlotLabel(newTime);
+      // ── 추천 시점 자동 체크(새 슬롯 생성 시에만) ─────────────────────────────
+      // 새 슬롯은 아래에서 환자의 등록 약 전부를 자동 연결하므로, 연결될 약 = medications 전체.
+      // 그 약들로 권장 추적 시점(레보도파 등)을 계산해, 권장이 있으면 [복용직후(0) + 권장 시점들]을
+      // track_intervals 로 설정한다. 복용직후(0)는 항상 기본 체크되도록 [0, ...recOffsets] 를
+      // dedup(Set)·오름차순 정렬한다(예: 마도파 → 0/30/60/120). 권장이 없으면(비레보도파/약 없음)
+      // 기존 기본값(DEFAULT_TRACK_INTERVALS, 이미 0 포함)을 유지. 생성 후 사용자는 onToggleInterval
+      // 로 0 포함 어떤 시점이든 자유롭게 해제/추가 가능. (토글·기존 슬롯 편집에선 절대 추적시간을
+      // 자동 변경하지 않는다.)
+      const recOffsets = recommendForSlotMeds(
+        medications.map((m) => ({ name: m.name })),
+      ).offsets;
+      const newTrackIntervals =
+        recOffsets.length > 0
+          ? [...new Set([0, ...recOffsets])].sort((a, b) => a - b)
+          : DEFAULT_TRACK_INTERVALS;
       // 임시 슬롯(낙관적). id 는 'opt:' 접두 임시값 — refresh 로 진짜 행이 오면 정리됨.
+      // (addOnly 경로에선 목록을 렌더하지 않으므로 화면엔 안 보이지만, 비-addOnly 추가와
+      //  코드 경로를 공유하므로 그대로 둔다.)
       const optimistic: DoseSlot = {
         id: `opt:${Date.now()}`,
         patientId: pid,
@@ -493,7 +889,7 @@ export function DoseSlotSetList({ alarmSounds }: Props) {
         remindEnabled: true,
         remindSoundId: null,
         trackEnabled: true,
-        trackIntervals: DEFAULT_TRACK_INTERVALS,
+        trackIntervals: newTrackIntervals,
         trackSoundId: null,
         legacyKey: null,
         isReal: false,
@@ -501,36 +897,74 @@ export function DoseSlotSetList({ alarmSounds }: Props) {
       setAddedSlots((prev) => [...prev, optimistic]);
 
       try {
-        const { error } = await supabase.from('dose_slots').insert({
-          patient_id: pid,
-          time: newTime,
-          label: newLabel,
-          sort_order: newSort,
-          remind_enabled: true,
-          remind_sound_id: null,
-          track_enabled: true,
-          track_intervals: DEFAULT_TRACK_INTERVALS,
-          track_sound_id: null,
-          is_active: true,
-        } as any);
+        // .select('id').single() 로 새 행의 실제 DB id 를 즉시 확보 → 수정 시트가 그 슬롯을 가리키게 함.
+        const { data: inserted, error } = await supabase
+          .from('dose_slots')
+          .insert({
+            patient_id: pid,
+            time: newTime,
+            label: newLabel,
+            sort_order: newSort,
+            remind_enabled: true,
+            remind_sound_id: null,
+            track_enabled: true,
+            track_intervals: newTrackIntervals,
+            track_sound_id: null,
+            is_active: true,
+          } as any)
+          .select('id')
+          .single();
         if (error) throw error;
         invalidateDoseSlotsCache(pid);
+        // 실제 id 가 캐시에 반영된 뒤 전환해야 수정 시트(다른 useDoseSlots 인스턴스)가
+        // 새 슬롯을 곧바로 보고 펼친다 → refresh 를 먼저 await 한 다음 onAddDone(id) 호출.
         await refresh();
+        const newSlotId = (inserted as { id?: string } | null)?.id ?? null;
+        // ⭐ 새 슬롯에 환자의 등록 약 전부를 자동 연결(medication_dose_slots).
+        //   → 곧바로 열리는 편집뷰의 "이 시간에 드시는 약" 체크리스트가 전부 체크된 상태로 보이고,
+        //     사용자는 이 시간에 안 드시는 약만 체크 해제하면 된다(기본값=전부 복용).
+        //   새 슬롯이라 기존 링크가 없으므로 단순 insert 로 중복 없음.
+        //   ⚠️ 쓰기 방식: .insert() 사용(.update() 아님). onAddDone 전에 await 해 솔로 편집뷰
+        //     인스턴스(별도 useSlotMedications)가 마운트 시 링크를 곧장 읽도록 보장.
+        if (newSlotId && medications.length > 0) {
+          try {
+            const linkRows = medications.map((m) => ({
+              medication_id: m.id,
+              dose_slot_id: newSlotId,
+            }));
+            const { error: linkErr } = await supabase
+              .from('medication_dose_slots')
+              .insert(linkRows as any);
+            if (linkErr) throw linkErr;
+            invalidateDoseSlotsCache(pid);
+            // 같은 인스턴스(비-addOnly 전체관리 추가)에서도 전부 체크로 보이도록 시드.
+            setMedChecked((prev) => ({
+              ...prev,
+              [newSlotId]: new Set(medications.map((m) => m.id)),
+            }));
+            await refreshSlotMeds();
+          } catch (linkErr) {
+            // 자동 연결 실패해도 슬롯 생성·흐름은 막지 않는다(편집뷰에서 직접 체크 가능).
+            console.error('[DoseSlotSetList] 새 슬롯 약 자동연결 실패:', linkErr);
+          }
+        }
+        if (addOnly) onAddDone?.(newSlotId ?? undefined);
       } catch (e) {
         console.error('[DoseSlotSetList] dose_slots insert 실패:', e);
-        // 실패 시 낙관적 슬롯 롤백.
+        // 실패 시 낙관적 슬롯 롤백 + 모달 닫기(미저장 처리).
         setAddedSlots((prev) => prev.filter((s) => s.id !== optimistic.id));
+        if (addOnly) onAddDone?.();
       } finally {
         insertingRef.current = false;
       }
     }
-  }, [timeSheet, slots, patchSlot, refresh]);
+  }, [timeSheet, slots, patchSlot, refresh, dialog, addOnly, onAddDone, medications, refreshSlotMeds]);
 
   // ── 소프트 경고 판정: 이 슬롯의 추적 시각 중 (슬롯시각+분) > 다음 active 슬롯 시각? ──
   // 정렬된 active 슬롯에서 "이 슬롯 바로 다음" 시각을 찾음. 마지막 복용이면 경고 없음.
   const sortedActive = [...displaySlots].sort(
     (a, b) =>
-      a.sortOrder - b.sortOrder || slotSortValue(a.time) - slotSortValue(b.time),
+      slotSortValue(a.time) - slotSortValue(b.time) || a.sortOrder - b.sortOrder,
   );
   const getOverlapWarning = (slot: DoseSlot): boolean => {
     if (!slot.trackEnabled || slot.trackIntervals.length === 0) return false;
@@ -546,31 +980,46 @@ export function DoseSlotSetList({ alarmSounds }: Props) {
   if (loading && displaySlots.length === 0) {
     return (
       <View style={styles.section}>
-        <Text style={styles.sectionTitle}>복용 시각별 알림</Text>
+        <Text style={styles.sectionTitle}>복용 시간대별 알림</Text>
         <View style={styles.card}>
-          <Text style={styles.loadingText}>불러오는 중입니다...</Text>
+          <Text style={styles.loadingText}>불러오고 있어요…</Text>
         </View>
       </View>
     );
   }
 
+  // 단일 슬롯 편집 진입이면 그 슬롯만 노출(다른 슬롯 숨김).
+  // 추가 전용(addOnly) 진입이면 목록은 일절 렌더하지 않고 시간 시트만 띄운다(시트 2겹 방지).
+  const visibleSlots = addOnly
+    ? []
+    : soloSlotId
+      ? displaySlots.filter((s) => s.id === soloSlotId)
+      : displaySlots;
+
   return (
-    <View style={styles.section}>
-      <Text style={styles.sectionTitle}>복용 시각별 알림</Text>
-      <Text style={styles.sectionDesc}>
-        복용 시각마다 약 복용 알림과 약효 추적 알림을 정할 수 있어요
-      </Text>
+    <View style={[styles.section, (soloSlotId || addOnly) && styles.sectionSolo]}>
+      {/* 단일 슬롯 편집은 카드 제목(아침 · 오전 8:30)이 곧 제목이므로 섹션 제목/설명 생략 */}
+      {!soloSlotId && !addOnly && (
+        <>
+          <Text style={styles.sectionTitle}>복용 시간대별 알림</Text>
+          <Text style={styles.sectionDesc}>
+            복용 시간대마다 약 복용 알림과 약효 추적 알림을 정할 수 있어요
+          </Text>
+        </>
+      )}
 
-      {/* 안내 박스 */}
-      <View style={styles.guide}>
-        <Text style={styles.guideTitle}>복용 시각마다 따로 정할 수 있어요</Text>
-        <Text style={styles.guideBody}>
-          약 복용 알림과 약효 추적 알림을 시각별로 설정합니다.
-          기본값이 미리 맞춰져 있으니 그대로 두셔도 괜찮아요.
-        </Text>
-      </View>
+      {/* 안내 박스 (전체 관리 진입에서만) */}
+      {!soloSlotId && !addOnly && (
+        <View style={styles.guide}>
+          <Text style={styles.guideTitle}>복용 시간대마다 따로 정할 수 있어요</Text>
+          <Text style={styles.guideBody}>
+            약 복용 알림과 약효 추적 알림을 시간대별로 설정합니다.
+            기본값이 미리 맞춰져 있으니 그대로 두셔도 괜찮아요.
+          </Text>
+        </View>
+      )}
 
-      {displaySlots.map((slot) => {
+      {visibleSlots.map((slot) => {
         if (!slot.id) return null;
         const expanded = expandedId === slot.id;
         // 왼쪽 띠: 약 복용/약효 추적 중 하나라도 켜져 있으면 오렌지, 둘 다 꺼지면 회색
@@ -578,10 +1027,33 @@ export function DoseSlotSetList({ alarmSounds }: Props) {
         // 시각 제목 dim: 약 복용 알림이 꺼져 있으면 흐리게 (와이어프레임 점심 카드)
         const timeDim = !slot.remindEnabled;
         const warn = getOverlapWarning(slot);
+        // ── 슬롯-약 연결 계산 ──
+        // 독립 "이 시간에 드시는 약" 박스(약 체크리스트)와 약효추적 박스의 권장 시점 안내가 공유.
+        // medChecked 가 진실원(슬롯당 1회 slotMeds 로 시드). 체크된 약 기준으로 레보도파 권장 시점 산출.
+        const sid = slot.id;
+        const medSeeded = sid in medChecked;
+        const checkedSet =
+          medChecked[sid] ?? new Set((slotMeds[sid] ?? []).map((m) => m.id));
+        const checkedMeds = medications.filter((m) => checkedSet.has(m.id));
+        const rec = recommendForSlotMeds(checkedMeds.map((m) => ({ name: m.name })));
+        const showRec = rec.levodopaNames.length > 0 && rec.offsets.length > 0;
+        const recSentence = showRec
+          ? buildMainSentence(rec.levodopaNames, rec.offsets)
+          : null;
         return (
           <View
             key={slot.id}
-            style={[styles.card, cardOn ? styles.cardOn : styles.cardOff]}
+            style={[styles.card, cardOn ? styles.cardOn : styles.cardOff, soloSlotId && styles.cardSolo]}
+            onLayout={(e) => {
+              const id = slot.id!;
+              const y = e.nativeEvent.layout.y;
+              slotLayoutY.current.set(id, y);
+              // 이 슬롯으로 스크롤이 예약돼 있으면(외부 포커스 진입) 위치 확정 후 위임.
+              if (pendingScrollIdRef.current === id && onFocusScrollTo) {
+                pendingScrollIdRef.current = null;
+                onFocusScrollTo(y);
+              }
+            }}
           >
             {/* ── 시각 제목 줄 (+ 우측 상단 수정 버튼) ── */}
             <View style={styles.slotHead}>
@@ -591,7 +1063,8 @@ export function DoseSlotSetList({ alarmSounds }: Props) {
               <Text style={[styles.slotTime, timeDim && styles.slotTimeOff]}>
                 {slotTitle(slot)}
               </Text>
-              {!expanded && (
+              {/* 단일 슬롯 수정 진입(solo)에선 상단 닫기 없음 — 하단 '닫기·완료' 행으로 대체 */}
+              {!soloSlotId && !expanded && (
                 <View style={styles.slotHeadActions}>
                   <TouchableOpacity
                     activeOpacity={0.7}
@@ -676,29 +1149,94 @@ export function DoseSlotSetList({ alarmSounds }: Props) {
                         onPress={() => openTimeSheet(slot)}
                       >
                         <View style={styles.timeRowLeft}>
-                          <Ionicons name="time-outline" size={20} color={Colors.dark} />
+                          <Ionicons name="time-outline" size={20} color={Colors.textSub} />
                           <Text style={styles.timeRowLabel}>알림 시간</Text>
                         </View>
                         <View style={styles.timeRowRight}>
                           <Text style={styles.timeRowValue}>
                             {formatSlotTime(slot.time)}
                           </Text>
-                          <View style={styles.editPill}>
-                            <Ionicons name="create-outline" size={16} color={Colors.dark} />
-                            <Text style={styles.editPillText}>수정</Text>
-                          </View>
+                          <Ionicons name="chevron-forward" size={18} color={Colors.textSub} />
                         </View>
                       </TouchableOpacity>
 
-                      {/* 알림 소리 — 파란 박스에 맞춰 연한 파랑 배경 */}
+                      {/* 알림 소리 — 박스 안에서 평평하게(투명 배경 + 윗 구분선) */}
+                      <View style={styles.innerDivider} />
                       <AlarmSoundPickerRow
                         soundId={slot.remindSoundId}
                         sounds={alarmSounds}
                         onSelect={(sid) => onRemindSound(slot, sid)}
-                        backgroundColor={BOX_ALARM_BG}
+                        backgroundColor="transparent"
                       />
                     </>
                   )}
+                </View>
+
+                {/* ══ 독립 박스: 이 시간에 드시는 약 ══
+                    약효추적 토글과 무관하게 펼친 편집뷰에서 항상 표시(약 1개 이상). 체크리스트 하나로
+                    약-슬롯 연결(medication_dose_slots)을 편집. 약 0개면 등록 CTA, 로딩 중엔 깜빡임 방지 안내.
+                    새 슬롯은 등록 약이 전부 자동 연결되어 기본 전부 체크 → 안 드시는 약만 해제하면 됨. */}
+                <View style={[styles.boxBlock, styles.boxMeds]}>
+                  <Text style={styles.boxTitle}>이 시간에 드시는 약</Text>
+                  {(() => {
+                    // 분기 A: 등록된 약이 0개 → 약 등록하러 가기 CTA(연결할 약이 없음).
+                    if (!hasAnyMed && !slotMedsLoading) {
+                      return (
+                        <View style={styles.medEmptyBlock}>
+                          <Text style={styles.recMain}>
+                            약을 등록하시면 이 시간에 드시는 약을 정할 수 있어요.
+                          </Text>
+                          <TouchableOpacity
+                            activeOpacity={0.85}
+                            style={styles.recRegisterBtn}
+                            onPress={() =>
+                              navigation.navigate('MedicationManage', { mode: 'meds' })
+                            }
+                          >
+                            <Text style={styles.recRegisterBtnText}>약 등록하러 가기</Text>
+                          </TouchableOpacity>
+                        </View>
+                      );
+                    }
+                    // 분기 B: 약 목록/연결 로딩 중(아직 미시드) → 빈 체크 깜빡임 방지용 안내.
+                    if (!medSeeded && slotMedsLoading) {
+                      return (
+                        <Text style={styles.medLoadingText}>약 목록을 불러오고 있어요…</Text>
+                      );
+                    }
+                    // 분기 C: 약 1개 이상 → 복용약 체크리스트(전부 자동연결 → 기본 전부 체크).
+                    return (
+                      <>
+                        <Text style={styles.medPickSub}>
+                          안 드시는 약은 체크를 해제해 주세요.
+                        </Text>
+                        {medications.map((m) => {
+                          const checked = checkedSet.has(m.id);
+                          return (
+                            <TouchableOpacity
+                              key={m.id}
+                              activeOpacity={0.8}
+                              style={styles.medPickRow}
+                              onPress={() => onToggleMedLink(sid, m.id)}
+                            >
+                              <View
+                                style={[styles.medPickChk, checked && styles.medPickChkOn]}
+                              >
+                                {checked && (
+                                  <Ionicons
+                                    name="checkmark-sharp"
+                                    size={18}
+                                    color={Colors.white}
+                                  />
+                                )}
+                              </View>
+                              <Text style={styles.medPickName}>{m.name}</Text>
+                            </TouchableOpacity>
+                          );
+                        })}
+                      </>
+                    );
+                  })()}
                 </View>
 
                 {/* ══ 박스2: 약효 추적 알림 (연한 초록) ══ */}
@@ -715,9 +1253,32 @@ export function DoseSlotSetList({ alarmSounds }: Props) {
 
                   {slot.trackEnabled && (
                     <>
+                      {/* ── 권장 시점 안내(레보도파 계열) ──
+                          약 선택은 위 "이 시간에 드시는 약" 독립 박스에서 하고, 여기선 체크된 약 기준
+                          권장 추적 시점만 안내(약효추적 박스 맥락 유지).
+                          ⚠️ 약 체크/해제 시 시트가 출렁이지 않도록 recBox 는 trackEnabled 동안 '항상 마운트'
+                          하고 '고정 높이'를 차지한다. 토글은 박스 안의 글자(내용)만 바꿀 뿐 높이는 불변
+                          (조건부 mount 제거 + 각 줄 numberOfLines 클램프 + 각 Text minHeight 로 줄 수 변화 흡수).
+                          권장 대상이 없으면 같은 자리·같은 높이에 중립 문구만 채운다. */}
+                      <View style={styles.recBox}>
+                        <Text style={styles.recMain} numberOfLines={2}>
+                          {showRec && recSentence
+                            ? `${recSentence.subject}${recSentence.particle} ${recSentence.timing}에 몸 상태를 확인하는 걸 추천해요.`
+                            : '이 시간에 드시는 약에는 따로 권장 확인 시점이 없어요.'}
+                        </Text>
+                        <Text style={styles.recSource} numberOfLines={1}>
+                          {showRec && rec.source ? `약효 시간 출처: ${rec.source}` : ' '}
+                        </Text>
+                        <Text style={styles.recDisclaimer} numberOfLines={3}>
+                          {showRec
+                            ? '약효 시간은 위 출처 기준이며, 확인 시점은 참고 안내예요. 확정 처방은 아니니 의사와 상의하세요.'
+                            : ' '}
+                        </Text>
+                      </View>
+
                       <Text style={styles.qHead}>
                         추적 시간{' '}
-                        <Text style={styles.qHeadSmall}>(여러 개 선택)</Text>
+                        <Text style={styles.qHeadSmall}>(복수 선택 가능)</Text>
                       </Text>
 
                       {(() => {
@@ -739,12 +1300,12 @@ export function DoseSlotSetList({ alarmSounds }: Props) {
                                   <TouchableOpacity
                                     key={opt.minutes}
                                     activeOpacity={0.8}
-                                    style={[styles.checkCell, sel && styles.checkRowSel]}
+                                    style={styles.checkCell}
                                     onPress={() => onToggleInterval(slot, opt.minutes)}
                                   >
                                     <View style={[styles.box, sel && styles.boxSel]}>
                                       {sel && (
-                                        <Ionicons name="checkmark" size={18} color={Colors.white} />
+                                        <Ionicons name="checkmark-sharp" size={18} color={Colors.white} />
                                       )}
                                     </View>
                                     <View style={styles.checkText}>
@@ -753,26 +1314,31 @@ export function DoseSlotSetList({ alarmSounds }: Props) {
                                   </TouchableOpacity>
                                 );
                               })}
+                              {/* ＋ 직접 추가 — 마지막 옵션(3시간 후) 오른쪽, 같은 크기 칸 */}
+                              <TouchableOpacity
+                                activeOpacity={0.7}
+                                style={styles.addIntervalCell}
+                                onPress={() =>
+                                  setIntervalSheet({ slotId: slot.id!, hour: 4, minute: 0 })
+                                }
+                              >
+                                {/* "+" 를 윗줄 체크박스 자리에 맞춤(같은 26px 슬롯) */}
+                                <View style={styles.addPlusSlot}>
+                                  <Ionicons name="add" size={24} color={Colors.dark} />
+                                </View>
+                                <Text style={styles.addIntervalCellText}>직접 추가</Text>
+                              </TouchableOpacity>
                             </View>
-                            {/* "복용 직후" 힌트 — 2열 셀 안에선 좁아 어색하므로 그리드 아래 풀너비로 */}
-                            <Text style={styles.checkHint}>
-                              ⓘ "복용 직후"는 약 복용을 기록하면 곧바로 몸상태를 기록하도록 안내해요
-                            </Text>
+                            {/* "복용 직후" 힌트 — ⓘ와 본문 분리(행잉 인덴트): 줄바꿈 시 둘째 줄이 본문에 맞춰 시작 */}
+                            <View style={styles.checkHintRow}>
+                              <Text style={styles.checkHintIcon}>ⓘ</Text>
+                              <Text style={[styles.checkHint, styles.checkHintBody]}>
+                                복용 직후는 약 복용을 기록하면 곧바로 몸상태를 기록하도록 안내해요
+                              </Text>
+                            </View>
                           </>
                         );
                       })()}
-
-                      {/* ＋ 직접 추가 (프리셋에 없는 임의 시간 추가) */}
-                      <TouchableOpacity
-                        activeOpacity={0.7}
-                        style={styles.addIntervalBtn}
-                        onPress={() =>
-                          setIntervalSheet({ slotId: slot.id!, hour: 4, minute: 0 })
-                        }
-                      >
-                        <Ionicons name="add-outline" size={22} color={Colors.dark} />
-                        <Text style={styles.addIntervalBtnText}>직접 추가</Text>
-                      </TouchableOpacity>
 
                       {/* 소프트 경고 (막지 않음) */}
                       {warn && (
@@ -787,46 +1353,68 @@ export function DoseSlotSetList({ alarmSounds }: Props) {
                         </View>
                       )}
 
-                      {/* 알림 소리 */}
+                      {/* 알림 소리 — 박스 안에서 평평하게(투명 배경 + 윗 구분선) */}
+                      <View style={styles.innerDivider} />
                       <AlarmSoundPickerRow
                         soundId={slot.trackSoundId}
                         sounds={alarmSounds}
                         onSelect={(sid) => onTrackSound(slot, sid)}
+                        backgroundColor="transparent"
                       />
                     </>
                   )}
                 </View>
 
-                {/* ── 박스 밖: 완료 (삭제는 접힌 카드 우측 상단 아이콘으로 이동) ── */}
-                <TouchableOpacity
-                  activeOpacity={0.85}
-                  style={styles.doneBtn}
-                  onPress={() => toggleExpand(slot.id!)}
-                >
-                  <Text style={styles.doneBtnText}>완료</Text>
-                </TouchableOpacity>
+                {/* ── 박스 밖: 단일 슬롯 편집(solo)=닫기·완료 한 줄, 아니면 완료(접기) ── */}
+                {soloSlotId && onSoloClose ? (
+                  <View style={{ flexDirection: 'row', gap: 12, marginTop: 14 }}>
+                    <TouchableOpacity activeOpacity={0.7} style={styles.sheetCancelBtn} onPress={onSoloClose}>
+                      <Text style={styles.sheetCancelBtnText}>닫기</Text>
+                    </TouchableOpacity>
+                    <TouchableOpacity activeOpacity={0.85} style={styles.sheetSaveBtn} onPress={onSoloClose}>
+                      <Text style={styles.saveBtnText}>완료</Text>
+                    </TouchableOpacity>
+                  </View>
+                ) : (
+                  <TouchableOpacity
+                    activeOpacity={0.85}
+                    style={styles.doneBtn}
+                    onPress={() => toggleExpand(slot.id!)}
+                  >
+                    <Text style={styles.doneBtnText}>완료</Text>
+                  </TouchableOpacity>
+                )}
               </>
             )}
           </View>
         );
       })}
 
-      {/* ＋ 복용 시각 추가하기 */}
-      <TouchableOpacity
-        activeOpacity={0.7}
-        style={styles.addBtn}
-        onPress={() => openTimeSheet(null)}
-      >
-        <Ionicons name="add-circle-outline" size={22} color={Colors.dark} />
-        <Text style={styles.addBtnText}>복용 시간 추가</Text>
-      </TouchableOpacity>
+      {/* ＋ 복용 시간대 추가하기 (전체 관리 진입에서만) */}
+      {!soloSlotId && !addOnly && (
+        <TouchableOpacity
+          activeOpacity={0.7}
+          style={styles.addBtn}
+          onPress={() => openTimeSheet(null)}
+        >
+          <Ionicons name="add-circle-outline" size={22} color={Colors.dark} />
+          <Text style={styles.addBtnText}>복용 시간대 추가</Text>
+        </TouchableOpacity>
+      )}
 
       {/* ── 시간/분 선택 바텀시트 ── */}
       <TimePickerSheet
         state={timeSheet}
         onChange={setTimeSheet}
         onSave={onSaveTime}
-        onClose={() => setTimeSheet(null)}
+        onClose={() => {
+          // onClose 는 이미 시트 내부에서 슬라이드-아웃 애니가 끝난 뒤 호출된다(runClose/스와이프 공통).
+          //  → 이 시점에 시트는 화면에서 사라진 상태이므로 호스트(animationType="none")를 바로 닫아도
+          //    닫힘 슬라이드가 중복되지 않는다(이전의 CLOSE_SLIDE_MS 순차 지연 불필요 → 제거).
+          //  ⚠️ 저장(완료) 경로는 onSaveTime 이 처리하므로 여기 변경의 영향 없음(추가→편집 전환 무손상).
+          setTimeSheet(null);
+          if (addOnly) onAddDone?.();
+        }}
       />
 
       {/* ── 추적 시각 직접 추가 바텀시트 ── */}
@@ -840,9 +1428,76 @@ export function DoseSlotSetList({ alarmSounds }: Props) {
   );
 }
 
-// ─── 시간/분 선택 바텀시트 (스와이프 다운 닫기) ─────────────────────────────────
+// 시각/간격 선택 시트(TimePickerSheet·IntervalPickerSheet)의 단일-애니 슬라이드 파라미터.
+// Modal animationType="none" + translateY 하나로 열기/닫기를 직접 구동한다(닫힘 애니 2겹 방지).
+const SHEET_ENTER_OFFSET = 600;  // 열기 시작 위치(화면 아래) px
+const SHEET_ENTER_MS = 240;      // 슬라이드-인 시간
+const SHEET_CLOSE_OFFSET = 700;  // 닫기 목표 위치(화면 밖) px — 훅 closeTo 기본값과 동일
+const SHEET_CLOSE_MS = 220;      // 슬라이드-아웃 시간 — 훅 스와이프 닫힘 200ms와 근사
+
+// ─── 시간/분 선택용 데이터 ─────────────────────────────────
 const HOURS = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12];
-const MINUTE_PRESETS = [0, 5, 10, 15, 20, 30, 40, 45, 50];
+const MINUTES = Array.from({ length: 12 }, (_, i) => i * 5); // 0,5,…,55 (5분 단위)
+
+// ─── 스크롤 컬럼 선택기 (진료 일정 시간선택과 동일 방식 — 탭 선택, 휠 아님) ──────────
+const PICK_ITEM_H = 50;
+function PickerCol<T extends string | number>({
+  items, selected, onSelect,
+}: {
+  items: { value: T; label: string }[];
+  selected: T;
+  onSelect: (v: T) => void;
+}) {
+  const ref = useRef<FlatList<{ value: T; label: string }>>(null);
+  const selectedIndex = Math.max(0, items.findIndex((it) => it.value === selected));
+  useEffect(() => {
+    if (ref.current) ref.current.scrollToOffset({ offset: selectedIndex * PICK_ITEM_H, animated: false });
+  }, [selected, selectedIndex]);
+  return (
+    <View style={{ flex: 1 }}>
+      <FlatList
+        ref={ref}
+        data={items}
+        keyExtractor={(it) => String(it.value)}
+        initialScrollIndex={selectedIndex}
+        getItemLayout={(_, index) => ({ length: PICK_ITEM_H, offset: PICK_ITEM_H * index, index })}
+        showsVerticalScrollIndicator={false}
+        onScrollToIndexFailed={() => {}}
+        onLayout={() => { if (ref.current) ref.current.scrollToOffset({ offset: selectedIndex * PICK_ITEM_H, animated: false }); }}
+        renderItem={({ item }) => {
+          const isSel = item.value === selected;
+          return (
+            <TouchableOpacity
+              style={[pickStyles.item, isSel && pickStyles.itemActive]}
+              onPress={() => onSelect(item.value)}
+              activeOpacity={0.7}
+            >
+              <Text style={[pickStyles.itemText, isSel && pickStyles.itemTextActive]}>{item.label}</Text>
+            </TouchableOpacity>
+          );
+        }}
+      />
+    </View>
+  );
+}
+
+const pickStyles = StyleSheet.create({
+  colsRow: { flexDirection: 'row', height: 250 },
+  col: { flex: 1 },
+  colHeader: {
+    fontSize: 15, fontWeight: '600', color: Colors.textSub,
+    textAlign: 'center', paddingBottom: 6,
+    borderBottomWidth: 1, borderBottomColor: Colors.border, marginBottom: 4,
+  },
+  colDivider: { width: 1, backgroundColor: Colors.border, marginVertical: 8 },
+  item: {
+    height: PICK_ITEM_H, justifyContent: 'center', alignItems: 'center',
+    borderRadius: 8, marginHorizontal: 3, marginVertical: 1,
+  },
+  itemActive: { backgroundColor: Colors.light },
+  itemText: { color: Colors.text, fontSize: 20 },
+  itemTextActive: { color: Colors.primary, fontWeight: '700' },
+});
 
 interface TimeSheetState {
   mode: 'edit' | 'add';
@@ -863,97 +1518,94 @@ function TimePickerSheet({
   onSave: () => void;
   onClose: () => void;
 }) {
-  const { translateY, panHandlers, resetPosition } = useSwipeDownDismiss(onClose);
+  // 스와이프 닫기는 공용 훅(translateY 1개)이 처리. 닫힘 애니가 2개(Modal slide-out + 훅
+  // translateY)면 "두 번 닫힘"이 보이므로, Modal animationType="none" 으로 두고 열기/닫기
+  // 슬라이드를 이 translateY 하나로만 구동한다(MealTimeModal 패턴). 닫기 4경로 전부 한 번만.
+  const { translateY, panHandlers } = useSwipeDownDismiss(onClose);
+  const sheetPad = useBottomSheetPadding(32);
   const visible = !!state;
+  // 열기: 화면 밖(아래) → 0 슬라이드-인. (animationType none 이라 직접 구동해야 툭 안 뜬다.)
   React.useEffect(() => {
-    if (visible) resetPosition();
+    if (visible) {
+      translateY.setValue(SHEET_ENTER_OFFSET);
+      Animated.timing(translateY, {
+        toValue: 0,
+        duration: SHEET_ENTER_MS,
+        useNativeDriver: true,
+      }).start();
+    }
   }, [visible]);
-
-  const hourBtnWidth = (SCREEN_WIDTH - 88) / 4;
+  // 닫기 공통: 슬라이드-아웃 후 onClose(스와이프 경로의 훅 동작과 동일한 단일 애니).
+  const runClose = React.useCallback(() => {
+    Animated.timing(translateY, {
+      toValue: SHEET_CLOSE_OFFSET,
+      duration: SHEET_CLOSE_MS,
+      useNativeDriver: true,
+    }).start(() => onClose());
+  }, [onClose, translateY]);
 
   return (
-    <Modal visible={visible} transparent animationType="slide" onRequestClose={onClose}>
-      <TouchableOpacity style={styles.backdrop} activeOpacity={1} onPress={onClose}>
+    <Modal visible={visible} transparent animationType="none" onRequestClose={runClose}>
+      <View style={styles.backdrop}>
+        {/* 닫기 터치는 시트 뒤 절대배치 레이어로 분리 → 휠 위엔 터치 조상 0개 */}
+        <TouchableOpacity style={StyleSheet.absoluteFill} activeOpacity={1} onPress={runClose} />
         <Animated.View
-          style={[styles.sheet, { transform: [{ translateY }] }]}
-          {...panHandlers}
-          onStartShouldSetResponder={() => true}
+          style={[styles.sheet, { paddingBottom: sheetPad, transform: [{ translateY }] }]}
         >
-          <View style={styles.handle} />
-          {state && (
-            <>
+          {/* 스와이프-닫기는 상단 손잡이/제목 영역에만 (휠 스크롤과 충돌 방지) */}
+          <View {...panHandlers}>
+            <View style={styles.handle} />
+            {state && (
               <Text style={styles.sheetTitle}>
-                {state.mode === 'add' ? '복용 시간 추가' : '복용 시간 수정'}
+                {state.mode === 'add' ? '복용 시간대 추가' : '알림 시간 수정'}
               </Text>
-
-              {/* 오전/오후 */}
-              <View style={styles.ampmRow}>
-                {(['오전', '오후'] as const).map((ap) => {
-                  const active = state.ampm === ap;
-                  return (
-                    <TouchableOpacity
-                      key={ap}
-                      activeOpacity={0.7}
-                      onPress={() => onChange({ ...state, ampm: ap })}
-                      style={[styles.ampmBtn, active ? styles.ampmBtnActive : styles.ampmBtnInactive]}
-                    >
-                      <Text style={[styles.ampmBtnText, active ? styles.ampmBtnTextActive : styles.ampmBtnTextInactive]}>
-                        {ap}
-                      </Text>
-                    </TouchableOpacity>
-                  );
-                })}
+            )}
+          </View>
+          {state && (
+            <View>
+              {/* 오전/오후 · 시 · 분 — 스크롤 컬럼(탭 선택, 진료 일정 시간선택과 동일) */}
+              <View style={pickStyles.colsRow}>
+                <View style={pickStyles.col}>
+                  <Text style={pickStyles.colHeader}>오전/오후</Text>
+                  <PickerCol
+                    items={[{ value: '오전', label: '오전' }, { value: '오후', label: '오후' }]}
+                    selected={state.ampm}
+                    onSelect={(v) => onChange({ ...state, ampm: v as '오전' | '오후' })}
+                  />
+                </View>
+                <View style={pickStyles.colDivider} />
+                <View style={pickStyles.col}>
+                  <Text style={pickStyles.colHeader}>시</Text>
+                  <PickerCol
+                    items={HOURS.map((h) => ({ value: h, label: String(h) }))}
+                    selected={state.hour}
+                    onSelect={(v) => onChange({ ...state, hour: v as number })}
+                  />
+                </View>
+                <View style={pickStyles.colDivider} />
+                <View style={pickStyles.col}>
+                  <Text style={pickStyles.colHeader}>분</Text>
+                  <PickerCol
+                    items={MINUTES.map((m) => ({ value: m, label: String(m).padStart(2, '0') }))}
+                    selected={state.minute}
+                    onSelect={(v) => onChange({ ...state, minute: v as number })}
+                  />
+                </View>
               </View>
 
-              <Text style={styles.unitLabel}>시</Text>
-              <View style={styles.grid}>
-                {HOURS.map((h) => {
-                  const active = state.hour === h;
-                  return (
-                    <TouchableOpacity
-                      key={h}
-                      activeOpacity={0.7}
-                      onPress={() => onChange({ ...state, hour: h })}
-                      style={[styles.gridBtn, { width: hourBtnWidth }, active ? styles.gridBtnActive : styles.gridBtnInactive]}
-                    >
-                      <Text style={[styles.gridBtnText, active ? styles.gridBtnTextActive : styles.gridBtnTextInactive]}>
-                        {h}
-                      </Text>
-                    </TouchableOpacity>
-                  );
-                })}
+              {/* 닫기 · 완료 한 줄(완료 우측) */}
+              <View style={styles.sheetBtnRow}>
+                <TouchableOpacity activeOpacity={0.7} style={styles.sheetCancelBtn} onPress={runClose}>
+                  <Text style={styles.sheetCancelBtnText}>닫기</Text>
+                </TouchableOpacity>
+                <TouchableOpacity activeOpacity={0.85} style={styles.sheetSaveBtn} onPress={onSave}>
+                  <Text style={styles.saveBtnText}>완료</Text>
+                </TouchableOpacity>
               </View>
-
-              <Text style={[styles.unitLabel, { marginTop: 16 }]}>분</Text>
-              <View style={styles.grid}>
-                {MINUTE_PRESETS.map((m) => {
-                  const active = state.minute === m;
-                  return (
-                    <TouchableOpacity
-                      key={m}
-                      activeOpacity={0.7}
-                      onPress={() => onChange({ ...state, minute: m })}
-                      style={[styles.gridBtn, { width: hourBtnWidth }, active ? styles.gridBtnActive : styles.gridBtnInactive]}
-                    >
-                      <Text style={[styles.gridBtnText, active ? styles.gridBtnTextActive : styles.gridBtnTextInactive]}>
-                        {String(m).padStart(2, '0')}
-                      </Text>
-                    </TouchableOpacity>
-                  );
-                })}
-              </View>
-
-              <TouchableOpacity activeOpacity={0.85} style={styles.saveBtn} onPress={onSave}>
-                <Text style={styles.saveBtnText}>완료</Text>
-              </TouchableOpacity>
-              <TouchableOpacity activeOpacity={0.7} style={styles.cancelLink} onPress={onClose}>
-                <Ionicons name="close-outline" size={22} color={Colors.textSub} />
-                <Text style={styles.cancelLinkText}>닫기</Text>
-              </TouchableOpacity>
-            </>
+            </View>
           )}
         </Animated.View>
-      </TouchableOpacity>
+      </View>
     </Modal>
   );
 }
@@ -977,127 +1629,90 @@ function IntervalPickerSheet({
   onAdd: (slotId: string, minutes: number) => void;
   onClose: () => void;
 }) {
-  const { translateY, panHandlers, resetPosition } = useSwipeDownDismiss(onClose);
+  // 닫힘 애니 1개 원칙(TimePickerSheet 와 동일): Modal none + translateY 하나로 열기/닫기.
+  const { translateY, panHandlers } = useSwipeDownDismiss(onClose);
+  const sheetPad = useBottomSheetPadding(32);
   const visible = !!state;
   React.useEffect(() => {
-    if (visible) resetPosition();
+    if (visible) {
+      translateY.setValue(SHEET_ENTER_OFFSET);
+      Animated.timing(translateY, {
+        toValue: 0,
+        duration: SHEET_ENTER_MS,
+        useNativeDriver: true,
+      }).start();
+    }
   }, [visible]);
+  const runClose = React.useCallback(() => {
+    Animated.timing(translateY, {
+      toValue: SHEET_CLOSE_OFFSET,
+      duration: SHEET_CLOSE_MS,
+      useNativeDriver: true,
+    }).start(() => onClose());
+  }, [onClose, translateY]);
 
   const totalMinutes = state ? state.hour * 60 + state.minute : 0;
   const clampHour = (h: number) => Math.max(0, Math.min(12, h));
   const clampMinute = (m: number) => Math.max(0, Math.min(55, m));
 
   return (
-    <Modal visible={visible} transparent animationType="slide" onRequestClose={onClose}>
-      <TouchableOpacity style={styles.backdrop} activeOpacity={1} onPress={onClose}>
+    <Modal visible={visible} transparent animationType="none" onRequestClose={runClose}>
+      {/* 휠 위에 Touchable/PanResponder 조상 두면 스크롤 가로채 닫힘 → 배경 View + 뒤 닫기터치 */}
+      <View style={styles.backdrop}>
+        <TouchableOpacity style={StyleSheet.absoluteFill} activeOpacity={1} onPress={runClose} />
         <Animated.View
-          style={[styles.sheet, { transform: [{ translateY }] }]}
-          {...panHandlers}
-          onStartShouldSetResponder={() => true}
+          style={[styles.sheet, { paddingBottom: sheetPad, transform: [{ translateY }] }]}
         >
-          <View style={styles.handle} />
+          {/* 스와이프-닫기는 상단 손잡이/제목 영역에만 */}
+          <View {...panHandlers}>
+            <View style={styles.handle} />
+            {state && <Text style={styles.sheetTitle}>추적 시간 추가</Text>}
+          </View>
           {state && (
-            <>
-              <Text style={styles.sheetTitle}>추적 시간 추가</Text>
-
-              {/* 자주 쓰는 추가 시간 큰 버튼들 */}
-              <Text style={[styles.unitLabel, { marginLeft: 24 }]}>자주 쓰는 시간</Text>
-              <View style={[styles.grid, { marginBottom: 6 }]}>
-                {EXTRA_MINUTE_PRESETS.map((m) => {
-                  const active = totalMinutes === m;
-                  return (
-                    <TouchableOpacity
-                      key={m}
-                      activeOpacity={0.7}
-                      onPress={() =>
-                        onChange({ ...state, hour: Math.floor(m / 60), minute: m % 60 })
-                      }
-                      style={[
-                        styles.extraPresetBtn,
-                        active ? styles.gridBtnActive : styles.gridBtnInactive,
-                      ]}
-                    >
-                      <Text
-                        style={[
-                          styles.extraPresetText,
-                          active ? styles.gridBtnTextActive : styles.gridBtnTextInactive,
-                        ]}
-                      >
-                        {minutesToCheckLabel(m)}
-                      </Text>
-                    </TouchableOpacity>
-                  );
-                })}
-              </View>
-
-              {/* 정밀 조정용 시/분 스텝퍼 */}
-              <Text style={[styles.unitLabel, { marginLeft: 24, marginTop: 14 }]}>
-                직접 맞추기
-              </Text>
-              <View style={styles.stepperRow}>
-                <View style={styles.stepperGroup}>
-                  <TouchableOpacity
-                    activeOpacity={0.7}
-                    style={styles.stepBtn}
-                    onPress={() => onChange({ ...state, hour: clampHour(state.hour - 1) })}
-                  >
-                    <Text style={styles.stepBtnText}>－</Text>
-                  </TouchableOpacity>
-                  <View style={styles.stepValueBox}>
-                    <Text style={styles.stepValue}>{state.hour}</Text>
-                    <Text style={styles.stepUnit}>시간</Text>
-                  </View>
-                  <TouchableOpacity
-                    activeOpacity={0.7}
-                    style={styles.stepBtn}
-                    onPress={() => onChange({ ...state, hour: clampHour(state.hour + 1) })}
-                  >
-                    <Text style={styles.stepBtnText}>＋</Text>
-                  </TouchableOpacity>
+            <View>
+              {/* 시간·분 — 스크롤 컬럼(탭 선택) */}
+              <View style={pickStyles.colsRow}>
+                <View style={pickStyles.col}>
+                  <Text style={pickStyles.colHeader}>시간</Text>
+                  <PickerCol
+                    items={INTERVAL_HOURS.map((h) => ({ value: h, label: String(h) }))}
+                    selected={state.hour}
+                    onSelect={(v) => onChange({ ...state, hour: v as number })}
+                  />
                 </View>
-
-                <View style={styles.stepperGroup}>
-                  <TouchableOpacity
-                    activeOpacity={0.7}
-                    style={styles.stepBtn}
-                    onPress={() => onChange({ ...state, minute: clampMinute(state.minute - 5) })}
-                  >
-                    <Text style={styles.stepBtnText}>－</Text>
-                  </TouchableOpacity>
-                  <View style={styles.stepValueBox}>
-                    <Text style={styles.stepValue}>{state.minute}</Text>
-                    <Text style={styles.stepUnit}>분</Text>
-                  </View>
-                  <TouchableOpacity
-                    activeOpacity={0.7}
-                    style={styles.stepBtn}
-                    onPress={() => onChange({ ...state, minute: clampMinute(state.minute + 5) })}
-                  >
-                    <Text style={styles.stepBtnText}>＋</Text>
-                  </TouchableOpacity>
+                <View style={pickStyles.colDivider} />
+                <View style={pickStyles.col}>
+                  <Text style={pickStyles.colHeader}>분</Text>
+                  <PickerCol
+                    items={INTERVAL_MINS.map((m) => ({ value: m, label: String(m).padStart(2, '0') }))}
+                    selected={state.minute}
+                    onSelect={(v) => onChange({ ...state, minute: v as number })}
+                  />
                 </View>
               </View>
 
-              {/* 미리보기 */}
+              {/* 미리보기 (선택한 값이 프리셋이면 그 프리셋으로 자동 적용됨) */}
               <Text style={styles.intervalPreview}>
                 {minutesToCheckLabel(totalMinutes)} 추적
               </Text>
 
-              <TouchableOpacity
-                activeOpacity={0.85}
-                style={styles.saveBtn}
-                onPress={() => onAdd(state.slotId, totalMinutes)}
-              >
-                <Text style={styles.saveBtnText}>추가</Text>
-              </TouchableOpacity>
-              <TouchableOpacity activeOpacity={0.7} style={styles.cancelLink} onPress={onClose}>
-                <Ionicons name="close-outline" size={22} color={Colors.textSub} />
-                <Text style={styles.cancelLinkText}>닫기</Text>
-              </TouchableOpacity>
-            </>
+              {/* 닫기 · 추가 한 줄(닫기 왼쪽·추가 오른쪽) */}
+              <View style={styles.sheetBtnRow}>
+                <TouchableOpacity activeOpacity={0.7} style={styles.sheetCancelBtn} onPress={runClose}>
+                  <Text style={styles.sheetCancelBtnText}>닫기</Text>
+                </TouchableOpacity>
+                <TouchableOpacity
+                  activeOpacity={0.85}
+                  style={styles.sheetSaveBtn}
+                  onPress={() => onAdd(state.slotId, totalMinutes)}
+                >
+                  <Text style={styles.saveBtnText}>추가</Text>
+                </TouchableOpacity>
+              </View>
+            </View>
           )}
         </Animated.View>
-      </TouchableOpacity>
+      </View>
     </Modal>
   );
 }
@@ -1107,6 +1722,16 @@ const styles = StyleSheet.create({
   section: {
     marginTop: 16,
   },
+  // 단일 슬롯 편집 진입 — 섹션 제목 없이 카드가 맨 위에 오도록 여백 제거
+  sectionSolo: {
+    marginTop: 0,
+  },
+  soloCloseBtn: {
+    flexDirection: 'row', alignItems: 'center', gap: 4,
+    marginLeft: 'auto', paddingHorizontal: 12, paddingVertical: 8,
+    borderRadius: 10, backgroundColor: '#EEF0F3',
+  },
+  soloCloseText: { fontSize: 16, fontWeight: '700', color: Colors.dark },
   sectionTitle: {
     fontSize: 20,
     fontWeight: '800',
@@ -1162,42 +1787,67 @@ const styles = StyleSheet.create({
   cardOff: {
     backgroundColor: '#F9F9F9',
   },
+  // 단일 슬롯 편집(바텀시트) — 카드 박스 껍데기 제거. 내용이 시트에 바로 채워지도록.
+  cardSolo: {
+    backgroundColor: 'transparent',
+    borderRadius: 0,
+    padding: 0,
+    marginBottom: 0,
+    elevation: 0,
+    shadowOpacity: 0,
+    shadowRadius: 0,
+    shadowOffset: { width: 0, height: 0 },
+  },
 
   // ── 2박스 레이아웃 ──
   boxBlock: {
     borderRadius: 14,
-    padding: 14,
-    marginTop: 12,
+    paddingHorizontal: 14,
+    paddingVertical: 12,
+    marginTop: 10,
+    // 살짝 그림자(박스 구분감)
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.08,
+    shadowRadius: 4,
+    elevation: 2,
   },
   boxAlarm: {
     backgroundColor: BOX_ALARM_BG, // 연한 파랑
   },
   boxTrack: {
-    backgroundColor: Colors.light, // 연한 초록
+    backgroundColor: '#EAF6EC', // 연한 초록(약 복용 알림 박스와 살짝 구분)
+  },
+  // 독립 "이 시간에 드시는 약" 박스 — 파랑(알림)·초록(추적)과 구분되는 연한 중립톤.
+  boxMeds: {
+    backgroundColor: '#F4F6F8',
+  },
+  // 박스 안 항목 구분선 (테두리 박스 대신 얇은 선)
+  innerDivider: {
+    height: 1,
+    backgroundColor: 'rgba(0,0,0,0.06)',
+    marginTop: 6,
   },
   boxHead: {
     flexDirection: 'row',
     alignItems: 'center',
-    minHeight: 44,
+    minHeight: 40,
   },
   boxTitle: {
     flex: 1,
-    fontSize: 18,
+    fontSize: 20,
     fontWeight: '800',
     color: Colors.text,
   },
-  // 박스1: 알림 시간 행 (수정으로 진입)
+  // 박스1: 알림 시간 행 (수정으로 진입) — 평평하게(테두리·흰배경 제거)
   timeRow: {
     flexDirection: 'row',
     alignItems: 'center',
-    minHeight: 56,
-    backgroundColor: Colors.white,
-    borderRadius: 12,
+    minHeight: 44,
+    // 알림 소리 행(AlarmSoundPickerRow.triggerBtn)과 좌우 라인 정렬: paddingHorizontal 14 동일
     paddingHorizontal: 14,
-    paddingVertical: 10,
-    marginTop: 10,
-    borderWidth: 1.5,
-    borderColor: '#DFE7F1',
+    paddingVertical: 6,
+    marginTop: 2,
   },
   timeRowLeft: {
     flexDirection: 'row',
@@ -1205,14 +1855,14 @@ const styles = StyleSheet.create({
     gap: 8,
   },
   timeRowLabel: {
-    fontSize: 17,
+    fontSize: 18,
     fontWeight: '700',
     color: Colors.text,
   },
   timeRowRight: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 10,
+    gap: 2,
     marginLeft: 'auto',
   },
   timeRowValue: {
@@ -1231,7 +1881,7 @@ const styles = StyleSheet.create({
     paddingHorizontal: 10,
   },
   editPillText: {
-    fontSize: 15,
+    fontSize: 16,
     fontWeight: '700',
     color: Colors.dark,
   },
@@ -1257,7 +1907,7 @@ const styles = StyleSheet.create({
   },
   slotTime: {
     flex: 1,
-    fontSize: 22,
+    fontSize: 24,
     fontWeight: '800',
     color: Colors.text,
   },
@@ -1312,8 +1962,8 @@ const styles = StyleSheet.create({
     fontSize: 16,
     color: '#444444',
     fontWeight: '700',
-    marginTop: 10,
-    marginBottom: 10,
+    marginTop: 6,
+    marginBottom: 6,
     marginLeft: 2,
   },
   qHeadSmall: {
@@ -1333,18 +1983,32 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     gap: 10,
-    minHeight: 56,
-    paddingVertical: 12,
-    paddingHorizontal: 12,
-    borderRadius: 12,
-    marginBottom: 8,
-    borderWidth: 1.5,
-    borderColor: Colors.border,
+    minHeight: 44,
+    paddingVertical: 6,
+    paddingHorizontal: 2,
+    marginBottom: 2,
   },
-  checkRowSel: {
-    borderWidth: 2,
-    borderColor: Colors.primary,
-    backgroundColor: Colors.light,
+  // ＋직접추가 — 체크칸과 동일 정렬(테두리 없음, "+"는 체크박스 자리)
+  addIntervalCell: {
+    width: '48%',
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 10,
+    minHeight: 44,
+    paddingVertical: 6,
+    paddingHorizontal: 2,
+    marginBottom: 2,
+  },
+  // "+" 슬롯 — 체크박스(26px)와 같은 폭·위치
+  addPlusSlot: {
+    width: 26,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  addIntervalCellText: {
+    fontSize: 18,
+    fontWeight: '700',
+    color: Colors.dark,
   },
   box: {
     width: 26,
@@ -1370,10 +2034,30 @@ const styles = StyleSheet.create({
   checkHint: {
     fontSize: 14,
     color: Colors.accent,
-    marginTop: 2,
-    marginBottom: 10,
+    marginTop: 4,
+    marginBottom: 4,
     marginLeft: 2,
     lineHeight: 20,
+  },
+  // 행잉 인덴트: ⓘ + 본문 분리. 본문이 자기 폭에서 줄바꿈 → 둘째 줄이 본문 시작에 맞춰짐.
+  checkHintRow: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    marginTop: 4,
+    marginBottom: 4,
+    marginLeft: 2,
+  },
+  checkHintIcon: {
+    fontSize: 14,
+    color: Colors.accent,
+    lineHeight: 20,
+    marginRight: 4,
+  },
+  checkHintBody: {
+    flex: 1,
+    marginTop: 0,
+    marginBottom: 0,
+    marginLeft: 0,
   },
 
   // ＋ 다른 시간 더하기 (체크줄 영역 맨 아래, 아웃라인)
@@ -1416,6 +2100,111 @@ const styles = StyleSheet.create({
     color: '#7a5320',
     lineHeight: 21,
     marginTop: 6,
+  },
+
+  // ── 슬롯 약 기반 권장 시점 안내(약효추적 박스2) ──
+  // 경고 톤 아님 — 부드러운 안내(연한 초록 카드 + 좌측 강조선). 경고아이콘(⚠️) 금지·ⓘ/💬만.
+  // 시각 위계: 메인(19sp, 또렷) > 추천근거(15sp, 차분) > 면책(13sp, 흐림).
+  // 안내 카드 — 그림자/elevation 0, 좌측 컬러바·진한 색강조 제거.
+  // 아주 연한 중립톤 배경 + radius 12 + 넉넉한 패딩. 위계는 글자 크기·여백으로만.
+  recBox: {
+    backgroundColor: '#F7F8F9',
+    borderRadius: 12,
+    paddingVertical: 16,
+    paddingHorizontal: 16,
+    marginTop: 6,
+    marginBottom: 12,
+  },
+  // 메인 안내 — 시점만(약효 설명 제거). 기본 텍스트색 단색, 일반 weight, 색강조 없음.
+  // minHeight = lineHeight(25) × 2줄 = 50: 문장 길이/줄 수가 달라져도(약 토글) 높이 불변.
+  recMain: {
+    fontSize: 18,
+    color: Colors.text,
+    lineHeight: 25,
+    minHeight: 50,
+  },
+  // 추천근거 = 출처 표기 한 줄 — 흐린 단색(textSub), 라벨 색강조 없음
+  // minHeight = lineHeight(18) × 1줄: 출처 유무에 상관없이 같은 높이 차지(빈 줄도 자리 유지).
+  recSource: {
+    fontSize: 13,
+    color: Colors.textHint,
+    lineHeight: 18,
+    marginTop: 10,
+    minHeight: 18,
+  },
+  // 약 등록 버튼(분기3) — 56dp+ (액션 버튼이라 primary 유지)
+  recRegisterBtn: {
+    minHeight: 56,
+    borderRadius: 12,
+    backgroundColor: Colors.primary,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginTop: 14,
+    paddingHorizontal: 16,
+  },
+  recRegisterBtnText: {
+    fontSize: 18,
+    fontWeight: '700',
+    color: Colors.white,
+  },
+  // 면책 — 가장 작고 연하게, 맨 아래 별행 (더 흐림)
+  // minHeight = lineHeight(18) × 2줄 = 36: 면책 문구는 실제 2줄로 렌더되므로 2줄로 예약한다.
+  //  - 상/하 패딩 대칭(작업2): 기존 54(3줄)는 마지막 줄 아래 18px 잔여가 생겨 하단 여백이
+  //    recBox.paddingTop(16)보다 커 보였다. 실제 줄 수(2줄)에 맞춰 잔여를 없애면
+  //    마지막 글자 아래 = paddingBottom(16) = 상단 여백과 같아진다.
+  //  - 고정 높이 유지(토글 시 안 출렁임): showRec on=2줄(36)·off=빈칸(minHeight 36 유지)으로
+  //    두 상태 높이가 동일 → 약 토글로 문구가 채워지거나 비어도 박스 높이 불변.
+  recDisclaimer: {
+    fontSize: 13,
+    color: Colors.textHint,
+    lineHeight: 18,
+    marginTop: 10,
+    minHeight: 36,
+  },
+
+  // ── 복용약 체크리스트(이 시간에 드시는 약) ──
+  // 약 0개 빈 상태 블록 / 로딩 안내(깜빡임 방지).
+  medEmptyBlock: {
+    marginTop: 4,
+  },
+  medLoadingText: {
+    fontSize: 16,
+    color: Colors.textSub,
+    marginTop: 8,
+    paddingVertical: 8,
+  },
+  medPickSub: {
+    fontSize: 14,
+    color: Colors.textSub,
+    marginTop: 4,
+    marginBottom: 8,
+    lineHeight: 20,
+  },
+  medPickRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+    minHeight: 52,
+    paddingVertical: 6,
+  },
+  medPickChk: {
+    width: 28,
+    height: 28,
+    borderRadius: 8,
+    borderWidth: 2,
+    borderColor: '#BBBBBB',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  medPickChkOn: {
+    backgroundColor: Colors.primary,
+    borderColor: Colors.primary,
+  },
+  medPickName: {
+    flex: 1,
+    fontSize: 18,
+    fontWeight: '700',
+    color: Colors.text,
   },
 
   // 하단 버튼들
@@ -1581,7 +2370,7 @@ const styles = StyleSheet.create({
     marginTop: 20,
     height: 60,
     borderRadius: 16,
-    backgroundColor: Colors.accent,
+    backgroundColor: Colors.primary,
     alignItems: 'center',
     justifyContent: 'center',
   },
@@ -1589,6 +2378,36 @@ const styles = StyleSheet.create({
     fontSize: 20,
     fontWeight: 'bold',
     color: Colors.white,
+  },
+  // 닫기·완료 한 줄(완료 우측)
+  sheetBtnRow: {
+    flexDirection: 'row',
+    gap: 12,
+    marginHorizontal: 20,
+    marginTop: 20,
+  },
+  sheetCancelBtn: {
+    flex: 1,
+    height: 60,
+    borderRadius: 16,
+    borderWidth: 1.5,
+    borderColor: Colors.border,
+    backgroundColor: Colors.white,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  sheetCancelBtnText: {
+    fontSize: 18,
+    fontWeight: '700',
+    color: Colors.textSub,
+  },
+  sheetSaveBtn: {
+    flex: 1,
+    height: 60,
+    borderRadius: 16,
+    backgroundColor: Colors.primary,
+    alignItems: 'center',
+    justifyContent: 'center',
   },
   cancelLink: {
     flexDirection: 'row',

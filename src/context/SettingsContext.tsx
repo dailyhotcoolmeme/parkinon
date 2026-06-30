@@ -166,10 +166,10 @@ export function SettingsProvider({ children }: { children: React.ReactNode }) {
           if (userRow != null) {
             // med_notif_prefs가 DB에 있으면 AsyncStorage보다 DB 우선
             if (userRow.med_notif_prefs) {
-              setMedNotifsState((userRow.med_notif_prefs as MedNotif[]).filter((n) => n.minutes !== 0));
+              setMedNotifsState((userRow.med_notif_prefs as unknown as MedNotif[]).filter((n) => n.minutes !== 0));
             }
             if (userRow.exercise_notif_prefs) {
-              setExerciseNotifsState(userRow.exercise_notif_prefs as ExerciseNotif[]);
+              setExerciseNotifsState(userRow.exercise_notif_prefs as unknown as ExerciseNotif[]);
             }
             // 'granted'가 아닌 경우 DB 값과 무관하게 false로 처리 (denied, blocked 등 모든 비허용 상태)
             // 단, 'undetermined'는 아직 결정 전이므로 DB 값 그대로 반영

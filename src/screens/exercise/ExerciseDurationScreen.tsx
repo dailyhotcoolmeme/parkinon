@@ -9,10 +9,14 @@ import {
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useNavigation, useRoute } from '@react-navigation/native';
+import type { CompositeNavigationProp } from '@react-navigation/native';
 import type { NativeStackNavigationProp, NativeStackScreenProps } from '@react-navigation/native-stack';
+import type { StackNavigationProp } from '@react-navigation/stack';
+import type { RootStackParamList } from '../../navigation/RootNavigator';
 import { Colors } from '../../constants/colors';
 import { TopBar } from '../../components/common/TopBar';
 import { PrimaryButton } from '../../components/common/PrimaryButton';
+import { BrandProgressOverlay } from '../../components/common/BrandProgressOverlay';
 import type { ExerciseStackParamList } from '../../navigation/ExerciseNavigator';
 import { useExercise } from '../../hooks/useExercise';
 import { useNotificationBadge } from '../../context/NotificationBadgeContext';
@@ -23,7 +27,11 @@ import { fetchPatientDoseSlots, resolveDisplaySlots } from '../../hooks/useDoseS
 import { nextDoseLabel, slotSortValue } from '../../constants/doseSlots';
 import { mealTimeToKorean } from '../../utils/medUtils';
 
-type Nav = NativeStackNavigationProp<ExerciseStackParamList, 'ExerciseDuration'>;
+// NotificationHistory 등 루트 스택 라우트로도 이동하므로 부모(Root) 네비게이션 타입과 합성한다.
+type Nav = CompositeNavigationProp<
+  NativeStackNavigationProp<ExerciseStackParamList, 'ExerciseDuration'>,
+  StackNavigationProp<RootStackParamList>
+>;
 type RouteProps = NativeStackScreenProps<ExerciseStackParamList, 'ExerciseDuration'>['route'];
 
 const DURATION_GROUPS = [
@@ -241,7 +249,7 @@ export function ExerciseDurationScreen() {
   };
 
   return (
-    <SafeAreaView style={styles.safe}>
+    <SafeAreaView style={styles.safe} edges={['top']}>
       <TopBar
         title="운동 시간"
         showBack
@@ -249,7 +257,7 @@ export function ExerciseDurationScreen() {
         bellBadge={unreadCount}
         onBellPress={() => navigation.navigate('NotificationHistory', { mode: 'all' })}
       />
-      <ScrollView contentContainerStyle={styles.content} showsVerticalScrollIndicator={false}>
+      <ScrollView style={styles.flex1} contentContainerStyle={styles.content} showsVerticalScrollIndicator={false}>
         <Text style={styles.question}>얼마나 하셨나요?</Text>
         <Text style={styles.exerciseName}>{exerciseName}</Text>
 
@@ -272,11 +280,12 @@ export function ExerciseDurationScreen() {
             </View>
           </View>
         ))}
-      </ScrollView>
 
-      <View style={styles.bottom}>
-        <PrimaryButton title={saving ? '저장 중...' : '저장하기'} onPress={handleSave} disabled={!selected || saving} />
-      </View>
+        {/* 저장하기 — 고정 바 없이 내용 맨 끝 일반 버튼(다른 화면처럼 스크롤) */}
+        <View style={styles.saveBtnWrap}>
+          <PrimaryButton title="저장하기" onPress={handleSave} disabled={!selected || saving} />
+        </View>
+      </ScrollView>
 
       <ExNextNotifModal
         visible={showNextNotifModal}
@@ -287,6 +296,11 @@ export function ExerciseDurationScreen() {
           setShowNextNotifModal(false);
           navigation.reset({ index: 0, routes: [{ name: 'ExerciseMain' }] });
         }}
+      />
+      <BrandProgressOverlay
+        visible={saving}
+        title="저장하고 있어요"
+        minVisibleMs={500}
       />
     </SafeAreaView>
   );
@@ -393,6 +407,8 @@ const exNnStyles = StyleSheet.create({
 
 const styles = StyleSheet.create({
   safe: { flex: 1, backgroundColor: Colors.background },
+  flex1: { flex: 1 },
+  saveBtnWrap: { marginTop: 24 },
   content: { padding: 16, paddingBottom: 24 },
   question: { fontSize: 26, fontWeight: '800', color: Colors.text, marginBottom: 6, marginTop: 4 },
   exerciseName: { fontSize: 18, color: Colors.primary, fontWeight: '700', marginBottom: 28 },

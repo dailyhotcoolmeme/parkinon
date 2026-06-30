@@ -159,11 +159,27 @@ Deno.serve(async (req: Request) => {
         // 표시 채널/라벨은 process-notification-queue가 dose_slot join으로 해석.
       }))
 
+      // ⚠️ 동시성 멱등: 더블탭으로 이 함수가 동시 2회 실행되면 위 delete(둘 다 0행) 후
+      //    각자 insert 해 같은 (med_log_id, interval_minutes) 조합이 중복 적재됐다(약효알림 2~3번).
+      //    부분 유니크 인덱스 uniq_etq_med_log_interval_unsent(WHERE sent_at IS NULL AND med_log_id IS NOT NULL)
+      //    가 두 번째 동시 insert 를 거부한다(23505).
+      //    ⚠️ ON CONFLICT(=upsert onConflict)는 부분 인덱스의 WHERE 술어를 추론하지 못해 사용 불가
+      //       ("no unique or exclusion constraint matching the ON CONFLICT specification"). DB로 검증함.
+      //    → 평범한 insert 로 두고, unique_violation(23505)이 나면 "동시 요청이 이미 큐잉함"으로 간주해
+      //      깨뜨리지 않고 성공 응답(dedup 의도와 일치). 그 외 오류만 500.
       const { error: insertError } = await serviceClient
         .from('effect_tracking_queue')
         .insert(rows)
 
       if (insertError) {
+        if (insertError.code === '23505') {
+          // 부분 유니크 인덱스 위반 = 동시 더블탭으로 이미 같은 복용 큐가 적재됨 → 멱등 무시.
+          console.warn('[queue-effect-tracking] (dose_slot) 중복 큐 무시(동시 더블탭, 23505):', insertError.message)
+          return new Response(JSON.stringify({ queued: 0, deduped: true, path: 'dose_slot' }), {
+            status: 200,
+            headers: { ...CORS_HEADERS, 'Content-Type': 'application/json' },
+          })
+        }
         console.error('[queue-effect-tracking] (dose_slot) INSERT 오류:', insertError)
         return new Response(JSON.stringify({ error: insertError.message }), {
           status: 500,

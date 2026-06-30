@@ -5,6 +5,8 @@
 //   - 'grn'  : 낱알식별 API (MdcinGrnIdntfcInfoService03/getMdcinGrnIdntfcInfoList03)
 //   - 'easy' : 의약품 e약은요 API (DrbEasyDrugInfoService/getDrbEasyDrugList)
 //   - 'easy01' : 의약품 e약은요 API v01 (DrbEasyDrugInfoService01/getDrbEasyDrugList)
+//   - 'permit-list'   : 의약품 제품 허가정보 목록 (DrugPrdtPrmsnInfoService07/getDrugPrdtPrmsnInq07, item_name 검색)
+//   - 'permit-detail' : 의약품 제품 허가정보 상세 (DrugPrdtPrmsnInfoService07/getDrugPrdtPrmsnDtlInq06, item_seq 조회)
 //
 // 간단한 in-memory rate limit (user_id 단위, 분당 30회).
 
@@ -16,11 +18,12 @@ const corsHeaders = {
   'Access-Control-Allow-Methods': 'POST, OPTIONS',
 };
 
-type Endpoint = 'grn' | 'easy' | 'easy01';
+type Endpoint = 'grn' | 'easy' | 'easy01' | 'permit-list' | 'permit-detail';
 
 interface ReqBody {
   endpoint: Endpoint;
-  // grn은 item_name, easy/easy01은 itemName 파라미터 사용 → 클라이언트는 통일 키 'query' 사용
+  // grn은 item_name, easy/easy01은 itemName, permit-list는 item_name, permit-detail은 item_seq
+  // → 클라이언트는 통일 키 'query'로 검색어/식별자를 넘긴다.
   query: string;
   numOfRows?: number;
   pageNo?: number;
@@ -30,6 +33,8 @@ const URLS: Record<Endpoint, string> = {
   grn: 'https://apis.data.go.kr/1471000/MdcinGrnIdntfcInfoService03/getMdcinGrnIdntfcInfoList03',
   easy: 'https://apis.data.go.kr/1471000/DrbEasyDrugInfoService/getDrbEasyDrugList',
   easy01: 'https://apis.data.go.kr/1471000/DrbEasyDrugInfoService01/getDrbEasyDrugList',
+  'permit-list': 'https://apis.data.go.kr/1471000/DrugPrdtPrmsnInfoService07/getDrugPrdtPrmsnInq07',
+  'permit-detail': 'https://apis.data.go.kr/1471000/DrugPrdtPrmsnInfoService07/getDrugPrdtPrmsnDtlInq06',
 };
 
 // 분당 호출 제한
@@ -127,9 +132,14 @@ Deno.serve(async (req: Request) => {
     params.set('type', 'json');
     params.set('numOfRows', String(numOfRows));
     params.set('pageNo', String(pageNo));
-    if (body.endpoint === 'grn') {
+    if (body.endpoint === 'grn' || body.endpoint === 'permit-list') {
+      // 낱알식별·허가목록은 snake_case item_name 으로 이름 검색
       params.set('item_name', trimmedQuery);
+    } else if (body.endpoint === 'permit-detail') {
+      // 허가상세는 snake_case item_seq 로 단건 조회
+      params.set('item_seq', trimmedQuery);
     } else {
+      // e약은요(easy/easy01)는 camelCase itemName
       params.set('itemName', trimmedQuery);
     }
 

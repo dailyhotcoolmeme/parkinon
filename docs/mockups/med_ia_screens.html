@@ -1,0 +1,142 @@
+<!DOCTYPE html><html lang="ko"><head><meta charset="utf-8"><style>
+*{margin:0;padding:0;box-sizing:border-box;-webkit-font-smoothing:antialiased}
+body{background:#EDF0F4;font-family:-apple-system,'Apple SD Gothic Neo',sans-serif;padding:30px}
+h1{font-size:24px;font-weight:800;color:#1F2530;margin-bottom:3px}
+.lead{font-size:14px;color:#7A828E;margin-bottom:24px}
+.flow{display:flex;gap:20px;align-items:flex-start;flex-wrap:wrap}
+.col{width:300px}
+.cap{font-size:14px;font-weight:800;color:#2B313B;text-align:center;margin-bottom:9px}
+.phone{width:300px;background:#F7F8FA;border-radius:30px;border:1px solid #DDE1E7;box-shadow:0 8px 24px rgba(0,0,0,.10);overflow:hidden}
+.tb{background:#fff;border-bottom:1px solid #EEF0F3;padding:14px 15px;font-size:17px;font-weight:800;color:#1F2530}
+.bd{padding:14px}
+.sec{font-size:14px;font-weight:800;color:#1F2530;margin:4px 2px 8px}
+.sec.mt{margin-top:18px}
+
+/* menu rows */
+.mrow{background:#fff;border:1px solid #EAEDF1;border-radius:13px;padding:14px;margin-bottom:10px;display:flex;align-items:center;gap:12px}
+.mrow .ic{font-size:24px}
+.mrow .t{font-size:16px;font-weight:800;color:#1F2530}
+.mrow .s{font-size:11.5px;color:#9AA1AC;margin-top:2px}
+.mrow .ch{margin-left:auto;color:#C8CDD4;font-size:20px}
+
+/* 내 약 */
+.box{background:#fff;border:1px solid #EAEDF1;border-radius:13px;padding:12px}
+.lab{font-size:12.5px;font-weight:800;color:#4A515C;margin:9px 2px 4px}
+.inp{width:100%;border:1.3px solid #E0E4EA;border-radius:9px;padding:10px;font-size:14px;color:#1F2530;background:#fff}
+.row{display:flex;gap:8px;align-items:center}.row .inp{flex:1}
+.mfds{background:#fff;color:#C9620E;border:1.5px solid #F3C99B;border-radius:9px;padding:11px 12px;font-size:13px;font-weight:800;white-space:nowrap;text-align:center}
+.half{flex:1}
+.reg{width:100%;background:#F5811F;color:#fff;border-radius:10px;padding:12px;font-size:15px;font-weight:800;text-align:center;margin-top:12px}
+.mc{background:#fff;border:1px solid #EAEDF1;border-radius:12px;padding:12px;margin-bottom:9px;display:flex;align-items:center}
+.mc .l{flex:1}.mc .n{font-size:16px;font-weight:800;color:#1F2530}.mc .m{font-size:14px;color:#3A414C;font-weight:600;margin-top:3px}.mc .m b{color:#C9620E}
+.mc .ic{display:flex;gap:13px;padding-left:8px}.mc .ic span{font-size:21px}
+.past{background:#FAFBFC;border:1px solid #EEF1F4;border-radius:12px;padding:11px;margin-bottom:7px}
+.past .n{font-size:14px;color:#AEB4BE;font-weight:700;text-decoration:line-through}.past .m{font-size:13px;color:#9AA1AC;margin-top:3px;font-weight:600}
+
+/* 시간·알림 슬롯 카드 */
+.slot{background:#fff;border:1px solid #EAEDF1;border-radius:14px;padding:13px;margin-bottom:11px}
+.slot .top{display:flex;align-items:center;justify-content:space-between;margin-bottom:9px}
+.slot .nm{font-size:17px;font-weight:800;color:#1F2530}.slot .nm b{color:#F5811F}
+.slot .edit{font-size:12px;font-weight:800;color:#5B6472;background:#F1F3F6;border-radius:8px;padding:6px 10px}
+.pillrow{display:flex;gap:6px;flex-wrap:wrap;margin-bottom:9px}
+.pill{background:#FFF1E3;color:#C9620E;border-radius:7px;padding:4px 9px;font-size:13px;font-weight:700}
+.addmed{font-size:13px;font-weight:800;color:#E06B12}
+.toggles{display:flex;flex-direction:column;gap:7px}
+.tg{display:flex;align-items:center;justify-content:space-between;font-size:13.5px;color:#3A414C;font-weight:600}
+.sw{width:42px;height:24px;border-radius:13px;background:#34C759;position:relative}.sw:after{content:'';position:absolute;width:20px;height:20px;border-radius:50%;background:#fff;top:2px;right:2px}
+.sw.off{background:#D7DBE1}.sw.off:after{left:2px;right:auto}
+.addslot{display:flex;align-items:center;justify-content:center;gap:7px;width:100%;border:1.6px dashed #F5811F;color:#E06B12;background:#FFF6EE;border-radius:12px;padding:12px;font-size:14px;font-weight:800;margin-bottom:12px}
+
+/* 그 밖의 알림 */
+.acard{background:#fff;border:1px solid #EAEDF1;border-radius:13px;padding:13px;margin-bottom:11px}
+.ah{font-size:15px;font-weight:800;color:#1F2530;margin-bottom:9px}
+</style></head><body>
+<h1>복용·알림 — 화면 설계 (3등분)</h1>
+<div class="lead">관리 메뉴에서 ①내 약 ②복용 시간·알림 ③그 밖의 알림 으로 진입. 각자 자기 화면.</div>
+
+<div class="flow">
+
+  <!-- 메뉴 -->
+  <div class="col">
+    <div class="cap">관리 메뉴</div>
+    <div class="phone"><div class="tb">＜  메뉴</div><div class="bd">
+      <div class="sec">관리</div>
+      <div class="mrow"><span class="ic">👨‍👩‍👧</span><div><div class="t">가족 연동</div></div><span class="ch">›</span></div>
+      <div class="mrow"><span class="ic">💊</span><div><div class="t">내 약</div><div class="s">약 등록·목록·수정</div></div><span class="ch">›</span></div>
+      <div class="mrow"><span class="ic">⏰</span><div><div class="t">복용 시간·알림</div><div class="s">먹는 시간·알림·약효추적·약 넣기</div></div><span class="ch">›</span></div>
+      <div class="mrow"><span class="ic">🔔</span><div><div class="t">그 밖의 알림</div><div class="s">미복용·운동·보호자·전체</div></div><span class="ch">›</span></div>
+      <div class="mrow"><span class="ic">🎙</span><div><div class="t">알림음 관리</div></div><span class="ch">›</span></div>
+    </div></div>
+  </div>
+
+  <!-- ① 내 약 -->
+  <div class="col">
+    <div class="cap">① 내 약</div>
+    <div class="phone"><div class="tb">＜  내 약</div><div class="bd">
+      <div class="sec">약 직접 입력</div>
+      <div class="box">
+        <div class="lab">약 이름</div>
+        <div class="row"><input class="inp" placeholder="예) 마도파"><div class="mfds">식약처<br>확인</div></div>
+        <div class="row" style="margin-top:10px;align-items:flex-start">
+          <div class="half"><div class="lab">복용량</div><input class="inp" placeholder="예) 1정"></div>
+          <div class="half"><div class="lab">복용횟수</div><input class="inp" placeholder="1일 ○회"></div>
+        </div>
+        <div class="reg">등록</div>
+      </div>
+      <div class="sec mt">등록된 약</div>
+      <div class="mc"><div class="l"><div class="n">마도파확산정125</div><div class="m">복용량 1정 · <b>1일 3회</b></div></div><div class="ic"><span>✏️</span><span>🗑️</span></div></div>
+      <div class="mc"><div class="l"><div class="n">시네메트</div><div class="m">복용량 — · <b>1일 2회</b></div></div><div class="ic"><span>✏️</span><span>🗑️</span></div></div>
+      <div class="sec mt">지난 약 기록</div>
+      <div class="past"><div class="n">리큅정 2mg</div><div class="m">1일 1회 · 2026.3.1~5.20 복용</div></div>
+    </div></div>
+  </div>
+
+  <!-- ② 복용 시간·알림 -->
+  <div class="col">
+    <div class="cap">② 복용 시간·알림</div>
+    <div class="phone"><div class="tb">＜  복용 시간·알림</div><div class="bd">
+      <div class="addslot">＋ 복용 시간대 추가</div>
+      <div class="slot">
+        <div class="top"><div class="nm">아침 · <b>오전 8:30</b></div><div class="edit">시각 바꾸기</div></div>
+        <div class="pillrow"><span class="pill">마도파</span><span class="pill">시네메트</span><span class="addmed">＋ 약 넣기</span></div>
+        <div class="toggles">
+          <div class="tg"><span>약 복용 알림</span><span class="sw"></span></div>
+          <div class="tg"><span>약효추적 (복용직후·30분)</span><span class="sw"></span></div>
+        </div>
+      </div>
+      <div class="slot">
+        <div class="top"><div class="nm">점심 · <b>오후 12:30</b></div><div class="edit">시각 바꾸기</div></div>
+        <div class="pillrow"><span class="pill">마도파</span><span class="addmed">＋ 약 넣기</span></div>
+        <div class="toggles">
+          <div class="tg"><span>약 복용 알림</span><span class="sw"></span></div>
+          <div class="tg"><span>약효추적 (30분)</span><span class="sw off"></span></div>
+        </div>
+      </div>
+    </div></div>
+  </div>
+
+  <!-- ③ 그 밖의 알림 -->
+  <div class="col">
+    <div class="cap">③ 그 밖의 알림</div>
+    <div class="phone"><div class="tb">＜  그 밖의 알림</div><div class="bd">
+      <div class="acard"><div class="tg"><span style="font-size:15px;font-weight:800;color:#1F2530">전체 알림 받기</span><span class="sw"></span></div></div>
+      <div class="acard">
+        <div class="ah">약 미복용 알림</div>
+        <div class="toggles">
+          <div class="tg"><span>1차 (복용 10분 후)</span><span class="sw"></span></div>
+          <div class="tg"><span>2차 (복용 20분 후)</span><span class="sw"></span></div>
+        </div>
+      </div>
+      <div class="acard">
+        <div class="ah">운동 알림</div>
+        <div class="tg"><span>오후 4:00</span><span class="sw"></span></div>
+      </div>
+      <div class="acard">
+        <div class="ah">보호자 알림</div>
+        <div class="tg"><span>약 복용·미복용·운동 등</span><span class="sw"></span></div>
+      </div>
+    </div></div>
+  </div>
+
+</div>
+</body></html>

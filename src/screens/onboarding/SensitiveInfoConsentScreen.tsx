@@ -5,6 +5,7 @@ import {
   StyleSheet,
   TouchableOpacity,
   ScrollView,
+  Linking,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useNavigation } from '@react-navigation/native';
@@ -15,19 +16,29 @@ import { Colors } from '../../constants/colors';
 import type { OnboardingStackParamList } from '../../navigation/OnboardingNavigator';
 import { useDialog } from '../../context/DialogContext';
 import { supabase } from '../../lib/supabase';
+import { useBottomSheetPadding } from '../../hooks/useBottomSheetPadding';
 
 type Nav = StackNavigationProp<OnboardingStackParamList, 'SensitiveInfoConsent'>;
 
 // 민감정보 동의 버전. 동의 문구/항목 변경 시 1씩 올리면 기존 사용자에게 강제 재동의 요구 가능.
 export const SENSITIVE_INFO_CONSENT_VERSION = 1;
 
+// 개인정보 국외 이전 동의 버전. 국외 이전 안내/항목 변경 시 1씩 올리면 기존 사용자에게 강제 재동의 요구.
+export const INTERNATIONAL_TRANSFER_CONSENT_VERSION = 1;
+
+// 개인정보처리방침 링크 (자세히 보기)
+const PRIVACY_POLICY_URL = 'https://parkinon.com/privacy';
+
 export function SensitiveInfoConsentScreen() {
   const navigation = useNavigation<Nav>();
   const dialog = useDialog();
-  const [agreed, setAgreed] = useState(false);
+  const bottomPadding = useBottomSheetPadding(32);
+  const [agreedHealth, setAgreedHealth] = useState(false);
+  const [agreedTransfer, setAgreedTransfer] = useState(false);
+  const allAgreed = agreedHealth && agreedTransfer;
 
   const handleAgree = async () => {
-    if (!agreed) return;
+    if (!allAgreed) return;
     try {
       const { data: sessionData } = await supabase.auth.getSession();
       const userId = sessionData?.session?.user?.id;
@@ -48,6 +59,8 @@ export function SensitiveInfoConsentScreen() {
             body: JSON.stringify({
               sensitive_info_consented: true,
               sensitive_info_consent_version: SENSITIVE_INFO_CONSENT_VERSION,
+              international_transfer_consented: true,
+              international_transfer_consent_version: INTERNATIONAL_TRANSFER_CONSENT_VERSION,
             }),
           }
         );
@@ -60,12 +73,21 @@ export function SensitiveInfoConsentScreen() {
       }
 
       // AsyncStorage는 캐시로만 사용 (오프라인/빠른 접근용)
-      await AsyncStorage.setItem('sensitive_info_consented', 'true');
+      await AsyncStorage.multiSet([
+        ['sensitive_info_consented', 'true'],
+        ['international_transfer_consented', 'true'],
+      ]);
       navigation.replace('FamilyCheck');
     } catch (e) {
       console.error('[SensitiveInfoConsent] handleAgree 예외:', e);
       dialog.alert({ title: '오류', message: '동의 처리 중 문제가 생겼어요. 잠시 후 다시 시도해 주세요.' });
     }
+  };
+
+  const openPrivacyPolicy = () => {
+    Linking.openURL(PRIVACY_POLICY_URL).catch(() => {
+      dialog.alert({ title: '안내', message: '개인정보처리방침을 여는 데 실패했어요.' });
+    });
   };
 
   return (
@@ -118,6 +140,14 @@ export function SensitiveInfoConsentScreen() {
             <Text style={styles.infoLabel}>제3자 제공</Text>
             <Text style={styles.infoValue}>없음</Text>
           </View>
+          {/* 가족 연동은 제3자 제공이 아니라 서비스 기능이지만, "제3자 제공 없음"만 보면
+              가족과 기록을 함께 본다는 점을 오해할 수 있어 한 줄로 분명히 안내한다. */}
+          <View style={styles.familyShareNote}>
+            <Ionicons name="people-outline" size={18} color={Colors.textSub} style={styles.familyShareIcon} />
+            <Text style={styles.familyShareText}>
+              가족을 연동하면 연동한 가족과 건강 기록을 함께 보고 공유하게 됩니다.
+            </Text>
+          </View>
         </View>
 
         {/* 민감정보 안내 배너 */}
@@ -128,33 +158,79 @@ export function SensitiveInfoConsentScreen() {
           </Text>
         </View>
 
-        {/* 동의 체크박스 */}
+        {/* 국외 이전 안내 카드 */}
+        <View style={styles.card}>
+          <Text style={styles.cardTitle}>개인정보 국외 이전 안내</Text>
+          <Text style={styles.transferIntro}>
+            약 정보 분석, 데이터 저장, 사진·영상 보관을 위해 일부 정보가{' '}
+            해외(미국)에 있는 안전한 서버로 전송·보관됩니다.
+          </Text>
+          <View style={styles.transferList}>
+            <View style={styles.transferItem}>
+              <Text style={styles.transferLabel}>데이터 저장</Text>
+              <Text style={styles.transferValue}>Supabase (미국)</Text>
+            </View>
+            <View style={styles.infoDivider} />
+            <View style={styles.transferItem}>
+              <Text style={styles.transferLabel}>사진·영상 보관</Text>
+              <Text style={styles.transferValue}>Cloudflare (미국)</Text>
+            </View>
+            <View style={styles.infoDivider} />
+            <View style={styles.transferItem}>
+              <Text style={styles.transferLabel}>처방전 자동 인식</Text>
+              <Text style={styles.transferValue}>Anthropic (미국){'\n'}분석 후 보관하지 않음</Text>
+            </View>
+          </View>
+          <TouchableOpacity onPress={openPrivacyPolicy} activeOpacity={0.7} style={styles.policyLinkRow}>
+            <Ionicons name="document-text-outline" size={18} color={Colors.primary} />
+            <Text style={styles.policyLinkText}>자세한 내용은 개인정보처리방침에서 확인하실 수 있어요.</Text>
+          </TouchableOpacity>
+        </View>
+
+        {/* 동의 체크박스 ① 건강 정보 */}
         <TouchableOpacity
           style={styles.checkRow}
-          onPress={() => setAgreed(!agreed)}
+          onPress={() => setAgreedHealth(!agreedHealth)}
           activeOpacity={0.7}
         >
-          <View style={[styles.checkbox, agreed && styles.checkboxActive]}>
-            {agreed && (
+          <View style={[styles.checkbox, agreedHealth && styles.checkboxActive]}>
+            {agreedHealth && (
               <Ionicons name="checkmark" size={20} color={Colors.white} />
             )}
           </View>
           <Text style={styles.checkLabel}>
-            위 건강 정보 수집 및 이용에 동의합니다.{' '}
+            위 건강 정보(민감정보) 수집 및 이용에 동의합니다.{' '}
+            <Text style={styles.required}>(필수)</Text>
+          </Text>
+        </TouchableOpacity>
+
+        {/* 동의 체크박스 ② 국외 이전 */}
+        <TouchableOpacity
+          style={styles.checkRow}
+          onPress={() => setAgreedTransfer(!agreedTransfer)}
+          activeOpacity={0.7}
+        >
+          <View style={[styles.checkbox, agreedTransfer && styles.checkboxActive]}>
+            {agreedTransfer && (
+              <Ionicons name="checkmark" size={20} color={Colors.white} />
+            )}
+          </View>
+          <Text style={styles.checkLabel}>
+            개인정보의 국외 이전에 동의합니다.{' '}
             <Text style={styles.required}>(필수)</Text>
           </Text>
         </TouchableOpacity>
       </ScrollView>
 
       {/* 하단 버튼 영역 */}
-      <View style={styles.bottomArea}>
+      <View style={[styles.bottomArea, { paddingBottom: bottomPadding }]}>
         <TouchableOpacity
-          style={[styles.agreeBtn, !agreed && styles.agreeBtnDisabled]}
+          style={[styles.agreeBtn, !allAgreed && styles.agreeBtnDisabled]}
           onPress={handleAgree}
-          activeOpacity={agreed ? 0.85 : 1}
-          disabled={!agreed}
+          activeOpacity={allAgreed ? 0.85 : 1}
+          disabled={!allAgreed}
         >
-          <Text style={[styles.agreeBtnText, !agreed && styles.agreeBtnTextDisabled]}>
+          <Text style={[styles.agreeBtnText, !allAgreed && styles.agreeBtnTextDisabled]}>
             동의하고 계속하기
           </Text>
         </TouchableOpacity>
@@ -263,6 +339,26 @@ const styles = StyleSheet.create({
     height: 1,
     backgroundColor: Colors.border,
   },
+  /* 가족 연동 공유 안내 (오해 방지) */
+  familyShareNote: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    gap: 8,
+    marginTop: 12,
+    paddingTop: 12,
+    borderTopWidth: 1,
+    borderTopColor: Colors.border,
+  },
+  familyShareIcon: {
+    marginTop: 2,
+    flexShrink: 0,
+  },
+  familyShareText: {
+    flex: 1,
+    fontSize: 15,
+    color: Colors.textSub,
+    lineHeight: 22,
+  },
 
   /* 경고 배너 */
   warningBanner: {
@@ -281,6 +377,48 @@ const styles = StyleSheet.create({
     color: '#F57C00',
     lineHeight: 24,
     flex: 1,
+  },
+
+  /* 국외 이전 안내 */
+  transferIntro: {
+    fontSize: 17,
+    color: Colors.text,
+    lineHeight: 27,
+    marginBottom: 16,
+  },
+  transferList: {
+    marginBottom: 14,
+  },
+  transferItem: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    paddingVertical: 12,
+    gap: 12,
+  },
+  transferLabel: {
+    fontSize: 16,
+    fontWeight: '600',
+    color: Colors.textSub,
+    width: 110,
+    flexShrink: 0,
+  },
+  transferValue: {
+    fontSize: 16,
+    color: Colors.text,
+    flex: 1,
+    lineHeight: 24,
+  },
+  policyLinkRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    paddingTop: 4,
+  },
+  policyLinkText: {
+    fontSize: 15,
+    color: Colors.primary,
+    flex: 1,
+    lineHeight: 22,
   },
 
   /* 체크박스 행 */
@@ -320,7 +458,7 @@ const styles = StyleSheet.create({
   /* 하단 버튼 영역 */
   bottomArea: {
     padding: 24,
-    paddingBottom: 32,
+    // paddingBottom 은 useBottomSheetPadding() 훅 값으로 인라인 지정(안드 3버튼 잘림 방지·글로벌 규칙)
     backgroundColor: Colors.background,
     borderTopWidth: 1,
     borderTopColor: Colors.border,
@@ -328,7 +466,7 @@ const styles = StyleSheet.create({
   agreeBtn: {
     backgroundColor: Colors.primary,
     borderRadius: 12,
-    minHeight: 60,
+    minHeight: 56,
     alignItems: 'center',
     justifyContent: 'center',
     marginBottom: 12,

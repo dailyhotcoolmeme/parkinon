@@ -10,6 +10,97 @@ const MEAL_LABELS: Record<string, string> = {
   morning: '아침', lunch: '점심', dinner: '저녁', bedtime: '취침',
 }
 
+// ─── 앱 슬롯 표시명(slotTitle) 복제 ───────────────────────────────────────────
+// 앱은 src/constants/doseSlots.ts 의 slotTitle(label, legacyKey, time) 로
+// 모든 화면에서 슬롯 이름을 "이름 + 시각"으로 표시한다(예 "아침 오전 8:10", "밤 11:00").
+// 푸시 알림도 동일한 이름을 쓰도록 그 규칙을 그대로 서버에 복제한다.
+// ⚠️ 표기가 바뀌면 안 됨 → 앱 헬퍼와 1:1 동일하게 유지할 것.
+
+const STANDARD_LABELS = new Set(['아침', '점심', '저녁', '취침'])
+
+/**
+ * 'HH:MM[:SS]' → 시간대 단어(앱 doseSlots.periodWord 와 1:1 동일).
+ * 구간(오너 확정 2026-06): 새벽 0–6 / 아침 6–11 / 점심 11–13 / 오후 13–17 / 저녁 17–21 / 밤 21–24.
+ * 파싱 실패 시 빈 문자열.
+ */
+function periodWord(time: string | null | undefined): string {
+  if (!time) return ''
+  const h = parseInt(time.split(':')[0] ?? '', 10)
+  if (Number.isNaN(h)) return ''
+  if (h < 6) return '새벽'
+  if (h < 11) return '아침'
+  if (h < 13) return '점심'
+  if (h < 17) return '오후'
+  if (h < 21) return '저녁'
+  return '밤' // 21–23
+}
+
+/**
+ * 푸시 문구의 {시간대} 자리에 들어갈 시간대 라벨 결정.
+ * - 표준 4슬롯('아침/점심/저녁/취침' 라벨): 그 라벨 그대로 사용(취침도 그대로).
+ * - 비표준(추가) 슬롯: 시각으로 periodWord 계산(아침/점심/오후/저녁/밤/새벽).
+ * - 둘 다 없으면 빈 문자열(호출처가 fallback).
+ * 합의 문구(docs/agents/AGENT_06_notification.md §알림 문구 목록):
+ *   약 복용:        "{시간대} 약 복용 시간이에요."
+ *   재알림(미복용):  "아직 {시간대} 약을 드시지 않으셨어요."
+ *   보호자 미복용:   "{환자명}님께서 아직 {시간대} 약을 드시지 않으셨어요."
+ */
+function periodLabelFor(label: string | null | undefined, time: string | null | undefined): string {
+  const trimmed = (label ?? '').trim()
+  if (trimmed && STANDARD_LABELS.has(trimmed)) return trimmed
+  const p = periodWord(time)
+  if (p) return p
+  return ''
+}
+
+/**
+ * 'HH:MM[:SS]' → 12시간제 'H:MM' (오전/오후 없이). 푸시 문구의 시각 표기용.
+ * 시간대 단어(아침/저녁 등)가 이미 오전/오후를 표현하므로 중복 방지로 접두사 없음.
+ * 예: '18:00'→'6:00', '08:00'→'8:00', '12:00'→'12:00', '00:00'→'12:00'(자정), '15:00'→'3:00'.
+ * 분은 그대로(:00, :30 등). 파싱 실패 시 빈 문자열(호출처가 시간대만으로 폴백).
+ */
+function formatClockTime(hhmm: string | null | undefined): string {
+  if (!hhmm) return ''
+  const parts = hhmm.split(':')
+  const h = parseInt(parts[0], 10)
+  const m = parseInt(parts[1] ?? '0', 10)
+  if (Number.isNaN(h)) return ''
+  let displayH = h % 12
+  if (displayH === 0) displayH = 12
+  const mm = String(Number.isNaN(m) ? 0 : m).padStart(2, '0')
+  return `${displayH}:${mm}`
+}
+
+/** 'HH:MM[:SS]' → '오전/오후 H:MM' (앱 formatSlotTime 과 동일). */
+function formatSlotTime(hhmm: string | null | undefined): string {
+  if (!hhmm) return ''
+  const parts = hhmm.split(':')
+  const h = parseInt(parts[0], 10)
+  const m = parseInt(parts[1] ?? '0', 10)
+  if (Number.isNaN(h)) return hhmm
+  const period = h < 12 ? '오전' : '오후'
+  let displayH = h % 12
+  if (displayH === 0) displayH = 12
+  const mm = String(Number.isNaN(m) ? 0 : m).padStart(2, '0')
+  return `${period} ${displayH}:${mm}`
+}
+
+/**
+ * 앱 slotTitle 복제 — 슬롯의 "전체 표시 제목"(이름 + 시각 인라인).
+ * - 비표준 라벨(이미 시각 포함, 예 "밤 11:00"): 라벨 그대로.
+ * - 표준 라벨("아침/점심/저녁/취침"): "라벨 시각"(예 "아침 오전 8:10").
+ * label/time 이 없으면 빈 문자열(호출처가 fallback 처리).
+ */
+function slotTitle(label: string | null | undefined, time: string | null | undefined): string {
+  const trimmed = (label ?? '').trim()
+  const t = formatSlotTime(time)
+  // labelContainsTime: 표준 라벨이 아니고 라벨이 있으면 이미 시각 포함(비표준 추가 슬롯)
+  const labelContainsTime = !!trimmed && !STANDARD_LABELS.has(trimmed)
+  if (labelContainsTime) return trimmed
+  if (trimmed) return `${trimmed} ${t}`.trim()
+  return ''
+}
+
 /**
  * get_meds_at_time RPC가 반환하는 1행.
  * - legacy 행: meal_time(슬롯키) 채워짐, dose_slot_id/label NULL.
@@ -35,21 +126,72 @@ interface DoseTarget {
   key: string
   mealTime: string | null
   doseSlotId: string | null
+  /** "이름 + 시각"(예 "아침 오전 8:10") — 미사용 fallback/로그용으로만 유지 */
   displayLabel: string
+  /** 푸시 문구 {시간대} 자리(예 "아침/점심/오후/저녁/밤"). 합의 문구용. */
+  periodLabel: string
+  /** 슬롯 시각 'HH:MM'(24h, 없으면 null). 푸시 문구에 12시간제 H:MM로 표기. */
+  time: string | null
 }
 
 function toDoseTarget(row: MedRow): DoseTarget | null {
   const mealTime = row.meal_time ?? null
   const doseSlotId = row.dose_slot_id ?? null
-  // 표시 라벨: dose_slot.label 우선 → meal_time MEAL_LABELS fallback → '약'
+  // 표시 이름: 앱 slotTitle 과 동일하게 "이름 + 시각"(예 "아침 오전 8:10", "밤 11:00").
+  // - dose_slot 행: label + time 으로 slotTitle 구성(앱 화면과 글자 그대로 일치).
+  // - legacy 행(dose_slot 없음): label 이 NULL 이므로 기존 mealTime MEAL_LABELS 폴백.
+  // - 둘 다 못 만들면 '약'.
+  const slotName = slotTitle(row.label, row.time)
   const displayLabel =
-    (row.label && row.label.trim()) ||
+    slotName ||
     (mealTime ? MEAL_LABELS[mealTime] : '') ||
     '약'
+  // 푸시 문구 {시간대} — 표준 라벨 우선, 없으면 시각 기반 periodWord, 둘 다 없으면 legacy mealTime 라벨.
+  const periodLabel =
+    periodLabelFor(row.label, row.time) ||
+    (mealTime ? MEAL_LABELS[mealTime] : '') ||
+    ''
   // 안정 키: dose_slot_id 우선, 없으면 meal_time. 둘 다 없으면 식별 불가 → skip.
   const key = doseSlotId ?? mealTime
   if (!key) return null
-  return { key, mealTime, doseSlotId, displayLabel }
+  return { key, mealTime, doseSlotId, displayLabel, periodLabel, time: row.time ?? null }
+}
+
+// ─── 시간대별 푸시 문구 (합의 문구 — AGENT_06_notification.md §알림 문구 목록) ─────
+// {시간대} = periodLabel(아침/점심/오후/저녁/밤/새벽 또는 표준 라벨).
+// {시각} = 12시간제 H:MM(오전/오후 없이). 시간대 단어가 오전/오후를 표현하므로 접두사 없음.
+//   포맷 A(오너 합의·변경 금지): "{시간대} {시각} 약 복용 시간이에요."
+//   예: 아침08:00→"아침 8:00 …", 저녁18:00→"저녁 6:00 …", 오후15:00→"오후 3:00 …".
+// periodLabel/clock 둘 다 없으면 시간대·시각 없는 자연스러운 문구로 폴백.
+
+/** periodLabel + clock(12h H:MM) → "{시간대} {시각}" (한쪽만 있으면 그것만, 둘 다 없으면 ''). */
+function periodWithTime(periodLabel: string, clock: string): string {
+  return [periodLabel, clock].filter(Boolean).join(' ')
+}
+
+/** 정시 복용 알림 body: "{시간대} {시각} 약 복용 시간이에요." */
+function reminderBody(periodLabel: string, clock: string): string {
+  const head = periodWithTime(periodLabel, clock)
+  return head ? `${head} 약 복용 시간이에요.` : '약 드실 시간이에요.'
+}
+
+/** 미복용 재알림 body(환자): "아직 {시간대} {시각} 약을 드시지 않으셨어요." */
+function missedBody(periodLabel: string, clock: string): string {
+  const head = periodWithTime(periodLabel, clock)
+  return head
+    ? `아직 ${head} 약을 드시지 않으셨어요.`
+    : '아직 약을 드시지 않으셨어요.'
+}
+
+/**
+ * 보호자 미복용 body: "{환자명}님이 아직 {시간대} {시각} 약을 안 드셨어요. 약 드시도록 챙겨주세요."
+ * subject = "{환자명}님"(받침 무관 조사 "이"). 시간대/시각 못 구하면 시간대 없이 폴백.
+ */
+function caregiverMissedBody(subject: string, periodLabel: string, clock: string): string {
+  const head = periodWithTime(periodLabel, clock)
+  return head
+    ? `${subject}이 아직 ${head} 약을 안 드셨어요. 약 드시도록 챙겨주세요.`
+    : `${subject}이 아직 약을 안 드셨어요. 약 드시도록 챙겨주세요.`
 }
 
 /** 환자별 DoseTarget 목록을 RPC 행에서 구성 (key 기준 중복제거). */
@@ -66,19 +208,58 @@ function groupTargets(rows: MedRow[] | null | undefined): Map<string, DoseTarget
   return result
 }
 
+// ─── iOS 커스텀 알림음(가족 목소리) ──────────────────────────────────────────
+// Android 는 알림 채널(channelId=`parkinon_alarm_<soundId>`)로 커스텀음을 울리지만,
+// iOS 는 채널 개념이 없고 Library/Sounds/<파일명>.caf 에 설치된 사운드를
+// 푸시 payload 의 sound 문자열로 지정해야 한다. 파일명 규칙은 클라(src/lib/alarmSound.ts
+// alarmSoundFileNameIOS)와 1:1 동일: `parkinon_<soundId>.caf`.
+//
+// ⚠️ 미검증(설계서 PoC): Expo Push 가 iOS 에 임의 사운드 파일명을 APNs aps.sound 문자열로
+//   실제 전달하는지는 새 빌드(네이티브 모듈 활성) 후 실측 전까지 단정 불가.
+//   일반 파일명은 Expo 가 그대로 넘기는 것으로 알려져 있으나, 빌드 후 안 울리면
+//   APNs 직접 발송(aps.sound 직접 세팅)으로 전환할 것(이번 범위 밖, 서버라 재빌드 불필요).
+
+/** Android channelId(`parkinon_alarm_<soundId>`) → 그 soundId 만 추출(없으면 null). */
+function soundIdFromChannel(channelId: string): string | null {
+  if (channelId === 'default') return null
+  const m = channelId.match(/^parkinon_alarm_(.+)$/)
+  return m ? m[1] : null
+}
+
+/** soundId → iOS 알림음 파일명(클라 alarmSoundFileNameIOS 와 동일 규칙). */
+function alarmSoundFileNameIOS(soundId: string): string {
+  return `parkinon_${soundId}.caf`
+}
+
+/**
+ * Android 용으로 계산한 channelId 를 받아, 수신자 플랫폼에 맞는 Expo Push 의 sound 값을 돌려준다.
+ * - iOS + 커스텀 soundId 있음 → `parkinon_<soundId>.caf`
+ * - 그 외(iOS 기본음, Android) → 'default' (Android 는 channelId 로 커스텀음 처리)
+ */
+function soundForPlatform(platform: string | null | undefined, channelId: string): string {
+  if (platform === 'ios') {
+    const soundId = soundIdFromChannel(channelId)
+    if (soundId) return alarmSoundFileNameIOS(soundId)
+  }
+  return 'default'
+}
+
 async function sendPush(
   to: string,
   title: string,
   body: string,
   data: Record<string, unknown>,
   channelId = 'default',
+  platform: string | null = null,
 ) {
+  // 수신자별 sound 분기: iOS 커스텀음은 sound 문자열, Android 는 channelId 가 좌우(sound='default').
+  const sound = soundForPlatform(platform, channelId)
   const res = await fetch('https://exp.host/--/api/v2/push/send', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({
       to,
-      sound: 'default',
+      sound,
       title,
       body,
       data,
@@ -87,7 +268,7 @@ async function sendPush(
     }),
   })
   const result = await res.json()
-  console.log('[sendPush]', JSON.stringify({ to: to.slice(0, 30), title, channelId, status: res.status, result }))
+  console.log('[sendPush]', JSON.stringify({ to: to.slice(0, 30), title, channelId, sound, platform, status: res.status, result }))
 }
 
 /**
@@ -190,7 +371,7 @@ async function sendCaregiverMissed(
 
   const { data: caregiverUsers } = await supabase
     .from('users')
-    .select('id, push_token, caregiver_notif_prefs')
+    .select('id, push_token, push_platform, caregiver_notif_prefs')
     .in('id', caregivers.map((c: any) => c.user_id))
     .not('push_token', 'is', null)
 
@@ -199,13 +380,18 @@ async function sendCaregiverMissed(
     const prefs = (cu.caregiver_notif_prefs ?? {}) as Record<string, boolean>
     if (prefs.med_missed === false) continue
     const channelId = await resolveAlarmChannel(cu.id)
+    const title = '💊 약을 아직 안 드셨어요'
+    const body = caregiverMissedBody(subject, target.periodLabel, formatClockTime(target.time))
+    const data = { type: 'caregiver_missed_med', mealTime: target.mealTime, doseSlotId: target.doseSlotId }
     await sendPush(
       cu.push_token,
-      '⚠️ 약을 안 드셨어요',
-      `${subject}이 ${target.displayLabel} 약을 아직 안 드셨어요.`,
-      { type: 'caregiver_missed_med', mealTime: target.mealTime, doseSlotId: target.doseSlotId },
+      title,
+      body,
+      data,
       channelId,
+      (cu as any).push_platform ?? null,
     )
+    await logNotification(cu.id, 'caregiver_missed_med', title, body, data)
   }
 }
 
@@ -281,7 +467,7 @@ Deno.serve(async (_req: Request) => {
   for (const [patientId, targets] of onTime.entries()) {
     const { data: patient } = await supabase
       .from('users')
-      .select('push_token, notification_enabled, med_time_notif_prefs, med_time_sound_prefs, patient_group_id')
+      .select('push_token, push_platform, notification_enabled, med_time_notif_prefs, med_time_sound_prefs, patient_group_id')
       .eq('id', patientId)
       .single()
 
@@ -296,15 +482,17 @@ Deno.serve(async (_req: Request) => {
 
       const channelId = channelFor(soundPrefs, target)
       const data = { type: 'medication_reminder', mealTime: target.mealTime, doseSlotId: target.doseSlotId }
+      const body = reminderBody(target.periodLabel, formatClockTime(target.time))
 
       await sendPush(
         patient.push_token,
         '💊 약 드실 시간이에요',
-        `${target.displayLabel} 약을 드실 시간이에요.`,
+        body,
         data,
         channelId,
+        (patient as any).push_platform ?? null,
       )
-      await logNotification(patientId, 'medication_reminder', '💊 약 드실 시간이에요', `${target.displayLabel} 약을 드실 시간이에요.`, data)
+      await logNotification(patientId, 'medication_reminder', '💊 약 드실 시간이에요', body, data)
       sent++
     }
   }
@@ -316,7 +504,7 @@ Deno.serve(async (_req: Request) => {
   for (const [patientId, targets] of first.entries()) {
     const { data: patient } = await supabase
       .from('users')
-      .select('push_token, notification_enabled, med_time_notif_prefs, med_time_sound_prefs, patient_group_id')
+      .select('push_token, push_platform, notification_enabled, med_time_notif_prefs, med_time_sound_prefs, patient_group_id')
       .eq('id', patientId)
       .single()
 
@@ -335,15 +523,17 @@ Deno.serve(async (_req: Request) => {
 
       const channelId = missedChannelFor(missedSounds.first, soundPrefs, target)
       const data = { type: 'missed_medication_first', mealTime: target.mealTime, doseSlotId: target.doseSlotId }
+      const body = missedBody(target.periodLabel, formatClockTime(target.time))
 
       await sendPush(
         patient.push_token,
         '💊 약을 아직 안 드셨어요',
-        `${target.displayLabel} 약을 아직 드시지 않으셨어요.`,
+        body,
         data,
         channelId,
+        (patient as any).push_platform ?? null,
       )
-      await logNotification(patientId, 'missed_medication', '💊 약을 아직 안 드셨어요', `${target.displayLabel} 약을 아직 드시지 않으셨어요.`, data)
+      await logNotification(patientId, 'missed_medication', '💊 약을 아직 안 드셨어요', body, data)
       sent++
     }
   }
@@ -355,7 +545,7 @@ Deno.serve(async (_req: Request) => {
   for (const [patientId, targets] of second.entries()) {
     const { data: patient } = await supabase
       .from('users')
-      .select('push_token, notification_enabled, med_time_notif_prefs, med_time_sound_prefs, patient_group_id')
+      .select('push_token, push_platform, notification_enabled, med_time_notif_prefs, med_time_sound_prefs, patient_group_id')
       .eq('id', patientId)
       .single()
 
@@ -375,14 +565,16 @@ Deno.serve(async (_req: Request) => {
       // 환자에게 2차 알림 (환자가 2차 미복용 알림을 끈 경우 보내지 않음 — 보호자 알림은 아래에서 독립 처리)
       if (patient.push_token && prefs.missed_second !== false) {
         const data = { type: 'missed_medication_second', mealTime: target.mealTime, doseSlotId: target.doseSlotId }
+        const body = missedBody(target.periodLabel, formatClockTime(target.time))
         await sendPush(
           patient.push_token,
-          '💊 약을 안 드셨어요',
-          `${target.displayLabel} 약을 아직 안 드셨어요.`,
+          '💊 약을 아직 안 드셨어요',
+          body,
           data,
           channelId,
+          (patient as any).push_platform ?? null,
         )
-        await logNotification(patientId, 'missed_medication', '💊 약을 안 드셨어요', `${target.displayLabel} 약을 아직 안 드셨어요.`, data)
+        await logNotification(patientId, 'missed_medication', '💊 약을 아직 안 드셨어요', body, data)
         sent++
       }
 
@@ -396,7 +588,7 @@ Deno.serve(async (_req: Request) => {
   // ── 4. 운동 알림 ────────────────────────────────────────────────
   const { data: allPatients } = await supabase
     .from('users')
-    .select('id, push_token, notification_enabled, exercise_notif_prefs')
+    .select('id, push_token, push_platform, notification_enabled, exercise_notif_prefs')
     .eq('role', 'patient')
     .eq('notification_enabled', true)
     .not('push_token', 'is', null)
@@ -422,6 +614,7 @@ Deno.serve(async (_req: Request) => {
         '오늘 운동 기록을 남겨보세요.',
         { type: 'exercise_reminder' },
         exerciseChannelId,
+        (patient as any).push_platform ?? null,
       )
       await logNotification(patient.id, 'exercise_reminder', '🏃 운동할 시간이에요!', '오늘 운동 기록을 남겨보세요.', { type: 'exercise_reminder' })
       sent++

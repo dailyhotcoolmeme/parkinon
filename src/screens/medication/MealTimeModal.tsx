@@ -51,12 +51,16 @@ function slotIcon(slot: DoseSlot): { icon: IoniconName; color: string } {
     const meta = LEGACY_SLOT_META[slot.legacyKey];
     return { icon: meta.icon as IoniconName, color: meta.color };
   }
-  // 비표준 슬롯: 시각으로 대략 아이콘 추정
+  // 비표준 슬롯: 시각으로 대략 아이콘 추정.
+  // 오너 확정 6구간(doseSlots.periodWord)과 일치 — 15시는 낮(해)이지 달이 아니다.
+  // (이전엔 h<21 까지 'moon-outline'이라 15시 같은 낮 시각도 달로 떴음)
   const h = parseInt(slot.time.split(':')[0] ?? '0', 10);
-  if (h < 11) return { icon: 'sunny-outline', color: '#FF9800' };
-  if (h < 15) return { icon: 'partly-sunny-outline', color: '#4CAF50' };
-  if (h < 21) return { icon: 'moon-outline', color: '#3F51B5' };
-  return { icon: 'bed-outline', color: '#7C4DFF' };
+  if (h < 6) return { icon: 'moon-outline', color: '#5C6BC0' };          // 새벽 0–5
+  if (h < 11) return { icon: 'sunny-outline', color: '#FF9800' };        // 아침 6–10
+  if (h < 13) return { icon: 'sunny-outline', color: '#4CAF50' };        // 점심 11–12
+  if (h < 17) return { icon: 'partly-sunny-outline', color: '#FFB300' }; // 오후 13–16 (15시=해)
+  if (h < 21) return { icon: 'cloudy-night-outline', color: '#FB8C00' }; // 저녁 17–20
+  return { icon: 'moon-outline', color: '#5E35B1' };                     // 밤 21–23
 }
 
 function buildOptions(slots: DoseSlot[]): MealOption[] {
@@ -124,12 +128,13 @@ export function MealTimeModal({ visible, onSelect, onClose, mealSchedules, notif
 
           <View style={styles.optionList}>
             {options.map((opt, i) => {
-              const notifOn = opt.notifOn;
               const displayTime = formatSlotTime(opt.time);
-              const iconColor = notifOn ? opt.color : '#AAAAAA';
               const isSelected = selected === opt.key;
               // 5단계: dose_slot_id 또는 legacy key 가 있으면 선택 가능(비표준 슬롯도 쓰기 가능).
               const selectable = !!(opt.doseSlotId || opt.selectKey);
+              // 기록 시트에서는 알림 ON/OFF로 흐림/회색 처리하지 않는다(약 복용 없음처럼 보여 혼란).
+              // 선택 가능한 슬롯은 알림 OFF여도 일반 슬롯과 동일하게, 선택 불가일 때만 회색.
+              const iconColor = selectable ? opt.color : '#AAAAAA';
 
               return (
                 <TouchableOpacity
@@ -137,7 +142,6 @@ export function MealTimeModal({ visible, onSelect, onClose, mealSchedules, notif
                   style={[
                     styles.optionRow,
                     i < options.length - 1 && styles.optionRowBorder,
-                    !notifOn && styles.optionRowDim,
                     isSelected && styles.optionRowSelected,
                     !selectable && styles.optionRowDim,
                   ]}
@@ -149,20 +153,19 @@ export function MealTimeModal({ visible, onSelect, onClose, mealSchedules, notif
                     <Ionicons name={opt.icon} size={30} color={iconColor} />
                   </View>
                   <View style={styles.optionText}>
-                    <Text style={[styles.optionLabel, (!notifOn || !selectable) && styles.dimText]}>{opt.label}</Text>
+                    {/* 기록 시트에서는 알림 ON/OFF로 슬롯을 흐리게(dim) 하지 않는다.
+                        알림 OFF 슬롯이 '약 복용 없음'처럼 보여 혼란을 주므로, 선택 불가일 때만 dim. */}
+                    <Text style={[styles.optionLabel, !selectable && styles.dimText]}>{opt.label}</Text>
                     {/* 비표준 슬롯은 라벨에 이미 시각이 있어 시각 줄 생략(중복 방지) */}
                     {!opt.labelHasTime && (
-                      <Text style={[styles.optionTime, (!notifOn || !selectable) && styles.dimText]}>{displayTime}</Text>
+                      <Text style={[styles.optionTime, !selectable && styles.dimText]}>{displayTime}</Text>
                     )}
                   </View>
                   {isSelected ? (
                     <Ionicons name="checkmark-circle" size={28} color={Colors.primary} />
-                  ) : !selectable ? null : notifOn ? (
+                  ) : !selectable ? null : (
+                    // 알림 OFF여도 일반 선택 가능 슬롯과 동일하게 표시('알림 없음' 배지 제거)
                     <Ionicons name="chevron-forward" size={22} color={Colors.textHint} />
-                  ) : (
-                    <View style={styles.noNotifBadge}>
-                      <Text style={styles.noNotifBadgeText}>알림 없음</Text>
-                    </View>
                   )}
                 </TouchableOpacity>
               );

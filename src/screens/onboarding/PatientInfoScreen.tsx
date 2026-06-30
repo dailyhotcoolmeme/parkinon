@@ -11,7 +11,8 @@ import {
   Modal,
   FlatList,
 } from 'react-native';
-import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
+import { SafeAreaView } from 'react-native-safe-area-context';
+import { useBottomSheetPadding } from '../../hooks/useBottomSheetPadding';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useNavigation, useRoute } from '@react-navigation/native';
 import type { StackNavigationProp } from '@react-navigation/stack';
@@ -34,7 +35,7 @@ export function PatientInfoScreen() {
   const route = useRoute<RouteType>();
   const step = route.params?.step ?? 1;
   const { user, signOut } = useAuth();
-  const { bottom: bottomInset } = useSafeAreaInsets();
+  const bottomPadding = useBottomSheetPadding(24);
 
   const [name, setName] = useState('');
   const [birthYear, setBirthYear] = useState('');
@@ -74,7 +75,9 @@ export function PatientInfoScreen() {
       navigation.push('PatientInfo', { step: 4 });
     } else if (step === 4) {
       if (diagYear) await AsyncStorage.setItem('onboarding_diag_year', diagYear);
-      navigation.navigate('MedicationRegister');
+      // 복용 관리 통합 재설계 B차: 온보딩에서 약·시간대 등록 제거.
+      // 기본정보 → 바로 가족 초대(완료)로. 약/시간대는 첫 로그인 후 통합 등록 유도에서.
+      navigation.navigate('FamilyInvite');
     }
   };
 
@@ -180,7 +183,7 @@ export function PatientInfoScreen() {
         </ScrollView>
 
         {/* 하단 버튼 */}
-        <View style={[styles.bottomArea, { paddingBottom: 40 + bottomInset }]}>
+        <View style={[styles.bottomArea, { paddingBottom: bottomPadding }]}>
           <PrimaryButton title={step < TOTAL_STEPS ? '다음으로' : '완료'} onPress={handleNext} disabled={!canProceed()} />
           <TouchableOpacity style={styles.closeBtn} onPress={signOut}>
             <Text style={styles.closeBtnText}>닫기</Text>
@@ -213,7 +216,7 @@ function YearPickerModal({ visible, years, selected, onSelect, onClose }: {
   onSelect: (y: string) => void;
   onClose: () => void;
 }) {
-  const insets = useSafeAreaInsets();
+  const sheetPadding = useBottomSheetPadding(32);
   const flatListRef = useRef<FlatList<string>>(null);
 
   const handleLayout = () => {
@@ -229,7 +232,7 @@ function YearPickerModal({ visible, years, selected, onSelect, onClose }: {
     <Modal visible={visible} transparent animationType="slide">
       <View style={pickerStyles.container}>
         <TouchableOpacity style={pickerStyles.overlay} onPress={onClose} activeOpacity={1} />
-        <View style={[pickerStyles.sheet, { paddingBottom: Math.max(40, insets.bottom + 20) }]}>
+        <View style={[pickerStyles.sheet, { paddingBottom: sheetPadding }]}>
           <View style={pickerStyles.handle} />
           <Text style={pickerStyles.sheetTitle}>연도 선택</Text>
           <FlatList
@@ -293,7 +296,7 @@ const styles = StyleSheet.create({
   genderBtnSelected: { borderColor: Colors.primary, backgroundColor: Colors.light },
   genderText: { fontSize: 20, fontWeight: '700', color: Colors.textSub },
   genderTextSelected: { color: Colors.dark },
-  bottomArea: { paddingHorizontal: 24, gap: 12 },
+  bottomArea: { paddingHorizontal: 24, paddingTop: 16, gap: 12 },
   closeBtn: {
     minHeight: 56, borderRadius: 12, borderWidth: 1,
     borderColor: Colors.border, backgroundColor: Colors.white,

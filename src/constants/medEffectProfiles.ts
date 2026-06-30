@@ -33,6 +33,12 @@ export type TrackingRecommendation = {
   active: boolean;
   /** UI에 띄울 분류별 안내 문구 (디스클레이머와 별개의 분류 특이사항) */
   note?: string;
+  /**
+   * @deprecated UI 미사용(§7.5). 추천근거는 약효 설명 문장이 아니라 "출처 표기" 한 줄로
+   * 바뀌었다(recommendUtils.SOURCE_LABEL). onset/tmax/duration → 일반어 환산 문장이던
+   * 이 필드는 더 이상 화면에 노출되지 않는다. 참고용 메모로만 남겨둔다.
+   */
+  rationale?: string;
 };
 
 /**
@@ -41,9 +47,27 @@ export type TrackingRecommendation = {
  */
 export const CLASS_RECOMMENDATION: Record<DrugClass, TrackingRecommendation> = {
   // ── 추적 대상 (레보도파 계열만) ──
-  levodopa_ir: { drugClass: 'levodopa_ir', offsets: [30, 60, 120], active: true },
-  levodopa_cr: { drugClass: 'levodopa_cr', offsets: [60, 180], active: true },
-  levodopa_entacapone: { drugClass: 'levodopa_entacapone', offsets: [30, 90, 180], active: true },
+  levodopa_ir: {
+    drugClass: 'levodopa_ir',
+    offsets: [30, 60, 120],
+    active: true,
+    // onset ~30분 / tmax ~1시간 / 효과 약 4~6시간 지속, 2시간 전후부터 변화 관찰 (속효성 레보도파, 임상 레퍼런스)
+    rationale: '복용 30분쯤부터 약효가 오르기 시작해 1시간 전후로 가장 강하고, 2시간쯤부터는 조금씩 약해질 수 있어요.',
+  },
+  levodopa_cr: {
+    drugClass: 'levodopa_cr',
+    offsets: [60, 180],
+    active: true,
+    // 서방형(천천히 녹음) — onset 느리고 duration 김
+    rationale: '서서히 녹는 약이라 1시간쯤부터 약효가 오르고, 속효성보다 더 오래 유지돼요.',
+  },
+  levodopa_entacapone: {
+    drugClass: 'levodopa_entacapone',
+    offsets: [30, 90, 180],
+    active: true,
+    // 엔타카폰이 레보도파 분해를 늦춰 효과를 연장
+    rationale: '엔타카폰이 함께 들어 있어 약효가 30분쯤부터 오르고, 레보도파 단독보다 더 길게 이어져요.',
+  },
   // ── 추적 비대상 (비레보도파 — 약효추적 알림 미생성, 약 정보·식약처 링크는 제공) ──
   dopamine_agonist: {
     drugClass: 'dopamine_agonist',
@@ -90,7 +114,7 @@ export const CLASS_RECOMMENDATION: Record<DrugClass, TrackingRecommendation> = {
  */
 export const KEYWORD_TO_CLASS: { keywords: string[]; cls: DrugClass }[] = [
   { cls: 'levodopa_entacapone', keywords: ['스타레보', 'stalevo'] },
-  { cls: 'levodopa_cr', keywords: ['시네메트cr', 'cr정', '서방', 'hbs', '마도파hbs', '서방형'] },
+  { cls: 'levodopa_cr', keywords: ['시네메트cr', 'cr정', 'hbs', '마도파hbs', '서방형'] },
   {
     cls: 'levodopa_ir',
     keywords: ['시네메트', '퍼킨', '마도파', '레보도파', 'levodopa', 'sinemet', 'madopar'],

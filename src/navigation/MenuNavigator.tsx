@@ -15,6 +15,9 @@ import { MedicalRecordWriteScreen } from '../screens/menu/MedicalRecordWriteScre
 import { MedicalRecordDetailScreen } from '../screens/menu/MedicalRecordDetailScreen';
 import { AppointmentWriteScreen } from '../screens/menu/AppointmentWriteScreen';
 import { NotificationHistoryScreen } from '../screens/notification/NotificationHistoryScreen';
+import { RecordSoundScreen } from '../screens/sound/RecordSoundScreen';
+import { AlarmSoundSettingsScreen } from '../screens/sound/AlarmSoundSettingsScreen';
+import { BlockedUsersScreen } from '../screens/menu/BlockedUsersScreen';
 
 export type MenuStackParamList = {
   MenuHome: undefined;
@@ -24,7 +27,7 @@ export type MenuStackParamList = {
     period?: string;
   };
   Settings: undefined;
-  MedicationManage: { openSlot?: 'morning' | 'lunch' | 'dinner' | 'bedtime' } | undefined;
+  MedicationManage: { mode?: 'meds' | 'slots'; openSlot?: 'morning' | 'lunch' | 'dinner' | 'bedtime' } | undefined;
   FamilyLink: undefined;
   ProfileEdit: undefined;
   Terms: undefined;
@@ -35,6 +38,14 @@ export type MenuStackParamList = {
   MedicalRecordDetail: { recordId: string };
   AppointmentWrite: { appointmentId?: string } | undefined;
   NotificationHistory: { mode?: 'inbox' | 'all' } | undefined;
+  // 알림음 녹음 화면 — 5초 이내 음성 녹음 → R2 업로드 + custom_sounds 기록
+  RecordSound: { editSoundId?: string; editLabel?: string } | undefined;
+  // 알림음 설정 화면 — 저장된 녹음 미리듣기/설정/삭제 + 새 녹음 진입
+  AlarmSoundSettings:
+    | { updatedSound?: { id: string; label?: string; public_url?: string | null; duration_ms?: number | null } }
+    | undefined;
+  // 차단한 사용자 관리 화면 — 커뮤니티 차단 해제 UI
+  BlockedUsers: undefined;
 };
 
 const Stack = createStackNavigator<MenuStackParamList>();
@@ -57,6 +68,9 @@ export function MenuNavigator() {
       <Stack.Screen name="MedicalRecordDetail" component={MedicalRecordDetailScreen} />
       <Stack.Screen name="AppointmentWrite" component={AppointmentWriteScreen} />
       <Stack.Screen name="NotificationHistory" component={NotificationHistoryScreen} />
+      <Stack.Screen name="RecordSound" component={RecordSoundScreen} />
+      <Stack.Screen name="AlarmSoundSettings" component={AlarmSoundSettingsScreen} />
+      <Stack.Screen name="BlockedUsers" component={BlockedUsersScreen} />
     </Stack.Navigator>
   );
 }

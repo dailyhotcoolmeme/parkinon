@@ -46,6 +46,8 @@ export interface UseRecordsDataReturn {
   loading: boolean;
   error: string | null;
   refresh: () => Promise<void>;
+  // 미연동 보호자: 보호자인데 연동 환자 id 없음(해석 완료 후). 화면에서 안내 카드로 전환용.
+  unlinkedCaregiver: boolean;
 }
 
 // 기간에 따른 날짜 범위 계산
@@ -123,12 +125,15 @@ export function useRecordsData(period: Period): UseRecordsDataReturn {
   const [summary, setSummary] = useState<RecordsSummary | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [unlinkedCaregiver, setUnlinkedCaregiver] = useState(false);
 
   // 환자 ID 결정 (보호자면 그룹 내 환자 ID 조회)
+  // ⚠️ 미연동 보호자는 절대 user.id 로 폴백하지 않는다(본인 빈 기록을 환자처럼 보여주는 버그).
+  //    환자가 없으면 null 을 반환 → 화면에서 가족 연동 안내로 전환.
   const getPatientId = useCallback(async (): Promise<string | null> => {
     if (!user) return null;
     if (user.role === 'patient') return user.id;
-    if (!user.patient_group_id) return user.id;
+    if (!user.patient_group_id) return null;
 
     const { data } = await supabase
       .from('patient_group_members')
@@ -137,7 +142,7 @@ export function useRecordsData(period: Period): UseRecordsDataReturn {
       .eq('role', 'patient')
       .single();
 
-    return data?.user_id ?? user.id;
+    return data?.user_id ?? null;
   }, [user]);
 
   const fetchData = useCallback(async () => {
@@ -148,9 +153,13 @@ export function useRecordsData(period: Period): UseRecordsDataReturn {
     try {
       const patientId = await getPatientId();
       if (!patientId) {
+        // 보호자인데 연동 환자가 없으면 안내 카드로 전환(빈 0% 표시 방지).
+        setUnlinkedCaregiver(user.role === 'caregiver');
+        setSummary(null);
         setLoading(false);
         return;
       }
+      setUnlinkedCaregiver(false);
 
       const { current, prev } = getDateRanges(period);
 
@@ -340,5 +349,5 @@ export function useRecordsData(period: Period): UseRecordsDataReturn {
     }
   }, [user, fetchData]);
 
-  return { summary, loading, error, refresh: fetchData };
+  return { summary, loading, error, refresh: fetchData, unlinkedCaregiver };
 }

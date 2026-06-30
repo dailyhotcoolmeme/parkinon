@@ -1,4 +1,4 @@
-import React, { useState, useRef } from 'react';
+import React, { useState, useRef, useEffect } from 'react';
 import {
   View,
   Image,
@@ -12,8 +12,10 @@ import {
   NativeScrollEvent,
   Platform,
 } from 'react-native';
-import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
+import { R2Image } from './R2Image';
+import { getCommunityPhotoUrl } from '../../lib/r2Upload';
 
 const { width: SCREEN_WIDTH, height: SCREEN_HEIGHT } = Dimensions.get('window');
 const CONTENT_PADDING = 20;
@@ -21,16 +23,54 @@ const IMAGE_WIDTH = SCREEN_WIDTH - CONTENT_PADDING * 2;
 
 interface Props {
   urls: string[];
+  // 풀스크린 직행 모드: 값이 있으면(>=0) 인라인 갤러리 단계를 건너뛰고
+  // 해당 인덱스부터 풀스크린 뷰어를 바로 연다. 닫히면 onClose 호출.
+  // (일기처럼 썸네일 탭 → 곧바로 원본 전체사이즈로 띄울 때 사용)
+  // 값이 없으면(undefined) 기존 인라인 갤러리 + 내부 풀스크린 모달 동작(피드 등).
+  initialFullscreenIndex?: number;
+  onClose?: () => void;
+  // 커뮤니티(정보/나눔) 사진처럼 공개 URL 로 즉시 로딩할지 여부.
+  //   true  → 워커 공개 URL(getCommunityPhotoUrl) + 일반 Image (서명 왕복 없음, 빠름)
+  //   false → R2Image(서명 URL) — 의료/일기 등 비공개 사진 (기본값)
+  publicCommunity?: boolean;
 }
 
-export function ImageGalleryViewer({ urls }: Props) {
+export function ImageGalleryViewer({ urls, initialFullscreenIndex, onClose, publicCommunity }: Props) {
   const insets = useSafeAreaInsets();
-  const [modalVisible, setModalVisible] = useState(false);
-  const [currentIndex, setCurrentIndex] = useState(0);
-  const [fullscreenIndex, setFullscreenIndex] = useState(0);
+  const directFullscreen = initialFullscreenIndex != null;
+  const [modalVisible, setModalVisible] = useState(directFullscreen);
+  const [currentIndex, setCurrentIndex] = useState(initialFullscreenIndex ?? 0);
+  const [fullscreenIndex, setFullscreenIndex] = useState(initialFullscreenIndex ?? 0);
   const fullscreenScrollRef = useRef<ScrollView>(null);
 
+  // 풀스크린 직행 모드: 마운트/인덱스 변경 시 해당 페이지로 스크롤
+  useEffect(() => {
+    if (!directFullscreen) return;
+    setModalVisible(true);
+    setFullscreenIndex(initialFullscreenIndex as number);
+    const t = setTimeout(() => {
+      fullscreenScrollRef.current?.scrollTo({
+        x: (initialFullscreenIndex as number) * SCREEN_WIDTH,
+        animated: false,
+      });
+    }, 50);
+    return () => clearTimeout(t);
+  }, [directFullscreen, initialFullscreenIndex]);
+
   if (urls.length === 0) return null;
+
+  // 사진 한 장 렌더: 공개 모드면 일반 Image(공개 URL), 아니면 R2Image(서명 URL).
+  const renderImage = (url: string, style: any) =>
+    publicCommunity ? (
+      <Image source={{ uri: getCommunityPhotoUrl(url) }} style={style} resizeMode="contain" />
+    ) : (
+      <R2Image uri={url} style={style} resizeMode="contain" />
+    );
+
+  const closeFullscreen = () => {
+    setModalVisible(false);
+    onClose?.();
+  };
 
   const handleThumbnailPress = (idx: number) => {
     setFullscreenIndex(idx);
@@ -57,44 +97,42 @@ export function ImageGalleryViewer({ urls }: Props) {
 
   return (
     <>
-      {/* 본문 사진 — 한 장씩 전체 너비 스와이프 */}
-      <View style={styles.galleryWrap}>
-        <ScrollView
-          horizontal
-          pagingEnabled
-          showsHorizontalScrollIndicator={false}
-          style={styles.mediaScroll}
-          onMomentumScrollEnd={handleThumbnailScroll}
-          scrollEventThrottle={16}
-        >
-          {urls.map((url, idx) => (
-            <TouchableOpacity
-              key={idx}
-              onPress={() => handleThumbnailPress(idx)}
-              activeOpacity={0.9}
-              style={styles.mediaPage}
-            >
-              <Image
-                source={{ uri: url }}
-                style={styles.mediaImage}
-                resizeMode="cover"
-              />
-            </TouchableOpacity>
-          ))}
-        </ScrollView>
-
-        {/* 하단 도트 인디케이터 */}
-        {urls.length > 1 && (
-          <View style={styles.inlineDotsRow}>
-            {urls.map((_, idx) => (
-              <View
+      {/* 본문 사진 — 한 장씩 전체 너비 스와이프 (풀스크린 직행 모드에선 인라인 갤러리 생략) */}
+      {!directFullscreen && (
+        <View style={styles.galleryWrap}>
+          <ScrollView
+            horizontal
+            pagingEnabled
+            showsHorizontalScrollIndicator={false}
+            style={styles.mediaScroll}
+            onMomentumScrollEnd={handleThumbnailScroll}
+            scrollEventThrottle={16}
+          >
+            {urls.map((url, idx) => (
+              <TouchableOpacity
                 key={idx}
-                style={[styles.inlineDot, idx === currentIndex && styles.inlineDotActive]}
-              />
+                onPress={() => handleThumbnailPress(idx)}
+                activeOpacity={0.9}
+                style={styles.mediaPage}
+              >
+                {renderImage(url, styles.mediaImage)}
+              </TouchableOpacity>
             ))}
-          </View>
-        )}
-      </View>
+          </ScrollView>
+
+          {/* 하단 도트 인디케이터 */}
+          {urls.length > 1 && (
+            <View style={styles.inlineDotsRow}>
+              {urls.map((_, idx) => (
+                <View
+                  key={idx}
+                  style={[styles.inlineDot, idx === currentIndex && styles.inlineDotActive]}
+                />
+              ))}
+            </View>
+          )}
+        </View>
+      )}
 
       {/* 전체보기 Modal */}
       <Modal
@@ -102,15 +140,16 @@ export function ImageGalleryViewer({ urls }: Props) {
         transparent
         animationType="fade"
         statusBarTranslucent
-        onRequestClose={() => setModalVisible(false)}
+        onRequestClose={closeFullscreen}
       >
         <View style={styles.modalBg}>
-          {/* 상단: X닫기 + 인디케이터 */}
-          <SafeAreaView edges={['top']} style={styles.modalHeader}>
+          {/* 상단: X닫기 + 인디케이터 — 노치/다이나믹아일랜드 회피를 위해 insets.top 반영
+              (Modal 내부 SafeAreaView 는 iOS 에서 불안정해 paddingTop 방식으로 처리) */}
+          <View style={[styles.modalHeader, { paddingTop: insets.top }]}>
             <View style={styles.modalHeaderRow}>
               <TouchableOpacity
                 style={styles.closeBtn}
-                onPress={() => setModalVisible(false)}
+                onPress={closeFullscreen}
                 activeOpacity={0.8}
               >
                 <Ionicons name="close" size={28} color="#fff" />
@@ -120,7 +159,7 @@ export function ImageGalleryViewer({ urls }: Props) {
                 {fullscreenIndex + 1}/{urls.length}
               </Text>
             </View>
-          </SafeAreaView>
+          </View>
 
           {/* 이미지 페이지 스와이프 */}
           <ScrollView
@@ -136,14 +175,10 @@ export function ImageGalleryViewer({ urls }: Props) {
               <TouchableOpacity
                 key={idx}
                 style={styles.fullscreenPage}
-                onPress={() => setModalVisible(false)}
+                onPress={closeFullscreen}
                 activeOpacity={1}
               >
-                <Image
-                  source={{ uri: url }}
-                  style={styles.fullscreenImage}
-                  resizeMode="contain"
-                />
+                {renderImage(url, styles.fullscreenImage)}
               </TouchableOpacity>
             ))}
           </ScrollView>

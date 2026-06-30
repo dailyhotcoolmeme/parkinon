@@ -24,6 +24,7 @@ import { useState, useCallback } from 'react';
 import { supabase } from '../lib/supabase';
 import { useAuth } from '../context/AuthContext';
 import { ensureGroupMember } from '../utils/groupMembership';
+import { invalidatePatientIdCache } from './usePatientId';
 import type { Database } from '../types/database';
 
 const SUPABASE_URL = process.env.EXPO_PUBLIC_SUPABASE_URL!;
@@ -53,6 +54,31 @@ export interface UseFamilyLinkReturn {
 // 6자리 숫자 코드 생성
 function generateCode(): string {
   return Math.floor(100000 + Math.random() * 900000).toString();
+}
+
+// 직접 fetch 호출 타임아웃(ms). New Architecture 에서 네트워크 hang 시 화면이
+// 먹통 되는 것을 막기 위한 가드. 로직/엔드포인트/순서는 그대로 두고 타임아웃만 추가.
+const FAMILY_FETCH_TIMEOUT_MS = 8000;
+
+// fetch + AbortController 타임아웃 래퍼. 타임아웃 시 명확한 에러를 throw 하여
+// 호출처(try/catch)가 처리하도록 한다. 응답이 오면 원래 fetch 와 동일하게 동작.
+async function fetchWithTimeout(
+  input: string,
+  init?: RequestInit,
+  timeoutMs: number = FAMILY_FETCH_TIMEOUT_MS,
+): Promise<Response> {
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), timeoutMs);
+  try {
+    return await fetch(input, { ...(init ?? {}), signal: controller.signal });
+  } catch (err: any) {
+    if (err?.name === 'AbortError') {
+      throw new Error(`요청 시간이 초과됐어요. 잠시 후 다시 시도해주세요. (timeout ${timeoutMs}ms)`);
+    }
+    throw err;
+  } finally {
+    clearTimeout(timer);
+  }
 }
 
 // fetch API용 공통 헤더 생성
@@ -101,7 +127,7 @@ export function useFamilyLink(): UseFamilyLinkReturn {
       if (currentGroupId) {
         // ── 기존 그룹이 있는 경우: 코드만 갱신, 새 그룹 생성 안 함 ──
         const headers = await buildHeaders('return=minimal');
-        const res = await fetch(
+        const res = await fetchWithTimeout(
           `${SUPABASE_URL}/rest/v1/patient_groups?id=eq.${encodeURIComponent(currentGroupId)}`,
           {
             method: 'PATCH',
@@ -121,7 +147,7 @@ export function useFamilyLink(): UseFamilyLinkReturn {
 
       // ── 그룹이 없는 경우: 새 그룹 생성 ──
       const insertHeaders = await buildHeaders('return=representation');
-      const insertRes = await fetch(`${SUPABASE_URL}/rest/v1/patient_groups`, {
+      const insertRes = await fetchWithTimeout(`${SUPABASE_URL}/rest/v1/patient_groups`, {
         method: 'POST',
         headers: insertHeaders,
         body: JSON.stringify({
@@ -143,7 +169,7 @@ export function useFamilyLink(): UseFamilyLinkReturn {
 
       // users 테이블의 patient_group_id 업데이트 (fetch PATCH)
       const userUpdateHeaders = await buildHeaders('return=minimal');
-      const userUpdateRes = await fetch(
+      const userUpdateRes = await fetchWithTimeout(
         `${SUPABASE_URL}/rest/v1/users?id=eq.${encodeURIComponent(user.id)}`,
         {
           method: 'PATCH',
@@ -169,80 +195,22 @@ export function useFamilyLink(): UseFamilyLinkReturn {
   }, [user, refreshUser]);
 
   // ─────────────────────────────────────────────────────────────────────────
-  // _doJoin: 실제 그룹 합류 처리 (기존 그룹 정리 → 새 그룹 멤버 추가 → users 업데이트)
-  // skipOldGroupId: 이미 삭제 처리된 그룹 ID (재삭제 방지)
+  // [제거됨] _doJoin: 클라가 "입력자 본인"을 강제 이동시키던 위험 분기.
+  //   환자가 거꾸로 코드를 입력하면 환자가 기존 그룹을 떠나 보호자 연동이 끊겼다.
+  //   → 방향-무관 안전 처리는 서버 SECURITY DEFINER RPC(join_family_by_code)로 일원화.
   // ─────────────────────────────────────────────────────────────────────────
-  const _doJoin = useCallback(async (
-    targetGroupId: string,
-    oldGroupId: string | null | undefined,
-    deleteOldGroup: boolean
-  ): Promise<{ success: boolean; message: string }> => {
-    if (!user) return { success: false, message: '로그인이 필요해요.' };
-
-    // 1) 기존 멤버십 삭제
-    if (oldGroupId && oldGroupId !== targetGroupId) {
-      const deleteHeaders = await buildHeaders('return=minimal');
-      const delRes = await fetch(
-        `${SUPABASE_URL}/rest/v1/patient_group_members` +
-          `?group_id=eq.${encodeURIComponent(oldGroupId)}` +
-          `&user_id=eq.${encodeURIComponent(user.id)}`,
-        { method: 'DELETE', headers: deleteHeaders }
-      );
-      if (!delRes.ok) {
-        const errText = await delRes.text();
-        throw new Error(`기존 멤버십 삭제 실패 (HTTP ${delRes.status}): ${errText}`);
-      }
-
-      // 2) 기존 그룹이 이제 빈 그룹이면 그룹 자체도 삭제
-      if (deleteOldGroup) {
-        const { count } = await supabase
-          .from('patient_group_members')
-          .select('id', { count: 'exact', head: true })
-          .eq('group_id', oldGroupId);
-
-        if ((count ?? 0) === 0) {
-          const groupDeleteHeaders = await buildHeaders('return=minimal');
-          await fetch(
-            `${SUPABASE_URL}/rest/v1/patient_groups?id=eq.${encodeURIComponent(oldGroupId)}`,
-            { method: 'DELETE', headers: groupDeleteHeaders }
-          );
-        }
-      }
-    }
-
-    // 3) 새 그룹에 멤버 추가 (재시도 + 검증, 실패 시 throw → 멤버 누락 방지)
-    //    이 행이 patient_group_members에 반드시 들어가야 RLS is_same_patient_group()이
-    //    true가 되어 같은 그룹 가족 정보가 정상 노출된다.
-    const baseHeaders = await buildHeaders();
-    await ensureGroupMember(SUPABASE_URL, baseHeaders, targetGroupId, user.id, user.role ?? 'caregiver');
-
-    // 4) users 테이블의 patient_group_id 업데이트
-    const userUpdateHeaders = await buildHeaders('return=minimal');
-    const userUpdateRes = await fetch(
-      `${SUPABASE_URL}/rest/v1/users?id=eq.${encodeURIComponent(user.id)}`,
-      {
-        method: 'PATCH',
-        headers: userUpdateHeaders,
-        body: JSON.stringify({ patient_group_id: targetGroupId }),
-      }
-    );
-    if (!userUpdateRes.ok) {
-      const errText = await userUpdateRes.text();
-      throw new Error(`사용자 업데이트 실패 (HTTP ${userUpdateRes.status}): ${errText}`);
-    }
-
-    await refreshUser();
-    return { success: true, message: '가족 연동이 완료됐어요.' };
-  }, [user, refreshUser]);
 
   // ─────────────────────────────────────────────────────────────────────────
-  // joinByCode
-  // - 기존 그룹 없음 → 바로 합류
-  // - 기존 그룹 있고 솔로(혼자만) → 기존 그룹 및 멤버십 삭제 후 합류
-  // - 기존 그룹 있고 다른 멤버도 있음 → needsConfirm: true 반환 (화면에서 Alert 처리)
+  // _callJoinRpc: 방향-무관 안전 합류/병합 RPC 호출 (SECURITY DEFINER)
+  //   서버가 4-사실(입력자 role / 발급그룹 환자유무 / 내 그룹 환자유무 / 보호자 동반)을
+  //   재검증하여 환자 이동·환자2명을 원천 차단한다. 클라는 결과 사유코드만 매핑.
+  //   - code='need_confirm_switch' → needsConfirm: true (화면에서 확인 후 force 재호출)
+  //   - 그 외 ok=false → 안내 메시지 그대로 노출
+  //   ⚠️ New Architecture: supabase-js .rpc()도 fetch로 직접 호출(쓰기 hang 우회).
   // ─────────────────────────────────────────────────────────────────────────
-  const joinByCode = useCallback(async (
-    code: string
+  const _callJoinRpc = useCallback(async (
+    code: string,
+    force: boolean
   ): Promise<{ success: boolean; message: string; needsConfirm?: boolean }> => {
     if (!user) return { success: false, message: '로그인이 필요해요.' };
 
@@ -251,129 +219,73 @@ export function useFamilyLink(): UseFamilyLinkReturn {
 
     try {
       const trimmedCode = code.trim();
+      const headers = await buildHeaders();
+      const res = await fetchWithTimeout(`${SUPABASE_URL}/rest/v1/rpc/join_family_by_code`, {
+        method: 'POST',
+        headers,
+        body: JSON.stringify({ p_code: trimmedCode, p_force: force }),
+      });
 
-      // 유효한 초대 코드 조회 (만료 전) — SELECT는 supabase-js 그대로 사용
-      const { data: group, error: groupError } = await supabase
-        .from('patient_groups')
-        .select('id, invite_code_expires_at')
-        .eq('invite_code', trimmedCode)
-        .gt('invite_code_expires_at', new Date().toISOString())
-        .single();
-
-      if (groupError || !group) {
-        return {
-          success: false,
-          message: '유효하지 않은 코드예요. 다시 확인해주세요.',
-        };
+      if (!res.ok) {
+        const errText = await res.text().catch(() => '');
+        console.warn('[useFamilyLink] join_family_by_code HTTP 오류:', res.status, errText);
+        return { success: false, message: '연동 중 문제가 생겼어요. 잠시 후 다시 시도해주세요.' };
       }
 
-      // 이미 같은 그룹에 있는지 확인
-      const { data: existingMember } = await supabase
-        .from('patient_group_members')
-        .select('id')
-        .eq('group_id', group.id)
-        .eq('user_id', user.id)
-        .single();
+      // RPC는 jsonb 단일 반환 → { ok, code, message }
+      const result: { ok?: boolean; code?: string; message?: string } = await res.json();
+      const reason = result?.code ?? 'error';
+      const message = result?.message ?? '연동 중 문제가 생겼어요.';
 
-      if (existingMember) {
-        return { success: false, message: '이미 연동된 가족이에요.' };
+      if (result?.ok) {
+        // 멤버십/그룹이 서버에서 바뀌었으므로 로컬 user 갱신 (patient_group_id 동기화)
+        // + 그룹 환자 매핑 캐시 무효화(stale patientId 방지)
+        invalidatePatientIdCache();
+        await refreshUser();
+        return { success: true, message };
       }
 
-      // DB에서 최신 patient_group_id 재조회 (race condition 방지)
-      const { data: freshUser } = await supabase
-        .from('users')
-        .select('patient_group_id')
-        .eq('id', user.id)
-        .single();
-
-      const currentGroupId = freshUser?.patient_group_id ?? user.patient_group_id;
-
-      if (currentGroupId && currentGroupId !== group.id) {
-        // 기존 그룹에 실제 환자가 있는지 확인 (환자:보호자 = 1:N 구조)
-        // 환자가 있으면 → 연동 해제 확인 필요
-        // 환자 없이 보호자만 있는 솔로/임시 그룹이면 → 그냥 이동
-        const { data: patientInGroup } = await supabase
-          .from('patient_group_members')
-          .select('id')
-          .eq('group_id', currentGroupId)
-          .eq('role', 'patient')
-          .limit(1)
-          .maybeSingle();
-
-        if (patientInGroup) {
-          // ── 기존 그룹에 환자가 있는 경우 → 확인 Alert 필요 ──
-          return {
-            success: false,
-            needsConfirm: true,
-            message: '현재 연동된 환자가 있어요. 기존 연동을 끊고 새로 연동하시겠어요?',
-          };
-        }
-
-        // ── 환자 없는 임시 그룹인 경우 → 기존 그룹 정리 후 새 그룹 합류 ──
-        return await _doJoin(group.id, currentGroupId, true);
+      if (reason === 'need_confirm_switch') {
+        // 보호자가 다른 가족으로 갈아타기 → 화면에서 확인 후 force 재호출
+        return { success: false, needsConfirm: true, message };
       }
 
-      // ── 기존 그룹 없음 → 바로 합류 ──
-      return await _doJoin(group.id, null, false);
+      // two_patients / invalid_code / already_member / error 등 → 안내만
+      return { success: false, message };
     } catch (err: any) {
-      console.error('[useFamilyLink] joinByCode 오류:', err);
+      console.error('[useFamilyLink] join_family_by_code 오류:', err);
       const message = err.message ?? '연동 중 오류가 발생했어요.';
       setError(message);
       return { success: false, message };
     } finally {
       setLoading(false);
     }
-  }, [user, refreshUser, _doJoin]);
+  }, [user, refreshUser]);
+
+  // ─────────────────────────────────────────────────────────────────────────
+  // joinByCode — 방향-무관 안전 합류 (신규 RPC 경유)
+  //   기존 "환자 이동(_doJoin force)" 위험 분기를 서버 RPC로 대체.
+  //   - 보호자→환자그룹: 합류 / 보호자→보호자선그룹: 합류
+  //   - 환자→보호자선그룹(내 환자그룹 보유): 환자 이동 없이 보호자 끌어오기(서버 처리)
+  //   - 환자2명/만료/중복: 서버 거부
+  //   - 보호자 갈아타기: needsConfirm → 화면 확인 후 joinByCodeForce
+  // ─────────────────────────────────────────────────────────────────────────
+  const joinByCode = useCallback(async (
+    code: string
+  ): Promise<{ success: boolean; message: string; needsConfirm?: boolean }> => {
+    return _callJoinRpc(code, false);
+  }, [_callJoinRpc]);
 
   // ─────────────────────────────────────────────────────────────────────────
   // joinByCodeForce
-  // 화면에서 "기존 연동 끊고 새로 연동" 확인 Alert → 예 선택 시 호출
-  // needsConfirm 상황에서 강제로 합류 처리
+  // 화면에서 "기존 연동 끊고 새로 연동" 확인 Alert → 예 선택 시 호출 (force=true)
   // ─────────────────────────────────────────────────────────────────────────
   const joinByCodeForce = useCallback(async (
     code: string
   ): Promise<{ success: boolean; message: string }> => {
-    if (!user) return { success: false, message: '로그인이 필요해요.' };
-
-    setLoading(true);
-    setError(null);
-
-    try {
-      const trimmedCode = code.trim();
-
-      const { data: group, error: groupError } = await supabase
-        .from('patient_groups')
-        .select('id, invite_code_expires_at')
-        .eq('invite_code', trimmedCode)
-        .gt('invite_code_expires_at', new Date().toISOString())
-        .single();
-
-      if (groupError || !group) {
-        return {
-          success: false,
-          message: '유효하지 않은 코드예요. 다시 확인해주세요.',
-        };
-      }
-
-      const { data: freshUser } = await supabase
-        .from('users')
-        .select('patient_group_id')
-        .eq('id', user.id)
-        .single();
-
-      const currentGroupId = freshUser?.patient_group_id ?? user.patient_group_id;
-
-      // 기존 그룹과 멤버십 삭제 후 새 그룹 합류 (그룹은 빈 경우만 삭제)
-      return await _doJoin(group.id, currentGroupId, true);
-    } catch (err: any) {
-      console.error('[useFamilyLink] joinByCodeForce 오류:', err);
-      const message = err.message ?? '연동 중 오류가 발생했어요.';
-      setError(message);
-      return { success: false, message };
-    } finally {
-      setLoading(false);
-    }
-  }, [user, refreshUser, _doJoin]);
+    const { success, message } = await _callJoinRpc(code, true);
+    return { success, message };
+  }, [_callJoinRpc]);
 
   // ─────────────────────────────────────────────────────────────────────────
   // getGroupMembers — SELECT이므로 supabase-js 사용 가능하나 fetch API 직접 사용
@@ -403,7 +315,7 @@ export function useFamilyLink(): UseFamilyLinkReturn {
         `&user_id=neq.${encodeURIComponent(user.id)}` +
         `&select=user_id,role,joined_at,user:users(id,name,role,caregiver_relation,residence_type)`;
 
-      const res = await fetch(url, {
+      const res = await fetchWithTimeout(url, {
         method: 'GET',
         headers: {
           'apikey': SUPABASE_ANON_KEY,
@@ -483,7 +395,7 @@ export function useFamilyLink(): UseFamilyLinkReturn {
     try {
       // 1) 내 patient_group_members 행만 삭제
       const delMemberHeaders = await buildHeaders('return=minimal');
-      const delMemberRes = await fetch(
+      const delMemberRes = await fetchWithTimeout(
         `${SUPABASE_URL}/rest/v1/patient_group_members` +
           `?group_id=eq.${encodeURIComponent(groupId)}` +
           `&user_id=eq.${encodeURIComponent(user.id)}`,
@@ -496,7 +408,7 @@ export function useFamilyLink(): UseFamilyLinkReturn {
 
       // 2) 내 users.patient_group_id = null 설정
       const patchUserHeaders = await buildHeaders('return=minimal');
-      const patchUserRes = await fetch(
+      const patchUserRes = await fetchWithTimeout(
         `${SUPABASE_URL}/rest/v1/users?id=eq.${encodeURIComponent(user.id)}`,
         {
           method: 'PATCH',
@@ -518,12 +430,14 @@ export function useFamilyLink(): UseFamilyLinkReturn {
       // 4) 남은 멤버가 0명이면 빈 그룹도 삭제
       if ((count ?? 0) === 0) {
         const delGroupHeaders = await buildHeaders('return=minimal');
-        await fetch(
+        await fetchWithTimeout(
           `${SUPABASE_URL}/rest/v1/patient_groups?id=eq.${encodeURIComponent(groupId)}`,
           { method: 'DELETE', headers: delGroupHeaders }
         );
       }
 
+      // 그룹 환자 매핑 캐시 무효화(탈퇴/해체로 stale 방지)
+      invalidatePatientIdCache(groupId);
       await refreshUser();
       return true;
     } catch (err: any) {

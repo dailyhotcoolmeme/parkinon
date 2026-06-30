@@ -1,6 +1,7 @@
 import React from 'react';
 import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
 import { createStackNavigator } from '@react-navigation/stack';
+import { CommonActions, NavigatorScreenParams } from '@react-navigation/native';
 import { View, Text, StyleSheet } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
@@ -9,16 +10,16 @@ import { MedicationScreen } from '../screens/medication/MedicationScreen';
 import { BodyStateScreen } from '../screens/bodystate/BodyStateScreen';
 import { VideoRecordScreen } from '../screens/bodystate/VideoRecordScreen';
 import { VideoListScreen } from '../screens/bodystate/VideoListScreen';
-import { ExerciseNavigator } from './ExerciseNavigator';
-import { FeedNavigator } from './FeedNavigator';
-import { MenuNavigator } from './MenuNavigator';
+import { ExerciseNavigator, ExerciseStackParamList } from './ExerciseNavigator';
+import { FeedNavigator, FeedStackParamList } from './FeedNavigator';
+import { MenuNavigator, MenuStackParamList } from './MenuNavigator';
 
 export type MainTabParamList = {
   Medication: undefined;
-  BodyStateTab: undefined;
-  Exercise: undefined;
-  Feed: undefined;
-  MyInfo: undefined;
+  BodyStateTab: NavigatorScreenParams<BodyStateStackParamList>;
+  Exercise: NavigatorScreenParams<ExerciseStackParamList>;
+  Feed: NavigatorScreenParams<FeedStackParamList>;
+  MyInfo: NavigatorScreenParams<MenuStackParamList>;
 };
 
 export type BodyStateStackParamList = {
@@ -138,8 +139,23 @@ export function MainNavigator() {
         name="MyInfo"
         component={MenuNavigator}
         listeners={({ navigation }) => ({
-          tabPress: () => {
-            navigation.navigate('MyInfo', { screen: 'MenuHome' });
+          // 메뉴 탭을 누르면 항상 메뉴 최상단(MenuHome)을 보여준다.
+          // 단순 navigate('MyInfo',{screen:'MenuHome'}) 는 MyInfo 스택에 push 돼 잔류한
+          // MedicationManage(배너 진입 등) 위로 못 올라가, 로그아웃·탈퇴가 있는 메뉴로
+          // 못 돌아가는 '갇힘'이 발생한다. → MyInfo 중첩 스택을 MenuHome 단일로 리셋한다.
+          tabPress: (e) => {
+            e.preventDefault();
+            navigation.dispatch({
+              ...CommonActions.navigate({
+                name: 'MyInfo',
+                params: {
+                  state: {
+                    index: 0,
+                    routes: [{ name: 'MenuHome' }],
+                  },
+                },
+              }),
+            });
           },
         })}
       />

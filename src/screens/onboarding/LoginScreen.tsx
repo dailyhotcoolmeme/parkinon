@@ -15,7 +15,8 @@ import * as Crypto from 'expo-crypto';
 
 // 애플 개발자 계정 승인 후 OTA로 true로 변경
 const APPLE_LOGIN_ENABLED = true;
-import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
+import { SafeAreaView } from 'react-native-safe-area-context';
+import { useBottomSheetPadding } from '../../hooks/useBottomSheetPadding';
 import { useNavigation } from '@react-navigation/native';
 import type { StackNavigationProp } from '@react-navigation/stack';
 import AsyncStorage from '@react-native-async-storage/async-storage';
@@ -37,7 +38,7 @@ export function LoginScreen() {
   const dialog = useDialog();
   const [signing, setSigning] = useState(false);
   const oauthStarted = useRef(false);
-  const { bottom: bottomInset } = useSafeAreaInsets();
+  const bottomPadding = useBottomSheetPadding(24);
   const kakaoStarted = oauthStarted; // 하위 호환
   const signingTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
@@ -108,17 +109,26 @@ export function LoginScreen() {
         signingTimeoutRef.current = null;
       }
       if (!user.onboarding_done) {
-        // 민감정보 동의 여부 확인: DB(계정 단위) 우선, 캐시(AsyncStorage) 보조
-        // DB의 sensitive_info_consented는 UserProfile에 포함됨
-        const dbConsented = (user as any).sensitive_info_consented === true;
-        if (dbConsented) {
-          // DB에서 이미 동의 확인 → AsyncStorage 캐시도 갱신
-          AsyncStorage.setItem('sensitive_info_consented', 'true').catch(() => {});
+        // 동의 여부 확인: DB(계정 단위) 우선, 캐시(AsyncStorage) 보조
+        // 건강정보(민감정보) 동의 + 국외 이전 동의 둘 다 받아야 통과.
+        // (국외 이전 동의는 신규 수집 항목 — 기존 사용자도 이 화면을 한 번 더 보게 됨)
+        const dbHealthConsented = (user as any).sensitive_info_consented === true;
+        const dbTransferConsented = (user as any).international_transfer_consented === true;
+        if (dbHealthConsented && dbTransferConsented) {
+          // DB에서 두 동의 모두 확인 → AsyncStorage 캐시도 갱신
+          AsyncStorage.multiSet([
+            ['sensitive_info_consented', 'true'],
+            ['international_transfer_consented', 'true'],
+          ]).catch(() => {});
           navigation.replace('FamilyCheck');
         } else {
-          // DB에 없으면 AsyncStorage 캐시 확인 (오프라인 or 기존 사용자 호환)
-          AsyncStorage.getItem('sensitive_info_consented').then((consented) => {
-            if (consented === 'true') {
+          // DB에 없으면 AsyncStorage 캐시 확인 (오프라인 호환) — 둘 다 동의돼야 통과
+          AsyncStorage.multiGet([
+            'sensitive_info_consented',
+            'international_transfer_consented',
+          ]).then((pairs) => {
+            const map = Object.fromEntries(pairs);
+            if (map['sensitive_info_consented'] === 'true' && map['international_transfer_consented'] === 'true') {
               navigation.replace('FamilyCheck');
             } else {
               navigation.replace('SensitiveInfoConsent');
@@ -193,7 +203,7 @@ export function LoginScreen() {
         <Image source={require('../../../assets/parkinon-logo.png')} style={styles.logoImage} />
       </View>
 
-      <View style={[styles.bottomArea, { paddingBottom: 40 + bottomInset }]}>
+      <View style={[styles.bottomArea, { paddingBottom: bottomPadding }]}>
         <TouchableOpacity
           style={[styles.kakaoBtn, signing && styles.kakaoBtnDisabled]}
           onPress={handleKakaoLogin}
@@ -203,7 +213,7 @@ export function LoginScreen() {
           {signing ? (
             <>
               <ActivityIndicator color="#3C1E1E" />
-              <Text style={styles.kakaoText}>로그인 중...</Text>
+              <Text style={styles.kakaoText}>로그인 중…</Text>
             </>
           ) : (
             <>
@@ -222,7 +232,7 @@ export function LoginScreen() {
           {signing ? (
             <>
               <ActivityIndicator color="#444" />
-              <Text style={styles.googleText}>로그인 중...</Text>
+              <Text style={styles.googleText}>로그인 중…</Text>
             </>
           ) : (
             <>
@@ -242,7 +252,7 @@ export function LoginScreen() {
             {signing ? (
               <>
                 <ActivityIndicator color="#fff" />
-                <Text style={styles.appleText}>로그인 중...</Text>
+                <Text style={styles.appleText}>로그인 중…</Text>
               </>
             ) : (
               <>
@@ -322,6 +332,7 @@ const styles = StyleSheet.create({
   },
   bottomArea: {
     paddingHorizontal: 24,
+    paddingTop: 16,
   },
   kakaoBtn: {
     flexDirection: 'row',
@@ -329,9 +340,9 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     backgroundColor: '#FEE500',
     borderRadius: 12,
-    minHeight: 60,
+    minHeight: 56,
     gap: 10,
-    marginBottom: 16,
+    marginBottom: 12,
   },
   kakaoBtnDisabled: {
     opacity: 0.7,
@@ -365,9 +376,9 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     backgroundColor: '#000000',
     borderRadius: 12,
-    minHeight: 60,
+    minHeight: 56,
     gap: 10,
-    marginBottom: 16,
+    marginBottom: 12,
   },
   appleBtnDisabled: {
     backgroundColor: '#1a1a1a',
@@ -387,9 +398,9 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     backgroundColor: Colors.white,
     borderRadius: 12,
-    minHeight: 60,
+    minHeight: 56,
     gap: 10,
-    marginBottom: 16,
+    marginBottom: 12,
   },
   googleText: {
     fontSize: 18,

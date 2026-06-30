@@ -7,6 +7,7 @@ import { NotificationBadgeProvider, useNotificationBadge } from './src/context/N
 import { SettingsProvider } from './src/context/SettingsContext';
 import { DialogProvider } from './src/context/DialogContext';
 import { RootNavigator } from './src/navigation/RootNavigator';
+import { ErrorBoundary, LAST_JS_ERROR_KEY } from './src/components/common/ErrorBoundary';
 import * as Notifications from 'expo-notifications';
 import { navigateTo } from './src/navigation/navigationRef';
 import * as Updates from 'expo-updates';
@@ -58,6 +59,21 @@ function AppInner() {
   const handledContentKeys = useRef<Map<string, number>>(new Map());
   const backgroundEnteredAtRef = useRef<number | null>(null);
   const otaInFlightRef = useRef(false);
+
+  // 앱 시작 시 직전 세션에서 ErrorBoundary 가 잡은 마지막 JS 오류가 있으면 console.warn 으로 노출.
+  //   → 렌더 단계 throw 로 앱이 닫혔던 경우, 다음 실행에서 폰 로그로 원인을 확인할 수 있게 한다.
+  useEffect(() => {
+    (async () => {
+      try {
+        const raw = await AsyncStorage.getItem(LAST_JS_ERROR_KEY);
+        if (raw) {
+          console.warn('[App] 직전 세션 JS 오류(ErrorBoundary 캡처):', raw);
+        }
+      } catch (e) {
+        console.warn('[App] 마지막 JS 오류 조회 실패:', e);
+      }
+    })();
+  }, []);
 
   // 앱 시작 시마다 push_token DB 갱신 (세션이 있는 경우 무조건 시도)
   useEffect(() => {
@@ -139,7 +155,14 @@ function AppInner() {
         if (otaInFlightRef.current) return;
         otaInFlightRef.current = true;
 
+        // (성능) 알림 탭으로 막 복귀한 경우, OTA 체크의 네트워크가 알림 진입 임계 구간
+        //   (navigate + 약효추적/복용 팝업 데이터 조회)과 경쟁해 진입을 지연시킬 수 있다.
+        //   OTA 체크 자체는 그대로 유지하되(절대 제거 금지 — CLAUDE.md), 진입 직후가 아닌
+        //   짧은 idle 후로만 미룬다. 발견 시 reload 동작은 동일.
         try {
+          await new Promise((r) => setTimeout(r, 4000));
+          // idle 대기 중 다시 백그라운드로 갔으면(현재 비활성) skip — 다음 복귀에서 재시도.
+          if (AppState.currentState !== 'active') return;
           const update = await Updates.checkForUpdateAsync();
           if (update.isAvailable) {
             await Updates.fetchUpdateAsync();
@@ -171,12 +194,15 @@ function AppInner() {
       const data = (content.data ?? {}) as Record<string, any>;
       const type = data?.type as string | undefined;
 
-      // 디버그 로깅용 user_id (한 번만 fetch)
+      // 디버그 로깅용 user_id — (성능) navigate 를 막지 않도록 await 하지 않고 백그라운드 fetch.
+      //   운영 빌드에선 logNotificationEvent 가 no-op 이라 이 값이 잠시 null 이어도 무방하다.
       let _debugUserId: string | null = null;
-      try {
-        const { data: { session } } = await supabase.auth.getSession();
-        _debugUserId = session?.user?.id ?? null;
-      } catch {}
+      void (async () => {
+        try {
+          const { data: { session } } = await supabase.auth.getSession();
+          _debugUserId = session?.user?.id ?? null;
+        } catch {}
+      })();
       const log = (event: string, payload?: any) => {
         logNotificationEvent({
           userId: _debugUserId,
@@ -203,36 +229,153 @@ function AppInner() {
           : _notifDateRaw
           ? new Date(_notifDateRaw).getTime()
           : null;
+      // 약 복용 계열 알림 식별 (medication 분기에 해당하는 타입 집합 — 아래 normal-path 분기와 동일)
+      const _isMedicationType =
+        type === 'medication_reminder' ||
+        type === 'missed_medication' ||
+        type === 'missed_medication_first' ||
+        type === 'missed_medication_second';
+
+      // 타입별 stale(soft-nav) 임계값.
+      //   - 약 복용 계열(_isMedicationType): 면제(Infinity) — [버그수정 A]. 시트의 "○○약 드셨나요?"
+      //       확인 다이얼로그(confirmAndRecordSlot)를 거치므로 자동기록 사고가 없어 안전.
+      //   - 약효추적(effect_tracking): warm 탭은 사용자가 "방금" 누른 것이므로 알림 나이와 무관하게
+      //       정상 처리해야 한다(Infinity). cold-start만 6시간 가드로 전날 캐시 재전달(어제 알림이
+      //       오늘 cold start에 surfacing)을 막는다.
+      //       · 안전성: 약효추적 normal 경로는 입력 팝업(BodyStatePopupFlow, 수동 점수 입력)을 열 뿐
+      //         자동기록을 하지 않으므로 "자동기록 사고" 위험이 없다(과거 주석의 우려는 약효추적엔 무효).
+      //       · 중복: 이미 탭/처리된 알림의 cold-start 재전달은 영구 isProcessed(아래 게이트)가 별도 차단.
+      //       · [버그] 기존 5분 컷오프는 60대 환자가 알림을 5~12분 뒤 누르면(정상 행동) stale로 떨어져
+      //         pendingBodyStateNotif·triggerMinutes 를 안 실어 BodyState 탭만 뜨고 팝업이 안 열렸다.
+      //         (서버데이터: 6/28 저녁약 30분후 알림을 ~6~12분 뒤 탭 → soft-nav → on_off_logs 미기록 확인.)
+      //   - 그 외 타입: 기존 5분 유지.
+      const staleSoftNavMs = _isMedicationType
+        ? Infinity
+        : type === 'effect_tracking'
+        ? (isColdStart ? 6 * 60 * 60 * 1000 : Infinity)
+        : 5 * 60 * 1000;
+
       if (_notifDateMs && !Number.isNaN(_notifDateMs)) {
         const ageMs = Date.now() - _notifDateMs;
-        if (ageMs > 5 * 60 * 1000) {
-          log('notification_too_old', {
+        if (ageMs > staleSoftNavMs) {
+          // ── 오래된(stale) 알림 = "약한 처리(soft-nav)" ──
+          // 묵은(예: 어제) 알림을 누른 경우, 자동선택/자동기록은 절대 하지 않는다
+          //  (pendingMedNotif/emit/autoOpen, pendingBodyStateNotif, pendingExerciseNotif 세팅 안 함 →
+          //   "지금 드셨나요?" 자동 팝업으로 잘못 기록되는 사고 방지 — 기존 안전 목적 유지).
+          // 대신: ① 탭한 type에 맞는 탭/화면으로 일반 진입만 하고
+          //       ② 그 알림을 읽음 처리해 종 배지에서 빠지게 하며
+          //       ③ dedupe + markProcessed로 콜드스타트 무한 재시도를 막는다.
+          // 전체를 try/catch로 감싸 절대 크래시 안 나게 한다.
+          log('notification_too_old_soft_nav', {
             ageMs,
             notifDate: _notifDateMs,
             notifId,
+            type,
           });
+          try {
+            // (a) 동기 dedupe — 같은 알림 동시/재진입 차단. isProcessed면 이미 처리됨 → 종료.
+            if (handledNotifIds.current.has(notifId)) {
+              log('soft_nav_dedupe_blocked', { by: 'notifId', notifId });
+              return;
+            }
+            handledNotifIds.current.add(notifId);
+            if (await isProcessed(notifId)) {
+              log('soft_nav_persistent_dedupe_blocked', { notifId });
+              return;
+            }
+
+            // (b) 읽음 처리 → 배지 정리 (자동기록과 무관, 안전)
+            //   (성능) navigate 를 막지 않도록 fire-and-forget. 읽음·배지는 진입 뒤 반영돼도 무방.
+            void (async () => {
+              try {
+                await saveNotification(
+                  type ?? '',
+                  content.title ?? '',
+                  content.body ?? '',
+                  data,
+                  new Date().toISOString(),
+                );
+                refreshBadge();
+                log('soft_nav_mark_read_done');
+              } catch (readErr: any) {
+                log('soft_nav_mark_read_failed', { error: String(readErr?.message ?? readErr) });
+              }
+            })();
+
+            // (c) 콜드스타트면 nav 준비 대기 (warm은 이미 준비됨)
+            if (isColdStart) {
+              const ready = await (async (): Promise<boolean> =>
+                new Promise((resolve) => {
+                  const tryReady = (retryCount = 0) => {
+                    const { navigationRef: navRef } = require('./src/navigation/navigationRef');
+                    if (navRef.isReady()) return resolve(true);
+                    if (retryCount >= 20) return resolve(false);
+                    setTimeout(() => tryReady(retryCount + 1), 100);
+                  };
+                  tryReady();
+                }))();
+              if (!ready) {
+                // nav 미준비 → dedupe 풀고 다음 경로(warm listener) 재시도 허용
+                handledNotifIds.current.delete(notifId);
+                log('soft_nav_exit', { reason: 'nav_not_ready' });
+                return;
+              }
+            }
+
+            // (d) 자동선택/자동기록 트리거 없이 탭/화면으로만 일반 진입
+            //     (autoOpen·pending·emit 일절 세팅 안 함)
+            if (
+              type === 'medication_reminder' ||
+              type === 'missed_medication' ||
+              type === 'missed_medication_first' ||
+              type === 'missed_medication_second'
+            ) {
+              log('soft_nav_navigate', { target: 'Medication' });
+              navigateTo('Main', { screen: 'Medication' });
+            } else if (type === 'effect_tracking') {
+              log('soft_nav_navigate', { target: 'BodyState' });
+              navigateTo('Main', { screen: 'BodyStateTab', params: { screen: 'BodyState' } });
+            } else if (type === 'exercise_reminder') {
+              log('soft_nav_navigate', { target: 'Exercise' });
+              navigateTo('Main', { screen: 'Exercise' });
+            } else if (type === 'appointment_reminder') {
+              log('soft_nav_navigate', { target: 'MedicalRecordList' });
+              navigateTo('Main', { screen: 'MyInfo', params: { screen: 'MedicalRecordList' } });
+            } else {
+              log('soft_nav_navigate', { target: 'Main' });
+              navigateTo('Main');
+            }
+
+            // (e) 영구 dedupe 마킹 — 재진입(콜드스타트 재평가 등) 무한 처리 방지
+            markProcessed(notifId).catch(() => {});
+            log('soft_nav_exit', { success: true });
+          } catch (e: any) {
+            log('soft_nav_exit', { success: false, error: String(e?.message ?? e) });
+          }
           return;
         }
       }
 
-      // 영구 dedupe (AsyncStorage TTL 7일): 다른 세션 cold start에서 같은 notifId 재진입 차단.
-      // in-memory handledNotifIds Set은 프로세스 종료 시 사라지므로 보조 안전망.
-      if (await isProcessed(notifId)) {
-        log('persistent_dedupe_blocked', { notifId });
-        return;
-      }
+      // ─────────────────────────────────────────────────────────────────────
+      // 원자적 가드 (race fix): notifId/contentKey 가드 등록을 *첫 await 전*
+      // 동기 구간에서 단일 지점으로 처리한다.
+      //
+      // [기존 버그] 영구 dedupe(`await isProcessed`)가 가드 등록보다 *앞에* 있어,
+      //   동시 진입한 3개 호출(포그라운드 리스너 + cold-start retry + server_query)이
+      //   모두 `await isProcessed`에서 yield → 전부 가드 미등록 상태로 통과 →
+      //   먼저 깨어난 호출만 등록 후 느린 `await saveNotification`에서 다시 yield하는 사이
+      //   나머지가 `by:'notifId'`로 막히고, 정작 등록한 호출은 분기(branch_match)에
+      //   도달하기 전 다른 게이트/타이밍에 의해 사라져 effect_tracking 라우팅이 죽었다.
+      //   (medication은 동일 구조지만 타이밍상 우연히 통과해 정상 동작.)
+      //
+      // [수정] 동기 가드를 *제일 먼저* 잡는다. 가드를 획득한 단 하나의 호출만이
+      //   이후 await(isProcessed/saveNotification/waitForNavReady)를 거쳐 반드시
+      //   branch_match → navigate까지 진행한다. 나머지 동시 호출은 여기서 early-return.
+      // ─────────────────────────────────────────────────────────────────────
 
-      // dedupe race 차단: 등록을 handler 진입 직후(첫 await 전)로 이동.
-      // 기존엔 navigate 성공 후에만 등록 → cold + fallback 핸들러가 동시 실행되면
-      // 두 번째 핸들러가 dedupe_check 통과 → setItem/navigate 중복 발생.
-      // 등록 시점을 앞당기고, 처리 중 실패 시 unregister하여 재시도 가능 유지.
-      if (handledNotifIds.current.has(notifId)) {
-        log('dedupe_check', { blocked: true, by: 'notifId' });
-        return;
-      }
-
-      // 컨텐츠 기반 보조 dedupe (cold-start retry vs server_query 식별자 불일치 race)
-      // 30초 윈도우 내 같은 (type, mealTime) 알림은 한 번만 처리
+      // 컨텐츠 기반 보조 dedupe 키 (cold-start retry vs server_query 식별자 불일치 race)
+      // cold-start는 FCM messageId, server_query는 DB UUID를 notifId로 쓸 수 있어
+      // notifId만으로는 cross-path 중복을 못 잡는다 → 같은 (type, mealTime, 30s bucket)이면 1회만.
       const _mealTimeForKey: string =
         (data?.mealTime ?? data?.meal_time ?? '') as string;
       const _typeForKey: string = (type ?? 'unknown') as string;
@@ -245,16 +388,54 @@ function AppInner() {
         if (_now - ts > 60000) handledContentKeys.current.delete(k);
       }
 
+      // (1) 동기 notifId 가드 — 같은 notifId 동시/재진입 차단
+      if (handledNotifIds.current.has(notifId)) {
+        log('dedupe_check', { blocked: true, by: 'notifId' });
+        return;
+      }
+      // (2) 동기 contentKey 가드 — 식별자 다른 cross-path 중복 차단.
+      //     contentKey를 잡은 호출은 분기/네비 도달에 실패하면 releaseGuard로 키를
+      //     반드시 되돌려준다(아래). 따라서 키가 살아있다 = "처리 진행 중인 호출이 있다"
+      //     이므로 후속 호출은 안전하게 차단해도 라우터를 죽이지 않는다.
       if (handledContentKeys.current.has(contentKey)) {
         log('dedupe_check', { blocked: true, by: 'contentKey', contentKey });
         log('dedupe_content_key_blocked', { contentKey, notifId });
         return;
       }
 
+      // ── 가드 획득 (동기, 첫 await 전 — 단일 지점) ──
       log('dedupe_check', { blocked: false, contentKey });
       handledNotifIds.current.add(notifId);
       handledContentKeys.current.set(contentKey, _now);
       let dedupeRegistered = true;
+      // 가드 해제 헬퍼 — 분기/네비 도달 실패 시에만 호출(재시도 허용)
+      const releaseGuard = () => {
+        if (dedupeRegistered) {
+          handledNotifIds.current.delete(notifId);
+          handledContentKeys.current.delete(contentKey);
+          dedupeRegistered = false;
+        }
+      };
+
+      // 영구 dedupe (AsyncStorage TTL 7일): 다른 세션 cold start에서 같은 notifId 재진입 차단.
+      // 가드 *이후*로 이동 — 이 await가 동시 진입 호출들의 가드 등록을 가로채지 않게 한다.
+      // 이미 처리완료된 알림이면 방금 잡은 가드를 풀고 종료(이 세션에선 어차피 끝났으므로 재시도 불필요).
+      //
+      // [버그수정 A] 약 복용 계열(medication_reminder/missed_medication/_first/_second)은
+      //   *영구 isProcessed* 게이트를 면제한다. 정시 알림이 도착 순간 콜드스타트 자동처리
+      //   (getLastNotificationResponseAsync 회수)로 markProcessed(notifId)가 박히면,
+      //   이후 사용자가 직접 알림을 탭해도(5분 초과 stale 면제와 별개로) 여기서 early-return 되어
+      //   무반응이 되던 문제. 약 복용은 시트의 "○○약 드셨나요?"(confirmAndRecordSlot) 확인
+      //   다이얼로그를 거쳐 자동기록 사고가 없고, 시트 재오픈은 멱등(중복 기록 안 됨)이므로 안전.
+      //   ── 중요: 면제하는 건 "7일짜리 영구 isProcessed"뿐이다. 같은 세션 내 콜드스타트
+      //   retry 폭주(같은 알림 4회 재시도 + 서버폴백)는 위 동기 메모리 가드
+      //   (handledNotifIds/handledContentKeys, 60초 TTL)가 계속 막으므로 중복 navigate가 안 난다.
+      //   markProcessed 자체는 그대로 두어(다른 타입엔 영구 dedupe 필요) 종 경로/배지엔 영향 없음.
+      if (!_isMedicationType && (await isProcessed(notifId))) {
+        releaseGuard();
+        log('persistent_dedupe_blocked', { notifId });
+        return;
+      }
 
       // 페이로드 키 호환 처리
       // - medication_reminder / missed_medication: 'mealTime' (camelCase) 사용
@@ -266,21 +447,47 @@ function AppInner() {
       const triggerMinutes: number | null =
         typeof data?.minutes === 'number' ? data.minutes : null;
 
-      // 탭한 알림 읽음 처리 → 배지 갱신 (await로 race 방지)
+      // 탭한 알림 읽음 처리 → 배지 갱신.
+      //   (성능) navigate(바텀시트 오픈)를 막지 않도록 fire-and-forget 으로 뒤로 미룬다.
+      //   읽음·배지는 화면이 뜬 뒤 반영돼도 무방. 동기 dedupe 가드는 이미 위에서 획득됐고
+      //   navigate 분기는 saveNotification 결과에 의존하지 않으므로 안전하다.
       log('save_notification_start', { mealTime, triggerMinutes });
-      try {
-        await saveNotification(
-          type ?? '',
-          content.title ?? '',
-          content.body ?? '',
-          data,
-          new Date().toISOString(),
-        );
-        refreshBadge();
-        log('save_notification_done', { success: true });
-      } catch (e: any) {
-        console.error('[App] saveNotification 실패:', e);
-        log('save_notification_done', { success: false, error: String(e?.message ?? e) });
+      void (async () => {
+        try {
+          await saveNotification(
+            type ?? '',
+            content.title ?? '',
+            content.body ?? '',
+            data,
+            new Date().toISOString(),
+          );
+          refreshBadge();
+          log('save_notification_done', { success: true });
+        } catch (e: any) {
+          console.error('[App] saveNotification 실패:', e);
+          log('save_notification_done', { success: false, error: String(e?.message ?? e) });
+        }
+      })();
+
+      // [콜드스타트 약 시트 누락 수정] 약 복용 계열 알림이면 *nav-ready 게이트보다 먼저*
+      //   pendingMedNotif 를 AsyncStorage 에 동기적으로 써둔다.
+      //   원인: 콜드스타트는 useAuth user 로딩(네트워크) 동안 RootNavigator 가 LoadingScreen 만 띄워
+      //     NavigationContainer 가 미마운트 → isReady()=false. 아래 waitForNavReady 게이트(최대 2초)가
+      //     user 로딩(3초+)보다 먼저 만료되면 medication 분기(pendingMedNotif 쓰기 + navigate + emit)
+      //     전체가 스킵되어 약 시트가 안 떴다.
+      //   해결: pendingMedNotif 를 게이트 *앞*에서 먼저 써두면, 콜드스타트로 MedicationScreen 이
+      //     뒤늦게 마운트돼도 그 마운트/포커스 이펙트가 이 값을 읽어 시트를 연다.
+      //   navigate/emit 은 기존처럼 게이트 뒤에 둔다(warm 경로 보조). ts 는 핸들러 실행시각으로
+      //     MedicationScreen 의 5분 TTL 안에서 소비된다. cross-type stale 키 정리도 여기서 함께 한다.
+      if (_isMedicationType) {
+        try {
+          await AsyncStorage.multiRemove(['pendingBodyStateNotif', 'pendingExerciseNotif']);
+          const earlyValue = JSON.stringify({ mealTime, doseSlotId, ts: Date.now() });
+          await AsyncStorage.setItem('pendingMedNotif', earlyValue);
+          log('set_item_pre_gate', { key: 'pendingMedNotif', value: earlyValue, success: true });
+        } catch (e: any) {
+          log('set_item_pre_gate', { success: false, error: String(e?.message ?? e) });
+        }
       }
 
       // navigation이 준비될 때까지 폴링 (콜드스타트 nav 초기화 지연 대응)
@@ -306,20 +513,21 @@ function AppInner() {
         const ready = await waitForNavReady();
         log('wait_nav_ready_done', { ready });
         if (!ready) {
-          // dedupe 해제 — 다음 시도(예: warm listener) 허용
-          if (dedupeRegistered) {
-            handledNotifIds.current.delete(notifId);
-            handledContentKeys.current.delete(contentKey);
-            dedupeRegistered = false;
-          }
+          // 분기 도달 실패 → dedupe 해제, 다음 시도(예: warm listener) 허용
+          releaseGuard();
           log('handler_exit', { reason: 'nav_not_ready' });
           return;
         }
       }
 
       try {
-        if (type === 'medication_reminder' || type === 'missed_medication') {
-          log('branch_match', { branch: 'medication' });
+        if (
+          type === 'medication_reminder' ||
+          type === 'missed_medication' ||
+          type === 'missed_medication_first' ||
+          type === 'missed_medication_second'
+        ) {
+          log('branch_match', { branch: 'medication', type });
           // AsyncStorage write 완료 보장 후 navigateTo (콜드스타트 fallback)
           try {
             // cross-type stale cleanup: 다른 타입의 잔존 pending 키 제거
@@ -334,7 +542,13 @@ function AppInner() {
           const navArgs = { screen: 'Medication', params: { autoOpen: Date.now(), mealTime, doseSlotId } };
           log('navigate_start', { target: 'Main', args: navArgs });
           navigateTo('Main', navArgs);
-          notificationIntentManager.emit({ mealTime, doseSlotId });
+          // emit 은 listener(MedicationScreen)를 동기 호출 → 그 안에서 throw 나면
+          // 콜드스타트 부팅 중 앱이 죽는다. 안전망으로 감싼다(자동선택 실패해도 화면 진입은 유지).
+          try {
+            notificationIntentManager.emit({ mealTime, doseSlotId });
+          } catch (emitErr: any) {
+            log('intent_emit_failed', { error: String(emitErr?.message ?? emitErr) });
+          }
         } else if (type === 'effect_tracking') {
           log('branch_match', { branch: 'effect_tracking' });
 
@@ -417,6 +631,11 @@ function AppInner() {
             (data?.med_log_id as string) ??
             (data?.medLogId as string) ??
             null;
+          // H-1 dedup: pending(AsyncStorage) 경로와 route params 경로가 같은 포커스에서
+          // 둘 다 발화하더라도 BodyStateScreen이 동일 triggerTs로 1회만 처리하도록,
+          // 두 경로에 '동일한' ts를 실어 보낸다. (이전엔 Date.now()를 각각 호출해 ts가 달라
+          //  공유 dedup 자체가 불가능 → openFlowOrPend 2회 호출되어 시트 2겹 발생.)
+          const triggerTs = Date.now();
           try {
             // cross-type stale cleanup
             await AsyncStorage.multiRemove(['pendingMedNotif', 'pendingExerciseNotif']);
@@ -426,7 +645,7 @@ function AppInner() {
               triggerMealTime: mealTime,
               triggerDoseSlotId,
               triggerMedLogId,
-              ts: Date.now(),
+              ts: triggerTs,
             });
             await AsyncStorage.setItem('pendingBodyStateNotif', value);
             log('set_item', { key: 'pendingBodyStateNotif', value, success: true });
@@ -442,7 +661,7 @@ function AppInner() {
                 triggerMealTime: mealTime,
                 triggerDoseSlotId,
                 triggerMedLogId,
-                triggerTs: Date.now(),
+                triggerTs,
               },
             },
           };
@@ -482,6 +701,15 @@ function AppInner() {
           const navArgs = { screen: 'Exercise' };
           log('navigate_start', { target: 'Main', args: navArgs });
           navigateTo('Main', navArgs);
+        } else if (type === 'appointment_reminder') {
+          log('branch_match', { branch: 'appointment' });
+          // 진료 일정 알림 탭 → 진료 기록 화면(MyInfo 탭 > MedicalRecordList)
+          try {
+            await AsyncStorage.multiRemove(['pendingMedNotif', 'pendingExerciseNotif', 'pendingBodyStateNotif']);
+          } catch {}
+          const navArgs = { screen: 'MyInfo', params: { screen: 'MedicalRecordList' } };
+          log('navigate_start', { target: 'Main', args: navArgs });
+          navigateTo('Main', navArgs);
         } else if (type) {
           log('branch_match', { branch: 'other', type });
           log('navigate_start', { target: 'Main' });
@@ -496,12 +724,8 @@ function AppInner() {
         markProcessed(notifId).catch(() => {});
         log('handler_exit', { success: true });
       } catch (e: any) {
-        // 실패 시 dedupe 해제 → 다음 listener에서 재시도 가능
-        if (dedupeRegistered) {
-          handledNotifIds.current.delete(notifId);
-          handledContentKeys.current.delete(contentKey);
-          dedupeRegistered = false;
-        }
+        // navigate 실패 시 dedupe 해제 → 다음 listener에서 재시도 가능
+        releaseGuard();
         console.error('[App] navigate 실패, dedupe 해제(재시도 허용):', e);
         log('handler_exit', { success: false, error: String(e?.message ?? e) });
       }
@@ -586,30 +810,10 @@ function AppInner() {
             },
           }).catch(() => {});
           if (response) {
-            // Freshness 1차 차단 (이중 안전망): 5분 이상 오래된 응답이면 handler 진입 자체를 막음.
-            const _rDateRaw: any = (response as any)?.notification?.date;
-            const _rDateMs: number | null =
-              typeof _rDateRaw === 'number'
-                ? _rDateRaw
-                : _rDateRaw
-                ? new Date(_rDateRaw).getTime()
-                : null;
-            if (_rDateMs && !Number.isNaN(_rDateMs)) {
-              const ageMs = Date.now() - _rDateMs;
-              if (ageMs > 5 * 60 * 1000) {
-                logNotificationEvent({
-                  userId: _fbUserId,
-                  event: 'notification_too_old',
-                  payload: {
-                    ageMs,
-                    notifDate: _rDateMs,
-                    notifId: response?.notification?.request?.identifier ?? null,
-                    source: 'cold_start_retry',
-                  },
-                }).catch(() => {});
-                return;
-              }
-            }
+            // stale(오래된) 응답이라도 더 이상 여기서 차단하지 않는다.
+            // handleNotificationResponse가 stale을 직접 감지해 "soft-nav"(자동기록 없이
+            // 화면 이동 + 읽음 처리 + dedupe)로 처리하므로, 묵은 알림 탭이 먹통 + 배지
+            // 안 지워지는 문제를 막기 위해 핸들러로 그대로 흘려보낸다.
             await handleNotificationResponse(response, true);
             return;
           }
@@ -773,7 +977,9 @@ function AppInner() {
 
   return (
     <SettingsProvider>
-      <RootNavigator />
+      <ErrorBoundary>
+        <RootNavigator />
+      </ErrorBoundary>
     </SettingsProvider>
   );
 }

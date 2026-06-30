@@ -1,20 +1,22 @@
-import React, { useState, useCallback } from 'react';
+import React, { useState, useCallback, useRef } from 'react';
 import {
   View,
   Text,
   SectionList,
   TouchableOpacity,
   StyleSheet,
-  ActivityIndicator,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
-import { useFocusEffect, useNavigation, CommonActions } from '@react-navigation/native';
+import { SkeletonList } from '../../components/common/SkeletonCard';
+import AsyncStorage from '@react-native-async-storage/async-storage';
+import { useFocusEffect, useNavigation } from '@react-navigation/native';
 import { Colors } from '../../constants/colors';
 import { useAuth } from '../../context/AuthContext';
 import { supabase } from '../../lib/supabase';
 import { TopBar } from '../../components/common/TopBar';
 import { useNotificationBadge } from '../../context/NotificationBadgeContext';
+import { navigateTo } from '../../navigation/navigationRef';
 
 // ─────────────────────────────────────────────
 // 타입
@@ -111,6 +113,9 @@ export function NotificationHistoryScreen() {
   const [loading, setLoading] = useState(true);
   const [days, setDays] = useState(7);
 
+  // 항목 탭 재진입 가드 — 빠른 더블탭/연속 탭으로 navigate가 겹쳐 스택이 꼬이는 것을 방지.
+  const navInFlightRef = useRef(false);
+
   const fetchLogs = useCallback(
     async (targetDays: number) => {
       if (!user?.id) return;
@@ -159,29 +164,144 @@ export function NotificationHistoryScreen() {
   };
 
   const handleItemPress = async (item: NotifLog) => {
-    const config = NOTIF_CONFIG[item.type] ?? DEFAULT_NOTIF_CONFIG;
+    // ⚠️ 안전망: 알림 내역 항목 탭은 어떤 경우에도 앱을 죽이면 안 된다.
+    //   읽음 처리·UI 갱신·navigate 전체를 try/catch 로 감싸고, 실패 시 조용히 무시한다.
+    try {
+      const config = NOTIF_CONFIG[item.type] ?? DEFAULT_NOTIF_CONFIG;
+      const data = (item.data ?? {}) as Record<string, any>;
 
-    // 읽음 처리 (미읽 항목만)
-    if (!item.read_at) {
-      await markRead(item.id);
-      refreshBadge();
-    }
+      // 읽음 처리 (미읽 항목만) — 실패해도 navigate 는 계속 진행
+      if (!item.read_at) {
+        try {
+          await markRead(item.id);
+          refreshBadge();
+        } catch (e) {
+          console.warn('[NotificationHistory] markRead 실패(무시):', e);
+        }
+      }
 
-    // 읽음 상태로 UI 갱신
-    setSections((prev) =>
-      prev.map((section) => ({
-        ...section,
-        data: section.data.map((d) =>
-          d.id === item.id ? { ...d, read_at: new Date().toISOString() } : d,
-        ),
-      })),
-    );
-
-    // 페이지 이동 (tappable인 경우) — 탭 화면은 Main 하위이므로 중첩 navigate 필요
-    if (config.tappable && config.navigateTo) {
-      navigation.dispatch(
-        CommonActions.navigate('Main', { screen: config.navigateTo })
+      // 읽음 상태로 UI 갱신
+      setSections((prev) =>
+        prev.map((section) => ({
+          ...section,
+          data: section.data.map((d) =>
+            d.id === item.id ? { ...d, read_at: new Date().toISOString() } : d,
+          ),
+        })),
       );
+
+      // tappable 이 아니면 여기서 끝(보호자 알림 등) — navigate 하지 않는다.
+      if (!config.tappable || !config.navigateTo) return;
+
+      // 재진입 가드 — navigate 진행 중 추가 탭 무시(스택 꼬임·흰화면 방지).
+      if (navInFlightRef.current) return;
+      navInFlightRef.current = true;
+      // 가드는 잠깐만 — 화면 전환이 끝나는 시간(800ms) 후 해제.
+      setTimeout(() => {
+        navInFlightRef.current = false;
+      }, 800);
+
+      // ── OS 알림 탭과 동일한 진입 경로 사용 ──────────────────────────
+      // App.tsx handleNotificationResponse 와 같은 방식으로 처리한다:
+      //   ① 다른 타입의 잔존 pending* 키를 먼저 제거(cross-type stale cleanup)
+      //   ② 해당 타입의 pending* 키를 세팅
+      //   ③ navigateTo('Main', navArgs) 로 RootStack 기준 전역 navigate
+      // 이렇게 해야 타깃 화면(Medication/BodyState/Exercise)의 검증된 단일 진입 로직을
+      // 그대로 타게 되어, 자체 nested navigate 로 인한 흰화면/중복 navigate 크래시를 피한다.
+      const type = item.type;
+
+      if (type === 'medication_reminder' || type === 'missed_medication') {
+        // 약복용/미복용 → 약복용 자동선택 화면(OS 알림 탭과 동일)
+        const mealTime = (data?.mealTime as string) ?? (data?.meal_time as string) ?? null;
+        const doseSlotId =
+          (data?.doseSlotId as string) ?? (data?.dose_slot_id as string) ?? null;
+        try {
+          await AsyncStorage.multiRemove(['pendingBodyStateNotif', 'pendingExerciseNotif']);
+          await AsyncStorage.setItem(
+            'pendingMedNotif',
+            JSON.stringify({ mealTime, doseSlotId, ts: Date.now() }),
+          );
+        } catch (e) {
+          console.warn('[NotificationHistory] pendingMedNotif 세팅 실패(무시):', e);
+        }
+        navigateTo('Main', {
+          screen: 'Medication',
+          params: { autoOpen: Date.now(), mealTime, doseSlotId },
+        });
+      } else if (type === 'effect_tracking') {
+        // 몸상태(약효추적) → 약효 입력 화면. triggerMinutes 가 있으면 해당 시점 입력으로 진입.
+        const triggerMinutes: number | null =
+          typeof data?.minutes === 'number'
+            ? data.minutes
+            : typeof data?.triggerMinutes === 'number'
+            ? data.triggerMinutes
+            : null;
+        const triggerMealTime =
+          (data?.mealTime as string) ?? (data?.triggerMealTime as string) ?? null;
+        const triggerDoseSlotId =
+          (data?.doseSlotId as string) ?? (data?.dose_slot_id as string) ?? null;
+        const triggerMedLogId =
+          (data?.med_log_id as string) ?? (data?.medLogId as string) ?? null;
+        try {
+          await AsyncStorage.multiRemove(['pendingMedNotif', 'pendingExerciseNotif']);
+          if (triggerMinutes != null) {
+            await AsyncStorage.setItem(
+              'pendingBodyStateNotif',
+              JSON.stringify({
+                triggerMinutes,
+                triggerMealTime,
+                triggerDoseSlotId,
+                triggerMedLogId,
+                ts: Date.now(),
+              }),
+            );
+          } else {
+            await AsyncStorage.removeItem('pendingBodyStateNotif');
+          }
+        } catch (e) {
+          console.warn('[NotificationHistory] pendingBodyStateNotif 세팅 실패(무시):', e);
+        }
+        navigateTo('Main', {
+          screen: 'BodyStateTab',
+          params: {
+            screen: 'BodyState',
+            // triggerMinutes 가 있을 때만 입력 트리거 params 전달 — 없으면 탭만 이동(중복 Alert 방지)
+            params:
+              triggerMinutes != null
+                ? {
+                    triggerMinutes,
+                    triggerMealTime,
+                    triggerDoseSlotId,
+                    triggerMedLogId,
+                    triggerTs: Date.now(),
+                  }
+                : undefined,
+          },
+        });
+      } else if (type === 'exercise_reminder') {
+        // 운동 → 운동 탭. ExerciseScreen.useFocusEffect 가 pendingExerciseNotif 를 단일 처리.
+        try {
+          await AsyncStorage.multiRemove(['pendingMedNotif', 'pendingBodyStateNotif']);
+          await AsyncStorage.setItem('pendingExerciseNotif', 'true');
+        } catch (e) {
+          console.warn('[NotificationHistory] pendingExerciseNotif 세팅 실패(무시):', e);
+        }
+        navigateTo('Main', { screen: 'Exercise', params: { screen: 'ExerciseMain' } });
+      } else {
+        // 알 수 없는 tappable 타입 — 안전 폴백: 지정 탭으로만 이동(잔존 키는 정리).
+        try {
+          await AsyncStorage.multiRemove([
+            'pendingMedNotif',
+            'pendingBodyStateNotif',
+            'pendingExerciseNotif',
+          ]);
+        } catch {}
+        navigateTo('Main', { screen: config.navigateTo });
+      }
+    } catch (e) {
+      // 어떤 예외든 앱을 죽이지 않는다 — 조용히 무시(가드도 풀어 다음 탭 허용).
+      navInFlightRef.current = false;
+      console.error('[NotificationHistory] handleItemPress 예외(안전망 폴백):', e);
     }
   };
 
@@ -277,9 +397,7 @@ export function NotificationHistoryScreen() {
     return (
       <SafeAreaView style={styles.flex} edges={['top', 'bottom']}>
         <TopBar title="알림 내역" showBack rightComponent={rightComponent} />
-        <View style={styles.loadingContainer}>
-          <ActivityIndicator size="large" color={Colors.primary} />
-        </View>
+        <SkeletonList count={6} visible={loading} style={styles.skeletonWrap} />
       </SafeAreaView>
     );
   }
@@ -315,6 +433,7 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     alignItems: 'center',
   },
+  skeletonWrap: { paddingHorizontal: 16, paddingTop: 16 },
 
   // 섹션 헤더
   sectionHeader: {

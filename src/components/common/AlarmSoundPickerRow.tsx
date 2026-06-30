@@ -14,6 +14,7 @@ import { Audio } from 'expo-av';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Colors } from '../../constants/colors';
 import { useSwipeDownDismiss } from '../../hooks/useSwipeDownDismiss';
+import { resolveMediaUrl } from '../../lib/r2Get';
 
 export interface AlarmSoundOption {
   id: string;
@@ -46,6 +47,8 @@ interface Props {
 export function AlarmSoundPickerRow({ soundId, sounds, onSelect, backgroundColor }: Props) {
   const insets = useSafeAreaInsets();
   const [open, setOpen] = useState(false);
+  // 임시 선택값 — 시트에서 고르면 여기에만 담고, '완료' 눌러야 실제 적용(onSelect).
+  const [pendingId, setPendingId] = useState<string | null>(soundId ?? null);
   const [playingId, setPlayingId] = useState<string | null>(null);
   const [loadingId, setLoadingId] = useState<string | null>(null);
   const soundRef = useRef<Audio.Sound | null>(null);
@@ -73,8 +76,10 @@ export function AlarmSoundPickerRow({ soundId, sounds, onSelect, backgroundColor
         allowsRecordingIOS: false,
         playsInSilentModeIOS: true,
       });
+      // presigned GET URL 로 변환(실패 시 원본 공개 URL 폴백)
+      const previewUri = await resolveMediaUrl(item.previewUrl);
       const { sound } = await Audio.Sound.createAsync(
-        { uri: item.previewUrl },
+        { uri: previewUri },
         { shouldPlay: true },
       );
       soundRef.current = sound;
@@ -98,8 +103,11 @@ export function AlarmSoundPickerRow({ soundId, sounds, onSelect, backgroundColor
     setOpen(false);
   };
 
-  const handlePick = (sid: string | null) => {
-    onSelect(sid);
+  // 시트에서 항목 탭 = 임시 선택만(즉시 적용 X). 적용은 '완료'에서.
+  const handleSelect = (sid: string | null) => setPendingId(sid);
+  // 완료: 임시 선택을 실제 적용. 닫기: 적용 안 하고 닫음.
+  const handleDone = () => {
+    onSelect(pendingId);
     close();
   };
 
@@ -113,7 +121,11 @@ export function AlarmSoundPickerRow({ soundId, sounds, onSelect, backgroundColor
 
   const { translateY, panHandlers, resetPosition } = useSwipeDownDismiss(close);
   useEffect(() => {
-    if (open) resetPosition();
+    if (open) {
+      resetPosition();
+      setPendingId(soundId ?? null); // 열 때마다 현재 적용값으로 임시선택 초기화
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [open]);
 
   return (
@@ -127,7 +139,7 @@ export function AlarmSoundPickerRow({ soundId, sounds, onSelect, backgroundColor
         activeOpacity={0.7}
         onPress={() => setOpen(true)}
       >
-        <Ionicons name="volume-high" size={20} color={Colors.dark} />
+        <Ionicons name="volume-high" size={20} color={Colors.textSub} />
         <Text style={styles.triggerLabel}>알림 소리</Text>
         <View style={styles.triggerValueWrap}>
           <Text style={styles.triggerValue} numberOfLines={1}>
@@ -171,21 +183,21 @@ export function AlarmSoundPickerRow({ soundId, sounds, onSelect, backgroundColor
             >
               {/* 기본 목소리 */}
               <TouchableOpacity
-                style={[styles.option, !soundId && styles.optionSelected]}
+                style={[styles.option, !pendingId && styles.optionSelected]}
                 activeOpacity={0.8}
-                onPress={() => handlePick(null)}
+                onPress={() => handleSelect(null)}
               >
                 <View style={styles.optionLeft}>
                   <Text style={styles.optionText}>기본 목소리</Text>
                   <Text style={styles.optionHint}>휴대폰 기본 알림음</Text>
                 </View>
-                {!soundId && (
+                {!pendingId && (
                   <Ionicons name="checkmark-circle" size={28} color={Colors.primary} />
                 )}
               </TouchableOpacity>
 
               {sounds.map((s) => {
-                const selected = soundId === s.id;
+                const selected = pendingId === s.id;
                 const isPlaying = playingId === s.id;
                 const isLoading = loadingId === s.id;
                 return (
@@ -193,7 +205,7 @@ export function AlarmSoundPickerRow({ soundId, sounds, onSelect, backgroundColor
                     key={s.id}
                     style={[styles.option, selected && styles.optionSelected]}
                     activeOpacity={0.8}
-                    onPress={() => handlePick(s.id)}
+                    onPress={() => handleSelect(s.id)}
                   >
                     <View style={styles.optionLeft}>
                       <Text style={styles.optionText} numberOfLines={1}>
@@ -236,13 +248,15 @@ export function AlarmSoundPickerRow({ soundId, sounds, onSelect, backgroundColor
               )}
             </ScrollView>
 
-            <TouchableOpacity
-              style={styles.closeBtn}
-              activeOpacity={0.85}
-              onPress={close}
-            >
-              <Text style={styles.closeBtnText}>닫기</Text>
-            </TouchableOpacity>
+            {/* 닫기(적용 안 함) · 완료(임시선택 적용) 한 줄 */}
+            <View style={styles.btnRow}>
+              <TouchableOpacity style={styles.cancelBtn} activeOpacity={0.7} onPress={close}>
+                <Text style={styles.cancelBtnText}>닫기</Text>
+              </TouchableOpacity>
+              <TouchableOpacity style={styles.doneBtn} activeOpacity={0.85} onPress={handleDone}>
+                <Text style={styles.doneBtnText}>완료</Text>
+              </TouchableOpacity>
+            </View>
           </Animated.View>
         </TouchableOpacity>
       </Modal>
@@ -263,9 +277,9 @@ const styles = StyleSheet.create({
     backgroundColor: Colors.light,
   },
   triggerLabel: {
-    fontSize: 17,
+    fontSize: 18,
     fontWeight: '700',
-    color: Colors.dark,
+    color: Colors.text,
   },
   triggerValueWrap: {
     flexDirection: 'row',
@@ -275,7 +289,7 @@ const styles = StyleSheet.create({
     flexShrink: 1,
   },
   triggerValue: {
-    fontSize: 17,
+    fontSize: 18,
     fontWeight: '700',
     color: Colors.dark,
     flexShrink: 1,
@@ -393,17 +407,38 @@ const styles = StyleSheet.create({
     textAlign: 'center',
     paddingVertical: 24,
   },
-  closeBtn: {
-    minHeight: 56,
-    borderRadius: 16,
-    backgroundColor: Colors.background,
-    alignItems: 'center',
-    justifyContent: 'center',
+  // 닫기·완료 한 줄
+  btnRow: {
+    flexDirection: 'row',
+    gap: 12,
     marginTop: 8,
   },
-  closeBtnText: {
+  cancelBtn: {
+    flex: 1,
+    minHeight: 56,
+    borderRadius: 16,
+    borderWidth: 1.5,
+    borderColor: Colors.border,
+    backgroundColor: Colors.white,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  cancelBtnText: {
+    fontSize: 18,
+    fontWeight: '700',
+    color: Colors.textSub,
+  },
+  doneBtn: {
+    flex: 1,
+    minHeight: 56,
+    borderRadius: 16,
+    backgroundColor: Colors.primary,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  doneBtnText: {
     fontSize: 20,
     fontWeight: '800',
-    color: Colors.text,
+    color: Colors.white,
   },
 });

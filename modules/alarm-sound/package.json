@@ -1,0 +1,7 @@
+{
+  "name": "alarm-sound",
+  "version": "1.0.0",
+  "description": "iOS 가족 목소리 알림음 설치 모듈 — m4a를 IMA4 caf로 변환해 Library/Sounds/에 설치",
+  "main": "index.ts",
+  "private": true
+}

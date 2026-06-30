@@ -5,13 +5,13 @@ import {
   ScrollView,
   TouchableOpacity,
   StyleSheet,
-  ActivityIndicator,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useRoute, useNavigation, RouteProp } from '@react-navigation/native';
 import { Ionicons } from '@expo/vector-icons';
 import { Colors } from '../../constants/colors';
 import { TopBar } from '../../components/common/TopBar';
+import { SkeletonList } from '../../components/common/SkeletonCard';
 import { MenuStackParamList } from '../../navigation/MenuNavigator';
 import { useRecordDetailData } from '../../hooks/useRecordDetailData';
 import { useNotificationBadge } from '../../context/NotificationBadgeContext';
@@ -218,10 +218,7 @@ export function RecordDetailScreen() {
 
       {/* 로딩 / 에러 */}
       {loading && (
-        <View style={styles.stateBox}>
-          <ActivityIndicator size="large" color={Colors.primary} />
-          <Text style={styles.stateText}>데이터를 불러오는 중이에요...</Text>
-        </View>
+        <SkeletonList count={3} visible={loading} style={styles.skeletonWrap} />
       )}
       {!loading && !!error && (
         <View style={styles.stateBox}>
@@ -422,6 +419,7 @@ const styles = StyleSheet.create({
 
   scroll: { flex: 1 },
   scrollContent: { padding: 16, paddingBottom: 40 },
+  skeletonWrap: { paddingHorizontal: 16, paddingTop: 16 },
 
   card: {
     backgroundColor: Colors.white,

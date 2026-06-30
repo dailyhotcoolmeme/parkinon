@@ -7,14 +7,20 @@
  * - takeMedication(mealTime) - 복용 기록 저장
  * - getMedLogs(date) - 날짜별 복용 내역 조회
  */
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { supabase } from '../lib/supabase';
 import { useAuth } from '../context/AuthContext';
 import { sendCaregiverPush, scheduleEffectTrackingNotifications } from '../utils/notifications';
 import { getKSTToday, getKSTDayRange } from '../utils/medUtils';
 import { useSettings } from '../context/SettingsContext';
-import { useDoseSlots, type DoseSlot } from './useDoseSlots';
+import {
+  useDoseSlots,
+  fetchPatientDoseSlots,
+  invalidateDoseSlotsCache,
+  type DoseSlot,
+} from './useDoseSlots';
+import { usePatientId } from './usePatientId';
 import type { Database } from '../types/database';
 import type { MealTime as MealTimeEnum } from '../types/database';
 
@@ -39,6 +45,14 @@ export interface UseMedicationReturn {
   bySlotId: Record<string, MedLogRow | null>;
   /** dose_slots 기반 환자 여부(폴백 분기 단일 기준) */
   hasDoseSlots: boolean;
+  /**
+   * dose_slots 조회 진행 중 여부(useDoseSlots.loading 패스스루).
+   * 콜드스타트에서 아직 슬롯이 도착하지 않은 동안 화면이 legacy 디폴트 시각을
+   * 그리지 않고 스켈레톤을 보여주도록 하는 게이트. (med loading 과 별개)
+   */
+  slotsLoading: boolean;
+  /** dose_slots 조회 실패 여부(=확정 0 아님). legacy 폴백 허용 판정에 사용. */
+  slotsError: boolean;
   loading: boolean;
   error: string | null;
   /**
@@ -56,6 +70,23 @@ export interface UseMedicationReturn {
     success: boolean;
     medLogId: string | null;
     doseSlotId: string | null;
+    /**
+     * 복용 직후 자동 몸상태 팝업 게이팅용.
+     * effectiveNotifs 와 동일한 resolvedSlot(콜드스타트 시 fresh fetch) 기준으로 산출.
+     * - dose_slot 환자: 그 슬롯의 track_enabled === true && trackIntervals.includes(0) 일 때만 true.
+     *   (슬롯 못 찾음/추적 OFF/0 없음 → false. 전역 폴백·0 가정 금지.)
+     * - legacy 환자(doseSlotId 없음): null → 호출처가 기존 동작(전역 medNotifs) 유지.
+     */
+    immediateTrack: boolean | null;
+    /**
+     * 방금 기록한 슬롯의 약효추적 설정(immediateTrack 과 동일한 resolvedSlot=fresh fetch 기준).
+     * 호출처(다음알림 예고)가 큐 적재 race 와 무관하게 "복용 N분 후 약효추적" 후보를 결정적으로
+     * 만들기 위해 사용한다. 화면 in-memory 의 stale/legacy displaySlots 에 의존하지 않도록 여기서 노출.
+     * - dose_slot 환자: 슬롯의 track_enabled / track_intervals.
+     * - legacy 환자(doseSlotId 없음) 또는 슬롯 못 찾음: null.
+     */
+    trackEnabled: boolean | null;
+    trackIntervals: number[] | null;
   }>;
   cancelMedication: (medLogId: string) => Promise<boolean>;
   getMedLogs: (date: string) => Promise<MedLogRow[]>;
@@ -72,7 +103,20 @@ const MEAL_TIME_LABELS: Record<string, string> = {
 export function useMedication(): UseMedicationReturn {
   const { user } = useAuth();
   const { medNotifs } = useSettings();
-  const { slots, hasDoseSlots, getSlotByLegacyKey, getSlotById } = useDoseSlots();
+  const {
+    slots,
+    hasDoseSlots,
+    getSlotByLegacyKey,
+    getSlotById,
+    loading: slotsLoading,
+    slotsError,
+  } = useDoseSlots();
+  // ⚠️ realtime 즉시 반영 핵심: dose_slots realtime 이 즉시 동작하는 이유는
+  //    usePatientId() 가 마운트 직후 useEffect 로 patientId 를 resolve 해서
+  //    구독 useEffect 가 patientId 가 채워지자마자 곧바로 활성화되기 때문이다.
+  //    medications realtime 도 동일하게 usePatientId() 의 patientId 로 구독해
+  //    "fetchMedications 실행을 기다려야 patient_id 가 채워지던" 지연을 제거한다.
+  const { patientId: rtPatientId } = usePatientId();
   const [medications, setMedications] = useState<MedicationRow[]>([]);
   const [todayStatus, setTodayStatus] = useState<TodayMedStatus>({
     morning: null,
@@ -83,6 +127,18 @@ export function useMedication(): UseMedicationReturn {
   const [bySlotId, setBySlotId] = useState<Record<string, MedLogRow | null>>({});
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  // realtime 채널 이름은 훅 인스턴스마다 고유해야 한다(여러 화면이 같은 환자의 useMedication 을
+  // 동시에 쓰면 같은 채널 재사용 → subscribe 후 .on() 추가 시도 크래시). 인스턴스별 suffix 로 충돌 방지.
+  const rtChannelId = useRef(Math.random().toString(36).slice(2, 10));
+  // realtime 콜백 stale 클로저 방지: 콜백은 항상 최신 fetchMedications 를 ref 로 호출한다.
+  // (콜백을 deps 에 넣어 채널을 재생성하면 일시적으로 구독이 끊겨 이벤트를 놓칠 수 있다.)
+  const fetchMedicationsRef = useRef<() => void>(() => {});
+  // ⚠️ 더블탭 방어(in-flight 락): 약 복용 저장 버튼을 빠르게 두 번 누르면 takeMedication 이
+  //    동시 2회 실행돼 med_logs 가 갈라지고(upsert RPC 가 둘 다 "기존없음"으로 읽어 각각 insert),
+  //    약효추적 큐도 N세트로 늘어 같은 복용에 알림이 2~3번 발송됐다(라이브 확정).
+  //    디바운스가 아니라 "완료까지 차단"하는 락이어야 함 — 저장이 끝나기(성공/실패) 전의
+  //    두 번째 호출은 즉시 무시한다. finally 에서 해제.
+  const savingRef = useRef(false);
 
   // 환자 ID 결정: 환자이면 본인, 보호자이면 연동된 환자 ID
   const getPatientId = useCallback(async (): Promise<string | null> => {
@@ -209,31 +265,62 @@ export function useMedication(): UseMedicationReturn {
     }
   }, [user, getPatientId]);
 
-  // 초기 로드
+  // 콜백 ref 를 항상 최신 fetchMedications 로 유지(stale 클로저 방지).
+  useEffect(() => {
+    fetchMedicationsRef.current = fetchMedications;
+  }, [fetchMedications]);
+
+  // 복용약 realtime — 환자/보호자 한쪽이 약을 추가·수정·삭제(중단)하면 다른쪽 약복용 탭도
+  // 새로고침 없이 즉시 반영. dose_slots realtime(useDoseSlots) 과 동일 패턴.
+  //  - 구독 트리거: usePatientId() 가 resolve 한 rtPatientId (마운트 직후 채워짐).
+  //    → fetchMedications 가 먼저 돌기를 기다리던 지연을 제거(즉시 구독).
+  //  - 콜백: fetchMedicationsRef 로 최신 fetch 호출(채널 재생성 없이 deps 안정).
+  useEffect(() => {
+    if (!rtPatientId) return;
+    const channel = supabase
+      .channel(`medications-rt-${rtPatientId}-${rtChannelId.current}`)
+      .on(
+        'postgres_changes',
+        { event: '*', schema: 'public', table: 'medications', filter: `patient_id=eq.${rtPatientId}` },
+        () => { fetchMedicationsRef.current(); },
+      )
+      .subscribe();
+    return () => { supabase.removeChannel(channel); };
+  }, [rtPatientId]);
+
+  // 초기 로드 — 서로 독립이라 순차 await 대신 병렬로(로딩 워터폴 제거)
   useEffect(() => {
     if (user) {
-      fetchMedications();
-      fetchTodayStatus();
+      void Promise.all([fetchMedications(), fetchTodayStatus()]);
     }
   }, [user, fetchMedications, fetchTodayStatus]);
 
   // 복용 기록 저장 (5단계 dual-write)
   const takeMedication = useCallback(async (
     args: { mealTime: MealTime | null; doseSlotId: string | null }
-  ): Promise<{ success: boolean; medLogId: string | null; doseSlotId: string | null }> => {
+  ): Promise<{ success: boolean; medLogId: string | null; doseSlotId: string | null; immediateTrack: boolean | null; trackEnabled: boolean | null; trackIntervals: number[] | null }> => {
     const mealTime = args.mealTime;
     // doseSlotId 보충: doseSlotId 없고 mealTime 만 오면(미이관 가능) legacyKey→slot.id 시도.
     // 매핑 실패(미이관 환자)면 null → 순수 legacy 경로.
     const doseSlotId =
       args.doseSlotId ?? (mealTime ? getSlotByLegacyKey(mealTime)?.id ?? null : null);
 
-    if (!user) return { success: false, medLogId: null, doseSlotId: null };
+    if (!user) return { success: false, medLogId: null, doseSlotId: null, immediateTrack: null, trackEnabled: null, trackIntervals: null };
 
     // 따로 거주하는 보호자는 약 복용 기록 불가 (UI 우회 방어)
     if (user.role === 'caregiver' && user.residence_type === 'separate') {
       setError('따로 거주하는 보호자는 약 복용을 기록할 수 없어요.');
-      return { success: false, medLogId: null, doseSlotId: null };
+      return { success: false, medLogId: null, doseSlotId: null, immediateTrack: null, trackEnabled: null, trackIntervals: null };
     }
+
+    // ⚠️ 더블탭 방어(in-flight 락): 이전 저장이 끝나기 전 두 번째 호출은 즉시 무시한다.
+    //    (위 검증성 early-return 들은 저장을 시작하지 않으므로 락 밖에 둔다.)
+    //    같은 복용에 med_logs 분기 + 약효추적 알림 2~3번 발송을 클라 단에서 1차 차단.
+    if (savingRef.current) {
+      console.warn('[useMedication] takeMedication 재진입 차단(저장 진행 중) — 더블탭 무시');
+      return { success: false, medLogId: null, doseSlotId: null, immediateTrack: null, trackEnabled: null, trackIntervals: null };
+    }
+    savingRef.current = true;
 
     setLoading(true);
     setError(null);
@@ -244,39 +331,99 @@ export function useMedication(): UseMedicationReturn {
         const msg = '복용 기록을 저장할 환자 정보를 찾을 수 없어요. 가족 연동 후 다시 시도해 주세요.';
         console.error('[useMedication] takeMedication: patientId null → insert 중단');
         setError(msg);
-        return { success: false, medLogId: null, doseSlotId: null };
+        return { success: false, medLogId: null, doseSlotId: null, immediateTrack: null, trackEnabled: null, trackIntervals: null };
       }
 
       // dual-write 보조: doseSlot 이 표준 라벨이면 legacyKey 를 meal_time 에 함께 기록.
       // (mealTime 이 명시되면 그대로, 아니면 슬롯의 legacyKey, 둘 다 없으면 null=비표준 슬롯)
-      const resolvedSlot = doseSlotId ? getSlotById(doseSlotId) : undefined;
+      // 슬롯 해결: in-memory 캐시 우선, 콜드스타트로 캐시가 비어 못 찾으면
+      // 그 자리에서 최신 슬롯을 직접 조회(fresh fetch)해 확실히 해결한다.
+      // ⚠️ dose_slot 환자가 슬롯을 못 찾으면 전역 medNotifs 로 폴백 → 잘못된 알림 큐잉
+      //    버그가 났었음. fresh fetch 로 콜드스타트에서도 슬롯을 반드시 찾도록 보강.
+      let resolvedSlot = doseSlotId ? getSlotById(doseSlotId) : undefined;
+      if (doseSlotId && !resolvedSlot && patientId) {
+        try {
+          // 캐시가 비어있을 수도/stale 일 수도 있으므로 무효화 후 최신 조회.
+          invalidateDoseSlotsCache(patientId);
+          const fresh = await fetchPatientDoseSlots(patientId);
+          resolvedSlot = fresh.find((s) => s.id === doseSlotId);
+        } catch {
+          // 조회 실패해도 throw 금지 — 아래 effectiveNotifs 가 빈 배열로 안전 처리.
+        }
+      }
       const effectiveMealTime: MealTime | null =
         mealTime ?? (resolvedSlot?.legacyKey ?? null);
 
+      // 유효 약효추적 알림설정(단일 소스). 만료시각/큐잉/로컬폴백이 모두 이걸 씀.
+      // dose_slot 경로: 슬롯의 track_intervals(track_enabled 게이트)를 사용.
+      //  - trackEnabled=false → 빈 배열(약효추적 알림 없음)
+      //  - trackEnabled=true  → trackIntervals 각 분(minutes)을 enabled:true 로
+      // legacy 경로(미이관, doseSlotId 없음): 기존대로 전역 medNotifs.
+      // ⚠️ 버그수정: 이전엔 dose_slot 환자도 전역 medNotifs(예 30·120)를 큐잉해
+      //    슬롯별 [0](복용즉시만) 설정이 무시됐음.
+      // ⚠️ 핵심 버그수정: dose_slot 환자(doseSlotId 존재)는 절대 전역 medNotifs 로
+      //    폴백하지 않는다. 슬롯 기준만 사용:
+      //    - trackEnabled=true  → trackIntervals 각 분(minutes)을 enabled:true 로
+      //    - trackEnabled=false 또는 (fresh fetch 후에도) 슬롯 못 찾음 → 빈 배열([])
+      //      (전역 medNotifs 폴백 금지 — 잘못된 알림보다 누락이 안전)
+      //    legacy 경로(doseSlotId 없음, 미이관 환자)만 기존대로 전역 medNotifs.
+      const effectiveNotifs: { id: string; minutes: number; enabled: boolean; soundId: string | null }[] =
+        doseSlotId
+          ? (resolvedSlot && resolvedSlot.trackEnabled
+              ? (resolvedSlot.trackIntervals ?? []).map((m) => ({
+                  id: `slot-${m}`,
+                  minutes: m,
+                  enabled: true,
+                  soundId: null,
+                }))
+              : []) // dose_slot 인데 비활성이거나 못 찾음 → 빈 배열(전역 폴백 금지)
+          : medNotifs.map((n) => ({
+              id: n.id,
+              minutes: n.minutes,
+              enabled: n.enabled,
+              soundId: n.soundId ?? null,
+            }));
+
       // ⚠️ medication_id 는 항상 NULL(슬롯 단위 기록).
       // measurements.med_intake_id→med_logs(id) FK 결합 주의: insert 는 1회만, 재생성 금지.
+      const nowIso = new Date().toISOString();
       const insertData: any = {
         patient_id: patientId,
         logged_by: user.id,
         medication_id: null,
-        taken_at: new Date().toISOString(),
+        taken_at: nowIso,
         meal_time: effectiveMealTime,
         dose_slot_id: doseSlotId,
       };
 
-      const { data: insertedLog, error: insertError } = await supabase
-        .from('med_logs')
-        .insert(insertData)
-        .select('id')
-        .single();
-
-      if (insertError) throw insertError;
-      const medLogId: string | undefined = insertedLog?.id;
+      // 덮어쓰기(마지막 것만): 같은 슬롯·같은 날 기존 복용기록이 있으면 새 행을 만들지 않고
+      // 그 행의 시각만 갱신(RPC, SECURITY DEFINER). id 유지 → 약효추적/측정 FK 참조 보존 +
+      // effect_tracking_queue 가 med_log_id 기준 dedup 이라 약효추적 알림 중복도 자동 방지.
+      // RPC 가 NULL(기존 없음)이거나 실패하면 기존대로 새로 insert.
+      let medLogId: string | undefined;
+      const { data: overwrittenId, error: rpcError } = await (supabase.rpc as any)('upsert_med_log_time', {
+        p_patient_id: patientId,
+        p_dose_slot_id: doseSlotId,
+        p_meal_time: effectiveMealTime,
+        p_taken_at: nowIso,
+        p_logged_by: user.id,
+      });
+      if (!rpcError && overwrittenId) {
+        medLogId = overwrittenId as string;
+      } else {
+        const { data: insertedLog, error: insertError } = await supabase
+          .from('med_logs')
+          .insert(insertData)
+          .select('id')
+          .single();
+        if (insertError) throw insertError;
+        medLogId = insertedLog?.id;
+      }
 
       // 복용 시각 AsyncStorage 저장 (약효 추적 trigger_time_label 추론용)
       // expires_at 추가: 마지막 약효추적 인터벌 + 30분 후 만료
       // → 이전 복용 데이터가 stale 상태로 살아남아 잘못된 자동 추정 트리거 방지
-      const enabledIntervals = medNotifs
+      const enabledIntervals = effectiveNotifs
         .filter((n) => n.enabled && n.minutes > 0)
         .map((n) => n.minutes);
       const lastIntervalMin =
@@ -300,10 +447,10 @@ export function useMedication(): UseMedicationReturn {
         //  - 신규 분기(doseSlotId 존재): 서버가 dose_slot.track_enabled 로 게이트.
         //    → 취침 하드제외를 클라가 하지 않고 항상 호출(서버에 큐 정합 위임).
         //  - 구 분기(doseSlotId 없음, 미이관 환자): 기존 meal_time 경로 그대로(bedtime 스킵 보존).
-        const notifSettings = medNotifs.map((n) => ({
+        const notifSettings = effectiveNotifs.map((n) => ({
           minutes: n.minutes,
           enabled: n.enabled,
-          soundId: n.soundId ?? null,
+          soundId: n.soundId,
         }));
 
         if (user?.push_token) {
@@ -347,7 +494,7 @@ export function useMedication(): UseMedicationReturn {
             ? resolvedSlot?.trackEnabled === true
             : mealTime !== 'bedtime';
           if (localTrackAllowed) {
-            await scheduleEffectTrackingNotifications(medNotifs);
+            await scheduleEffectTrackingNotifications(effectiveNotifs);
           }
         }
 
@@ -397,35 +544,69 @@ export function useMedication(): UseMedicationReturn {
       } catch (notifErr) {
         console.error('[useMedication] 알림 처리 실패 (복용 기록은 저장됨):', notifErr);
       }
+      })();
 
-      // 약 복용 시점에 같은 사용자의 미읽음 약 알림(medication_reminder/missed_medication)
-      // 일괄 읽음 처리 → 종 아이콘 뱃지 즉시 감소
-      // 다른 타입(약효추적/운동/몸상태)은 건드리지 않음
+      // 약 복용 시점에 "방금 기록한 그 슬롯/그날"의 미읽음 약 알림만 읽음 처리.
+      //  - 대상 type: medication_reminder, missed_medication(1·2차 모두 DB엔 missed_medication)
+      //  - 범위: 오늘(KST) created_at 내 + 미읽음
+      //  - 슬롯 매칭: 알림 data 의 doseSlotId(우선) / mealTime 으로 좁힌다.
+      //    (다른 슬롯·다른 날·다른 타입 알림은 절대 건드리지 않음)
+      //  - RLS: notification_logs 는 본인(auth.uid()=user_id) update 허용 → 직접 update 가능.
+      //    환자 본인이 기록하면 user.id=patient. 보호자 대신 기록 시엔 보호자 종 배지엔
+      //    약 알림이 없고, 환자 알림은 RLS상 보호자가 못 건드림(의도된 동작).
+      //  배지(종) 즉시 갱신은 호출처(MedicationScreen)가 takeMedication 성공 후
+      //  refreshBadge() 를 호출해 처리한다. 여기선 update 를 await 해 read_at 반영을 보장.
       try {
         const nowIso = new Date().toISOString();
-        await supabase
+        const today = getKSTToday();
+        const { start: dayStart, end: dayEnd } = getKSTDayRange(today);
+        let q = supabase
           .from('notification_logs')
           .update({ read_at: nowIso })
           .eq('user_id', user.id)
           .in('type', ['medication_reminder', 'missed_medication'])
-          .is('read_at', null);
+          .is('read_at', null)
+          .gte('created_at', dayStart)
+          .lte('created_at', dayEnd);
+        // 슬롯 식별이 가능하면 그 슬롯으로 좁힌다(과도한 일괄 읽음 방지).
+        if (doseSlotId) {
+          q = q.eq('data->>doseSlotId', doseSlotId);
+        } else if (effectiveMealTime) {
+          q = q.eq('data->>mealTime', effectiveMealTime);
+        }
+        await q;
       } catch (markReadErr) {
         // 약 기록 자체는 이미 성공이므로 silent
         console.error('[useMedication] 알림 읽음 처리 실패 (복용 기록은 저장됨):', markReadErr);
       }
-      })();
 
-      // 오늘 현황 갱신 (카드 반영 — 빠른 읽기라 유지)
-      await fetchTodayStatus();
+      // 오늘 현황 갱신 (카드 반영) — (성능) await 하지 않고 백그라운드 재조회로 돌린다.
+      //   호출처(MedicationScreen.proceedSave)가 직후 몸상태 팝업으로 진행하는 걸 막지 않도록.
+      //   반환값(medLogId/doseSlotId/immediateTrack)은 이 재조회 결과에 의존하지 않으므로 안전.
+      //   카드 반영이 약간 늦어도 재조회가 곧 갱신한다.
+      void fetchTodayStatus();
       // 7단계: 방금 기록한 복용의 식별자 반환(즉시 몸상태 팝업 경로의 슬롯 귀속용).
       //   doseSlotId 는 보충 후 effective 값, medLogId 는 insert 의 .select('id') 결과.
-      return { success: true, medLogId: medLogId ?? null, doseSlotId: doseSlotId ?? null };
+      // 복용 직후 팝업 게이팅: effectiveNotifs 와 동일한 resolvedSlot 기준으로 산출.
+      //   - dose_slot 환자: trackEnabled && trackIntervals 에 0 포함일 때만 true.
+      //     (슬롯 못 찾음/추적 OFF/0 없음 → false. 0 가정·전역 폴백 금지.)
+      //   - legacy 환자(doseSlotId 없음): null → 호출처가 기존 동작 유지.
+      const immediateTrack: boolean | null = doseSlotId
+        ? (resolvedSlot?.trackEnabled === true && (resolvedSlot.trackIntervals ?? []).includes(0))
+        : null;
+      // 약효추적 후보를 호출처에서 결정적으로 만들 수 있도록 resolvedSlot(fresh) 설정도 같이 반환.
+      const trackEnabled: boolean | null = doseSlotId ? (resolvedSlot?.trackEnabled ?? null) : null;
+      const trackIntervals: number[] | null = doseSlotId ? (resolvedSlot?.trackIntervals ?? null) : null;
+      return { success: true, medLogId: medLogId ?? null, doseSlotId: doseSlotId ?? null, immediateTrack, trackEnabled, trackIntervals };
     } catch (err: any) {
       console.error('[useMedication] takeMedication 오류:', err);
       setError(err.message ?? '복용 기록 저장에 실패했어요.');
-      return { success: false, medLogId: null, doseSlotId: null };
+      return { success: false, medLogId: null, doseSlotId: null, immediateTrack: null, trackEnabled: null, trackIntervals: null };
     } finally {
       setLoading(false);
+      // in-flight 락 해제(성공/실패 무관). 백그라운드 알림/큐잉(void async)은 DB insert 후
+      // 이미 시작됐으므로 락은 동기 본문(insert·반환값 산출) 종료 시점에 풀어도 안전하다.
+      savingRef.current = false;
     }
   }, [user, getPatientId, fetchTodayStatus, medNotifs, getSlotByLegacyKey, getSlotById]);
 
@@ -496,6 +677,8 @@ export function useMedication(): UseMedicationReturn {
     slots,
     bySlotId,
     hasDoseSlots,
+    slotsLoading,
+    slotsError,
     loading,
     error,
     takeMedication,

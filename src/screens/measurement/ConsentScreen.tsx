@@ -18,6 +18,7 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import { Ionicons } from '@expo/vector-icons';
 import { Colors } from '../../constants/colors';
 import { MEASUREMENT_CONSENT_STORAGE_KEY } from '../../utils/measurementConsent';
+import { useBottomSheetPadding } from '../../hooks/useBottomSheetPadding';
 import type { RootStackParamList } from '../../navigation/RootNavigator';
 
 type Nav = StackNavigationProp<RootStackParamList, 'MeasurementConsent'>;
@@ -29,6 +30,7 @@ export function ConsentScreen() {
   // Phase 4 — 알림 액션 '바로 측정하기' 진입 시 동의 완료 후 자동 진입할 후속 라우트
   const next = route.params?.next ?? null;
   const [agreed, setAgreed] = useState(false);
+  const bottomPad = useBottomSheetPadding(32);
 
   const handleAgree = async () => {
     if (!agreed) return;
@@ -122,7 +124,7 @@ export function ConsentScreen() {
       </ScrollView>
 
       {/* 하단 버튼 영역 */}
-      <View style={styles.bottomArea}>
+      <View style={[styles.bottomArea, { paddingBottom: bottomPad }]}>
         <TouchableOpacity
           style={[styles.agreeBtn, !agreed && styles.agreeBtnDisabled]}
           onPress={handleAgree}
@@ -276,7 +278,6 @@ const styles = StyleSheet.create({
   /* 하단 버튼 영역 */
   bottomArea: {
     padding: 24,
-    paddingBottom: 32,
     backgroundColor: Colors.background,
     borderTopWidth: 1,
     borderTopColor: Colors.border,

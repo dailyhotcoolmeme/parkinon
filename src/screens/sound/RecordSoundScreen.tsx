@@ -5,17 +5,18 @@ import {
   TextInput,
   TouchableOpacity,
   StyleSheet,
-  ActivityIndicator,
   KeyboardAvoidingView,
   ScrollView,
   Platform,
   Modal,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
+import { Ionicons } from '@expo/vector-icons';
 import { useNavigation, useRoute } from '@react-navigation/native';
 import { Audio } from 'expo-av';
 import { Colors } from '../../constants/colors';
 import { TopBar } from '../../components/common/TopBar';
+import { BrandProgressOverlay } from '../../components/common/BrandProgressOverlay';
 import { useAuth } from '../../context/AuthContext';
 import { useDialog } from '../../context/DialogContext';
 import { supabase } from '../../lib/supabase';
@@ -25,7 +26,7 @@ import { provisionForUser } from '../../lib/alarmSound';
 const MAX_DURATION_MS = 5000; // 최대 5초
 const DEFAULT_LABEL = '내 녹음';
 
-type Phase = 'idle' | 'recording' | 'recorded';
+type Phase = 'idle' | 'ready' | 'recording' | 'recorded';
 
 export function RecordSoundScreen() {
   const navigation = useNavigation<any>();
@@ -46,6 +47,7 @@ export function RecordSoundScreen() {
   const [label, setLabel] = useState(isEditMode ? (editLabel ?? '') : '');
   const [saving, setSaving] = useState(false);
   const [showNameModal, setShowNameModal] = useState(false);
+  const [recordOpen, setRecordOpen] = useState(false); // 녹음 팝업 표시 여부
 
   const recordingRef = useRef<Audio.Recording | null>(null);
   const soundRef = useRef<Audio.Sound | null>(null);
@@ -128,7 +130,7 @@ export function RecordSoundScreen() {
       }, MAX_DURATION_MS);
     } catch (e: any) {
       clearTimers();
-      setPhase('idle');
+      setPhase('ready');
       dialog.alert({
         title: '녹음을 시작할 수 없어요',
         message: '잠시 후 다시 시도해 주세요.',
@@ -141,7 +143,7 @@ export function RecordSoundScreen() {
     clearTimers();
     const recording = recordingRef.current;
     if (!recording) {
-      setPhase('idle');
+      setPhase('ready');
       return;
     }
     try {
@@ -173,7 +175,7 @@ export function RecordSoundScreen() {
         setRecordedDurationMs(durationMs);
         setPhase('recorded');
       } else {
-        setPhase('idle');
+        setPhase('ready');
         dialog.alert({
           title: '녹음에 실패했어요',
           message: '다시 한 번 녹음해 주세요.',
@@ -181,7 +183,7 @@ export function RecordSoundScreen() {
       }
     } catch (e) {
       recordingRef.current = null;
-      setPhase('idle');
+      setPhase('ready');
       dialog.alert({
         title: '녹음에 실패했어요',
         message: '다시 한 번 녹음해 주세요.',
@@ -224,7 +226,7 @@ export function RecordSoundScreen() {
     }
   };
 
-  // ── 다시 녹음 ──────────────────────────────────────────────
+  // ── 다시 녹음(팝업 안에서 준비 상태로 되돌림) ──────────────────
   const handleReRecord = async () => {
     if (soundRef.current) {
       await soundRef.current.unloadAsync().catch(() => {});
@@ -234,7 +236,35 @@ export function RecordSoundScreen() {
     setRecordedUri(null);
     setRecordedDurationMs(0);
     setElapsedMs(0);
+    setPhase('ready');
+  };
+
+  // ── 녹음 팝업 열기/닫기 ────────────────────────────────────
+  // 열 때는 바로 녹음하지 않고 'ready'(녹음 시작 버튼 노출) 상태로.
+  const openRecorder = () => {
+    setIsPlaying(false);
+    setRecordedUri(null);
+    setRecordedDurationMs(0);
+    setElapsedMs(0);
+    setPhase('ready');
+    setRecordOpen(true);
+  };
+  const closeRecorder = async () => {
+    clearTimers();
+    if (recordingRef.current) {
+      await recordingRef.current.stopAndUnloadAsync().catch(() => {});
+      recordingRef.current = null;
+    }
+    if (soundRef.current) {
+      await soundRef.current.unloadAsync().catch(() => {});
+      soundRef.current = null;
+    }
+    setIsPlaying(false);
+    setRecordedUri(null);
+    setRecordedDurationMs(0);
+    setElapsedMs(0);
     setPhase('idle');
+    setRecordOpen(false);
   };
 
   // ── 저장 ──────────────────────────────────────────────────
@@ -254,6 +284,8 @@ export function RecordSoundScreen() {
       return;
     }
 
+    // 중앙 오버레이가 깔끔히 보이도록 녹음 팝업을 먼저 닫는다(저장 진행은 그대로).
+    setRecordOpen(false);
     setSaving(true);
     try {
       // 재생 중이면 정지
@@ -355,8 +387,32 @@ export function RecordSoundScreen() {
   const elapsedSecText = (elapsedMs / 1000).toFixed(1);
   const recordedSecText = (recordedDurationMs / 1000).toFixed(1);
 
+  // 활용 예시 카드 — 신규 등록은 상단, 수정 모드는 하단에 재사용
+  const usageCard = (
+    <View style={styles.usageBox}>
+      <Text style={styles.usageTitle}>💡 이렇게 활용해보세요</Text>
+      <View style={styles.usageRow}>
+        <Text style={styles.usageEmoji}>👶</Text>
+        <Text style={styles.usageText}>
+          손주가 <Text style={styles.usageQuote}>"할머니·할아버지, 약 드세요~"</Text> 녹음
+        </Text>
+      </View>
+      <View style={styles.usageRow}>
+        <Text style={styles.usageEmoji}>💕</Text>
+        <Text style={styles.usageText}>
+          자녀가 <Text style={styles.usageQuote}>"엄마·아빠, 약 챙겨 드세요!"</Text> 녹음
+        </Text>
+      </View>
+      <View style={styles.usageRow}>
+        <Text style={styles.usageEmoji}>🎵</Text>
+        <Text style={styles.usageText}>좋아하는 노래나 짧은 응원 한마디도 좋아요</Text>
+      </View>
+    </View>
+  );
+
   return (
-    <SafeAreaView style={styles.safeArea}>
+    <SafeAreaView style={styles.safeArea} edges={['top']}>
+      {/* SafeAreaView edges는 위에서 처리 — 하단은 탭바가 인셋을 잡으므로 제외 */}
       <TopBar title={isEditMode ? '알림음 수정' : '알림음 녹음'} showBack />
 
       <KeyboardAvoidingView
@@ -370,149 +426,172 @@ export function RecordSoundScreen() {
         keyboardShouldPersistTaps="handled"
         showsVerticalScrollIndicator={false}
       >
-        {/* 안내 문구 */}
-        <View style={styles.guideBox}>
-          {isEditMode ? (
-            <>
-              <Text style={styles.guideTitle}>알림음을 수정해요</Text>
-              <Text style={styles.guideText}>
-                이름만 바꾸거나, 다시 녹음해서 소리를 바꿀 수 있어요.{'\n'}
-                소리는 그대로 두고 이름만 바꿔도 돼요.
-              </Text>
-            </>
-          ) : (
-            <>
-              <Text style={styles.guideTitle}>5초 이내로 녹음해 주세요</Text>
-              <Text style={styles.guideText}>
-                예: "엄마~ 약 드세요~"{'\n'}
-                녹음 버튼을 누르고 또박또박 말해 주세요.
-              </Text>
-            </>
-          )}
-        </View>
+        {/* 상단: 수정 모드는 안내 문구, 신규 등록은 활용 예시 카드(하단 중복 제거) */}
+        {isEditMode ? (
+          <View style={styles.guideBox}>
+            <Text style={styles.guideTitle}>알림음을 수정해요</Text>
+            <Text style={styles.guideText}>
+              이름만 바꾸거나, 다시 녹음해서 소리를 바꿀 수 있어요.{'\n'}
+              소리는 그대로 두고 이름만 바꿔도 돼요.
+            </Text>
+          </View>
+        ) : (
+          usageCard
+        )}
 
-        {/* 상태 표시 영역 */}
+        {/* 상태 표시 영역 — 녹음은 팝업에서 진행, 페이지엔 마이크만 */}
         <View style={styles.statusArea}>
-          {phase === 'recording' ? (
-            <>
-              <Text style={styles.recordingDot}>● 녹음 중</Text>
-              <Text style={styles.bigTimer}>{elapsedSecText}초</Text>
-              <Text style={styles.remainText}>{remainSec}초 남았어요</Text>
-            </>
-          ) : phase === 'recorded' ? (
-            <>
-              <Text style={styles.doneText}>녹음 완료</Text>
-              <Text style={styles.bigTimer}>{recordedSecText}초</Text>
-              <Text style={styles.remainText}>들어보고 저장하세요</Text>
-            </>
-          ) : (
-            <>
-              <Text style={styles.idleEmoji}>🎤</Text>
-              {isEditMode ? (
-                <Text style={styles.idleText}>
-                  지금 이름: {label.trim() || DEFAULT_LABEL}{'\n'}
-                  이름만 바꾸거나, 다시 녹음할 수 있어요.
-                </Text>
-              ) : (
-                <Text style={styles.idleText}>아래 버튼을 눌러 녹음을 시작하세요</Text>
-              )}
-            </>
+          <View style={styles.idleMicCircle}>
+            <Ionicons name="mic" size={48} color={Colors.primary} />
+          </View>
+          {!isEditMode && (
+            <Text style={styles.idleText}>5초 이내로 녹음해주세요</Text>
           )}
         </View>
 
-        {/* 하단 버튼 영역 */}
+        {/* 하단 버튼 영역 — 녹음/저장은 팝업에서, 페이지는 진입 버튼만 */}
         <View style={styles.buttonArea}>
-          {phase === 'idle' && (
-            <>
+          {isEditMode ? (
+            // 수정 모드: 다시 녹음(소리 변경) · 이름만 변경 — 두 줄짜리 박스 한 줄
+            <View style={styles.editBtnRow}>
               <TouchableOpacity
-                style={[styles.bigButton, styles.recordButton]}
-                onPress={handleStartRecording}
+                style={[styles.bigButton, styles.recordButton, styles.editBtnHalf]}
+                onPress={openRecorder}
                 activeOpacity={0.85}
                 disabled={saving}
               >
-                <Text style={styles.bigButtonText}>
-                  {isEditMode ? '● 다시 녹음 (소리 바꾸기)' : '● 녹음 시작'}
-                </Text>
+                <Text style={styles.bigButtonText}>다시 녹음</Text>
+                <Text style={styles.bigButtonSub}>(소리 변경)</Text>
               </TouchableOpacity>
 
-              {/* 수정 모드: 녹음 없이 이름만 바꿔 저장 */}
-              {isEditMode && (
-                <TouchableOpacity
-                  style={[styles.bigButton, styles.saveButton, saving && styles.disabledButton]}
-                  onPress={() => setShowNameModal(true)}
-                  activeOpacity={0.85}
-                  disabled={saving}
-                >
-                  {saving ? (
-                    <View style={styles.savingRow}>
-                      <ActivityIndicator color="#fff" />
-                      <Text style={styles.bigButtonText}>저장 중...</Text>
-                    </View>
-                  ) : (
-                    <Text style={styles.bigButtonText}>이름만 바꿔 저장</Text>
-                  )}
-                </TouchableOpacity>
-              )}
-            </>
-          )}
-
-          {phase === 'recording' && (
+              <TouchableOpacity
+                style={[styles.bigButton, styles.saveButton, styles.editBtnHalf, saving && styles.disabledButton]}
+                onPress={() => setShowNameModal(true)}
+                activeOpacity={0.85}
+                disabled={saving}
+              >
+                <Text style={styles.bigButtonText}>이름만 변경</Text>
+                <Text style={styles.bigButtonSub} numberOfLines={1}>
+                  (현재 이름: {label.trim() || DEFAULT_LABEL})
+                </Text>
+              </TouchableOpacity>
+            </View>
+          ) : (
             <TouchableOpacity
-              style={[styles.bigButton, styles.stopButton]}
-              onPress={handleStopRecording}
+              style={[styles.bigButton, styles.recordButton]}
+              onPress={openRecorder}
               activeOpacity={0.85}
+              disabled={saving}
             >
-              <Text style={styles.bigButtonText}>■ 중지</Text>
+              <Text style={styles.bigButtonText}>녹음 시작</Text>
             </TouchableOpacity>
           )}
-
-          {phase === 'recorded' && (
-            <>
-              <TouchableOpacity
-                style={[styles.bigButton, styles.playButton]}
-                onPress={handlePlayPreview}
-                activeOpacity={0.85}
-                disabled={saving}
-              >
-                <Text style={styles.bigButtonText}>
-                  {isPlaying ? '▶ 재생 중...' : '▶ 들어보기'}
-                </Text>
-              </TouchableOpacity>
-
-              <TouchableOpacity
-                style={[styles.bigButton, styles.saveButton, saving && styles.disabledButton]}
-                onPress={() => {
-                  if (!isEditMode) setLabel('');
-                  setShowNameModal(true);
-                }}
-                activeOpacity={0.85}
-                disabled={saving}
-              >
-                {saving ? (
-                  <View style={styles.savingRow}>
-                    <ActivityIndicator color="#fff" />
-                    <Text style={styles.bigButtonText}>저장 중...</Text>
-                  </View>
-                ) : (
-                  <Text style={styles.bigButtonText}>저장하기</Text>
-                )}
-              </TouchableOpacity>
-
-              <TouchableOpacity
-                style={[styles.bigButton, styles.reRecordButton]}
-                onPress={handleReRecord}
-                activeOpacity={0.85}
-                disabled={saving}
-              >
-                <Text style={[styles.bigButtonText, styles.reRecordText]}>
-                  다시 녹음
-                </Text>
-              </TouchableOpacity>
-            </>
-          )}
         </View>
+
+        {/* 활용 예시 — 수정 모드에선 하단에 안내(신규는 상단에 이미 배치) */}
+        {isEditMode && phase === 'idle' && usageCard}
       </ScrollView>
       </KeyboardAvoidingView>
+
+      {/* 녹음 팝업 — 준비('녹음 시작') → 녹음/중지 → 들어보기·저장까지 한 팝업에서 */}
+      <Modal
+        visible={recordOpen}
+        transparent
+        animationType="fade"
+        statusBarTranslucent
+        onRequestClose={closeRecorder}
+      >
+        <View style={styles.recOverlay}>
+          <View style={styles.recCard}>
+            {phase === 'recording' ? (
+              <>
+                <Text style={styles.recordingDot}>● 녹음 중</Text>
+                <Text style={styles.bigTimer}>{elapsedSecText}초</Text>
+                <Text style={styles.remainText}>{remainSec}초 남았어요</Text>
+                <TouchableOpacity
+                  style={[styles.recBtnBase, styles.recBtnDanger, styles.recFullBtn]}
+                  onPress={handleStopRecording}
+                  activeOpacity={0.85}
+                >
+                  <Text style={styles.recBtnTextLight}>중지</Text>
+                </TouchableOpacity>
+              </>
+            ) : phase === 'recorded' ? (
+              <>
+                <Text style={styles.doneText}>녹음 완료</Text>
+                <Text style={styles.bigTimer}>{recordedSecText}초</Text>
+                <Text style={styles.remainText}>들어보고 저장하세요</Text>
+                <View style={styles.recBtnRow}>
+                  <TouchableOpacity
+                    style={[styles.recBtnBase, styles.recBtnAccent, styles.recHalfBtn]}
+                    onPress={handlePlayPreview}
+                    activeOpacity={0.85}
+                    disabled={saving}
+                  >
+                    <Ionicons name="play" size={18} color="#FFFFFF" style={styles.recBtnIcon} />
+                    <Text style={styles.recBtnTextLight}>{isPlaying ? '재생 중…' : '들어보기'}</Text>
+                  </TouchableOpacity>
+                  <TouchableOpacity
+                    style={[styles.recBtnBase, styles.recBtnAccent, styles.recHalfBtn]}
+                    onPress={handleReRecord}
+                    activeOpacity={0.85}
+                    disabled={saving}
+                  >
+                    <Ionicons name="ellipse" size={15} color="#FFFFFF" style={styles.recBtnIcon} />
+                    <Text style={styles.recBtnTextLight}>다시 녹음</Text>
+                  </TouchableOpacity>
+                </View>
+                <View style={styles.recBtnRow}>
+                  <TouchableOpacity
+                    style={[styles.recBtnBase, styles.recBtnGrey, styles.recHalfBtn]}
+                    onPress={closeRecorder}
+                    activeOpacity={0.85}
+                    disabled={saving}
+                  >
+                    <Text style={styles.recBtnTextDark}>닫기</Text>
+                  </TouchableOpacity>
+                  <TouchableOpacity
+                    style={[styles.recBtnBase, styles.recBtnPrimary, styles.recHalfBtn, saving && styles.disabledButton]}
+                    onPress={() => {
+                      if (!isEditMode) setLabel('');
+                      setShowNameModal(true);
+                    }}
+                    activeOpacity={0.85}
+                    disabled={saving}
+                  >
+                    <Text style={styles.recBtnTextLight}>저장하기</Text>
+                  </TouchableOpacity>
+                </View>
+              </>
+            ) : (
+              // 'ready' — 바로 시작하지 않고 버튼을 눌러야 녹음 시작
+              <>
+                <Text style={styles.recTitle}>녹음 준비됐어요</Text>
+                <Text style={styles.recSub}>5초 이내로 또박또박 말해 주세요.</Text>
+                <View style={styles.recMicCircle}>
+                  <Ionicons name="mic" size={44} color={Colors.primary} />
+                </View>
+                <View style={styles.recBtnRow}>
+                  <TouchableOpacity
+                    style={[styles.recBtnBase, styles.recBtnGrey, styles.recHalfBtn]}
+                    onPress={closeRecorder}
+                    activeOpacity={0.85}
+                  >
+                    <Text style={styles.recBtnTextDark}>닫기</Text>
+                  </TouchableOpacity>
+                  <TouchableOpacity
+                    style={[styles.recBtnBase, styles.recBtnPrimary, styles.recHalfBtn]}
+                    onPress={handleStartRecording}
+                    activeOpacity={0.85}
+                  >
+                    <Text style={styles.recBtnTextLight}>녹음 시작</Text>
+                  </TouchableOpacity>
+                </View>
+              </>
+            )}
+          </View>
+        </View>
+      </Modal>
 
       {/* 이름 입력 팝업 — 저장 시 가운데 모달로 입력(키보드 위로 뜸) */}
       <Modal
@@ -561,6 +640,11 @@ export function RecordSoundScreen() {
           </View>
         </KeyboardAvoidingView>
       </Modal>
+      <BrandProgressOverlay
+        visible={saving}
+        title="저장하고 있어요"
+        minVisibleMs={500}
+      />
     </SafeAreaView>
   );
 }
@@ -574,7 +658,7 @@ const styles = StyleSheet.create({
   scrollContent: {
     padding: 20,
     flexGrow: 1,
-    paddingBottom: 48,
+    paddingBottom: 16,
   },
   modalOverlay: {
     flex: 1,
@@ -604,19 +688,18 @@ const styles = StyleSheet.create({
   modalBtnRow: { flexDirection: 'row', gap: 12 },
   modalBtn: { flex: 1, minHeight: 52, borderRadius: 12, alignItems: 'center', justifyContent: 'center' },
   modalCancelBtn: { backgroundColor: '#F0F0F0' },
-  modalCancelText: { fontSize: 17, fontWeight: '700', color: Colors.textSub },
+  modalCancelText: { fontSize: 18, fontWeight: '700', color: Colors.textSub },
   modalSaveBtn: { backgroundColor: Colors.primary },
-  modalSaveText: { fontSize: 17, fontWeight: '700', color: Colors.white },
+  modalSaveText: { fontSize: 18, fontWeight: '700', color: Colors.white },
 
   // 안내
   guideBox: {
     backgroundColor: Colors.light,
     borderRadius: 16,
     padding: 20,
-    marginBottom: 20,
   },
   guideTitle: {
-    fontSize: 22,
+    fontSize: 20,
     fontWeight: '800',
     color: Colors.dark,
     marginBottom: 8,
@@ -624,13 +707,14 @@ const styles = StyleSheet.create({
   guideText: {
     fontSize: 18,
     lineHeight: 26,
-    color: Colors.text,
-    fontWeight: '500',
+    color: Colors.textSub,
+    fontWeight: '400',
   },
 
   // 상태 영역
   statusArea: {
     flex: 1,
+    minHeight: 140,
     alignItems: 'center',
     justifyContent: 'center',
     gap: 10,
@@ -638,8 +722,16 @@ const styles = StyleSheet.create({
   idleEmoji: {
     fontSize: 72,
   },
+  idleMicCircle: {
+    width: 96,
+    height: 96,
+    borderRadius: 48,
+    backgroundColor: Colors.light,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
   idleText: {
-    fontSize: 19,
+    fontSize: 17,
     color: Colors.textSub,
     fontWeight: '600',
     textAlign: 'center',
@@ -669,17 +761,36 @@ const styles = StyleSheet.create({
   buttonArea: {
     gap: 12,
   },
+  editBtnRow: {
+    flexDirection: 'row',
+    gap: 12,
+  },
+  editBtnHalf: {
+    flex: 1,
+  },
   bigButton: {
-    minHeight: 64,
-    borderRadius: 16,
+    minHeight: 56,
+    borderRadius: 14,
     alignItems: 'center',
     justifyContent: 'center',
     paddingVertical: 16,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.18,
+    shadowRadius: 4,
+    elevation: 3,
   },
   bigButtonText: {
-    fontSize: 24,
-    fontWeight: '800',
+    fontSize: 18,
+    fontWeight: '700',
     color: '#fff',
+  },
+  bigButtonSub: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: 'rgba(255,255,255,0.9)',
+    marginTop: 2,
+    textAlign: 'center',
   },
   recordButton: {
     backgroundColor: Colors.danger,
@@ -708,5 +819,134 @@ const styles = StyleSheet.create({
   },
   reRecordText: {
     color: Colors.textSub,
+  },
+
+  // 활용 예시 카드
+  usageBox: {
+    backgroundColor: Colors.white,
+    borderRadius: 16,
+    padding: 18,
+    marginTop: 18,
+    gap: 14,
+    borderWidth: 1,
+    borderColor: Colors.border,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.06,
+    shadowRadius: 4,
+    elevation: 1,
+  },
+  usageTitle: {
+    fontSize: 17,
+    fontWeight: '700',
+    color: Colors.text,
+    marginBottom: 4,
+  },
+  usageRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+  },
+  usageEmoji: {
+    fontSize: 26,
+    lineHeight: 30,
+  },
+  usageText: {
+    flex: 1,
+    fontSize: 16,
+    lineHeight: 23,
+    color: Colors.textSub,
+  },
+  usageQuote: {
+    color: Colors.dark,
+    fontWeight: '600',
+  },
+
+  // 녹음 팝업
+  recOverlay: {
+    flex: 1,
+    backgroundColor: 'rgba(0,0,0,0.5)',
+    justifyContent: 'center',
+    alignItems: 'center',
+    paddingHorizontal: 28,
+  },
+  recCard: {
+    width: '100%',
+    backgroundColor: Colors.white,
+    borderRadius: 20,
+    padding: 24,
+    alignItems: 'center',
+    gap: 12,
+  },
+  recTitle: {
+    fontSize: 20,
+    fontWeight: '800',
+    color: Colors.text,
+  },
+  recSub: {
+    fontSize: 15,
+    color: Colors.textSub,
+    textAlign: 'center',
+    marginBottom: 4,
+  },
+  recMicCircle: {
+    width: 88,
+    height: 88,
+    borderRadius: 44,
+    backgroundColor: Colors.light,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginVertical: 4,
+  },
+  recFullBtn: {
+    alignSelf: 'stretch',
+  },
+  recBtnRow: {
+    flexDirection: 'row',
+    gap: 12,
+    alignSelf: 'stretch',
+  },
+  recHalfBtn: {
+    flex: 1,
+  },
+  recCancelBtn: {
+    backgroundColor: '#F0F0F0',
+  },
+  recCancelText: {
+    color: Colors.textSub,
+  },
+  // 팝업 버튼 — 색 3종(초록/빨강/연회색), 글자 2종(흰/검)만 사용
+  recBtnBase: {
+    minHeight: 54,
+    borderRadius: 12,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingVertical: 14,
+  },
+  recBtnPrimary: {
+    backgroundColor: Colors.primary,
+  },
+  recBtnDanger: {
+    backgroundColor: Colors.danger,
+  },
+  recBtnGrey: {
+    backgroundColor: '#F0F0F0',
+  },
+  recBtnAccent: {
+    backgroundColor: Colors.accent,
+  },
+  recBtnIcon: {
+    marginRight: 6,
+  },
+  recBtnTextLight: {
+    fontSize: 17,
+    fontWeight: '700',
+    color: '#FFFFFF',
+  },
+  recBtnTextDark: {
+    fontSize: 17,
+    fontWeight: '700',
+    color: Colors.text,
   },
 });

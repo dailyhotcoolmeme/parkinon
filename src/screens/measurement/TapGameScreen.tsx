@@ -19,8 +19,10 @@ import { useNavigation, useRoute, RouteProp } from '@react-navigation/native';
 import { Ionicons } from '@expo/vector-icons';
 import { Colors } from '../../constants/colors';
 import { recordMeasurement } from '../../utils/biomarker';
+import { BrandProgressOverlay } from '../../components/common/BrandProgressOverlay';
 import type { RootStackParamList } from '../../navigation/RootNavigator';
 import type { StackNavigationProp } from '@react-navigation/stack';
+import { useBottomSheetPadding } from '../../hooks/useBottomSheetPadding';
 
 type RouteProps = RouteProp<RootStackParamList, 'TapGame'>;
 type Nav = StackNavigationProp<RootStackParamList, 'TapGame'>;
@@ -373,6 +375,7 @@ function ReadyScreen({
   onStart: () => void;
   onBack: () => void;
 }) {
+  const bottomPad = useBottomSheetPadding(32);
   return (
     <SafeAreaView style={styles.safeArea} edges={['top', 'bottom']}>
       <View style={styles.topBar}>
@@ -396,7 +399,7 @@ function ReadyScreen({
         </Text>
       </View>
 
-      <View style={styles.bottomBtnArea}>
+      <View style={[styles.bottomBtnArea, { paddingBottom: bottomPad }]}>
         <TouchableOpacity
           style={styles.primaryBtn}
           onPress={onStart}
@@ -413,6 +416,7 @@ function ReadyScreen({
 }
 
 function DoneConfirm({ onConfirm }: { onConfirm: () => void }) {
+  const bottomPad = useBottomSheetPadding(32);
   return (
     <SafeAreaView style={styles.safeArea} edges={['top', 'bottom']}>
       <View style={styles.centerBody}>
@@ -420,7 +424,7 @@ function DoneConfirm({ onConfirm }: { onConfirm: () => void }) {
         <Text style={styles.doneTitle}>수고하셨어요</Text>
         <Text style={styles.doneSub}>측정이 끝났어요.</Text>
       </View>
-      <View style={styles.bottomBtnArea}>
+      <View style={[styles.bottomBtnArea, { paddingBottom: bottomPad }]}>
         <TouchableOpacity
           style={styles.primaryBtn}
           onPress={onConfirm}
@@ -437,11 +441,7 @@ function DoneConfirm({ onConfirm }: { onConfirm: () => void }) {
 function SavingScreen() {
   return (
     <SafeAreaView style={styles.safeArea} edges={['top', 'bottom']}>
-      <View style={styles.centerBody}>
-        <Text style={styles.doneEmoji}>⏳</Text>
-        <Text style={styles.doneTitle}>저장하고 있어요</Text>
-        <Text style={styles.doneSub}>잠시만 기다려주세요.</Text>
-      </View>
+      <BrandProgressOverlay visible title="결과를 정리하고 있어요" />
     </SafeAreaView>
   );
 }
@@ -453,6 +453,7 @@ function ErrorScreen({
   message: string;
   onConfirm: () => void;
 }) {
+  const bottomPad = useBottomSheetPadding(32);
   return (
     <SafeAreaView style={styles.safeArea} edges={['top', 'bottom']}>
       <View style={styles.centerBody}>
@@ -460,7 +461,7 @@ function ErrorScreen({
         <Text style={styles.doneTitle}>저장하지 못했어요</Text>
         <Text style={styles.doneSub}>{message}</Text>
       </View>
-      <View style={styles.bottomBtnArea}>
+      <View style={[styles.bottomBtnArea, { paddingBottom: bottomPad }]}>
         <TouchableOpacity
           style={styles.primaryBtn}
           onPress={onConfirm}
@@ -710,7 +711,6 @@ const styles = StyleSheet.create({
   },
   bottomBtnArea: {
     padding: 20,
-    paddingBottom: 32,
   },
   primaryBtn: {
     flexDirection: 'row',

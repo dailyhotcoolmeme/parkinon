@@ -7,8 +7,10 @@ import {
   StyleSheet,
   Dimensions,
   Modal,
+  ActivityIndicator,
 } from 'react-native';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
+import { useBottomSheetPadding } from '../../hooks/useBottomSheetPadding';
 import { useNavigation, useRoute, useFocusEffect } from '@react-navigation/native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { Ionicons } from '@expo/vector-icons';
@@ -19,8 +21,8 @@ import { CaregiverConfirmModal } from '../../components/common/CaregiverConfirmM
 import { DatePickerModal } from '../../components/common/DatePickerModal';
 import { useAuth } from '../../context/AuthContext';
 import { useBodyState } from '../../hooks/useBodyState';
-import { triggerLabelToText, mealTimeToKorean, mealTimeToPeriod } from '../../utils/medUtils';
-import { fetchPatientDoseSlots, resolveDisplaySlots } from '../../hooks/useDoseSlots';
+import { triggerLabelToText, triggerLabelToMinutes, mealTimeToKorean, mealTimeToPeriod } from '../../utils/medUtils';
+import { fetchPatientDoseSlots, fetchPatientLabelDoseSlots, resolveDisplaySlots, getTrackingDayBounds } from '../../hooks/useDoseSlots';
 import { useScrollTopOnTabPress } from '../../hooks/useScrollTopOnTabPress';
 import type { DoseSlot } from '../../hooks/useDoseSlots';
 import { nextDoseLabel, slotSortValue, buildSlotTitleMaps } from '../../constants/doseSlots';
@@ -32,6 +34,9 @@ import { useDialog } from '../../context/DialogContext';
 import { HistoryTimeline } from '../../components/common/HistoryTimeline';
 import { useRecordRealtime } from '../../hooks/useRecordRealtime';
 import { ensureNotGuest } from '../../utils/guestGuard';
+import { useSetupGate } from '../../hooks/useSetupGate';
+import { SetupGuideBanner } from '../../components/common/SetupGuideBanner';
+import { BrandProgressOverlay } from '../../components/common/BrandProgressOverlay';
 import { MeasurementInviteModal } from '../../components/measurement/MeasurementInviteModal';
 import { ensureMeasurementConsent } from '../../utils/measurementConsent';
 import { MEASUREMENT_FEATURE_ENABLED } from '../../constants/featureFlags';
@@ -76,12 +81,17 @@ function formatTime(isoString: string): string {
   return `${ampm} ${hour}:${m.toString().padStart(2, '0')}`;
 }
 
+// 수시(식사시간대 없는) 기록의 시간대 키.
+// 오너 확정 6구간(doseSlots.periodWord)과 일치: 새벽·아침·점심·오후·저녁·밤.
+// (이전엔 4구간이라 15시가 '저녁'(h<20)으로 묶여 달(🌙) 아이콘이 떴음 — 낮인데 달이 뜨는 버그)
 function getPeriod(isoString: string): string {
   const h = new Date(isoString).getHours();
-  if (h < 11) return '아침';
-  if (h < 15) return '점심';
-  if (h < 20) return '저녁';
-  return '취침';
+  if (h < 6) return '새벽';   // 0–5
+  if (h < 11) return '아침';  // 6–10
+  if (h < 13) return '점심';  // 11–12
+  if (h < 17) return '오후';  // 13–16 (15시 = 오후 = 해)
+  if (h < 21) return '저녁';  // 17–20
+  return '밤';                // 21–23
 }
 
 function labelToMinutes(label: string): number | null {
@@ -106,32 +116,45 @@ function labelToMedPhase(label: string | null | undefined): '30m' | '2h' | null 
 
 
 
+// 시간대 키('아침/점심/저녁/취침'=식사 슬롯, '새벽/오후/밤'=수시 기록 getPeriod)
 const PERIOD_COLOR: Record<string, string> = {
+  '새벽': '#5C6BC0',
   '아침': '#FF8A65',
   '점심': '#4CAF50',
-  '저녁': '#1565C0',
+  '오후': '#FFB300',
+  '저녁': '#FB8C00',
+  '밤': '#5E35B1',
   '취침': '#7C4DFF',
 };
 
 const PERIOD_ICON: Record<string, string> = {
+  '새벽': '🌌',
   '아침': '🌅',
   '점심': '☀️',
-  '저녁': '🌙',
+  '오후': '🌤️',
+  '저녁': '🌆',
+  '밤': '🌙',
   '취침': '💤',
 };
 
 // 배지 배경: 섹션 색상의 연한 버전
 const PERIOD_BADGE_BG: Record<string, string> = {
+  '새벽': 'rgba(92,107,192,0.15)',
   '아침': 'rgba(255,138,101,0.15)',
   '점심': 'rgba(76,175,80,0.15)',
-  '저녁': 'rgba(21,101,192,0.15)',
+  '오후': 'rgba(255,179,0,0.15)',
+  '저녁': 'rgba(251,140,0,0.15)',
+  '밤': 'rgba(94,53,177,0.15)',
   '취침': 'rgba(124,77,255,0.15)',
 };
 // 배지 텍스트: 섹션 색상보다 진한 버전
 const PERIOD_BADGE_TEXT: Record<string, string> = {
+  '새벽': '#283593',
   '아침': '#BF360C',
   '점심': '#1B5E20',
-  '저녁': '#0D47A1',
+  '오후': '#E65100',
+  '저녁': '#E65100',
+  '밤': '#311B92',
   '취침': '#4527A0',
 };
 
@@ -220,6 +243,11 @@ export function BodyStateScreen() {
   const [showDatePicker, setShowDatePicker] = useState(false);
   const [videoLogs, setVideoLogs] = useState<any[]>([]);
   const [dateLogs, setDateLogs] = useState<any[]>([]);
+  // 과거 날짜 기록 로딩 표시 — 로딩 중 이전 날짜 데이터가 잠깐 남아 보이는 것 방지(스피너 표시).
+  const [dateLogsLoading, setDateLogsLoading] = useState(false);
+  // 진행 중인(in-flight) 동일 날짜 로드 키 — 포커스+마운트 동시 발화 등 중복 동시호출만 차단.
+  const videoLogsInFlightKey = useRef<string | null>(null);
+  const dateLogsInFlightKey = useRef<string | null>(null);
   const [pendingTriggerLabel, setPendingTriggerLabel] = useState<string | null>(null);
   const [historyRefreshKey, setHistoryRefreshKey] = useState(0);
   const [recordsRefreshKey, setRecordsRefreshKey] = useState(0);
@@ -243,21 +271,44 @@ export function BodyStateScreen() {
   const [measureInvitePhase, setMeasureInvitePhase] = useState<MeasurementMedPhase | null>(null);
   // 권유 모달이 NextNotifModal과 겹치지 않도록, NextNotif 닫힘 시 pending 상태에서 인계
   const [pendingMeasureInvitePhase, setPendingMeasureInvitePhase] = useState<MeasurementMedPhase | null>(null);
+  // 저장 스피너 — "완료" 누른 뒤 저장(on_off_logs insert) + 다음 알림 조회 대기 구간을 덮는다.
+  //   질문 체인(BodyStatePopupFlow) 전환에는 쓰지 않는다(즉시 전환 → 번쩍임).
+  const [saving, setSaving] = useState(false);
+  // 스피너(BrandProgressOverlay·Modal)가 "완전히 사라진 뒤" 단독으로 present 할 후속 동작을 담아둔다.
+  //   닫히는 스피너 Modal 위에 NextNotifModal/AppDialog 를 올리면 iOS 에서 적층 교착(무한 스피너)이 나므로,
+  //   setSaving(false) 로 오버레이를 내린 뒤 onHidden 에서만 후속 모달을 띄운다(ProfileEdit 패턴).
+  const pendingAfterSaveRef = useRef<
+    | { kind: 'next'; info: NextNotifInfo | null; measurePhase: MeasurementMedPhase | null }
+    | { kind: 'alert'; title: string; message: string }
+    | null
+  >(null);
   // 환자 약 중 레보도파 계열 존재 여부 — 비레보도파 단독 환자는 권유 안 함
   const [hasLevodopaMed, setHasLevodopaMed] = useState(false);
-  // 표시용 dose_slots — 기록 슬롯 명칭(slotTitle) 조회/그룹핑용 (display 전용, 기록 로직 무관)
+  // 활성 dose_slots — 게이팅(첫/마지막 활성 슬롯)·실제 슬롯 보유 판정 등 "로직" 전용.
   const [displaySlots, setDisplaySlots] = useState<DoseSlot[]>([]);
+  // 표시/라벨 전용 dose_slots — 비활성(soft delete) 슬롯 포함. 과거 기록 명칭(slotTitle)
+  // 복원에만 사용한다(삭제해도 원래 시간대 이름 유지). 게이팅/스케줄에는 절대 쓰지 않음.
+  const [labelSlots, setLabelSlots] = useState<DoseSlot[]>([]);
   const hasBedtimeLoadedRef = useRef(false);
-  const pendingFlowArgsRef = useRef<{ label: string; medTime: Date | null; mealTimeKey: string | null; doseSlotId?: string | null; medLogId?: string | null } | null>(null);
+  // 취침약 로딩 게이팅 bypass 타이머 — medications 로딩이 지연돼도 일정 시간 후엔 팝업 진입을 막지 않는다.
+  const bedtimeGateTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const pendingFlowArgsRef = useRef<{ label: string; medTime: Date | null; mealTimeKey: string | null; doseSlotId?: string | null; medLogId?: string | null; fromNotification?: boolean } | null>(null);
   // 회귀 수정: route.params triggerTs dedupe — 같은 ts는 한 번만 처리
   // (다른 탭 갔다 복귀 시 stale params로 인한 중복 발화 방지)
   const processedTriggerTsRef = useRef<number | null>(null);
+  // 재진입 가드: 입력 팝업(BodyStatePopupFlow) 또는 시간대 선택 모달(TriggerSelectModal)이
+  //   이미 열려 있는 동안 알림 탭으로 또 진입하면, 같은 시트를 두 번째 Modal 로 겹쳐 띄워
+  //   Android 에서 흰화면/네이티브 크래시가 날 수 있다. 이 ref 로 "이미 플로우 진행 중"이면 무시한다.
+  //   (state 는 useFocusEffect 클로저에서 stale 캡처되므로 ref 로 최신값을 읽는다.)
+  const flowOpenRef = useRef(false);
   const navigation = useNavigation<any>();
   const route = useRoute<any>();
   const insets = useSafeAreaInsets();
   const { unreadCount } = useNotificationBadge();
   const { medNotifs } = useSettings();
   const dialog = useDialog();
+  // 복용 시간대(dose_slot) 미등록 시 약효추적 기록 차단 게이팅 (B차).
+  const { requireSetup } = useSetupGate();
 
   // minutes → trigger_time_label 변환
   const minutesToLabel = (minutes: number): string => {
@@ -271,8 +322,15 @@ export function BodyStateScreen() {
 
   const loadVideoLogs = useCallback(async () => {
     const dateStr = toLocalDateString(selectedDate);
-    const logs = await fetchVideoLogs(dateStr);
-    setVideoLogs(logs);
+    // 중복 동시호출 가드: 같은 날짜 영상 로드가 진행 중이면 스킵(다른 날짜는 통과 → 갱신 유지).
+    if (videoLogsInFlightKey.current === dateStr) return;
+    videoLogsInFlightKey.current = dateStr;
+    try {
+      const logs = await fetchVideoLogs(dateStr);
+      setVideoLogs(logs);
+    } finally {
+      if (videoLogsInFlightKey.current === dateStr) videoLogsInFlightKey.current = null;
+    }
   }, [selectedDate, fetchVideoLogs]);
 
   const loadDateLogs = useCallback(async () => {
@@ -281,8 +339,17 @@ export function BodyStateScreen() {
       return;
     }
     const dateStr = toLocalDateString(selectedDate);
-    const logs = await getBodyStateLogs(dateStr);
-    setDateLogs(logs);
+    // 중복 동시호출 가드: 같은 날짜 로드가 진행 중이면 스킵(포커스+마운트 동시 발화 등).
+    if (dateLogsInFlightKey.current === dateStr) return;
+    dateLogsInFlightKey.current = dateStr;
+    setDateLogsLoading(true);
+    try {
+      const logs = await getBodyStateLogs(dateStr);
+      setDateLogs(logs);
+    } finally {
+      setDateLogsLoading(false);
+      if (dateLogsInFlightKey.current === dateStr) dateLogsInFlightKey.current = null;
+    }
   }, [selectedDate, isToday, getBodyStateLogs]);
 
   // 날짜 바뀔 때마다 영상 목록 + 날짜별 기록 갱신
@@ -292,16 +359,30 @@ export function BodyStateScreen() {
   }, [loadVideoLogs, loadDateLogs]);
 
   // 포커스 시 stale 팝업 args 초기화 — 알림 useFocusEffect보다 반드시 먼저 실행되어야 함
+  // ⚠️ 성능: 여기서 hasBedtimeLoadedRef 를 리셋하지 않는다. 취침약 정보는 한 번 로드하면
+  //    유지하고(아래 취침약 조회 effect), 약(medications)이 실제 변경될 때만 realtime 으로
+  //    무효화→재조회한다. 매 포커스마다 게이트를 풀면 진입할 때마다 재조회 + 팝업 대기가 생긴다.
   useFocusEffect(
     useCallback(() => {
-      hasBedtimeLoadedRef.current = false;
+      // ⚠️ 회귀 방지: 취침약 로딩 게이트로 보류 중(bypass 타이머 가동 중)인 args 는 지우지 않는다.
+      //   콜드스타트 알림 진입 시 openFlowOrPend 가 args 를 pend → 네비게이션 정착으로 재포커스가
+      //   발생하면 이 reset 이 args 를 지워, replay/timer 의 동일성 가드가 깨지면서 팝업이 영영
+      //   안 열리던 회귀가 있었음. 활성 타이머가 있으면 곧 열릴 예정이므로 보존한다.
+      if (bedtimeGateTimerRef.current) return;
       pendingFlowArgsRef.current = null;
     }, [])
   );
 
+  // 환자 식별 state — 아래 알림 useFocusEffect/useEffect 의존성 배열에서 참조하므로
+  // "선언 전 사용"(TS2448/TS2454) 방지를 위해 effect들보다 먼저 선언한다.
+  const [patientName, setPatientName] = useState('환자');
+  const [patientId, setPatientId] = useState<string | null>(null);
+
   // 알림 탭 진입 시 trigger_time_label 자동 설정
   useFocusEffect(
     React.useCallback(() => {
+      // ⚠️ 크래시 안전망: 이 effect 가 throw 하면(렌더 외 비동기 throw 포함) 앱이 닫힐 수 있어 전체를 감싼다.
+      try {
       const triggerMinutes = route.params?.triggerMinutes;
       if (triggerMinutes != null) {
         // 회귀 수정: triggerTs dedupe — 같은 ts는 두 번 처리하지 않음
@@ -322,13 +403,16 @@ export function BodyStateScreen() {
         const paramMedLogId = (route.params as any)?.triggerMedLogId ?? null;
         setPendingTriggeredBy('notification');
         setPendingTriggerLabel(label);
-        if (!showFlow) {
+        // 재진입 가드: 이미 플로우가 열려 있으면(약효추적 시트가 떠 있는 상태에서 또 탭) 무시.
+        //   (기존 `!showFlow` 는 stale 캡처라 두 번째 탭에서 잘못 통과 → 중복 오픈/크래시.
+        //    openFlowOrPend 내부에서도 flowOpenRef 로 한 번 더 가드한다.)
+        if (!flowOpenRef.current) {
           if (paramMealTime) {
-            openFlowOrPend(label, null, paramMealTime, paramDoseSlotId, paramMedLogId);
+            openFlowOrPend(label, null, paramMealTime, paramDoseSlotId, paramMedLogId, true);
           } else if (patientId) {
             fetchTodayLastMedLog(patientId)
               .then((parsed) => {
-                if (!parsed) { openFlowOrPend(label, null, null, paramDoseSlotId, paramMedLogId); return; }
+                if (!parsed) { openFlowOrPend(label, null, null, paramDoseSlotId, paramMedLogId, true); return; }
                 const medTime = parsed.taken_at ? new Date(parsed.taken_at) : null;
                 // 알림이 식별자를 안 실었을 때만 마지막 복용 기록에서 보강.
                 openFlowOrPend(
@@ -337,17 +421,21 @@ export function BodyStateScreen() {
                   parsed.meal_time,
                   paramDoseSlotId ?? parsed.dose_slot_id ?? null,
                   paramMedLogId ?? parsed.id ?? null,
+                  true,
                 );
               })
-              .catch(() => openFlowOrPend(label, null, null, paramDoseSlotId, paramMedLogId));
+              .catch(() => openFlowOrPend(label, null, null, paramDoseSlotId, paramMedLogId, true));
           } else {
-            openFlowOrPend(label, null, null, paramDoseSlotId, paramMedLogId);
+            openFlowOrPend(label, null, null, paramDoseSlotId, paramMedLogId, true);
           }
         }
 
         // 처리 직후 route.params 비움 — 다음 포커스 진입 시 stale 재발화 방지
         // (handleSaveRecord 성공 시에만 비우는 기존 로직은 사용자가 취소/다른 탭 이동 시 stale 잔존)
         navigation.setParams({ triggerMinutes: null, triggerMealTime: null, triggerDoseSlotId: null, triggerMedLogId: null, triggerTs: null });
+      }
+      } catch (e) {
+        console.error('[BodyStateScreen] route.params 트리거 처리 예외(안전망):', e);
       }
     }, [route.params?.triggerMinutes, (route.params as any)?.triggerMealTime, (route.params as any)?.triggerDoseSlotId, (route.params as any)?.triggerMedLogId, (route.params as any)?.triggerTs, patientId])
   );
@@ -365,6 +453,16 @@ export function BodyStateScreen() {
           if (parsed?.ts && Date.now() - parsed.ts > 5 * 60 * 1000) return;
           const { triggerMinutes, triggerMealTime, triggerDoseSlotId, triggerMedLogId } = parsed;
           if (triggerMinutes == null) return;
+          // H-1 dedup: route params 경로와 '동일한' triggerTs(App.tsx에서 같은 값으로 주입)를
+          // processedTriggerTsRef 로 공유한다. 같은 포커스에서 route effect가 먼저 처리했다면
+          // 여기선 같은 ts 이므로 진입을 막아 openFlowOrPend 2회 호출(시트 2겹)을 방지한다.
+          const psTriggerTs = parsed?.ts ?? null;
+          if (psTriggerTs != null && processedTriggerTsRef.current === psTriggerTs) {
+            return;
+          }
+          if (psTriggerTs != null) {
+            processedTriggerTsRef.current = psTriggerTs;
+          }
           // 약 복용 모델 7단계: AsyncStorage pending에 실린 슬롯/복용 식별자(없으면 null)
           const psDoseSlotId = triggerDoseSlotId ?? null;
           const psMedLogId = triggerMedLogId ?? null;
@@ -372,11 +470,11 @@ export function BodyStateScreen() {
           setPendingTriggeredBy('notification');
           setPendingTriggerLabel(label);
           if (triggerMealTime) {
-            openFlowOrPend(label, null, triggerMealTime, psDoseSlotId, psMedLogId);
+            openFlowOrPend(label, null, triggerMealTime, psDoseSlotId, psMedLogId, true);
           } else if (patientId) {
             fetchTodayLastMedLog(patientId)
               .then((parsed) => {
-                if (!parsed) { openFlowOrPend(label, null, null, psDoseSlotId, psMedLogId); return; }
+                if (!parsed) { openFlowOrPend(label, null, null, psDoseSlotId, psMedLogId, true); return; }
                 const medTime = parsed.taken_at ? new Date(parsed.taken_at) : null;
                 openFlowOrPend(
                   label,
@@ -384,11 +482,12 @@ export function BodyStateScreen() {
                   parsed.meal_time,
                   psDoseSlotId ?? parsed.dose_slot_id ?? null,
                   psMedLogId ?? parsed.id ?? null,
+                  true,
                 );
               })
-              .catch(() => openFlowOrPend(label, null, null, psDoseSlotId, psMedLogId));
+              .catch(() => openFlowOrPend(label, null, null, psDoseSlotId, psMedLogId, true));
           } else {
-            openFlowOrPend(label, null, null, psDoseSlotId, psMedLogId);
+            openFlowOrPend(label, null, null, psDoseSlotId, psMedLogId, true);
           }
         } catch {}
       });
@@ -406,9 +505,6 @@ export function BodyStateScreen() {
       }
     }, [loadVideoLogs, loadDateLogs, isToday, refresh])
   );
-
-  const [patientName, setPatientName] = useState('환자');
-  const [patientId, setPatientId] = useState<string | null>(null);
 
   // patient_group_id가 있어도 실제 환자 멤버가 없을 수 있으므로 patientId 기준으로 판단
   const userRole: 'patient' | 'caregiver_no_patient' | 'caregiver_same' | 'caregiver_separate' =
@@ -453,14 +549,33 @@ export function BodyStateScreen() {
     setRecordsRefreshKey(k => k + 1);
   });
 
-  // 포커스 시 취침약 재조회 트리거 (patientId 확보된 경우만)
-  useFocusEffect(
-    useCallback(() => {
-      if (patientId) setBedtimeRefreshTick(t => t + 1);
-    }, [patientId])
-  );
+  // 취침약 무효화 트리거: 약(medications)이 실제 추가/수정/삭제될 때만 재조회한다.
+  //   useMedication.ts 의 medications realtime 과 동일 패턴(patient_id 필터). 매 포커스
+  //   강제 재조회 대신, 약이 바뀐 경우에만 bedtimeRefreshTick 증가 → 취침약 게이트 최신화.
+  //   (약 관리 화면에서 추가/삭제/시간변경 시 이 화면이 백그라운드여도 이벤트가 도착하면 갱신.)
+  useEffect(() => {
+    if (!patientId) return;
+    const topic = `bodystate-meds-bedtime-${patientId}`;
+    // 재진입/StrictMode 이중 마운트 시 같은 topic 잔존 채널이 재사용되어 .on() 추가 중
+    // throw 하는 크래시 방지(useRecordRealtime 과 동일 방어).
+    supabase
+      .getChannels()
+      .filter((c) => c.topic === `realtime:${topic}` || c.topic === topic)
+      .forEach((c) => { supabase.removeChannel(c); });
+    const channel = supabase
+      .channel(topic)
+      .on(
+        'postgres_changes',
+        { event: '*', schema: 'public', table: 'medications', filter: `patient_id=eq.${patientId}` },
+        () => { setBedtimeRefreshTick(t => t + 1); },
+      )
+      .subscribe();
+    return () => { supabase.removeChannel(channel); };
+  }, [patientId]);
 
-  // 취침약 여부 실제 조회 — useEffect로 patientId 확보 후 실행 보장
+  // 취침약 여부 실제 조회 — useEffect로 patientId 확보 후 실행 보장.
+  //   patientId 변경 또는 약 변경(bedtimeRefreshTick) 시에만 재조회. 매 포커스 재조회 아님.
+  //   재조회 동안은 hasBedtimeLoadedRef 를 내려 stale 판정 팝업을 막고, 완료 후 다시 올린다.
   useEffect(() => {
     if (!patientId) return;
     hasBedtimeLoadedRef.current = false;
@@ -476,7 +591,9 @@ export function BodyStateScreen() {
         if (pendingFlowArgsRef.current) {
           const args = pendingFlowArgsRef.current;
           pendingFlowArgsRef.current = null;
-          openFlowLatestRef.current(args.label, args.medTime, args.mealTimeKey, args.doseSlotId ?? null, args.medLogId ?? null);
+          // 게이팅이 정상 로드로 풀린 경우 — bypass 타이머가 떠 있으면 정리(중복 오픈 방지).
+          if (bedtimeGateTimerRef.current) { clearTimeout(bedtimeGateTimerRef.current); bedtimeGateTimerRef.current = null; }
+          openFlowLatestRef.current(args.label, args.medTime, args.mealTimeKey, args.doseSlotId ?? null, args.medLogId ?? null, args.fromNotification ?? false);
         }
       });
   }, [patientId, bedtimeRefreshTick]);
@@ -505,28 +622,35 @@ export function BodyStateScreen() {
     };
   }, [patientId, userRole]);
 
-  // 표시용 dose_slots 로드 — 기록 슬롯 명칭(slotTitle)·그룹핑에만 사용(display 전용)
+  // dose_slots 로드 — 활성(게이팅용)과 표시/라벨용(비활성 포함)을 한 번에 가져온다.
   useEffect(() => {
     if (!patientId) {
       setDisplaySlots([]);
+      setLabelSlots([]);
       return;
     }
     let alive = true;
     (async () => {
       try {
-        const { data: userData } = await supabase
-          .from('users')
-          .select('meal_schedules')
-          .eq('id', patientId)
-          .single();
-        const doseSlots = await fetchPatientDoseSlots(patientId);
-        const resolved = resolveDisplaySlots(
-          doseSlots,
-          userData?.meal_schedules as Record<string, string> | null | undefined
-        );
-        if (alive) setDisplaySlots(resolved);
+        // 세 조회는 patientId 만 의존하므로 병렬화(로딩 1왕복으로 단축).
+        const [userRes, doseSlots, labelDoseSlots] = await Promise.all([
+          supabase.from('users').select('meal_schedules').eq('id', patientId).single(),
+          fetchPatientDoseSlots(patientId),       // 활성 전용 — 게이팅/판정용
+          fetchPatientLabelDoseSlots(patientId),  // 비활성 포함 — 과거 기록 라벨용
+        ]);
+        const mealSchedules = userRes.data?.meal_schedules as Record<string, string> | null | undefined;
+        const resolved = resolveDisplaySlots(doseSlots, mealSchedules);
+        // 라벨용: 비활성 포함 슬롯이 있으면 그것으로, 없으면 동일 legacy 폴백.
+        const resolvedLabel = resolveDisplaySlots(labelDoseSlots, mealSchedules);
+        if (alive) {
+          setDisplaySlots(resolved);
+          setLabelSlots(resolvedLabel);
+        }
       } catch {
-        if (alive) setDisplaySlots([]);
+        if (alive) {
+          setDisplaySlots([]);
+          setLabelSlots([]);
+        }
       }
     })();
     return () => {
@@ -535,19 +659,73 @@ export function BodyStateScreen() {
   }, [patientId, recordsRefreshKey]);
 
   // 슬롯 표시명(slotTitle) 조회맵 — byId[dose_slot_id] / byLegacyKey[meal_time]
+  // 비활성(삭제) 슬롯 포함 labelSlots 로 구성 → 삭제된 슬롯의 과거 기록도 원래 이름 유지.
   const slotTitleMaps = React.useMemo(
     () =>
       buildSlotTitleMaps(
-        displaySlots.map((s) => ({ id: s.id, label: s.label, legacyKey: s.legacyKey, time: s.time }))
+        labelSlots.map((s) => ({ id: s.id, label: s.label, legacyKey: s.legacyKey, time: s.time }))
       ),
+    [labelSlots]
+  );
+
+  // 수면/변비 게이팅용 — dose_slot 환자 여부(실제 슬롯 보유)
+  const isDoseSlotPatient = React.useMemo(
+    () => displaySlots.some((s) => s.isReal),
     [displaySlots]
   );
+
+  // [변비/수면 게이팅] 변비=그날 "마지막 약효추적 시점", 수면=그날 "첫 약효추적 시점" 1건에서만.
+  //   ⚠️ 슬롯-id 기준 게이팅(마지막/첫 슬롯)은, 같은 슬롯의 복용직후 + 약효추적(30/60/120분후) 기록이
+  //      모두 같은 슬롯에 귀속돼 게이트를 중복 통과시켰다(변비가 마지막 슬롯의 복용직후에서 떠버림).
+  //   → "슬롯시각 + interval" 합으로 그날 약효추적 시점들을 펼쳐, 가장 늦은/이른 시점과 정확히 일치하는
+  //      단 1건의 기록에서만 변비/수면을 묻는다(getTrackingDayBounds).
+  const trackingDayBounds = React.useMemo(
+    () => getTrackingDayBounds(displaySlots),
+    [displaySlots]
+  );
+  // 현재 기록(팝업 진입)의 약효추적 시점(분, 자정 기준) = 진입 슬롯시각 + 이 기록의 interval.
+  //   - 진입 슬롯: pendingDoseSlotId 로 displaySlots 에서 해석.
+  //   - interval: pendingTriggerLabel(after_medication=0 / 30min_after=30 / 2hour_after=120 …) 식별.
+  //   슬롯/라벨이 해석 안 되면 null → 게이팅에서 표시 안 함(보수적).
+  const currentTrackingMin = React.useMemo<number | null>(() => {
+    if (!pendingDoseSlotId) return null;
+    const slot = displaySlots.find((s) => s.id === pendingDoseSlotId);
+    if (!slot) return null;
+    const base = slotSortValue(slot.time);
+    if (!Number.isFinite(base)) return null;
+    return base + triggerLabelToMinutes(pendingTriggerLabel);
+  }, [pendingDoseSlotId, pendingTriggerLabel, displaySlots]);
 
   // 표시할 로그: 오늘이면 todayLogs, 다른 날이면 dateLogs
   const activeLogs = isToday ? todayLogs : dateLogs;
 
   // trigger_time_label → 표시 텍스트 (공용 유틸 위임)
   const getTriggerLabel = (label: string): string => triggerLabelToText(label);
+
+  // 약효추적 중복/덮어쓰기 판정의 "복용 인스턴스 동일" 비교.
+  //   중복 단위 = med_log_id(복용 인스턴스) + trigger_time_label(시점). 여기선 같은 복용인지만 본다
+  //   (label 일치는 호출부에서 이미 확인). 다른 복용의 같은 시점 라벨은 별개 기록이므로 false.
+  //   med_log_id null 폴백: 양쪽 med_log_id가 모두 없는 구(舊)/미이관 기록일 때만
+  //   기존 label(+meal_time) 기준 비교로 폴백. 한쪽만 null이면 다른 복용으로 간주(중복 아님).
+  const isSameDoseInstance = (
+    log: any,
+    medLogId: string | null | undefined,
+    mealTimeKey: string | null | undefined
+  ): boolean => {
+    const logMedLogId = log?.med_log_id ?? null;
+    const candidateMedLogId = medLogId ?? null;
+    if (logMedLogId != null && candidateMedLogId != null) {
+      // 둘 다 식별자 있음 → 같은 복용 인스턴스일 때만 동일.
+      return logMedLogId === candidateMedLogId;
+    }
+    if (logMedLogId != null || candidateMedLogId != null) {
+      // 한쪽만 식별자 있음 → 서로 다른 복용으로 간주(중복 아님).
+      return false;
+    }
+    // 양쪽 모두 med_log_id 없음 → 기존 meal_time 기준 폴백.
+    if (mealTimeKey && log?.medication_meal_time && log.medication_meal_time !== mealTimeKey) return false;
+    return true;
+  };
 
   // 같은 시간대 배지가 오늘 이미 있으면 확인 후 팝업 오픈
   // mealTimeKey: 실제 med_logs.meal_time ('morning'|'lunch'|'dinner'|'bedtime')
@@ -557,18 +735,32 @@ export function BodyStateScreen() {
     mealTimeKey: string | null,
     doseSlotId: string | null = null,
     medLogId: string | null = null,
+    fromNotification: boolean = false,
   ) => {
     setPendingMealTime(mealTimeKey);
     // 슬롯/복용 식별자 보강 — 알림 진입 시 전달됨. 없으면 null(미이관/수동·통계 미반영).
     setPendingDoseSlotId(doseSlotId);
     setPendingMedLogId(medLogId);
+    // 알림 진입(약효추적 알림 탭)은 "지금 이 시점을 기록하라"는 명시적 지시이므로
+    // 중복 검사·시간대 선택 시트를 거치지 않고 바로 입력 팝업을 연다.
+    // 같은 시점(label) 기록이 오늘 이미 있으면 새 행을 만들지 않고 그 기록을 덮어쓰기(수정)한다.
+    if (fromNotification) {
+      // 중복(=덮어쓰기 대상) 판정 = "같은 복용(med_log_id) + 같은 시점(label)"일 때만.
+      // 다른 복용의 같은 시점 라벨은 별개 기록이므로 existing 없음 → 새 기록으로 입력.
+      const existing = activeLogs.find((log: any) => {
+        if (log.trigger_time_label !== labelKey) return false;
+        return isSameDoseInstance(log, medLogId, mealTimeKey);
+      });
+      overrideLogIdRef.current = existing ? ((existing as any).id ?? null) : null;
+      setShowFlow(true);
+      return;
+    }
     // mealTimeKey가 있는 경우 — label + meal_time 모두 일치할 때만 중복으로 처리
     // (예: 점심약 복용 직후 기록이 있어도 저녁약 복용 직후 기록은 허용)
     const hasDuplicate = activeLogs.some((log: any) => {
       if (log.trigger_time_label !== labelKey) return false;
-      // mealTimeKey가 지정된 경우 medication_meal_time도 일치해야 중복
-      if (mealTimeKey && log.medication_meal_time && log.medication_meal_time !== mealTimeKey) return false;
-      return true;
+      // 중복 = 같은 복용(med_log_id) + 같은 시점(label). 다른 복용은 중복 아님.
+      return isSameDoseInstance(log, medLogId, mealTimeKey);
     });
     if (hasDuplicate) {
       // 회귀 수정: Alert 대신 TriggerSelectModal로 fallback (handleOpenBodyState와 일관)
@@ -586,6 +778,22 @@ export function BodyStateScreen() {
   const openFlowLatestRef = useRef(openFlowWithDuplicateCheck);
   useEffect(() => { openFlowLatestRef.current = openFlowWithDuplicateCheck; });
 
+  // 재진입 가드 ref 를 현재 모달 오픈 상태와 동기화.
+  //   showFlow(입력 팝업) 또는 showTriggerSelect(시간대 선택)가 하나라도 열려 있으면 '진행 중'.
+  useEffect(() => {
+    flowOpenRef.current = showFlow || showTriggerSelect;
+  }, [showFlow, showTriggerSelect]);
+
+  // 언마운트 시 게이팅 bypass 타이머 정리 — 언마운트 후 늦게 발화해 setState 하는 것 방지.
+  useEffect(() => {
+    return () => {
+      if (bedtimeGateTimerRef.current) {
+        clearTimeout(bedtimeGateTimerRef.current);
+        bedtimeGateTimerRef.current = null;
+      }
+    };
+  }, []);
+
   // TriggerSelectModal '기록하기' 확정 처리.
   // 버그 수정: 기존엔 onConfirm → openFlowOrPend → openFlowWithDuplicateCheck로 되돌아가
   // 같은 (중복) 시간대가 그대로 재검출되면 TriggerSelectModal이 무한 재오픈 →
@@ -594,8 +802,14 @@ export function BodyStateScreen() {
   const handleTriggerSelectConfirm = (labelKey: string, medTime: Date | null) => {
     setShowTriggerSelect(false);
     setPendingTriggerLabel(labelKey);
-    // 선택한 시간대가 이미 오늘 기록되어 있으면 → 덮어쓰기 모드로 진입
-    const existing = activeLogs.find((log: any) => log.trigger_time_label === labelKey);
+    // 선택한 시간대가 같은 복용(med_log_id)으로 이미 기록되어 있으면 → 덮어쓰기 모드로 진입.
+    // 다른 복용의 같은 라벨은 별개 기록이므로 덮어쓰지 않는다.
+    // pendingMedLogId/pendingMealTime은 openFlowWithDuplicateCheck 진입 시 설정됨.
+    const existing = activeLogs.find(
+      (log: any) =>
+        log.trigger_time_label === labelKey &&
+        isSameDoseInstance(log, pendingMedLogId, pendingMealTime)
+    );
     overrideLogIdRef.current = existing ? ((existing as any).id ?? null) : null;
     // pendingMealTime은 openFlowWithDuplicateCheck 진입 시 이미 설정됨(중복 검사 경유).
     // 중복 재검사 없이 바로 팝업 오픈.
@@ -609,12 +823,42 @@ export function BodyStateScreen() {
     mealTimeKey: string | null,
     doseSlotId: string | null = null,
     medLogId: string | null = null,
+    fromNotification: boolean = false,
   ) => {
-    if (!hasBedtimeLoadedRef.current) {
-      pendingFlowArgsRef.current = { label, medTime, mealTimeKey, doseSlotId, medLogId };
+    // 재진입 가드: 이미 입력 팝업/시간대 선택이 열려 있으면 무시.
+    //   (약효추적 알림을 두 번째로 탭해 진입 → 같은 시트를 겹쳐 여는 중복 오픈 차단.
+    //    이미 열린 시트에서 사용자가 그대로 입력하면 되므로, 새로 열거나 닫고 다시 열지 않는다.)
+    if (flowOpenRef.current) {
       return;
     }
-    openFlowWithDuplicateCheck(label, medTime, mealTimeKey, doseSlotId, medLogId);
+    // ⚠️ 회귀 수정(콜드스타트 약효추적 알림 미오픈): 알림 진입은 "지금 이 시점을 기록하라"는
+    //   명시적 지시이므로 취침약 로딩 게이트를 기다리지 않고 즉시 팝업을 연다.
+    //   변비/수면 단계 노출은 BodyStatePopupFlow 렌더 시 hasBedtimeMedication·currentTrackingMin
+    //   최신값으로 평가되므로(사용자가 해당 단계에 닿을 때쯤 이미 로드 완료) 즉시 열어도 안전.
+    //   (기존엔 cold-start 에서 args 를 pend 했다가 재포커스의 focus-reset 으로 args 가 지워지고
+    //    replay/2.5s 타이머의 동일성 가드가 깨져 팝업이 영영 안 열리는 회귀가 있었음.)
+    if (fromNotification) {
+      openFlowWithDuplicateCheck(label, medTime, mealTimeKey, doseSlotId, medLogId, fromNotification);
+      return;
+    }
+    if (!hasBedtimeLoadedRef.current) {
+      const args = { label, medTime, mealTimeKey, doseSlotId, medLogId, fromNotification };
+      pendingFlowArgsRef.current = args;
+      // 게이팅 bypass 타임아웃: medications 로딩이 지연돼도 2.5초 후엔 팝업 진입을 막지 않는다.
+      //   취침약 데이터는 로드되면 위 bedtime effect 의 replay 로 반영된다(다단계 팝업이라
+      //   사용자가 변비 단계에 닿을 때쯤이면 hasBedtimeMedication 최신값이 prop 으로 반영됨).
+      //   먼저 발화한 쪽(타이머 vs replay)만 열도록 pendingFlowArgsRef 동일성으로 중복 오픈을 막는다.
+      if (bedtimeGateTimerRef.current) clearTimeout(bedtimeGateTimerRef.current);
+      bedtimeGateTimerRef.current = setTimeout(() => {
+        bedtimeGateTimerRef.current = null;
+        if (pendingFlowArgsRef.current === args && !flowOpenRef.current) {
+          pendingFlowArgsRef.current = null;
+          openFlowLatestRef.current(args.label, args.medTime, args.mealTimeKey, args.doseSlotId ?? null, args.medLogId ?? null, args.fromNotification ?? false);
+        }
+      }, 2500);
+      return;
+    }
+    openFlowWithDuplicateCheck(label, medTime, mealTimeKey, doseSlotId, medLogId, fromNotification);
   };
 
   // 활성화된 medNotifs 인터벌 목록 (복용 직후 포함)
@@ -642,6 +886,9 @@ export function BodyStateScreen() {
   // 5) 같은 (meal_time × interval) 기록 존재 → 덮어쓰기 확인
   const handleOpenBodyState = async () => {
     if (!patientId) return;
+    // 게이팅(B차): 활성 dose_slot 0개면 약효추적 기록 막고 통합 등록(복용 관리) 유도.
+    // 메인 버튼/보호자 확인 양쪽이 이 함수로 모이므로 단일 차단점. 보수적(로딩 중/조회불가 통과).
+    if (!(await requireSetup(dialog))) return;
     setPendingTriggeredBy('manual');
 
     // 1. 오늘 가장 최근 med_log 조회
@@ -723,10 +970,8 @@ export function BodyStateScreen() {
     const labelKey = intervalMinutesToLabel(closestInterval);
     const existing = todayLogs.find((log: any) => {
       if (log.trigger_time_label !== labelKey) return false;
-      // mealTime이 있으면 동일해야 중복으로 처리 (없으면 label만으로 판단)
-      if (mealTime && log.medication_meal_time && log.medication_meal_time !== mealTime) return false;
-      if (mealTime && !log.medication_meal_time) return false;
-      return true;
+      // 중복 = 같은 복용(med_log_id) + 같은 시점(label). 다른 복용은 별개 기록.
+      return isSameDoseInstance(log, manualMedLogId, mealTime);
     });
 
     const intervalText = intervalMinutesToText(closestInterval);
@@ -768,11 +1013,12 @@ export function BodyStateScreen() {
       (log.dose_slot_id && slotTitleMaps.byId[log.dose_slot_id]) ||
       (log.medication_meal_time && slotTitleMaps.byLegacyKey[log.medication_meal_time]) ||
       period;
-    // 그룹 정렬용 시각: 해당 슬롯의 time(없으면 기록 시각)
+    // 그룹 정렬용 시각: 해당 슬롯의 time(없으면 기록 시각).
+    // labelSlots(비활성 포함) 로 찾아 삭제된 슬롯 기록도 원래 시각으로 정렬되게 한다.
     const matchedSlot =
-      (log.dose_slot_id && displaySlots.find((s) => s.id === log.dose_slot_id)) ||
+      (log.dose_slot_id && labelSlots.find((s) => s.id === log.dose_slot_id)) ||
       (log.medication_meal_time &&
-        displaySlots.find((s) => s.legacyKey === log.medication_meal_time)) ||
+        labelSlots.find((s) => s.legacyKey === log.medication_meal_time)) ||
       null;
     const slotSort = matchedSlot
       ? slotSortValue(matchedSlot.time)
@@ -849,8 +1095,11 @@ export function BodyStateScreen() {
       p_record_id: target.id,
       p_body_state: record.bodyScore,
       p_mood: record.moodScore,
-      p_sleep_quality: record.sleepScore ?? null,
-      p_constipation: record.constipation ?? null,
+      // null = "그 항목은 미수정" → RPC가 coalesce(p_*, 기존값)로 기존값 보존.
+      // (0/false 기본값으로 좁히면 기존 수면/변비 기록을 덮어쓰는 데이터 손상 버그가 됨.
+      //  Supabase 타입젠이 함수 인자 nullability를 잃어 number/boolean로만 잡지만 런타임은 null 허용)
+      p_sleep_quality: (record.sleepScore ?? null) as unknown as number,
+      p_constipation: (record.constipation ?? null) as unknown as boolean,
     });
 
     if (error) {
@@ -898,8 +1147,13 @@ export function BodyStateScreen() {
       navigation.setParams({ triggerMinutes: null });
     }
 
+    // 질문 모달을 닫은 뒤 저장 스피너 ON — 저장 + 다음 알림 조회 대기 구간을 덮는다.
+    pendingAfterSaveRef.current = null;
+    setSaving(true);
+
     // 2. 저장 + 큐 삭제 + 다음 알림 팝업 — await 체인으로 순서 보장
     (async () => {
+      try {
       // 2-1. 저장
       const success = await saveBodyState({
         body_state: record.bodyScore,
@@ -913,9 +1167,30 @@ export function BodyStateScreen() {
       }, savedTriggeredBy);
 
       if (!success) {
-        dialog.alert({ title: '저장 실패', message: '몸상태 기록 저장에 실패했어요. 다시 시도해주세요.' });
+        // 스피너 Modal 위에 AppDialog 를 적층하지 않도록, 알림은 onHidden 에서 단독 present.
+        pendingAfterSaveRef.current = { kind: 'alert', title: '저장 실패', message: '몸상태 기록 저장에 실패했어요. 다시 시도해주세요.' };
         return;
       }
+
+      // 2-1a. 다음 예정 알림 조회를 미리(병렬로) 시작 — 팝업이 즉시 뜨도록.
+      //   fetchNextNotifMessage 의 큐 SELECT 는 send_at > now 만 보므로, 아래 큐 삭제(과거·미발송 항목)와
+      //   독립적이다. 저장 성공 직후 promise 를 띄워 두고, 모달 표시 시점에 await 한다(B: 병렬화).
+      // 방금 기록이 "복용 직후"(triggerMinutes=0) 진입이고 dose_slot 환자면, 그 복용의
+      //   약효추적 시점을 결정적으로 후보에 넣는다(큐 적재 경합으로 더 먼 알림이 뜨는 것 방지).
+      //   - 큐 적재(takeMedication 백그라운드 invoke)가 아직 안 끝났을 수 있는 유일한 경로가 이 복용 직후 기록이다.
+      //   - 30분/2시간 알림 진입(intervalMin>0)은 큐가 이미 적재돼 있어 전달하지 않는다(불필요한 변경 회피).
+      //   - takenAt≈now: 복용 직후 기록이라 기록 시각이 복용 시각과 거의 같다(약 복용 흐름의 nowForCheck 앵커와 동일 근사).
+      const recordedIntervalMin = savedLabel ? labelToMinutes(savedLabel) : null;
+      const justTakenForNotif: { takenAt: Date; doseSlotId: string } | null =
+        savedDoseSlotId && recordedIntervalMin === 0
+          ? { takenAt: new Date(), doseSlotId: savedDoseSlotId }
+          : null;
+      const nextNotifPromise: Promise<NextNotifInfo | null> | null = savedPatientId
+        ? fetchNextNotifMessage(savedPatientId, justTakenForNotif).catch((e) => {
+            console.error('[fetchNextNotifMessage] error:', e);
+            return null;
+          })
+        : null;
 
       // 2-1b. 덮어쓰기 모드: 기존 로그 삭제 (새 로그가 성공적으로 저장된 경우에만)
       if (savedOverrideLogId) {
@@ -928,69 +1203,71 @@ export function BodyStateScreen() {
         }
       }
 
-      // 2-2. 큐 삭제 (await — fetchNextNotifMessage보다 반드시 먼저 완료되어야 함)
-      // SELECT+DELETE를 단일 DELETE+select로 합쳐 네트워크 왕복 1회 절감
+      // 2-2. 큐 삭제 — PreRecordInfoModal(별개 팝업) 표시에만 쓰임.
+      //   NextNotifModal 표시는 큐 삭제 결과에 의존하지 않으므로 await 로 막지 않고
+      //   백그라운드(void)로 돌려 네트워크 왕복 1회만큼 NextNotifModal 표시를 앞당긴다.
+      //   (fetchNextNotifMessage 의 큐 SELECT 는 send_at > now 만 보므로 이 삭제(과거·미발송)와 독립.
+      //    그리고 nextNotifPromise 는 이미 2-1a 에서 병렬로 시작됨 → 이 삭제가 그 fetch 를 게이팅하지 않음.)
+      //   PreRecordInfo 는 큐가 실제 삭제될 때만 떠야 하므로, 삭제 결과를 받아 그 안에서만 표시.
       const intervalMin = savedLabel ? labelToMinutes(savedLabel) : null;
       if (intervalMin != null && savedPatientId) {
-        try {
-          let query = supabase
-            .from('effect_tracking_queue')
-            .delete()
-            .eq('patient_id', savedPatientId)
-            .eq('interval_minutes', intervalMin)
-            .is('sent_at', null);
-          if (savedMealTime) query = (query as any).eq('meal_time', savedMealTime);
-          const { data: deletedItems } = await (query as any).select();
-          if (deletedItems && deletedItems.length > 0) {
-            // 슬롯 표시명: byId[dose_slot_id] 우선 → byLegacyKey[meal_time] → legacy period 폴백
-            let slotName = getPeriod(new Date().toISOString());
-            const mapped =
-              (savedDoseSlotId && slotTitleMaps.byId[savedDoseSlotId]) ||
-              (savedMealTime && slotTitleMaps.byLegacyKey[savedMealTime]) ||
-              (savedMealTime ? mealTimeToPeriod(savedMealTime) : null);
-            if (mapped) slotName = mapped;
-            const delta = triggerLabelToText(savedLabel!);
-            setPreRecordMessage(
-              `${slotName} 약 복용 ${delta} 후 몸상태 기록을 미리 남기셨어요.\n\n사전에 설정된 알림은 보내지 않을게요.`
-            );
-            setShowPreRecordInfo(true);
+        void (async () => {
+          try {
+            let query = supabase
+              .from('effect_tracking_queue')
+              .delete()
+              .eq('patient_id', savedPatientId)
+              .eq('interval_minutes', intervalMin)
+              .is('sent_at', null);
+            if (savedMealTime) query = (query as any).eq('meal_time', savedMealTime);
+            const { data: deletedItems } = await (query as any).select();
+            if (deletedItems && deletedItems.length > 0) {
+              // 슬롯 표시명: byId[dose_slot_id] 우선 → byLegacyKey[meal_time] → legacy period 폴백
+              let slotName = getPeriod(new Date().toISOString());
+              const mapped =
+                (savedDoseSlotId && slotTitleMaps.byId[savedDoseSlotId]) ||
+                (savedMealTime && slotTitleMaps.byLegacyKey[savedMealTime]) ||
+                (savedMealTime ? mealTimeToPeriod(savedMealTime) : null);
+              if (mapped) slotName = mapped;
+              const delta = triggerLabelToText(savedLabel!);
+              setPreRecordMessage(
+                `${slotName} 약 복용 ${delta} 후 몸상태 기록을 미리 남기셨어요.\n\n사전에 설정된 알림은 보내지 않을게요.`
+              );
+              setShowPreRecordInfo(true);
+            }
+          } catch (queueErr) {
+            console.error('[handleSaveRecord] 큐 삭제 오류:', queueErr);
           }
-        } catch (queueErr) {
-          console.error('[handleSaveRecord] 큐 삭제 오류:', queueErr);
-        }
+        })();
       }
 
-      // 2-3. 큐 삭제 완료 후 다음 예정 알림 조회 → 팝업 표시
-      let nextInfoShown = false;
-      if (savedPatientId) {
-        const info = await fetchNextNotifMessage(savedPatientId);
-        if (info) {
-          setNextNotifInfo(info);
-          setShowNextNotifModal(true);
-          nextInfoShown = true;
-        }
-      }
+      // 2-3. 미리 시작해 둔 다음 예정 알림 조회 결과 — 표시는 onHidden 으로 미룬다.
+      //   (2-1a 에서 저장 직후 병렬로 시작 → 여기선 이미 끝나 있다.)
+      //   스피너 Modal 위에 NextNotifModal 을 적층하면 iOS 에서 멈추므로,
+      //   조회 결과만 ref 에 담아두고 setSaving(false) 후 오버레이가 완전히 사라진 뒤 단독 present.
+      const info: NextNotifInfo | null = nextNotifPromise ? await nextNotifPromise : null;
 
-      // 2-4. 컨디션 측정 권유 — 조건 충족 시 NextNotifModal 닫힘 후 표시
+      // 2-4. 컨디션 측정 권유 조건 평가 — 표시도 onHidden 으로 인계(NextNotif 유무에 따라 분기).
       //   조건: 환자 본인 + 약효추적 알림 진입(notification) + 30m/2h 시점 + 레보도파 보유
       //   비노출: 보호자 / 게스트 / 비레보도파 단독 / 자율 입력
       const phase = labelToMedPhase(savedLabel);
-      if (
+      const measurePhase =
         MEASUREMENT_FEATURE_ENABLED &&
         phase &&
         userRole === 'patient' &&
         savedTriggeredBy === 'notification' &&
         hasLevodopaMed
-      ) {
-        // 다음 알림 모달이 떠있으면 닫힘 후 표시, 없으면 즉시 표시
-        if (nextInfoShown) {
-          setPendingMeasureInvitePhase(phase);
-        } else {
-          setMeasureInvitePhase(phase);
-          setShowMeasureInvite(true);
-        }
+          ? phase
+          : null;
+
+      pendingAfterSaveRef.current = { kind: 'next', info, measurePhase };
+      } finally {
+        // 저장/조회 성공·실패·예외 무관하게 스피너 해제 보장 → onHidden 에서 후속 모달 present.
+        setSaving(false);
       }
-    })().catch(console.error);
+    })().catch((e) => {
+      console.error('[handleSaveRecord] 저장 처리 오류:', e);
+    });
   };
 
   // 컨디션 측정 권유 — 동의 게이트 통과 후 TapGame으로 직진입(Phase 4 결정)
@@ -1031,6 +1308,9 @@ export function BodyStateScreen() {
       </View>
 
       <ScrollView ref={scrollRef} style={styles.scroll} showsVerticalScrollIndicator={false} contentContainerStyle={styles.scrollContent}>
+        {/* 첫 로그인/미등록 유도 배너 — 활성 dose_slot 0개일 때만 노출(그룹 기준, 역할 무관) */}
+        <SetupGuideBanner />
+
         {/* 버튼 영역 */}
         <View style={styles.centerBlock}>
           <TouchableOpacity
@@ -1041,6 +1321,8 @@ export function BodyStateScreen() {
             disabled={userRole === 'caregiver_no_patient' || userRole === 'caregiver_separate' || !isToday}
             onPress={async () => {
               if (await ensureNotGuest(user, dialog, { signOut })) return;
+              // 게이팅(B차): 미등록(활성 슬롯 0)이면 보호자 확인 모달도 열지 않고 통합 등록 유도.
+              if (!(await requireSetup(dialog))) return;
               if (userRole === 'caregiver_same') {
                 setShowCaregiverConfirm(true);
               } else {
@@ -1135,7 +1417,11 @@ export function BodyStateScreen() {
             <Text style={styles.sectionTitle}>{isToday ? '오늘 몸상태 기록' : '몸상태 기록'}</Text>
             <View style={styles.divider} />
           </View>
-          {records.length === 0 ? (
+          {!isToday && dateLogsLoading ? (
+            <View style={styles.emptyWrap}>
+              <ActivityIndicator size="large" color={Colors.primary} />
+            </View>
+          ) : records.length === 0 ? (
             <View style={styles.emptyWrap}>
               <Ionicons name="happy-outline" size={48} color={Colors.textSub} />
               <Text style={styles.emptyText}>기록이 없어요</Text>
@@ -1194,12 +1480,28 @@ export function BodyStateScreen() {
         initialMood={editTarget?.moodScore ?? null}
         initialSleep={editTarget?.sleepScore ?? null}
         initialConstipation={editTarget?.constipation ?? null}
-        showSleep={editTarget ? editTarget.sleepScore !== undefined : todayLogs.length === 0}
+        showSleep={
+          editTarget
+            ? editTarget.sleepScore !== undefined
+            : isDoseSlotPatient
+              // dose_slot 환자: 이 기록의 약효추적 시점이 "그날 첫(가장 이른) 약효추적 시점"과 일치할 때만.
+              ? (currentTrackingMin !== null &&
+                 trackingDayBounds.firstTrackingMin !== null &&
+                 currentTrackingMin === trackingDayBounds.firstTrackingMin)
+              // legacy 환자: 첫 시간대(아침) 게이팅 — 변비(bedtime=마지막)와 대칭
+              : (pendingMealTime === 'morning')
+        }
         showConstipation={
           editTarget
             ? editTarget.constipation !== undefined
-            : (pendingMealTime === 'bedtime' ||
-               (pendingMealTime === 'dinner' && !hasBedtimeMedication))
+            : isDoseSlotPatient
+              // dose_slot 환자: 이 기록의 약효추적 시점이 "그날 마지막(가장 늦은) 약효추적 시점"과 일치할 때만.
+              ? (currentTrackingMin !== null &&
+                 trackingDayBounds.lastTrackingMin !== null &&
+                 currentTrackingMin === trackingDayBounds.lastTrackingMin)
+              // legacy 환자: 기존 meal_time 게이팅 유지(회귀 방지)
+              : (pendingMealTime === 'bedtime' ||
+                 (pendingMealTime === 'dinner' && !hasBedtimeMedication))
         }
       />
       <DatePickerModal
@@ -1243,6 +1545,36 @@ export function BodyStateScreen() {
           handleTriggerSelectConfirm(triggerModalSelected, triggerMedTime);
         }}
         onDismiss={() => setShowTriggerSelect(false)}
+      />
+      <BrandProgressOverlay
+        visible={saving}
+        title="기록하고 있어요"
+        minVisibleMs={500}
+        // 스피너 Modal이 완전히 사라진 뒤에만 후속 모달을 단독 present(두 Modal 적층 불가 → 멈춤 0).
+        onHidden={() => {
+          const p = pendingAfterSaveRef.current;
+          pendingAfterSaveRef.current = null;
+          if (!p) return;
+          if (p.kind === 'alert') {
+            dialog.alert({ title: p.title, message: p.message });
+            return;
+          }
+          // kind === 'next' — 기존 표시 분기를 그대로 유지(언제만 onHidden 으로 미룸)
+          const nextShown = !!p.info;
+          if (p.info) {
+            setNextNotifInfo(p.info);
+            setShowNextNotifModal(true);
+          }
+          if (p.measurePhase) {
+            // 다음 알림 모달이 떠있으면 그 닫힘 후 표시, 없으면 즉시 표시
+            if (nextShown) {
+              setPendingMeasureInvitePhase(p.measurePhase);
+            } else {
+              setMeasureInvitePhase(p.measurePhase);
+              setShowMeasureInvite(true);
+            }
+          }
+        }}
       />
     </SafeAreaView>
   );
@@ -1395,12 +1727,24 @@ function MealSectionCard({
         paddingVertical: 12,
         flexDirection: 'row',
         alignItems: 'center',
+        flexWrap: 'wrap',
       }}>
         <Text style={{ fontSize: 20, marginRight: 8 }}>{icon}</Text>
-        <Text style={{ fontSize: 20, fontWeight: '700', color: '#fff' }}>{title}</Text>
-        <Text style={{ fontSize: 16, color: 'rgba(255,255,255,0.85)', marginLeft: 8 }}>
-          {records.length}개 기록
+        <Text style={{ fontSize: 20, fontWeight: '700', color: '#fff', flexShrink: 1 }}>{title}</Text>
+        <Text style={{ fontSize: 20, fontWeight: '700', color: '#fff', marginLeft: 8 }}>
+          복용약 약효추적
         </Text>
+        <View style={{
+          marginLeft: 8,
+          paddingHorizontal: 12,
+          paddingVertical: 4,
+          borderRadius: 14,
+          backgroundColor: 'rgba(255,255,255,0.25)',
+        }}>
+          <Text style={{ fontSize: 16, fontWeight: '700', color: '#fff' }}>
+            {records.length}개
+          </Text>
+        </View>
       </View>
 
       {/* 기록 행들 */}
@@ -1531,7 +1875,7 @@ interface TriggerSelectModalProps {
 }
 
 function TriggerSelectModal({ visible, medTime, options, selected, onSelect, onConfirm, onDismiss }: TriggerSelectModalProps) {
-  const insets = useSafeAreaInsets();
+  const sheetBottomPad = useBottomSheetPadding(44, 24);
   if (!visible) return null;
 
   const now = new Date();
@@ -1542,28 +1886,35 @@ function TriggerSelectModal({ visible, medTime, options, selected, onSelect, onC
       : `약 ${Math.floor(elapsedMin / 60)}시간 ${elapsedMin % 60}분 경과`
     : null;
 
+  // 이 시트는 '오늘 같은 시간대 기록이 이미 있을 때(중복)'에만 열린다.
+  // 처음 선택된 시간대(selected) 라벨로 어느 시간대가 이미 기록됐는지 구체적으로 안내한다.
+  const selectedLabel = selected
+    ? options.find((o) => o.labelKey === selected)?.labelDisplay ?? null
+    : null;
+  const dupeText = selectedLabel
+    ? `${selectedLabel}는 오늘 이미 기록했어요.\n다시 기록하면 새 내용으로 바뀌어요.\n다른 시간대를 골라도 돼요.`
+    : '이 시간대는 오늘 이미 기록했어요.\n다시 기록하면 새 내용으로 바뀌어요.\n다른 시간대를 골라도 돼요.';
+
   return (
     <Modal visible={visible} transparent animationType="slide" statusBarTranslucent onRequestClose={onDismiss}>
       <View style={tsStyles.overlay}>
         <TouchableOpacity style={tsStyles.backdrop} activeOpacity={1} onPress={onDismiss} />
-        <View style={[tsStyles.sheet, { paddingBottom: Math.max(44, 24 + insets.bottom) }]}>
+        <View style={[tsStyles.sheet, { paddingBottom: sheetBottomPad }]}>
           <View style={tsStyles.header}>
-            <Text style={tsStyles.title}>약효 추적 시간대 선택</Text>
+            <Text style={tsStyles.title}>약효 추적 다시 기록</Text>
             <TouchableOpacity onPress={onDismiss} hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}>
               <Ionicons name="close" size={26} color={Colors.textSub} />
             </TouchableOpacity>
           </View>
 
-          {medTime ? (
-            <View style={tsStyles.medInfo}>
-              <Text style={tsStyles.medTimeText}>{formatTime(medTime.toISOString())}에 약을 복용하셨어요</Text>
-              {elapsedText && <Text style={tsStyles.elapsedText}>{elapsedText}</Text>}
-            </View>
-          ) : (
-            <View style={tsStyles.medInfo}>
-              <Text style={tsStyles.medTimeText}>약 복용 시간 기록이 없어요{'\n'}해당 약효 시간대를 선택해주세요</Text>
-            </View>
-          )}
+          <View style={tsStyles.medInfo}>
+            <Text style={tsStyles.medTimeText}>{dupeText}</Text>
+            {medTime && (
+              <Text style={tsStyles.elapsedText}>
+                {formatTime(medTime.toISOString())} 복용{elapsedText ? ` · ${elapsedText}` : ''}
+              </Text>
+            )}
+          </View>
 
           <View style={tsStyles.optionsList}>
             {options.map((opt) => {
@@ -1682,7 +2033,17 @@ function formatTimeHHMM_BS(date: Date): string {
 }
 
 
-async function fetchNextNotifMessage(patientId: string): Promise<NextNotifInfo | null> {
+async function fetchNextNotifMessage(
+  patientId: string,
+  // 방금 "복용 직후"(triggerMinutes=0)로 기록한 복용의 약효추적 시점을 결정적으로 후보에 넣기 위한 정보.
+  //  - 큐(effect_tracking_queue) 적재는 takeMedication 의 백그라운드 edge-function invoke 라,
+  //    복용 직후 이 함수가 도는 시점엔 그 복용의 30분/2시간 후 약효추적이 아직 큐에 없을 수 있다(경합).
+  //    그 결과 가장 가까운 약효추적이 누락되어 더 먼 "다음 복용/운동"이 최근접으로 잘못 선택된다.
+  //  - 따라서 큐 도착을 기다리지 않고 takenAt + 슬롯 track_intervals(분) 시각을 직접 계산해 후보에 추가한다.
+  //  - 복용 직후 진입에 한함: takenAt≈now 가 정확. 30분/2시간 알림 진입은 큐가 이미(복용 시점에) 적재돼
+  //    있어 경합이 없으므로 전달하지 않는다(불필요한 변경 회피).
+  justTaken?: { takenAt: Date; doseSlotId: string } | null,
+): Promise<NextNotifInfo | null> {
   try {
     const now = new Date();
     let candidates: Array<{ minutesLeft: number; label: string; sendAt: Date }> = [];
@@ -1740,6 +2101,33 @@ async function fetchNextNotifMessage(patientId: string): Promise<NextNotifInfo |
       doseSlots,
       userData?.meal_schedules as Record<string, string> | null | undefined
     );
+
+    // 0) 방금 "복용 직후" 기록한 복용의 약효추적 후보(결정적). 큐 적재 여부와 무관하게 항상 포함.
+    //    슬롯 track_intervals 로 takenAt + 각 interval 시각을 직접 계산한다.
+    //    (활성 슬롯 doseSlots 에서 trackEnabled/track_intervals 를 읽으므로 in-memory 스테일 영향 없음.)
+    //    0(복용 직후)은 이미 지난 시점이라 제외하고, 미래 시점(예: 30분/2시간 후)만 후보로.
+    if (justTaken) {
+      const jSlot = doseSlots.find((s) => s.id === justTaken.doseSlotId);
+      if (jSlot && jSlot.trackEnabled && jSlot.trackIntervals.length > 0) {
+        const mealKo = jSlot.label;
+        for (const intervalMin of jSlot.trackIntervals) {
+          if (!intervalMin || intervalMin <= 0) continue; // 0=복용직후(과거) 제외
+          const sendAt = new Date(justTaken.takenAt.getTime() + intervalMin * 60000);
+          if (sendAt <= now) continue; // 미래만
+          const minutesLeft = Math.round((sendAt.getTime() - now.getTime()) / 60000);
+          let intervalLabel: string;
+          if (intervalMin < 60) intervalLabel = `복용 ${intervalMin}분 후`;
+          else {
+            const h = Math.floor(intervalMin / 60);
+            const rem = intervalMin % 60;
+            intervalLabel = rem === 0 ? `복용 ${h}시간 후` : `복용 ${h}시간 ${rem}분 후`;
+          }
+          const label = mealKo ? `${mealKo} ${intervalLabel} 약효추적` : `${intervalLabel} 약효추적`;
+          candidates.push({ minutesLeft, label, sendAt });
+        }
+      }
+    }
+
     // 시각 순(자정 기준 분)으로 정렬 후 현재 시각 이후 첫 슬롯 1개만 후보
     const sortedSlots = [...displaySlots].sort(
       (a, b) => slotSortValue(a.time) - slotSortValue(b.time)
@@ -1809,6 +2197,19 @@ async function fetchNextNotifMessage(patientId: string): Promise<NextNotifInfo |
         timeStr: formatTimeHHMM_BS(tomorrow),
         minutesLeft: Math.round((tomorrow.getTime() - now.getTime()) / 60000),
       };
+    }
+
+    // dedup: 같은 분(minute)에 발송되는 중복 후보 제거.
+    //   결정적 약효추적 후보(0번 섹션)와 큐 후보(1번 섹션)가 같은 시각(예: 복용 30분 후)을
+    //   가리킬 수 있다. 큐 후보가 배열 앞에 있으므로 그쪽을 유지한다(라벨 동일).
+    {
+      const seen = new Set<number>();
+      candidates = candidates.filter((c) => {
+        const key = Math.floor(c.sendAt.getTime() / 60000);
+        if (seen.has(key)) return false;
+        seen.add(key);
+        return true;
+      });
     }
 
     candidates.sort((a, b) => a.minutesLeft - b.minutesLeft);

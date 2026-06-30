@@ -13,7 +13,8 @@ import {
   KeyboardAvoidingView,
   Platform,
 } from 'react-native';
-import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
+import { SafeAreaView } from 'react-native-safe-area-context';
+import { useBottomSheetPadding } from '../../hooks/useBottomSheetPadding';
 import { useNavigation, useRoute, RouteProp } from '@react-navigation/native';
 import { StackNavigationProp } from '@react-navigation/stack';
 import * as Notifications from 'expo-notifications';
@@ -21,6 +22,7 @@ import { SchedulableTriggerInputTypes } from 'expo-notifications';
 import { Ionicons } from '@expo/vector-icons';
 import { Colors } from '../../constants/colors';
 import { TopBar } from '../../components/common/TopBar';
+import { BrandProgressOverlay } from '../../components/common/BrandProgressOverlay';
 import { useAuth } from '../../context/AuthContext';
 import { usePatientId } from '../../hooks/usePatientId';
 import { supabase } from '../../lib/supabase';
@@ -154,7 +156,7 @@ function DatePickerModal({
   onConfirm: () => void;
   onClose: () => void;
 }) {
-  const insets = useSafeAreaInsets();
+  const sheetBottomPad = useBottomSheetPadding(40, 20);
   // 선택 가능한 월 목록: 올해면 오늘 월 이후만, 그 외 전체
   const availableMonths = year === TODAY.getFullYear()
     ? PICKER_MONTHS.filter(m => m >= TODAY.getMonth() + 1)
@@ -192,7 +194,7 @@ function DatePickerModal({
     <Modal visible={visible} transparent animationType="slide">
       <View style={mpStyles.container}>
         <TouchableOpacity style={mpStyles.overlay} onPress={onClose} activeOpacity={1} />
-        <View style={[mpStyles.sheet, { paddingBottom: Math.max(40, insets.bottom + 20) }]}>
+        <View style={[mpStyles.sheet, { paddingBottom: sheetBottomPad }]}>
           <View style={mpStyles.handle} />
           <Text style={mpStyles.title}>날짜 선택</Text>
           <View style={mpStyles.colsRow}>
@@ -255,12 +257,12 @@ function TimePickerModal({
   onConfirm: () => void;
   onClose: () => void;
 }) {
-  const insets = useSafeAreaInsets();
+  const sheetBottomPad = useBottomSheetPadding(40, 20);
   return (
     <Modal visible={visible} transparent animationType="slide">
       <View style={mpStyles.container}>
         <TouchableOpacity style={mpStyles.overlay} onPress={onClose} activeOpacity={1} />
-        <View style={[mpStyles.sheet, { paddingBottom: Math.max(40, insets.bottom + 20) }]}>
+        <View style={[mpStyles.sheet, { paddingBottom: sheetBottomPad }]}>
           <View style={mpStyles.handle} />
           <Text style={mpStyles.title}>시간 선택</Text>
           <View style={mpStyles.colsRow}>
@@ -301,9 +303,14 @@ export function AppointmentWriteScreen() {
   const route = useRoute<RouteType>();
   const appointmentId = (route.params as any)?.appointmentId as string | undefined;
   const { user } = useAuth();
-  const { patientId } = usePatientId();
+  const { patientId, loading: pidLoading } = usePatientId();
   const { unreadCount } = useNotificationBadge();
   const dialog = useDialog();
+
+  // 미연동 보호자: 보호자인데 환자 해석이 끝났고 연동 환자 없음.
+  // 이 경우 patientId ?? user.id 폴백이 보호자 본인 id로 저장돼 유령 일정이 생기므로
+  // 작성 화면 진입을 막고 가족 연동을 안내한다(환자 본인 경로는 영향 없음).
+  const caregiverUnlinked = user?.role === 'caregiver' && !pidLoading && patientId == null;
 
   // 내일 10:00 기본값
   const tomorrow = new Date(NOW.getTime() + 24 * 60 * 60 * 1000);
@@ -331,6 +338,8 @@ export function AppointmentWriteScreen() {
   const [isLoading, setIsLoading] = useState(false);
   const [existingNotifIds, setExistingNotifIds] = useState<string[]>([]);
   const [isFirstAppointment, setIsFirstAppointment] = useState(false);
+  // 1회 가드: user 참조 변동으로 자동완성 effect 가 재실행돼 입력 중 필드를 덮어쓰지 않게 함.
+  const didAutoFillRef = useRef(false);
 
   // 월/연도 바뀌면 일 범위 초과 시 클램프
   useEffect(() => {
@@ -341,6 +350,8 @@ export function AppointmentWriteScreen() {
   // 신규 등록: 이전 진료 기록에서 병원명/의사명 자동완성
   useEffect(() => {
     if (appointmentId || !user) return;
+    if (didAutoFillRef.current) return; // 첫 진입 1회만
+    didAutoFillRef.current = true;
     (async () => {
       try {
         const { data: { session } } = await supabase.auth.getSession();
@@ -433,6 +444,11 @@ export function AppointmentWriteScreen() {
 
   const handleSave = async () => {
     if (!user) return;
+    // 미연동 보호자는 저장 직전 차단(폴백 본인 id 저장으로 유령 레코드 생기는 것 방지).
+    if (caregiverUnlinked) {
+      await dialog.alert({ title: '환자 연동 후 가능해요', message: '가족 연동 메뉴에서 환자를 먼저 연동해주세요.' });
+      return;
+    }
     const apptDate = new Date(selYear, selMonth - 1, selDay, selHour, selMinute);
 
     setIsSaving(true);
@@ -446,25 +462,16 @@ export function AppointmentWriteScreen() {
         Prefer: 'return=representation',
       };
 
+      // 기존 로컬 예약이 남아 있으면 취소(서버 크론으로 일원화 — 중복 방지)
       if (existingNotifIds.length > 0) await cancelNotifications(existingNotifIds);
 
-      const newNotifIds: string[] = [];
-      const hasPermission = (notifyWeekBefore || notifyDayBefore)
-        ? await ensureNotificationPermission() : false;
-
-      if (hasPermission) {
-        const weekBefore = new Date(apptDate.getTime() - 7 * 24 * 60 * 60 * 1000);
-        const dayBefore = new Date(apptDate.getTime() - 24 * 60 * 60 * 1000);
-        if (notifyWeekBefore) {
-          const id = await scheduleNotification(weekBefore, '진료 일정 알림', `${hospitalName.trim()} 진료가 1주일 후입니다.`);
-          if (id) newNotifIds.push(id);
-        }
-        if (notifyDayBefore) {
-          const id = await scheduleNotification(dayBefore, '진료 일정 알림', `${hospitalName.trim()} 진료가 내일입니다.`);
-          if (id) newNotifIds.push(id);
-        }
-      }
-
+      // 알림 발송은 서버 크론(send-appointment-reminders)이 담당.
+      // 핵심: D-7/D-1 "시점"이 이미 지났으면 발송 표식(notified_*)을 미리 true로 켜서 억제한다.
+      //  - 미래 시점이면 false → 그 시점에 서버가 발송
+      //  - 지난 시점이면 true → 발송 안 함 (일정만 보고 즉시 쏘는 버그 방지)
+      const nowMs = Date.now();
+      const d7Past = (apptDate.getTime() - 7 * 24 * 60 * 60 * 1000) <= nowMs;
+      const d1Past = (apptDate.getTime() - 1 * 24 * 60 * 60 * 1000) <= nowMs;
       const payload = {
         patient_id: patientId ?? user.id,
         appointment_date: apptDate.toISOString(),
@@ -472,9 +479,9 @@ export function AppointmentWriteScreen() {
         doctor_name: doctorName.trim() || null,
         notify_week_before: notifyWeekBefore,
         notify_day_before: notifyDayBefore,
-        notified_week: false,
-        notified_day: false,
-        notification_ids: newNotifIds.length > 0 ? newNotifIds : null,
+        notified_week: d7Past,
+        notified_day: d1Past,
+        notification_ids: null,
       };
 
       if (appointmentId) {
@@ -512,6 +519,27 @@ export function AppointmentWriteScreen() {
         />
         <View style={styles.center}>
           <ActivityIndicator size="large" color={Colors.primary} />
+        </View>
+      </SafeAreaView>
+    );
+  }
+
+  if (caregiverUnlinked) {
+    return (
+      <SafeAreaView style={styles.container} edges={['top']}>
+        <TopBar title={appointmentId ? '일정 수정' : '진료 일정 등록'} showBack />
+        <View style={styles.unlinkedWrap}>
+          <Ionicons name="people-outline" size={56} color={Colors.textHint} />
+          <Text style={styles.unlinkedTitle}>환자를 먼저 연동해주세요</Text>
+          <Text style={styles.unlinkedDesc}>{'가족을 연동하면 환자분의\n진료 일정을 대신 등록할 수 있어요'}</Text>
+          <TouchableOpacity
+            style={styles.linkFamilyBtn}
+            onPress={() => navigation.navigate('FamilyLink')}
+            activeOpacity={0.85}
+          >
+            <Ionicons name="person-add-outline" size={22} color={Colors.white} />
+            <Text style={styles.linkFamilyBtnText}>가족 연동하기</Text>
+          </TouchableOpacity>
         </View>
       </SafeAreaView>
     );
@@ -612,10 +640,7 @@ export function AppointmentWriteScreen() {
             activeOpacity={0.8}
             disabled={isSaving}
           >
-            {isSaving
-              ? <ActivityIndicator size="small" color={Colors.white} />
-              : <Text style={styles.saveBtnText}>저장하기</Text>
-            }
+            <Text style={styles.saveBtnText}>저장하기</Text>
           </TouchableOpacity>
         </ScrollView>
       </KeyboardAvoidingView>
@@ -637,6 +662,11 @@ export function AppointmentWriteScreen() {
         onMinuteChange={setTmpMinute}
         onConfirm={confirmTime}
         onClose={() => setShowTimePicker(false)}
+      />
+      <BrandProgressOverlay
+        visible={isSaving}
+        title="저장하고 있어요"
+        minVisibleMs={500}
       />
     </SafeAreaView>
   );
@@ -686,6 +716,17 @@ const styles = StyleSheet.create({
   },
   saveBtnDisabled: { backgroundColor: Colors.textHint },
   saveBtnText: { fontSize: 19, fontWeight: '700', color: Colors.white },
+
+  // 미연동 보호자 안내(가족 연동 유도) — 기준 화면(기록 보기)과 동일
+  unlinkedWrap: { flex: 1, alignItems: 'center', justifyContent: 'center', paddingHorizontal: 32 },
+  unlinkedTitle: { fontSize: 20, color: Colors.textSub, marginTop: 16, fontWeight: '600' },
+  unlinkedDesc: { fontSize: 18, color: Colors.textHint, textAlign: 'center', marginTop: 8, lineHeight: 26 },
+  linkFamilyBtn: {
+    flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8,
+    height: 56, paddingHorizontal: 24, borderRadius: 12,
+    backgroundColor: Colors.primary, marginTop: 24,
+  },
+  linkFamilyBtnText: { fontSize: 18, fontWeight: '700', color: Colors.white },
 });
 
 const colStyles = StyleSheet.create({

@@ -13,7 +13,7 @@ import {
 import { supabase } from '../../lib/supabase';
 import { useAuth } from '../../context/AuthContext';
 import { Colors } from '../../constants/colors';
-import { getKSTDayRange, triggerLabelToTag, mealTimeToPeriod } from '../../utils/medUtils';
+import { getKSTDayRange, triggerLabelToText, mealTimeToPeriod } from '../../utils/medUtils';
 import { buildSlotTitleMaps } from '../../constants/doseSlots';
 
 type TimelineType = 'medication' | 'bodystate' | 'exercise';
@@ -31,12 +31,16 @@ interface TimelineEntry {
   tag?: string;  // 몸상태 전용: "(저녁약 +30분)" 형태
 }
 
+// 수시 기록의 시간대 단어 추론. 오너 확정 6구간(doseSlots.periodWord)과 일치.
+// (이전 4구간은 15시를 '저녁'으로 표기 — 낮인데 저녁/달로 보이던 문제와 같은 경계 오류)
 function getPeriodKo(isoString: string): string {
   const h = new Date(isoString).getHours();
+  if (h < 6) return '새벽';
   if (h < 11) return '아침';
-  if (h < 15) return '점심';
-  if (h < 20) return '저녁';
-  return '취침';
+  if (h < 13) return '점심';
+  if (h < 17) return '오후';
+  if (h < 21) return '저녁';
+  return '밤';
 }
 
 
@@ -168,7 +172,7 @@ export function HistoryTimeline({ type, patientId, refreshKey }: HistoryTimeline
         });
       } else if (type === 'bodystate') {
         const { data } = await supabase
-          .from('on_off_logs').select('logged_at, body_state, mood, sleep_quality, constipation, trigger_time_label, medication_meal_time')
+          .from('on_off_logs').select('logged_at, body_state, mood, sleep_quality, constipation, trigger_time_label, medication_meal_time, dose_slot_id')
           .eq('patient_id', patientId).gte('logged_at', rangeStart).lte('logged_at', rangeEnd)
           .order('logged_at', { ascending: false });
         (data ?? []).forEach((row: any) => {
@@ -180,14 +184,21 @@ export function HistoryTimeline({ type, patientId, refreshKey }: HistoryTimeline
           const line2: string[] = [];
           if (row.sleep_quality != null) line2.push(`수면 ${row.sleep_quality}점`);
           if (row.constipation != null) line2.push(`변비 ${row.constipation ? '있었어요' : '없었어요'}`);
-          // 슬롯 표시명: byLegacyKey[medication_meal_time] 우선 → legacy period → 시간대 추론
-          const slotName = row.medication_meal_time
-            ? (slotTitleMaps.byLegacyKey[row.medication_meal_time]
-                || mealTimeToPeriod(row.medication_meal_time)
-                || getPeriodKo(row.logged_at))
-            : getPeriodKo(row.logged_at);
-          const delta = row.trigger_time_label ? triggerLabelToTag(row.trigger_time_label) : '';
-          const tag = delta ? `(${slotName} ${delta})` : undefined;
+          // 슬롯 표시명: byId[dose_slot_id](시간대+시각, 예 "밤 10:30") 우선
+          //  → byLegacyKey[medication_meal_time] → legacy period → 시간대 단어 폴백(옛 기록).
+          // dose_slot_id 있는 기록은 슬롯의 실제 시각까지 표기, 없는 옛 기록만 시간대 단어로 폴백.
+          const slotName =
+            (row.dose_slot_id && slotTitleMaps.byId[row.dose_slot_id]) ||
+            (row.medication_meal_time
+              ? (slotTitleMaps.byLegacyKey[row.medication_meal_time]
+                  || mealTimeToPeriod(row.medication_meal_time)
+                  || getPeriodKo(row.logged_at))
+              : getPeriodKo(row.logged_at));
+          // 시점 표기: "(슬롯명 · 간격)" — 간격은 표준 풀텍스트("복용 직후" / "N분 후" / "N시간 후")
+          // triggerLabelToText는 "복용 30분 후" 형태이므로, 괄호 안에서는 선행 "복용 " 제거("복용 직후"는 유지)
+          const fullText = row.trigger_time_label ? triggerLabelToText(row.trigger_time_label) : '';
+          const interval = fullText === '복용 직후' ? fullText : fullText.replace(/^복용\s+/, '');
+          const tag = interval ? `(${slotName} · ${interval})` : undefined;
           newMap[kstDate].push({
             time: toKSTTime(row.logged_at),
             content: line1.join(' | ') || '기록',
@@ -277,7 +288,7 @@ export function HistoryTimeline({ type, patientId, refreshKey }: HistoryTimeline
       {loading ? (
         <View style={styles.loadingWrap}>
           <ActivityIndicator size="large" color={Colors.primary} />
-          <Text style={styles.loadingText}>기록을 불러오는 중...</Text>
+          <Text style={styles.loadingText}>기록을 불러오고 있어요…</Text>
         </View>
       ) : (
         <>

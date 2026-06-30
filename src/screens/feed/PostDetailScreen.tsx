@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useRef } from 'react';
 import {
   View,
   Text,
@@ -6,7 +6,8 @@ import {
   TouchableOpacity,
   StyleSheet,
   TextInput,
-  KeyboardAvoidingView,
+  Keyboard,
+  TouchableWithoutFeedback,
   Platform,
   ActivityIndicator,
 } from 'react-native';
@@ -25,6 +26,7 @@ import type { NativeStackScreenProps, NativeStackNavigationProp } from '@react-n
 import { Ionicons } from '@expo/vector-icons';
 import { Colors } from '../../constants/colors';
 import { TopBar } from '../../components/common/TopBar';
+import { BrandProgressOverlay } from '../../components/common/BrandProgressOverlay';
 import { ImageGalleryViewer } from '../../components/common/ImageGalleryViewer';
 import type { FeedStackParamList } from '../../navigation/FeedNavigator';
 import { supabase } from '../../lib/supabase';
@@ -33,6 +35,10 @@ import { CenterToast } from '../../components/common/CenterToast';
 import { useToast } from '../../hooks/useToast';
 import { useDialog } from '../../context/DialogContext';
 import { ensureNotGuest } from '../../utils/guestGuard';
+import { ensureNotBanned, isBanRlsError, showBannedDialog, isBannedUser } from '../../utils/banGuard';
+import { ReportSheet, ReportTargetType } from '../../components/feed/ReportSheet';
+import { useBlocks } from '../../hooks/useBlocks';
+import { useBottomSheetPadding } from '../../hooks/useBottomSheetPadding';
 
 type RouteProps = NativeStackScreenProps<FeedStackParamList, 'PostDetail'>['route'];
 type NavProp = NativeStackNavigationProp<FeedStackParamList>;
@@ -107,6 +113,26 @@ export function PostDetailScreen() {
   const { user, signOut } = useAuth();
   const { toastMsg, toastVisible, showToast } = useToast();
   const dialog = useDialog();
+  // 스크롤 맨 아래 댓글 입력칸이 안드 3버튼/홈 인디케이터에 가리지 않도록 (글로벌 규칙)
+  const bottomPad = useBottomSheetPadding(16);
+  // 입력칸 포커스 시 키보드 위로 끌어올리기 위한 ScrollView ref
+  const scrollViewRef = useRef<ScrollView>(null);
+  // 안드로이드 edge-to-edge(Expo SDK 54+)에서는 키보드가 창을 리사이즈하지 않고 inset으로 들어와
+  // adjustResize/automaticallyAdjustKeyboardInsets만으로는 흐름 안 입력칸이 가려진다.
+  // → 키보드 높이를 직접 받아 ScrollView 맨 아래에 그만큼 여백(스페이서)을 주고 scrollToEnd 로 입력칸을 키보드 위로 올린다. (iOS는 automaticallyAdjustKeyboardInsets 가 처리하므로 안드만)
+  const [kbHeight, setKbHeight] = useState(0);
+  useEffect(() => {
+    if (Platform.OS !== 'android') return;
+    const showSub = Keyboard.addListener('keyboardDidShow', (e) => {
+      setKbHeight(e.endCoordinates?.height ?? 0);
+      setTimeout(() => scrollViewRef.current?.scrollToEnd({ animated: true }), 50);
+    });
+    const hideSub = Keyboard.addListener('keyboardDidHide', () => setKbHeight(0));
+    return () => {
+      showSub.remove();
+      hideSub.remove();
+    };
+  }, []);
 
   const isOwner = !!(user && post.authorId && user.id === post.authorId);
 
@@ -140,6 +166,10 @@ export function PostDetailScreen() {
   const [submittingComment, setSubmittingComment] = useState(false);
   const [mediaUrls, setMediaUrls] = useState<string[]>([]);
   const [deleting, setDeleting] = useState(false);
+
+  // 신고·차단 (App Store 1.2 UGC)
+  const { blockedIds, blockUser } = useBlocks();
+  const [reportTarget, setReportTarget] = useState<{ type: ReportTargetType; id: string } | null>(null);
 
   // 수정하기
   const handleEdit = () => {
@@ -199,8 +229,67 @@ export function PostDetailScreen() {
     else if (id === 'delete') handleDelete();
   };
 
-  // 첨부 사진 목록 조회
+  // 사용자 차단 (작성한 글·댓글이 보이지 않음)
+  const handleBlockUser = async (blockedId: string | undefined, name: string) => {
+    if (!blockedId) return;
+    if (await ensureNotGuest(user, dialog, { signOut })) return;
+    const ok = await dialog.confirm({
+      title: '이 사용자 차단하기',
+      message: `${name}님을 차단하면 작성한 글과 댓글이 보이지 않아요.\n차단할까요?`,
+      confirmText: '차단하기',
+      cancelText: '취소',
+      destructive: true,
+    });
+    if (!ok) return;
+    const success = await blockUser(blockedId);
+    if (success) {
+      await dialog.alert({ title: '차단 완료', message: '이제 이 사용자의 글과 댓글이 보이지 않아요.' });
+      // 게시글 작성자를 차단했으면 목록으로 돌아감
+      if (blockedId === post.authorId) {
+        navigation.goBack();
+      } else {
+        // 댓글 작성자 차단 → 댓글 목록 즉시 갱신(필터는 렌더 단계에서 적용)
+        fetchComments();
+      }
+    } else {
+      await dialog.alert({ title: '오류', message: '차단 처리 중 문제가 생겼어요. 다시 시도해주세요.' });
+    }
+  };
+
+  // 타인 게시글 더보기 (신고/차단)
+  const handlePostMoreOther = async () => {
+    if (await ensureNotGuest(user, dialog, { signOut })) return;
+    const id = await dialog.show({
+      title: '게시글',
+      buttons: [
+        { id: 'report', text: '🚩 신고하기' },
+        { id: 'block', text: '🚫 이 사용자 차단하기', style: 'destructive' },
+        { id: 'cancel', text: '취소', style: 'cancel' },
+      ],
+    });
+    if (id === 'report') setReportTarget({ type: 'post', id: post.id });
+    else if (id === 'block') handleBlockUser(post.authorId, post.author);
+  };
+
+  // 타인 댓글/대댓글 더보기 (신고/차단)
+  const handleCommentMoreOther = async (commentId: string, authorId: string, authorName: string) => {
+    if (await ensureNotGuest(user, dialog, { signOut })) return;
+    const id = await dialog.show({
+      title: '댓글',
+      buttons: [
+        { id: 'report', text: '🚩 신고하기' },
+        { id: 'block', text: '🚫 이 사용자 차단하기', style: 'destructive' },
+        { id: 'cancel', text: '취소', style: 'cancel' },
+      ],
+    });
+    if (id === 'report') setReportTarget({ type: 'comment', id: commentId });
+    else if (id === 'block') handleBlockUser(authorId, authorName);
+  };
+
+  // 첨부 사진 목록 조회 (post.id 만 의존 — 마운트 시 아래 댓글/북마크/좋아요
+  // 조회와 동시에 시작되어 병렬로 로드된다).
   useEffect(() => {
+    let alive = true;
     supabase
       .from('post_media')
       .select('r2_url, sort_order')
@@ -208,10 +297,13 @@ export function PostDetailScreen() {
       .eq('media_type', 'image')
       .order('sort_order', { ascending: true })
       .then(({ data }) => {
-        if (data && data.length > 0) {
+        if (alive && data && data.length > 0) {
           setMediaUrls(data.map((m) => m.r2_url));
         }
       });
+    return () => {
+      alive = false;
+    };
   }, [post.id]);
 
   // 조회수 increment (RPC 실패 시 직접 update 폴백)
@@ -236,16 +328,32 @@ export function PostDetailScreen() {
     incrementView();
   }, [post.id]);
 
-  // 북마크 상태 초기 조회
+  // 북마크 + 좋아요 상태를 병렬 초기 조회 (개별 useEffect → Promise.all 로 묶음).
   useEffect(() => {
     if (!user) return;
-    supabase
+    let alive = true;
+    const loadBookmark = supabase
       .from('post_bookmarks')
       .select('post_id')
       .eq('post_id', post.id)
       .eq('user_id', user.id)
       .maybeSingle()
-      .then(({ data }) => setIsBookmarked(!!data));
+      .then(({ data }) => {
+        if (alive) setIsBookmarked(!!data);
+      });
+    const loadLiked = supabase
+      .from('post_likes')
+      .select('id')
+      .eq('post_id', post.id)
+      .eq('user_id', user.id)
+      .maybeSingle()
+      .then(({ data }) => {
+        if (alive) setLiked(!!data);
+      });
+    Promise.all([loadBookmark, loadLiked]);
+    return () => {
+      alive = false;
+    };
   }, [post.id, user]);
 
   // 북마크 토글
@@ -264,27 +372,13 @@ export function PostDetailScreen() {
     }
   };
 
-  // 좋아요 상태 초기 조회
-  useEffect(() => {
-    if (!user) return;
-    supabase
-      .from('post_likes')
-      .select('id')
-      .eq('post_id', post.id)
-      .eq('user_id', user.id)
-      .maybeSingle()
-      .then(({ data }) => {
-        setLiked(!!data);
-      });
-  }, [post.id, user]);
-
   // 댓글 불러오기
   const fetchComments = useCallback(async () => {
     setCommentsLoading(true);
     try {
       const { data, error } = await supabase
         .from('comments')
-        .select('*, author:users(name)')
+        .select('*, author:public_user_profiles(name)')
         .eq('post_id', post.id)
         .order('created_at', { ascending: true });
 
@@ -352,6 +446,7 @@ export function PostDetailScreen() {
   const handleCommentSubmit = async () => {
     if (!user || !commentText.trim()) return;
     if (await ensureNotGuest(user, dialog, { signOut })) return;
+    if (ensureNotBanned(user, dialog)) return;
     setSubmittingComment(true);
     try {
       const { error } = await supabase.from('comments').insert({
@@ -363,6 +458,7 @@ export function PostDetailScreen() {
       if (error) throw error;
       setCommentText('');
       setReplyingTo(null);
+      Keyboard.dismiss();
       // 댓글 목록 갱신
       await fetchComments();
       // posts 테이블 comment_count 동기화
@@ -377,7 +473,12 @@ export function PostDetailScreen() {
           .eq('id', post.id);
       }
     } catch (e: any) {
-      await dialog.alert({ title: '오류', message: e.message ?? '댓글 등록 중 문제가 생겼어요. 다시 시도해주세요.' });
+      // 밴된 계정의 INSERT 거부(RLS 42501) → 일반 오류 대신 이용 제한 안내
+      if (isBanRlsError(e)) {
+        showBannedDialog(dialog);
+      } else {
+        await dialog.alert({ title: '오류', message: e.message ?? '댓글 등록 중 문제가 생겼어요. 다시 시도해주세요.' });
+      }
       console.error('[PostDetail] handleCommentSubmit 오류:', e);
     } finally {
       setSubmittingComment(false);
@@ -414,15 +515,23 @@ export function PostDetailScreen() {
     }
   };
 
-  // 댓글 + 대댓글 합산
-  const totalCommentCount = comments.reduce((acc, c) => acc + 1 + c.replies.length, 0);
+  // 차단한 사용자의 댓글·대댓글 제외 (클라이언트 필터, OTA 안전)
+  const visibleComments: CommentDisplay[] = comments
+    .filter((c) => !blockedIds.has(c.authorId))
+    .map((c) => ({
+      ...c,
+      replies: c.replies.filter((r) => !blockedIds.has(r.authorId)),
+    }));
+
+  // 댓글 + 대댓글 합산 (차단 제외 후)
+  const totalCommentCount = visibleComments.reduce((acc, c) => acc + 1 + c.replies.length, 0);
 
   // 카테고리 라벨 결정
   const categoryLabel = post.isNews ? '정보' : (post.category ?? '자유');
   const categoryColor = CATEGORY_COLORS[categoryLabel] ?? CATEGORY_COLORS['자유수다'];
 
   return (
-    <SafeAreaView style={styles.safe} edges={['top', 'bottom']}>
+    <SafeAreaView style={styles.safe} edges={['top']}>
       <TopBar
         title="글 보기"
         showBack
@@ -453,15 +562,38 @@ export function PostDetailScreen() {
                 <Text style={{ fontSize: 14, color: '#F44336' }}>삭제</Text>
               </TouchableOpacity>
             </View>
+          ) : (!post.isNews && post.authorId) ? (
+            <TouchableOpacity
+              onPress={handlePostMoreOther}
+              style={{
+                flexDirection: 'row',
+                alignItems: 'center',
+                gap: 4,
+                paddingHorizontal: 12,
+                paddingVertical: 6,
+                borderRadius: 8,
+                backgroundColor: '#F0F0F0',
+              }}
+            >
+              <Ionicons name="ellipsis-horizontal" size={16} color="#555" />
+              <Text style={{ fontSize: 14, color: '#555' }}>더보기</Text>
+            </TouchableOpacity>
           ) : undefined
         }
       />
-      <KeyboardAvoidingView
+      <ScrollView
+        ref={scrollViewRef}
         style={styles.flex}
-        behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
-        keyboardVerticalOffset={Platform.select({ ios: 60, android: 0 })}
+        showsVerticalScrollIndicator={false}
+        contentContainerStyle={styles.scrollContent}
+        keyboardShouldPersistTaps="handled"
+        keyboardDismissMode="on-drag"
+        // iOS는 키보드 높이만큼 자동으로 하단 인셋을 잡아 입력칸이 가려지지 않게 함 (RN 0.70+)
+        automaticallyAdjustKeyboardInsets={Platform.OS === 'ios'}
       >
-        <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={styles.scrollContent}>
+          {/* 본문·댓글 빈 공간 탭 시 키보드 닫기 (60대 타겟 명시적 닫기 수단) */}
+          <TouchableWithoutFeedback onPress={() => Keyboard.dismiss()} accessible={false}>
+          <View>
 
           {/* ── 게시글 본문 카드 ── */}
           <View style={styles.postCard}>
@@ -496,7 +628,7 @@ export function PostDetailScreen() {
             <Text style={styles.postContent}>{postContent}</Text>
 
             {/* 첨부 사진 갤러리 (전체보기 + 인디케이터 포함) */}
-            <ImageGalleryViewer urls={mediaUrls} />
+            <ImageGalleryViewer urls={mediaUrls} publicCommunity />
           </View>
 
           {/* ── 통계 바 ── */}
@@ -546,9 +678,19 @@ export function PostDetailScreen() {
           </View>
 
           {commentsLoading ? (
-            <ActivityIndicator size="small" color={Colors.primary} style={{ marginTop: 20 }} />
+            <View style={styles.skelCommentWrap}>
+              {[0, 1].map((i) => (
+                <View key={i} style={styles.skelCommentCard}>
+                  <View style={styles.skelLineShort} />
+                  <View style={[styles.skelLine, { marginTop: 10 }]} />
+                  <View style={[styles.skelLine, { width: '70%', marginTop: 6 }]} />
+                </View>
+              ))}
+            </View>
           ) : (
-            comments.map((comment) => (
+            visibleComments.map((comment) => {
+              const commentIsOwner = !!(user && comment.authorId && user.id === comment.authorId);
+              return (
               <View key={comment.id} style={styles.commentItem}>
                 {/* 댓글 */}
                 <View style={styles.commentCard}>
@@ -575,11 +717,24 @@ export function PostDetailScreen() {
                         {replyingTo === comment.id ? '취소' : '답글달기'}
                       </Text>
                     </TouchableOpacity>
+                    {!commentIsOwner && (
+                      <TouchableOpacity
+                        style={styles.actionBtn}
+                        onPress={() => handleCommentMoreOther(comment.id, comment.authorId, comment.author)}
+                      >
+                        <View style={styles.actionRow}>
+                          <Ionicons name="ellipsis-horizontal" size={16} color={Colors.textSub} />
+                          <Text style={styles.actionText}>더보기</Text>
+                        </View>
+                      </TouchableOpacity>
+                    )}
                   </View>
                 </View>
 
                 {/* 대댓글 */}
-                {comment.replies.map((reply) => (
+                {comment.replies.map((reply) => {
+                  const replyIsOwner = !!(user && reply.authorId && user.id === reply.authorId);
+                  return (
                   <View key={reply.id} style={styles.replyCard}>
                     <Text style={styles.replyArrow}>└</Text>
                     <View style={styles.replyContent}>
@@ -598,15 +753,38 @@ export function PostDetailScreen() {
                             <Text style={styles.actionText}>{reply.likeCount}</Text>
                           </View>
                         </TouchableOpacity>
+                        {!replyIsOwner && (
+                          <TouchableOpacity
+                            style={styles.actionBtn}
+                            onPress={() => handleCommentMoreOther(reply.id, reply.authorId, reply.author)}
+                          >
+                            <View style={styles.actionRow}>
+                              <Ionicons name="ellipsis-horizontal" size={16} color={Colors.textSub} />
+                              <Text style={styles.actionText}>더보기</Text>
+                            </View>
+                          </TouchableOpacity>
+                        )}
                       </View>
                     </View>
                   </View>
-                ))}
+                  );
+                })}
               </View>
-            ))
+              );
+            })
           )}
 
-          {/* 댓글 입력창 */}
+          </View>
+          </TouchableWithoutFeedback>
+
+          {/* 댓글 입력창 (스크롤 흐름 안 맨 아래 — 떠있는 고정 바 없음. 포커스 시 키보드 위로 끌어올림) */}
+          {isBannedUser(user) ? (
+            <View style={[styles.commentInputArea, { paddingBottom: bottomPad }]}>
+              <Text style={styles.bannedNotice}>
+                커뮤니티 이용이 제한된 계정이에요.{'\n'}문의: contact@ourmine.co.kr
+              </Text>
+            </View>
+          ) : (
           <View style={styles.commentInputArea}>
             {replyingTo && (
               <View style={styles.replyingBanner}>
@@ -618,13 +796,19 @@ export function PostDetailScreen() {
                 </TouchableOpacity>
               </View>
             )}
-            <View style={styles.commentInputRow}>
+            <View style={[styles.commentInputRow, { paddingBottom: bottomPad }]}>
               <TextInput
                 style={styles.commentInput}
                 placeholder={replyingTo ? '답글을 입력해주세요' : '댓글을 입력해주세요'}
                 placeholderTextColor={Colors.textHint}
                 value={commentText}
                 onChangeText={setCommentText}
+                onFocus={() => {
+                  // 키보드 애니메이션이 끝난 뒤 입력칸을 키보드 바로 위로 끌어올림 (특히 안드 — automaticallyAdjustKeyboardInsets 미지원)
+                  setTimeout(() => {
+                    scrollViewRef.current?.scrollToEnd({ animated: true });
+                  }, 250);
+                }}
                 multiline
                 maxLength={500}
               />
@@ -636,21 +820,34 @@ export function PostDetailScreen() {
                 onPress={handleCommentSubmit}
                 disabled={!commentText.trim() || submittingComment}
               >
-                <Text style={styles.commentSubmitText}>
-                  {submittingComment ? '...' : '등록'}
-                </Text>
+                <Text style={styles.commentSubmitText}>등록</Text>
               </TouchableOpacity>
             </View>
           </View>
+          )}
+
+          {/* 안드 edge-to-edge 키보드 가림 방지용 하단 스페이서 — 키보드 높이만큼 공간을 줘 입력칸이 키보드 위로 올라가게 함 */}
+          {kbHeight > 0 && <View style={{ height: kbHeight }} />}
         </ScrollView>
-      </KeyboardAvoidingView>
       <CenterToast message={toastMsg} visible={toastVisible} />
+      <ReportSheet
+        visible={!!reportTarget}
+        targetType={reportTarget?.type ?? 'post'}
+        targetId={reportTarget?.id ?? ''}
+        postId={post.id}
+        onClose={() => setReportTarget(null)}
+      />
       {deleting && (
         <View style={styles.deletingOverlay}>
           <ActivityIndicator size="large" color={Colors.white} />
-          <Text style={styles.deletingText}>삭제 중...</Text>
+          <Text style={styles.deletingText}>삭제하고 있어요…</Text>
         </View>
       )}
+      <BrandProgressOverlay
+        visible={submittingComment}
+        title="댓글을 등록하고 있어요"
+        minVisibleMs={500}
+      />
     </SafeAreaView>
   );
 }
@@ -659,7 +856,7 @@ const styles = StyleSheet.create({
   // ── 기반 레이아웃 ──
   safe: { flex: 1, backgroundColor: '#FFFFFF' },
   flex: { flex: 1, backgroundColor: '#FFFFFF' },
-  scrollContent: { paddingBottom: 24 },
+  scrollContent: { paddingBottom: 0 },
 
   // ── 본문 카드 ──
   postCard: {
@@ -755,6 +952,17 @@ const styles = StyleSheet.create({
   },
   commentTitle: { fontSize: 18, fontWeight: '700', color: '#111111' },
 
+  // ── 댓글 로딩 스켈레톤 ──
+  skelCommentWrap: { paddingHorizontal: 20, paddingTop: 16 },
+  skelCommentCard: {
+    paddingBottom: 16,
+    marginBottom: 16,
+    borderBottomWidth: 1,
+    borderBottomColor: '#EEEEEE',
+  },
+  skelLine: { height: 15, borderRadius: 5, backgroundColor: '#ECECEC' },
+  skelLineShort: { height: 14, width: '30%', borderRadius: 5, backgroundColor: '#F1F1F1' },
+
   commentItem: {
     backgroundColor: '#FFFFFF',
     paddingHorizontal: 20,
@@ -785,10 +993,19 @@ const styles = StyleSheet.create({
   replyArrow: { fontSize: 18, color: '#BBBBBB', marginRight: 10, marginTop: 2 },
   replyContent: { flex: 1 },
 
-  // ── 댓글 입력창 ──
+  // ── 댓글 입력창 (스크롤 흐름 안 맨 아래) ──
   commentInputArea: {
     backgroundColor: Colors.white,
     marginTop: 8,
+    paddingTop: 4,
+  },
+  bannedNotice: {
+    fontSize: 17,
+    lineHeight: 26,
+    color: Colors.textSub,
+    textAlign: 'center',
+    paddingHorizontal: 24,
+    paddingVertical: 18,
   },
   replyingBanner: {
     flexDirection: 'row',

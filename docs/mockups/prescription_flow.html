@@ -1,0 +1,190 @@
+<!DOCTYPE html>
+<html lang="ko"><head><meta charset="utf-8"><style>
+*{margin:0;padding:0;box-sizing:border-box;-webkit-font-smoothing:antialiased}
+body{background:#EEF1F5;font-family:-apple-system,'Apple SD Gothic Neo',sans-serif;padding:34px}
+h1{font-size:26px;font-weight:800;color:#1F2530;margin-bottom:4px}
+.lead{font-size:14px;color:#7A828E;margin-bottom:26px}
+.flow{display:flex;align-items:flex-start;gap:14px;flex-wrap:wrap}
+.step{width:268px}
+.snum{display:flex;align-items:center;gap:8px;margin-bottom:8px}
+.snum b{background:#F5811F;color:#fff;width:26px;height:26px;border-radius:13px;display:flex;align-items:center;justify-content:center;font-size:14px;font-weight:800}
+.snum span{font-size:14.5px;font-weight:800;color:#2B313B}
+.phone{width:268px;height:412px;background:#F7F8FA;border-radius:26px;border:1px solid #DDE1E7;box-shadow:0 6px 18px rgba(0,0,0,.08);overflow:hidden;position:relative}
+.tb{background:#fff;border-bottom:1px solid #EEF0F3;padding:13px 14px;font-size:15px;font-weight:800;color:#1F2530}
+.bd{padding:12px 13px}
+.note{font-size:12px;color:#8A929E;margin-top:9px;line-height:1.5}
+
+.card{background:#FFF6EE;border:1.5px solid #F5C79B;border-radius:13px;padding:13px;display:flex;align-items:center;gap:10px}
+.card .ic{font-size:22px}
+.card .t{font-size:15px;font-weight:800;color:#C9620E}
+.card .s{font-size:11.5px;color:#B0793E;margin-top:2px}
+
+.dim{position:absolute;inset:0;background:rgba(20,24,31,.40)}
+.sheet{position:absolute;left:0;right:0;bottom:0;background:#fff;border-radius:18px 18px 0 0;padding:14px 14px 16px}
+.grab{width:38px;height:5px;border-radius:3px;background:#D7DBE1;margin:2px auto 12px}
+.sh-t{font-size:15px;font-weight:800;color:#1F2530;margin-bottom:10px;text-align:center}
+.opt{border:1.4px solid #E6E9EE;border-radius:11px;padding:13px;text-align:center;font-size:15px;font-weight:700;color:#2B313B;margin-bottom:9px}
+.opt.pri{background:#F5811F;border-color:#F5811F;color:#fff}
+.opt.gray{color:#8A929E}
+
+.center{position:absolute;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:14px}
+.spin{width:46px;height:46px;border-radius:50%;border:5px solid #F0E2D4;border-top-color:#F5811F}
+.ld{font-size:15px;font-weight:700;color:#3A414C}
+.ld2{font-size:12px;color:#9AA1AC;margin-top:-8px}
+
+.drow{display:flex;align-items:center;gap:10px;border:1px solid #EEF1F4;border-radius:11px;padding:10px;margin-bottom:8px;background:#FBFBFC}
+.chk{width:22px;height:22px;border-radius:6px;background:#F5811F;color:#fff;display:flex;align-items:center;justify-content:center;font-size:13px;font-weight:800;flex-shrink:0}
+.dthumb{width:34px;height:34px;border-radius:8px;background:#EFE7D8;display:flex;align-items:center;justify-content:center;font-size:16px}
+.dn{font-size:14px;font-weight:800;color:#1F2530}
+.dc{font-size:11.5px;color:#C9620E;font-weight:700;margin-top:1px}
+.bdg{font-size:10px;color:#2E9E5B;font-weight:700;margin-top:1px}
+.pbtn{background:#F5811F;color:#fff;border-radius:11px;padding:12px;text-align:center;font-size:14.5px;font-weight:800;margin-top:4px}
+
+.dlg{position:absolute;left:22px;right:22px;top:90px;background:#fff;border-radius:16px;padding:16px;box-shadow:0 10px 30px rgba(0,0,0,.2)}
+.dlg-t{font-size:15px;font-weight:800;color:#1F2530;margin-bottom:8px}
+.dlg-l{font-size:12.5px;color:#4A515C;line-height:1.7}
+.dlg-l b{color:#C9620E}
+.dlg-b{display:flex;gap:8px;margin-top:13px}
+.dlg-b div{flex:1;text-align:center;padding:11px;border-radius:10px;font-size:14px;font-weight:800}
+.bcancel{background:#F1F3F6;color:#5B6472}
+.bok{background:#F5811F;color:#fff}
+
+.banner{background:#FFF4E5;border:1.4px solid #F3C98B;border-radius:12px;padding:11px 12px;display:flex;align-items:center;gap:9px;margin-bottom:11px}
+.banner .bt{font-size:13px;font-weight:800;color:#B5610E}
+.banner .bs{font-size:11px;color:#B0793E;margin-top:1px}
+.slotc{background:#fff;border:1px solid #EAEDF1;border-radius:13px;padding:11px;margin-bottom:9px}
+.slotc .st{font-size:14px;font-weight:800;color:#1F2530}
+.slotc .ss{font-size:11.5px;color:#A6AEBA;margin-top:3px}
+.arrow{align-self:center;color:#C2C8D0;font-size:30px;font-weight:300;padding-top:150px}
+</style></head><body>
+<h1>처방전으로 약 등록 — 전체 흐름</h1>
+<div class="lead">"복용약 등록 → 처방전으로 등록 → 사진 선택" 이후 화면이 단계별로 어떻게 나오는지</div>
+
+<div class="flow">
+
+  <!-- 1 -->
+  <div class="step">
+    <div class="snum"><b>1</b><span>복용약 등록 선택</span></div>
+    <div class="phone"><div class="tb">복용 관리</div><div class="bd">
+      <div class="card"><div class="ic">＋</div><div><div class="t">복용약 등록</div><div class="s">처방전 사진 또는 직접 입력으로 추가</div></div></div>
+      <div class="dim"></div>
+      <div class="sheet"><div class="grab"></div><div class="sh-t">복용약 등록</div>
+        <div class="opt pri">처방전으로 등록</div>
+        <div class="opt">직접 입력으로 등록</div>
+        <div class="opt gray">취소</div>
+      </div>
+    </div></div>
+    <div class="note">"복용약 등록" 카드 탭 → 선택 시트. <b>"처방전으로 등록"</b> 선택.</div>
+  </div>
+
+  <div class="arrow">›</div>
+
+  <!-- 2 -->
+  <div class="step">
+    <div class="snum"><b>2</b><span>사진 어디서 가져올지</span></div>
+    <div class="phone"><div class="tb">복용 관리</div><div class="bd">
+      <div class="dim"></div>
+      <div class="sheet"><div class="grab"></div><div class="sh-t">처방전 사진 등록<br><span style="font-size:11px;font-weight:500;color:#9AA1AC">사진을 어디서 가져올까요?</span></div>
+        <div class="opt pri">카메라로 찍기</div>
+        <div class="opt">갤러리에서 선택</div>
+        <div class="opt gray">취소</div>
+      </div>
+    </div></div>
+    <div class="note">카메라로 처방전을 찍거나 갤러리에서 사진을 고름.</div>
+  </div>
+
+  <div class="arrow">›</div>
+
+  <!-- 3 -->
+  <div class="step">
+    <div class="snum"><b>3</b><span>처방전 분석 중</span></div>
+    <div class="phone"><div class="tb">복용 관리</div>
+      <div class="dim"></div>
+      <div class="center"><div class="spin"></div><div class="ld">처방전 분석 중…</div><div class="ld2">잠시만 기다려주세요</div></div>
+    </div>
+    <div class="note">AI가 처방전에서 약 이름·1일 횟수를 읽는 동안 전체화면 로딩.</div>
+  </div>
+
+  <div class="arrow">›</div>
+
+  <!-- 4 -->
+  <div class="step" style="width:312px">
+    <div class="snum"><b>4</b><span>처방전 인식 결과 (약별 수정)</span></div>
+    <div class="phone" style="width:312px;height:470px"><div class="tb">복용 관리</div><div class="bd">
+      <div class="dim"></div>
+      <div class="sheet" style="padding-bottom:12px"><div class="grab"></div>
+        <div class="sh-t" style="text-align:left;margin-bottom:3px">처방전 인식 결과</div>
+        <div style="font-size:10.5px;color:#9AA1AC;margin-bottom:10px">약 이름을 확인·수정한 뒤 <b style="color:#C9620E">식약처</b> 버튼으로 맞춰주세요.</div>
+
+        <!-- 약 1 : 식약처 확인됨(초록) + 확인 체크됨 -->
+        <div style="border:1px solid #EEF1F4;border-radius:12px;padding:11px;margin-bottom:9px;background:#fff;display:flex;gap:10px;align-items:stretch">
+          <div style="flex:1;display:flex;flex-direction:column;gap:8px">
+            <input style="border:1.3px solid #E0E4EA;border-radius:9px;padding:10px;font-size:14px;font-weight:700;color:#1F2530" value="마도파확산정125">
+            <div style="display:flex;gap:7px">
+              <input style="width:78px;border:1.2px solid #E6E9EE;border-radius:8px;padding:9px 8px;font-size:13px;color:#3A414C" value="1정">
+              <div style="flex:1;border:1.2px solid #E6E9EE;border-radius:8px;padding:9px 8px;font-size:13px;color:#C9620E;font-weight:700;text-align:center">1일 3회</div>
+            </div>
+          </div>
+          <!-- 오른쪽: 식약처 버튼 / 확인 체크박스 -->
+          <div style="display:flex;flex-direction:column;align-items:flex-end;justify-content:space-between">
+            <div style="background:#34A853;color:#fff;border-radius:9px;padding:10px 12px;font-size:13px;font-weight:800;white-space:nowrap">식약처✓</div>
+            <div style="display:flex;align-items:center;gap:6px"><div style="width:24px;height:24px;border-radius:6px;background:#F5811F;color:#fff;display:flex;align-items:center;justify-content:center;font-size:14px;font-weight:800">✓</div><span style="font-size:13px;font-weight:800;color:#2B313B">확인</span></div>
+          </div>
+        </div>
+
+        <!-- 약 2 : 식약처 미확인(외곽선) + 확인 해제 -->
+        <div style="border:1px solid #EEF1F4;border-radius:12px;padding:11px;margin-bottom:9px;background:#fff;display:flex;gap:10px;align-items:stretch">
+          <div style="flex:1;display:flex;flex-direction:column;gap:8px">
+            <input style="border:1.3px solid #E0E4EA;border-radius:9px;padding:10px;font-size:14px;font-weight:700;color:#1F2530" value="시네메트">
+            <div style="display:flex;gap:7px">
+              <input style="width:78px;border:1.2px solid #E6E9EE;border-radius:8px;padding:9px 8px;font-size:13px;color:#A6AEBA" value="" placeholder="복용량">
+              <div style="flex:1;border:1.2px solid #E6E9EE;border-radius:8px;padding:9px 8px;font-size:13px;color:#C9620E;font-weight:700;text-align:center">1일 2회</div>
+            </div>
+          </div>
+          <div style="display:flex;flex-direction:column;align-items:flex-end;justify-content:space-between">
+            <div style="background:#fff;color:#C9620E;border:1.5px solid #F3C99B;border-radius:9px;padding:10px 12px;font-size:13px;font-weight:800;white-space:nowrap">식약처</div>
+            <div style="display:flex;align-items:center;gap:6px"><div style="width:24px;height:24px;border-radius:6px;background:#fff;border:2px solid #CDD2DA"></div><span style="font-size:13px;font-weight:800;color:#9AA1AC">확인</span></div>
+          </div>
+        </div>
+
+        <div class="pbtn">선택한 약 추가하기 (2개)</div>
+      </div>
+    </div></div>
+    <div class="note"><b>위:</b> 약이름 · 식약처 버튼 / <b>아래:</b> 복용량 · 복용횟수 · 확인(등록 선택).<br>식약처 버튼 누르면 확인됨 → <b style="color:#34A853">초록 채움</b>으로 색 바뀜.</div>
+  </div>
+
+  <div class="arrow">›</div>
+
+  <!-- 5 -->
+  <div class="step">
+    <div class="snum"><b>5</b><span>직전 처방과 비교 확인</span></div>
+    <div class="phone"><div class="tb">복용 관리</div>
+      <div class="dim"></div>
+      <div class="dlg">
+        <div class="dlg-t">이렇게 등록할까요?</div>
+        <div class="dlg-l">
+          <b>추가</b> 마도파, 시네메트, 리큅<br>
+          중단/변경 없음
+        </div>
+        <div class="dlg-b"><div class="bcancel">취소</div><div class="bok">등록하기</div></div>
+      </div>
+    </div>
+    <div class="note">직전 처방과 비교한 변경 요약을 보여주고 "등록하기".</div>
+  </div>
+
+  <div class="arrow">›</div>
+
+  <!-- 6 -->
+  <div class="step">
+    <div class="snum"><b>6</b><span>내 약 추가 완료 → 시간대 넣기 유도</span></div>
+    <div class="phone"><div class="tb">복용 관리</div><div class="bd">
+      <div class="banner"><div style="font-size:18px">⏰</div><div><div class="bt">아직 시간대에 안 넣은 약 3개</div><div class="bs">눌러서 시간대에 넣어주세요</div></div></div>
+      <div class="slotc"><div class="st">아침 · 오전 8:30</div><div class="ss">약 넣기 ›</div></div>
+      <div class="slotc"><div class="st">점심 · 오후 12:30</div><div class="ss">약 넣기 ›</div></div>
+      <div class="note" style="margin-top:6px">약은 <b>"내 약"에 추가</b>되고, 시간대(슬롯)엔 아직 안 들어감. 배너나 슬롯 "약 넣기"로 사용자가 직접 시간대에 배정.</div>
+    </div></div>
+    <div class="note">처방전은 시간대를 자동 배정하지 않음 → 사용자가 슬롯에 넣음(별도 단계).</div>
+  </div>
+
+</div>
+</body></html>

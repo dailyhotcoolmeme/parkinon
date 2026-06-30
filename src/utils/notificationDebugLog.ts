@@ -15,6 +15,8 @@ export async function logNotificationEvent(params: {
   isColdStart?: boolean;
 }): Promise<void> {
   try {
+    // (성능) 운영 빌드에선 no-op. 알림 1건당 10여 회 발화하는 INSERT를 __DEV__ 일 때만 수행.
+    if (!__DEV__) return;
     if (!params.userId) return;
     await supabase.from('notification_debug_logs' as any).insert({
       user_id: params.userId,

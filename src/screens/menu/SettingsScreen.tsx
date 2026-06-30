@@ -12,6 +12,7 @@ import {
   Linking,
   AppState,
   InteractionManager,
+  Platform,
 } from 'react-native';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useFocusEffect, useNavigation } from '@react-navigation/native';
@@ -26,6 +27,13 @@ import { useAuth } from '../../context/AuthContext';
 import { useNotificationBadge } from '../../context/NotificationBadgeContext';
 import { useDialog } from '../../context/DialogContext';
 import { minutesToLabel } from '../../utils/medUtils';
+import {
+  ampmToHHMM,
+  timeChangeImmediatePopup,
+  turnOnImmediatePopup,
+  turnOffImmediatePopup,
+  deleteImmediatePopup,
+} from '../../utils/notifActionFeedback';
 import { ensureNotGuest } from '../../utils/guestGuard';
 import { markMedNotifUserEdited } from '../../utils/medNotifRecommendationMeta';
 import { supabase } from '../../lib/supabase';
@@ -38,7 +46,6 @@ import {
 } from '../../utils/notifications';
 import { provisionForUser } from '../../lib/alarmSound';
 import { AlarmSoundPickerRow, AlarmSoundOption } from '../../components/common/AlarmSoundPickerRow';
-import { DoseSlotSetList } from '../../components/settings/DoseSlotSetList';
 import { ensurePatientDoseSlots } from '../../hooks/useDoseSlots';
 import { MEASUREMENT_FEATURE_ENABLED } from '../../constants/featureFlags';
 
@@ -52,19 +59,21 @@ interface CaregiverNotif {
 const DEFAULT_CAREGIVER_NOTIFS: CaregiverNotif[] = [
   { id: 'med_taken', label: '환자 약 복용 기록 시', sub: '환자가 약 복용 기록 시 알림을 받아요', enabled: true },
   { id: 'med_missed', label: '환자 약 미복용 알림 2차', sub: '환자가 약 미복용 20분이 되면 알림을 받아요\n알림을 받으면 환자께 알려주세요', enabled: true },
-  { id: 'body_state', label: '몸상태 기록 시', enabled: true },
-  { id: 'mood', label: '기분상태 기록 시', enabled: true },
-  { id: 'exercise', label: '운동 기록 시', enabled: true },
+  // 라벨 앞 '환자 ' 접두 → pt() 가 연동 환자 이름으로 치환("{환자명}님 몸상태·기분 기록 시").
+  // 미연동 시엔 "환자"로 표시(fallback). 몸상태~변비 항목(운동 포함)만 접두.
+  // 몸상태·기분은 환자가 항상 한 번에 기록 → 보호자 알림도 1개 → 토글 통합.
+  // id는 발송부(useBodyState) 호환 위해 body_state 유지. 저장 시 mood도 같은 값으로 동기화.
+  { id: 'body_state', label: '환자 약효추적 기록 시', sub: '환자가 약효추적(몸 상태·기분)을 기록하면 알림을 받아요', enabled: true },
+  { id: 'exercise', label: '환자 운동 기록 시', enabled: true },
   // 컨디션 측정 기능 숨김 시 측정 완료 알림도 비노출.
   ...(MEASUREMENT_FEATURE_ENABLED
     ? [{ id: 'measurement_completed', label: '컨디션 측정 완료 시', sub: '환자가 손가락·반응속도 측정을 마치면 알림을 받아요', enabled: true }]
     : []),
-  { id: 'sleep', label: '수면 기록 시', enabled: false },
-  { id: 'constipation', label: '변비 기록 시', enabled: false },
+  { id: 'sleep', label: '환자 수면 기록 시', enabled: false },
+  { id: 'constipation', label: '환자 변비 기록 시', enabled: false },
 ];
 
 const STORAGE_KEY_CAREGIVER = 'settings_caregiver_notifs';
-const STORAGE_KEY_BATTERY_OPT = 'parkinon_battery_optimized';
 
 const { width: SCREEN_WIDTH } = Dimensions.get('window');
 
@@ -165,15 +174,6 @@ function computeAnyNotifOn(
   const slots = relevantMedTimeSlots(activeSlots);
   return slots.some(s => !!medTime[s]) || medN.some(n => n.enabled) || exN.some(n => n.enabled);
 }
-function computeAllNotifOn(
-  medTime: Record<string, boolean>, activeSlots: string[],
-  medN: { enabled: boolean }[], exN: { enabled: boolean }[],
-): boolean {
-  const slots = relevantMedTimeSlots(activeSlots);
-  if (slots.length === 0 && medN.length === 0 && exN.length === 0) return false;
-  return slots.every(s => medTime[s] !== false) && medN.every(n => n.enabled) && exN.every(n => n.enabled);
-}
-
 // ─── Component ────────────────────────────────────────────────────────────────
 
 const MED_TIME_SLOTS = [
@@ -230,9 +230,10 @@ export function SettingsScreen() {
     morning: true, lunch: true, dinner: true, bedtime: true,
     missed_first: true, missed_second: true,
   });
-  // 본인이 방금 토글한 직후엔 realtime 에코(동시 발생한 notification_enabled 쓰기의 stale echo)가
-  // 옛 med_time_notif_prefs로 토글을 되돌리지 않도록 막는 가드 타임스탬프
-  const medTimeLocalWriteAtRef = useRef(0);
+  // ⚠️ 옛 5초 가드 ref(medTimeLocalWriteAtRef / notifPrefsLocalWriteAtRef /
+  //    patientPrefsLocalWriteAtRef)는 제거했다. users 가 REPLICA IDENTITY FULL +
+  //    realtime publication 이라 payload.new 가 항상 커밋된 최신값 → 가드 없이도
+  //    되돌아가지 않는다(dose_slots 와 동일 원리).
   // 미복용 알림음 선택 행(무거운 expo-av 컴포넌트)을 토글과 같은 프레임에 mount/unmount하면
   // 네이티브 Switch 애니메이션이 튄다 → 표시 여부를 한 틱 늦춰 스위치 전환을 먼저 끝낸다.
   const [showMissedSound, setShowMissedSound] = useState({ first: false, second: false });
@@ -251,7 +252,14 @@ export function SettingsScreen() {
   // 환자 알림 수정 (보호자용)
   const [showPatientNotifs, setShowPatientNotifs] = useState(false);
   const [patientId, setPatientId] = useState<string | null>(null);
+  // 보호자 환자 로드 완료 여부 — 로딩 중(false)과 "연동 환자 없음(true+patientId null)"을 구분.
+  // 깜빡임/오판 방지: 이 값이 true가 되기 전엔 환자/미연동 어느 쪽도 단정하지 않음.
+  const [patientLoadDone, setPatientLoadDone] = useState(false);
   const [linkedPatientName, setLinkedPatientName] = useState<string | null>(null);
+  // 실제 연동 환자 id가 해석됐는지로 판정 (역할만 보지 않음). 로딩 끝(patientLoadDone) +
+  // patientId non-null 일 때만 환자용 항목 노출. 로딩 중에는 어느 쪽도 단정 안 함(깜빡임 방지).
+  const hasLinkedPatient = isCaregiver && patientLoadDone && patientId != null;
+  const showCaregiverEmptyLink = isCaregiver && patientLoadDone && patientId == null;
   const [patientMedTimePrefs, setPatientMedTimePrefs] = useState<Record<string, boolean>>({
     morning: true, lunch: true, dinner: true, bedtime: true,
     missed_first: true, missed_second: true,
@@ -262,6 +270,10 @@ export function SettingsScreen() {
   });
   const [patientMedNotifs, setPatientMedNotifs] = useState<MedNotif[]>([]);
   const [patientExerciseNotifs, setPatientExerciseNotifs] = useState<ExerciseNotif[]>([]);
+  // 환자의 약 미복용 1차/2차 알림음 (보호자가 대신 설정). null=기본음
+  const [patientMissedMedSounds, setPatientMissedMedSounds] = useState<{ first: string | null; second: string | null }>({
+    first: null, second: null,
+  });
   // 그룹 녹음 목록 (알림별 소리 선택용)
   const [alarmSounds, setAlarmSounds] = useState<AlarmSoundOption[]>([]);
   // 환자의 전체 알림(마스터) 상태 — '환자 알림 수정' 토글 게이팅에 사용.
@@ -272,37 +284,52 @@ export function SettingsScreen() {
   const loadMedTimePrefs = React.useCallback(async () => {
     if (!user || isCaregiver) return;
     try {
-      const { data } = await supabase
-        .from('users')
-        .select('med_time_notif_prefs, med_time_sound_prefs, meal_schedules')
-        .eq('id', user.id)
-        .single();
-      // 본인이 방금(5초 내) 토글한 직후라면, 복제 지연으로 옛 값을 읽어와 토글을
-      // 되돌리는 것을 막고 낙관적 로컬값을 유지한다. (realtime 핸들러와 동일 가드)
-      if (data?.med_time_notif_prefs && Date.now() - medTimeLocalWriteAtRef.current > 5000) {
-        setMedTimePrefs(prev => ({ ...prev, ...data.med_time_notif_prefs }));
+      // 서로 의존하지 않는 4개 조회를 병렬화(users / missed_med_sound_prefs / medications /
+      // dose_slots count). 각 조회는 개별 가드 — 하나가 실패해도 나머지는 진행.
+      // ensure(dose_slots 부트스트랩)만 users.data 에 의존하므로 뒤에서 순차 처리한다.
+      const [usersRes, missedRes, medsRes, slotCountRes] = await Promise.all([
+        supabase
+          .from('users')
+          .select('med_time_notif_prefs, med_time_sound_prefs, meal_schedules')
+          .eq('id', user.id)
+          .single(),
+        supabase
+          .from('missed_med_sound_prefs' as any)
+          .select('first_sound_id, second_sound_id')
+          .eq('user_id', user.id)
+          .maybeSingle()
+          .then((r: any) => r, () => ({ data: null })),
+        supabase
+          .from('medications')
+          .select('meal_times, meal_schedules')
+          .eq('patient_id', user.id)
+          .eq('is_active', true),
+        supabase
+          .from('dose_slots')
+          .select('id', { count: 'exact', head: true })
+          .eq('patient_id', user.id)
+          .eq('is_active', true)
+          .then((r: any) => r, () => ({ count: null })),
+      ]);
+      const data = usersRes.data;
+      // 약 미복용(missed_first/second)·복용시간 토글은 med_time_notif_prefs 블롭에 저장된다.
+      // 초기 진입 시 1회 로드(이 select)로 채우고, 이후 변경은 realtime payload.new 가 반영한다.
+      // (read-after-write 로 방금 토글한 값을 덮을 수 있어 5초 가드를 두던 것을 제거 —
+      //  realtime 이 최신값을 주므로 가드 없이도 되돌아가지 않는다. dose_slots 와 동일 원리.)
+      if (data?.med_time_notif_prefs) {
+        setMedTimePrefs(prev => ({ ...prev, ...((data.med_time_notif_prefs as Record<string, boolean>) ?? {}) }));
       }
       if (data?.med_time_sound_prefs) {
         setMedTimeSounds((data.med_time_sound_prefs as Record<string, string | null>) ?? {});
       }
-      // 약 미복용 알림 전용 알림음 로드 (1차/2차)
-      try {
-        const { data: missed } = await supabase
-          .from('missed_med_sound_prefs' as any)
-          .select('first_sound_id, second_sound_id')
-          .eq('user_id', user.id)
-          .maybeSingle();
-        setMissedMedSounds({
-          first: (missed as any)?.first_sound_id ?? null,
-          second: (missed as any)?.second_sound_id ?? null,
-        });
-      } catch {}
-      // 약 관리에서 설정한 실제 복용 시간 조회 (슬롯별 가장 이른 시간)
-      const { data: meds } = await supabase
-        .from('medications')
-        .select('meal_times, meal_schedules')
-        .eq('patient_id', user.id)
-        .eq('is_active', true);
+      // 약 미복용 알림 전용 알림음 (1차/2차)
+      const missed = (missedRes as any)?.data;
+      setMissedMedSounds({
+        first: (missed as any)?.first_sound_id ?? null,
+        second: (missed as any)?.second_sound_id ?? null,
+      });
+      // 약 관리에서 설정한 실제 복용 시간 (슬롯별 가장 이른 시간)
+      const meds = (medsRes as any)?.data;
       if (meds?.length) {
         setHasMedicationRegistered(true);
         const earliest: Record<string, string> = {};
@@ -338,11 +365,7 @@ export function SettingsScreen() {
       // 4슬롯을 생성한다. 이미 dose_slots 가 있으면 건드리지 않는다(6단계에서 직접 수정하므로
       // ensure 의 멱등 update 가 사용자가 세트카드에서 바꾼 값을 되돌리지 않게).
       try {
-        const { count } = await supabase
-          .from('dose_slots')
-          .select('id', { count: 'exact', head: true })
-          .eq('patient_id', user.id)
-          .eq('is_active', true);
+        const count = (slotCountRes as any)?.count;
         if (!count || count === 0) {
           const enabledMin = (medNotifs ?? [])
             .filter(n => n.enabled && n.minutes > 0)
@@ -362,8 +385,8 @@ export function SettingsScreen() {
 
   const toggleMedTimeSlot = async (slot: string) => {
     const prev = medTimePrefs;
-    const next = { ...prev, [slot]: !prev[slot] };
-    medTimeLocalWriteAtRef.current = Date.now();
+    const willEnable = !prev[slot];
+    const next = { ...prev, [slot]: willEnable };
     setMedTimePrefs(next);
     // 발송 게이트(notification_enabled) = "하나라도 ON" (전체 토글 표시는 별도로 select-all)
     const anyOn = computeAnyNotifOn(next, activeMedSlots, medNotifs, exerciseNotifs);
@@ -373,6 +396,18 @@ export function SettingsScreen() {
       const { data: { session } } = await supabase.auth.getSession();
       if (!session?.access_token) throw new Error('세션이 만료되었어요');
       await patchUser(user!.id, session.access_token, { med_time_notif_prefs: next });
+      // 결과 안내: 약 미복용 알림은 즉시형. (missed_first/second 토글만 호출됨)
+      await dialog.alert(
+        willEnable
+          ? {
+              title: '미복용 알림을 켰어요',
+              message: '바로 적용돼요. 미복용 알림은 약 복용 시각 10분·20분 후에 와요.',
+            }
+          : {
+              title: '미복용 알림을 껐어요',
+              message: '지금부터 미복용 알림은 오지 않아요.',
+            },
+      );
     } catch (e) {
       console.error('[SettingsScreen] toggleMedTimeSlot 저장 실패:', e);
       setMedTimePrefs(prev);
@@ -391,7 +426,11 @@ export function SettingsScreen() {
   }
 
   const loadPatientNotifPrefs = React.useCallback(async (externalToken?: string) => {
-    if (!user || !isCaregiver || !user.patient_group_id) return;
+    // 그룹 자체가 없는 보호자 → 즉시 "로드 완료, 연동 환자 없음" 확정
+    if (!user || !isCaregiver || !user.patient_group_id) {
+      if (isCaregiver) { setPatientId(null); setPatientLoadDone(true); }
+      return;
+    }
     try {
       // supabase-js New Architecture hang 방지 → raw fetch 사용
       // externalToken: useFocusEffect에서 이미 getSession()을 호출했으면 그 토큰을 그대로 사용
@@ -414,15 +453,32 @@ export function SettingsScreen() {
       const pid = pgData[0]?.user_id;
       if (!pid) {
         console.warn('[SettingsScreen] 환자 ID 없음, pgData:', pgData);
+        // 그룹은 있으나 환자 멤버가 없음 → 미연동으로 확정
+        setPatientId(null);
+        setPatientLoadDone(true);
         return;
       }
       setPatientId(pid);
+      setPatientLoadDone(true);
 
-      // 2. 환자의 알림 설정 + 이름 (raw fetch)
-      const userRes = await fetch(
+      // 2~3. pid 에만 의존하고 서로 독립인 3개 조회를 병렬로 시작
+      //   (users / 환자 미복용 알림음 RPC / medications). 결과는 아래에서 순서대로 처리.
+      const userResP = fetch(
         `${SUPABASE_URL}/rest/v1/users?id=eq.${pid}&select=med_time_notif_prefs,med_notif_prefs,exercise_notif_prefs,meal_schedules,name,notification_enabled&limit=1`,
         { headers }
       );
+      const missedResP = fetch(`${SUPABASE_URL}/rest/v1/rpc/get_patient_missed_med_sound`, {
+        method: 'POST',
+        headers: { ...headers, 'Content-Type': 'application/json' },
+        body: JSON.stringify({ p_patient_id: pid }),
+      }).catch(() => null);
+      const medsResP = fetch(
+        `${SUPABASE_URL}/rest/v1/medications?patient_id=eq.${pid}&is_active=eq.true&select=meal_times,meal_schedules`,
+        { headers }
+      );
+
+      // 2. 환자의 알림 설정 + 이름
+      const userRes = await userResP;
       const userData = await userRes.json();
       const patientUser = userData[0];
 
@@ -453,11 +509,23 @@ export function SettingsScreen() {
         ]);
       }
 
-      // 3. 환자의 활성 약 슬롯 + 복용 시간 (raw fetch)
-      const medsRes = await fetch(
-        `${SUPABASE_URL}/rest/v1/medications?patient_id=eq.${pid}&is_active=eq.true&select=meal_times,meal_schedules`,
-        { headers }
-      );
+      // 2-1. 환자의 약 미복용 1차/2차 알림음 (own-only RLS → SECURITY DEFINER RPC 경유)
+      try {
+        const msRes = await missedResP;
+        if (msRes && msRes.ok) {
+          const msData = await msRes.json();
+          const row = Array.isArray(msData) ? msData[0] : msData;
+          setPatientMissedMedSounds({
+            first: row?.first_sound_id ?? null,
+            second: row?.second_sound_id ?? null,
+          });
+        }
+      } catch (e) {
+        console.warn('[SettingsScreen] 환자 미복용 알림음 로드 실패(계속):', e);
+      }
+
+      // 3. 환자의 활성 약 슬롯 + 복용 시간 (위에서 병렬로 시작한 medsResP 결과 사용)
+      const medsRes = await medsResP;
       const meds = await medsRes.json();
 
       if (Array.isArray(meds) && meds.length > 0) {
@@ -491,46 +559,6 @@ export function SettingsScreen() {
       console.error('[SettingsScreen] 환자 정보 로드 오류:', e);
     }
   }, [user, isCaregiver]);
-
-  // 보호자가 환자의 전체 알림을 켜고 끔. 전체 ON → 환자 개별 알림 모두 ON, OFF → 모두 OFF
-  // (전체=개별 일괄). 환자 notification_enabled + 모든 개별 prefs를 한 번에 저장.
-  const togglePatientMaster = async (enabled: boolean) => {
-    if (!patientId) return;
-    const prevMaster = patientNotificationEnabled;
-    const prevMedTime = patientMedTimePrefs;
-    const prevMed = patientMedNotifs;
-    const prevEx = patientExerciseNotifs;
-
-    const SLOT_KEYS = ['morning', 'lunch', 'dinner', 'bedtime', 'missed_first', 'missed_second'];
-    const nextMedTime: Record<string, boolean> = { ...patientMedTimePrefs };
-    Object.keys(nextMedTime).forEach(k => { nextMedTime[k] = enabled; });
-    SLOT_KEYS.forEach(k => { nextMedTime[k] = enabled; });
-    const nextMed = patientMedNotifs.map(n => ({ ...n, enabled }));
-    const nextEx = patientExerciseNotifs.map(n => ({ ...n, enabled }));
-
-    setPatientNotificationEnabled(enabled);
-    setPatientMedTimePrefs(nextMedTime);
-    setPatientMedNotifs(nextMed);
-    setPatientExerciseNotifs(nextEx);
-
-    try {
-      const { data: { session } } = await supabase.auth.getSession();
-      if (!session?.access_token) throw new Error('세션이 만료되었어요');
-      await patchPatientUser(patientId, session.access_token, {
-        notification_enabled: enabled,
-        med_time_notif_prefs: nextMedTime,
-        med_notif_prefs: nextMed,
-        exercise_notif_prefs: nextEx,
-      });
-    } catch (e) {
-      console.error('[SettingsScreen] togglePatientMaster 저장 실패:', e);
-      setPatientNotificationEnabled(prevMaster);
-      setPatientMedTimePrefs(prevMedTime);
-      setPatientMedNotifs(prevMed);
-      setPatientExerciseNotifs(prevEx);
-      await dialog.alert({ title: '저장 실패', message: '환자분 알림 설정을 저장하지 못했어요.\n인터넷 연결을 확인하고 다시 시도해주세요.' });
-    }
-  };
 
   const togglePatientMedTimeSlot = async (slot: string) => {
     if (!patientId) return;
@@ -569,12 +597,6 @@ export function SettingsScreen() {
     }).catch(() => {});
   }, []);
 
-  useEffect(() => {
-    AsyncStorage.getItem(STORAGE_KEY_BATTERY_OPT).then((val) => {
-      if (val === 'true') setBatteryOptimized(true);
-    });
-  }, []);
-
   // 미복용 알림음 행 표시를 토글 프레임에서 분리 (스위치 애니메이션 먼저 끝낸 뒤 mount/unmount)
   useEffect(() => {
     const first = !!medTimePrefs['missed_first'];
@@ -593,12 +615,20 @@ export function SettingsScreen() {
   //   → OFF가 DB에 안 남고 ON으로 되돌아가는 버그가 있었음.
   // - caregiverWriteSeq: 저장 진행 중 포커스 리로드가 stale 값으로 덮지 못하게 막는 시퀀스.
   const caregiverWriteSeq = useRef(0);
+  // 포커스 리로드 중복 가드: 동시/연속 포커스 이벤트로 같은 로더가 겹쳐 도는 것을 막는다.
+  //  - focusLoadInFlight: 진행 중이면 새 포커스 로드를 스킵(설정 변경 반영은 realtime 이 담당).
+  //  - lastFocusLoadAt: 직전 로드 후 짧은 창(1.5초) 안의 재포커스는 과도 재조회만 줄이려 스킵.
+  const focusLoadInFlight = useRef(false);
+  const lastFocusLoadAt = useRef(0);
 
   const toggleCaregiverNotif = async (id: string) => {
     const prevNotifs = caregiverNotifs;
     const next = prevNotifs.map(n => n.id === id ? { ...n, enabled: !n.enabled } : n);
     const prefs: Record<string, boolean> = {};
     next.forEach(n => { prefs[n.id] = n.enabled; });
+    // 몸상태·기분 토글 통합: UI엔 body_state 하나뿐이라 mood 키가 누락/stale 될 수 있어
+    // 발송부(useBodyState) 호환을 위해 mood를 body_state와 같은 값으로 동기 저장.
+    prefs.mood = prefs.body_state;
     // 발송 게이트(notification_enabled) = 보호자 알림이 "하나라도 ON"
     const masterAnyOn = next.some(n => n.enabled);
 
@@ -641,6 +671,8 @@ export function SettingsScreen() {
       setCaregiverNotifs(next);
       const prefs: Record<string, boolean> = {};
       next.forEach(n => { prefs[n.id] = n.enabled; });
+      // 몸상태·기분 토글 통합 → mood를 body_state와 동기 저장(발송부 호환).
+      prefs.mood = prefs.body_state;
       await AsyncStorage.setItem(STORAGE_KEY_CAREGIVER, JSON.stringify(next)).catch(() => {});
       try {
         const { data: { session } } = await supabase.auth.getSession();
@@ -676,7 +708,7 @@ export function SettingsScreen() {
     if (await ensureNotGuest(user, dialog, { signOut })) return;
     try {
       // 진행 표시는 흐름을 막지 않도록 토스트로(원래 Alert도 비차단)
-      dialog.alert({ message: '알림 토큰 재등록 중이에요. 잠시만 기다려주세요...', toast: true });
+      dialog.alert({ message: '알림 설정을 다시 등록하고 있어요…', toast: true });
 
       // 1. Expo Push Token 획득
       const { status } = await Notifications.getPermissionsAsync();
@@ -717,7 +749,7 @@ export function SettingsScreen() {
           'apikey': SUPA_KEY,
           'Authorization': `Bearer ${session.access_token}`,
         },
-        body: JSON.stringify({ push_token: token.data }),
+        body: JSON.stringify({ push_token: token.data, push_platform: Platform.OS }),
       });
 
       if (!response.ok) {
@@ -733,8 +765,6 @@ export function SettingsScreen() {
   };
 
   // 배터리 최적화 안내 모달
-  const [showBatteryModal, setShowBatteryModal] = useState(false);
-  const [batteryOptimized, setBatteryOptimized] = useState(false);
 
   // 알림 차단 상태 바텀시트
   const [showPermissionSheet, setShowPermissionSheet] = useState(false);
@@ -769,6 +799,11 @@ export function SettingsScreen() {
   useFocusEffect(
     React.useCallback(() => {
       (async () => {
+        // 중복 가드: 이미 로드 중이거나 직전 1.5초 내 로드했다면 스킵(과도 재조회 방지).
+        // 설정 변경 반영은 realtime payload.new 가 담당하므로 stale 위험 없음.
+        if (focusLoadInFlight.current) return;
+        if (Date.now() - lastFocusLoadAt.current < 1500) return;
+        focusLoadInFlight.current = true;
         try {
           // 보호자 토글이 저장 중일 때 이 리로드가 끝나면, 그 사이 저장이 있었는지 비교해
           // stale DB 값으로 로컬을 덮어쓰지 않도록 시퀀스를 스냅샷한다.
@@ -807,26 +842,16 @@ export function SettingsScreen() {
           await loadMedTimePrefs();
           // 4. 환자 알림 설정 로드 (보호자만) - 이미 얻은 session 토큰 재사용
           await loadPatientNotifPrefs(session?.access_token);
-          // 5. 환자(본인)의 med_notif_prefs, exercise_notif_prefs DB에서 재로드
-          //    보호자가 DB를 수정했을 수 있으므로 포커스마다 최신값 반영
-          if (!isCaregiver && session?.user) {
-            const { data: notifPrefs } = await supabase
-              .from('users')
-              .select('med_notif_prefs, exercise_notif_prefs')
-              .eq('id', session.user.id)
-              .single();
-            if (notifPrefs?.med_notif_prefs) {
-              setMedNotifs((notifPrefs.med_notif_prefs as MedNotif[])
-                .filter(n => n.minutes !== 0)
-                .sort((a, b) => a.minutes - b.minutes));
-            }
-            if (notifPrefs?.exercise_notif_prefs) {
-              setExerciseNotifs((notifPrefs.exercise_notif_prefs as ExerciseNotif[])
-                .sort((a, b) => toTotal24hMinutes(a) - toTotal24hMinutes(b)));
-            }
-          }
+          // ⚠️ 환자(본인)의 med_notif_prefs/exercise_notif_prefs 는 포커스마다 재조회하지
+          //    않는다. 초기값은 SettingsContext 마운트 로드가, 보호자가 바꾼 cross-user
+          //    갱신은 realtime payload.new 가 책임진다(dose_slots 와 동일 원리). 포커스
+          //    재조회는 방금 쓴 값을 read-after-write 로 덮어쓰는 stale-read 원인이라 제거.
+          //    (이 제거로 notifPrefsLocalWriteAtRef 5초 가드도 불필요해졌다.)
         } catch (e) {
           console.warn('[SettingsScreen] 설정 로드 오류:', e);
+        } finally {
+          focusLoadInFlight.current = false;
+          lastFocusLoadAt.current = Date.now();
         }
       })();
     }, [setNotificationEnabledOnly, isCaregiver, recheckSystemPermission, loadMedTimePrefs, loadPatientNotifPrefs])
@@ -844,13 +869,15 @@ export function SettingsScreen() {
           await setNotificationEnabled(true);
           await cascadeMasterToIndividual(true);
           await scheduleMedicationReminders();
-          await scheduleExerciseReminders(exerciseNotifs);
+          // 운동 알림은 서버 푸시(send-medication-reminders 섹션4) 전담.
+          // 로컬 잔여 알림 정리만 수행 (인자 미사용).
+          await scheduleExerciseReminders([]);
         }
         // denied면 그대로 유지 (바텀시트 열린 채)
       }
     });
     return () => subscription.remove();
-  }, [showPermissionSheet, setNotificationEnabled, exerciseNotifs, cascadeMasterToIndividual]);
+  }, [showPermissionSheet, setNotificationEnabled, cascadeMasterToIndividual]);
 
   // ─── 실시간 동기화 (환자 ↔ 보호자) ────────────────────────────────────────────
   // - 환자: 자기 user 행 구독 → 보호자가 바꾸면 즉시 반영 (로컬 state만, DB 재쓰기 X → 에코 방지)
@@ -860,15 +887,26 @@ export function SettingsScreen() {
     const targetId = isCaregiver ? patientId : user.id;
     if (!targetId) return; // 보호자: patientId 확정 후 구독
 
-    const channel = supabase
-      .channel(`settings-sync-${targetId}`)
-      .on(
+    const topic = `settings-sync-${targetId}`;
+    // 같은 topic 의 잔존 채널 제거(재진입 시 이미 subscribe() 된 채널 재사용 →
+    // .on() 추가 시도 크래시 방지).
+    supabase
+      .getChannels()
+      .filter((c) => c.topic === `realtime:${topic}` || c.topic === topic)
+      .forEach((c) => { supabase.removeChannel(c); });
+
+    const channel = supabase.channel(topic);
+    channel.on(
         'postgres_changes',
         { event: 'UPDATE', schema: 'public', table: 'users', filter: `id=eq.${targetId}` },
         (payload) => {
           const row = payload.new as Record<string, any>;
+          // ⚠️ dose_slots 와 동일한 원리: users 테이블은 REPLICA IDENTITY FULL + realtime
+          //    publication 포함이라 payload.new 는 "방금 커밋된 최신 행 전체"다.
+          //    (자기 쓰기든 상대 쓰기든) 항상 최신값이므로 복제 지연 race 가 없다 →
+          //    payload.new 를 그대로 로컬 state 에 반영한다. 옛 5초 가드/재조회 땜질 제거.
           if (isCaregiver) {
-            // 환자가 바꾼 값을 '환자 알림 수정' 섹션에 반영 (로컬 state만)
+            // 환자가 바꾼 값을 '환자 알림 수정' 섹션에 즉시 반영 (로컬 state만, DB 재쓰기 X).
             if (typeof row.notification_enabled === 'boolean') {
               setPatientNotificationEnabled(row.notification_enabled);
             }
@@ -882,14 +920,36 @@ export function SettingsScreen() {
               setPatientExerciseNotifs(row.exercise_notif_prefs as ExerciseNotif[]);
             }
           } else {
-            // 보호자가 바꾼 내 설정을 내 화면에 반영 (DB 재쓰기 없는 적용)
+            // 보호자가 바꾼 내 설정을 내 화면에 즉시 반영 (DB 재쓰기 없는 적용).
             applyRemoteNotifPrefs(row);
-            // 단, 본인이 방금(5초 내) 토글한 직후라면 동시 발생한 notification_enabled 쓰기의
-            // stale echo가 옛 값으로 토글을 되돌리는 것을 막고 로컬 낙관값을 우선한다.
-            if (row.med_time_notif_prefs && Date.now() - medTimeLocalWriteAtRef.current > 5000) {
+            if (row.med_time_notif_prefs) {
               setMedTimePrefs(prev => ({ ...prev, ...row.med_time_notif_prefs }));
             }
           }
+        },
+      )
+      // ⚠️ 미복용 알림음(missed_med_sound_prefs)도 dose_slots 와 동일 구조로 동기화.
+      //    이 테이블은 REPLICA IDENTITY FULL + realtime publication 포함(마이그레이션)이라
+      //    payload.new 가 커밋된 최신 행이다. INSERT/UPDATE(upsert) 모두 잡도록 event:'*'.
+      //    보호자는 group-read RLS(is_same_patient_group)로 환자 행을 받고, 환자는 own-row 로 받는다.
+      //    → 자기/상대 쓰기 모두 payload.new 직접 반영(가드/재조회 없음) → 되돌아감 0.
+      .on(
+        'postgres_changes',
+        { event: '*', schema: 'public', table: 'missed_med_sound_prefs', filter: `user_id=eq.${targetId}` },
+        (payload) => {
+          const row = payload.new as Record<string, any> | null;
+          if (!row) return;
+          const next = {
+            first: (row.first_sound_id ?? null) as string | null,
+            second: (row.second_sound_id ?? null) as string | null,
+          };
+          if (isCaregiver) {
+            setPatientMissedMedSounds(next);
+          } else {
+            setMissedMedSounds(next);
+          }
+          // 알림음 채널 재프로비저닝(상대가 바꾼 소리로 즉시 채널 갱신).
+          provisionForUser(targetId, user.patient_group_id ?? null).catch(() => {});
         },
       )
       .subscribe();
@@ -1124,6 +1184,51 @@ export function SettingsScreen() {
     if (session?.access_token) await patchPatientUser(patientId!, session.access_token, { exercise_notif_prefs: next });
   };
 
+  // 환자 운동 알림 항목의 알림음 변경(보호자) → exercise_notif_prefs[].soundId 저장(기존 RPC).
+  // 환자 본인 setExerciseSound 와 동일 구조(soundId 필드). 환자 채널 재프로비저닝은 환자 기기에서 처리.
+  const setPatientExerciseSound = async (id: string, soundId: string | null) => {
+    if (!patientId) return;
+    const prev = patientExerciseNotifs;
+    const next = patientExerciseNotifs.map(n => (n.id === id ? { ...n, soundId } : n));
+    setPatientExerciseNotifs(next);
+    try {
+      const { data: { session } } = await supabase.auth.getSession();
+      if (!session?.access_token) throw new Error('세션이 만료되었어요');
+      await patchPatientUser(patientId, session.access_token, { exercise_notif_prefs: next });
+      provisionForUser(patientId, user?.patient_group_id ?? null).catch(() => {});
+    } catch (e) {
+      console.error('[SettingsScreen] 환자 운동 알림음 저장 실패:', e);
+      setPatientExerciseNotifs(prev);
+      dialog.alert({ title: '저장 실패', message: '환자분 알림 소리를 저장하지 못했어요.\n인터넷 연결을 확인하고 다시 시도해주세요.' });
+    }
+  };
+
+  // 환자 약 미복용 1차/2차 알림음 변경(보호자) → own-only RLS 우회 RPC.
+  const setPatientMissedMedSound = async (phase: 'first' | 'second', soundId: string | null) => {
+    if (!patientId) return;
+    const prev = patientMissedMedSounds;
+    setPatientMissedMedSounds(p => ({ ...p, [phase]: soundId }));
+    try {
+      const { data: { session } } = await supabase.auth.getSession();
+      if (!session?.access_token) throw new Error('세션이 만료되었어요');
+      const res = await fetch(`${SUPABASE_URL}/rest/v1/rpc/update_patient_missed_med_sound`, {
+        method: 'POST',
+        headers: {
+          'apikey': SUPABASE_ANON_KEY,
+          'Authorization': `Bearer ${session.access_token}`,
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ p_patient_id: patientId, p_phase: phase, p_sound_id: soundId }),
+      });
+      if (!res.ok) throw new Error(`HTTP ${res.status}: ${await res.text()}`);
+      provisionForUser(patientId, user?.patient_group_id ?? null).catch(() => {});
+    } catch (e) {
+      console.error('[SettingsScreen] 환자 미복용 알림음 저장 실패:', e);
+      setPatientMissedMedSounds(prev);
+      dialog.alert({ title: '저장 실패', message: '환자분 알림 소리를 저장하지 못했어요.\n인터넷 연결을 확인하고 다시 시도해주세요.' });
+    }
+  };
+
   // ─── Sort helpers ───────────────────────────────────────────────────────────
   const toTotal24hMinutes = (n: { ampm: '오전' | '오후'; hour: number; minute: number }) => {
     const h24 = n.ampm === '오후' ? (n.hour === 12 ? 12 : n.hour + 12) : (n.hour === 12 ? 0 : n.hour);
@@ -1156,7 +1261,7 @@ export function SettingsScreen() {
     setMedNotifs((prev) => prev.map((n) => (n.id === id ? { ...n, soundId } : n)));
     if (user) provisionForUser(user.id, user.patient_group_id ?? null).catch(() => {});
   };
-  // 운동 알림 항목의 소리 변경
+  // 운동 알림 항목의 소리 변경 → exercise_notif_prefs[].soundId 저장(context setExerciseNotifs가 DB persist)
   const setExerciseSound = (id: string, soundId: string | null) => {
     setExerciseNotifs((prev) => prev.map((n) => (n.id === id ? { ...n, soundId } : n)));
     if (user) provisionForUser(user.id, user.patient_group_id ?? null).catch(() => {});
@@ -1243,11 +1348,19 @@ export function SettingsScreen() {
   };
 
   const toggleExercise = (id: string) => {
+    const target = exerciseNotifs.find((n) => n.id === id);
+    const willEnable = target ? !target.enabled : true;
     const next = exerciseNotifs.map((n) => (n.id === id ? { ...n, enabled: !n.enabled } : n));
     setExerciseNotifs(next);
     // 발송 게이트(notification_enabled) = "하나라도 ON"
     const anyOn = computeAnyNotifOn(medTimePrefs, activeMedSlots, medNotifs, next);
     if (anyOn !== notificationEnabled) setNotificationEnabledOnly(anyOn);
+    // 결과 안내: 운동 알림은 즉시형(켜기=시각 지났는지 / 끄기=즉시 중단).
+    if (target) {
+      dialog.alert(
+        willEnable ? turnOnImmediatePopup(ampmToHHMM(target)) : turnOffImmediatePopup(),
+      );
+    }
   };
 
   const deleteExercise = async (id: string) => {
@@ -1260,6 +1373,7 @@ export function SettingsScreen() {
     });
     if (!ok) return;
     setExerciseNotifs((prev) => prev.filter((n) => n.id !== id));
+    dialog.alert(deleteImmediatePopup());
   };
 
   const saveExerciseTime = () => {
@@ -1283,6 +1397,8 @@ export function SettingsScreen() {
       );
     }
     closePicker();
+    // 결과 안내: 운동 알림 시간 변경/추가는 즉시형(시각 지났는지).
+    dialog.alert(timeChangeImmediatePopup(ampmToHHMM(pickerExTime)));
   };
 
   const openMedSlotPicker = (slotKey: MedTimeSlotKey) => {
@@ -1387,26 +1503,6 @@ export function SettingsScreen() {
     }
   };
 
-  const openBatterySettings = async () => {
-    setShowBatteryModal(false);
-    try {
-      // 앱 배터리 세부 설정 페이지로 직접 이동
-      const packageName =
-        (Constants.expoConfig?.android?.package as string | undefined) ?? 'com.ourmine.parkinon';
-      await Linking.openURL(
-        `intent:#Intent;action=android.settings.APPLICATION_DETAILS_SETTINGS;data=package:${packageName};end`
-      );
-    } catch {
-      try {
-        await Linking.openURL(
-          'intent:#Intent;action=android.settings.IGNORE_BATTERY_OPTIMIZATION_SETTINGS;end'
-        );
-      } catch {
-        await Linking.openSettings();
-      }
-    }
-  };
-
   // ─── Helpers ────────────────────────────────────────────────────────────────
   const formatExerciseNotif = (n: ExerciseNotif) =>
     `${n.ampm} ${n.hour}:${String(n.minute).padStart(2, '0')}`;
@@ -1427,9 +1523,9 @@ export function SettingsScreen() {
 
   // ─── Render ─────────────────────────────────────────────────────────────────
   return (
-    <SafeAreaView edges={['top', 'bottom']} style={styles.safe}>
+    <SafeAreaView edges={['top']} style={styles.safe}>
       <TopBar
-        title="알림 설정"
+        title={isCaregiver ? '보호자용 알림' : '그 밖의 알림'}
         showBack
         rightComponent={
           <TouchableOpacity
@@ -1465,106 +1561,26 @@ export function SettingsScreen() {
         contentContainerStyle={styles.scrollContent}
         showsVerticalScrollIndicator={false}
       >
-        {/* ── Card 0: 전체 알림 ON/OFF ── */}
-        <View style={styles.card}>
-          <View style={styles.cardHeader}>
-            <Ionicons
-              name="notifications-circle-outline"
-              size={24}
-              color={Colors.primary}
-              style={styles.cardHeaderIcon}
-            />
-            <View style={styles.cardHeaderText}>
-              <Text style={styles.cardHeaderTitle}>전체 알림</Text>
-              <Text style={styles.cardHeaderSub}>
-                모든 알림을 켜거나 끌 수 있어요
-              </Text>
-            </View>
-            <Switch
-              value={pendingOn || (isCaregiver
-                ? (caregiverNotifs.length > 0 && caregiverNotifs.every(n => n.enabled))
-                : computeAllNotifOn(medTimePrefs, activeMedSlots, medNotifs, exerciseNotifs))}
-              onValueChange={async (v) => {
-                if (v) {
-                  // ── OFF → ON 시도: 시스템 권한 상태 먼저 확인 ──────────────
-                  const { status } = await Notifications.getPermissionsAsync();
-
-                  if (status === 'granted') {
-                    // 시스템 이미 허용 → 바로 ON
-                    await setNotificationEnabled(true);
-                    await cascadeMasterToIndividual(true);
-                    await scheduleMedicationReminders();
-                    await scheduleExerciseReminders(exerciseNotifs);
-
-                  } else if (status === 'undetermined') {
-                    // 아직 한 번도 요청 안 함 → 시스템 팝업
-                    const { status: newStatus } = await Notifications.requestPermissionsAsync();
-                    if (newStatus === 'granted') {
-                      await setNotificationEnabled(true);
-                      await cascadeMasterToIndividual(true);
-                      if (user?.id) {
-                        const { data: { session } } = await supabase.auth.getSession();
-                        requestPermissionsAndSaveToken(user.id, session?.access_token ?? undefined).catch(console.error);
-                      }
-                      await scheduleMedicationReminders();
-                      await scheduleExerciseReminders(exerciseNotifs);
-                    } else {
-                      // 거부 → 앱도 OFF 유지 (상태 변경 없음)
-                      // 아무것도 안 함
-                    }
-
-                  } else {
-                    // denied → 시스템 팝업 불가, 바텀시트로 안내 + 토글 시각적 ON 유지
-                    setPendingOn(true);
-                    setShowPermissionSheet(true);
-                    // setNotificationEnabled 호출 없음
-                  }
-                  return;
-                }
-                // OFF 처리
-                await setNotificationEnabled(false);
-                await cascadeMasterToIndividual(false);
-              }}
-              trackColor={{ false: Colors.border, true: Colors.primary }}
-              thumbColor={Colors.white}
-            />
-          </View>
+        {/* ── Card 0: 시스템 알림 차단 안내 (문제 있을 때만 노출) ── */}
+        {!systemPermissionGranted && (
+          <View style={[styles.card, { overflow: 'hidden' }]}>
           {/* 시스템에서 알림이 차단된 경우 안내 배너 */}
-          {!systemPermissionGranted && (
             <TouchableOpacity
               activeOpacity={0.8}
               style={styles.permissionBanner}
               onPress={() => Linking.openSettings()}
             >
-              <Ionicons name="warning-outline" size={20} color="#B45309" style={{ marginRight: 8 }} />
+              <Ionicons name="warning-outline" size={22} color="#E65100" style={{ marginRight: 8 }} />
               <View style={{ flex: 1 }}>
                 <Text style={styles.permissionBannerTitle}>시스템 알림이 차단되어 있어요</Text>
                 <Text style={styles.permissionBannerSub}>탭하여 설정에서 파킨온 알림을 허용해주세요</Text>
               </View>
-              <Ionicons name="chevron-forward" size={18} color="#B45309" />
+              <Ionicons name="chevron-forward" size={18} color="#E65100" />
             </TouchableOpacity>
-          )}
-          {/* 배터리 최적화 안내 */}
-          {!batteryOptimized && (
-            <>
-              <View style={styles.separator} />
-              <TouchableOpacity
-                style={styles.batteryRow}
-                onPress={() => setShowBatteryModal(true)}
-                activeOpacity={0.7}
-              >
-                <View style={styles.batteryRowLeft}>
-                  <Ionicons name="battery-charging-outline" size={22} color="#E65100" />
-                  <Text style={styles.batteryRowText}>알림 지연 방지 설정</Text>
-                </View>
-                <Ionicons name="chevron-forward" size={20} color="#AAAAAA" />
-              </TouchableOpacity>
-            </>
-          )}
-        </View>
+          </View>
+        )}
 
-        {/* ── 복용 시각별 세트카드 (환자만) — 약 복용 시간 알림 + 약효 추적을 통합 ── */}
-        {!isCaregiver && <DoseSlotSetList alarmSounds={alarmSounds} />}
+        {/* 복용 시각별 세트카드(슬롯 시각·복용 알림·약효추적)는 "복용 시간·알림" 메뉴로 이관됨. */}
 
         {/* ── 약 미복용 알림 (환자만 · 시각별 아님 · 환자 전역) ── */}
         {!isCaregiver && activeMedSlots.length > 0 && (
@@ -1716,7 +1732,8 @@ export function SettingsScreen() {
                 <View style={styles.notifLeft}>
                   <Text style={styles.notifTitle}>{pt(notif.label)}</Text>
                   <Text style={styles.notifSub}>
-                    {pt(notif.sub ?? `환자 ${notif.label} 알림을 받아요`)}
+                    {/* label 이 '환자 ' 로 시작하면 fallback sub 에서 중복되지 않게 한 번만 붙인다. */}
+                    {pt(notif.sub ?? `${notif.label.replace(/^환자\s*/, '환자 ')} 알림을 받아요`)}
                   </Text>
                 </View>
                 <Switch
@@ -1731,8 +1748,38 @@ export function SettingsScreen() {
           </View>
         )}
 
-        {/* ── 환자 알림 수정 (보호자만) — 위에 구분선으로 섹션 구분, 카드는 환자와 동일 전체폭 ── */}
-        {isCaregiver && (
+        {/* ── 미연동 보호자 안내 카드: 연동 환자가 없으면 환자용 항목 대신 안내만 노출 ── */}
+        {showCaregiverEmptyLink && (
+          <>
+          <View style={styles.caregiverDivider} />
+          <View style={[styles.card, styles.cardMarginTop]}>
+            <View style={styles.cardHeader}>
+              <Ionicons
+                name="people-outline"
+                size={24}
+                color={Colors.primary}
+                style={styles.cardHeaderIcon}
+              />
+              <View style={styles.cardHeaderText}>
+                <Text style={styles.cardHeaderTitle}>아직 연동된 환자가 없어요</Text>
+                <Text style={styles.cardHeaderSub}>
+                  가족을 연동하면 환자분의 알림을 함께 설정할 수 있어요
+                </Text>
+              </View>
+            </View>
+            <TouchableOpacity
+              activeOpacity={0.7}
+              style={styles.linkFamilyTextBtn}
+              onPress={() => navigation.navigate('FamilyLink')}
+            >
+              <Text style={styles.linkFamilyTextBtnText}>가족 연동하기</Text>
+            </TouchableOpacity>
+          </View>
+          </>
+        )}
+
+        {/* ── 환자 알림 수정 (보호자만, 연동 환자 있을 때만) — 위에 구분선으로 섹션 구분, 카드는 환자와 동일 전체폭 ── */}
+        {hasLinkedPatient && (
           <>
           <View style={styles.caregiverDivider} />
           <View style={styles.caregiverNote}>
@@ -1770,107 +1817,159 @@ export function SettingsScreen() {
 
             {showPatientNotifs && (
                 <>
-                  {/* ── 환자 전체 알림 (보호자가 환자 대신 ON/OFF) ── */}
-                  <View style={{ marginTop: 12, borderRadius: 12, borderWidth: 1, borderColor: Colors.border, backgroundColor: Colors.white }}>
-                    <View style={[styles.notifRow, styles.notifRowTop, { borderTopWidth: 0, paddingHorizontal: 16 }]}>
-                      <View style={styles.notifLeft}>
-                        <Text style={styles.notifTitle}>전체 알림</Text>
-                        <Text style={styles.notifSub}>{(linkedPatientName || '환자')}님의 모든 알림을 한 번에 켜거나 꺼요</Text>
-                      </View>
-                      <Switch
-                        style={styles.notifSwitch}
-                        value={computeAllNotifOn(patientMedTimePrefs, patientActiveMedSlots, patientMedNotifs, patientExerciseNotifs)}
-                        onValueChange={(v) => togglePatientMaster(v)}
-                        trackColor={{ false: Colors.border, true: Colors.primary }}
-                        thumbColor={Colors.white}
-                      />
+                  {/* ── 복용 시간 알림 (주황, 시각별 세트카드는 "복용시간 설정·알림" 메뉴로 이관됨) ──
+                      보호자도 그 메뉴에서 환자 슬롯을 대신 편집함(MedicationManage=targetPatientId·DoseSlotSetList=usePatientId 기준).
+                      여기서는 그 메뉴로 가는 진입점만 제공. */}
+                  <View style={{ marginTop: 10, borderRadius: 12, overflow: 'hidden', borderWidth: 1, borderColor: '#FFE0B2' }}>
+                    <View style={{ flexDirection: 'row', alignItems: 'center', backgroundColor: '#FFF3E0', paddingHorizontal: 16, paddingVertical: 12 }}>
+                      <Ionicons name="alarm-outline" size={20} color="#E65100" style={{ marginRight: 10 }} />
+                      <Text style={{ fontSize: 17, fontWeight: '700', color: '#E65100' }}>복용 시간 알림</Text>
                     </View>
+                    <View style={[styles.notifRow, styles.notifRowTop, { backgroundColor: Colors.white, minHeight: 64 }]}>
+                      <View style={styles.notifLeft}>
+                        <Text style={styles.notifSub}>
+                          {(linkedPatientName || '환자')}님의 복용 시간과 복용 알림을 대신 설정할 수 있어요
+                        </Text>
+                      </View>
+                    </View>
+                    <TouchableOpacity
+                      activeOpacity={0.7}
+                      style={[styles.addRow, { backgroundColor: Colors.white }]}
+                      onPress={() => navigation.navigate('MedicationManage', { mode: 'slots' })}
+                    >
+                      <Ionicons name="settings-outline" size={22} color="#E65100" style={{ marginRight: 8 }} />
+                      <Text style={[styles.addLabel, { color: '#E65100' }]}>복용시간 알림 설정하기</Text>
+                      <Ionicons name="chevron-forward" size={20} color="#E65100" style={{ marginLeft: 'auto' }} />
+                    </TouchableOpacity>
                   </View>
 
-                  {/* ── 복용 시각별 세트카드 (보호자가 환자 대신 편집) — 복용 알림 + 약효 추적 통합 ── */}
-                  <DoseSlotSetList alarmSounds={alarmSounds} />
-
-                  {/* ── 약 미복용 알림 (파란색, 시각별 아님 · 환자 전역) ── */}
+                  {/* ── 약 미복용 알림 (환자 슬롯과 완전 동일: 색·보조문구·레이아웃) ── */}
                   {patientActiveMedSlots.length > 0 && (
-                    <View style={{ marginTop: 10, borderRadius: 12, overflow: 'hidden', borderWidth: 1, borderColor: '#BBDEFB' }}>
-                      <View style={{ flexDirection: 'row', alignItems: 'center', backgroundColor: '#E3F2FD', paddingHorizontal: 16, paddingVertical: 12 }}>
-                        <Ionicons name="alarm-outline" size={20} color="#1565C0" style={{ marginRight: 10 }} />
-                        <Text style={{ fontSize: 17, fontWeight: '700', color: '#1565C0' }}>약 미복용 알림</Text>
+                    <View style={[styles.card, styles.cardMarginTop]}>
+                      <View style={styles.cardHeader}>
+                        <Ionicons name="alarm-outline" size={24} color={Colors.primary} style={styles.cardHeaderIcon} />
+                        <View style={styles.cardHeaderText}>
+                          <Text style={styles.cardHeaderTitle}>약 미복용 알림</Text>
+                          <Text style={styles.cardHeaderSub}>복용 시간이 지나도 기록이 없으면 알려드려요</Text>
+                        </View>
                       </View>
-                      <View style={[styles.notifRow, styles.notifRowTop, { backgroundColor: Colors.white }]}>
+                      <View style={styles.notifRow}>
                         <View style={styles.notifLeft}>
                           <Text style={styles.notifTitle}>약 미복용 알림 1차</Text>
                           <Text style={styles.notifSub}>복용 시간 10분 후 미복용 시 알림을 보내요</Text>
                         </View>
                         <Switch
-                          style={styles.notifSwitch}
                           value={!!patientMedTimePrefs['missed_first']}
                           onValueChange={() => togglePatientMedTimeSlot('missed_first')}
-                          trackColor={{ false: Colors.border, true: '#1565C0' }}
+                          trackColor={{ false: Colors.border, true: Colors.primary }}
                           thumbColor={Colors.white}
                         />
                       </View>
-                      <View style={[styles.notifRow, styles.notifRowTop, { backgroundColor: Colors.white }]}>
+                      {!!patientMedTimePrefs['missed_first'] && (
+                        <View style={styles.missedSoundIndent}>
+                          <AlarmSoundPickerRow
+                            soundId={patientMissedMedSounds.first}
+                            sounds={alarmSounds}
+                            onSelect={(sid) => setPatientMissedMedSound('first', sid)}
+                            backgroundColor={Colors.white}
+                          />
+                        </View>
+                      )}
+                      <View style={styles.notifRow}>
                         <View style={styles.notifLeft}>
                           <Text style={styles.notifTitle}>약 미복용 알림 2차</Text>
                           <Text style={styles.notifSub}>복용 시간 20분 후에도 미복용 시 알림을 보내요</Text>
                         </View>
                         <Switch
-                          style={styles.notifSwitch}
                           value={!!patientMedTimePrefs['missed_second']}
                           onValueChange={() => togglePatientMedTimeSlot('missed_second')}
-                          trackColor={{ false: Colors.border, true: '#1565C0' }}
+                          trackColor={{ false: Colors.border, true: Colors.primary }}
                           thumbColor={Colors.white}
                         />
                       </View>
+                      {!!patientMedTimePrefs['missed_second'] && (
+                        <View style={styles.missedSoundIndent}>
+                          <AlarmSoundPickerRow
+                            soundId={patientMissedMedSounds.second}
+                            sounds={alarmSounds}
+                            onSelect={(sid) => setPatientMissedMedSound('second', sid)}
+                            backgroundColor={Colors.white}
+                          />
+                        </View>
+                      )}
                     </View>
                   )}
 
-                  {/* ── 서브카드 3: 운동 알림 (초록) ── */}
-                  <View style={{ marginTop: 10, marginBottom: 12, borderRadius: 12, overflow: 'hidden', borderWidth: 1, borderColor: '#C8E6C9' }}>
-                    <View style={{ flexDirection: 'row', alignItems: 'center', backgroundColor: '#E8F5E9', paddingHorizontal: 16, paddingVertical: 12 }}>
-                      <Ionicons name="fitness-outline" size={20} color="#2E7D32" style={{ marginRight: 10 }} />
-                      <Text style={{ fontSize: 17, fontWeight: '700', color: '#2E7D32' }}>운동 알림</Text>
+                  {/* ── 운동 알림 (환자 슬롯과 완전 동일: 색·보조문구·레이아웃) ── */}
+                  <View style={[styles.card, styles.cardMarginTop, { marginBottom: 12 }]}>
+                    <View style={styles.cardHeader}>
+                      <Ionicons
+                        name="fitness-outline"
+                        size={24}
+                        color={Colors.primary}
+                        style={styles.cardHeaderIcon}
+                      />
+                      <View style={styles.cardHeaderText}>
+                        <Text style={styles.cardHeaderTitle}>운동 알림</Text>
+                        <Text style={styles.cardHeaderSub}>매일 운동을 권장해드려요</Text>
+                      </View>
                     </View>
                     {patientExerciseNotifs.map((notif) => (
-                      <View key={notif.id} style={[styles.notifRow, styles.notifRowTop, { backgroundColor: Colors.white }]}>
-                        <View style={styles.notifLeft}>
-                          <Text style={styles.notifTitle}>{formatExerciseNotif(notif)}</Text>
-                          <Text style={styles.notifSub}>매일 {formatExerciseNotif(notif)}에 운동 알림을 보내요</Text>
+                      <View key={notif.id} style={styles.notifItemWrap}>
+                        <View style={styles.notifRowInner}>
+                          <View style={styles.notifLeft}>
+                            <Text style={styles.notifTitle}>{formatExerciseNotif(notif)}</Text>
+                            <Text style={styles.notifSub}>
+                              매일 {formatExerciseNotif(notif)}에 운동 알림을 보내요
+                            </Text>
+                          </View>
+                          <View style={styles.notifRight}>
+                            <Switch
+                              value={notif.enabled}
+                              onValueChange={() => togglePatientExerciseNotif(notif.id)}
+                              trackColor={{ false: Colors.border, true: Colors.primary }}
+                              thumbColor={Colors.white}
+                            />
+                            <TouchableOpacity
+                              activeOpacity={0.7}
+                              hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+                              style={styles.iconBtn}
+                              onPress={() => openPatientPicker('exercise', notif.id)}
+                            >
+                              <Ionicons name="create-outline" size={22} color={Colors.textSub} />
+                            </TouchableOpacity>
+                            <TouchableOpacity
+                              activeOpacity={0.7}
+                              hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+                              style={[styles.iconBtn, styles.iconBtnDelete]}
+                              onPress={() => deletePatientExerciseNotif(notif.id)}
+                            >
+                              <Ionicons name="trash-outline" size={22} color={Colors.danger} />
+                            </TouchableOpacity>
+                          </View>
                         </View>
-                        <View style={[styles.notifRight, styles.notifSwitch]}>
-                          <Switch
-                            value={notif.enabled}
-                            onValueChange={() => togglePatientExerciseNotif(notif.id)}
-                            trackColor={{ false: Colors.border, true: '#2E7D32' }}
-                            thumbColor={Colors.white}
+                        {notif.enabled && (
+                          <AlarmSoundPickerRow
+                            soundId={notif.soundId}
+                            sounds={alarmSounds}
+                            onSelect={(sid) => setPatientExerciseSound(notif.id, sid)}
+                            backgroundColor={Colors.white}
                           />
-                          <TouchableOpacity
-                            activeOpacity={0.7}
-                            hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
-                            style={styles.iconBtn}
-                            onPress={() => openPatientPicker('exercise', notif.id)}
-                          >
-                            <Ionicons name="create-outline" size={22} color={Colors.textSub} />
-                          </TouchableOpacity>
-                          <TouchableOpacity
-                            activeOpacity={0.7}
-                            hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
-                            style={[styles.iconBtn, styles.iconBtnDelete]}
-                            onPress={() => deletePatientExerciseNotif(notif.id)}
-                          >
-                            <Ionicons name="trash-outline" size={22} color={Colors.danger} />
-                          </TouchableOpacity>
-                        </View>
+                        )}
                       </View>
                     ))}
                     <TouchableOpacity
                       activeOpacity={0.7}
-                      style={[styles.addRow, { backgroundColor: Colors.white }]}
+                      style={styles.addRow}
                       onPress={() => openPatientPicker('exercise', null)}
                     >
-                      <Ionicons name="add-circle-outline" size={22} color="#2E7D32" style={{ marginRight: 8 }} />
-                      <Text style={[styles.addLabel, { color: '#2E7D32' }]}>알림 추가하기</Text>
+                      <Ionicons
+                        name="add-circle-outline"
+                        size={22}
+                        color={Colors.accent}
+                        style={{ marginRight: 8 }}
+                      />
+                      <Text style={styles.addLabel}>알림 추가하기</Text>
                     </TouchableOpacity>
                   </View>
                 </>
@@ -1879,56 +1978,6 @@ export function SettingsScreen() {
         )}
 
       </ScrollView>
-
-      {/* 배터리 최적화 안내 모달 */}
-      <Modal
-        visible={showBatteryModal}
-        transparent
-        animationType="fade"
-        onRequestClose={() => setShowBatteryModal(false)}
-      >
-        <TouchableOpacity
-          style={styles.batteryModalOverlay}
-          activeOpacity={1}
-          onPress={() => setShowBatteryModal(false)}
-        >
-          <TouchableOpacity activeOpacity={1} onPress={() => {}}>
-            <View style={styles.batteryModalCard}>
-              <Ionicons name="notifications-off-outline" size={48} color="#E65100" style={{ alignSelf: 'center', marginBottom: 12 }} />
-              <Text style={styles.batteryModalTitle}>알림이 늦게 올 수 있어요</Text>
-              <Text style={styles.batteryModalBody}>
-                안드로이드 배터리 최적화 기능으로 인해 알림이 제때 도착하지 않을 수 있어요.{'\n\n'}
-                아래 순서대로 설정해 주세요.{'\n\n'}
-                <Text
-                  style={{ fontWeight: '700', color: '#1565C0', textDecorationLine: 'underline' }}
-                  onPress={openBatterySettings}
-                >설정열기</Text>
-                <Text style={{ fontWeight: '700' }}> → 배터리 → 제한없음 선택.</Text>
-              </Text>
-              <TouchableOpacity style={styles.batteryModalBtn} onPress={openBatterySettings} activeOpacity={0.8}>
-                <Text style={styles.batteryModalBtnText}>설정 열기</Text>
-              </TouchableOpacity>
-              <TouchableOpacity
-                style={styles.batteryDoneBtn}
-                onPress={async () => {
-                  await AsyncStorage.setItem(STORAGE_KEY_BATTERY_OPT, 'true');
-                  setBatteryOptimized(true);
-                  setShowBatteryModal(false);
-                }}
-                activeOpacity={0.8}
-              >
-                <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
-                  <Ionicons name="checkmark-circle" size={20} color="#FFFFFF" />
-                  <Text style={styles.batteryDoneBtnText}>해제 완료했어요</Text>
-                </View>
-              </TouchableOpacity>
-              <TouchableOpacity style={styles.batteryModalCancelBtn} onPress={() => setShowBatteryModal(false)} activeOpacity={0.7}>
-                <Text style={styles.batteryModalCancelText}>닫기</Text>
-              </TouchableOpacity>
-            </View>
-          </TouchableOpacity>
-        </TouchableOpacity>
-      </Modal>
 
       {/* ── Bottom Sheet Modal ── */}
       <Modal
@@ -2585,12 +2634,11 @@ const styles = StyleSheet.create({
   card: {
     backgroundColor: Colors.white,
     borderRadius: 16,
-    overflow: 'hidden',
-    elevation: 2,
+    elevation: 4,
     shadowColor: '#000',
-    shadowOffset: { width: 0, height: 1 },
-    shadowOpacity: 0.08,
-    shadowRadius: 4,
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.10,
+    shadowRadius: 12,
   },
   cardMarginTop: {
     marginTop: 16,
@@ -2601,6 +2649,8 @@ const styles = StyleSheet.create({
     backgroundColor: Colors.light,
     paddingHorizontal: 20,
     paddingVertical: 16,
+    borderTopLeftRadius: 16,
+    borderTopRightRadius: 16,
   },
   cardHeaderIcon: {
     marginRight: 12,
@@ -2750,6 +2800,16 @@ const styles = StyleSheet.create({
     paddingHorizontal: 20,
     paddingVertical: 16,
   },
+  linkFamilyTextBtn: {
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingVertical: 18,
+  },
+  linkFamilyTextBtnText: {
+    fontSize: 18,
+    fontWeight: '700',
+    color: Colors.primary,
+  },
   addLabel: {
     fontSize: 18,
     fontWeight: 'bold',
@@ -2788,15 +2848,13 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     backgroundColor: '#FEF3C7',
-    borderTopWidth: 1,
-    borderTopColor: '#FDE68A',
     paddingHorizontal: 20,
     paddingVertical: 14,
   },
   permissionBannerTitle: {
-    fontSize: 16,
-    fontWeight: 'bold',
-    color: '#92400E',
+    fontSize: 18,
+    fontWeight: '600',
+    color: '#E65100',
   },
   permissionBannerSub: {
     fontSize: 14,
@@ -2996,86 +3054,6 @@ const styles = StyleSheet.create({
     height: 1,
     backgroundColor: Colors.border,
     marginHorizontal: 20,
-  },
-
-  // ── Battery row ──
-  batteryRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    paddingHorizontal: 20,
-    paddingVertical: 14,
-  },
-  batteryRowLeft: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 10,
-  },
-  batteryRowText: {
-    fontSize: 18,
-    color: '#E65100',
-    fontWeight: '600',
-  },
-
-  // ── Battery modal ──
-  batteryModalOverlay: {
-    flex: 1,
-    backgroundColor: 'rgba(0,0,0,0.5)',
-    justifyContent: 'center',
-    alignItems: 'center',
-    paddingHorizontal: 24,
-  },
-  batteryModalCard: {
-    backgroundColor: '#FFFFFF',
-    borderRadius: 20,
-    padding: 28,
-    width: '100%',
-  },
-  batteryModalTitle: {
-    fontSize: 20,
-    fontWeight: '700',
-    color: '#212121',
-    textAlign: 'center',
-    marginBottom: 16,
-  },
-  batteryModalBody: {
-    fontSize: 17,
-    color: '#555555',
-    lineHeight: 26,
-    marginBottom: 24,
-    textAlign: 'center',
-  },
-  batteryModalBtn: {
-    backgroundColor: '#E65100',
-    borderRadius: 12,
-    paddingVertical: 16,
-    alignItems: 'center',
-    marginBottom: 12,
-  },
-  batteryModalBtnText: {
-    fontSize: 18,
-    fontWeight: '700',
-    color: '#FFFFFF',
-  },
-  batteryModalCancelBtn: {
-    alignItems: 'center',
-    paddingVertical: 12,
-  },
-  batteryModalCancelText: {
-    fontSize: 17,
-    color: '#888888',
-  },
-  batteryDoneBtn: {
-    backgroundColor: '#2E7D32',
-    borderRadius: 12,
-    paddingVertical: 16,
-    alignItems: 'center',
-    marginBottom: 12,
-  },
-  batteryDoneBtnText: {
-    fontSize: 18,
-    fontWeight: '700',
-    color: '#FFFFFF',
   },
 
   // ── Refresh Token Button ──

@@ -47,6 +47,7 @@ import {
   type DailyTrendPoint,
   type MeasurementWithFeatures,
 } from '../../utils/biomarker';
+import type { MeasurementType, MeasurementMedPhase } from '../../types/database';
 import {
   computeCurrentMedSignature,
   readLastMedSignature,
@@ -54,6 +55,7 @@ import {
   markBaselineResetAt,
 } from '../../utils/measurementMedChange';
 import { formatReactionMs } from '../../utils/measurementFormat';
+import { useBottomSheetPadding } from '../../hooks/useBottomSheetPadding';
 import type { RootStackParamList } from '../../navigation/RootNavigator';
 
 type RouteProps = RouteProp<RootStackParamList, 'MeasurementResult'>;
@@ -67,6 +69,7 @@ export function MeasurementResultScreen() {
   const route = useRoute<RouteProps>();
   const { user } = useAuth();
   const dialog = useDialog();
+  const bottomPad = useBottomSheetPadding(28);
 
   const measurementId = route.params?.measurementId;
 
@@ -114,29 +117,31 @@ export function MeasurementResultScreen() {
 
         const userId = m.measurement.user_id;
 
-        // 30일 baseline 재계산 (sliding window) — 실패해도 화면은 표시
-        try {
-          await recomputeBaselineFromWindow(userId, featureKey, 30);
-        } catch (e) {
-          console.warn('[MeasurementResult] baseline 재계산 실패:', e);
-        }
+        // baseline 재계산→재조회(체인) 과 30일 시계열(독립) 을 병렬로.
+        //  - recomputeBaselineFromWindow 는 try/catch 로 독립 실행(실패해도 화면 표시)
+        //  - getBaseline 은 recompute 결과를 읽으므로 같은 체인 안에서 순차 유지
+        //  - getDailyTrend 는 baseline 과 무관 → 병렬
+        const baselineChain = (async () => {
+          try {
+            await recomputeBaselineFromWindow(userId, featureKey, 30);
+          } catch (e) {
+            console.warn('[MeasurementResult] baseline 재계산 실패:', e);
+          }
+          return getBaseline(userId, featureKey).catch(() => null);
+        })();
+        const trendPromise = getDailyTrend(
+          userId,
+          m.measurement.type as MeasurementType,
+          featureKey,
+          30
+        );
 
-        // baseline 재조회
-        const b = await getBaseline(userId, featureKey).catch(() => null);
+        const [b, trendData] = await Promise.all([baselineChain, trendPromise]);
         if (cancelled) return;
         setBaselineMean(
           b && b.n >= BASELINE_LEARNING_MIN_N ? b.mean : null
         );
         setBaselineN(b?.n ?? 0);
-
-        // 30일 시계열
-        const trendData = await getDailyTrend(
-          userId,
-          m.measurement.type,
-          featureKey,
-          30
-        );
-        if (cancelled) return;
         setTrend(trendData);
 
         setLoading(false);
@@ -168,7 +173,12 @@ export function MeasurementResultScreen() {
     let cancelled = false;
     (async () => {
       try {
-        const currentSig = await computeCurrentMedSignature(user.id);
+        // 두 조회는 서로 독립(둘 다 읽기) → 병렬. lastSig 는 currentSig 가 빈값이면
+        // 사용하지 않지만 부수효과 없는 읽기라 미리 가져와도 동작 동일.
+        const [currentSig, lastSig] = await Promise.all([
+          computeCurrentMedSignature(user.id),
+          readLastMedSignature(),
+        ]);
         if (cancelled) return;
 
         // 약 0개면 시그니처 빈값 — 다이얼로그 노출 스킵, 시그니처도 빈값 저장(반복 방지)
@@ -177,9 +187,6 @@ export function MeasurementResultScreen() {
           setMedChangeChecked(true);
           return;
         }
-
-        const lastSig = await readLastMedSignature();
-        if (cancelled) return;
 
         // 첫 진입(저장된 값 없음): 현재 시그니처만 저장 — 다이얼로그 노출 X
         if (lastSig === null) {
@@ -267,7 +274,7 @@ export function MeasurementResultScreen() {
     setShowReactionInvite(false);
     // medPhase·medIntakeId 그대로 이어서 전달
     navigation.replace('ReactionGame', {
-      medPhase: m.med_phase,
+      medPhase: m.med_phase as MeasurementMedPhase,
       medIntakeId: m.med_intake_id ?? null,
     });
   }, [navigation, data]);
@@ -300,7 +307,7 @@ export function MeasurementResultScreen() {
             {errorMsg ?? '잠시 후 다시 시도해주세요.'}
           </Text>
         </View>
-        <View style={styles.bottomBtnArea}>
+        <View style={[styles.bottomBtnArea, { paddingBottom: bottomPad }]}>
           <TouchableOpacity
             style={styles.primaryBtn}
             onPress={handleConfirm}
@@ -430,7 +437,7 @@ export function MeasurementResultScreen() {
       </ScrollView>
 
       {/* 하단 확인 버튼 */}
-      <View style={styles.bottomBtnArea}>
+      <View style={[styles.bottomBtnArea, { paddingBottom: bottomPad }]}>
         <TouchableOpacity
           style={styles.primaryBtn}
           onPress={handleConfirm}
@@ -728,7 +735,6 @@ const styles = StyleSheet.create({
 
   bottomBtnArea: {
     padding: 20,
-    paddingBottom: 28,
     backgroundColor: Colors.background,
   },
   primaryBtn: {

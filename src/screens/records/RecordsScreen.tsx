@@ -5,8 +5,6 @@ import {
   ScrollView,
   TouchableOpacity,
   StyleSheet,
-  ActivityIndicator,
-  Share,
   Linking,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
@@ -23,6 +21,9 @@ import { useDialog } from '../../context/DialogContext';
 import { navigateTo } from '../../navigation/navigationRef';
 import { triggerLabelToText } from '../../utils/medUtils';
 import { supabase } from '../../lib/supabase';
+import { PcCodeModal } from '../../components/records/PcCodeModal';
+import { BrandProgressOverlay } from '../../components/common/BrandProgressOverlay';
+import { SkeletonList } from '../../components/common/SkeletonCard';
 
 type NavigationProp = StackNavigationProp<MenuStackParamList, 'Records'>;
 type IoniconName = React.ComponentProps<typeof Ionicons>['name'];
@@ -65,7 +66,7 @@ export function RecordsScreen() {
   const dialog = useDialog();
 
   // Supabase 실제 데이터
-  const { summary, loading, error, refresh } = useRecordsData(period);
+  const { summary, loading, error, refresh, unlinkedCaregiver } = useRecordsData(period);
 
   // 화면 포커스 시 데이터 재조회
   useFocusEffect(
@@ -78,24 +79,52 @@ export function RecordsScreen() {
     navigation.navigate('RecordDetail', { type: key, period });
   };
 
+  // "웹에서 보기" — 이 기기 브라우저로 바로 열기
   const [webLoading, setWebLoading] = useState(false);
-  const handleWebOpen = async (mode: 'open' | 'share') => {
+  const handleWebOpen = async () => {
     if (webLoading) return;
     setWebLoading(true);
     try {
       const { data, error: fnError } = await supabase.functions.invoke('create-web-token');
       if (fnError || !data?.url) throw new Error(fnError?.message || '링크 생성 실패');
-      const url = data.url as string;
-      if (mode === 'open') {
-        await Linking.openURL(url);
-      } else {
-        await Share.share({ message: `파킨온 기록 보기 (30분 안에 열어주세요):\n${url}`, url });
-      }
+      await Linking.openURL(data.url as string);
     } catch (e: any) {
       dialog.alert({ title: '오류', message: e?.message || '잠시 후 다시 시도해주세요.' });
     } finally {
       setWebLoading(false);
     }
+  };
+
+  // "PC에서 보기" — 6자리 코드 발급 후 안내 모달에 표시
+  const [pcModalVisible, setPcModalVisible] = useState(false);
+  const [pcLoading, setPcLoading] = useState(false);
+  const [pcCode, setPcCode] = useState<string | null>(null);
+  const [pcExpiresAt, setPcExpiresAt] = useState<string | null>(null);
+  const [pcError, setPcError] = useState<string | null>(null);
+
+  const issuePcCode = useCallback(async () => {
+    setPcLoading(true);
+    setPcError(null);
+    try {
+      const { data, error: fnError } = await supabase.functions.invoke('create-web-token');
+      if (fnError || !data?.code) throw new Error(fnError?.message || '번호 생성 실패');
+      setPcCode(data.code as string);
+      setPcExpiresAt((data.expires_at as string) ?? null);
+    } catch (e: any) {
+      setPcCode(null);
+      setPcExpiresAt(null);
+      setPcError(e?.message || '번호를 만들지 못했어요. 잠시 후 다시 시도해주세요.');
+    } finally {
+      setPcLoading(false);
+    }
+  }, []);
+
+  const handlePcOpen = () => {
+    setPcCode(null);
+    setPcExpiresAt(null);
+    setPcError(null);
+    setPcModalVisible(true);
+    issuePcCode();
   };
 
   // ── 표시값 계산 (실제 데이터 기반) ─────────────────────────────────────────
@@ -209,7 +238,7 @@ export function RecordsScreen() {
   const medDiff = summary ? summary.medication.current - summary.medication.prev : 0;
 
   return (
-    <SafeAreaView style={styles.safeArea} edges={['top', 'bottom']}>
+    <SafeAreaView style={styles.safeArea} edges={['top']}>
       <TopBar
         title="기록 보기"
         showBack
@@ -218,23 +247,41 @@ export function RecordsScreen() {
         onBellPress={() => navigateTo('NotificationHistory', { mode: 'all' })}
       />
 
+      {/* 미연동 보호자: 환자 기록 대신 가족 연동 안내만 노출(본인 빈 기록을 환자처럼 보여주지 않음) */}
+      {unlinkedCaregiver ? (
+        <View style={styles.unlinkedWrap}>
+          <Ionicons name="people-outline" size={56} color={Colors.textHint} />
+          <Text style={styles.unlinkedTitle}>환자를 먼저 연동해주세요</Text>
+          <Text style={styles.unlinkedDesc}>{'가족을 연동하면 환자분의\n기록을 함께 볼 수 있어요'}</Text>
+          <TouchableOpacity
+            style={styles.linkFamilyBtn}
+            onPress={() => navigation.navigate('FamilyLink' as never)}
+            activeOpacity={0.85}
+          >
+            <Ionicons name="person-add-outline" size={22} color={Colors.white} />
+            <Text style={styles.linkFamilyBtnText}>가족 연동하기</Text>
+          </TouchableOpacity>
+        </View>
+      ) : (
+      <>
       {/* 웹에서 보기 */}
       <View style={styles.webRow}>
         <TouchableOpacity
-          style={styles.webBtn}
-          onPress={() => handleWebOpen('open')}
+          style={[styles.webBtn, webLoading && styles.webBtnDisabled]}
+          onPress={handleWebOpen}
           activeOpacity={0.85}
+          disabled={webLoading}
         >
           <Ionicons name="globe-outline" size={20} color={Colors.primary} />
           <Text style={styles.webBtnText}>웹에서 보기</Text>
         </TouchableOpacity>
         <TouchableOpacity
           style={styles.webBtn}
-          onPress={() => handleWebOpen('share')}
+          onPress={handlePcOpen}
           activeOpacity={0.85}
         >
-          <Ionicons name="share-outline" size={20} color={Colors.primary} />
-          <Text style={styles.webBtnText}>PC로 보내기</Text>
+          <Ionicons name="desktop-outline" size={20} color={Colors.primary} />
+          <Text style={styles.webBtnText}>PC에서 보기</Text>
         </TouchableOpacity>
       </View>
 
@@ -256,10 +303,7 @@ export function RecordsScreen() {
 
       {/* 로딩 / 에러 상태 */}
       {loading && (
-        <View style={styles.stateBox}>
-          <ActivityIndicator size="large" color={Colors.primary} />
-          <Text style={styles.stateText}>데이터를 불러오는 중이에요...</Text>
-        </View>
+        <SkeletonList count={4} visible={loading} style={styles.skeletonWrap} />
       )}
       {!loading && !!error && (
         <View style={styles.stateBox}>
@@ -365,6 +409,26 @@ export function RecordsScreen() {
           </View>
         </ScrollView>
       )}
+      </>
+      )}
+
+      {/* PC에서 보기 — 6자리 코드 안내 모달 */}
+      <PcCodeModal
+        visible={pcModalVisible}
+        code={pcCode}
+        expiresAt={pcExpiresAt}
+        loading={pcLoading}
+        errorMsg={pcError}
+        onReissue={issuePcCode}
+        onClose={() => setPcModalVisible(false)}
+      />
+
+      {/* 웹에서 보기 — 토큰 발급 동안 브랜드 프로그레스 오버레이 */}
+      <BrandProgressOverlay
+        visible={webLoading}
+        title="웹 화면을 준비하고 있어요"
+        subtitle="곧 브라우저가 열려요"
+      />
     </SafeAreaView>
   );
 }
@@ -393,6 +457,7 @@ const styles = StyleSheet.create({
     borderColor: Colors.primary,
     backgroundColor: Colors.white,
   },
+  webBtnDisabled: { opacity: 0.5 },
   webBtnText: { fontSize: 15, fontWeight: '600', color: Colors.primary },
 
   // ── 기간 탭 ──
@@ -419,6 +484,7 @@ const styles = StyleSheet.create({
 
   scroll: { flex: 1 },
   scrollContent: { padding: 16, paddingBottom: 40 },
+  skeletonWrap: { paddingHorizontal: 16, paddingTop: 16 },
 
   // ── 요약 배너 ──
   banner: {
@@ -520,4 +586,15 @@ const styles = StyleSheet.create({
     textAlign: 'center',
     lineHeight: 26,
   },
+
+  // 미연동 보호자 안내(가족 연동 유도)
+  unlinkedWrap: { flex: 1, alignItems: 'center', justifyContent: 'center', paddingHorizontal: 32 },
+  unlinkedTitle: { fontSize: 20, color: Colors.textSub, marginTop: 16, fontWeight: '600' },
+  unlinkedDesc: { fontSize: 18, color: Colors.textHint, textAlign: 'center', marginTop: 8, lineHeight: 26 },
+  linkFamilyBtn: {
+    flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8,
+    height: 56, paddingHorizontal: 24, borderRadius: 12,
+    backgroundColor: Colors.primary, marginTop: 24,
+  },
+  linkFamilyBtnText: { fontSize: 18, fontWeight: '700', color: Colors.white },
 });

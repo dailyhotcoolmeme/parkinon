@@ -50,9 +50,9 @@ interface PatientItem {
 }
 
 const PATIENT_ITEMS: PatientItem[] = [
-  { id: 'immediate', label: '복용 직후', desc: '약을 드신 직후 몸 상태를 확인해요' },
-  { id: 'after2h',   label: '복용 2시간 후', desc: '약효가 나타나는 시간에 확인해요' },
-  { id: 'exercise',  label: '운동 알림', desc: '매일 운동을 권장해드려요' },
+  { id: 'med',           label: '약 복용 알림', desc: '약 드실 시간을 알려드려요' },
+  { id: 'effect_track',  label: '약효 추적 알림', desc: '복용 후 몸 상태를 기록할 시간을 알려드려요' },
+  { id: 'exercise',      label: '운동 알림', desc: '운동할 시간을 알려드려요' },
 ];
 
 // ─── 보호자 알림 항목 ──────────────────────────────────────────────────────────
@@ -62,12 +62,27 @@ interface CaregiverItem {
   desc: string;
 }
 
+// ※ 아래는 안내용 표시 항목(3개)일 뿐, 실제 보호자 알림 저장은
+//   DEFAULT_CAREGIVER_PREFS(전체 기본 키)로 한다. (handleConfirm 참조)
 const CAREGIVER_ITEMS: CaregiverItem[] = [
-  { id: 'med_taken',  label: '약 복용 기록 시',        desc: '환자분이 약을 드셨을 때 알려드려요' },
-  { id: 'med_missed', label: '약 미복용 알림 (20분 후)',  desc: '약을 드시지 않으셨을 때 알려드려요' },
-  { id: 'body_state', label: '몸상태 기록 시',          desc: '환자분의 몸 상태가 기록되면 알려드려요' },
-  { id: 'exercise',   label: '운동 기록 시',            desc: '환자분이 운동을 완료하면 알려드려요' },
+  { id: 'med_taken',    label: '환자 약 복용 알림',  desc: '환자분이 약을 드시면 알려드려요' },
+  { id: 'effect_track', label: '환자 약효 추적 알림', desc: '환자분이 몸 상태를 기록하면 알려드려요' },
+  { id: 'med_missed',   label: '약 미복용 알림',      desc: '환자분이 약을 안 드시면 알려드려요' },
 ];
+
+// 실제 보호자 알림 설정 저장용 기본 키 전체.
+// SettingsScreen.tsx의 DEFAULT_CAREGIVER_NOTIFS와 동일한 스키마를 유지해야
+// confirm 시 caregiver_notif_prefs 전체가 망가지지 않는다.
+// (sleep/constipation은 기본 OFF, 나머지는 ON)
+const DEFAULT_CAREGIVER_PREFS: Record<string, boolean> = {
+  med_taken: true,
+  med_missed: true,
+  body_state: true,
+  mood: true,
+  exercise: true,
+  sleep: false,
+  constipation: false,
+};
 
 // ─── Props ────────────────────────────────────────────────────────────────────
 interface Props {
@@ -142,7 +157,7 @@ function NotificationOnboardingModalContent({ isCaregiver, userId, visible, onCl
                     'Content-Type': 'application/json',
                     Prefer: 'return=minimal',
                   },
-                  body: JSON.stringify({ caregiver_notif_prefs: Object.fromEntries(CAREGIVER_ITEMS.map(i => [i.id, true])) }),
+                  body: JSON.stringify({ caregiver_notif_prefs: DEFAULT_CAREGIVER_PREFS }),
                 });
               }
             } catch (e) {
@@ -210,6 +225,14 @@ function NotificationOnboardingModalContent({ isCaregiver, userId, visible, onCl
                 />
               </View>
             ))}
+          </View>
+
+          {/* 광고·홍보 알림 없음 강조 (환자·보호자 공통) */}
+          <View style={styles.adFreeBox}>
+            <Text style={styles.adFreeText}>
+              <Text style={styles.adFreeStrong}>광고·홍보 알림은 보내지 않아요.</Text>
+              {' 약·건강 관련 알림만 보내드려요.'}
+            </Text>
           </View>
 
           {/* 사전 안내 박스 */}
@@ -397,6 +420,28 @@ const styles = StyleSheet.create({
   noticeStrong: {
     fontWeight: '700',
     color: '#E65100',
+  },
+
+  // ── 광고 없음 안내 ──
+  adFreeBox: {
+    backgroundColor: Colors.light,
+    borderRadius: 8,
+    paddingVertical: 12,
+    paddingHorizontal: 14,
+    marginHorizontal: 20,
+    marginTop: 12,
+  },
+  adFreeText: {
+    fontSize: 15,
+    color: Colors.textSub,
+    lineHeight: 24,
+    textAlign: 'center',
+    includeFontPadding: true,
+    textAlignVertical: 'center',
+  },
+  adFreeStrong: {
+    fontWeight: '700',
+    color: Colors.primary,
   },
 
   // ── 버튼 영역 ──

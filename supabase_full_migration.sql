@@ -22,6 +22,12 @@ create table users (
   onboarding_done boolean default false,
   notification_enabled boolean default true,
   push_token text,
+  -- 건강 정보(민감정보) 수집·이용 별도 동의
+  sensitive_info_consented boolean default false,
+  sensitive_info_consent_version int,
+  -- 개인정보 국외 이전 별도 동의 (Supabase/Cloudflare/Anthropic 미국 서버)
+  international_transfer_consented boolean default false,
+  international_transfer_consent_version int default 0,
   created_at timestamptz default now(),
   updated_at timestamptz default now()
 );

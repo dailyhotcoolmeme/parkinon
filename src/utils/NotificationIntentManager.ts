@@ -6,7 +6,12 @@ class NotificationIntentManager {
 
   emit(intent: MedIntent) {
     if (this.listener) {
-      this.listener(intent);
+      // 리스너(MedicationScreen)에서 throw 나도 알림 핸들러/콜드스타트 부팅이 죽지 않게 swallow.
+      try {
+        this.listener(intent);
+      } catch (e) {
+        console.warn('[NotificationIntentManager] listener throw(무시):', e);
+      }
     } else {
       this.pendingIntent = intent;
     }
@@ -17,7 +22,13 @@ class NotificationIntentManager {
     if (this.pendingIntent) {
       const pending = this.pendingIntent;
       this.pendingIntent = null;
-      setTimeout(() => listener(pending), 0);
+      setTimeout(() => {
+        try {
+          listener(pending);
+        } catch (e) {
+          console.warn('[NotificationIntentManager] pending listener throw(무시):', e);
+        }
+      }, 0);
     }
     return () => {
       if (this.listener === listener) {

@@ -66,7 +66,7 @@ export function ExerciseVideoPlayerScreen() {
                 setLoading(false);
                 setError(true);
               }}
-              onChangeState={(state) => {
+              onChangeState={(state: string) => {
                 if (state === 'ended') setPlaying(false);
               }}
               initialPlayerParams={{

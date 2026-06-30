@@ -112,6 +112,20 @@ export function useExercise(): UseExerciseReturn {
         return false;
       }
 
+      // 덮어쓰기(마지막 것만): 같은 운동 종류·같은 날(KST) 기존 기록을 지우고 새로 기록.
+      // (운동은 하루 여러 종류가 정상 → '같은 종류'만 교체. RLS상 본인(logged_by) 행만 삭제됨)
+      const kstNow = new Date(Date.now() + 9 * 60 * 60 * 1000);
+      const dayStartMs = Date.UTC(kstNow.getUTCFullYear(), kstNow.getUTCMonth(), kstNow.getUTCDate()) - 9 * 60 * 60 * 1000;
+      const dayStartIso = new Date(dayStartMs).toISOString();
+      const dayEndIso = new Date(dayStartMs + 24 * 60 * 60 * 1000).toISOString();
+      await supabase
+        .from('exercise_logs')
+        .delete()
+        .eq('patient_id', patientId)
+        .eq('exercise_type', exerciseType)
+        .gte('logged_at', dayStartIso)
+        .lt('logged_at', dayEndIso);
+
       const { error: insertError } = await supabase
         .from('exercise_logs')
         .insert({
