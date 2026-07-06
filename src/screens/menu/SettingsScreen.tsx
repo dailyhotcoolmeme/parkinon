@@ -256,6 +256,11 @@ export function SettingsScreen() {
     morning: '08:00', lunch: '12:00', dinner: '18:00', bedtime: '22:00',
   });
   const [activeMedSlots, setActiveMedSlots] = useState<MedTimeSlotKey[]>([]);
+  // 약 미복용 알림 카드 노출 여부 — activeMedSlots(레거시 meal_times 4슬롯 기준)와는 별도.
+  // dose_slots(새 유연한 시간대) 기반으로 복용을 등록한 환자(해외판 등)는 medications.meal_times가
+  // 항상 []로 저장돼 activeMedSlots가 비어버려 카드가 안 보이는 문제가 있었다 — dose_slots 개수도
+  // 함께 확인해 "어떤 방식으로든 복용 시간이 설정돼 있으면" 노출되게 한다.
+  const [hasAnyDoseSetup, setHasAnyDoseSetup] = useState(false);
   // 약 시간 슬롯별 목소리 (slot → custom_sound_id | null). 없으면 기본 목소리
   const [medTimeSounds, setMedTimeSounds] = useState<Record<string, string | null>>({});
   // 약 미복용 알림 전용 알림음 (1차/2차 각각). null=기본음
@@ -345,6 +350,7 @@ export function SettingsScreen() {
       });
       // 약 관리에서 설정한 실제 복용 시간 (슬롯별 가장 이른 시간)
       const meds = (medsRes as any)?.data;
+      let legacySlotsFound = true; // meds 없으면 기본 4슬롯이 채워지므로 true가 기존 동작과 동일.
       if (meds?.length) {
         setHasMedicationRegistered(true);
         const earliest: Record<string, string> = {};
@@ -361,6 +367,7 @@ export function SettingsScreen() {
         }
         setMedSlotTimes(prev => ({ ...prev, ...earliest }));
         setActiveMedSlots(Array.from(activeSlots) as MedTimeSlotKey[]);
+        legacySlotsFound = activeSlots.size > 0;
       } else {
         setHasMedicationRegistered(false);
         // 약 등록 없으면 users.meal_schedules에서 시간 가져오기, 기본 4개 슬롯 활성화
@@ -374,6 +381,12 @@ export function SettingsScreen() {
         setMedSlotTimes(defaultTimes);
         setActiveMedSlots(['morning', 'lunch', 'dinner', 'bedtime']);
       }
+
+      // 약 미복용 알림 카드 노출 게이트 — legacy meal_times 4슬롯이 비어 있어도(예: dose_slots
+      // 기반으로 약을 등록한 해외판 환자라 medications.meal_times가 항상 []인 경우)
+      // dose_slots 개수가 있으면 "복용 시간이 설정돼 있다"로 본다.
+      const doseSlotCount = (slotCountRes as any)?.count ?? 0;
+      setHasAnyDoseSetup(legacySlotsFound || doseSlotCount > 0);
 
       // ── 세트카드용 dose_slots 부트스트랩 ────────────────────────────────────
       // 미이관/온보딩 직후라 dose_slots 가 0개인 환자만 legacy meal_schedules 기준으로
@@ -1601,7 +1614,7 @@ export function SettingsScreen() {
         {/* 복용 시각별 세트카드(슬롯 시각·복용 알림·약효추적)는 "복용 시간·알림" 메뉴로 이관됨. */}
 
         {/* ── 약 미복용 알림 (환자만 · 시각별 아님 · 환자 전역) ── */}
-        {!isCaregiver && activeMedSlots.length > 0 && (
+        {!isCaregiver && hasAnyDoseSetup && (
           <View style={[styles.card, styles.cardMarginTop]}>
             <View style={styles.cardHeader}>
               <Ionicons name="alarm-outline" size={24} color={Colors.primary} style={styles.cardHeaderIcon} />

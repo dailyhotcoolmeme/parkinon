@@ -261,12 +261,15 @@ export function MenuScreen() {
               ),
           }))
         : MENU_SECTIONS;
-    // 차단된 사용자 관리는 정보/나눔(커뮤니티) 기능 전용 — 해외 로케일은 커뮤니티 탭 자체가
-    // 없으므로 메뉴에서도 숨긴다.
+    // 해외 로케일 전용 메뉴 숨김:
+    // - BlockedUsers: 정보/나눔(커뮤니티) 기능 전용, 해외엔 커뮤니티 탭 자체가 없음.
+    // - MyMeds/DoseSlots: 바텀탭 "Reminders"(OverseasMedTabScreen)로 이전됨 —
+    //   여기 남겨두면 같은 기능이 두 군데(More 메뉴 + Reminders 탭)에 중복 노출된다.
+    const OVERSEAS_HIDDEN_KEYS = ['BlockedUsers', 'MyMeds', 'DoseSlots'];
     const withBlockedUsersGate = isOverseasLocale()
       ? base.map((section) => ({
           ...section,
-          items: section.items.filter((i) => i.key !== 'BlockedUsers'),
+          items: section.items.filter((i) => !OVERSEAS_HIDDEN_KEYS.includes(i.key)),
         }))
       : base;
     // 컨디션 측정 기능 숨김 시 측정 관련 메뉴 항목(환자/보호자) 모두 비노출.

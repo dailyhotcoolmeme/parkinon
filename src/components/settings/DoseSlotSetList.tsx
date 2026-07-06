@@ -1317,7 +1317,11 @@ export function DoseSlotSetList({
                           (조건부 mount 제거 + 각 줄 numberOfLines 클램프 + 각 Text minHeight 로 줄 수 변화 흡수).
                           권장 대상이 없으면 같은 자리·같은 높이에 중립 문구만 채운다. */}
                       <View style={styles.recBox}>
-                        <Text style={styles.recMain} numberOfLines={2}>
+                        {/* numberOfLines 고정 금지: 영문은 약이 여러 개거나 권장 시점이 여러 개면
+                            문장이 꽤 길어진다("...after taking A and B and C." 식). 2줄로 자르면
+                            정작 중요한 복용 안내 문구가 "..."로 잘려버려 그게 더 나쁘다.
+                            recMain은 minHeight(최소값)라 줄이 늘어도 그냥 박스가 커질 뿐 안 깨진다. */}
+                        <Text style={styles.recMain}>
                           {showRec && recSentence
                             ? (isEnLocale()
                                 ? t('doseSlotSetList.recSentenceEn', { subject: recSentence.subject, timing: recSentence.timing })
