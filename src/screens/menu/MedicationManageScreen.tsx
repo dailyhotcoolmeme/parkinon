@@ -2968,33 +2968,46 @@ export function MedicationManageScreen({ modeOverride, hideBack, hideTopBar, onG
               </View>
               <View style={styles.regHalf}>
                 <Text style={styles.regLabel}>{t('medManage.doseCountLabel')}</Text>
-                <View style={styles.regCountWrap}>
-                  <TouchableOpacity
-                    style={styles.regCountUnitBtn}
-                    onPress={() => setAddCountUnit(u => (u === 'day' ? 'week' : 'day'))}
-                    activeOpacity={0.7}
-                    accessibilityLabel={t('medManage.a11yCountUnitSwap')}
-                  >
-                    <Text style={styles.regCountUnitText}>{addCountUnit === 'week' ? t('medManage.countUnitWeek') : t('medManage.countUnitDay')}</Text>
-                    <Ionicons name="swap-horizontal" size={13} color={Colors.dark} />
-                  </TouchableOpacity>
-                  <TextInput
-                    key={`addcount-${addCountNonce}`}
-                    style={styles.regCountInput}
-                    defaultValue={addDailyCount}
-                    onChangeText={(v) => {
-                      const clean = v.replace(/[^0-9]/g, '');
-                      addCountRef.current = clean;
-                      setAddDailyCount(clean);
-                    }}
-                    placeholder="3"
-                    placeholderTextColor="#C2C8D0"
-                    keyboardType="number-pad"
-                    maxLength={2}
-                    returnKeyType="done"
-                  />
-                  <Text style={styles.regCountFix}>{t('medManage.countSuffix')}</Text>
-                </View>
+                {(() => {
+                  // 해외판(영문)은 "3 times /day"처럼 값이 먼저, 단위 버튼이 맨 뒤(오른쪽) —
+                  // 위 복용량(Dosage) 필드에서 단위 버튼이 오른쪽에 있는 것과 배치를 통일한다.
+                  // 국내(한국어)는 "1일 3회"가 자연스러운 어순이라 기존 순서(버튼 먼저) 그대로 유지.
+                  const unitBtn = (
+                    <TouchableOpacity
+                      key="unit"
+                      style={styles.regCountUnitBtn}
+                      onPress={() => setAddCountUnit(u => (u === 'day' ? 'week' : 'day'))}
+                      activeOpacity={0.7}
+                      accessibilityLabel={t('medManage.a11yCountUnitSwap')}
+                    >
+                      <Text style={styles.regCountUnitText}>{addCountUnit === 'week' ? t('medManage.countUnitWeek') : t('medManage.countUnitDay')}</Text>
+                      <Ionicons name="swap-horizontal" size={13} color={Colors.dark} />
+                    </TouchableOpacity>
+                  );
+                  const input = (
+                    <TextInput
+                      key={`addcount-${addCountNonce}`}
+                      style={styles.regCountInput}
+                      defaultValue={addDailyCount}
+                      onChangeText={(v) => {
+                        const clean = v.replace(/[^0-9]/g, '');
+                        addCountRef.current = clean;
+                        setAddDailyCount(clean);
+                      }}
+                      placeholder="3"
+                      placeholderTextColor="#C2C8D0"
+                      keyboardType="number-pad"
+                      maxLength={2}
+                      returnKeyType="done"
+                    />
+                  );
+                  const suffix = <Text key="suffix" style={styles.regCountFix}>{t('medManage.countSuffix')}</Text>;
+                  return isOverseasLocale() ? (
+                    <View style={styles.regCountWrap}>{input}{suffix}{unitBtn}</View>
+                  ) : (
+                    <View style={styles.regCountWrap}>{unitBtn}{input}{suffix}</View>
+                  );
+                })()}
               </View>
             </View>
 
@@ -3100,32 +3113,45 @@ export function MedicationManageScreen({ modeOverride, hideBack, hideTopBar, onG
                         </View>
                         <View style={styles.regHalf}>
                           <Text style={styles.regLabel}>{t('medManage.doseCountLabel')}</Text>
-                          <View style={styles.regCountWrap}>
-                            <TouchableOpacity
-                              style={styles.regCountUnitBtn}
-                              onPress={() => setEditCountUnit(u => (u === 'day' ? 'week' : 'day'))}
-                              activeOpacity={0.7}
-                              accessibilityLabel={t('medManage.a11yCountUnitSwap')}
-                            >
-                              <Text style={styles.regCountUnitText}>{editCountUnit === 'week' ? t('medManage.countUnitWeek') : t('medManage.countUnitDay')}</Text>
-                              <Ionicons name="swap-horizontal" size={13} color={Colors.dark} />
-                            </TouchableOpacity>
-                            <TextInput
-                              style={styles.regCountInput}
-                              defaultValue={editDailyCount}
-                              onChangeText={(v) => {
-                                const clean = v.replace(/[^0-9]/g, '');
-                                editCountRef.current = clean;
-                                setEditDailyCount(clean);
-                              }}
-                              placeholder="3"
-                              placeholderTextColor="#C2C8D0"
-                              keyboardType="number-pad"
-                              maxLength={2}
-                              returnKeyType="done"
-                            />
-                            <Text style={styles.regCountFix}>{t('medManage.countSuffix')}</Text>
-                          </View>
+                          {(() => {
+                            // 해외판은 "3 times /day"처럼 값이 먼저, 단위 버튼이 맨 뒤(오른쪽) —
+                            // 위 Dosage 필드와 배치 통일. 국내는 "1일 3회" 어순 그대로 유지.
+                            const unitBtn = (
+                              <TouchableOpacity
+                                key="unit"
+                                style={styles.regCountUnitBtn}
+                                onPress={() => setEditCountUnit(u => (u === 'day' ? 'week' : 'day'))}
+                                activeOpacity={0.7}
+                                accessibilityLabel={t('medManage.a11yCountUnitSwap')}
+                              >
+                                <Text style={styles.regCountUnitText}>{editCountUnit === 'week' ? t('medManage.countUnitWeek') : t('medManage.countUnitDay')}</Text>
+                                <Ionicons name="swap-horizontal" size={13} color={Colors.dark} />
+                              </TouchableOpacity>
+                            );
+                            const input = (
+                              <TextInput
+                                key="input"
+                                style={styles.regCountInput}
+                                defaultValue={editDailyCount}
+                                onChangeText={(v) => {
+                                  const clean = v.replace(/[^0-9]/g, '');
+                                  editCountRef.current = clean;
+                                  setEditDailyCount(clean);
+                                }}
+                                placeholder="3"
+                                placeholderTextColor="#C2C8D0"
+                                keyboardType="number-pad"
+                                maxLength={2}
+                                returnKeyType="done"
+                              />
+                            );
+                            const suffix = <Text key="suffix" style={styles.regCountFix}>{t('medManage.countSuffix')}</Text>;
+                            return isOverseasLocale() ? (
+                              <View style={styles.regCountWrap}>{input}{suffix}{unitBtn}</View>
+                            ) : (
+                              <View style={styles.regCountWrap}>{unitBtn}{input}{suffix}</View>
+                            );
+                          })()}
                         </View>
                       </View>
 
