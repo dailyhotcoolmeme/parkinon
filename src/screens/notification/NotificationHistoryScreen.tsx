@@ -341,10 +341,12 @@ export function NotificationHistoryScreen() {
 
           {/* 중앙: 제목 + 본문 */}
           <View style={styles.itemCenter}>
-            <Text style={[styles.itemTitle, !isUnread && styles.itemTitleRead]} numberOfLines={1}>
+            {/* itemRow가 minHeight(고정 아님)라 줄바꿈돼도 그냥 늘어나면 됨 —
+                제목/본문 다 줄 수 제한 없이 전체 노출(과거 알림 다시 읽는 화면이라 잘림 없이). */}
+            <Text style={[styles.itemTitle, !isUnread && styles.itemTitleRead]}>
               {item.title}
             </Text>
-            <Text style={styles.itemBody} numberOfLines={2}>
+            <Text style={styles.itemBody}>
               {item.body}
             </Text>
           </View>

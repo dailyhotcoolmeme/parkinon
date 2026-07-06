@@ -473,7 +473,7 @@ export function RecordSoundScreen() {
                 disabled={saving}
               >
                 <Text style={styles.bigButtonText}>{t('recordSound.nameOnlyChange')}</Text>
-                <Text style={styles.bigButtonSub} numberOfLines={1}>
+                <Text style={styles.bigButtonSub}>
                   {t('recordSound.currentNameLabel', { name: label.trim() || defaultLabel })}
                 </Text>
               </TouchableOpacity>

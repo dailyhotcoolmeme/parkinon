@@ -144,7 +144,7 @@ export function AlarmSoundPickerRow({ soundId, sounds, onSelect, backgroundColor
         <Ionicons name="volume-high" size={20} color={Colors.textSub} />
         <Text style={styles.triggerLabel}>{t('alarmSoundPicker.alarmSound')}</Text>
         <View style={styles.triggerValueWrap}>
-          <Text style={styles.triggerValue} numberOfLines={1}>
+          <Text style={styles.triggerValue}>
             {currentLabel}
           </Text>
           <Ionicons name="chevron-forward" size={18} color={Colors.textSub} />
@@ -210,7 +210,7 @@ export function AlarmSoundPickerRow({ soundId, sounds, onSelect, backgroundColor
                     onPress={() => handleSelect(s.id)}
                   >
                     <View style={styles.optionLeft}>
-                      <Text style={styles.optionText} numberOfLines={1}>
+                      <Text style={styles.optionText}>
                         {s.label}
                       </Text>
                       {!!s.previewUrl && (
