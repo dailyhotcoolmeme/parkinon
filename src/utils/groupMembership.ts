@@ -21,6 +21,8 @@
  * RLS: INSERT 정책 with_check = (auth.uid() IS NOT NULL) → 본인 행 삽입 차단되지 않음.
  */
 
+import i18n from '../i18n';
+
 type HeaderMap = Record<string, string>;
 
 const MAX_ATTEMPTS = 3;
@@ -63,7 +65,7 @@ export async function ensureGroupMember(
         // INSERT 응답이 OK여도 안전하게 실제 행 존재를 한 번 검증한다.
         const verified = await verifyGroupMember(supabaseUrl, baseHeaders, groupId, userId);
         if (verified) return;
-        lastError = '멤버 INSERT는 성공했으나 행 검증에 실패했어요.';
+        lastError = i18n.t('groupMembership.verifyFailError');
       } else {
         lastError = `HTTP ${res.status}: ${await res.text()}`;
       }
@@ -80,7 +82,7 @@ export async function ensureGroupMember(
   const finalCheck = await verifyGroupMember(supabaseUrl, baseHeaders, groupId, userId).catch(() => false);
   if (finalCheck) return;
 
-  throw new Error(`가족 그룹 멤버 등록 실패 (group=${groupId}): ${lastError}`);
+  throw new Error(i18n.t('groupMembership.registerFailError', { group: groupId, err: lastError }));
 }
 
 /**

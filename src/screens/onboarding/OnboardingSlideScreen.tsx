@@ -2,6 +2,7 @@ import React, { useRef, useState } from 'react';
 import { View, Text, StyleSheet, FlatList, Dimensions, TouchableOpacity } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useNavigation } from '@react-navigation/native';
+import { useTranslation } from 'react-i18next';
 import type { StackNavigationProp } from '@react-navigation/stack';
 import type { OnboardingStackParamList } from '../../navigation/OnboardingNavigator';
 import { Colors } from '../../constants/colors';
@@ -11,28 +12,18 @@ import { useBottomSheetPadding } from '../../hooks/useBottomSheetPadding';
 
 const SCREEN_WIDTH = Dimensions.get('window').width;
 
+// 텍스트는 렌더 시 t()로 해석. icon과 번역 키만 보관.
 const SLIDES = [
-  {
-    icon: '💊',
-    title: '약 먹는걸 잊지 않게\n챙길 수 있어요.',
-    desc: '약 시간이 되면 알려드려요.\n드셨으면 탭 한 번으로 끝이에요.',
-  },
-  {
-    icon: '👨‍👩‍👧',
-    title: '가족들도 함께 알 수 있어서\n더욱 안심이에요.',
-    desc: '약을 드시면 가족 모두가 알 수 있어요.\n서로 확인하지 않아도 돼요.',
-  },
-  {
-    icon: '📊',
-    title: '남긴 기록들은 다음 진료 때\n참고할 수 있어요.',
-    desc: '약 먹은 후 몸 상태를 간단히 남겨두면\n시간이 지나면서 변화가 보여요.',
-  },
-];
+  { icon: '💊', key: 'slide1' },
+  { icon: '👨‍👩‍👧', key: 'slide2' },
+  { icon: '📊', key: 'slide3' },
+] as const;
 
 type Nav = StackNavigationProp<OnboardingStackParamList, 'OnboardingSlide'>;
 
 export function OnboardingSlideScreen() {
   const navigation = useNavigation<Nav>();
+  const { t } = useTranslation();
   const [currentIndex, setCurrentIndex] = useState(0);
   const flatListRef = useRef<FlatList>(null);
   const { top: topInset } = useSafeAreaInsets();
@@ -57,7 +48,7 @@ export function OnboardingSlideScreen() {
   return (
     <View style={styles.container}>
       <TouchableOpacity style={[styles.skipBtn, { top: topInset + 8 }]} onPress={handleSkip}>
-        <Text style={styles.skipText}>건너뛰기</Text>
+        <Text style={styles.skipText}>{t('onboardingSlide.skip')}</Text>
       </TouchableOpacity>
 
       <FlatList
@@ -76,8 +67,8 @@ export function OnboardingSlideScreen() {
         renderItem={({ item }) => (
           <View style={styles.slide}>
             <Text style={styles.icon}>{item.icon}</Text>
-            <Text style={styles.title}>{item.title}</Text>
-            <Text style={styles.desc}>{item.desc}</Text>
+            <Text style={styles.title}>{t(`onboardingSlide.${item.key}.title`)}</Text>
+            <Text style={styles.desc}>{t(`onboardingSlide.${item.key}.desc`)}</Text>
           </View>
         )}
       />
@@ -90,7 +81,7 @@ export function OnboardingSlideScreen() {
 
       <View style={[styles.btnWrapper, { paddingBottom: bottomPadding, paddingTop: 16 }]}>
         <PrimaryButton
-          title={currentIndex < SLIDES.length - 1 ? '다음' : '시작하기'}
+          title={currentIndex < SLIDES.length - 1 ? t('onboardingSlide.next') : t('onboardingSlide.start')}
           onPress={handleNext}
           variant="outline"
         />

@@ -17,6 +17,8 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { useNavigation, useRoute } from '@react-navigation/native';
 import type { NativeStackScreenProps } from '@react-navigation/native-stack';
 import { Ionicons } from '@expo/vector-icons';
+import { useTranslation } from 'react-i18next';
+import i18n from '../../i18n';
 import * as ImagePicker from 'expo-image-picker';
 import * as ImageManipulator from 'expo-image-manipulator';
 import { uploadCommunityPhoto } from '../../lib/r2Upload';
@@ -37,12 +39,14 @@ type PostType = Database['public']['Tables']['posts']['Row']['post_type'];
 type IoniconName = React.ComponentProps<typeof Ionicons>['name'];
 type RouteProps = NativeStackScreenProps<FeedStackParamList, 'PostWrite'>['route'];
 
-const CATEGORIES: { id: string; icon: IoniconName; label: string }[] = [
-  { id: 'chat', icon: 'chatbubble-outline', label: '자유' },
-  { id: 'question', icon: 'help-circle-outline', label: '질문' },
-  { id: 'info', icon: 'megaphone-outline', label: '정보' },
-  { id: 'cheer', icon: 'heart-circle-outline', label: '응원' },
-];
+function getCategories(): { id: string; icon: IoniconName; label: string }[] {
+  return [
+    { id: 'chat', icon: 'chatbubble-outline', label: i18n.t('postWrite.categoryChat') },
+    { id: 'question', icon: 'help-circle-outline', label: i18n.t('postWrite.categoryQuestion') },
+    { id: 'info', icon: 'megaphone-outline', label: i18n.t('postWrite.categoryInfo') },
+    { id: 'cheer', icon: 'heart-circle-outline', label: i18n.t('postWrite.categoryCheer') },
+  ];
+}
 
 // 기존 사진(r2_url)과 새 사진(local uri)을 구분
 interface PhotoEntry {
@@ -51,6 +55,7 @@ interface PhotoEntry {
 }
 
 export function PostWriteScreen() {
+  const { t } = useTranslation();
   const navigation = useNavigation();
   const route = useRoute<RouteProps>();
   const { user, signOut } = useAuth();
@@ -128,12 +133,12 @@ export function PostWriteScreen() {
 
   const handlePhotoAdd = async () => {
     if (photoEntries.length >= 5) {
-      dialog.alert({ title: '사진 제한', message: '사진은 최대 5장까지 추가할 수 있어요.' });
+      dialog.alert({ title: t('postWrite.photoLimitTitle'), message: t('postWrite.photoLimitMsg') });
       return;
     }
     const perm = await ImagePicker.requestMediaLibraryPermissionsAsync();
     if (!perm.granted) {
-      dialog.alert({ title: '권한 필요', message: '갤러리 접근 권한이 필요해요.' });
+      dialog.alert({ title: t('postWrite.permTitle'), message: t('postWrite.permMsg') });
       return;
     }
     const result = await ImagePicker.launchImageLibraryAsync({
@@ -174,15 +179,15 @@ export function PostWriteScreen() {
     if (await ensureNotGuest(user, dialog, { signOut })) return;
     if (ensureNotBanned(user, dialog)) return;
     if (!selectedCategory) {
-      dialog.alert({ title: '글 유형 선택', message: '글 유형을 선택해주세요.' });
+      dialog.alert({ title: t('postWrite.categoryTitle'), message: t('postWrite.categoryMsg') });
       return;
     }
     if (!title.trim()) {
-      dialog.alert({ title: '제목 입력', message: '제목을 입력해주세요.' });
+      dialog.alert({ title: t('postWrite.titleRequiredTitle'), message: t('postWrite.titleRequiredMsg') });
       return;
     }
     if (!content.trim()) {
-      dialog.alert({ title: '내용 입력', message: '내용을 입력해주세요.' });
+      dialog.alert({ title: t('postWrite.contentRequiredTitle'), message: t('postWrite.contentRequiredMsg') });
       return;
     }
 
@@ -229,7 +234,7 @@ export function PostWriteScreen() {
               })
             );
           } catch (photoErr: any) {
-            await dialog.alert({ title: '사진 업로드 에러', message: photoErr?.message ?? String(photoErr) });
+            await dialog.alert({ title: t('postWrite.photoUploadErrorTitle'), message: photoErr?.message ?? String(photoErr) });
             setSubmitting(false);
             return; // 업로드 실패시 중단
           }
@@ -245,7 +250,7 @@ export function PostWriteScreen() {
         const updatedUrls = (updatedMedia ?? []).map((m: any) => m.r2_url);
         params?.onSave?.(updatedUrls);
 
-        await dialog.alert({ title: '수정 완료', message: '글이 수정되었어요.', toast: true });
+        await dialog.alert({ title: t('postWrite.editDoneTitle'), message: t('postWrite.editDoneMsg'), toast: true });
         navigation.goBack();
       } else {
         // ── 등록 모드 ──
@@ -283,13 +288,13 @@ export function PostWriteScreen() {
               })
             );
           } catch (photoErr: any) {
-            await dialog.alert({ title: '사진 업로드 에러', message: photoErr?.message ?? String(photoErr) });
+            await dialog.alert({ title: t('postWrite.photoUploadErrorTitle'), message: photoErr?.message ?? String(photoErr) });
             setSubmitting(false);
             return; // 업로드 실패시 중단
           }
         }
 
-        await dialog.alert({ title: '등록 완료', message: '글이 등록되었어요.', toast: true });
+        await dialog.alert({ title: t('postWrite.createDoneTitle'), message: t('postWrite.createDoneMsg'), toast: true });
         navigation.goBack();
       }
     } catch (e: any) {
@@ -297,7 +302,7 @@ export function PostWriteScreen() {
       if (isBanRlsError(e)) {
         showBannedDialog(dialog);
       } else {
-        await dialog.alert({ title: '오류', message: e.message ?? (isEditMode ? '수정 중 문제가 생겼어요. 다시 시도해주세요.' : '등록 중 문제가 생겼어요. 다시 시도해주세요.') });
+        await dialog.alert({ title: t('postWrite.errorTitle'), message: e.message ?? (isEditMode ? t('postWrite.editFailMsg') : t('postWrite.createFailMsg')) });
       }
     } finally {
       setSubmitting(false);
@@ -307,7 +312,7 @@ export function PostWriteScreen() {
   return (
     <SafeAreaView style={styles.safe} edges={['top']}>
       <TopBar
-        title={isEditMode ? '글 수정' : '글쓰기'}
+        title={isEditMode ? t('postWrite.titleEdit') : t('postWrite.titleWrite')}
         showBack
       />
       <KeyboardAvoidingView
@@ -330,9 +335,9 @@ export function PostWriteScreen() {
           automaticallyAdjustKeyboardInsets={Platform.OS === 'ios'}
         >
           {/* 글 유형 선택 */}
-          <Text style={styles.sectionLabel}>글 유형 선택</Text>
+          <Text style={styles.sectionLabel}>{t('postWrite.sectionLabel')}</Text>
           <View style={styles.categoryRow}>
-            {CATEGORIES.map((cat) => (
+            {getCategories().map((cat) => (
               <TouchableOpacity
                 key={cat.id}
                 style={[
@@ -363,7 +368,7 @@ export function PostWriteScreen() {
           {/* 제목 */}
           <TextInput
             style={styles.titleInput}
-            placeholder="제목을 입력해주세요"
+            placeholder={t('postWrite.titlePlaceholder')}
             placeholderTextColor={Colors.textHint}
             value={title}
             onChangeText={setTitle}
@@ -377,7 +382,7 @@ export function PostWriteScreen() {
           <TextInput
             ref={contentInputRef}
             style={styles.contentInput}
-            placeholder="내용을 입력해주세요"
+            placeholder={t('postWrite.contentPlaceholder')}
             placeholderTextColor={Colors.textHint}
             value={content}
             onChangeText={setContent}
@@ -413,8 +418,8 @@ export function PostWriteScreen() {
               activeOpacity={0.7}
             >
               <Ionicons name="camera-outline" size={28} color="#AAAAAA" />
-              <Text style={styles.photoBtnLargeText}>사진 추가하기</Text>
-              <Text style={styles.photoBtnLargeHint}>최대 5장 · JPG/PNG</Text>
+              <Text style={styles.photoBtnLargeText}>{t('postWrite.photoAddLarge')}</Text>
+              <Text style={styles.photoBtnLargeHint}>{t('postWrite.photoAddHint')}</Text>
             </TouchableOpacity>
           ) : (
             <>
@@ -424,7 +429,7 @@ export function PostWriteScreen() {
                 activeOpacity={0.7}
               >
                 <Ionicons name="camera-outline" size={22} color={Colors.textSub} />
-                <Text style={styles.photoText}>사진 추가</Text>
+                <Text style={styles.photoText}>{t('postWrite.photoAdd')}</Text>
                 <Text style={styles.photoHint}>{photoEntries.length}/5</Text>
               </TouchableOpacity>
               <ScrollView
@@ -439,7 +444,7 @@ export function PostWriteScreen() {
                       <Image source={{ uri: entry.uri }} style={styles.photoThumbImg} />
                       {entry.isExisting && (
                         <View style={styles.existingBadge}>
-                          <Text style={styles.existingBadgeText}>기존</Text>
+                          <Text style={styles.existingBadgeText}>{t('postWrite.photoExisting')}</Text>
                         </View>
                       )}
                     </View>
@@ -461,24 +466,24 @@ export function PostWriteScreen() {
               Terms 화면은 다른 네비게이터(Menu)에 있어 이 스택에서 navigate 불가 → 외부 링크로 연다.
               (이 화면 형제인 LoginScreen도 동일하게 Linking으로 약관을 연다.) */}
           <Text style={styles.guidelineNotice}>
-            욕설·비방·음란물·허위 의료정보 등 부적절한 게시물은 신고·삭제되며, 반복 시 이용이 제한될 수 있어요. 게시 시{' '}
+            {t('postWrite.guidelineNotice')}
             <Text
               style={styles.guidelineLink}
               suppressHighlighting
               onPress={() => {
                 Linking.openURL('https://parkinon.com/terms').catch(() => {
-                  dialog.alert({ title: '안내', message: '이용약관을 여는 데 실패했어요.' });
+                  dialog.alert({ title: t('postWrite.noticeTitle'), message: t('postWrite.guidelineOpenFailMsg') });
                 });
               }}
             >
-              이용약관(커뮤니티 운영정책 포함)
+              {t('postWrite.guidelineLink')}
             </Text>
-            에 동의한 것으로 간주돼요.
+            {t('postWrite.guidelineSuffix')}
           </Text>
 
           <TouchableOpacity style={styles.bottomMainBtn} onPress={handleSubmit} activeOpacity={0.85} disabled={submitting}>
             <Text style={styles.bottomMainBtnText}>
-              {isEditMode ? '수정하기' : '등록하기'}
+              {isEditMode ? t('postWrite.submitEdit') : t('postWrite.submitCreate')}
             </Text>
           </TouchableOpacity>
           </View>
@@ -490,7 +495,7 @@ export function PostWriteScreen() {
       </KeyboardAvoidingView>
       <BrandProgressOverlay
         visible={submitting}
-        title={isEditMode ? '수정하고 있어요' : '등록하고 있어요'}
+        title={isEditMode ? t('postWrite.submittingEdit') : t('postWrite.submittingCreate')}
         minVisibleMs={500}
       />
     </SafeAreaView>

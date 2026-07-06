@@ -32,6 +32,12 @@ import { MenuStackParamList } from '../../navigation/MenuNavigator';
 import { useNotificationBadge } from '../../context/NotificationBadgeContext';
 import { useDialog } from '../../context/DialogContext';
 import { useBottomSheetPadding } from '../../hooks/useBottomSheetPadding';
+import i18n from '../../i18n';
+import { useTranslation } from 'react-i18next';
+
+function isEnLocale(): boolean {
+  return (i18n.language || '').toLowerCase().startsWith('en');
+}
 
 type NavProp = StackNavigationProp<MenuStackParamList>;
 type RouteType = RouteProp<{ MedicalRecordWrite: { recordId?: string } }, 'MedicalRecordWrite'>;
@@ -46,6 +52,7 @@ const CUR_YEAR = NOW.getFullYear();
 const CUR_MONTH = NOW.getMonth() + 1;
 const CUR_DAY = NOW.getDate();
 const DAYS_KR = ['일', '월', '화', '수', '목', '금', '토'];
+const DAYS_EN = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
 
 const PICKER_YEARS = Array.from({ length: 10 }, (_, i) => CUR_YEAR - 9 + i); // 과거 9년~올해
 const PICKER_MONTHS = Array.from({ length: 12 }, (_, i) => i + 1);
@@ -53,7 +60,7 @@ const PICKER_HOURS = Array.from({ length: 24 }, (_, i) => i);
 const PICKER_MINUTES = Array.from({ length: 12 }, (_, i) => i * 5);
 
 function getDaysInMonth(y: number, m: number) { return new Date(y, m, 0).getDate(); }
-function getDayOfWeek(y: number, m: number, d: number) { return DAYS_KR[new Date(y, m - 1, d).getDay()]; }
+function getDayOfWeek(y: number, m: number, d: number) { return (isEnLocale() ? DAYS_EN : DAYS_KR)[new Date(y, m - 1, d).getDay()]; }
 
 function PickerCol({
   data, selected, onSelect, suffix, padLen = 0, getLabel, fontSize = 20,
@@ -111,6 +118,7 @@ function DatePickerModal({
   onYearChange: (v: number) => void; onMonthChange: (v: number) => void;
   onDayChange: (v: number) => void; onConfirm: () => void; onClose: () => void;
 }) {
+  const { t } = useTranslation();
   const sheetBottomPad = useBottomSheetPadding(40, 20);
   // 오늘 이후 날짜 선택 불가
   const availableMonths = year === CUR_YEAR
@@ -127,28 +135,28 @@ function DatePickerModal({
         <TouchableOpacity style={mpStyles.overlay} onPress={onClose} activeOpacity={1} />
         <View style={[mpStyles.sheet, { paddingBottom: sheetBottomPad }]}>
           <View style={mpStyles.handle} />
-          <Text style={mpStyles.title}>날짜 선택</Text>
+          <Text style={mpStyles.title}>{t('medRecordWrite.dateSelectTitle')}</Text>
           <View style={mpStyles.colsRow}>
             <View style={{ flex: 5 }}>
-              <Text style={mpStyles.colHeader}>년도</Text>
-              <PickerCol data={PICKER_YEARS} selected={year} onSelect={onYearChange} suffix="년" fontSize={19} />
+              <Text style={mpStyles.colHeader}>{t('medRecordWrite.yearHeader')}</Text>
+              <PickerCol data={PICKER_YEARS} selected={year} onSelect={onYearChange} suffix={isEnLocale() ? '' : '년'} fontSize={19} />
             </View>
             <View style={mpStyles.colDivider} />
             <View style={{ flex: 3 }}>
-              <Text style={mpStyles.colHeader}>월</Text>
-              <PickerCol data={availableMonths} selected={month} onSelect={onMonthChange} suffix="월" fontSize={19} />
+              <Text style={mpStyles.colHeader}>{t('medRecordWrite.monthHeader')}</Text>
+              <PickerCol data={availableMonths} selected={month} onSelect={onMonthChange} suffix={isEnLocale() ? '' : '월'} fontSize={19} />
             </View>
             <View style={mpStyles.colDivider} />
             <View style={{ flex: 5 }}>
-              <Text style={mpStyles.colHeader}>일</Text>
+              <Text style={mpStyles.colHeader}>{t('medRecordWrite.dayHeader')}</Text>
               <PickerCol
-                data={days} selected={day} onSelect={onDayChange} suffix="일" fontSize={18}
-                getLabel={(d) => `${d}일 (${getDayOfWeek(year, month, d)})`}
+                data={days} selected={day} onSelect={onDayChange} suffix={isEnLocale() ? '' : '일'} fontSize={18}
+                getLabel={(d) => isEnLocale() ? `${d} (${getDayOfWeek(year, month, d)})` : `${d}일 (${getDayOfWeek(year, month, d)})`}
               />
             </View>
           </View>
           <TouchableOpacity style={mpStyles.confirmBtn} onPress={onConfirm} activeOpacity={0.8}>
-            <Text style={mpStyles.confirmText}>선택 완료</Text>
+            <Text style={mpStyles.confirmText}>{t('medRecordWrite.selectDone')}</Text>
           </TouchableOpacity>
         </View>
       </View>
@@ -164,6 +172,7 @@ function TimePickerModal({
   onHourChange: (v: number) => void; onMinuteChange: (v: number) => void;
   onConfirm: () => void; onClose: () => void;
 }) {
+  const { t } = useTranslation();
   const sheetBottomPad = useBottomSheetPadding(40, 20);
   return (
     <Modal visible={visible} transparent animationType="slide">
@@ -171,20 +180,20 @@ function TimePickerModal({
         <TouchableOpacity style={mpStyles.overlay} onPress={onClose} activeOpacity={1} />
         <View style={[mpStyles.sheet, { paddingBottom: sheetBottomPad }]}>
           <View style={mpStyles.handle} />
-          <Text style={mpStyles.title}>시간 선택</Text>
+          <Text style={mpStyles.title}>{t('medRecordWrite.timeSelectTitle')}</Text>
           <View style={mpStyles.colsRow}>
             <View style={{ flex: 1 }}>
-              <Text style={mpStyles.colHeader}>시</Text>
-              <PickerCol data={PICKER_HOURS} selected={hour} onSelect={onHourChange} suffix="시" padLen={2} />
+              <Text style={mpStyles.colHeader}>{t('medRecordWrite.hourHeader')}</Text>
+              <PickerCol data={PICKER_HOURS} selected={hour} onSelect={onHourChange} suffix={isEnLocale() ? '' : '시'} padLen={2} />
             </View>
             <View style={mpStyles.colDivider} />
             <View style={{ flex: 1 }}>
-              <Text style={mpStyles.colHeader}>분</Text>
-              <PickerCol data={PICKER_MINUTES} selected={minute} onSelect={onMinuteChange} suffix="분" padLen={2} />
+              <Text style={mpStyles.colHeader}>{t('medRecordWrite.minuteHeader')}</Text>
+              <PickerCol data={PICKER_MINUTES} selected={minute} onSelect={onMinuteChange} suffix={isEnLocale() ? '' : '분'} padLen={2} />
             </View>
           </View>
           <TouchableOpacity style={mpStyles.confirmBtn} onPress={onConfirm} activeOpacity={0.8}>
-            <Text style={mpStyles.confirmText}>선택 완료</Text>
+            <Text style={mpStyles.confirmText}>{t('medRecordWrite.selectDone')}</Text>
           </TouchableOpacity>
         </View>
       </View>
@@ -236,6 +245,7 @@ function computeChangeType(
 
 // ─── 메인 컴포넌트 ─────────────────────────────────────────────────────────────
 export function MedicalRecordWriteScreen() {
+  const { t } = useTranslation();
   const navigation = useNavigation<NavProp>();
   const route = useRoute<RouteType>();
   const recordId = (route.params as any)?.recordId as string | undefined;
@@ -356,7 +366,7 @@ export function MedicalRecordWriteScreen() {
           `${SUPABASE_URL}/rest/v1/medical_records?id=eq.${recordId}&select=id,visit_date,hospital_name,doctor_name,consultation_notes,prescription_changed,prescription_image_url,medical_record_medications(medication_name,dosage)`,
           { headers },
         );
-        if (!res.ok) throw new Error('데이터 로드 실패');
+        if (!res.ok) throw new Error(t('medRecordWrite.loadFailMsg'));
         const data = await res.json();
         if (data.length > 0) {
           const rec = data[0];
@@ -379,7 +389,7 @@ export function MedicalRecordWriteScreen() {
           }
         }
       } catch (e: any) {
-        dialog.alert({ title: '오류', message: e.message ?? '데이터를 불러오지 못했어요.' });
+        dialog.alert({ title: t('medRecordWrite.errorTitle'), message: e.message ?? t('medRecordWrite.loadFailAlertMsg') });
       } finally {
         setIsLoadingEdit(false);
       }
@@ -405,8 +415,12 @@ export function MedicalRecordWriteScreen() {
   };
 
   const dow = getDayOfWeek(selYear, selMonth, selDay);
-  const displayDate = `${selYear}년 ${selMonth}월 ${selDay}일 (${dow})`;
-  const displayTime = `${String(selHour).padStart(2, '0')}시 ${String(selMinute).padStart(2, '0')}분`;
+  const displayDate = isEnLocale()
+    ? `${selYear}-${selMonth}-${selDay} (${dow})`
+    : `${selYear}년 ${selMonth}월 ${selDay}일 (${dow})`;
+  const displayTime = isEnLocale()
+    ? `${String(selHour).padStart(2, '0')}:${String(selMinute).padStart(2, '0')}`
+    : `${String(selHour).padStart(2, '0')}시 ${String(selMinute).padStart(2, '0')}분`;
 
   // 처방전 이미지 선택 → OCR
   const pickAndOcr = async (fromCamera: boolean) => {
@@ -414,11 +428,11 @@ export function MedicalRecordWriteScreen() {
       let result: ImagePicker.ImagePickerResult;
       if (fromCamera) {
         const perm = await ImagePicker.requestCameraPermissionsAsync();
-        if (perm.status !== 'granted') { dialog.alert({ title: '권한 필요', message: '카메라 권한이 필요해요.' }); return; }
+        if (perm.status !== 'granted') { dialog.alert({ title: t('medRecordWrite.permRequiredTitle'), message: t('medRecordWrite.cameraPermMsg') }); return; }
         result = await ImagePicker.launchCameraAsync({ mediaTypes: ImagePicker.MediaTypeOptions.Images, quality: 0.7 });
       } else {
         const perm = await ImagePicker.requestMediaLibraryPermissionsAsync();
-        if (perm.status !== 'granted') { dialog.alert({ title: '권한 필요', message: '사진 라이브러리 권한이 필요해요.' }); return; }
+        if (perm.status !== 'granted') { dialog.alert({ title: t('medRecordWrite.permRequiredTitle'), message: t('medRecordWrite.galleryPermMsg') }); return; }
         result = await ImagePicker.launchImageLibraryAsync({ mediaTypes: ImagePicker.MediaTypeOptions.Images, quality: 0.7 });
       }
       if (result.canceled || !result.assets?.[0]) return;
@@ -437,9 +451,9 @@ export function MedicalRecordWriteScreen() {
       const base64 = await FileSystem.readAsStringAsync(compressedUri, { encoding: FileSystem.EncodingType.Base64 });
       const ocrResult = await callClaudeOCR(base64, 'image/jpeg');
       setOcrMeds(ocrResult.medications);
-      if (ocrResult.medications.length === 0) dialog.alert({ title: '알림', message: '처방전에서 약 이름을 찾지 못했어요.\n직접 확인해 주세요.' });
+      if (ocrResult.medications.length === 0) dialog.alert({ title: t('medRecordWrite.noticeTitle'), message: t('medRecordWrite.ocrNoMedsMsg') });
     } catch (e: any) {
-      dialog.alert({ title: '오류', message: e.message ?? 'OCR 처리 중 오류가 발생했어요.' });
+      dialog.alert({ title: t('medRecordWrite.errorTitle'), message: e.message ?? t('medRecordWrite.ocrErrorMsg') });
     } finally {
       setIsOcrLoading(false);
     }
@@ -449,7 +463,7 @@ export function MedicalRecordWriteScreen() {
     if (!user) return;
     // 미연동 보호자는 저장 직전 차단(폴백 본인 id 저장으로 유령 기록 생기는 것 방지).
     if (caregiverUnlinked) {
-      await dialog.alert({ title: '환자 연동 후 가능해요', message: '가족 연동 메뉴에서 환자를 먼저 연동해주세요.' });
+      await dialog.alert({ title: t('medRecordWrite.linkRequiredTitle'), message: t('medRecordWrite.linkRequiredMsg') });
       return;
     }
 
@@ -479,19 +493,19 @@ export function MedicalRecordWriteScreen() {
           `${SUPABASE_URL}/rest/v1/medical_records?id=eq.${recordId}`,
           { method: 'PATCH', headers, body: JSON.stringify(recordBody) },
         );
-        if (!updateRes.ok) throw new Error('진료 기록 수정에 실패했어요.');
+        if (!updateRes.ok) throw new Error(t('medRecordWrite.updateFailMsg'));
       } else {
         const insertRes = await fetch(
           `${SUPABASE_URL}/rest/v1/medical_records`,
           { method: 'POST', headers, body: JSON.stringify({ patient_id: patientId ?? user.id, ...recordBody }) },
         );
-        if (!insertRes.ok) throw new Error('진료 기록 저장에 실패했어요.');
+        if (!insertRes.ok) throw new Error(t('medRecordWrite.insertFailMsg'));
       }
 
-      await dialog.alert({ title: '저장 완료', message: '진료 기록이 저장되었어요.' });
+      await dialog.alert({ title: t('medRecordWrite.saveDoneTitle'), message: t('medRecordWrite.saveDoneMsg') });
       navigation.goBack();
     } catch (e: any) {
-      dialog.alert({ title: '오류', message: e.message ?? '저장에 실패했어요.' });
+      dialog.alert({ title: t('medRecordWrite.errorTitle'), message: e.message ?? t('medRecordWrite.saveFailMsg') });
     } finally {
       setIsSaving(false);
     }
@@ -501,7 +515,7 @@ export function MedicalRecordWriteScreen() {
     return (
       <SafeAreaView style={styles.container} edges={['top', 'bottom']}>
         <TopBar
-          title={recordId ? '진료 기록 수정' : '진료 기록 추가'}
+          title={recordId ? t('medRecordWrite.headerEdit') : t('medRecordWrite.headerNew')}
           showBack
           showBell
           bellBadge={unreadCount}
@@ -515,18 +529,18 @@ export function MedicalRecordWriteScreen() {
   if (caregiverUnlinked) {
     return (
       <SafeAreaView style={styles.container} edges={['top']}>
-        <TopBar title={recordId ? '진료 기록 수정' : '진료 기록 추가'} showBack />
+        <TopBar title={recordId ? t('medRecordWrite.headerEdit') : t('medRecordWrite.headerNew')} showBack />
         <View style={styles.unlinkedWrap}>
           <Ionicons name="people-outline" size={56} color={Colors.textHint} />
-          <Text style={styles.unlinkedTitle}>환자를 먼저 연동해주세요</Text>
-          <Text style={styles.unlinkedDesc}>{'가족을 연동하면 환자분의\n진료 기록을 대신 작성할 수 있어요'}</Text>
+          <Text style={styles.unlinkedTitle}>{t('medRecordWrite.unlinkedTitle')}</Text>
+          <Text style={styles.unlinkedDesc}>{t('medRecordWrite.unlinkedDesc')}</Text>
           <TouchableOpacity
             style={styles.linkFamilyBtn}
             onPress={() => navigation.navigate('FamilyLink')}
             activeOpacity={0.85}
           >
             <Ionicons name="person-add-outline" size={22} color={Colors.white} />
-            <Text style={styles.linkFamilyBtnText}>가족 연동하기</Text>
+            <Text style={styles.linkFamilyBtnText}>{t('medRecordWrite.linkFamilyBtn')}</Text>
           </TouchableOpacity>
         </View>
       </SafeAreaView>
@@ -535,7 +549,7 @@ export function MedicalRecordWriteScreen() {
 
   return (
     <SafeAreaView style={styles.container} edges={['top']}>
-      <TopBar title={recordId ? '진료 기록 수정' : '진료 기록 추가'} showBack />
+      <TopBar title={recordId ? t('medRecordWrite.headerEdit') : t('medRecordWrite.headerNew')} showBack />
       <KeyboardAvoidingView style={{ flex: 1 }} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
         <ScrollView
           ref={scrollViewRef}
@@ -546,14 +560,14 @@ export function MedicalRecordWriteScreen() {
         >
 
           {/* 진료 날짜 */}
-          <Text style={styles.label}>진료 날짜</Text>
+          <Text style={styles.label}>{t('medRecordWrite.visitDateLabel')}</Text>
           <TouchableOpacity style={styles.pickerBtn} onPress={openDatePicker} activeOpacity={0.8}>
             <Text style={styles.pickerBtnText}>📅  {displayDate}</Text>
             <Text style={styles.pickerArrow}>▼</Text>
           </TouchableOpacity>
 
           {/* 진료 시간 */}
-          <Text style={styles.label}>진료 시간</Text>
+          <Text style={styles.label}>{t('medRecordWrite.visitTimeLabel')}</Text>
           <TouchableOpacity style={styles.pickerBtn} onPress={openTimePicker} activeOpacity={0.8}>
             <Text style={styles.pickerBtnText}>🕐  {displayTime}</Text>
             <Text style={styles.pickerArrow}>▼</Text>
@@ -563,16 +577,16 @@ export function MedicalRecordWriteScreen() {
           {isFirstRecord && (
             <View style={styles.hintCard}>
               <Text style={styles.hintText}>
-                💡 병원명과 의사명을 한 번만 입력하면{'\n'}다음부터는 자동으로 불러와요
+                {t('medRecordWrite.autoFillHint')}
               </Text>
             </View>
           )}
 
           {/* 병원명 */}
-          <Text style={styles.label}>병원명</Text>
+          <Text style={styles.label}>{t('medRecordWrite.hospitalLabel')}</Text>
           <TextInput
             style={styles.input}
-            placeholder="예) 한강성심병원"
+            placeholder={t('medRecordWrite.hospitalPlaceholder')}
             placeholderTextColor={Colors.textHint}
             value={hospitalName}
             onChangeText={setHospitalName}
@@ -580,10 +594,10 @@ export function MedicalRecordWriteScreen() {
           />
 
           {/* 의사명 */}
-          <Text style={styles.label}>의사명</Text>
+          <Text style={styles.label}>{t('medRecordWrite.doctorLabel')}</Text>
           <TextInput
             style={styles.input}
-            placeholder="예) 김민준"
+            placeholder={t('medRecordWrite.doctorPlaceholder')}
             placeholderTextColor={Colors.textHint}
             value={doctorName}
             onChangeText={setDoctorName}
@@ -591,10 +605,10 @@ export function MedicalRecordWriteScreen() {
           />
 
           {/* 상담 내용 */}
-          <Text style={styles.label}>상담 내용</Text>
+          <Text style={styles.label}>{t('medRecordWrite.notesLabel')}</Text>
           <TextInput
             style={[styles.input, styles.multilineInput]}
-            placeholder="상담 내용을 입력하세요 (최대 500자)"
+            placeholder={t('medRecordWrite.notesPlaceholder')}
             placeholderTextColor={Colors.textHint}
             value={consultationNotes}
             onChangeText={t => setConsultationNotes(t.slice(0, 500))}
@@ -615,11 +629,11 @@ export function MedicalRecordWriteScreen() {
           <Text style={styles.charCount}>{consultationNotes.length}/500</Text>
 
           {/* 처방 변경 — 사용자가 직접 변경 여부 등록. 실제 약은 약 관리에서. (처방전 사진 미보관) */}
-          <Text style={[styles.label, { marginTop: 8 }]}>처방 변경</Text>
+          <Text style={[styles.label, { marginTop: 8 }]}>{t('medRecordWrite.prescChangeLabel')}</Text>
           <View style={styles.prescChangeRow}>
             <View style={{ flex: 1 }}>
-              <Text style={styles.prescChangeTitle}>이번 진료에서 처방이 바뀌었어요</Text>
-              <Text style={styles.prescChangeSub}>약 종류·복용량·복용주기가 바뀌었으면 켜주세요</Text>
+              <Text style={styles.prescChangeTitle}>{t('medRecordWrite.prescChangeTitle')}</Text>
+              <Text style={styles.prescChangeSub}>{t('medRecordWrite.prescChangeSub')}</Text>
             </View>
             <Switch
               value={prescriptionChanged}
@@ -636,8 +650,8 @@ export function MedicalRecordWriteScreen() {
             >
               <Ionicons name="medical-outline" size={24} color={Colors.primary} style={{ marginRight: 10 }} />
               <View style={{ flex: 1 }}>
-                <Text style={styles.medManageLinkTitle}>약 관리에서 약 변경하기</Text>
-                <Text style={styles.medManageLinkSub}>실제 약은 ‘약 관리’에서 등록·수정해요</Text>
+                <Text style={styles.medManageLinkTitle}>{t('medRecordWrite.medManageLinkTitle')}</Text>
+                <Text style={styles.medManageLinkSub}>{t('medRecordWrite.medManageLinkSub')}</Text>
               </View>
               <Ionicons name="chevron-forward" size={22} color={Colors.primary} />
             </TouchableOpacity>
@@ -650,7 +664,7 @@ export function MedicalRecordWriteScreen() {
             activeOpacity={0.8}
             disabled={isSaving}
           >
-            <Text style={styles.saveBtnText}>저장하기</Text>
+            <Text style={styles.saveBtnText}>{t('medRecordWrite.saveBtn')}</Text>
           </TouchableOpacity>
 
           {/* 안드: 키보드 높이만큼 하단 스페이서 — 긴 상담 내용 입력 시 커서가 키보드 위로 보이게 (iOS는 automaticallyAdjustKeyboardInsets) */}
@@ -672,7 +686,7 @@ export function MedicalRecordWriteScreen() {
       />
       <BrandProgressOverlay
         visible={isSaving}
-        title="저장하고 있어요"
+        title={i18n.t('loading.saving')}
         minVisibleMs={500}
       />
     </SafeAreaView>

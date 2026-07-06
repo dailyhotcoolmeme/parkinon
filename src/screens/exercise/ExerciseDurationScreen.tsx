@@ -8,6 +8,8 @@ import {
   Modal,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
+import { useTranslation } from 'react-i18next';
+import i18n from '../../i18n';
 import { useNavigation, useRoute } from '@react-navigation/native';
 import type { CompositeNavigationProp } from '@react-navigation/native';
 import type { NativeStackNavigationProp, NativeStackScreenProps } from '@react-navigation/native-stack';
@@ -24,7 +26,7 @@ import { useAuth } from '../../context/AuthContext';
 import { supabase } from '../../lib/supabase';
 import { useDialog } from '../../context/DialogContext';
 import { fetchPatientDoseSlots, resolveDisplaySlots } from '../../hooks/useDoseSlots';
-import { nextDoseLabel, slotSortValue } from '../../constants/doseSlots';
+import { nextDoseLabel, slotSortValue, translateRawSlotLabel } from '../../constants/doseSlots';
 import { mealTimeToKorean } from '../../utils/medUtils';
 
 // NotificationHistory 등 루트 스택 라우트로도 이동하므로 부모(Root) 네비게이션 타입과 합성한다.
@@ -34,13 +36,24 @@ type Nav = CompositeNavigationProp<
 >;
 type RouteProps = NativeStackScreenProps<ExerciseStackParamList, 'ExerciseDuration'>['route'];
 
+// 현재 언어가 영어권인지. 한국어(ko)일 때는 아래 라벨/시간을 기존과 100% 동일하게 유지한다.
+function isEnLocale(): boolean {
+  return (i18n.language || '').toLowerCase().startsWith('en');
+}
+
 const DURATION_GROUPS = [
-  { label: '짧게', items: [10, 20, 30] },
-  { label: '보통', items: [40, 50, 60] },
-  { label: '길게', items: [90, 120, 150, 180] },
+  { labelKey: 'exercise.durShort', items: [10, 20, 30] },
+  { labelKey: 'exercise.durMedium', items: [40, 50, 60] },
+  { labelKey: 'exercise.durLong', items: [90, 120, 150, 180] },
 ];
 
 function formatDuration(min: number): string {
+  if (isEnLocale()) {
+    if (min < 60) return `${min} min`;
+    const he = Math.floor(min / 60);
+    const me = min % 60;
+    return me > 0 ? `${he} hr ${me} min` : `${he} hr`;
+  }
   if (min < 60) return `${min}분`;
   const h = Math.floor(min / 60);
   const m = min % 60;
@@ -58,9 +71,48 @@ interface ExNextNotifInfo {
 function exFormatTimeHHMM(date: Date): string {
   const h = date.getHours();
   const m = date.getMinutes();
-  const ampm = h < 12 ? '오전' : '오후';
   const hour = h % 12 === 0 ? 12 : h % 12;
-  return `${ampm} ${hour}:${m.toString().padStart(2, '0')}`;
+  const mm = m.toString().padStart(2, '0');
+  if (isEnLocale()) return `${hour}:${mm} ${h < 12 ? 'AM' : 'PM'}`;
+  const ampm = h < 12 ? '오전' : '오후';
+  return `${ampm} ${hour}:${mm}`;
+}
+
+// 약효추적 interval(분) → 라벨. ko는 기존과 100% 동일.
+function exIntervalLabel(intervalMin: number): string {
+  if (isEnLocale()) {
+    if (intervalMin === 0) return 'right after taking';
+    if (intervalMin < 60) return `${intervalMin} min after taking`;
+    const h = Math.floor(intervalMin / 60);
+    const rem = intervalMin % 60;
+    return rem === 0 ? `${h} hr after taking` : `${h} hr ${rem} min after taking`;
+  }
+  if (intervalMin === 0) return '복용 직후';
+  if (intervalMin < 60) return `복용 ${intervalMin}분 후`;
+  const h = Math.floor(intervalMin / 60);
+  const rem = intervalMin % 60;
+  return rem === 0 ? `복용 ${h}시간 후` : `복용 ${h}시간 ${rem}분 후`;
+}
+
+// "{시간대} {interval} 약효추적" 라벨. ko는 기존과 100% 동일.
+function exEffectTrackingLabel(mealKo: string | null, intervalLabel: string): string {
+  if (isEnLocale()) {
+    return mealKo ? `${mealKo} effect tracking, ${intervalLabel}` : `Effect tracking, ${intervalLabel}`;
+  }
+  return mealKo ? `${mealKo} ${intervalLabel} 약효추적` : `${intervalLabel} 약효추적`;
+}
+
+// nextDoseLabel(공용 유틸·한국어 고정)의 로케일 대응 래퍼. ko는 그대로 위임(회귀 0).
+function exNextDoseLabelLoc(
+  legacyKey: Parameters<typeof nextDoseLabel>[0],
+  label: string | null | undefined,
+  time: string | null | undefined,
+): string {
+  if (!isEnLocale()) return nextDoseLabel(legacyKey, label, time);
+  if (legacyKey) return `Next ${mealTimeToKorean(legacyKey)}`;
+  const trimmed = (label ?? '').trim();
+  if (trimmed) return `Next ${trimmed}`;
+  return time ? `Next dose (${time})` : 'Next dose';
 }
 
 async function fetchExerciseNextNotif(patientId: string): Promise<ExNextNotifInfo | null> {
@@ -89,19 +141,12 @@ async function fetchExerciseNextNotif(patientId: string): Promise<ExNextNotifInf
       if (row.dose_slot_id) {
         const qSlots = await fetchPatientDoseSlots(patientId);
         const qSlot = qSlots.find((s) => s.id === row.dose_slot_id);
-        mealKo = qSlot?.label ?? mealTimeToKorean(row.meal_time);
+        mealKo = translateRawSlotLabel(qSlot?.label) ?? mealTimeToKorean(row.meal_time);
       } else {
         mealKo = mealTimeToKorean(row.meal_time);
       }
-      let intervalLabel: string;
-      if (intervalMin === 0) intervalLabel = '복용 직후';
-      else if (intervalMin < 60) intervalLabel = `복용 ${intervalMin}분 후`;
-      else {
-        const h = Math.floor(intervalMin / 60);
-        const rem = intervalMin % 60;
-        intervalLabel = rem === 0 ? `복용 ${h}시간 후` : `복용 ${h}시간 ${rem}분 후`;
-      }
-      const label = mealKo ? `${mealKo} ${intervalLabel} 약효추적` : `${intervalLabel} 약효추적`;
+      const intervalLabel = exIntervalLabel(intervalMin);
+      const label = exEffectTrackingLabel(mealKo, intervalLabel);
       candidates.push({ minutesLeft, label, sendAt });
     }
 
@@ -134,7 +179,7 @@ async function fetchExerciseNextNotif(patientId: string): Promise<ExNextNotifInf
         const minutesLeft = Math.round((scheduled.getTime() - now.getTime()) / 60000);
         candidates.push({
           minutesLeft,
-          label: nextDoseLabel(slot.legacyKey, slot.label, slot.time),
+          label: exNextDoseLabelLoc(slot.legacyKey, slot.label, slot.time),
           sendAt: scheduled,
         });
         foundMeal = true;
@@ -151,9 +196,13 @@ async function fetchExerciseNextNotif(patientId: string): Promise<ExNextNotifInf
         tomorrowFirst.setDate(tomorrowFirst.getDate() + 1);
         tomorrowFirst.setHours(fh, fm || 0, 0, 0);
         const minutesLeft = Math.round((tomorrowFirst.getTime() - now.getTime()) / 60000);
+        const baseLabel = exNextDoseLabelLoc(first.legacyKey, first.label, first.time);
+        const tomorrowLabel = isEnLocale()
+          ? `Tomorrow, ${baseLabel.replace(/^Next /, '')}`
+          : `내일 ${baseLabel.replace(/^다음 /, '')}`;
         candidates.push({
           minutesLeft,
-          label: `내일 ${nextDoseLabel(first.legacyKey, first.label, first.time).replace(/^다음 /, '')}`,
+          label: tomorrowLabel,
           sendAt: tomorrowFirst,
         });
       }
@@ -173,7 +222,7 @@ async function fetchExerciseNextNotif(patientId: string): Promise<ExNextNotifInf
         scheduled.setHours(hour, ep.minute, 0, 0);
         if (scheduled > now) {
           const minutesLeft = Math.round((scheduled.getTime() - now.getTime()) / 60000);
-          candidates.push({ minutesLeft, label: '운동 알림', sendAt: scheduled });
+          candidates.push({ minutesLeft, label: isEnLocale() ? 'Exercise reminder' : '운동 알림', sendAt: scheduled });
         }
       }
     }
@@ -184,7 +233,7 @@ async function fetchExerciseNextNotif(patientId: string): Promise<ExNextNotifInf
       tomorrow.setDate(tomorrow.getDate() + 1);
       tomorrow.setHours(8, 0, 0, 0);
       return {
-        label: '내일 아침약 복용',
+        label: isEnLocale() ? 'Tomorrow, morning dose' : '내일 아침약 복용',
         timeStr: exFormatTimeHHMM(tomorrow),
         minutesLeft: Math.round((tomorrow.getTime() - now.getTime()) / 60000),
       };
@@ -210,6 +259,7 @@ export function ExerciseDurationScreen() {
   const { unreadCount, refreshBadge } = useNotificationBadge();
   const { user } = useAuth();
   const dialog = useDialog();
+  const { t } = useTranslation();
   const [showNextNotifModal, setShowNextNotifModal] = useState(false);
   const [nextNotifInfo, setNextNotifInfo] = useState<ExNextNotifInfo | null>(null);
   const [savedExerciseName, setSavedExerciseName] = useState('');
@@ -217,7 +267,7 @@ export function ExerciseDurationScreen() {
 
   const handleSave = async () => {
     if (!selected) {
-      dialog.alert({ title: '시간 선택', message: '운동 시간을 선택해주세요.' });
+      dialog.alert({ title: t('exercise.timeAlertTitle'), message: t('exercise.timeAlertMsg') });
       return;
     }
     setSaving(true);
@@ -239,31 +289,31 @@ export function ExerciseDurationScreen() {
       }
       // 알림 없으면 바로 완료 알림
       await dialog.alert({
-        title: '저장 완료',
-        message: `${exerciseName} ${formatDuration(selected)}을 기록했어요! 👏`,
+        title: t('exercise.savedTitle'),
+        message: t('exercise.savedMsg', { name: exerciseName, duration: formatDuration(selected) }),
       });
       navigation.reset({ index: 0, routes: [{ name: 'ExerciseMain' }] });
     } else {
-      dialog.alert({ title: '오류', message: '기록 저장에 실패했어요. 다시 시도해주세요.' });
+      dialog.alert({ title: t('common.error'), message: t('exercise.saveErrorMsg') });
     }
   };
 
   return (
     <SafeAreaView style={styles.safe} edges={['top']}>
       <TopBar
-        title="운동 시간"
+        title={t('exercise.durationTitle')}
         showBack
         showBell
         bellBadge={unreadCount}
         onBellPress={() => navigation.navigate('NotificationHistory', { mode: 'all' })}
       />
       <ScrollView style={styles.flex1} contentContainerStyle={styles.content} showsVerticalScrollIndicator={false}>
-        <Text style={styles.question}>얼마나 하셨나요?</Text>
+        <Text style={styles.question}>{t('exercise.durationQuestion')}</Text>
         <Text style={styles.exerciseName}>{exerciseName}</Text>
 
         {DURATION_GROUPS.map((group) => (
-          <View key={group.label} style={styles.group}>
-            <Text style={styles.groupLabel}>{group.label}</Text>
+          <View key={group.labelKey} style={styles.group}>
+            <Text style={styles.groupLabel}>{t(group.labelKey)}</Text>
             <View style={styles.row}>
               {group.items.map((dur) => (
                 <TouchableOpacity
@@ -283,7 +333,7 @@ export function ExerciseDurationScreen() {
 
         {/* 저장하기 — 고정 바 없이 내용 맨 끝 일반 버튼(다른 화면처럼 스크롤) */}
         <View style={styles.saveBtnWrap}>
-          <PrimaryButton title="저장하기" onPress={handleSave} disabled={!selected || saving} />
+          <PrimaryButton title={t('exercise.saveButton')} onPress={handleSave} disabled={!selected || saving} />
         </View>
       </ScrollView>
 
@@ -299,7 +349,7 @@ export function ExerciseDurationScreen() {
       />
       <BrandProgressOverlay
         visible={saving}
-        title="저장하고 있어요"
+        title={t('exercise.savingTitle')}
         minVisibleMs={500}
       />
     </SafeAreaView>
@@ -317,16 +367,10 @@ function ExNextNotifModal({
   duration: number;
   onClose: () => void;
 }) {
+  const { t } = useTranslation();
   if (!visible || !info) return null;
 
-  let minutesText: string;
-  if (info.minutesLeft < 60) {
-    minutesText = `${info.minutesLeft}분`;
-  } else {
-    const h = Math.floor(info.minutesLeft / 60);
-    const rem = info.minutesLeft % 60;
-    minutesText = rem === 0 ? `${h}시간` : `${h}시간 ${rem}분`;
-  }
+  const minutesText = formatDuration(info.minutesLeft);
 
   return (
     <Modal visible={visible} transparent animationType="fade" statusBarTranslucent onRequestClose={onClose}>
@@ -334,13 +378,13 @@ function ExNextNotifModal({
         <View style={exNnStyles.card}>
           <Text style={exNnStyles.saveIcon}>👏</Text>
           <Text style={exNnStyles.saveText}>
-            {exerciseName} {formatDuration(duration)} 기록 완료!
+            {t('exercise.completeMsg', { name: exerciseName, duration: formatDuration(duration) })}
           </Text>
 
           <View style={exNnStyles.divider} />
 
           <Text style={exNnStyles.icon}>🔔</Text>
-          <Text style={exNnStyles.title}>다음 알림 예고</Text>
+          <Text style={exNnStyles.title}>{t('exercise.nextNotifTitle')}</Text>
 
           <View style={exNnStyles.labelPill}>
             <Text style={exNnStyles.labelPillText}>{info.label}</Text>
@@ -349,11 +393,11 @@ function ExNextNotifModal({
           <Text style={exNnStyles.timeText}>{info.timeStr}</Text>
 
           <Text style={exNnStyles.subText}>
-            지금부터 약 {minutesText} 후에{'\n'}알림을 보내드릴게요
+            {t('exercise.nextNotifSub', { minutes: minutesText })}
           </Text>
 
           <TouchableOpacity style={exNnStyles.closeBtn} onPress={onClose} activeOpacity={0.85}>
-            <Text style={exNnStyles.closeBtnText}>확인</Text>
+            <Text style={exNnStyles.closeBtnText}>{t('common.confirm')}</Text>
           </TouchableOpacity>
         </View>
       </View>

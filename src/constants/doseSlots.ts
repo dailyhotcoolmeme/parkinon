@@ -13,6 +13,14 @@
  * 기록하므로, legacy 슬롯 키(morning/lunch/dinner/bedtime) ↔ label 매핑을 여기서 고정한다.
  */
 
+import i18n from '../i18n';
+
+// 현재 언어가 영어권인지. 한국어(ko)일 때는 아래 라벨/시간대명을 기존과 100% 동일하게 유지한다.
+// (이 파일은 여러 화면이 공유하는 순수 함수 모듈이라 useTranslation 대신 i18n.language 로 분기)
+function isEnLocale(): boolean {
+  return (i18n.language || '').toLowerCase().startsWith('en');
+}
+
 // ─── legacy 4슬롯 식별자 (기존 MealTime enum과 동일) ──────────────────────────
 export type LegacyMealKey = 'morning' | 'lunch' | 'dinner' | 'bedtime';
 
@@ -107,6 +115,28 @@ export function labelToLegacyKey(label: string | null | undefined): LegacyMealKe
   return LABEL_TO_LEGACY_KEY[label.trim()] ?? null;
 }
 
+// 표준 4슬롯 label의 영어 표시명. dose_slots.label 은 DB에 항상 한글("아침" 등)로 저장되므로
+// (생성 로케일과 무관), 해외 로케일에서는 화면 표시 직전 이걸로 변환해야 한다.
+const LEGACY_LABEL_EN: Record<LegacyMealKey, string> = {
+  morning: 'Morning', lunch: 'Lunch', dinner: 'Dinner', bedtime: 'Bedtime',
+};
+
+/**
+ * dose_slots.label 같은 raw DB 라벨(예: "아침")을 표시용으로 변환.
+ * - 표준 4슬롯 라벨이면 해외 로케일에서 영어 이름으로, 국내면 그대로.
+ * - 비표준(커스텀) 라벨은 매칭되는 표준 키가 없으므로 그대로 반환
+ *   (커스텀 슬롯 라벨은 생성 시점 로케일로 이미 저장돼 있음 — 별도 처리 범위 밖).
+ * ⚠️ qSlot.label/jSlot.label 을 화면·알림 문구에 직접 꽂기 전에는 항상 이 함수를 거칠 것.
+ */
+export function translateRawSlotLabel(rawLabel: string | null | undefined): string | null {
+  if (!rawLabel) return null;
+  const trimmed = rawLabel.trim();
+  if (!trimmed) return null;
+  const key = LABEL_TO_LEGACY_KEY[trimmed];
+  if (key && isEnLocale()) return LEGACY_LABEL_EN[key];
+  return trimmed;
+}
+
 // ─── 시각 포맷/정렬 유틸 ──────────────────────────────────────────────────────
 
 /**
@@ -119,10 +149,14 @@ export function formatSlotTime(hhmm: string | null | undefined): string {
   const h = parseInt(parts[0], 10);
   const m = parseInt(parts[1] ?? '0', 10);
   if (Number.isNaN(h)) return hhmm;
-  const period = h < 12 ? '오전' : '오후';
   let displayH = h % 12;
   if (displayH === 0) displayH = 12;
   const mm = String(m).padStart(2, '0');
+  if (isEnLocale()) {
+    const period = h < 12 ? 'AM' : 'PM';
+    return `${displayH}:${mm} ${period}`;
+  }
+  const period = h < 12 ? '오전' : '오후';
   return `${period} ${displayH}:${mm}`;
 }
 
@@ -137,6 +171,14 @@ export function periodWord(time: string | null | undefined): string {
   if (!time) return '';
   const h = parseInt(time.split(':')[0] ?? '', 10);
   if (Number.isNaN(h)) return '';
+  if (isEnLocale()) {
+    if (h < 6) return 'Early morning';
+    if (h < 11) return 'Morning';
+    if (h < 13) return 'Midday';
+    if (h < 17) return 'Afternoon';
+    if (h < 21) return 'Evening';
+    return 'Night';
+  }
   if (h < 6) return '새벽';
   if (h < 11) return '아침';
   if (h < 13) return '점심';
@@ -207,11 +249,13 @@ export function nextDoseLabel(
 ): string {
   if (legacyKey) {
     // 기존 4슬롯과 100% 동일: "다음 아침약 복용" 등
+    if (isEnLocale()) return i18n.t('doseSlots.nextDoseLegacy', { med: i18n.t(`doseSlots.legacyMed_${legacyKey}`) });
     return `다음 ${LEGACY_SLOT_META[legacyKey].korMed} 복용`;
   }
   const trimmed = (label ?? '').trim();
-  if (trimmed) return `다음 ${trimmed} 복용`;
+  if (trimmed) return isEnLocale() ? i18n.t('doseSlots.nextDoseLegacy', { med: trimmed }) : `다음 ${trimmed} 복용`;
   const t = formatSlotTime(time);
+  if (isEnLocale()) return t ? i18n.t('doseSlots.nextDoseWithTime', { time: t }) : i18n.t('doseSlots.nextDosePlain');
   return t ? `다음 복용 (${t})` : '다음 복용';
 }
 

@@ -1,0 +1,228 @@
+- generic [active] [ref=e1]:
+  - generic [ref=e3]:
+    - generic [ref=e6]:
+      - generic [ref=e8]:
+        - button "Navigate to home" [ref=e9] [cursor=pointer]:
+          - img "Expo home" [ref=e10]
+        - generic [ref=e12]:
+          - button "Notifications" [ref=e13] [cursor=pointer]:
+            - img [ref=e16]
+          - button "Search" [ref=e19] [cursor=pointer]:
+            - img [ref=e20]
+      - generic [ref=e23]:
+        - button "dailyhotcoolmeme account icon dailyhotcoolmeme" [ref=e25] [cursor=pointer]:
+          - generic [ref=e26]:
+            - img "dailyhotcoolmeme account icon" [ref=e27]
+            - paragraph [ref=e28]: dailyhotcoolmeme
+          - img [ref=e30]
+        - button "parkinon" [ref=e34] [cursor=pointer]:
+          - generic [ref=e35]:
+            - figure [ref=e208]:
+              - generic [ref=e209]:
+                - generic [ref=e210]: P
+                - img [ref=e211]
+            - paragraph [ref=e38]: parkinon
+          - img [ref=e40]
+      - generic [ref=e45]:
+        - link "Account" [ref=e48] [cursor=pointer]:
+          - /url: /accounts/dailyhotcoolmeme
+          - generic [ref=e49]:
+            - img [ref=e50]
+            - paragraph [ref=e53]: Account
+        - generic [ref=e54]:
+          - generic [ref=e55]:
+            - paragraph [ref=e56]: Project
+            - link "Overview" [ref=e58] [cursor=pointer]:
+              - /url: /accounts/dailyhotcoolmeme/projects/parkinon
+              - generic [ref=e59]:
+                - img [ref=e60]
+                - paragraph [ref=e67]: Overview
+            - link "Insights" [ref=e69] [cursor=pointer]:
+              - /url: /accounts/dailyhotcoolmeme/projects/parkinon/insights
+              - generic [ref=e70]:
+                - img [ref=e71]
+                - paragraph [ref=e78]: Insights
+            - link "Usage" [ref=e80] [cursor=pointer]:
+              - /url: /accounts/dailyhotcoolmeme/projects/parkinon/usage
+              - generic [ref=e81]:
+                - img [ref=e82]
+                - paragraph [ref=e85]: Usage
+            - link "Observe New" [ref=e212] [cursor=pointer]:
+              - /url: /accounts/dailyhotcoolmeme/projects/parkinon/observe
+              - generic [ref=e88]:
+                - img [ref=e89]
+                - paragraph [ref=e92]: Observe
+              - generic [ref=e215]: New
+          - generic [ref=e93]:
+            - paragraph [ref=e94]: Develop
+            - link "Workflows" [ref=e96] [cursor=pointer]:
+              - /url: /accounts/dailyhotcoolmeme/projects/parkinon/workflows
+              - generic [ref=e97]:
+                - img [ref=e98]
+                - paragraph [ref=e101]: Workflows
+            - link "Development builds" [ref=e103] [cursor=pointer]:
+              - /url: /accounts/dailyhotcoolmeme/projects/parkinon/development-builds
+              - generic [ref=e104]:
+                - img [ref=e105]
+                - paragraph [ref=e108]: Development builds
+          - generic [ref=e109]:
+            - paragraph [ref=e110]: Deploy
+            - link "Builds" [ref=e112] [cursor=pointer]:
+              - /url: /accounts/dailyhotcoolmeme/projects/parkinon/builds
+              - generic [ref=e113]:
+                - img [ref=e114]
+                - paragraph [ref=e117]: Builds
+            - link "Submissions" [ref=e119] [cursor=pointer]:
+              - /url: /accounts/dailyhotcoolmeme/projects/parkinon/submissions
+              - generic [ref=e120]:
+                - img [ref=e121]
+                - paragraph [ref=e129]: Submissions
+            - button "Over-the-air updates" [ref=e131] [cursor=pointer]:
+              - generic [ref=e132]:
+                - img [ref=e133]
+                - paragraph [ref=e136]: Over-the-air updates
+              - img [ref=e137]
+            - link "Hosting" [ref=e141] [cursor=pointer]:
+              - /url: /accounts/dailyhotcoolmeme/projects/parkinon/hosting
+              - generic [ref=e142]:
+                - img [ref=e143]
+                - paragraph [ref=e146]: Hosting
+            - link "Push notifications" [ref=e148] [cursor=pointer]:
+              - /url: /accounts/dailyhotcoolmeme/projects/parkinon/push-notifications
+              - generic [ref=e149]:
+                - img [ref=e150]
+                - paragraph [ref=e153]: Push notifications
+          - generic [ref=e154]:
+            - paragraph [ref=e155]: Entities
+            - link "Fingerprints" [ref=e157] [cursor=pointer]:
+              - /url: /accounts/dailyhotcoolmeme/projects/parkinon/fingerprints
+              - paragraph [ref=e159]: Fingerprints
+          - generic [ref=e160]:
+            - paragraph [ref=e161]: Project settings
+            - link "General" [ref=e163] [cursor=pointer]:
+              - /url: /accounts/dailyhotcoolmeme/projects/parkinon/settings
+              - paragraph [ref=e165]: General
+            - link "Credentials" [ref=e167] [cursor=pointer]:
+              - /url: /accounts/dailyhotcoolmeme/projects/parkinon/credentials
+              - paragraph [ref=e169]: Credentials
+            - link "Environment variables" [ref=e171] [cursor=pointer]:
+              - /url: /accounts/dailyhotcoolmeme/projects/parkinon/environment-variables
+              - paragraph [ref=e173]: Environment variables
+            - link "GitHub" [ref=e175] [cursor=pointer]:
+              - /url: /accounts/dailyhotcoolmeme/projects/parkinon/github
+              - paragraph [ref=e177]: GitHub
+      - button "User menu dailyhotcoolmeme" [ref=e180] [cursor=pointer]:
+        - generic [ref=e181]:
+          - img "User menu" [ref=e182]
+          - paragraph [ref=e183]: dailyhotcoolmeme
+        - img [ref=e185]
+    - generic [ref=e193]:
+      - generic [ref=e289]:
+        - link "Project credentials" [ref=e290] [cursor=pointer]:
+          - /url: /accounts/dailyhotcoolmeme/projects/parkinon/credentials
+          - paragraph [ref=e292]: Project credentials
+        - img [ref=e293]
+        - generic [ref=e296]:
+          - img [ref=e297]
+          - paragraph [ref=e300]: com.ourmine.parkinon
+      - generic [ref=e301]:
+        - generic [ref=e304]:
+          - generic [ref=e305]:
+            - generic [ref=e306]:
+              - img [ref=e307]
+              - heading "com.ourmine.parkinon" [level=3] [ref=e310]
+            - paragraph [ref=e311]: Bundle Identifier
+          - button "Delete configuration" [ref=e312] [cursor=pointer]:
+            - img [ref=e313]
+            - generic [ref=e317]: Delete configuration
+        - generic [ref=e318]:
+          - generic [ref=e319]:
+            - heading "Build credentials" [level=3] [ref=e323]
+            - generic [ref=e325]:
+              - button "App Store" [ref=e327] [cursor=pointer]:
+                - generic [ref=e328]:
+                  - img [ref=e329]
+                  - paragraph [ref=e334]: App Store
+              - button "Development" [ref=e336] [cursor=pointer]:
+                - generic [ref=e337]:
+                  - img [ref=e338]
+                  - paragraph [ref=e341]: Development
+              - button "Enterprise" [ref=e343] [cursor=pointer]:
+                - generic [ref=e344]:
+                  - img [ref=e345]
+                  - paragraph [ref=e348]: Enterprise
+              - button "Ad-hoc" [ref=e350] [cursor=pointer]:
+                - generic [ref=e351]:
+                  - img [ref=e352]
+                  - paragraph [ref=e355]: Ad-hoc
+          - generic [ref=e356]:
+            - heading "Distribution certificate" [level=4] [ref=e361]
+            - generic [ref=e363]:
+              - paragraph [ref=e366]: Serial Number
+              - paragraph [ref=e368]: Team
+              - paragraph [ref=e370]: Status
+              - paragraph [ref=e372]: Uploaded at
+              - generic [ref=e375]:
+                - paragraph [ref=e376]: 3FAA827766C30D7AB5C730DB3ECBE66A
+                - paragraph [ref=e377]: "Developer ID: 7MHLZX4955"
+              - generic [ref=e378]:
+                - paragraph [ref=e379]: ourmine Co., Ltd (Company/Organization)
+                - paragraph [ref=e380]: "ID: K72Z59MZU3"
+              - button "Valid" [ref=e382]:
+                - generic [ref=e383]:
+                  - img [ref=e385]
+                  - generic [ref=e388]: Valid
+              - time [ref=e392]: May 26, 2026 10:36 PM
+              - button [ref=e394] [cursor=pointer]:
+                - img [ref=e395]
+          - generic [ref=e401]:
+            - heading "Provisioning profile" [level=4] [ref=e406]
+            - generic [ref=e408]:
+              - paragraph [ref=e411]: Apple UUID
+              - paragraph [ref=e413]: Team
+              - paragraph [ref=e415]: Status
+              - paragraph [ref=e417]: Uploaded at
+              - generic [ref=e420]:
+                - paragraph [ref=e421]: bb0914ce-da63-45bf-9344-e80b3e4f5cd7
+                - paragraph [ref=e422]: "Developer ID: ZQR757N58K"
+              - generic [ref=e423]:
+                - paragraph [ref=e424]: ourmine Co., Ltd (Company/Organization)
+                - paragraph [ref=e425]: "ID: K72Z59MZU3"
+              - button "Valid" [ref=e427]:
+                - generic [ref=e428]:
+                  - img [ref=e430]
+                  - generic [ref=e433]: Valid
+              - time [ref=e437]: May 26, 2026 11:29 PM
+              - button [ref=e439] [cursor=pointer]:
+                - img [ref=e440]
+        - generic [ref=e446]:
+          - heading "Service credentials" [level=3] [ref=e450]
+          - generic [ref=e451]:
+            - heading "Push key" [level=4] [ref=e456]
+            - generic [ref=e458]:
+              - paragraph [ref=e461]: Key ID
+              - paragraph [ref=e463]: Team
+              - paragraph [ref=e465]: Uploaded at
+              - paragraph [ref=e469]: K3WVYDS4FW
+              - generic [ref=e470]:
+                - paragraph [ref=e471]: ourmine Co., Ltd (Company/Organization)
+                - paragraph [ref=e472]: "ID: K72Z59MZU3"
+              - time [ref=e476]: May 26, 2026 11:23 PM
+              - button [ref=e478] [cursor=pointer]:
+                - img [ref=e479]
+          - generic [ref=e487]:
+            - paragraph [ref=e488]: App Store Connect API Key for EAS Submit
+            - paragraph [ref=e489]: This App Store Connect API key lets EAS Submit upload your app to App Store Connect.
+            - button "Add an App Store Connect API Key" [ref=e490] [cursor=pointer]:
+              - generic [ref=e492]: Add an App Store Connect API Key
+  - alert [ref=e278]: iOS Credentials – @dailyhotcoolmeme/parkinon — Expo
+  - generic "We value your privacy" [ref=e280]:
+    - generic [ref=e282]:
+      - text: We use cookies to collect data and improve our services.
+      - link "Learn more" [ref=e283] [cursor=pointer]:
+        - /url: https://expo.dev/privacy/cookies
+    - generic [ref=e284]:
+      - generic [ref=e285]:
+        - button "Decline" [ref=e286] [cursor=pointer]
+        - button "Accept" [ref=e287] [cursor=pointer]
+      - button "Customize" [ref=e288] [cursor=pointer]

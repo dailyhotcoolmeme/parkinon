@@ -15,6 +15,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Colors } from '../../constants/colors';
 import { useSwipeDownDismiss } from '../../hooks/useSwipeDownDismiss';
 import { resolveMediaUrl } from '../../lib/r2Get';
+import { useTranslation } from 'react-i18next';
 
 export interface AlarmSoundOption {
   id: string;
@@ -45,6 +46,7 @@ interface Props {
  * 60대 타겟: 큰 글씨, 넉넉한 탭 영역, 아이콘+텍스트, 스와이프 다운 닫기.
  */
 export function AlarmSoundPickerRow({ soundId, sounds, onSelect, backgroundColor }: Props) {
+  const { t } = useTranslation();
   const insets = useSafeAreaInsets();
   const [open, setOpen] = useState(false);
   // 임시 선택값 — 시트에서 고르면 여기에만 담고, '완료' 눌러야 실제 적용(onSelect).
@@ -54,7 +56,7 @@ export function AlarmSoundPickerRow({ soundId, sounds, onSelect, backgroundColor
   const soundRef = useRef<Audio.Sound | null>(null);
 
   const current = soundId ? sounds.find((s) => s.id === soundId) : null;
-  const currentLabel = current ? current.label : '기본 목소리';
+  const currentLabel = current ? current.label : t('alarmSoundPicker.defaultVoice');
 
   // ── 미리듣기 재생/정지 ─────────────────────────────────────
   const stopPreview = async () => {
@@ -140,7 +142,7 @@ export function AlarmSoundPickerRow({ soundId, sounds, onSelect, backgroundColor
         onPress={() => setOpen(true)}
       >
         <Ionicons name="volume-high" size={20} color={Colors.textSub} />
-        <Text style={styles.triggerLabel}>알림 소리</Text>
+        <Text style={styles.triggerLabel}>{t('alarmSoundPicker.alarmSound')}</Text>
         <View style={styles.triggerValueWrap}>
           <Text style={styles.triggerValue} numberOfLines={1}>
             {currentLabel}
@@ -173,8 +175,8 @@ export function AlarmSoundPickerRow({ soundId, sounds, onSelect, backgroundColor
             {/* 드래그 핸들 */}
             <View style={styles.handle} />
 
-            <Text style={styles.sheetTitle}>알림 소리 고르기</Text>
-            <Text style={styles.sheetSub}>들어보기로 미리 확인할 수 있어요</Text>
+            <Text style={styles.sheetTitle}>{t('alarmSoundPicker.pickTitle')}</Text>
+            <Text style={styles.sheetSub}>{t('alarmSoundPicker.pickSub')}</Text>
 
             <ScrollView
               style={styles.list}
@@ -188,8 +190,8 @@ export function AlarmSoundPickerRow({ soundId, sounds, onSelect, backgroundColor
                 onPress={() => handleSelect(null)}
               >
                 <View style={styles.optionLeft}>
-                  <Text style={styles.optionText}>기본 목소리</Text>
-                  <Text style={styles.optionHint}>휴대폰 기본 알림음</Text>
+                  <Text style={styles.optionText}>{t('alarmSoundPicker.defaultVoice')}</Text>
+                  <Text style={styles.optionHint}>{t('alarmSoundPicker.defaultVoiceHint')}</Text>
                 </View>
                 {!pendingId && (
                   <Ionicons name="checkmark-circle" size={28} color={Colors.primary} />
@@ -228,7 +230,7 @@ export function AlarmSoundPickerRow({ soundId, sounds, onSelect, backgroundColor
                             />
                           )}
                           <Text style={[styles.previewText, isPlaying && styles.previewTextActive]}>
-                            {isPlaying ? '멈춤' : '들어보기'}
+                            {isPlaying ? t('alarmSoundPicker.stop') : t('alarmSoundPicker.preview')}
                           </Text>
                         </TouchableOpacity>
                       )}
@@ -242,8 +244,8 @@ export function AlarmSoundPickerRow({ soundId, sounds, onSelect, backgroundColor
 
               {sounds.length === 0 && (
                 <Text style={styles.empty}>
-                  아직 녹음한 알림음이 없어요.{'\n'}
-                  메뉴 → 알림음 설정에서 만들 수 있어요.
+                  {t('alarmSoundPicker.emptyLine1')}{'\n'}
+                  {t('alarmSoundPicker.emptyLine2')}
                 </Text>
               )}
             </ScrollView>
@@ -251,10 +253,10 @@ export function AlarmSoundPickerRow({ soundId, sounds, onSelect, backgroundColor
             {/* 닫기(적용 안 함) · 완료(임시선택 적용) 한 줄 */}
             <View style={styles.btnRow}>
               <TouchableOpacity style={styles.cancelBtn} activeOpacity={0.7} onPress={close}>
-                <Text style={styles.cancelBtnText}>닫기</Text>
+                <Text style={styles.cancelBtnText}>{t('common.close')}</Text>
               </TouchableOpacity>
               <TouchableOpacity style={styles.doneBtn} activeOpacity={0.85} onPress={handleDone}>
-                <Text style={styles.doneBtnText}>완료</Text>
+                <Text style={styles.doneBtnText}>{t('doseSlotSetList.done')}</Text>
               </TouchableOpacity>
             </View>
           </Animated.View>

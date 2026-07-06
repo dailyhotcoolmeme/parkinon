@@ -13,12 +13,16 @@ import { VideoListScreen } from '../screens/bodystate/VideoListScreen';
 import { ExerciseNavigator, ExerciseStackParamList } from './ExerciseNavigator';
 import { FeedNavigator, FeedStackParamList } from './FeedNavigator';
 import { MenuNavigator, MenuStackParamList } from './MenuNavigator';
+import { OverseasMedTabScreen } from '../screens/menu/OverseasMedTabScreen';
+import { isOverseasLocale } from '../i18n/detectLocale';
+import { useTranslation } from 'react-i18next';
 
 export type MainTabParamList = {
   Medication: undefined;
   BodyStateTab: NavigatorScreenParams<BodyStateStackParamList>;
   Exercise: NavigatorScreenParams<ExerciseStackParamList>;
   Feed: NavigatorScreenParams<FeedStackParamList>;
+  OverseasMedTab: undefined;
   MyInfo: NavigatorScreenParams<MenuStackParamList>;
 };
 
@@ -43,16 +47,24 @@ function BodyStateNavigator() {
   );
 }
 
-const TAB_ITEMS: { name: keyof MainTabParamList; icon: IoniconName; iconFocused: IoniconName; label: string; emoji: string }[] = [
-  { name: 'Medication',   icon: 'medkit-outline',    iconFocused: 'medkit',    label: '약복용',   emoji: '💊' },
-  { name: 'BodyStateTab', icon: 'happy-outline',     iconFocused: 'happy',     label: '약효추적', emoji: '😊' },
-  { name: 'Exercise',     icon: 'fitness-outline',   iconFocused: 'fitness',   label: '운동',     emoji: '🏃' },
-  { name: 'Feed',         icon: 'newspaper-outline', iconFocused: 'newspaper', label: '정보·나눔', emoji: '📰' },
-  { name: 'MyInfo',       icon: 'person-outline',    iconFocused: 'person',    label: '기록·관리', emoji: '👤' },
-];
+function getTabItems(t: (key: string) => string): { name: keyof MainTabParamList; icon: IoniconName; iconFocused: IoniconName; label: string; emoji: string }[] {
+  const overseas = isOverseasLocale();
+  return [
+    { name: 'Medication',   icon: 'medkit-outline',    iconFocused: 'medkit',    label: t('medication.brandTabLabel'),   emoji: '💊' },
+    { name: 'BodyStateTab', icon: 'happy-outline',     iconFocused: 'happy',     label: t('bodystate.tabLabel'), emoji: '😊' },
+    { name: 'Exercise',     icon: 'fitness-outline',   iconFocused: 'fitness',   label: t('exercise.tabLabel'),     emoji: '🏃' },
+    overseas
+      ? { name: 'OverseasMedTab', icon: 'time-outline', iconFocused: 'time', label: t('menu.overseasMedTabLabel'), emoji: '⏰' }
+      : { name: 'Feed',         icon: 'newspaper-outline', iconFocused: 'newspaper', label: t('menu.feedTabLabel'), emoji: '📰' },
+    { name: 'MyInfo',       icon: 'person-outline',    iconFocused: 'person',    label: t('menu.myInfoTabLabel'), emoji: '👤' },
+  ];
+}
 
 export function MainNavigator() {
   const insets = useSafeAreaInsets();
+  const { t } = useTranslation();
+  const TAB_ITEMS = getTabItems(t);
+  const overseas = isOverseasLocale();
 
   return (
     <Tab.Navigator
@@ -126,15 +138,22 @@ export function MainNavigator() {
           },
         })}
       />
-      <Tab.Screen
-        name="Feed"
-        component={FeedNavigator}
-        listeners={({ navigation }) => ({
-          tabPress: () => {
-            navigation.navigate('Feed', { screen: 'FeedMain' });
-          },
-        })}
-      />
+      {overseas ? (
+        <Tab.Screen
+          name="OverseasMedTab"
+          component={OverseasMedTabScreen}
+        />
+      ) : (
+        <Tab.Screen
+          name="Feed"
+          component={FeedNavigator}
+          listeners={({ navigation }) => ({
+            tabPress: () => {
+              navigation.navigate('Feed', { screen: 'FeedMain' });
+            },
+          })}
+        />
+      )}
       <Tab.Screen
         name="MyInfo"
         component={MenuNavigator}

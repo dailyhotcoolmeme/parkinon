@@ -32,11 +32,9 @@ import {
   FlatList,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
-import { useNavigation } from '@react-navigation/native';
-import type { StackNavigationProp } from '@react-navigation/stack';
-import type { MenuStackParamList } from '../../navigation/MenuNavigator';
 import { Colors } from '../../constants/colors';
 import { supabase } from '../../lib/supabase';
+import { navigateTo } from '../../navigation/navigationRef';
 import {
   useDoseSlots,
   invalidateDoseSlotsCache,
@@ -58,6 +56,13 @@ import { useSwipeDownDismiss } from '../../hooks/useSwipeDownDismiss';
 import { useBottomSheetPadding } from '../../hooks/useBottomSheetPadding';
 import { AlarmSoundPickerRow, AlarmSoundOption } from '../common/AlarmSoundPickerRow';
 import { useDialog } from '../../context/DialogContext';
+import { useAuth } from '../../context/AuthContext';
+import i18n from '../../i18n';
+import { useTranslation } from 'react-i18next';
+
+function isEnLocale(): boolean {
+  return (i18n.language || '').toLowerCase().startsWith('en');
+}
 import {
   timeChangeImmediatePopup,
   timeChangeWhileOffPopup,
@@ -86,25 +91,44 @@ interface TrackOption {
   minutes: number;
   label: string;
 }
-const TRACK_OPTIONS: TrackOption[] = [
-  { minutes: 0, label: '복용 직후' },
-  { minutes: 30, label: '30분 후' },
-  { minutes: 60, label: '1시간 후' },
-  { minutes: 120, label: '2시간 후' },
-  { minutes: 180, label: '3시간 후' },
-];
+// locale에 따라 매번 새로 계산 — 모듈 로드 시점에 고정하지 않는다(런타임 언어 변경 반영).
+function getTrackOptions(): TrackOption[] {
+  if (isEnLocale()) {
+    return [
+      { minutes: 0, label: 'Right after taking' },
+      { minutes: 30, label: '30 min later' },
+      { minutes: 60, label: '1 hr later' },
+      { minutes: 120, label: '2 hr later' },
+      { minutes: 180, label: '3 hr later' },
+    ];
+  }
+  return [
+    { minutes: 0, label: '복용 직후' },
+    { minutes: 30, label: '30분 후' },
+    { minutes: 60, label: '1시간 후' },
+    { minutes: 120, label: '2시간 후' },
+    { minutes: 180, label: '3시간 후' },
+  ];
+}
+// 프리셋 분(중복 행 방지용 빠른 조회) — 값 집합은 로케일 무관이므로 고정 상수로 둔다.
+const TRACK_OPTIONS_MINUTES = [0, 30, 60, 120, 180];
 // 프리셋 분(중복 행 방지용 빠른 조회)
-const PRESET_MINUTES = new Set(TRACK_OPTIONS.map((o) => o.minutes));
+const PRESET_MINUTES = new Set(TRACK_OPTIONS_MINUTES);
 
 // 신규 슬롯 기본 추적 시간 = 복용 직후(0) + 30분
 const DEFAULT_TRACK_INTERVALS = [0, 30];
 
 // 분 → "복용 직후 / 4시간 후" 체크줄 라벨 (비프리셋 값 표시용)
 function minutesToCheckLabel(min: number): string {
-  if (min === 0) return '복용 직후';
-  if (min < 60) return `${min}분 후`;
   const h = Math.floor(min / 60);
   const rem = min % 60;
+  if (isEnLocale()) {
+    if (min === 0) return 'Right after taking';
+    if (min < 60) return `${min} min later`;
+    return rem === 0 ? `${h} hr later` : `${h} hr ${rem} min later`;
+  }
+  if (min === 0) return '복용 직후';
+  if (min < 60) return `${min}분 후`;
   return rem === 0 ? `${h}시간 후` : `${h}시간 ${rem}분 후`;
 }
 
@@ -115,7 +139,7 @@ const INTERVAL_MINS = Array.from({ length: 12 }, (_, i) => i * 5);
 // 추적 시간 리스트 → 접힌 카드 요약 ("복용 직후, 30분 후")
 function summarizeTrackIntervals(intervals: number[]): string {
   const sorted = [...intervals].sort((a, b) => a - b);
-  if (sorted.length === 0) return '추적 시간을 선택해 주세요';
+  if (sorted.length === 0) return i18n.t('doseSlotSetList.selectTrackTime');
   return sorted.map(minutesToCheckLabel).join(', ');
 }
 
@@ -127,22 +151,31 @@ function topicParticle(word: string): '은' | '는' {
   return (code - 0xac00) % 28 === 0 ? '는' : '은'; // 받침 없음→는, 있음→은
 }
 
-// 약명 목록 → "마도파와 스타레보" 식 자연스러운 나열(주어용).
+// 약명 목록 → "마도파와 스타레보" 식 자연스러운 나열(주어용). 영어는 "A and B".
 function joinNames(names: string[]): string {
   if (names.length <= 1) return names[0] ?? '';
-  return names.slice(0, -1).join(', ') + '와 ' + names[names.length - 1];
+  const sep = isEnLocale() ? ' and ' : '와 ';
+  return names.slice(0, -1).join(', ') + sep + names[names.length - 1];
 }
 
-// 시점 한 개를 메인 문장용 어구로: 0='복용 직후', 그 외는 minutesToCheckLabel.
+// 시점 한 개를 메인 문장용 어구로. 영어는 "after taking" 없이 순수 기간만(문장에서 한 번만 붙임).
 function offsetPhrase(min: number): string {
+  if (isEnLocale()) {
+    if (min === 0) return 'right away';
+    if (min < 60) return `${min} minutes`;
+    const h = Math.floor(min / 60);
+    const rem = min % 60;
+    return rem === 0 ? `${h} hour${h > 1 ? 's' : ''}` : `${h} hour${h > 1 ? 's' : ''} ${rem} minutes`;
+  }
   return min === 0 ? '복용 직후' : minutesToCheckLabel(min);
 }
 
-// 권장 시점들 → "30분 후와 2시간 후" / "30분 후, 1시간 후와 2시간 후" 자연 나열.
+// 권장 시점들 → "30분 후와 2시간 후" / "30분 후, 1시간 후와 2시간 후" 자연 나열. 영어는 "A, B and C".
 function joinOffsets(offsets: number[]): string {
   const parts = [...offsets].sort((a, b) => a - b).map(offsetPhrase);
   if (parts.length <= 1) return parts[0] ?? '';
-  return parts.slice(0, -1).join(', ') + '와 ' + parts[parts.length - 1];
+  const sep = isEnLocale() ? ' and ' : '와 ';
+  return parts.slice(0, -1).join(', ') + sep + parts[parts.length - 1];
 }
 
 // 메인 안내 문장 조립: "{약명}는(은) {시점들}에 몸 상태를 확인하는 걸 추천해요."
@@ -153,7 +186,7 @@ function buildMainSentence(names: string[], offsets: number[]): {
   timing: string;
 } {
   const subject = joinNames(names);
-  const particle = topicParticle(subject);
+  const particle = isEnLocale() ? '' : topicParticle(subject);
   const timing = joinOffsets(offsets);
   return { subject, particle, timing };
 }
@@ -229,8 +262,11 @@ export function DoseSlotSetList({
   addOnly,
   onAddDone,
 }: Props) {
+  const { t } = useTranslation();
   const dialog = useDialog();
-  const navigation = useNavigation<StackNavigationProp<MenuStackParamList>>();
+  const { user } = useAuth();
+  // 하루 경계/시각 판정용 사용자 tz(Phase1 S2). 미로그인/미로딩 시 Asia/Seoul 폴백.
+  const userTz = user?.timezone || 'Asia/Seoul';
   const { slots, loading, refresh } = useDoseSlots();
   const { bySlot: slotMeds, loading: slotMedsLoading, refresh: refreshSlotMeds } =
     useSlotMedications();
@@ -532,11 +568,11 @@ export function DoseSlotSetList({
       patchSlot(slot.id, { remind_enabled: value }, { remindEnabled: value });
       // 결과 안내: 켜기=즉시(시각 지났는지 판정) / 끄기=즉시 중단.
       const popup = value
-        ? turnOnImmediatePopup(slot.time)
+        ? turnOnImmediatePopup(slot.time, userTz)
         : turnOffImmediatePopup();
       dialog.alert(popup);
     },
-    [patchSlot, dialog],
+    [patchSlot, dialog, userTz],
   );
 
   // 약 알림 소리 변경
@@ -565,11 +601,11 @@ export function DoseSlotSetList({
       // 결과 안내: 약효추적은 지연형 → 오늘 이미 복용했는지 확인해 맞춤 문구.
       const slotId = slot.id;
       void (async () => {
-        const taken = await hasTakenTodayKST(patientIdRef.current, slotId);
+        const taken = await hasTakenTodayKST(patientIdRef.current, slotId, userTz);
         dialog.alert(value ? trackChangePopup(taken) : trackOffPopup(taken));
       })();
     },
-    [patchSlot, dialog],
+    [patchSlot, dialog, userTz],
   );
 
   // 추적 알림 소리 변경
@@ -605,11 +641,11 @@ export function DoseSlotSetList({
       // 결과 안내(지연형): 간격 변경 → 오늘 복용했는지 확인. 마지막 항목 해제=꺼짐 문구.
       const slotId = slot.id;
       void (async () => {
-        const taken = await hasTakenTodayKST(patientIdRef.current, slotId);
+        const taken = await hasTakenTodayKST(patientIdRef.current, slotId, userTz);
         dialog.alert(turnedOff ? trackOffPopup(taken) : trackChangePopup(taken));
       })();
     },
-    [patchSlot, dialog],
+    [patchSlot, dialog, userTz],
   );
 
   // "다른 시간 더하기"로 임의 분을 track_intervals 에 추가(정렬·중복제거).
@@ -631,11 +667,11 @@ export function DoseSlotSetList({
       patchSlot(slotId, { track_intervals: next }, { trackIntervals: next });
       // 결과 안내(지연형): 추적 시각 추가도 다음 복용부터/오늘분 분기.
       void (async () => {
-        const taken = await hasTakenTodayKST(patientIdRef.current, slotId);
+        const taken = await hasTakenTodayKST(patientIdRef.current, slotId, userTz);
         dialog.alert(trackChangePopup(taken));
       })();
     },
-    [slots, overrides, patchSlot, dialog],
+    [slots, overrides, patchSlot, dialog, userTz],
   );
 
   // 비표준 추가 슬롯 삭제. 표준 4슬롯은 호출 안 됨(상위에서 게이팅).
@@ -668,7 +704,7 @@ export function DoseSlotSetList({
       const softDeleteOnly = async () => {
         setExpandedId(null);
         // 삭제 전에 오늘 복용 여부 조회(약효추적 안내 분기에 필요).
-        const takenToday = await hasTakenTodayKST(patientIdRef.current, id);
+        const takenToday = await hasTakenTodayKST(patientIdRef.current, id, userTz);
         try {
           const { error } = await supabase
             .from('dose_slots')
@@ -681,8 +717,8 @@ export function DoseSlotSetList({
         } catch (e) {
           console.error('[DoseSlotSetList] dose_slots 삭제 실패:', e);
           dialog.alert({
-            title: '삭제하지 못했어요',
-            message: '잠시 후 다시 시도해 주세요.',
+            title: i18n.t('doseSlotSetList.deleteFailTitle'),
+            message: i18n.t('doseSlotSetList.deleteFailMsg'),
           });
         }
       };
@@ -690,7 +726,7 @@ export function DoseSlotSetList({
       // 슬롯 + 이 시각의 기록까지 서버에서 함께 삭제(RPC). 큐 정리도 서버 담당.
       const deleteWithRecords = async () => {
         setExpandedId(null);
-        const takenToday = await hasTakenTodayKST(patientIdRef.current, id);
+        const takenToday = await hasTakenTodayKST(patientIdRef.current, id, userTz);
         try {
           const { error } = await supabase.rpc('delete_dose_slot_with_records', {
             p_dose_slot_id: id,
@@ -701,8 +737,8 @@ export function DoseSlotSetList({
         } catch (e) {
           console.error('[DoseSlotSetList] 슬롯+기록 삭제(RPC) 실패:', e);
           dialog.alert({
-            title: '삭제하지 못했어요',
-            message: '잠시 후 다시 시도해 주세요.',
+            title: i18n.t('doseSlotSetList.deleteFailTitle'),
+            message: i18n.t('doseSlotSetList.deleteFailMsg'),
           });
         }
       };
@@ -733,10 +769,10 @@ export function DoseSlotSetList({
       // 2) 기록 0건 → 기존처럼 확인 후 슬롯만 삭제.
       if (recordCount === 0) {
         const ok = await dialog.confirm({
-          title: '이 복용 시간대를 삭제할까요?',
-          message: `'${slotTitle(slot)}' 복용 시간대 알림이 삭제돼요.`,
-          confirmText: '삭제',
-          cancelText: '취소',
+          title: i18n.t('doseSlotSetList.deleteConfirmTitle'),
+          message: i18n.t('doseSlotSetList.deleteConfirmMsg', { slot: slotTitle(slot) }),
+          confirmText: i18n.t('common.delete'),
+          cancelText: i18n.t('common.cancel'),
           destructive: true,
         });
         if (!ok) return;
@@ -746,12 +782,12 @@ export function DoseSlotSetList({
 
       // 3) 기록 1건 이상 → 기록까지 함께 삭제할지 2버튼 선택.
       const choice = await dialog.show({
-        title: `이 시간대에 기록이 ${recordCount}건 있어요`,
-        message: '기록도 함께 삭제할까요?',
+        title: i18n.t('doseSlotSetList.hasRecordsTitle', { count: recordCount }),
+        message: i18n.t('doseSlotSetList.hasRecordsMsg'),
         buttons: [
-          { id: 'withRecords', text: '기록도 삭제', style: 'destructiveSolid', row: true },
-          { id: 'keepRecords', text: '기록은 유지', style: 'destructive', row: true },
-          { id: 'cancel', text: '닫기', style: 'cancel' },
+          { id: 'withRecords', text: i18n.t('doseSlotSetList.deleteWithRecords'), style: 'destructiveSolid', row: true },
+          { id: 'keepRecords', text: i18n.t('doseSlotSetList.keepRecords'), style: 'destructive', row: true },
+          { id: 'cancel', text: i18n.t('common.close'), style: 'cancel' },
         ],
       });
       if (choice === 'withRecords') {
@@ -761,7 +797,7 @@ export function DoseSlotSetList({
       }
       // choice === 'cancel'(닫기 버튼) / null(배경·뒤로 닫음) → 아무 동작 없음(취소).
     },
-    [refresh, dialog],
+    [refresh, dialog, userTz],
   );
 
   // ── 시간/분 바텀시트 ───────────────────────────────────────────────────────
@@ -833,7 +869,7 @@ export function DoseSlotSetList({
       // 결과 안내: remind 켜진 슬롯이면 즉시형(시각 지났는지), 꺼진 슬롯이면 "꺼져 있어요".
       const remindOn = target?.remindEnabled ?? true;
       dialog.alert(
-        remindOn ? timeChangeImmediatePopup(newTime) : timeChangeWhileOffPopup(),
+        remindOn ? timeChangeImmediatePopup(newTime, userTz) : timeChangeWhileOffPopup(),
       );
     } else {
       // 추가: dose_slots insert.
@@ -849,8 +885,8 @@ export function DoseSlotSetList({
       if (!pid) {
         console.warn('[DoseSlotSetList] 슬롯 추가 시 patientId 미해결 → 저장 보류, 재시도 안내');
         dialog.alert({
-          title: '잠시만요',
-          message: '준비 중이에요. 잠시 후 다시 시도해 주세요.',
+          title: i18n.t('doseSlotSetList.oneMomentTitle'),
+          message: i18n.t('doseSlotSetList.preparingMsg'),
         });
         if (addOnly) onAddDone?.();
         return;
@@ -958,7 +994,7 @@ export function DoseSlotSetList({
         insertingRef.current = false;
       }
     }
-  }, [timeSheet, slots, patchSlot, refresh, dialog, addOnly, onAddDone, medications, refreshSlotMeds]);
+  }, [timeSheet, slots, patchSlot, refresh, dialog, addOnly, onAddDone, medications, refreshSlotMeds, userTz]);
 
   // ── 소프트 경고 판정: 이 슬롯의 추적 시각 중 (슬롯시각+분) > 다음 active 슬롯 시각? ──
   // 정렬된 active 슬롯에서 "이 슬롯 바로 다음" 시각을 찾음. 마지막 복용이면 경고 없음.
@@ -980,9 +1016,9 @@ export function DoseSlotSetList({
   if (loading && displaySlots.length === 0) {
     return (
       <View style={styles.section}>
-        <Text style={styles.sectionTitle}>복용 시간대별 알림</Text>
+        <Text style={styles.sectionTitle}>{t('doseSlotSetList.sectionTitle')}</Text>
         <View style={styles.card}>
-          <Text style={styles.loadingText}>불러오고 있어요…</Text>
+          <Text style={styles.loadingText}>{i18n.t('loading.loadingGeneric2')}</Text>
         </View>
       </View>
     );
@@ -1001,9 +1037,9 @@ export function DoseSlotSetList({
       {/* 단일 슬롯 편집은 카드 제목(아침 · 오전 8:30)이 곧 제목이므로 섹션 제목/설명 생략 */}
       {!soloSlotId && !addOnly && (
         <>
-          <Text style={styles.sectionTitle}>복용 시간대별 알림</Text>
+          <Text style={styles.sectionTitle}>{t('doseSlotSetList.sectionTitle')}</Text>
           <Text style={styles.sectionDesc}>
-            복용 시간대마다 약 복용 알림과 약효 추적 알림을 정할 수 있어요
+            {t('doseSlotSetList.sectionDesc')}
           </Text>
         </>
       )}
@@ -1011,10 +1047,9 @@ export function DoseSlotSetList({
       {/* 안내 박스 (전체 관리 진입에서만) */}
       {!soloSlotId && !addOnly && (
         <View style={styles.guide}>
-          <Text style={styles.guideTitle}>복용 시간대마다 따로 정할 수 있어요</Text>
+          <Text style={styles.guideTitle}>{t('doseSlotSetList.guideTitle')}</Text>
           <Text style={styles.guideBody}>
-            약 복용 알림과 약효 추적 알림을 시간대별로 설정합니다.
-            기본값이 미리 맞춰져 있으니 그대로 두셔도 괜찮아요.
+            {t('doseSlotSetList.guideBody')}
           </Text>
         </View>
       )}
@@ -1092,7 +1127,7 @@ export function DoseSlotSetList({
                 <View style={styles.row}>
                   <View style={styles.rowText}>
                     <Text style={[styles.rowLead, !slot.remindEnabled && styles.rowLeadOff]}>
-                      약 복용 알림
+                      {t('doseSlotSetList.medAlarm')}
                     </Text>
                   </View>
                   <Switch
@@ -1108,7 +1143,7 @@ export function DoseSlotSetList({
                 <View style={styles.row}>
                   <View style={styles.rowText}>
                     <Text style={[styles.rowLead, !slot.trackEnabled && styles.rowLeadOff]}>
-                      약효 추적 알림
+                      {t('doseSlotSetList.effectTrackAlarm')}
                     </Text>
                     {slot.trackEnabled && (
                       <Text style={styles.summary}>
@@ -1131,7 +1166,7 @@ export function DoseSlotSetList({
                 {/* ══ 박스1: 약 복용 알림 (연한 파랑) ══ */}
                 <View style={[styles.boxBlock, styles.boxAlarm]}>
                   <View style={styles.boxHead}>
-                    <Text style={styles.boxTitle}>약 복용 알림</Text>
+                    <Text style={styles.boxTitle}>{t('doseSlotSetList.medAlarm')}</Text>
                     <Switch
                       value={slot.remindEnabled}
                       onValueChange={(v) => onToggleRemind(slot, v)}
@@ -1150,7 +1185,7 @@ export function DoseSlotSetList({
                       >
                         <View style={styles.timeRowLeft}>
                           <Ionicons name="time-outline" size={20} color={Colors.textSub} />
-                          <Text style={styles.timeRowLabel}>알림 시간</Text>
+                          <Text style={styles.timeRowLabel}>{t('doseSlotSetList.alarmTime')}</Text>
                         </View>
                         <View style={styles.timeRowRight}>
                           <Text style={styles.timeRowValue}>
@@ -1177,23 +1212,27 @@ export function DoseSlotSetList({
                     약-슬롯 연결(medication_dose_slots)을 편집. 약 0개면 등록 CTA, 로딩 중엔 깜빡임 방지 안내.
                     새 슬롯은 등록 약이 전부 자동 연결되어 기본 전부 체크 → 안 드시는 약만 해제하면 됨. */}
                 <View style={[styles.boxBlock, styles.boxMeds]}>
-                  <Text style={styles.boxTitle}>이 시간에 드시는 약</Text>
+                  <Text style={styles.boxTitle}>{t('doseSlotSetList.medsAtThisTime')}</Text>
                   {(() => {
                     // 분기 A: 등록된 약이 0개 → 약 등록하러 가기 CTA(연결할 약이 없음).
                     if (!hasAnyMed && !slotMedsLoading) {
                       return (
                         <View style={styles.medEmptyBlock}>
                           <Text style={styles.recMain}>
-                            약을 등록하시면 이 시간에 드시는 약을 정할 수 있어요.
+                            {t('doseSlotSetList.noMedsRegistered')}
                           </Text>
                           <TouchableOpacity
                             activeOpacity={0.85}
                             style={styles.recRegisterBtn}
                             onPress={() =>
-                              navigation.navigate('MedicationManage', { mode: 'meds' })
+                              // ⚠️ 이 컴포넌트는 BodyStateScreen/MealTimeModal 등 MenuNavigator
+                              // 바깥(다른 탭)에서도 마운트되므로 로컬 useNavigation()으로는
+                              // 'MedicationManage'를 못 찾아 조용히 실패한다(다른 탭에서 버튼 무반응 버그).
+                              // 루트 기준 전역 네비게이션(navigateTo)으로 항상 도달 가능하게 한다.
+                              navigateTo('Main', { screen: 'MyInfo', params: { screen: 'MedicationManage', params: { mode: 'meds' } } })
                             }
                           >
-                            <Text style={styles.recRegisterBtnText}>약 등록하러 가기</Text>
+                            <Text style={styles.recRegisterBtnText}>{t('doseSlotSetList.goRegisterMeds')}</Text>
                           </TouchableOpacity>
                         </View>
                       );
@@ -1201,14 +1240,14 @@ export function DoseSlotSetList({
                     // 분기 B: 약 목록/연결 로딩 중(아직 미시드) → 빈 체크 깜빡임 방지용 안내.
                     if (!medSeeded && slotMedsLoading) {
                       return (
-                        <Text style={styles.medLoadingText}>약 목록을 불러오고 있어요…</Text>
+                        <Text style={styles.medLoadingText}>{i18n.t('loading.loadingMedList')}</Text>
                       );
                     }
                     // 분기 C: 약 1개 이상 → 복용약 체크리스트(전부 자동연결 → 기본 전부 체크).
                     return (
                       <>
                         <Text style={styles.medPickSub}>
-                          안 드시는 약은 체크를 해제해 주세요.
+                          {t('doseSlotSetList.uncheckIfNotTaken')}
                         </Text>
                         {medications.map((m) => {
                           const checked = checkedSet.has(m.id);
@@ -1242,7 +1281,7 @@ export function DoseSlotSetList({
                 {/* ══ 박스2: 약효 추적 알림 (연한 초록) ══ */}
                 <View style={[styles.boxBlock, styles.boxTrack]}>
                   <View style={styles.boxHead}>
-                    <Text style={styles.boxTitle}>약효 추적 알림</Text>
+                    <Text style={styles.boxTitle}>{t('doseSlotSetList.effectTrackAlarm')}</Text>
                     <Switch
                       value={slot.trackEnabled}
                       onValueChange={(v) => onToggleTrack(slot, v)}
@@ -1263,22 +1302,24 @@ export function DoseSlotSetList({
                       <View style={styles.recBox}>
                         <Text style={styles.recMain} numberOfLines={2}>
                           {showRec && recSentence
-                            ? `${recSentence.subject}${recSentence.particle} ${recSentence.timing}에 몸 상태를 확인하는 걸 추천해요.`
-                            : '이 시간에 드시는 약에는 따로 권장 확인 시점이 없어요.'}
+                            ? (isEnLocale()
+                                ? t('doseSlotSetList.recSentenceEn', { subject: recSentence.subject, timing: recSentence.timing })
+                                : `${recSentence.subject}${recSentence.particle} ${recSentence.timing}에 몸 상태를 확인하는 걸 추천해요.`)
+                            : t('doseSlotSetList.noRecTiming')}
                         </Text>
                         <Text style={styles.recSource} numberOfLines={1}>
-                          {showRec && rec.source ? `약효 시간 출처: ${rec.source}` : ' '}
+                          {showRec && rec.source ? t('doseSlotSetList.recSourceLabel', { source: rec.source }) : ' '}
                         </Text>
                         <Text style={styles.recDisclaimer} numberOfLines={3}>
                           {showRec
-                            ? '약효 시간은 위 출처 기준이며, 확인 시점은 참고 안내예요. 확정 처방은 아니니 의사와 상의하세요.'
+                            ? t('doseSlotSetList.recDisclaimer')
                             : ' '}
                         </Text>
                       </View>
 
                       <Text style={styles.qHead}>
-                        추적 시간{' '}
-                        <Text style={styles.qHeadSmall}>(복수 선택 가능)</Text>
+                        {t('doseSlotSetList.trackTimeLabel')}{' '}
+                        <Text style={styles.qHeadSmall}>{t('doseSlotSetList.multiSelectHint')}</Text>
                       </Text>
 
                       {(() => {
@@ -1287,7 +1328,7 @@ export function DoseSlotSetList({
                         const extraRows = slot.trackIntervals
                           .filter((m) => !PRESET_MINUTES.has(m))
                           .map((m) => ({ minutes: m, label: minutesToCheckLabel(m) }));
-                        const rows = [...TRACK_OPTIONS, ...extraRows].sort(
+                        const rows = [...getTrackOptions(), ...extraRows].sort(
                           (a, b) => a.minutes - b.minutes,
                         );
                         return (
@@ -1326,14 +1367,14 @@ export function DoseSlotSetList({
                                 <View style={styles.addPlusSlot}>
                                   <Ionicons name="add" size={24} color={Colors.dark} />
                                 </View>
-                                <Text style={styles.addIntervalCellText}>직접 추가</Text>
+                                <Text style={styles.addIntervalCellText}>{t('doseSlotSetList.addDirectly')}</Text>
                               </TouchableOpacity>
                             </View>
                             {/* "복용 직후" 힌트 — ⓘ와 본문 분리(행잉 인덴트): 줄바꿈 시 둘째 줄이 본문에 맞춰 시작 */}
                             <View style={styles.checkHintRow}>
                               <Text style={styles.checkHintIcon}>ⓘ</Text>
                               <Text style={[styles.checkHint, styles.checkHintBody]}>
-                                복용 직후는 약 복용을 기록하면 곧바로 몸상태를 기록하도록 안내해요
+                                {t('doseSlotSetList.rightAfterHint')}
                               </Text>
                             </View>
                           </>
@@ -1344,11 +1385,10 @@ export function DoseSlotSetList({
                       {warn && (
                         <View style={styles.warn}>
                           <Text style={styles.warnTitle}>
-                            🟠 다음 복용 시간과 가까워요
+                            {t('doseSlotSetList.warnTitle')}
                           </Text>
                           <Text style={styles.warnBody}>
-                            이 시간에 추적하면 다음 복용 기록과 섞일 수 있어요.
-                            그대로 두시겠어요?
+                            {t('doseSlotSetList.warnBody')}
                           </Text>
                         </View>
                       )}
@@ -1369,10 +1409,10 @@ export function DoseSlotSetList({
                 {soloSlotId && onSoloClose ? (
                   <View style={{ flexDirection: 'row', gap: 12, marginTop: 14 }}>
                     <TouchableOpacity activeOpacity={0.7} style={styles.sheetCancelBtn} onPress={onSoloClose}>
-                      <Text style={styles.sheetCancelBtnText}>닫기</Text>
+                      <Text style={styles.sheetCancelBtnText}>{t('common.close')}</Text>
                     </TouchableOpacity>
                     <TouchableOpacity activeOpacity={0.85} style={styles.sheetSaveBtn} onPress={onSoloClose}>
-                      <Text style={styles.saveBtnText}>완료</Text>
+                      <Text style={styles.saveBtnText}>{t('doseSlotSetList.done')}</Text>
                     </TouchableOpacity>
                   </View>
                 ) : (
@@ -1381,7 +1421,7 @@ export function DoseSlotSetList({
                     style={styles.doneBtn}
                     onPress={() => toggleExpand(slot.id!)}
                   >
-                    <Text style={styles.doneBtnText}>완료</Text>
+                    <Text style={styles.doneBtnText}>{t('doseSlotSetList.done')}</Text>
                   </TouchableOpacity>
                 )}
               </>
@@ -1398,7 +1438,7 @@ export function DoseSlotSetList({
           onPress={() => openTimeSheet(null)}
         >
           <Ionicons name="add-circle-outline" size={22} color={Colors.dark} />
-          <Text style={styles.addBtnText}>복용 시간대 추가</Text>
+          <Text style={styles.addBtnText}>{t('doseSlotSetList.addTimeSlot')}</Text>
         </TouchableOpacity>
       )}
 
@@ -1521,6 +1561,7 @@ function TimePickerSheet({
   // 스와이프 닫기는 공용 훅(translateY 1개)이 처리. 닫힘 애니가 2개(Modal slide-out + 훅
   // translateY)면 "두 번 닫힘"이 보이므로, Modal animationType="none" 으로 두고 열기/닫기
   // 슬라이드를 이 translateY 하나로만 구동한다(MealTimeModal 패턴). 닫기 4경로 전부 한 번만.
+  const { t } = useTranslation();
   const { translateY, panHandlers } = useSwipeDownDismiss(onClose);
   const sheetPad = useBottomSheetPadding(32);
   const visible = !!state;
@@ -1557,7 +1598,7 @@ function TimePickerSheet({
             <View style={styles.handle} />
             {state && (
               <Text style={styles.sheetTitle}>
-                {state.mode === 'add' ? '복용 시간대 추가' : '알림 시간 수정'}
+                {state.mode === 'add' ? t('doseSlotSetList.addTimeSlot') : t('doseSlotSetList.editAlarmTime')}
               </Text>
             )}
           </View>
@@ -1566,16 +1607,19 @@ function TimePickerSheet({
               {/* 오전/오후 · 시 · 분 — 스크롤 컬럼(탭 선택, 진료 일정 시간선택과 동일) */}
               <View style={pickStyles.colsRow}>
                 <View style={pickStyles.col}>
-                  <Text style={pickStyles.colHeader}>오전/오후</Text>
+                  <Text style={pickStyles.colHeader}>{t('doseSlotSetList.ampmHeader')}</Text>
                   <PickerCol
-                    items={[{ value: '오전', label: '오전' }, { value: '오후', label: '오후' }]}
+                    items={[
+                      { value: '오전', label: t('common.am') },
+                      { value: '오후', label: t('common.pm') },
+                    ]}
                     selected={state.ampm}
                     onSelect={(v) => onChange({ ...state, ampm: v as '오전' | '오후' })}
                   />
                 </View>
                 <View style={pickStyles.colDivider} />
                 <View style={pickStyles.col}>
-                  <Text style={pickStyles.colHeader}>시</Text>
+                  <Text style={pickStyles.colHeader}>{t('doseSlotSetList.hourHeader')}</Text>
                   <PickerCol
                     items={HOURS.map((h) => ({ value: h, label: String(h) }))}
                     selected={state.hour}
@@ -1584,7 +1628,7 @@ function TimePickerSheet({
                 </View>
                 <View style={pickStyles.colDivider} />
                 <View style={pickStyles.col}>
-                  <Text style={pickStyles.colHeader}>분</Text>
+                  <Text style={pickStyles.colHeader}>{t('doseSlotSetList.minuteHeader')}</Text>
                   <PickerCol
                     items={MINUTES.map((m) => ({ value: m, label: String(m).padStart(2, '0') }))}
                     selected={state.minute}
@@ -1596,10 +1640,10 @@ function TimePickerSheet({
               {/* 닫기 · 완료 한 줄(완료 우측) */}
               <View style={styles.sheetBtnRow}>
                 <TouchableOpacity activeOpacity={0.7} style={styles.sheetCancelBtn} onPress={runClose}>
-                  <Text style={styles.sheetCancelBtnText}>닫기</Text>
+                  <Text style={styles.sheetCancelBtnText}>{t('common.close')}</Text>
                 </TouchableOpacity>
                 <TouchableOpacity activeOpacity={0.85} style={styles.sheetSaveBtn} onPress={onSave}>
-                  <Text style={styles.saveBtnText}>완료</Text>
+                  <Text style={styles.saveBtnText}>{t('doseSlotSetList.done')}</Text>
                 </TouchableOpacity>
               </View>
             </View>
@@ -1630,6 +1674,7 @@ function IntervalPickerSheet({
   onClose: () => void;
 }) {
   // 닫힘 애니 1개 원칙(TimePickerSheet 와 동일): Modal none + translateY 하나로 열기/닫기.
+  const { t } = useTranslation();
   const { translateY, panHandlers } = useSwipeDownDismiss(onClose);
   const sheetPad = useBottomSheetPadding(32);
   const visible = !!state;
@@ -1666,14 +1711,14 @@ function IntervalPickerSheet({
           {/* 스와이프-닫기는 상단 손잡이/제목 영역에만 */}
           <View {...panHandlers}>
             <View style={styles.handle} />
-            {state && <Text style={styles.sheetTitle}>추적 시간 추가</Text>}
+            {state && <Text style={styles.sheetTitle}>{t('doseSlotSetList.addTrackTimeTitle')}</Text>}
           </View>
           {state && (
             <View>
               {/* 시간·분 — 스크롤 컬럼(탭 선택) */}
               <View style={pickStyles.colsRow}>
                 <View style={pickStyles.col}>
-                  <Text style={pickStyles.colHeader}>시간</Text>
+                  <Text style={pickStyles.colHeader}>{t('doseSlotSetList.hourHeader')}</Text>
                   <PickerCol
                     items={INTERVAL_HOURS.map((h) => ({ value: h, label: String(h) }))}
                     selected={state.hour}
@@ -1682,7 +1727,7 @@ function IntervalPickerSheet({
                 </View>
                 <View style={pickStyles.colDivider} />
                 <View style={pickStyles.col}>
-                  <Text style={pickStyles.colHeader}>분</Text>
+                  <Text style={pickStyles.colHeader}>{t('doseSlotSetList.minuteHeader')}</Text>
                   <PickerCol
                     items={INTERVAL_MINS.map((m) => ({ value: m, label: String(m).padStart(2, '0') }))}
                     selected={state.minute}
@@ -1693,20 +1738,20 @@ function IntervalPickerSheet({
 
               {/* 미리보기 (선택한 값이 프리셋이면 그 프리셋으로 자동 적용됨) */}
               <Text style={styles.intervalPreview}>
-                {minutesToCheckLabel(totalMinutes)} 추적
+                {t('doseSlotSetList.trackPreview', { label: minutesToCheckLabel(totalMinutes) })}
               </Text>
 
               {/* 닫기 · 추가 한 줄(닫기 왼쪽·추가 오른쪽) */}
               <View style={styles.sheetBtnRow}>
                 <TouchableOpacity activeOpacity={0.7} style={styles.sheetCancelBtn} onPress={runClose}>
-                  <Text style={styles.sheetCancelBtnText}>닫기</Text>
+                  <Text style={styles.sheetCancelBtnText}>{t('common.close')}</Text>
                 </TouchableOpacity>
                 <TouchableOpacity
                   activeOpacity={0.85}
                   style={styles.sheetSaveBtn}
                   onPress={() => onAdd(state.slotId, totalMinutes)}
                 >
-                  <Text style={styles.saveBtnText}>추가</Text>
+                  <Text style={styles.saveBtnText}>{t('doseSlotSetList.addBtn')}</Text>
                 </TouchableOpacity>
               </View>
             </View>

@@ -10,11 +10,14 @@ import {
   ActivityIndicator,
   StyleSheet,
 } from 'react-native';
+import { useTranslation } from 'react-i18next';
+import i18n from '../../i18n';
 import { supabase } from '../../lib/supabase';
 import { useAuth } from '../../context/AuthContext';
 import { Colors } from '../../constants/colors';
-import { getKSTDayRange, triggerLabelToText, mealTimeToPeriod } from '../../utils/medUtils';
+import { getLocalToday, getLocalDayRange, triggerLabelToText, mealTimeToPeriod } from '../../utils/medUtils';
 import { buildSlotTitleMaps } from '../../constants/doseSlots';
+import { translateRawExerciseType } from '../../constants/exerciseTypes';
 
 type TimelineType = 'medication' | 'bodystate' | 'exercise';
 
@@ -31,16 +34,24 @@ interface TimelineEntry {
   tag?: string;  // 몸상태 전용: "(저녁약 +30분)" 형태
 }
 
+// 현재 언어가 영어권인지. 한국어(ko)일 때는 날짜 포맷을 기존과 100% 동일하게 유지한다.
+function isEnLocale(): boolean {
+  return (i18n.language || '').toLowerCase().startsWith('en');
+}
+
 // 수시 기록의 시간대 단어 추론. 오너 확정 6구간(doseSlots.periodWord)과 일치.
 // (이전 4구간은 15시를 '저녁'으로 표기 — 낮인데 저녁/달로 보이던 문제와 같은 경계 오류)
+// 라벨은 i18n(timeline.period*)에서 가져와 ko=기존 단어, en=영어 시간대명.
 function getPeriodKo(isoString: string): string {
   const h = new Date(isoString).getHours();
-  if (h < 6) return '새벽';
-  if (h < 11) return '아침';
-  if (h < 13) return '점심';
-  if (h < 17) return '오후';
-  if (h < 21) return '저녁';
-  return '밤';
+  const key =
+    h < 6 ? 'periodDawn'
+    : h < 11 ? 'periodMorning'
+    : h < 13 ? 'periodNoon'
+    : h < 17 ? 'periodAfternoon'
+    : h < 21 ? 'periodEvening'
+    : 'periodNight';
+  return i18n.t(`timeline.${key}`);
 }
 
 
@@ -60,14 +71,12 @@ function toKSTTime(isoString: string): string {
 function formatDateLabel(dateStr: string): string {
   const [y, m, d] = dateStr.split('-').map(Number);
   const date = new Date(y, m - 1, d);
+  if (isEnLocale()) {
+    // 예: "Thu, Jul 3" (연도 생략, 요일 강조).
+    return date.toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' });
+  }
   const dayNames = ['일', '월', '화', '수', '목', '금', '토'];
   return `${m}.${d}(${dayNames[date.getDay()]})`;
-}
-
-function getKSTTodayStr(): string {
-  const now = new Date();
-  const kst = new Date(now.getTime() + 9 * 60 * 60 * 1000);
-  return kst.toISOString().slice(0, 10);
 }
 
 function buildDateRange(todayStr: string, earliestStr: string, limit: number): string[] {
@@ -89,6 +98,7 @@ const PAGE_SIZE = 14;
 
 export function HistoryTimeline({ type, patientId, refreshKey }: HistoryTimelineProps) {
   const { user } = useAuth();
+  const { t } = useTranslation();
 
   const [expanded, setExpanded] = useState(false);
   const [loading, setLoading] = useState(false);
@@ -97,7 +107,8 @@ export function HistoryTimeline({ type, patientId, refreshKey }: HistoryTimeline
   const [dayDataMap, setDayDataMap] = useState<Record<string, TimelineEntry[]>>({});
   const [displayCount, setDisplayCount] = useState(PAGE_SIZE);
 
-  const todayStr = getKSTTodayStr();
+  const tz = user?.timezone || 'Asia/Seoul';
+  const todayStr = getLocalToday(tz);
 
   const fetchEarliestDate = useCallback(async (): Promise<string | null> => {
     if (!patientId) return null;
@@ -130,8 +141,8 @@ export function HistoryTimeline({ type, patientId, refreshKey }: HistoryTimeline
 
   const fetchAllLogs = useCallback(async (earliest: string) => {
     if (!patientId) return;
-    const { start: rangeStart } = getKSTDayRange(earliest);
-    const { end: rangeEnd } = getKSTDayRange(todayStr);
+    const { start: rangeStart } = getLocalDayRange(earliest, tz);
+    const { end: rangeEnd } = getLocalDayRange(todayStr, tz);
     const newMap: Record<string, TimelineEntry[]> = {};
 
     // dose_slots 슬롯 표시명(slotTitle) 조회맵 — 약복용/몸상태 분기 공용.
@@ -167,7 +178,7 @@ export function HistoryTimeline({ type, patientId, refreshKey }: HistoryTimeline
             '';
           newMap[kstDate].push({
             time: toKSTTime(row.taken_at),
-            content: `${slotName} 약 복용`,
+            content: t('timeline.medEntry', { slot: slotName }),
           });
         });
       } else if (type === 'bodystate') {
@@ -179,11 +190,11 @@ export function HistoryTimeline({ type, patientId, refreshKey }: HistoryTimeline
           const kstDate = new Date(new Date(row.logged_at).getTime() + 9 * 60 * 60 * 1000).toISOString().slice(0, 10);
           if (!newMap[kstDate]) newMap[kstDate] = [];
           const line1: string[] = [];
-          if (row.body_state != null) line1.push(`몸상태 ${row.body_state}점`);
-          if (row.mood != null) line1.push(`기분상태 ${row.mood}점`);
+          if (row.body_state != null) line1.push(t('timeline.bodyCondition', { score: row.body_state }));
+          if (row.mood != null) line1.push(t('timeline.mood', { score: row.mood }));
           const line2: string[] = [];
-          if (row.sleep_quality != null) line2.push(`수면 ${row.sleep_quality}점`);
-          if (row.constipation != null) line2.push(`변비 ${row.constipation ? '있었어요' : '없었어요'}`);
+          if (row.sleep_quality != null) line2.push(t('timeline.sleep', { score: row.sleep_quality }));
+          if (row.constipation != null) line2.push(row.constipation ? t('timeline.constipationYes') : t('timeline.constipationNo'));
           // 슬롯 표시명: byId[dose_slot_id](시간대+시각, 예 "밤 10:30") 우선
           //  → byLegacyKey[medication_meal_time] → legacy period → 시간대 단어 폴백(옛 기록).
           // dose_slot_id 있는 기록은 슬롯의 실제 시각까지 표기, 없는 옛 기록만 시간대 단어로 폴백.
@@ -197,11 +208,15 @@ export function HistoryTimeline({ type, patientId, refreshKey }: HistoryTimeline
           // 시점 표기: "(슬롯명 · 간격)" — 간격은 표준 풀텍스트("복용 직후" / "N분 후" / "N시간 후")
           // triggerLabelToText는 "복용 30분 후" 형태이므로, 괄호 안에서는 선행 "복용 " 제거("복용 직후"는 유지)
           const fullText = row.trigger_time_label ? triggerLabelToText(row.trigger_time_label) : '';
-          const interval = fullText === '복용 직후' ? fullText : fullText.replace(/^복용\s+/, '');
-          const tag = interval ? `(${slotName} · ${interval})` : undefined;
+          // ko: 괄호 안에서는 선행 "복용 " 제거("복용 직후"는 유지).
+          // en: triggerLabelToText 가 접두 없는 표현("30 min later" 등)을 반환하므로 그대로 사용.
+          const interval = isEnLocale()
+            ? fullText
+            : (fullText === '복용 직후' ? fullText : fullText.replace(/^복용\s+/, ''));
+          const tag = interval ? t('timeline.tag', { slot: slotName, interval }) : undefined;
           newMap[kstDate].push({
             time: toKSTTime(row.logged_at),
-            content: line1.join(' | ') || '기록',
+            content: line1.join(' | ') || t('timeline.recorded'),
             content2: line2.length > 0 ? line2.join(' | ') : undefined,
             tag,
           });
@@ -216,7 +231,7 @@ export function HistoryTimeline({ type, patientId, refreshKey }: HistoryTimeline
           if (!newMap[kstDate]) newMap[kstDate] = [];
           newMap[kstDate].push({
             time: toKSTTime(row.logged_at),
-            content: `${row.exercise_type} ${row.duration_minutes}분`,
+            content: t('timeline.exerciseEntry', { type: translateRawExerciseType(row.exercise_type), minutes: row.duration_minutes }),
           });
         });
       }
@@ -225,7 +240,7 @@ export function HistoryTimeline({ type, patientId, refreshKey }: HistoryTimeline
     }
 
     setDayDataMap(newMap);
-  }, [patientId, type, todayStr]);
+  }, [patientId, type, todayStr, tz, t]);
 
   const handleExpand = useCallback(async () => {
     setExpanded(true);
@@ -271,7 +286,7 @@ export function HistoryTimeline({ type, patientId, refreshKey }: HistoryTimeline
     return (
       <View style={styles.toggleWrap}>
         <TouchableOpacity style={styles.toggleButton} onPress={handleExpand} activeOpacity={0.8}>
-          <Text style={styles.toggleButtonText}>과거 기록 보기</Text>
+          <Text style={styles.toggleButtonText}>{t('timeline.toggleShow')}</Text>
           <Text style={styles.toggleArrow}>▼</Text>
         </TouchableOpacity>
       </View>
@@ -281,20 +296,20 @@ export function HistoryTimeline({ type, patientId, refreshKey }: HistoryTimeline
   return (
     <View style={styles.container}>
       <TouchableOpacity style={styles.toggleButton} onPress={() => setExpanded(false)} activeOpacity={0.8}>
-        <Text style={styles.toggleButtonText}>과거 기록 접기</Text>
+        <Text style={styles.toggleButtonText}>{t('timeline.toggleHide')}</Text>
         <Text style={styles.toggleArrow}>▲</Text>
       </TouchableOpacity>
 
       {loading ? (
         <View style={styles.loadingWrap}>
           <ActivityIndicator size="large" color={Colors.primary} />
-          <Text style={styles.loadingText}>기록을 불러오고 있어요…</Text>
+          <Text style={styles.loadingText}>{t('timeline.loading')}</Text>
         </View>
       ) : (
         <>
           {(!earliestDate || dateList.length === 0) ? (
             <View style={styles.emptyWrap}>
-              <Text style={styles.emptyText}>아직 기록이 없어요</Text>
+              <Text style={styles.emptyText}>{t('timeline.empty')}</Text>
             </View>
           ) : (
             <View style={styles.timeline}>
@@ -335,7 +350,7 @@ export function HistoryTimeline({ type, patientId, refreshKey }: HistoryTimeline
                           </View>
                         ))
                       ) : (
-                        <Text style={styles.emptyDay}>기록 없음</Text>
+                        <Text style={styles.emptyDay}>{t('timeline.noRecord')}</Text>
                       )}
                     </View>
                   </View>
@@ -348,7 +363,7 @@ export function HistoryTimeline({ type, patientId, refreshKey }: HistoryTimeline
                   onPress={() => setDisplayCount((c) => c + PAGE_SIZE)}
                   activeOpacity={0.8}
                 >
-                  <Text style={styles.moreButtonText}>더보기 (14일 추가)</Text>
+                  <Text style={styles.moreButtonText}>{t('timeline.more')}</Text>
                 </TouchableOpacity>
               )}
             </View>

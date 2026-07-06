@@ -11,10 +11,12 @@
 import React from 'react';
 import { View, Text, TouchableOpacity, StyleSheet } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
+import { useTranslation } from 'react-i18next';
 import { Colors } from '../../constants/colors';
 import { useSetupGate } from '../../hooks/useSetupGate';
 
 export function SetupGuideBanner() {
+  const { t } = useTranslation();
   const { setupComplete, setupUnknown, goToManage } = useSetupGate();
 
   // 판정 불가(로딩/조회 실패)거나 이미 등록 완료면 표시하지 않는다(멀쩡한 사용자에게 안 보임).
@@ -24,15 +26,12 @@ export function SetupGuideBanner() {
     <View style={styles.card}>
       <View style={styles.headerRow}>
         <Ionicons name="alarm-outline" size={28} color={Colors.accent} />
-        <Text style={styles.title}>복용 시간대를 먼저 등록해 주세요</Text>
+        <Text style={styles.title}>{t('setupGuide.title')}</Text>
       </View>
-      <Text style={styles.body}>
-        약 드시는 시간대(아침·점심·저녁·취침 등)를 등록하면{'\n'}
-        복용과 몸 상태를 기록하고 알림을 받을 수 있어요.
-      </Text>
+      <Text style={styles.body}>{t('setupGuide.body')}</Text>
       <TouchableOpacity style={styles.cta} onPress={goToManage} activeOpacity={0.85}>
         <Ionicons name="medkit" size={24} color={Colors.white} />
-        <Text style={styles.ctaText}>복용 관리로 가기</Text>
+        <Text style={styles.ctaText}>{t('setupGuide.cta')}</Text>
       </TouchableOpacity>
     </View>
   );

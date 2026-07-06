@@ -10,8 +10,9 @@ import { useState, useEffect, useCallback } from 'react';
 import { supabase } from '../lib/supabase';
 import { useAuth } from '../context/AuthContext';
 import { sendCaregiverPush } from '../utils/notifications';
-import { getKSTToday, getKSTDayRange } from '../utils/medUtils';
+import { getLocalToday, getLocalDayRange } from '../utils/medUtils';
 import type { Database } from '../types/database';
+import i18n from '../i18n';
 
 type ExerciseLogRow = Database['public']['Tables']['exercise_logs']['Row'];
 
@@ -62,8 +63,9 @@ export function useExercise(): UseExerciseReturn {
         return;
       }
 
-      const today = getKSTToday();
-      const { start, end } = getKSTDayRange(today);
+      const tz = user?.timezone || 'Asia/Seoul';
+      const today = getLocalToday(tz);
+      const { start, end } = getLocalDayRange(today, tz);
 
       const { data, error: queryError } = await supabase
         .from('exercise_logs')
@@ -77,7 +79,7 @@ export function useExercise(): UseExerciseReturn {
       setTodayLogs(data ?? []);
     } catch (err: any) {
       console.error('[useExercise] fetchTodayLogs 오류:', err);
-      setError(err.message ?? '운동 기록을 불러오지 못했어요.');
+      setError(err.message ?? i18n.t('exerciseHook.fetchError'));
     } finally {
       setLoading(false);
     }
@@ -103,12 +105,12 @@ export function useExercise(): UseExerciseReturn {
     try {
       const patientId = await getPatientId();
       if (!patientId) {
-        setError('연동된 환자 정보를 찾을 수 없어요.');
+        setError(i18n.t('exerciseHook.noPatientError'));
         return false;
       }
 
       if (durationMinutes <= 0 || durationMinutes > 300) {
-        setError('운동 시간을 올바르게 입력해주세요.');
+        setError(i18n.t('exerciseHook.invalidDurationError'));
         return false;
       }
 
@@ -158,9 +160,9 @@ export function useExercise(): UseExerciseReturn {
               .not('push_token', 'is', null);
 
             // 환자 이름 조회
-            let patientName = '환자분';
+            let patientName = i18n.t('exerciseHook.defaultPatientName');
             if (user.role === 'patient') {
-              patientName = user.name || '환자분';
+              patientName = user.name || i18n.t('exerciseHook.defaultPatientName');
             } else {
               // 보호자인 경우 연동된 환자 이름 조회
               const { data: patientRow } = await supabase
@@ -177,8 +179,8 @@ export function useExercise(): UseExerciseReturn {
               if (prefs.exercise !== false) {
                 await sendCaregiverPush(
                   cu.push_token,
-                  '🏃 운동을 완료했어요',
-                  `${patientName}님이 ${exerciseType} ${durationMinutes}분을 완료했어요.`,
+                  i18n.t('exerciseHook.pushTitle'),
+                  i18n.t('exerciseHook.pushBody', { name: patientName, type: exerciseType, duration: durationMinutes }),
                   { type: 'caregiver_exercise' },
                 );
               }
@@ -205,7 +207,7 @@ export function useExercise(): UseExerciseReturn {
       return true;
     } catch (err: any) {
       console.error('[useExercise] saveExercise 오류:', err);
-      setError(err.message ?? '운동 기록 저장에 실패했어요.');
+      setError(err.message ?? i18n.t('exerciseHook.saveError'));
       return false;
     } finally {
       setLoading(false);
@@ -241,7 +243,7 @@ export function useExercise(): UseExerciseReturn {
       const patientId = await getPatientId();
       if (!patientId) return { logs: [], error: null };
 
-      const { start, end } = getKSTDayRange(date);
+      const { start, end } = getLocalDayRange(date, user?.timezone || 'Asia/Seoul');
       const { data, error: queryError } = await supabase
         .from('exercise_logs')
         .select('*')
@@ -254,7 +256,7 @@ export function useExercise(): UseExerciseReturn {
       return { logs: data ?? [], error: null };
     } catch (err: any) {
       console.error('[useExercise] getExerciseLogs 오류:', err);
-      const msg = err.message ?? '운동 기록을 불러오지 못했어요.';
+      const msg = err.message ?? i18n.t('exerciseHook.fetchError');
       return { logs: [], error: msg };
     }
   }, [user, getPatientId]);

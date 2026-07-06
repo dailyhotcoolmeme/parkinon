@@ -11,6 +11,7 @@ import { useState, useEffect, useCallback } from 'react';
 import { supabase } from '../lib/supabase';
 import { useAuth } from '../context/AuthContext';
 import type { Database } from '../types/database';
+import i18n from '../i18n';
 
 type Period = '이번 주' | '이번 달' | '최근 3개월';
 
@@ -227,7 +228,7 @@ export function useRecordsData(period: Period): UseRecordsDataReturn {
         for (const log of logs) {
           const val = log[field];
           if (val == null) continue;
-          const label = log.trigger_time_label ?? '알 수 없음';
+          const label = log.trigger_time_label ?? i18n.t('recordsHook.unknownLabel');
           if (!acc[label]) acc[label] = { sum: 0, count: 0 };
           acc[label].sum += val;
           acc[label].count += 1;
@@ -337,7 +338,7 @@ export function useRecordsData(period: Period): UseRecordsDataReturn {
       });
     } catch (err: any) {
       console.error('[useRecordsData] 조회 오류:', err);
-      setError(err.message ?? '데이터를 불러오지 못했어요.');
+      setError(err.message ?? i18n.t('recordsHook.fetchError'));
     } finally {
       setLoading(false);
     }

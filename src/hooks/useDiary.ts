@@ -4,6 +4,11 @@ import { useAuth } from '../context/AuthContext';
 import { usePatientId } from './usePatientId';
 import { triggerLabelToMinutes } from '../utils/medUtils';
 import { normalizeMediaOrder } from '../utils/diaryMedia';
+import i18n from '../i18n';
+
+function isEnLocale(): boolean {
+  return (i18n.language || '').toLowerCase().startsWith('en');
+}
 
 // ─── 자동 수집 요약 타입 ──────────────────────────────────────────────────────
 
@@ -133,12 +138,16 @@ function utcToKstHHMM(iso: string): string {
 // trigger_time_label → 짧은 사람용 라벨 (칩용). 'after_medication'→'복용직후', '30min_after'→'30분 후', '2hour_after'→'2시간 후'
 // 공용 분 환산(triggerLabelToMinutes) 재사용해 일관성 유지.
 function triggerLabelToChip(label: string | null | undefined): string {
-  if (!label || label === 'after_medication') return '복용직후';
-  const min = triggerLabelToMinutes(label);
-  if (!isFinite(min) || min === 0) return '복용직후';
-  if (min < 60) return `${min}분 후`;
+  const min = (!label || label === 'after_medication') ? 0 : triggerLabelToMinutes(label);
   const h = Math.floor(min / 60);
   const rem = min % 60;
+  if (isEnLocale()) {
+    if (!label || label === 'after_medication' || !isFinite(min) || min === 0) return 'right after taking';
+    if (min < 60) return `${min} min later`;
+    return rem === 0 ? `${h} hr later` : `${h} hr ${rem} min later`;
+  }
+  if (!label || label === 'after_medication' || !isFinite(min) || min === 0) return '복용직후';
+  if (min < 60) return `${min}분 후`;
   return rem === 0 ? `${h}시간 후` : `${h}시간 ${rem}분 후`;
 }
 
@@ -358,7 +367,7 @@ export function useDiary(dateStr: string): UseDiaryReturn {
         id: r.id,
         patient_id: r.patient_id,
         author_id: r.author_id,
-        author_name: authorMap[r.author_id]?.name ?? '사용자',
+        author_name: authorMap[r.author_id]?.name ?? i18n.t('authHook.defaultUserName'),
         author_role: authorMap[r.author_id]?.role ?? null,
         entry_date: r.entry_date,
         text: r.text ?? null,
@@ -388,7 +397,7 @@ export function useDiary(dateStr: string): UseDiaryReturn {
 
   const saveMyEntry = useCallback(
     async (input: SaveMyEntryInput) => {
-      if (!patientId || !user) throw new Error('저장에 필요한 정보가 없어요.');
+      if (!patientId || !user) throw new Error(i18n.t('diaryHook.saveInfoMissingError'));
       const nowIso = new Date().toISOString();
       // 최종 첨부 구성에 맞춰 순서 토큰을 정합화(삭제된 토큰 제거·신규 토큰 append).
       // input.mediaOrder가 null이면 기본 순서(사진→영상→음성)로 만들어진다.
@@ -444,7 +453,7 @@ export function useDiary(dateStr: string): UseDiaryReturn {
 
   // 내가 쓴 그날의 글 삭제 (RLS: author 본인만 삭제 허용)
   const deleteMyEntry = useCallback(async () => {
-    if (!patientId || !user) throw new Error('삭제에 필요한 정보가 없어요.');
+    if (!patientId || !user) throw new Error(i18n.t('diaryHook.deleteInfoMissingError'));
 
     // 글에 첨부된 영상(video_media_id)을 미리 조회 → 글 삭제 후 함께 정리.
     const { data: row } = await supabase

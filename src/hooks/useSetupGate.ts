@@ -18,6 +18,7 @@ import { useCallback } from 'react';
 import { useSetupComplete } from './useDoseSlots';
 import { navigateTo } from '../navigation/navigationRef';
 import type { DialogApi } from '../context/DialogContext';
+import i18n from '../i18n';
 
 export interface UseSetupGateReturn {
   /** 활성 dose_slot 1개 이상이면 true. */
@@ -60,13 +61,10 @@ export function useSetupGate(): UseSetupGateReturn {
 
       // 명확히 미등록(활성 슬롯 0) → 차단 + 통합 등록 유도.
       const ok = await dialog.confirm({
-        title: '복용 시간대를 먼저 등록해 주세요',
-        message:
-          '약 드시는 시간대(아침·점심·저녁·취침 등)를 먼저 등록해야\n' +
-          '복용과 몸 상태를 기록할 수 있어요.\n\n' +
-          '복용 관리 화면에서 시간대를 등록해 주세요.',
-        confirmText: '복용 관리로 가기',
-        cancelText: '나중에',
+        title: i18n.t('setupGate.title'),
+        message: i18n.t('setupGate.message'),
+        confirmText: i18n.t('setupGate.confirmText'),
+        cancelText: i18n.t('setupGate.cancelText'),
       });
       if (ok) goToManage();
       return false; // 어느 경우든 이번 기록은 진행하지 않음.

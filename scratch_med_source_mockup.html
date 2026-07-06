@@ -1,0 +1,77 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=390, initial-scale=1">
+<style>
+  :root{
+    --text:#111111; --textSub:#666666; --textHint:#888888;
+    --primary:#4CAF50; --border:#EEEEEE; --recBg:#F7F8F9;
+  }
+  *{box-sizing:border-box; margin:0; padding:0;}
+  body{
+    width:390px; background:#FFFFFF;
+    font-family:-apple-system,BlinkMacSystemFont,"Apple SD Gothic Neo","Noto Sans KR",sans-serif;
+    -webkit-font-smoothing:antialiased; padding:16px;
+  }
+  .pageTitle{font-size:15px; color:var(--textSub); margin:4px 0 14px;}
+  /* 박스2: 약효 추적 알림 (연한 초록 헤더 영역만 — 안내 블록 중심) */
+  .boxTrack{
+    border:1px solid var(--border); border-radius:14px; padding:16px;
+    margin-bottom:22px;
+  }
+  .boxHead{display:flex; align-items:center; justify-content:space-between; margin-bottom:6px;}
+  .boxTitle{font-size:18px; font-weight:600; color:var(--text);}
+  .sw{width:46px; height:28px; border-radius:14px; background:var(--primary); position:relative;}
+  .sw::after{content:""; position:absolute; top:3px; right:3px; width:22px; height:22px; border-radius:50%; background:#fff;}
+
+  /* recBox — 실제 스타일 반영: 그림자 0, 중립 배경, radius 12, padding 16 */
+  .recBox{
+    background:var(--recBg); border-radius:12px;
+    padding:16px; margin-top:6px;
+  }
+  /* recMain — fontSize 18 / Colors.text / lineHeight 25, 강조 없음 */
+  .recMain{font-size:18px; color:var(--text); line-height:25px;}
+  /* recSource — fontSize 14 / textSub / lineHeight 19 / marginTop 10 */
+  .recSource{font-size:14px; color:var(--textSub); line-height:19px; margin-top:10px;}
+  /* recDisclaimer — fontSize 13 / textHint / lineHeight 18 / marginTop 10 */
+  .recDisclaimer{font-size:13px; color:var(--textHint); line-height:18px; margin-top:10px;}
+
+  .candLabel{font-size:13px; color:var(--primary); font-weight:700; margin:0 0 8px 2px;}
+  .divider{height:1px; background:var(--border); margin:4px 0 22px;}
+</style>
+</head>
+<body>
+  <div class="pageTitle">약효추적 시간 설정 · 안내 카드 출처 줄 후보 비교</div>
+
+  <!-- 후보 A -->
+  <div class="candLabel">후보 A — "추천근거: …"</div>
+  <div class="boxTrack">
+    <div class="boxHead">
+      <div class="boxTitle">약효 추적 알림</div>
+      <div class="sw"></div>
+    </div>
+    <div class="recBox">
+      <div class="recMain">마도파는 30분 후, 1시간 후와 2시간 후에 몸 상태를 확인하는 걸 추천해요.</div>
+      <div class="recSource">추천근거: 미국 FDA·제조사 의약품 정보</div>
+      <div class="recDisclaimer">약효 시간은 위 출처 기준이며, 확인 시점은 참고 안내예요. 확정 처방은 아니니 의사와 상의하세요.</div>
+    </div>
+  </div>
+
+  <div class="divider"></div>
+
+  <!-- 후보 B (코드 기본 채택) -->
+  <div class="candLabel">후보 B — "약효 시간 출처: …"  (현재 코드 기본값)</div>
+  <div class="boxTrack">
+    <div class="boxHead">
+      <div class="boxTitle">약효 추적 알림</div>
+      <div class="sw"></div>
+    </div>
+    <div class="recBox">
+      <div class="recMain">마도파는 30분 후, 1시간 후와 2시간 후에 몸 상태를 확인하는 걸 추천해요.</div>
+      <div class="recSource">약효 시간 출처: 미국 FDA·제조사 의약품 정보</div>
+      <div class="recDisclaimer">약효 시간은 위 출처 기준이며, 확인 시점은 참고 안내예요. 확정 처방은 아니니 의사와 상의하세요.</div>
+    </div>
+  </div>
+</body>
+</html>

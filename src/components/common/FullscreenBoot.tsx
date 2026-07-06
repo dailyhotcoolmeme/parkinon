@@ -15,8 +15,9 @@ import Animated, {
   Easing,
 } from 'react-native-reanimated';
 import { LoadingTokens as T } from './loadingTokens';
+import { getBrandLogo } from '../../utils/brandLogo';
 
-const LOGO = require('../../../assets/parkinon-logo.png');
+const LOGO = getBrandLogo();
 
 export interface FullscreenBootProps {
   message?: string;

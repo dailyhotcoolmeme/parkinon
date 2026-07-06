@@ -25,6 +25,7 @@ import { downloadAsync, cacheDirectory, getContentUriAsync } from 'expo-file-sys
 import { supabase } from './supabase';
 import { resolveMediaUrl } from './r2Get';
 import * as AlarmSoundNative from '../../modules/alarm-sound';
+import i18n from '../i18n';
 
 const CHANNEL_PREFIX = 'parkinon_alarm_';
 
@@ -100,7 +101,7 @@ export async function ensureRecordedChannel(
   if (!existing) {
     await notifee.createChannel({
       id: channelId,
-      name: `약 알림음 (${label})`,
+      name: i18n.t('alarmSound.channelName', { label }),
       sound: contentUri,
       importance: AndroidImportance.HIGH,
       vibration: true,
@@ -133,7 +134,7 @@ async function provisionSounds(soundIds: string[], sounds: SoundRow[]): Promise<
     const ch = await ensureRecordedChannel(
       s.id,
       s.public_url,
-      s.label?.trim() || '내 녹음',
+      s.label?.trim() || i18n.t('alarmSound.defaultRecordingLabel'),
     ).catch(() => null);
     if (ch) keep.push(ch);
   }

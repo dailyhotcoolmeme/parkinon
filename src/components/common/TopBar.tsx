@@ -1,9 +1,31 @@
-import React from 'react';
-import { View, Text, TouchableOpacity, StyleSheet, Image } from 'react-native';
+import React, { useEffect, useRef } from 'react';
+import { View, Text, TouchableOpacity, StyleSheet, Image, Animated, Easing } from 'react-native';
 import { Ionicons, MaterialCommunityIcons } from '@expo/vector-icons';
 import { useNavigation } from '@react-navigation/native';
 import { Colors } from '../../constants/colors';
 import { navigateTo } from '../../navigation/navigationRef';
+import { isOverseasLocale } from '../../i18n/detectLocale';
+import i18n from '../../i18n';
+
+// 국내/해외 공통: 초록 배지 안 흰 심볼 회전. 텍스트만 로케일별(파킨온/ParkinON).
+const SYMBOL_LOGO = require('../../../assets/parkinon-symbol-en.png');
+
+function useBrandSpin(enabled: boolean) {
+  const spin = useRef(new Animated.Value(0)).current;
+  useEffect(() => {
+    if (!enabled) return;
+    const loop = Animated.loop(
+      Animated.sequence([
+        Animated.timing(spin, { toValue: 1, duration: 6000, easing: Easing.inOut(Easing.ease), useNativeDriver: true }),
+        Animated.delay(3500),
+        Animated.timing(spin, { toValue: 0, duration: 0, useNativeDriver: true }),
+      ]),
+    );
+    loop.start();
+    return () => loop.stop();
+  }, [enabled]);
+  return spin.interpolate({ inputRange: [0, 1], outputRange: ['0deg', '360deg'] });
+}
 
 interface Props {
   title?: string;
@@ -17,14 +39,21 @@ interface Props {
   onBellPress?: () => void;
   showDiary?: boolean;
   onDiaryPress?: () => void;
+  showKakao?: boolean;
+  onKakaoPress?: () => void;
 }
 
-export function TopBar({ title, showBack, showClose, showParkinon, rightIcon, rightComponent, showBell, bellBadge, onBellPress, showDiary, onDiaryPress }: Props) {
+export function TopBar({ title, showBack, showClose, showParkinon, rightIcon, rightComponent, showBell, bellBadge, onBellPress, showDiary, onDiaryPress, showKakao, onKakaoPress }: Props) {
   const navigation = useNavigation();
+  const spinDeg = useBrandSpin(!!showParkinon);
+  // 카카오는 국내 전용 채널 — 호출부가 실수로 showKakao를 넘겨도 해외 로케일에선 항상 숨김.
+  const kakaoVisible = !!showKakao && !isOverseasLocale();
 
   const badgeLabel = bellBadge && bellBadge > 0
     ? bellBadge > 99 ? '99+' : String(bellBadge)
     : null;
+
+  const rightIconCount = (kakaoVisible ? 1 : 0) + (showDiary ? 1 : 0) + (showBell ? 1 : 0);
 
   return (
     <View style={styles.container}>
@@ -36,11 +65,14 @@ export function TopBar({ title, showBack, showClose, showParkinon, rightIcon, ri
               hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
               style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}
             >
-              <Image
-                source={require('../../../assets/parkinon-logo.png')}
-                style={{ width: 28, height: 28, borderRadius: 6 }}
-              />
-              <Text style={styles.parkinonText}>파킨온</Text>
+              <View style={styles.symbolBadge}>
+                <Animated.Image
+                  source={SYMBOL_LOGO}
+                  style={{ width: 20, height: 20, transform: [{ rotate: spinDeg }] }}
+                  resizeMode="contain"
+                />
+              </View>
+              <Text style={styles.parkinonText}>{i18n.t('medication.brandTitle')}</Text>
             </TouchableOpacity>
           )}
           {showBack && (
@@ -50,7 +82,7 @@ export function TopBar({ title, showBack, showClose, showParkinon, rightIcon, ri
               hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
             >
               <Ionicons name="arrow-back" size={24} color={Colors.textSub} />
-              <Text style={styles.backText}>뒤로</Text>
+              <Text style={styles.backText}>{i18n.t('common.back')}</Text>
             </TouchableOpacity>
           )}
           {showClose && (
@@ -60,14 +92,29 @@ export function TopBar({ title, showBack, showClose, showParkinon, rightIcon, ri
               hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
             >
               <Ionicons name="close" size={24} color={Colors.textSub} />
-              <Text style={styles.backText}>닫기</Text>
+              <Text style={styles.backText}>{i18n.t('common.close')}</Text>
             </TouchableOpacity>
           )}
         </View>
         {!showParkinon && !!title && <Text style={styles.title}>{title}</Text>}
-        <View style={[styles.right, (showDiary && showBell) && styles.rightWide]}>
+        <View style={[styles.right, rightIconCount >= 2 && styles.rightWide, rightIconCount >= 3 && styles.rightWider]}>
           {rightComponent ?? rightIcon ?? (
             <View style={styles.rightIcons}>
+              {kakaoVisible && (
+                <TouchableOpacity
+                  onPress={onKakaoPress}
+                  hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+                  style={styles.kakaoWrap}
+                  accessibilityRole="button"
+                  accessibilityLabel={i18n.t('common.a11yContact')}
+                >
+                  <Image
+                    source={require('../../../assets/kakao_logo.png')}
+                    style={{ width: 26, height: 26, borderRadius: 13 }}
+                    resizeMode="cover"
+                  />
+                </TouchableOpacity>
+              )}
               {showDiary && (
                 <TouchableOpacity
                   onPress={onDiaryPress}
@@ -111,17 +158,31 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     paddingHorizontal: 16,
   },
+  symbolBadge: {
+    width: 28,
+    height: 28,
+    borderRadius: 6,
+    backgroundColor: '#4CAF50',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
   left: { width: 76, alignItems: 'flex-start' },
   leftExpanded: { width: 'auto', flex: 1 },
   right: { width: 76, alignItems: 'flex-end' },
   rightWide: { width: 96 },
+  rightWider: { width: 132 },
   rightIcons: { flexDirection: 'row', alignItems: 'center', gap: 18 },
+  kakaoWrap: { position: 'relative' },
   diaryWrap: { position: 'relative' },
   title: { flex: 1, fontSize: 20, fontWeight: '700', color: Colors.text, textAlign: 'center' },
   parkinonText: {
     fontSize: 20,
     fontWeight: '900',
     color: '#4CAF50',
+    // fontWeight 는 이미 최대치('900')라 더 굵게 하려면 faux-bold(동일색 그림자로 획 두께 보강)
+    textShadowColor: '#4CAF50',
+    textShadowOffset: { width: 0, height: 0 },
+    textShadowRadius: 0.8,
   },
   backBtn: {
     flexDirection: 'row',

@@ -20,6 +20,12 @@ import { useAuth } from '../../context/AuthContext';
 import { supabase } from '../../lib/supabase';
 import { MenuStackParamList } from '../../navigation/MenuNavigator';
 import { useDialog } from '../../context/DialogContext';
+import { useTranslation } from 'react-i18next';
+import i18n from '../../i18n';
+
+function isEnLocale(): boolean {
+  return (i18n.language || '').toLowerCase().startsWith('en');
+}
 
 type NavProp = StackNavigationProp<MenuStackParamList>;
 type RouteType = RouteProp<{ MedicalRecordDetail: { recordId: string } }, 'MedicalRecordDetail'>;
@@ -46,20 +52,24 @@ interface RecordDetail {
 
 function formatDate(iso: string): string {
   const d = new Date(iso);
+  if (isEnLocale()) return `${d.getFullYear()}-${d.getMonth() + 1}-${d.getDate()}`;
   return `${d.getFullYear()}년 ${d.getMonth() + 1}월 ${d.getDate()}일`;
 }
 
-const CHANGE_TYPE_CONFIG: Record<
+function getChangeTypeConfig(): Record<
   MedMed['change_type'],
   { label: string; color: string; bgColor: string; icon: string }
-> = {
-  added: { label: '추가된 약', color: '#1565C0', bgColor: '#E3F2FD', icon: '🟢' },
-  changed: { label: '변경된 약', color: '#B71C1C', bgColor: '#FFEBEE', icon: '🔴' },
-  unchanged: { label: '유지된 약', color: Colors.textSub, bgColor: '#F5F5F5', icon: '⚪' },
-  removed: { label: '삭제된 약', color: '#616161', bgColor: '#EEEEEE', icon: '🗑️' },
-};
+> {
+  return {
+    added: { label: i18n.t('medRecordDetail.medAdded'), color: '#1565C0', bgColor: '#E3F2FD', icon: '🟢' },
+    changed: { label: i18n.t('medRecordDetail.medChanged'), color: '#B71C1C', bgColor: '#FFEBEE', icon: '🔴' },
+    unchanged: { label: i18n.t('medRecordDetail.medUnchanged'), color: Colors.textSub, bgColor: '#F5F5F5', icon: '⚪' },
+    removed: { label: i18n.t('medRecordDetail.medRemoved'), color: '#616161', bgColor: '#EEEEEE', icon: '🗑️' },
+  };
+}
 
 export function MedicalRecordDetailScreen() {
+  const { t } = useTranslation();
   const navigation = useNavigation<NavProp>();
   const route = useRoute<RouteType>();
   const recordId = (route.params as any)?.recordId as string;
@@ -92,12 +102,12 @@ export function MedicalRecordDetailScreen() {
           },
         }
       );
-      if (!res.ok) throw new Error('진료 기록을 불러오지 못했어요.');
+      if (!res.ok) throw new Error(t('medRecordDetail.fetchFailMsg'));
       const data: RecordDetail[] = await res.json();
-      if (data.length === 0) throw new Error('진료 기록을 찾을 수 없어요.');
+      if (data.length === 0) throw new Error(t('medRecordDetail.notFoundMsg'));
       setRecord(data[0]);
     } catch (e: any) {
-      setError(e.message ?? '오류가 발생했어요.');
+      setError(e.message ?? t('medRecordDetail.genericErrorMsg'));
     } finally {
       setLoading(false);
     }
@@ -111,10 +121,10 @@ export function MedicalRecordDetailScreen() {
 
   const handleDelete = async () => {
     const ok = await dialog.confirm({
-      title: '진료 기록 삭제',
-      message: '이 진료 기록을 삭제할까요?\n삭제한 기록은 복구할 수 없어요.',
-      confirmText: '삭제',
-      cancelText: '취소',
+      title: t('medRecordDetail.deleteTitle'),
+      message: t('medRecordDetail.deleteMsg'),
+      confirmText: t('medRecordDetail.delete'),
+      cancelText: t('medRecordDetail.cancel'),
       destructive: true,
     });
     if (!ok) return;
@@ -134,24 +144,25 @@ export function MedicalRecordDetailScreen() {
         `${SUPABASE_URL}/rest/v1/medical_records?id=eq.${recordId}`,
         { method: 'DELETE', headers }
       );
-      if (!res.ok) throw new Error('삭제에 실패했어요.');
+      if (!res.ok) throw new Error(t('medRecordDetail.deleteFailMsg'));
       await dialog.alert({
-        title: '삭제 완료',
-        message: '진료 기록이 삭제되었어요.',
+        title: t('medRecordDetail.deleteDoneTitle'),
+        message: t('medRecordDetail.deleteDoneMsg'),
       });
       navigation.goBack();
     } catch (e: any) {
-      dialog.alert({ title: '오류', message: e.message ?? '삭제에 실패했어요.' });
+      dialog.alert({ title: t('medRecordDetail.errorTitle'), message: e.message ?? t('medRecordDetail.deleteFailMsg') });
     }
   };
 
   const meds = record?.medical_record_medications ?? [];
+  const CHANGE_TYPE_CONFIG = getChangeTypeConfig();
   const changeOrder: MedMed['change_type'][] = ['added', 'changed', 'unchanged', 'removed'];
 
   return (
     <SafeAreaView style={styles.container} edges={['top', 'bottom']}>
       <TopBar
-        title="진료 기록 상세"
+        title={t('medRecordDetail.headerTitle')}
         showBack
         showBell
         bellBadge={unreadCount}
@@ -166,7 +177,7 @@ export function MedicalRecordDetailScreen() {
         <View style={styles.center}>
           <Text style={styles.errorText}>{error}</Text>
           <TouchableOpacity style={styles.retryBtn} onPress={fetchRecord}>
-            <Text style={styles.retryBtnText}>다시 시도</Text>
+            <Text style={styles.retryBtnText}>{t('medRecordDetail.retry')}</Text>
           </TouchableOpacity>
         </View>
       ) : record ? (
@@ -181,7 +192,7 @@ export function MedicalRecordDetailScreen() {
                 <Text style={styles.dateText}>{formatDate(record.visit_date)}</Text>
                 <Text style={styles.hospitalText}>{record.hospital_name}</Text>
                 {record.doctor_name ? (
-                  <Text style={styles.doctorText}>{record.doctor_name} 선생님</Text>
+                  <Text style={styles.doctorText}>{t('medRecordDetail.doctorSuffix', { name: record.doctor_name })}</Text>
                 ) : null}
               </View>
             </View>
@@ -192,7 +203,7 @@ export function MedicalRecordDetailScreen() {
             <View style={styles.section}>
               <View style={styles.sectionTitleRow}>
                 <Ionicons name="chatbubble-outline" size={22} color={Colors.primary} style={{ marginRight: 6 }} />
-                <Text style={styles.sectionTitle}>상담 결과</Text>
+                <Text style={styles.sectionTitle}>{t('medRecordDetail.consultResultTitle')}</Text>
               </View>
               <View style={styles.consultCard}>
                 <Text style={styles.consultText}>{record.consult_result}</Text>
@@ -205,7 +216,7 @@ export function MedicalRecordDetailScreen() {
             <View style={styles.section}>
               <View style={styles.sectionTitleRow}>
                 <Ionicons name="medical-outline" size={22} color={Colors.primary} style={{ marginRight: 6 }} />
-                <Text style={styles.sectionTitle}>처방약 변화</Text>
+                <Text style={styles.sectionTitle}>{t('medRecordDetail.prescriptionChangeTitle')}</Text>
               </View>
               {changeOrder.map(ct => {
                 const group = meds.filter(m => m.change_type === ct);
@@ -235,7 +246,7 @@ export function MedicalRecordDetailScreen() {
             <View style={styles.section}>
               <View style={styles.sectionTitleRow}>
                 <Ionicons name="document-text-outline" size={22} color={Colors.primary} style={{ marginRight: 6 }} />
-                <Text style={styles.sectionTitle}>처방전 사진</Text>
+                <Text style={styles.sectionTitle}>{t('medRecordDetail.prescriptionPhotoTitle')}</Text>
               </View>
               <TouchableOpacity
                 onPress={() => setImageModalVisible(true)}
@@ -246,7 +257,7 @@ export function MedicalRecordDetailScreen() {
                   style={styles.prescriptionThumb}
                   resizeMode="cover"
                 />
-                <Text style={styles.imageHint}>탭하면 크게 볼 수 있어요</Text>
+                <Text style={styles.imageHint}>{t('medRecordDetail.tapToEnlarge')}</Text>
               </TouchableOpacity>
             </View>
           ) : null}
@@ -258,14 +269,14 @@ export function MedicalRecordDetailScreen() {
               onPress={() => navigation.navigate('MedicalRecordWrite', { recordId: record.id } as any)}
               activeOpacity={0.8}
             >
-              <Text style={styles.editBtnText}>수정</Text>
+              <Text style={styles.editBtnText}>{t('medRecordDetail.edit')}</Text>
             </TouchableOpacity>
             <TouchableOpacity
               style={styles.deleteBtn}
               onPress={handleDelete}
               activeOpacity={0.8}
             >
-              <Text style={styles.deleteBtnText}>삭제</Text>
+              <Text style={styles.deleteBtnText}>{t('medRecordDetail.delete')}</Text>
             </TouchableOpacity>
           </View>
         </ScrollView>
@@ -288,7 +299,7 @@ export function MedicalRecordDetailScreen() {
             style={styles.imageModalFull}
             resizeMode="contain"
           />
-          <Text style={styles.imageModalHint}>탭하면 닫혀요</Text>
+          <Text style={styles.imageModalHint}>{t('medRecordDetail.tapToClose')}</Text>
         </TouchableOpacity>
       </Modal>
     </SafeAreaView>

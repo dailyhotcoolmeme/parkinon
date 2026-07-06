@@ -12,7 +12,8 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import { supabase } from '../lib/supabase';
 import { useAuth } from '../context/AuthContext';
 import { sendCaregiverPush, scheduleEffectTrackingNotifications } from '../utils/notifications';
-import { getKSTToday, getKSTDayRange } from '../utils/medUtils';
+import { getLocalToday, getLocalDayRange } from '../utils/medUtils';
+import i18n from '../i18n';
 import { useSettings } from '../context/SettingsContext';
 import {
   useDoseSlots,
@@ -178,8 +179,9 @@ export function useMedication(): UseMedicationReturn {
         return;
       }
 
-      const today = getKSTToday();
-      const { start, end } = getKSTDayRange(today);
+      const tz = user?.timezone || 'Asia/Seoul';
+      const today = getLocalToday(tz);
+      const { start, end } = getLocalDayRange(today, tz);
 
       const { data, error: queryError } = await supabase
         .from('med_logs')
@@ -309,7 +311,7 @@ export function useMedication(): UseMedicationReturn {
 
     // 따로 거주하는 보호자는 약 복용 기록 불가 (UI 우회 방어)
     if (user.role === 'caregiver' && user.residence_type === 'separate') {
-      setError('따로 거주하는 보호자는 약 복용을 기록할 수 없어요.');
+      setError(i18n.t('medicationHook.separateResidenceError'));
       return { success: false, medLogId: null, doseSlotId: null, immediateTrack: null, trackEnabled: null, trackIntervals: null };
     }
 
@@ -328,7 +330,7 @@ export function useMedication(): UseMedicationReturn {
     try {
       const patientId = await getPatientId();
       if (!patientId) {
-        const msg = '복용 기록을 저장할 환자 정보를 찾을 수 없어요. 가족 연동 후 다시 시도해 주세요.';
+        const msg = i18n.t('medicationHook.noPatientError');
         console.error('[useMedication] takeMedication: patientId null → insert 중단');
         setError(msg);
         return { success: false, medLogId: null, doseSlotId: null, immediateTrack: null, trackEnabled: null, trackIntervals: null };
@@ -515,9 +517,9 @@ export function useMedication(): UseMedicationReturn {
               .not('push_token', 'is', null);
 
             // 환자 이름 조회
-            let patientName = '환자분';
+            let patientName = i18n.t('medicationHook.defaultPatientName');
             if (user.role === 'patient') {
-              patientName = user.name || '환자분';
+              patientName = user.name || i18n.t('medicationHook.defaultPatientName');
             } else {
               // 보호자인 경우 연동된 환자 이름 조회
               const { data: patientRow } = await supabase
@@ -534,8 +536,8 @@ export function useMedication(): UseMedicationReturn {
               if (prefs.med_taken === false) continue;
               await sendCaregiverPush(
                 cu.push_token,
-                '💊 약을 드셨어요',
-                `${patientName}님이 약을 드셨어요.`,
+                i18n.t('medicationHook.pushTitle'),
+                i18n.t('medicationHook.pushBody', { name: patientName }),
                 { type: 'caregiver_medication' },
               );
             }
@@ -558,8 +560,9 @@ export function useMedication(): UseMedicationReturn {
       //  refreshBadge() 를 호출해 처리한다. 여기선 update 를 await 해 read_at 반영을 보장.
       try {
         const nowIso = new Date().toISOString();
-        const today = getKSTToday();
-        const { start: dayStart, end: dayEnd } = getKSTDayRange(today);
+        const tz = user?.timezone || 'Asia/Seoul';
+        const today = getLocalToday(tz);
+        const { start: dayStart, end: dayEnd } = getLocalDayRange(today, tz);
         let q = supabase
           .from('notification_logs')
           .update({ read_at: nowIso })
@@ -600,7 +603,7 @@ export function useMedication(): UseMedicationReturn {
       return { success: true, medLogId: medLogId ?? null, doseSlotId: doseSlotId ?? null, immediateTrack, trackEnabled, trackIntervals };
     } catch (err: any) {
       console.error('[useMedication] takeMedication 오류:', err);
-      setError(err.message ?? '복용 기록 저장에 실패했어요.');
+      setError(err.message ?? i18n.t('medicationHook.saveError'));
       return { success: false, medLogId: null, doseSlotId: null, immediateTrack: null, trackEnabled: null, trackIntervals: null };
     } finally {
       setLoading(false);
@@ -636,7 +639,7 @@ export function useMedication(): UseMedicationReturn {
       return true;
     } catch (err: any) {
       console.error('[useMedication] cancelMedication 오류:', err);
-      setError(err.message ?? '복용 기록을 취소하지 못했어요.');
+      setError(err.message ?? i18n.t('medicationHook.cancelError'));
       return false;
     }
   }, [user, fetchTodayStatus]);
@@ -649,7 +652,7 @@ export function useMedication(): UseMedicationReturn {
       const patientId = await getPatientId();
       if (!patientId) return [];
 
-      const { start, end } = getKSTDayRange(date);
+      const { start, end } = getLocalDayRange(date, user?.timezone || 'Asia/Seoul');
       const { data, error: queryError } = await supabase
         .from('med_logs')
         .select('*')

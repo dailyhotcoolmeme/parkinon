@@ -26,6 +26,8 @@ import { supabase } from '../../lib/supabase';
 import { useDialog } from '../../context/DialogContext';
 import { ensureNotGuest } from '../../utils/guestGuard';
 import { useBottomSheetPadding } from '../../hooks/useBottomSheetPadding';
+import { useTranslation } from 'react-i18next';
+import { isOverseasLocale } from '../../i18n/detectLocale';
 
 const RELATION_MAP: Record<string, string> = {
   spouse: '배우자',
@@ -36,12 +38,22 @@ const RELATION_MAP: Record<string, string> = {
 };
 
 export function FamilyLinkScreen() {
+  const { t } = useTranslation();
+  // 해외 로케일: 카카오 노란 버튼 대신 중립 스타일(FamilyInviteScreen과 동일 패턴)
+  const overseas = isOverseasLocale();
+  const RELATION_LABEL: Record<string, string> = {
+    spouse: t('familyLink.roleSpouse'),
+    child: t('familyLink.roleChild'),
+    sibling: t('familyLink.roleSibling'),
+    other: t('familyLink.roleOther'),
+    parent: t('familyLink.roleParent'),
+  };
   const navigation = useNavigation<any>();
   const insets = useSafeAreaInsets();
   // 바텀시트 하단 패딩 — 안드 3버튼/홈 인디케이터 잘림 방지 (글로벌 규칙, 하드코딩 금지)
   const sheetPaddingBottom = useBottomSheetPadding(36);
   const { user, signOut } = useAuth();
-  const { generateInviteCode, joinByCode, joinByCodeForce, getGroupMembers, leaveGroup, loading, error: familyLinkError } = useFamilyLink();
+  const { generateInviteCode, joinByCode, joinByCodeForce, getGroupMembers, removeFamilyMember, loading, error: familyLinkError } = useFamilyLink();
   const { unreadCount } = useNotificationBadge();
   const dialog = useDialog();
 
@@ -177,20 +189,22 @@ export function FamilyLinkScreen() {
 
   const handleDisconnect = async (member: import('../../hooks/useFamilyLink').GroupMember) => {
     const confirmed = await dialog.confirm({
-      title: '연결 해제',
-      message: `${member.user?.name ?? '가족'}님과의 연결을 해제하시겠어요?`,
-      confirmText: '해제',
-      cancelText: '취소',
+      title: t('familyLink.disconnectTitle'),
+      message: t('familyLink.disconnectMsg', { name: member.user?.name ?? t('familyLink.defaultFamilyName') }),
+      confirmText: t('familyLink.disconnect'),
+      cancelText: t('familyLink.cancel'),
       destructive: true,
     });
     if (!confirmed) return;
-    const ok = await leaveGroup();
+    // 선택한 상대 1명(1개 링크)만 해제 — 다른 가족 연동은 그대로 유지된다.
+    const ok = await removeFamilyMember(member.user_id);
     if (ok) {
-      setMembers([]);
-      setInviteCode('');
+      // 방어적으로 목록에서 해당 멤버만 제거한 뒤 서버 기준으로 재조회
+      setMembers((prev) => prev.filter((m) => m.user_id !== member.user_id));
+      isLoadingRef.current = false;
       loadData();
     } else {
-      dialog.alert({ title: '오류', message: '연결 해제 중 문제가 생겼어요.' });
+      dialog.alert({ title: t('familyLink.errorTitle'), message: t('familyLink.disconnectFailMsg') });
     }
   };
 
@@ -202,14 +216,14 @@ export function FamilyLinkScreen() {
       const generated = await generateInviteCode();
       setLoadingCode(false);
       if (!generated) {
-        dialog.alert({ title: '오류', message: '초대 코드 생성에 실패했어요. 잠시 후 다시 시도해주세요.' });
+        dialog.alert({ title: t('familyLink.errorTitle'), message: t('familyLink.inviteCodeGenFailMsg') });
         return;
       }
       code = generated;
       setInviteCode(code);
     }
     try {
-      const message = `💊 파킨온 - 파킨슨 케어 앱\n\n가족 연동 요청이 왔어요!\n\n🔑 연결 번호: ${code}\n앱 설치 후 연결 번호를 입력하면 가족으로 등록돼요.\n\n파킨온은 파킨슨 환자와 가족이 함께 사용하는 건강 관리 앱이에요.\n✅ 약 복용 알림 & 기록\n✅ 약효 추적 (복용 후 상태 체크)\n✅ 몸 상태·운동 기록\n✅ 가족과 실시간 공유\n\n📱 구글 플레이에서 설치하기\nhttps://play.google.com/store/apps/details?id=com.ourmine.parkinon`;
+      const message = t('familyLink.shareMessage', { code });
       await Share.share({ message });
     } catch (shareErr) {
       console.warn('[FamilyLinkScreen] 공유 오류:', shareErr);
@@ -228,10 +242,10 @@ export function FamilyLinkScreen() {
     if (result.needsConfirm) {
       // 기존 그룹에 다른 멤버가 있는 경우 → 확인 다이얼로그
       const confirmed = await dialog.confirm({
-        title: '가족 연동 변경',
+        title: t('familyLink.familyChangeTitle'),
         message: result.message,
-        confirmText: '확인',
-        cancelText: '취소',
+        confirmText: t('familyLink.confirm'),
+        cancelText: t('familyLink.cancel'),
         destructive: true,
       });
       if (!confirmed) return;
@@ -241,24 +255,24 @@ export function FamilyLinkScreen() {
       if (forceResult.success) {
         closeSheet();
         await dialog.alert({
-          title: '연결 완료',
+          title: t('familyLink.connectDoneTitle'),
           message: forceResult.message,
         });
         isLoadingRef.current = false;
         loadData();
       } else {
-        dialog.alert({ title: '연결 실패', message: forceResult.message });
+        dialog.alert({ title: t('familyLink.connectFailTitle'), message: forceResult.message });
       }
       return;
     }
 
     if (result.success) {
       closeSheet();
-      await dialog.alert({ title: '연결 완료', message: result.message });
+      await dialog.alert({ title: t('familyLink.connectDoneTitle'), message: result.message });
       isLoadingRef.current = false;
       loadData();
     } else {
-      dialog.alert({ title: '연결 실패', message: result.message });
+      dialog.alert({ title: t('familyLink.connectFailTitle'), message: result.message });
     }
   };
 
@@ -267,7 +281,7 @@ export function FamilyLinkScreen() {
   return (
     <SafeAreaView style={styles.safeArea} edges={['top']}>
       <TopBar
-        title="가족 연동"
+        title={t('familyLink.headerTitle')}
         showBack
         showBell
         bellBadge={unreadCount}
@@ -286,20 +300,26 @@ export function FamilyLinkScreen() {
             <View style={styles.emptyIconWrap}>
               <Ionicons name="people-outline" size={72} color={Colors.textHint} />
             </View>
-            <Text style={styles.emptyTitle}>아직 연동된 가족이 없어요</Text>
+            <Text style={styles.emptyTitle}>{t('familyLink.noFamilyTitle')}</Text>
             <Text style={styles.emptyDesc}>
-              {'카카오톡으로 초대하거나\n받은 번호를 입력해보세요'}
+              {t('familyLink.noFamilyDesc')}
             </Text>
 
             <TouchableOpacity
-              style={styles.primaryBtn}
+              style={overseas ? styles.primaryBtnNeutral : styles.primaryBtn}
               onPress={handleShareKakao}
               activeOpacity={0.85}
               disabled={loadingCode}
             >
               <View style={styles.btnInner}>
-                <Ionicons name="chatbubble" size={24} color="#3C1E1E" />
-                <Text style={styles.primaryBtnText}>카카오톡으로 초대하기</Text>
+                <Ionicons
+                  name={overseas ? 'share-social-outline' : 'chatbubble'}
+                  size={24}
+                  color={overseas ? Colors.white : '#3C1E1E'}
+                />
+                <Text style={overseas ? styles.primaryBtnNeutralText : styles.primaryBtnText}>
+                  {t('familyLink.inviteBtn')}
+                </Text>
               </View>
             </TouchableOpacity>
 
@@ -310,7 +330,7 @@ export function FamilyLinkScreen() {
             >
               <View style={styles.btnInner}>
                 <Ionicons name="keypad-outline" size={24} color={Colors.primary} />
-                <Text style={styles.outlineBtnText}>받은 번호 입력하기</Text>
+                <Text style={styles.outlineBtnText}>{t('familyLink.enterCodeBtn')}</Text>
               </View>
             </TouchableOpacity>
           </View>
@@ -319,17 +339,17 @@ export function FamilyLinkScreen() {
         {/* ── 상태 2: 연동된 가족 있음 ── */}
         {hasFamilyMembers && (
           <View>
-            <Text style={styles.sectionLabel}>연동된 가족</Text>
+            <Text style={styles.sectionLabel}>{t('familyLink.linkedFamilySection')}</Text>
 
             {members.map((member) => {
-              const name = member.user?.name ?? '이름 없음';
+              const name = member.user?.name ?? t('familyLink.nameless');
               const rawRelation = member.user?.caregiver_relation ?? '';
               // patient_group_members.role 또는 users.role 중 하나가 'patient'이면 환자로 표시
               const memberUserRole = member.user?.role;
               const isPatient = member.role === 'patient' || memberUserRole === 'patient';
               const role = isPatient
-                ? '환자'
-                : (RELATION_MAP[rawRelation] ?? (rawRelation || '보호자'));
+                ? t('familyLink.rolePatient')
+                : (RELATION_LABEL[rawRelation] ?? (rawRelation || t('familyLink.roleCaregiverFallback')));
 
               // residence_type은 보호자가 설정하는 값이다.
               // - 내가 보호자인 경우: 내 residence_type(user.residence_type)을 사용
@@ -340,10 +360,10 @@ export function FamilyLinkScreen() {
                 ? (user?.residence_type ?? member.user?.residence_type)
                 : (member.user?.residence_type ?? user?.residence_type);
               const residence = residenceType === 'together'
-                ? '함께 거주'
+                ? t('familyLink.residenceTogether')
                 : residenceType === 'separate'
-                  ? '따로 거주'
-                  : '거주 정보 없음';
+                  ? t('familyLink.residenceSeparate')
+                  : t('familyLink.residenceUnknown');
               return (
                 <View key={member.user_id} style={styles.familyCard}>
                   <View style={styles.memberInfo}>
@@ -357,7 +377,7 @@ export function FamilyLinkScreen() {
                     onPress={() => handleDisconnect(member)}
                     activeOpacity={0.7}
                   >
-                    <Text style={styles.disconnectBtnText}>연결 해제</Text>
+                    <Text style={styles.disconnectBtnText}>{t('familyLink.disconnectBtn')}</Text>
                   </TouchableOpacity>
                 </View>
               );
@@ -372,7 +392,7 @@ export function FamilyLinkScreen() {
               >
                 <View style={styles.btnInner}>
                   <Ionicons name="add-circle-outline" size={24} color={Colors.white} />
-                  <Text style={styles.addFamilyBtnText}>가족 초대하기</Text>
+                  <Text style={styles.addFamilyBtnText}>{t('familyLink.addFamilyBtn')}</Text>
                 </View>
               </TouchableOpacity>
 
@@ -383,7 +403,7 @@ export function FamilyLinkScreen() {
               >
                 <View style={styles.btnInner}>
                   <Ionicons name="keypad-outline" size={24} color={Colors.primary} />
-                  <Text style={styles.codeInputBtnText}>받은 번호 입력하기</Text>
+                  <Text style={styles.codeInputBtnText}>{t('familyLink.enterCodeBtn')}</Text>
                 </View>
               </TouchableOpacity>
             </View>
@@ -392,29 +412,29 @@ export function FamilyLinkScreen() {
 
         {/* 가족 연동 흐름 안내 */}
         <View style={styles.famGuideBox}>
-          <Text style={styles.famGuideTitle}>💡 가족 연동은 이렇게 진행돼요</Text>
+          <Text style={styles.famGuideTitle}>{t('familyLink.guideTitle')}</Text>
 
           <View style={styles.famGuideSection}>
-            <Text style={styles.famGuideHead}>전체 흐름</Text>
+            <Text style={styles.famGuideHead}>{t('familyLink.guideFlowHead')}</Text>
             <Text style={styles.famGuideFlow}>
-              초대자가 ‘가족 초대하기’ → 카카오톡으로 가족에게 초대번호 전송 → 가족이 앱 설치 → ‘받은 번호 입력하기’에 번호 입력
+              {t('familyLink.guideFlowText')}
             </Text>
           </View>
 
           <View style={styles.famGuideSection}>
-            <Text style={styles.famGuideHead}>📨 가족을 초대할 때</Text>
+            <Text style={styles.famGuideHead}>{t('familyLink.guideInviteHead')}</Text>
             <Text style={styles.famGuideFlow}>
-              ‘가족 초대하기’ → 카카오톡으로 전송 (초대번호 자동 전송)
+              {t('familyLink.guideInviteText')}
             </Text>
           </View>
 
           <View style={styles.famGuideSection}>
-            <Text style={styles.famGuideHead}>🔑 초대를 받았을 때</Text>
+            <Text style={styles.famGuideHead}>{t('familyLink.guideReceiveHead')}</Text>
             <Text style={styles.famGuideFlow}>
-              앱 설치 → 가입/로그인 → 최초 로그인 시 가족 연동 안내가 떠요 → 초대번호 입력
+              {t('familyLink.guideReceiveText')}
             </Text>
             <Text style={styles.famGuideNote}>
-              ※ 수동으로 입력하려면 가입/로그인 → 기록·관리 → 가족 연동 → ‘받은 번호 입력하기’ → 초대번호 입력
+              {t('familyLink.guideReceiveNote')}
             </Text>
           </View>
         </View>
@@ -450,9 +470,9 @@ export function FamilyLinkScreen() {
             <View style={styles.handleBar} />
           </View>
 
-          <Text style={styles.sheetTitle}>받은 번호 입력</Text>
+          <Text style={styles.sheetTitle}>{t('familyLink.enterCodeSheetTitle')}</Text>
           <Text style={styles.sheetDesc}>
-            가족에게 받은 연결 번호를 입력해주세요
+            {t('familyLink.enterCodeSheetDesc')}
           </Text>
 
           <TextInput
@@ -461,7 +481,7 @@ export function FamilyLinkScreen() {
             onChangeText={text =>
               setInputCode(text.replace(/[^0-9]/g, '').slice(0, 6))
             }
-            placeholder="초대 번호 (숫자)"
+            placeholder={t('familyLink.codePlaceholder')}
             placeholderTextColor={Colors.textHint}
             maxLength={6}
             keyboardType="number-pad"
@@ -477,23 +497,23 @@ export function FamilyLinkScreen() {
             activeOpacity={0.85}
             disabled={inputCode.length < 6 || connecting}
           >
-            <Text style={styles.sheetConnectBtnText}>연결하기</Text>
+            <Text style={styles.sheetConnectBtnText}>{t('familyLink.connectBtn')}</Text>
           </TouchableOpacity>
 
           <View style={styles.sheetInfoRow}>
             <Ionicons name="information-circle-outline" size={18} color={Colors.textHint} />
-            <Text style={styles.sheetInfoText}>가족도 파킨온 앱을 설치해야 해요</Text>
+            <Text style={styles.sheetInfoText}>{t('familyLink.installNote')}</Text>
           </View>
         </Animated.View>
       </Modal>
       <BrandProgressOverlay
         visible={loadingCode}
-        title="초대 번호를 만들고 있어요"
+        title={t('familyLink.generatingCodeTitle')}
         minVisibleMs={500}
       />
       <BrandProgressOverlay
         visible={connecting}
-        title="가족을 연결하고 있어요"
+        title={t('familyLink.connectingTitle')}
         minVisibleMs={500}
       />
     </SafeAreaView>
@@ -577,6 +597,26 @@ const styles = StyleSheet.create({
     fontSize: 18,
     fontWeight: '700',
     color: '#3C1E1E',
+  },
+  // 해외용 중립 버튼 (카카오 노란 스타일 대체)
+  primaryBtnNeutral: {
+    width: '100%',
+    minHeight: 60,
+    backgroundColor: Colors.primary,
+    borderRadius: 14,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginBottom: 16,
+    elevation: 2,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.1,
+    shadowRadius: 3,
+  },
+  primaryBtnNeutralText: {
+    fontSize: 18,
+    fontWeight: '700',
+    color: Colors.white,
   },
   outlineBtn: {
     width: '100%',

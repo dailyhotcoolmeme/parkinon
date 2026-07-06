@@ -9,6 +9,8 @@ import {
   AppState,
   Linking,
   Platform,
+  Animated,
+  Easing,
 } from 'react-native';
 import * as AppleAuthentication from 'expo-apple-authentication';
 import * as Crypto from 'expo-crypto';
@@ -16,6 +18,8 @@ import * as Crypto from 'expo-crypto';
 // 애플 개발자 계정 승인 후 OTA로 true로 변경
 const APPLE_LOGIN_ENABLED = true;
 import { SafeAreaView } from 'react-native-safe-area-context';
+import { useTranslation } from 'react-i18next';
+import { isOverseasLocale } from '../../i18n/detectLocale';
 import { useBottomSheetPadding } from '../../hooks/useBottomSheetPadding';
 import { useNavigation } from '@react-navigation/native';
 import type { StackNavigationProp } from '@react-navigation/stack';
@@ -26,14 +30,35 @@ import { Colors } from '../../constants/colors';
 import { useAuth } from '../../context/AuthContext';
 import { useDialog } from '../../context/DialogContext';
 import { supabase } from '../../lib/supabase';
-
-const TERMS_URL = 'https://parkinon.com/terms';
-const PRIVACY_URL = 'https://parkinon.com/privacy';
+const SYMBOL_LOGO = require('../../../assets/parkinon-symbol-en.png');
+function getTermsUrl(): string {
+  return isOverseasLocale() ? 'https://parkinon.com/terms/en' : 'https://parkinon.com/terms';
+}
+function getPrivacyUrl(): string {
+  return isOverseasLocale() ? 'https://parkinon.com/privacy/en' : 'https://parkinon.com/privacy';
+}
 
 type Nav = StackNavigationProp<OnboardingStackParamList, 'Login'>;
 
 export function LoginScreen() {
   const navigation = useNavigation<Nav>();
+  const { t } = useTranslation();
+  // 해외 로케일이면 카카오 로그인 숨김(국내는 그대로 노출).
+  const hideKakao = isOverseasLocale();
+  const spin = useRef(new Animated.Value(0)).current;
+  useEffect(() => {
+    // 한바퀴 ease로 돌고 → 잠깐 멈춤 → 리셋 → 반복 (국내/해외 공통)
+    const loop = Animated.loop(
+      Animated.sequence([
+        Animated.timing(spin, { toValue: 1, duration: 6000, easing: Easing.inOut(Easing.ease), useNativeDriver: true }),
+        Animated.delay(3500),
+        Animated.timing(spin, { toValue: 0, duration: 0, useNativeDriver: true }),
+      ]),
+    );
+    loop.start();
+    return () => loop.stop();
+  }, []);
+  const spinDeg = spin.interpolate({ inputRange: [0, 1], outputRange: ['0deg', '360deg'] });
   const { user, loading, signInWithKakao, signInWithGoogle, devSignIn } = useAuth();
   const dialog = useDialog();
   const [signing, setSigning] = useState(false);
@@ -191,7 +216,7 @@ export function LoginScreen() {
       if (error) throw error;
     } catch (e: any) {
       if (e.code !== 'ERR_REQUEST_CANCELED') {
-        dialog.alert({ title: '로그인 오류', message: '애플 로그인에 실패했습니다\n\n[디버그] ' + (e?.code || e?.message || JSON.stringify(e)).substring(0, 200) });
+        dialog.alert({ title: t('login.errorTitle'), message: t('login.appleError') + (e?.code || e?.message || JSON.stringify(e)).substring(0, 200) });
       }
       setSigning(false);
     }
@@ -200,28 +225,34 @@ export function LoginScreen() {
   return (
     <SafeAreaView style={styles.container}>
       <View style={styles.content}>
-        <Image source={require('../../../assets/parkinon-logo.png')} style={styles.logoImage} />
+        <View style={styles.logoWrapEn}>
+          <Animated.Image source={SYMBOL_LOGO} style={[styles.logoSymbolImg, { transform: [{ rotate: spinDeg }] }]} />
+          <Text style={styles.logoText}>{t('medication.brandTitle')}</Text>
+        </View>
       </View>
 
       <View style={[styles.bottomArea, { paddingBottom: bottomPadding }]}>
-        <TouchableOpacity
-          style={[styles.kakaoBtn, signing && styles.kakaoBtnDisabled]}
-          onPress={handleKakaoLogin}
-          activeOpacity={0.85}
-          disabled={signing}
-        >
-          {signing ? (
-            <>
-              <ActivityIndicator color="#3C1E1E" />
-              <Text style={styles.kakaoText}>로그인 중…</Text>
-            </>
-          ) : (
-            <>
-              <Image source={require('../../../assets/kakao_logo.png')} style={styles.kakaoIcon} />
-              <Text style={styles.kakaoText}>카카오로 시작하기</Text>
-            </>
-          )}
-        </TouchableOpacity>
+        {/* 카카오 로그인 — 국내 로케일만 노출. 해외는 Apple/Google만. */}
+        {!hideKakao && (
+          <TouchableOpacity
+            style={[styles.kakaoBtn, signing && styles.kakaoBtnDisabled]}
+            onPress={handleKakaoLogin}
+            activeOpacity={0.85}
+            disabled={signing}
+          >
+            {signing ? (
+              <>
+                <ActivityIndicator color="#3C1E1E" />
+                <Text style={styles.kakaoText}>{t('login.signingIn')}</Text>
+              </>
+            ) : (
+              <>
+                <Image source={require('../../../assets/kakao_logo.png')} style={styles.kakaoIcon} />
+                <Text style={styles.kakaoText}>{t('login.kakao')}</Text>
+              </>
+            )}
+          </TouchableOpacity>
+        )}
 
         <TouchableOpacity
           style={[styles.googleBtn, signing && styles.kakaoBtnDisabled]}
@@ -232,12 +263,12 @@ export function LoginScreen() {
           {signing ? (
             <>
               <ActivityIndicator color="#444" />
-              <Text style={styles.googleText}>로그인 중…</Text>
+              <Text style={styles.googleText}>{t('login.signingIn')}</Text>
             </>
           ) : (
             <>
               <AntDesign name="google" size={24} color="#DB4437" />
-              <Text style={styles.googleText}>구글로 시작하기</Text>
+              <Text style={styles.googleText}>{t('login.google')}</Text>
             </>
           )}
         </TouchableOpacity>
@@ -252,13 +283,13 @@ export function LoginScreen() {
             {signing ? (
               <>
                 <ActivityIndicator color="#fff" />
-                <Text style={styles.appleText}>로그인 중…</Text>
+                <Text style={styles.appleText}>{t('login.signingIn')}</Text>
               </>
             ) : (
               <>
                 <AntDesign name="apple" size={26} color={APPLE_LOGIN_ENABLED ? '#fff' : '#aaa'} />
                 <Text style={[styles.appleText, !APPLE_LOGIN_ENABLED && styles.appleTextDisabled]}>
-                  애플로 시작하기
+                  {t('login.apple')}
                 </Text>
               </>
             )}
@@ -271,26 +302,26 @@ export function LoginScreen() {
             style={styles.devButton}
             onPress={devSignIn}
           >
-            <Text style={styles.devButtonText}>테스트로 둘러보기</Text>
+            <Text style={styles.devButtonText}>{t('login.devBrowse')}</Text>
           </TouchableOpacity>
         )}
 
         <Text style={styles.terms}>
-          {'시작하면 '}
+          {t('login.terms.prefix')}
           <Text
             style={styles.termsLink}
-            onPress={() => Linking.openURL(TERMS_URL)}
+            onPress={() => Linking.openURL(getTermsUrl())}
           >
-            이용약관
+            {t('login.terms.terms')}
           </Text>
-          {' 및 '}
+          {t('login.terms.middle')}
           <Text
             style={styles.termsLink}
-            onPress={() => Linking.openURL(PRIVACY_URL)}
+            onPress={() => Linking.openURL(getPrivacyUrl())}
           >
-            개인정보처리방침
+            {t('login.terms.privacy')}
           </Text>
-          {'에 동의하게 됩니다.'}
+          {t('login.terms.suffix')}
         </Text>
       </View>
     </SafeAreaView>
@@ -308,14 +339,25 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     paddingHorizontal: 32,
   },
-  logoArea: {
+  logoWrapEn: {
     alignItems: 'center',
+    marginVertical: 8,
   },
-  logoImage: {
-    width: 220,
-    height: 220,
-    borderRadius: 54,
-    marginVertical: 16,
+  logoSymbolImg: {
+    width: 120,
+    height: 120,
+    marginTop: 16,
+    marginBottom: 6,
+  },
+  logoText: {
+    fontSize: 34,
+    fontWeight: '900',
+    color: Colors.white,
+    marginBottom: 12,
+    // fontWeight 최대치라 faux-bold(동일색 그림자로 획 두께 보강, TopBar와 동일 기법)
+    textShadowColor: Colors.white,
+    textShadowOffset: { width: 0, height: 0 },
+    textShadowRadius: 0.8,
   },
   title: {
     fontSize: 36,

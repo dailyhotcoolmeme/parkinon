@@ -1,25 +1,138 @@
+import i18n from '../i18n';
 import { LEGACY_SLOT_META, type LegacyMealKey } from '../constants/doseSlots';
 
+// 현재 언어가 영어권인지. 한국어(ko)일 때는 아래 라벨을 기존과 100% 동일하게 유지한다.
+function isEnLocale(): boolean {
+  return (i18n.language || '').toLowerCase().startsWith('en');
+}
+
+// legacy 슬롯키 → 영어 시간대 라벨(약 이름 없이). mealTimeToPeriod 영어 출력용.
+const EN_MEAL_PERIOD: Record<LegacyMealKey, string> = {
+  morning: 'Morning',
+  lunch: 'Lunch',
+  dinner: 'Dinner',
+  bedtime: 'Bedtime',
+};
+// legacy 슬롯키 → 영어 약 이름. mealTimeToKorean 영어 출력용('아침약' → 'Morning dose').
+const EN_MEAL_MED: Record<LegacyMealKey, string> = {
+  morning: 'Morning dose',
+  lunch: 'Lunch dose',
+  dinner: 'Dinner dose',
+  bedtime: 'Bedtime dose',
+};
+
+/* ────────────────────────────────────────────────────────────────────────── *
+ *  하루 경계(오늘/DayRange) — 타임존 일반화 (Phase 1 · S2)
+ *
+ *  기존 getKSTToday/getKSTDayRange 는 KST(+9h) 고정이었다. 해외 사용자 지원을
+ *  위해 IANA 타임존 인자를 받는 getLocalToday/getLocalDayRange 로 일반화한다.
+ *
+ *  ⚠️ 국내 회귀 0 보장:
+ *   - getLocalToday('Asia/Seoul') === 기존 getKSTToday() (문자열 비트 동일)
+ *   - getLocalDayRange(d,'Asia/Seoul') === 기존 { `${d}T00:00:00+09:00`,
+ *     `${d}T23:59:59.999+09:00` } (Asia/Seoul 오프셋은 연중 +09:00 고정, DST 없음)
+ *  기존 두 함수는 tz='Asia/Seoul' 을 넘기는 하위호환 래퍼로 유지한다.
+ * ────────────────────────────────────────────────────────────────────────── */
+
+const FALLBACK_TZ = 'Asia/Seoul';
+
+/** 주어진 순간(date)을 tz 로컬 캘린더로 본 'YYYY-MM-DD'. 로케일 무관(formatToParts). */
+function ymdInTimeZone(date: Date, tz: string): string {
+  const parts = new Intl.DateTimeFormat('en-US', {
+    timeZone: tz,
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit',
+  }).formatToParts(date);
+  let y = '';
+  let m = '';
+  let d = '';
+  for (const p of parts) {
+    if (p.type === 'year') y = p.value;
+    else if (p.type === 'month') m = p.value;
+    else if (p.type === 'day') d = p.value;
+  }
+  return `${y}-${m}-${d}`;
+}
+
+/** 주어진 순간(date)에 tz 가 UTC 대비 갖는 오프셋(분). 예: Asia/Seoul → 540. */
+function tzOffsetMinutes(date: Date, tz: string): number {
+  const parts = new Intl.DateTimeFormat('en-US', {
+    timeZone: tz,
+    hour12: false,
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit',
+    hour: '2-digit',
+    minute: '2-digit',
+    second: '2-digit',
+  }).formatToParts(date);
+  const map: Record<string, number> = {};
+  for (const p of parts) {
+    if (p.type !== 'literal') map[p.type] = parseInt(p.value, 10);
+  }
+  let hour = map.hour;
+  if (hour === 24) hour = 0; // 일부 엔진이 자정을 24로 표기하는 것 방어
+  const asUtc = Date.UTC(map.year, map.month - 1, map.day, hour, map.minute, map.second);
+  return Math.round((asUtc - date.getTime()) / 60000);
+}
+
+/** dateStr(YYYY-MM-DD) 그 날 tz 오프셋을 '±HH:MM' 문자열로. (정오 UTC로 프로브해 DST 경계 안전) */
+function tzOffsetSuffix(dateStr: string, tz: string): string {
+  const probe = new Date(`${dateStr}T12:00:00Z`);
+  const min = tzOffsetMinutes(probe, tz);
+  const sign = min >= 0 ? '+' : '-';
+  const abs = Math.abs(min);
+  const hh = String(Math.floor(abs / 60)).padStart(2, '0');
+  const mm = String(abs % 60).padStart(2, '0');
+  return `${sign}${hh}:${mm}`;
+}
+
+/**
+ * tz(IANA) 기준 오늘 날짜 문자열 (YYYY-MM-DD). tz 미지정 시 Asia/Seoul.
+ * Asia/Seoul 이면 기존 getKSTToday() 와 문자열 동일(회귀 0).
+ */
+export function getLocalToday(tz: string = FALLBACK_TZ): string {
+  return ymdInTimeZone(new Date(), tz || FALLBACK_TZ);
+}
+
+/**
+ * tz(IANA) 기준 dateStr 하루의 시작/끝 ISO 문자열 (Supabase timestamptz 쿼리용).
+ * dateStr 의 tz 로컬 자정~자정직전을 그 tz 오프셋을 붙여 절대시각으로 표현한다.
+ * Asia/Seoul 이면 start=`${d}T00:00:00+09:00`, end=`${d}T23:59:59.999+09:00` (기존과 비트 동일).
+ */
+export function getLocalDayRange(
+  dateStr: string,
+  tz: string = FALLBACK_TZ,
+): { start: string; end: string } {
+  const off = tzOffsetSuffix(dateStr, tz || FALLBACK_TZ);
+  return {
+    start: `${dateStr}T00:00:00${off}`,
+    end: `${dateStr}T23:59:59.999${off}`,
+  };
+}
+
+// ── 하위호환 래퍼 (호출부 안 깨지게 유지) ────────────────────────────────────
 // KST(UTC+9) 기준 오늘 날짜 문자열 반환 (YYYY-MM-DD)
 export function getKSTToday(): string {
-  const now = new Date();
-  const kst = new Date(now.getTime() + 9 * 60 * 60 * 1000);
-  return kst.toISOString().split('T')[0];
+  return getLocalToday('Asia/Seoul');
 }
 
 // KST 기준 날짜의 시작/끝 ISO 문자열 (Supabase 쿼리용)
 export function getKSTDayRange(dateStr: string): { start: string; end: string } {
-  return {
-    start: `${dateStr}T00:00:00+09:00`,
-    end: `${dateStr}T23:59:59.999+09:00`,
-  };
+  return getLocalDayRange(dateStr, 'Asia/Seoul');
 }
 
 export function minutesToLabel(m: number): string {
-  if (m === 0) return '복용 직후';
-  if (m < 60) return `${m}분 후`;
   const h = Math.floor(m / 60);
   const rem = m % 60;
+  if (isEnLocale()) {
+    if (m === 0) return 'right after taking';
+    if (m < 60) return `${m} min later`;
+    return rem === 0 ? `${h} hr later` : `${h} hr ${rem} min later`;
+  }
+  if (m === 0) return '복용 직후';
+  if (m < 60) return `${m}분 후`;
   return rem === 0 ? `${h}시간 후` : `${h}시간 ${rem}분 후`;
 }
 
@@ -28,6 +141,20 @@ export function minutesToLabel(m: number): string {
  */
 export function triggerLabelToTag(label: string | null | undefined): string {
   if (!label) return '';
+  if (isEnLocale()) {
+    if (label === 'after_medication') return '+now';
+    const minMatchEn = label.match(/^(\d+)min_after$/);
+    if (minMatchEn) {
+      const min = parseInt(minMatchEn[1], 10);
+      if (min < 60) return `+${min}m`;
+      const h = Math.floor(min / 60);
+      const rem = min % 60;
+      return rem === 0 ? `+${h}h` : `+${h}h ${rem}m`;
+    }
+    const hourMatchEn = label.match(/^(\d+)hour_after$/);
+    if (hourMatchEn) return `+${hourMatchEn[1]}h`;
+    return '';
+  }
   if (label === 'after_medication') return '+즉시';
   const minMatch = label.match(/^(\d+)min_after$/);
   if (minMatch) {
@@ -49,6 +176,23 @@ export function triggerLabelToTag(label: string | null | undefined): string {
  */
 export function triggerLabelToText(label: string | null | undefined): string {
   if (!label) return '';
+  if (isEnLocale()) {
+    if (label === 'after_medication') return 'right after taking';
+    const minMatchEn = label.match(/^(\d+)min_after$/);
+    if (minMatchEn) {
+      const min = parseInt(minMatchEn[1], 10);
+      if (min === 0) return 'right after taking';
+      if (min < 60) return `${min} min later`;
+      const h = Math.floor(min / 60);
+      const rem = min % 60;
+      return rem === 0 ? `${h} hr later` : `${h} hr ${rem} min later`;
+    }
+    const hourMatchEn = label.match(/^(\d+)hour_after$/);
+    if (hourMatchEn) {
+      return `${hourMatchEn[1]} hr later`;
+    }
+    return label;
+  }
   if (label === 'after_medication') return '복용 직후';
   const minMatch = label.match(/^(\d+)min_after$/);
   if (minMatch) {
@@ -86,7 +230,9 @@ export function triggerLabelToMinutes(label: string | null | undefined): number 
 export function mealTimeToKorean(mealTime: string | null | undefined): string {
   if (!mealTime) return '';
   const meta = LEGACY_SLOT_META[mealTime as LegacyMealKey];
-  return meta ? meta.korMed : mealTime;
+  if (!meta) return mealTime;
+  if (isEnLocale()) return EN_MEAL_MED[meta.key];
+  return meta.korMed;
 }
 
 /**
@@ -96,5 +242,22 @@ export function mealTimeToKorean(mealTime: string | null | undefined): string {
 export function mealTimeToPeriod(mealTime: string | null | undefined): string {
   if (!mealTime) return '';
   const meta = LEGACY_SLOT_META[mealTime as LegacyMealKey];
-  return meta ? meta.label : mealTime;
+  if (!meta) return mealTime;
+  if (isEnLocale()) return EN_MEAL_PERIOD[meta.key];
+  return meta.label;
+}
+
+/**
+ * medication_meal_time → 한국어 시간대 라벨(로케일 무관, 항상 한글 고정).
+ * mealTimeToPeriod과 달리 표시용이 아니라 PERIOD_COLOR/PERIOD_ICON 같은
+ * 내부 조회 키로 쓰인다 — 이 값을 화면에 직접 표시하면 안 된다(그럴 땐 mealTimeToPeriod
+ * 또는 표시 전용 변환 함수를 쓸 것). 해외 로케일에서 mealTimeToPeriod의 영어 반환값을
+ * 색상 조회 키로 잘못 쓰면 PERIOD_COLOR/PERIOD_ICON이 전부 매칭 실패해 기본색으로
+ * 뭉개지는 버그가 있었다(오너 발견, 2026-07-05: 해외판 섹션 헤더 색이 전부 동일).
+ */
+export function mealTimeToPeriodKo(mealTime: string | null | undefined): string {
+  if (!mealTime) return '';
+  const meta = LEGACY_SLOT_META[mealTime as LegacyMealKey];
+  if (!meta) return mealTime;
+  return meta.label;
 }

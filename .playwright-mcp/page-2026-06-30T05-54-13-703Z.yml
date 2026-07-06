@@ -1,0 +1,138 @@
+- generic [active] [ref=e1]:
+  - generic [ref=e3]:
+    - generic [ref=e4]:
+      - banner [ref=e6]:
+        - generic [ref=e7]:
+          - generic [ref=e8]:
+            - link "Supabase":
+              - /url: /dashboard/organizations
+              - img "Supabase"
+          - generic [ref=e9]:
+            - generic [ref=e11] [cursor=pointer]: Feedback
+            - generic [ref=e12]:
+              - button "Search..." [ref=e13]:
+                - generic [ref=e14]:
+                  - img [ref=e15]
+                  - paragraph [ref=e18]: Search...
+                - generic [ref=e20]: ⌘K
+              - button "Help" [ref=e21] [cursor=pointer]:
+                - generic [ref=e22]:
+                  - img [ref=e23]
+                  - generic [ref=e26]: Help
+              - button "Advisor Center" [ref=e28] [cursor=pointer]:
+                - generic [ref=e29]:
+                  - img [ref=e30]
+                  - generic [ref=e32]: Advisor Center
+            - button [ref=e33] [cursor=pointer]:
+              - img [ref=e36]
+      - generic [ref=e38]:
+        - button "Sidebar control" [ref=e46] [cursor=pointer]:
+          - img [ref=e48]
+        - generic [ref=e55]:
+          - generic [ref=e59]:
+            - heading "Authentication" [level=4] [ref=e61]
+            - menu "Sidebar" [disabled] [ref=e64]:
+              - list [ref=e65]:
+                - generic [ref=e68]:
+                  - generic [ref=e72]: Manage
+                  - generic [ref=e73]:
+                    - link "Users" [disabled] [ref=e74] [cursor=pointer]:
+                      - /url: /dashboard/project/undefined/auth/users
+                      - menuitem "Users" [disabled] [ref=e75]:
+                        - generic [ref=e79]: Users
+                    - link "OAuth Apps" [disabled] [ref=e80] [cursor=pointer]:
+                      - /url: /dashboard/project/undefined/auth/oauth-apps
+                      - menuitem "OAuth Apps" [disabled] [ref=e81]:
+                        - generic [ref=e85]: OAuth Apps
+                - generic [ref=e89]:
+                  - generic [ref=e93]: Notifications
+                  - link "Emails" [disabled] [ref=e95] [cursor=pointer]:
+                    - /url: /dashboard/project/undefined/auth/templates
+                    - menuitem "Emails" [disabled] [ref=e96]:
+                      - generic [ref=e100]: Emails
+                - generic [ref=e104]:
+                  - generic [ref=e108]: Configuration
+                  - generic [ref=e109]:
+                    - link "Policies" [disabled] [ref=e110] [cursor=pointer]:
+                      - /url: /dashboard/project/undefined/auth/policies
+                      - menuitem "Policies" [disabled] [ref=e111]:
+                        - generic [ref=e115]: Policies
+                    - link "Sign In / Providers" [disabled] [ref=e116] [cursor=pointer]:
+                      - /url: /dashboard/project/undefined/auth/providers
+                      - menuitem "Sign In / Providers" [disabled] [ref=e117]:
+                        - generic [ref=e121]: Sign In / Providers
+                    - link "OAuth Server Beta" [disabled] [ref=e122] [cursor=pointer]:
+                      - /url: /dashboard/project/undefined/auth/oauth-server
+                      - menuitem "OAuth Server Beta" [disabled] [ref=e123]:
+                        - generic [ref=e126]:
+                          - generic [ref=e127]: OAuth Server
+                          - generic [ref=e128]: Beta
+                    - link "Sessions" [disabled] [ref=e129] [cursor=pointer]:
+                      - /url: /dashboard/project/undefined/auth/sessions
+                      - menuitem "Sessions" [disabled] [ref=e130]:
+                        - generic [ref=e134]: Sessions
+                    - link "Rate Limits" [disabled] [ref=e135] [cursor=pointer]:
+                      - /url: /dashboard/project/undefined/auth/rate-limits
+                      - menuitem "Rate Limits" [disabled] [ref=e136]:
+                        - generic [ref=e140]: Rate Limits
+                    - link "Multi-Factor" [disabled] [ref=e141] [cursor=pointer]:
+                      - /url: /dashboard/project/undefined/auth/mfa
+                      - menuitem "Multi-Factor" [disabled] [ref=e142]:
+                        - generic [ref=e146]: Multi-Factor
+                    - link "URL Configuration" [disabled] [ref=e147] [cursor=pointer]:
+                      - /url: /dashboard/project/undefined/auth/url-configuration
+                      - menuitem "URL Configuration" [disabled] [ref=e148]:
+                        - generic [ref=e152]: URL Configuration
+                    - link "Attack Protection" [disabled] [ref=e153] [cursor=pointer]:
+                      - /url: /dashboard/project/undefined/auth/protection
+                      - menuitem "Attack Protection" [disabled] [ref=e154]:
+                        - generic [ref=e158]: Attack Protection
+                    - link "Auth Hooks Beta" [disabled] [ref=e159] [cursor=pointer]:
+                      - /url: /dashboard/project/undefined/auth/hooks
+                      - menuitem "Auth Hooks Beta" [disabled] [ref=e160]:
+                        - generic [ref=e163]:
+                          - generic [ref=e164]: Auth Hooks
+                          - generic [ref=e165]: Beta
+                    - link "Audit Logs" [disabled] [ref=e166] [cursor=pointer]:
+                      - /url: /dashboard/project/undefined/auth/audit-logs
+                      - menuitem "Audit Logs" [disabled] [ref=e167]:
+                        - generic [ref=e171]: Audit Logs
+                    - link "Performance" [disabled] [ref=e172] [cursor=pointer]:
+                      - /url: /dashboard/project/undefined/auth/performance
+                      - menuitem "Performance" [disabled] [ref=e173]:
+                        - generic [ref=e177]: Performance
+          - separator [disabled] [ref=e178]:
+            - img [ref=e180]
+          - main [ref=e189]:
+            - generic [ref=e190]:
+              - generic [ref=e191]:
+                - generic [ref=e196]:
+                  - heading "Sign In / Providers" [level=1] [ref=e197]
+                  - paragraph [ref=e198]: Configure authentication providers and login methods for your users
+                - navigation [ref=e199]:
+                  - menu [ref=e200]:
+                    - listitem [ref=e201]:
+                      - link "Supabase Auth" [ref=e202] [cursor=pointer]:
+                        - /url: /dashboard/project/undefined/auth/providers
+                    - listitem [ref=e203]:
+                      - link "Third-Party Auth" [ref=e204] [cursor=pointer]:
+                        - /url: /dashboard/project/undefined/auth/third-party
+              - generic [ref=e205]:
+                - heading "User Signups" [level=2] [ref=e210]
+                - generic [ref=e225]:
+                  - heading "Auth Providers" [level=2] [ref=e226]
+                  - generic [ref=e227]: Authenticate your users through a suite of providers and login methods
+    - generic [ref=e384]:
+      - generic:
+        - img "Background pattern"
+      - generic [ref=e385]:
+        - button "Close banner" [ref=e387] [cursor=pointer]:
+          - img [ref=e389]
+        - generic [ref=e392]:
+          - generic [ref=e393]: Notice
+          - generic [ref=e394]:
+            - paragraph [ref=e395]: We've updated our Terms of Service
+            - paragraph [ref=e396]: Updates define the responsibilities of both you and Supabase in the use of AI.
+          - button "Learn more" [ref=e397] [cursor=pointer]:
+            - generic [ref=e398]: Learn more
+  - alert [ref=e399]

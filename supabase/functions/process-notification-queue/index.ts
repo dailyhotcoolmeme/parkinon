@@ -10,6 +10,11 @@ const INTERVAL_LABELS: Record<number, string> = {
   30: '30분 후',
   120: '2시간 후',
 }
+const INTERVAL_LABELS_EN: Record<number, string> = {
+  0: 'right after taking',
+  30: '30 min later',
+  120: '2 hr later',
+}
 
 // legacy 4슬롯 라벨 fallback. dose_slot.label 이 있으면 그 값을 우선 사용.
 const MEAL_LABELS: Record<string, string> = {
@@ -17,6 +22,12 @@ const MEAL_LABELS: Record<string, string> = {
   lunch: '점심',
   dinner: '저녁',
   bedtime: '취침',
+}
+const MEAL_LABELS_EN: Record<string, string> = {
+  morning: 'Morning',
+  lunch: 'Lunch',
+  dinner: 'Dinner',
+  bedtime: 'Bedtime',
 }
 
 // ─── {시간대} {시각} 표기 (send-medication-reminders 와 1:1 동일 복제) ──────────
@@ -47,6 +58,31 @@ function periodLabelFor(label: string | null | undefined, time: string | null | 
   const trimmed = (label ?? '').trim()
   if (trimmed && STANDARD_LABELS.has(trimmed)) return trimmed
   const p = periodWord(time)
+  if (p) return p
+  return ''
+}
+
+/** periodWord 영어판 — 앱 doseSlots.periodWord isEnLocale 분기와 1:1 동일. */
+function periodWordEn(time: string | null | undefined): string {
+  if (!time) return ''
+  const h = parseInt(time.split(':')[0] ?? '', 10)
+  if (Number.isNaN(h)) return ''
+  if (h < 6) return 'Early morning'
+  if (h < 11) return 'Morning'
+  if (h < 13) return 'Midday'
+  if (h < 17) return 'Afternoon'
+  if (h < 21) return 'Evening'
+  return 'Night'
+}
+
+/** periodLabelFor 영어판 */
+function periodLabelForEn(label: string | null | undefined, time: string | null | undefined): string {
+  const trimmed = (label ?? '').trim()
+  if (trimmed && STANDARD_LABELS.has(trimmed)) {
+    const key = Object.keys(MEAL_LABELS).find((k) => MEAL_LABELS[k] === trimmed)
+    if (key) return MEAL_LABELS_EN[key]
+  }
+  const p = periodWordEn(time)
   if (p) return p
   return ''
 }
@@ -102,12 +138,39 @@ function resolvePeriodHead(
   return ''
 }
 
+/** resolvePeriodHead 영어판 */
+function resolvePeriodHeadEn(
+  doseSlot: { label?: string | null; time?: string | null } | null | undefined,
+  mealTime: string | null | undefined,
+): string {
+  if (doseSlot && (doseSlot.label || doseSlot.time)) {
+    const head = periodWithTime(
+      periodLabelForEn(doseSlot.label, doseSlot.time),
+      formatClockTime(doseSlot.time),
+    )
+    if (head) return head
+  }
+  if (mealTime && MEAL_LABELS_EN[mealTime]) {
+    return periodWithTime(MEAL_LABELS_EN[mealTime], formatClockTime(LEGACY_MEAL_DEFAULT_TIME[mealTime]))
+  }
+  return ''
+}
+
 function getIntervalLabel(minutes: number): string {
   if (INTERVAL_LABELS[minutes]) return INTERVAL_LABELS[minutes]
   if (minutes < 60) return `${minutes}분 후`
   const h = Math.floor(minutes / 60)
   const rem = minutes % 60
   return rem === 0 ? `${h}시간 후` : `${h}시간 ${rem}분 후`
+}
+
+/** getIntervalLabel 영어판 */
+function getIntervalLabelEn(minutes: number): string {
+  if (INTERVAL_LABELS_EN[minutes]) return INTERVAL_LABELS_EN[minutes]
+  if (minutes < 60) return `${minutes} min later`
+  const h = Math.floor(minutes / 60)
+  const rem = minutes % 60
+  return rem === 0 ? `${h} hr later` : `${h} hr ${rem} min later`
 }
 
 // ─── iOS 커스텀 알림음(가족 목소리) ──────────────────────────────────────────
@@ -178,15 +241,17 @@ Deno.serve(async (_req: Request) => {
   // 동시에 notification_enabled(전체 알림 마스터)도 조회 — 발송 직전 게이트용.
   const platformByPatient = new Map<string, string | null>()
   const notifEnabledByPatient = new Map<string, boolean>()
+  const languageByPatient = new Map<string, string>()
   const patientIds = [...new Set((pending as any[]).map((p) => p.patient_id).filter(Boolean))]
   if (patientIds.length) {
     const { data: pusers } = await supabase
       .from('users')
-      .select('id, push_platform, notification_enabled')
+      .select('id, push_platform, notification_enabled, language')
       .in('id', patientIds)
     for (const u of pusers ?? []) {
       platformByPatient.set((u as any).id, (u as any).push_platform ?? null)
       notifEnabledByPatient.set((u as any).id, (u as any).notification_enabled !== false)
+      languageByPatient.set((u as any).id, (u as any).language ?? 'ko')
     }
   }
 
@@ -234,17 +299,32 @@ Deno.serve(async (_req: Request) => {
 
     // dose_slot 조인은 단일 객체 또는 배열로 올 수 있어 정규화.
     const doseSlot = Array.isArray(item.dose_slot) ? (item.dose_slot[0] ?? null) : (item.dose_slot ?? null)
-    const head = resolvePeriodHead(doseSlot, item.meal_time) // "저녁 6:00" 또는 ''
-    // 간격이 0(복용 직후)이면 "복용약 드신 직후", 그 외(분/시간)는 "복용약의 {N분 후}".
+    const isEn = languageByPatient.get(item.patient_id) === 'en'
     const isImmediate = item.interval_minutes === 0
-    const intervalLabel = getIntervalLabel(item.interval_minutes) // "30분 후" 등 (0이면 미사용)
-    const bodyText = head
-      ? (isImmediate
-          ? `${head} 복용약 드신 직후 몸 상태를 기록해보세요.`
-          : `${head} 복용약의 ${intervalLabel} 몸 상태를 기록해보세요.`)
-      : (isImmediate
-          ? `복용약 드신 직후 몸 상태를 기록해보세요.`
-          : `복용약의 ${intervalLabel} 몸 상태를 기록해보세요.`)
+    const titleText = isEn ? '😊 How are you feeling?' : '😊 몸 상태는 어때요?'
+    let bodyText: string
+    if (isEn) {
+      const headEn = resolvePeriodHeadEn(doseSlot, item.meal_time)
+      const intervalLabelEn = getIntervalLabelEn(item.interval_minutes)
+      bodyText = headEn
+        ? (isImmediate
+            ? `${headEn} — log your body state right after taking your medication.`
+            : `${headEn} — log your body state ${intervalLabelEn} taking your medication.`)
+        : (isImmediate
+            ? 'Log your body state right after taking your medication.'
+            : `Log your body state ${intervalLabelEn} taking your medication.`)
+    } else {
+      const head = resolvePeriodHead(doseSlot, item.meal_time) // "저녁 6:00" 또는 ''
+      // 간격이 0(복용 직후)이면 "복용약 드신 직후", 그 외(분/시간)는 "복용약의 {N분 후}".
+      const intervalLabel = getIntervalLabel(item.interval_minutes) // "30분 후" 등 (0이면 미사용)
+      bodyText = head
+        ? (isImmediate
+            ? `${head} 복용약 드신 직후 몸 상태를 기록해보세요.`
+            : `${head} 복용약의 ${intervalLabel} 몸 상태를 기록해보세요.`)
+        : (isImmediate
+            ? `복용약 드신 직후 몸 상태를 기록해보세요.`
+            : `복용약의 ${intervalLabel} 몸 상태를 기록해보세요.`)
+    }
 
     // 목소리(채널) 결정:
     //  1) 큐에 직접 지정된 sound_id(구 경로) 우선
@@ -255,7 +335,7 @@ Deno.serve(async (_req: Request) => {
     const platform = platformByPatient.get(item.patient_id) ?? null
     const ok = await sendPush(
       item.push_token,
-      '😊 몸 상태는 어때요?',
+      titleText,
       bodyText,
       { type: 'effect_tracking', minutes: item.interval_minutes, meal_time: item.meal_time ?? null, doseSlotId: item.dose_slot_id ?? null, med_log_id: item.med_log_id ?? null },
       channelId,
@@ -266,7 +346,7 @@ Deno.serve(async (_req: Request) => {
       await supabase.from('notification_logs').insert({
         user_id: item.patient_id,
         type: 'effect_tracking',
-        title: '😊 몸 상태는 어때요?',
+        title: titleText,
         body: bodyText,
         data: { type: 'effect_tracking', minutes: item.interval_minutes, meal_time: item.meal_time ?? null, doseSlotId: item.dose_slot_id ?? null, med_log_id: item.med_log_id ?? null },
         read_at: null,

@@ -17,6 +17,7 @@ import * as Notifications from 'expo-notifications';
 import { Colors } from '../../constants/colors';
 import { requestPermissionsAndSaveToken } from '../../utils/notifications';
 import { useBottomSheetPadding } from '../../hooks/useBottomSheetPadding';
+import { useTranslation } from 'react-i18next';
 
 interface Props {
   userId: string;
@@ -43,6 +44,7 @@ export function NotificationGateScreen({
   onSkip,
   onRecheck,
 }: Props) {
+  const { t } = useTranslation();
   const bottomPadding = useBottomSheetPadding();
   const [busy, setBusy] = useState(false);
 
@@ -70,11 +72,11 @@ export function NotificationGateScreen({
     <SafeAreaView style={styles.safe}>
       <View style={styles.content}>
         <Ionicons name="notifications-outline" size={88} color={Colors.primary} />
-        <Text style={styles.title}>알림을 허용해 주세요</Text>
+        <Text style={styles.title}>{t('notifGate.title')}</Text>
         <Text style={styles.body}>
-          파킨온은 약 복용 시간 알림, 약효 추적 알림, 보호자 연동 알림을 위해 알림이 꼭 필요해요.{' '}
-          <Text style={styles.bodyEmphasis}>광고나 마케팅 알림은 절대 보내지 않아요.</Text>{' '}
-          원활한 사용을 위해 알림을 허용해 주세요.
+          {t('notifGate.bodyPre')}{' '}
+          <Text style={styles.bodyEmphasis}>{t('notifGate.bodyEmphasis')}</Text>{' '}
+          {t('notifGate.bodyPost')}
         </Text>
       </View>
 
@@ -91,7 +93,7 @@ export function NotificationGateScreen({
             ) : (
               <>
                 <Ionicons name="notifications-outline" size={24} color={Colors.white} />
-                <Text style={styles.buttonText}>알림 허용하기</Text>
+                <Text style={styles.buttonText}>{t('notifGate.allowBtn')}</Text>
               </>
             )}
           </TouchableOpacity>
@@ -103,10 +105,10 @@ export function NotificationGateScreen({
               activeOpacity={0.85}
             >
               <Ionicons name="settings-outline" size={24} color={Colors.white} />
-              <Text style={styles.buttonText}>설정에서 알림 켜기</Text>
+              <Text style={styles.buttonText}>{t('notifGate.openSettingsBtn')}</Text>
             </TouchableOpacity>
             <Text style={styles.helper}>
-              설정에서 알림을 켠 뒤 앱으로 돌아오면 자동으로 진행돼요.
+              {t('notifGate.openSettingsHelper')}
             </Text>
           </>
         )}
@@ -119,7 +121,7 @@ export function NotificationGateScreen({
             disabled={busy}
             activeOpacity={0.7}
           >
-            <Text style={styles.skipButtonText}>나중에 할게요</Text>
+            <Text style={styles.skipButtonText}>{t('notifGate.skipBtn')}</Text>
           </TouchableOpacity>
         )}
       </View>

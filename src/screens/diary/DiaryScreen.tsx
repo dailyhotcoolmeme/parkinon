@@ -33,7 +33,11 @@ import { useDiary, DiaryEntry, AutoSummary, fetchDiaryEntryDates } from '../../h
 import { uploadPhoto, uploadVideo, uploadSound } from '../../lib/r2Upload';
 import { resolveMediaUrl, resolveMediaUrlSync, useResolvedMediaUrl, prefetchMediaUrls } from '../../lib/r2Get';
 import { useSwipeDownDismiss } from '../../hooks/useSwipeDownDismiss';
+import i18n from '../../i18n';
+import { useTranslation } from 'react-i18next';
+import { isOverseasLocale } from '../../i18n/detectLocale';
 import { useBottomSheetPadding } from '../../hooks/useBottomSheetPadding';
+import { translateRawExerciseType } from '../../constants/exerciseTypes';
 import {
   PHOTO_PREFIX,
   VIDEO_TOKEN,
@@ -58,7 +62,10 @@ const Journal = {
 
 const SERIF = Platform.select({ ios: 'Georgia', android: 'serif' });
 
-const WEEKDAYS_FULL = ['일요일', '월요일', '화요일', '수요일', '목요일', '금요일', '토요일'];
+const WEEKDAYS_FULL = isOverseasLocale()
+  ? ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday']
+  : ['일요일', '월요일', '화요일', '수요일', '목요일', '금요일', '토요일'];
+const MONTH_NAMES_EN = ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December'];
 const MAX_VIDEO_DURATION_SEC = 120;
 const UPLOAD_TIMEOUT_MS = 180_000;
 // 보기(읽기) 모드 첨부 썸네일 정사각 크기 — 사진/영상/음성 모두 동일. (에디터는 104px로 별도)
@@ -102,9 +109,13 @@ function formatEntryStamp(iso: string | null | undefined): string {
   const dow = WEEKDAYS_MINI[kst.getUTCDay()];
   const h24 = kst.getUTCHours();
   const min = String(kst.getUTCMinutes()).padStart(2, '0');
-  const ampm = h24 < 12 ? '오전' : '오후';
   let h12 = h24 % 12;
   if (h12 === 0) h12 = 12;
+  if (isOverseasLocale()) {
+    const ampm = h24 < 12 ? 'AM' : 'PM';
+    return `${h12}:${min} ${ampm}`;
+  }
+  const ampm = h24 < 12 ? '오전' : '오후';
   return `${ampm} ${h12}:${min}`;
 }
 
@@ -130,6 +141,7 @@ function DiaryHeader({
   onLeftPress: () => void;
   rightComponent?: React.ReactNode;
 }) {
+  const { t } = useTranslation();
   return (
     <View style={[styles.diaryHeader, { backgroundColor: bg }]}>
       <TouchableOpacity
@@ -139,7 +151,7 @@ function DiaryHeader({
         activeOpacity={0.7}
       >
         <Ionicons name="arrow-back" size={24} color={Journal.inkSoft} />
-        <Text style={styles.diaryHeaderBackText}>뒤로</Text>
+        <Text style={styles.diaryHeaderBackText}>{t('common.back')}</Text>
       </TouchableOpacity>
       <Text style={styles.diaryHeaderTitle} numberOfLines={1}>
         {title}
@@ -153,7 +165,9 @@ function DiaryHeader({
 // 날짜 헤더 가운데 날짜를 탭하면 열린다. 월 그리드 + 이전/다음 달 + 작성이력 점.
 // 날짜 탭 → 그 날짜 onSelect(기존 dateStr 이동 로직 재사용) + 닫힘.
 // 스와이프 다운 / 배경탭 / 안드 백버튼으로 닫힘(useSwipeDownDismiss 재사용).
-const WEEKDAYS_SHORT = ['일', '월', '화', '수', '목', '금', '토'];
+const WEEKDAYS_SHORT = isOverseasLocale()
+  ? ['S', 'M', 'T', 'W', 'T', 'F', 'S']
+  : ['일', '월', '화', '수', '목', '금', '토'];
 
 function DiaryCalendarModal({
   visible,
@@ -170,6 +184,7 @@ function DiaryCalendarModal({
   onSelect: (dateStr: string) => void;
   onClose: () => void;
 }) {
+  const { t } = useTranslation();
   const [sy, sm] = selectedDateStr.split('-').map(Number);
   const [viewYear, setViewYear] = useState(sy);
   const [viewMonth, setViewMonth] = useState(sm - 1); // 0~11
@@ -256,7 +271,7 @@ function DiaryCalendarModal({
                 <Ionicons name="chevron-back" size={24} color={Journal.inkSoft} />
               </TouchableOpacity>
               <Text style={styles.calMonthTitle}>
-                {viewYear}년 {viewMonth + 1}월
+                {isOverseasLocale() ? `${MONTH_NAMES_EN[viewMonth]} ${viewYear}` : `${viewYear}년 ${viewMonth + 1}월`}
               </Text>
               <TouchableOpacity style={styles.calNavArrow} onPress={goNext} activeOpacity={0.7} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
                 <Ionicons name="chevron-forward" size={24} color={Journal.inkSoft} />
@@ -319,10 +334,10 @@ function DiaryCalendarModal({
             <View style={styles.calFooter}>
               <View style={styles.calLegend}>
                 <View style={styles.calEntryDot} />
-                <Text style={styles.calLegendText}>일기 쓴 날</Text>
+                <Text style={styles.calLegendText}>{t('diary.calendarLegend')}</Text>
               </View>
               <TouchableOpacity style={styles.calCloseBtn} onPress={onClose} activeOpacity={0.85}>
-                <Text style={styles.calCloseText}>닫기</Text>
+                <Text style={styles.calCloseText}>{t('common.close')}</Text>
               </TouchableOpacity>
             </View>
           </TouchableOpacity>
@@ -334,6 +349,7 @@ function DiaryCalendarModal({
 
 // ─── 음성 플레이어 (재생/일시정지 + 진행바 + 시간) — 읽기·에디터 공용 §11 ──────
 function AudioPlayer({ uri }: { uri: string }) {
+  const { t } = useTranslation();
   const dialog = useDialog();
   const soundRef = useRef<Audio.Sound | null>(null);
   const [playing, setPlaying] = useState(false);
@@ -392,7 +408,7 @@ function AudioPlayer({ uri }: { uri: string }) {
       setPlaying(true);
     } catch (e) {
       setPlaying(false);
-      dialog.alert({ title: '재생할 수 없어요', message: '다시 시도해 주세요.' });
+      dialog.alert({ title: t('diary.playFailTitle'), message: t('diary.genericRetryMsg') });
     }
   };
 
@@ -416,6 +432,7 @@ function AudioPlayer({ uri }: { uri: string }) {
 // 에디터(작성/수정)용 음성 타일 — 사진/영상 썸네일과 동일한 104px 정사각.
 // 진행바 없이 가운데 재생/일시정지 버튼 + 하단 시간 텍스트만. 탭하면 그 자리서 재생/일시정지.
 function AudioTile({ uri, size }: { uri: string; size?: number }) {
+  const { t } = useTranslation();
   const dialog = useDialog();
   const soundRef = useRef<Audio.Sound | null>(null);
   const [playing, setPlaying] = useState(false);
@@ -516,7 +533,7 @@ function AudioTile({ uri, size }: { uri: string; size?: number }) {
       setPlaying(true);
     } catch (e) {
       setPlaying(false);
-      dialog.alert({ title: '재생할 수 없어요', message: '다시 시도해 주세요.' });
+      dialog.alert({ title: t('diary.playFailTitle'), message: t('diary.genericRetryMsg') });
     }
   };
 
@@ -531,7 +548,7 @@ function AudioTile({ uri, size }: { uri: string; size?: number }) {
     >
       {/* 배경에 은은한 "음성" 글자 (영상 썸네일의 프레임 대응) */}
       <View style={styles.audioTileLabelWrap} pointerEvents="none">
-        <Text style={styles.audioTileLabel}>음성</Text>
+        <Text style={styles.audioTileLabel}>{t('diary.audioTileLabel')}</Text>
       </View>
       {/* 영상 재생버튼과 동일한 정중앙 반투명 ▶ 오버레이 */}
       <View style={styles.thumbPlayWrap} pointerEvents="none">
@@ -605,6 +622,7 @@ function VideoThumb({
 }
 
 export function DiaryScreen() {
+  const { t } = useTranslation();
   const navigation = useNavigation<any>();
   const route = useRoute<any>();
   const { user } = useAuth();
@@ -638,30 +656,32 @@ export function DiaryScreen() {
   }, [entries]);
 
   const dt = dateStrToDate(dateStr);
-  const dateTitle = `${dt.getMonth() + 1}월 ${dt.getDate()}일 ${WEEKDAYS_FULL[dt.getDay()]}`;
+  const dateTitle = isOverseasLocale()
+    ? `${MONTH_NAMES_EN[dt.getMonth()]} ${dt.getDate()}, ${WEEKDAYS_FULL[dt.getDay()]}`
+    : `${dt.getMonth() + 1}월 ${dt.getDate()}일 ${WEEKDAYS_FULL[dt.getDay()]}`;
 
   // 내 글 인라인 삭제 — 톱바에 있던 삭제 기능을 엔트리 줄로 옮긴 것.
   // 기존 삭제 확인 다이얼로그·deleteMyEntry를 그대로 재사용한다.
   const handleInlineDelete = async () => {
     const ok = await dialog.confirm({
-      title: '글 삭제',
-      message: '이 날의 글을 삭제할까요?',
+      title: t('diary.deletePostTitle'),
+      message: t('diary.deletePostMsg'),
       destructive: true,
-      confirmText: '삭제',
-      cancelText: '취소',
+      confirmText: t('medManage.delete'),
+      cancelText: t('common.cancel'),
     });
     if (!ok) return;
     try {
       await deleteMyEntry();
     } catch (e: any) {
-      dialog.alert({ title: '삭제에 실패했어요', message: e?.message ?? '잠시 후 다시 시도해 주세요.' });
+      dialog.alert({ title: t('diary.deleteFailTitle'), message: e?.message ?? t('diary.genericRetryMsg') });
     }
   };
 
   return (
     <SafeAreaView style={styles.safeArea} edges={['top']}>
       <DiaryHeader
-        title="파킨온 일기"
+        title={t('diary.headerTitle')}
         bg={Journal.page}
         onLeftPress={() => navigation.goBack()}
         rightComponent={
@@ -675,7 +695,7 @@ export function DiaryScreen() {
               style={styles.headerActionBtn}
             >
               <Ionicons name="create-outline" size={20} color={Journal.accent} />
-              <Text style={styles.headerActionText}>작성</Text>
+              <Text style={styles.headerActionText}>{t('diary.writeBtn')}</Text>
             </TouchableOpacity>
           )
         }
@@ -733,15 +753,15 @@ export function DiaryScreen() {
       ) : caregiverUnlinked ? (
         <View style={styles.unlinkedWrap}>
           <Ionicons name="people-outline" size={56} color={Journal.inkSoft} />
-          <Text style={styles.unlinkedTitle}>환자를 먼저 연동해주세요</Text>
-          <Text style={styles.unlinkedDesc}>{'가족을 연동하면 환자분의\n파킨온 일기를 함께 볼 수 있어요'}</Text>
+          <Text style={styles.unlinkedTitle}>{t('diary.unlinkedTitle')}</Text>
+          <Text style={styles.unlinkedDesc}>{t('diary.unlinkedDesc')}</Text>
           <TouchableOpacity
             style={styles.unlinkedBtn}
             onPress={() => navigation.navigate('Main', { screen: 'MyInfo', params: { screen: 'FamilyLink' } })}
             activeOpacity={0.85}
           >
             <Ionicons name="person-add-outline" size={22} color="#fff" />
-            <Text style={styles.unlinkedBtnText}>가족 연동하기</Text>
+            <Text style={styles.unlinkedBtnText}>{t('diary.linkFamilyBtn')}</Text>
           </TouchableOpacity>
         </View>
       ) : (
@@ -756,14 +776,14 @@ export function DiaryScreen() {
           {/* ── 한마디 (본문, 주연) — 한 장의 페이지, 블록 사이 rule 1px §11-3 ── */}
           {entries.length === 0 && (
             <View style={styles.emptyEntryWrap}>
-              <Text style={styles.emptyEntryText}>아직 작성한 글이 없어요.</Text>
+              <Text style={styles.emptyEntryText}>{t('diary.noEntryYet')}</Text>
               <TouchableOpacity
                 onPress={() => setShowEditor(true)}
                 style={styles.emptyWriteBtn}
                 activeOpacity={0.85}
               >
                 <Ionicons name="create-outline" size={22} color="#fff" />
-                <Text style={styles.emptyWriteBtnText}>작성</Text>
+                <Text style={styles.emptyWriteBtnText}>{t('diary.writeBtn')}</Text>
               </TouchableOpacity>
             </View>
           )}
@@ -824,6 +844,7 @@ export function DiaryScreen() {
 // 약복용/몸상태/기분/운동을 시간대별 평균으로 한 줄씩. 데이터 없는 줄은 통째로 생략.
 
 function TodayRecordBox({ summary, dialog }: { summary: AutoSummary | null; dialog: ReturnType<typeof useDialog> }) {
+  const { t } = useTranslation();
   if (!summary) return null;
 
   const hasMed = summary.med.count > 0;
@@ -838,70 +859,68 @@ function TodayRecordBox({ summary, dialog }: { summary: AutoSummary | null; dial
     <View style={styles.recBox}>
       {/* 헤더: 좌=• 오늘의 기록 • / 우=추세보기 › */}
       <View style={styles.recHead}>
-        <Text style={styles.recTitle}>· 오늘의 기록 ·</Text>
+        <Text style={styles.recTitle}>{t('diary.todayRecordTitle')}</Text>
         <WebTrendLink dialog={dialog} />
       </View>
 
       <View style={styles.recRow}>
-        <Text style={styles.recLab}>💊 약복용{hasMed ? ` ${summary.med.count}회` : ''}</Text>
+        <Text style={styles.recLab}>{t('diary.medLabel')}</Text>
         {hasMed ? (
-          <Text style={styles.recVal}>{summary.med.times.join(' · ')}</Text>
+          <Text style={styles.recVal}>{t('diary.timesSuffix', { n: summary.med.count })} · {summary.med.times.join(' · ')}</Text>
         ) : (
-          <Text style={styles.recEmpty}>기록없음</Text>
+          <Text style={styles.recEmpty}>{t('diary.noRecord')}</Text>
         )}
       </View>
 
       <View style={styles.recRow}>
-        <Text style={styles.recLab}>😊 몸상태</Text>
+        <Text style={styles.recLab}>{t('diary.bodyLabel')}</Text>
         {hasBody ? (
           <Text style={styles.recVal}>
-            {summary.bodyByTime.map((s) => `${s.label} ${s.avg}점`).join(' · ')}
+            {summary.bodyByTime.map((s) => `${s.label} ${t('diary.pointSuffix', { n: s.avg })}`).join(' · ')}
           </Text>
         ) : (
-          <Text style={styles.recEmpty}>기록없음</Text>
+          <Text style={styles.recEmpty}>{t('diary.noRecord')}</Text>
         )}
       </View>
 
       <View style={styles.recRow}>
-        <Text style={styles.recLab}>🙂 기분상태</Text>
+        <Text style={styles.recLab}>{t('diary.moodLabel')}</Text>
         {hasMood ? (
           <Text style={styles.recVal}>
-            {summary.moodByTime.map((s) => `${s.label} ${s.avg}점`).join(' · ')}
+            {summary.moodByTime.map((s) => `${s.label} ${t('diary.pointSuffix', { n: s.avg })}`).join(' · ')}
           </Text>
         ) : (
-          <Text style={styles.recEmpty}>기록없음</Text>
+          <Text style={styles.recEmpty}>{t('diary.noRecord')}</Text>
         )}
       </View>
 
       <View style={styles.recRow}>
-        <Text style={styles.recLab}>🏃 운동{hasExercise ? ` ${summary.exerciseCount}회` : ''}</Text>
+        <Text style={styles.recLab}>{t('diary.exerciseLabel')}</Text>
         {hasExercise ? (
           <Text style={styles.recVal}>
-            {summary.exercise.map((e) => `${e.type} ${e.minutes}분`).join(' | ')}
+            {t('diary.timesSuffix', { n: summary.exerciseCount })} · {summary.exercise.map((e) => `${translateRawExerciseType(e.type)} ${t('diary.minutesSuffix', { n: e.minutes })}`).join(' | ')}
           </Text>
         ) : (
-          <Text style={styles.recEmpty}>기록없음</Text>
+          <Text style={styles.recEmpty}>{t('diary.noRecord')}</Text>
         )}
       </View>
 
-      <View style={styles.recRowSplit}>
-        <View style={[styles.recRow, styles.recHalf]}>
-          <Text style={styles.recLab}>😴 수면</Text>
-          {hasSleep ? (
-            <Text style={styles.recVal}>{summary.sleep}점</Text>
-          ) : (
-            <Text style={styles.recEmpty}>기록없음</Text>
-          )}
-        </View>
+      <View style={styles.recRow}>
+        <Text style={styles.recLab}>{t('diary.sleepLabel')}</Text>
+        {hasSleep ? (
+          <Text style={styles.recVal}>{t('diary.pointSuffix', { n: summary.sleep })}</Text>
+        ) : (
+          <Text style={styles.recEmpty}>{t('diary.noRecord')}</Text>
+        )}
+      </View>
 
-        <View style={[styles.recRow, styles.recHalf]}>
-          <Text style={styles.recLab}>🚽 변비</Text>
-          {hasConstipation ? (
-            <Text style={styles.recVal}>{summary.constipation ? '있었어요' : '없었어요'}</Text>
-          ) : (
-            <Text style={styles.recEmpty}>기록없음</Text>
-          )}
-        </View>
+      <View style={styles.recRow}>
+        <Text style={styles.recLab}>{t('diary.constipationLabel')}</Text>
+        {hasConstipation ? (
+          <Text style={styles.recVal}>{summary.constipation ? t('diary.constipationYes') : t('diary.constipationNo')}</Text>
+        ) : (
+          <Text style={styles.recEmpty}>{t('diary.noRecord')}</Text>
+        )}
       </View>
     </View>
   );
@@ -910,6 +929,7 @@ function TodayRecordBox({ summary, dialog }: { summary: AutoSummary | null; dial
 // ─── 웹 추세 보기 — 작은 텍스트 링크 (각주 우측 끝) ─────────────────────────────
 
 function WebTrendLink({ dialog }: { dialog: ReturnType<typeof useDialog> }) {
+  const { t } = useTranslation();
   // "추세보기" → PC(parkinon.com)에서 입력할 6자리 코드를 모달로 표시.
   // create-web-token의 url(코드 포함)을 외부 브라우저로 직접 열지 않는다(코드 노출 방지).
   const [pcModalVisible, setPcModalVisible] = useState(false);
@@ -923,13 +943,13 @@ function WebTrendLink({ dialog }: { dialog: ReturnType<typeof useDialog> }) {
     setPcError(null);
     try {
       const { data, error } = await supabase.functions.invoke('create-web-token');
-      if (error || !data?.code) throw new Error(error?.message || '번호 생성 실패');
+      if (error || !data?.code) throw new Error(error?.message || t('diary.pcTokenGenFail'));
       setPcCode(data.code as string);
       setPcExpiresAt((data.expires_at as string) ?? null);
     } catch (e: any) {
       setPcCode(null);
       setPcExpiresAt(null);
-      setPcError(e?.message || '번호를 만들지 못했어요. 잠시 후 다시 시도해주세요.');
+      setPcError(e?.message || t('diary.pcTokenGenFailMsg'));
     } finally {
       setPcLoading(false);
     }
@@ -951,7 +971,7 @@ function WebTrendLink({ dialog }: { dialog: ReturnType<typeof useDialog> }) {
         activeOpacity={0.7}
         hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
       >
-        <Text style={styles.trendLinkText}>추세보기</Text>
+        <Text style={styles.trendLinkText}>{t('diary.trendViewLink')}</Text>
         <Ionicons name="chevron-forward" size={14} color={Journal.accent} />
       </TouchableOpacity>
 
@@ -981,11 +1001,12 @@ function EntryBlock({
   onEdit: () => void;
   onDelete: () => void;
 }) {
+  const { t } = useTranslation();
   const [showVideo, setShowVideo] = useState(false);
   // EntryBlock 은 <Modal> 밖 일반 컴포넌트라 inset 이 정확 → 풀스크린 영상 모달에 전달.
   const insets = useSafeAreaInsets();
 
-  const roleLabel = entry.author_role === 'caregiver' ? '보호자' : '환자';
+  const roleLabel = entry.author_role === 'caregiver' ? t('diary.roleCaregiver') : t('diary.rolePatient');
   // 표시 시각 + 요일 (KST). 수정한 경우 마지막 수정 시각을 보이도록 updated_at 우선, 없으면 created_at.
   const stamp = formatEntryStamp(entry.updated_at ?? entry.created_at);
   // 사진 전체보기: 탭한 사진 인덱스(entry.photo_urls 기준). null이면 닫힘.
@@ -1025,7 +1046,7 @@ function EntryBlock({
                 hitSlop={{ top: 12, bottom: 12, left: 10, right: 8 }}
                 style={styles.entryActionBtn}
                 activeOpacity={0.7}
-                accessibilityLabel="이 글 수정"
+                accessibilityLabel={t('diary.a11yEditPost')}
               >
                 <Ionicons name="create-outline" size={20} color={Journal.inkSoft} />
               </TouchableOpacity>
@@ -1034,7 +1055,7 @@ function EntryBlock({
                 hitSlop={{ top: 12, bottom: 12, left: 8, right: 10 }}
                 style={styles.entryActionBtn}
                 activeOpacity={0.7}
-                accessibilityLabel="이 글 삭제"
+                accessibilityLabel={t('diary.a11yDeletePost')}
               >
                 <Ionicons name="trash-outline" size={20} color={Journal.inkSoft} />
               </TouchableOpacity>
@@ -1133,6 +1154,7 @@ function FullscreenVideoModal({
   insetTop: number;
   insetBottom: number;
 }) {
+  const { t } = useTranslation();
   // 모달 밖에서 받은 inset 신뢰. 안드에서 0 으로 떨어지면 내비바 높이 추정으로 보강.
   const bottomPad = estimateAndroidNavBarPad(insetBottom);
   const videoRef = useRef<AVVideo>(null);
@@ -1189,7 +1211,7 @@ function FullscreenVideoModal({
         <View style={[styles.videoModalHeader, { paddingTop: insetTop }]}>
           <TouchableOpacity style={styles.videoCloseBtn} onPress={handleClose} activeOpacity={0.8}>
             <Ionicons name="close" size={26} color="#fff" />
-            <Text style={styles.videoCloseText}>닫기</Text>
+            <Text style={styles.videoCloseText}>{t('diary.videoCloseBtn')}</Text>
           </TouchableOpacity>
         </View>
         {/* finalUrl 해결 전 스피너, 해결되면 AVVideo 마운트.
@@ -1265,6 +1287,7 @@ function RuledPaper({ children }: { children: React.ReactNode }) {
 }
 
 function DiaryEditorModal({ visible, dateStr, patientId, existing, onClose, onSaved, onDeleted, parentInsetTop, parentInsetBottom }: EditorProps) {
+  const { t } = useTranslation();
   const { user } = useAuth();
   const dialog = useDialog();
   const insets = useSafeAreaInsets();
@@ -1386,7 +1409,7 @@ function DiaryEditorModal({ visible, dateStr, patientId, existing, onClose, onSa
   const handleOpenPhotoSheet = () => {
     const total = photoUrls.length + newPhotoUris.length;
     if (total >= 5) {
-      dialog.alert({ title: '사진은 최대 5장까지예요', message: '더 넣으려면 기존 사진을 삭제한 뒤 추가해 주세요.' });
+      dialog.alert({ title: t('diary.photoMax5Title'), message: t('diary.photoMax5Msg') });
       return;
     }
     setShowPhotoSheet(true);
@@ -1399,14 +1422,14 @@ function DiaryEditorModal({ visible, dateStr, patientId, existing, onClose, onSa
     const total = photoUrls.length + newPhotoUris.length;
     const remaining = 5 - total;
     if (remaining <= 0) {
-      dialog.alert({ title: '사진은 최대 5장이에요', message: '사진을 더 넣으려면 기존 사진을 빼주세요.' });
+      dialog.alert({ title: t('diary.photoMax5TitleAlt'), message: t('diary.photoMax5MsgAlt') });
       return;
     }
     const picked = result.assets.slice(0, remaining).map((a) => a.uri);
     setNewPhotoUris((prev) => [...prev, ...picked]);
     // 선택 장수가 남은 자리를 초과한 경우 안내
     if (result.assets.length > remaining) {
-      dialog.alert({ title: '사진은 최대 5장이에요', message: `${remaining}장만 추가했어요. 나머지는 넣을 수 없어요.` });
+      dialog.alert({ title: t('diary.photoMax5TitleAlt'), message: t('diary.photoMax5PartialMsg', { remaining }) });
     }
   };
 
@@ -1415,12 +1438,12 @@ function DiaryEditorModal({ visible, dateStr, patientId, existing, onClose, onSa
     setShowPhotoSheet(false);
     const total = photoUrls.length + newPhotoUris.length;
     if (total >= 5) {
-      dialog.alert({ title: '사진은 최대 5장이에요', message: '사진을 더 넣으려면 기존 사진을 빼주세요.' });
+      dialog.alert({ title: t('diary.photoMax5TitleAlt'), message: t('diary.photoMax5MsgAlt') });
       return;
     }
     const perm = await ImagePicker.requestMediaLibraryPermissionsAsync();
     if (!perm.granted) {
-      dialog.alert({ title: '권한 필요', message: '갤러리 접근 권한이 필요해요.' });
+      dialog.alert({ title: t('diary.permRequiredTitle'), message: t('diary.galleryPermMsg') });
       return;
     }
     const remaining = 5 - total;
@@ -1438,12 +1461,12 @@ function DiaryEditorModal({ visible, dateStr, patientId, existing, onClose, onSa
     setShowPhotoSheet(false);
     const total = photoUrls.length + newPhotoUris.length;
     if (total >= 5) {
-      dialog.alert({ title: '사진은 최대 5장이에요', message: '사진을 더 넣으려면 기존 사진을 빼주세요.' });
+      dialog.alert({ title: t('diary.photoMax5TitleAlt'), message: t('diary.photoMax5MsgAlt') });
       return;
     }
     const perm = await ImagePicker.requestCameraPermissionsAsync();
     if (!perm.granted) {
-      dialog.alert({ title: '권한 필요', message: '카메라 접근 권한이 필요해요.' });
+      dialog.alert({ title: t('diary.permRequiredTitle'), message: t('diary.cameraPermMsg') });
       return;
     }
     const result = await ImagePicker.launchCameraAsync({
@@ -1471,7 +1494,7 @@ function DiaryEditorModal({ visible, dateStr, patientId, existing, onClose, onSa
     setShowVideoSheet(false);
     const perm = await ImagePicker.requestMediaLibraryPermissionsAsync();
     if (!perm.granted) {
-      dialog.alert({ title: '권한 필요', message: '갤러리 접근 권한이 필요해요.' });
+      dialog.alert({ title: t('diary.permRequiredTitle'), message: t('diary.galleryPermMsg') });
       return;
     }
     const result = await ImagePicker.launchImageLibraryAsync({
@@ -1483,7 +1506,7 @@ function DiaryEditorModal({ visible, dateStr, patientId, existing, onClose, onSa
       const asset = result.assets[0];
       const durSec = asset.duration ? asset.duration / 1000 : 0;
       if (durSec > MAX_VIDEO_DURATION_SEC) {
-        dialog.alert({ title: '영상이 너무 길어요', message: '2분 이하의 영상만 넣을 수 있어요.' });
+        dialog.alert({ title: t('diary.videoTooLongTitle'), message: t('diary.videoTooLongMsg') });
         return;
       }
       setNewVideoUri(asset.uri);
@@ -1497,7 +1520,7 @@ function DiaryEditorModal({ visible, dateStr, patientId, existing, onClose, onSa
     setShowVideoSheet(false);
     const perm = await ImagePicker.requestCameraPermissionsAsync();
     if (!perm.granted) {
-      dialog.alert({ title: '권한 필요', message: '카메라 접근 권한이 필요해요.' });
+      dialog.alert({ title: t('diary.permRequiredTitle'), message: t('diary.cameraPermMsg') });
       return;
     }
     const result = await ImagePicker.launchCameraAsync({
@@ -1509,7 +1532,7 @@ function DiaryEditorModal({ visible, dateStr, patientId, existing, onClose, onSa
       const asset = result.assets[0];
       const durSec = asset.duration ? asset.duration / 1000 : 0;
       if (durSec > MAX_VIDEO_DURATION_SEC) {
-        dialog.alert({ title: '영상이 너무 길어요', message: '2분 이하의 영상만 넣을 수 있어요.' });
+        dialog.alert({ title: t('diary.videoTooLongTitle'), message: t('diary.videoTooLongMsg') });
         return;
       }
       setNewVideoUri(asset.uri);
@@ -1540,7 +1563,7 @@ function DiaryEditorModal({ visible, dateStr, patientId, existing, onClose, onSa
       const perm = await Audio.requestPermissionsAsync();
       if (!perm.granted) {
         setShowRecordSheet(false);
-        dialog.alert({ title: '마이크 권한이 필요해요', message: '휴대폰 설정에서 마이크 권한을 켜 주세요.' });
+        dialog.alert({ title: t('diary.micPermTitle'), message: t('diary.micPermMsg') });
         return;
       }
       await Audio.setAudioModeAsync({ allowsRecordingIOS: true, playsInSilentModeIOS: true });
@@ -1553,7 +1576,7 @@ function DiaryEditorModal({ visible, dateStr, patientId, existing, onClose, onSa
     } catch (e) {
       setRecording(false);
       setShowRecordSheet(false);
-      dialog.alert({ title: '녹음을 시작할 수 없어요', message: '잠시 후 다시 시도해 주세요.' });
+      dialog.alert({ title: t('diary.recordStartFailTitle'), message: t('diary.genericRetryMsg') });
     }
   };
 
@@ -1573,7 +1596,7 @@ function DiaryEditorModal({ visible, dateStr, patientId, existing, onClose, onSa
         }
       }
     } catch (e) {
-      dialog.alert({ title: '녹음에 실패했어요', message: '다시 시도해 주세요.' });
+      dialog.alert({ title: t('diary.recordFailTitle'), message: t('diary.genericRetryMsg') });
     } finally {
       setRecording(false);
       setShowRecordSheet(false);
@@ -1584,10 +1607,10 @@ function DiaryEditorModal({ visible, dateStr, patientId, existing, onClose, onSa
   const handleCloseRecordSheet = async () => {
     if (recording) {
       const stop = await dialog.confirm({
-        title: '녹음을 멈출까요?',
-        message: '지금 멈추면 여기까지 녹음한 음성이 저장됩니다.',
-        confirmText: '멈추고 저장',
-        cancelText: '계속 녹음',
+        title: t('diary.stopRecordingTitle'),
+        message: t('diary.stopRecordingMsg'),
+        confirmText: t('diary.stopAndSave'),
+        cancelText: t('diary.continueRecording'),
       });
       if (!stop) return;
       await handleStopRecord();
@@ -1638,13 +1661,13 @@ function DiaryEditorModal({ visible, dateStr, patientId, existing, onClose, onSa
   const handleSave = async () => {
     if (!user) return;
     if (recording) {
-      dialog.alert({ title: '녹음 중이에요', message: '녹음을 멈춘 뒤 저장해 주세요.' });
+      dialog.alert({ title: t('diary.recordingInProgressTitle'), message: t('diary.recordingInProgressMsg') });
       return;
     }
     setSaving(true);
     try {
       // 1) 신규 사진 업로드
-      setSaveStage('사진 저장 중');
+      setSaveStage(i18n.t('loading.savingPhoto'));
       const uploadedPhotos: string[] = [...photoUrls];
       for (const uri of newPhotoUris) {
         const compressed = await ImageManipulator.manipulateAsync(
@@ -1660,7 +1683,7 @@ function DiaryEditorModal({ visible, dateStr, patientId, existing, onClose, onSa
       let finalAudioUrl = audioUrl;
       let finalAudioKey = audioR2Key;
       if (recordedAudioUri) {
-        setSaveStage('음성 저장 중');
+        setSaveStage(i18n.t('loading.savingAudio'));
         const res = await uploadSound(recordedAudioUri, user.id, 'audio/m4a', UPLOAD_TIMEOUT_MS);
         finalAudioUrl = res.url;
         finalAudioKey = res.key;
@@ -1669,7 +1692,7 @@ function DiaryEditorModal({ visible, dateStr, patientId, existing, onClose, onSa
       // 3) 신규 영상 업로드 + media_logs(source='diary') 행 생성
       let finalVideoMediaId = videoMediaId;
       if (newVideoUri) {
-        setSaveStage('영상 저장 중');
+        setSaveStage(i18n.t('loading.savingVideoShort'));
         let videoUri = newVideoUri;
         try {
           videoUri = await VideoCompressor.compress(newVideoUri, {
@@ -1703,7 +1726,7 @@ function DiaryEditorModal({ visible, dateStr, patientId, existing, onClose, onSa
         finalVideoMediaId = (inserted as any)?.id ?? null;
       }
 
-      setSaveStage('저장 중');
+      setSaveStage(i18n.t('loading.savingShort'));
 
       // ── 최종 media_order 만들기 ──
       // 에디터 사진 키(기존 url + 신규 로컬 uri)와 업로드된 최종 url을 인덱스로 매핑.
@@ -1736,11 +1759,11 @@ function DiaryEditorModal({ visible, dateStr, patientId, existing, onClose, onSa
       });
     } catch (e: any) {
       dialog.alert({
-        title: '저장에 실패했어요',
+        title: t('diary.saveFailTitle'),
         message:
           e?.message === 'UPLOAD_TIMEOUT'
-            ? '인터넷 연결이 느려요.\n와이파이 연결 후 다시 시도해 주세요.'
-            : e?.message ?? '잠시 후 다시 시도해 주세요.',
+            ? t('diary.slowInternetMsg')
+            : e?.message ?? t('diary.genericRetryMsg'),
       });
     } finally {
       setSaving(false);
@@ -1751,18 +1774,18 @@ function DiaryEditorModal({ visible, dateStr, patientId, existing, onClose, onSa
   // ── 삭제 (내가 쓴 글) ──
   const handleDelete = async () => {
     const ok = await dialog.confirm({
-      title: '글 삭제',
-      message: '이 날의 글을 삭제할까요?',
+      title: t('diary.deletePostTitle'),
+      message: t('diary.deletePostMsg'),
       destructive: true,
-      confirmText: '삭제',
-      cancelText: '취소',
+      confirmText: t('medManage.delete'),
+      cancelText: t('common.cancel'),
     });
     if (!ok) return;
     setDeleting(true);
     try {
       await onDeleted();
     } catch (e: any) {
-      dialog.alert({ title: '삭제에 실패했어요', message: e?.message ?? '잠시 후 다시 시도해 주세요.' });
+      dialog.alert({ title: t('diary.deleteFailTitle'), message: e?.message ?? t('diary.genericRetryMsg') });
     } finally {
       setDeleting(false);
     }
@@ -1776,7 +1799,7 @@ function DiaryEditorModal({ visible, dateStr, patientId, existing, onClose, onSa
           paddingTop으로 적용해 헤더가 항상 노치 아래에 오도록 한다. (작성/수정 모드 전용) */}
       <View style={[styles.editorSafe, { paddingTop: insets.top }]}>
         <DiaryHeader
-          title={existing ? '파킨온 일기 수정' : '파킨온 일기 작성'}
+          title={existing ? t('diary.editTitle') : t('diary.writeTitle')}
           bg={Journal.pageDeep}
           onLeftPress={onClose}
           rightComponent={
@@ -1792,7 +1815,7 @@ function DiaryEditorModal({ visible, dateStr, patientId, existing, onClose, onSa
                 ) : (
                   <>
                     <Ionicons name="checkmark" size={20} color={Journal.accent} />
-                    <Text style={styles.headerActionText}>저장</Text>
+                    <Text style={styles.headerActionText}>{t('diary.saveBtn')}</Text>
                   </>
                 )}
               </TouchableOpacity>
@@ -1821,7 +1844,7 @@ function DiaryEditorModal({ visible, dateStr, patientId, existing, onClose, onSa
                 style={styles.editorInput}
                 value={text}
                 onChangeText={setText}
-                placeholder="오늘 하루는 어떠셨나요?"
+                placeholder={t('diary.bodyPlaceholder')}
                 placeholderTextColor={Journal.placeholder}
                 multiline
                 textAlignVertical="top"
@@ -1846,7 +1869,7 @@ function DiaryEditorModal({ visible, dateStr, patientId, existing, onClose, onSa
               {mediaOrder.length > 0 && (
                 <View style={styles.attBlock}>
                   {mediaOrder.length > 1 && (
-                    <Text style={styles.orderHint}>아래 ‘위로/아래로’ 버튼으로 순서를 바꿀 수 있어요</Text>
+                    <Text style={styles.orderHint}>{t('diary.reorderHint')}</Text>
                   )}
                   {mediaOrder.map((token, idx) => {
                     const isFirst = idx === 0;
@@ -1914,7 +1937,7 @@ function DiaryEditorModal({ visible, dateStr, patientId, existing, onClose, onSa
                               activeOpacity={0.8}
                             >
                               <Ionicons name="arrow-up" size={16} color={isFirst ? Journal.inkFaint : Journal.accent} />
-                              <Text style={[styles.orderBtnText, isFirst && styles.orderBtnTextDisabled]}>위로</Text>
+                              <Text style={[styles.orderBtnText, isFirst && styles.orderBtnTextDisabled]}>{t('diary.moveUp')}</Text>
                             </TouchableOpacity>
                             <TouchableOpacity
                               style={[styles.orderBtn, isLast && styles.orderBtnDisabled]}
@@ -1923,7 +1946,7 @@ function DiaryEditorModal({ visible, dateStr, patientId, existing, onClose, onSa
                               activeOpacity={0.8}
                             >
                               <Ionicons name="arrow-down" size={16} color={isLast ? Journal.inkFaint : Journal.accent} />
-                              <Text style={[styles.orderBtnText, isLast && styles.orderBtnTextDisabled]}>아래로</Text>
+                              <Text style={[styles.orderBtnText, isLast && styles.orderBtnTextDisabled]}>{t('diary.moveDown')}</Text>
                             </TouchableOpacity>
                           </View>
                         )}
@@ -1940,13 +1963,13 @@ function DiaryEditorModal({ visible, dateStr, patientId, existing, onClose, onSa
           </ScrollView>
 
           {/* 첨부 조건 안내 (도구막대 바로 위) */}
-          <Text style={styles.toolbarHint}>사진 5장 · 동영상 1개(최대2분) · 음성 1개까지 넣을 수 있어요</Text>
+          <Text style={styles.toolbarHint}>{t('diary.attachHint')}</Text>
 
           {/* 도구막대 (키보드 위 고정) — [사진] [동영상] [음성] */}
           <View style={[styles.toolbarBar, { paddingBottom: toolbarBottomPad }]}>
             <TouchableOpacity style={styles.tool} onPress={handleOpenPhotoSheet} activeOpacity={0.8}>
               <Ionicons name="image-outline" size={20} color={Journal.inkSoft} />
-              <Text style={styles.toolText}>사진</Text>
+              <Text style={styles.toolText}>{t('diary.photoToolLabel')}</Text>
             </TouchableOpacity>
             <TouchableOpacity
               style={styles.tool}
@@ -1954,15 +1977,15 @@ function DiaryEditorModal({ visible, dateStr, patientId, existing, onClose, onSa
                 hasVideo
                   ? () =>
                       dialog.alert({
-                        title: '동영상은 1개만 넣을 수 있어요',
-                        message: '다른 동영상을 넣으려면 기존 동영상을 삭제한 뒤 추가해 주세요.',
+                        title: t('diary.videoOnlyOneTitle'),
+                        message: t('diary.videoOnlyOneMsg'),
                       })
                   : handleOpenVideoSheet
               }
               activeOpacity={0.8}
             >
               <Ionicons name="videocam-outline" size={20} color={Journal.inkSoft} />
-              <Text style={styles.toolText}>동영상</Text>
+              <Text style={styles.toolText}>{t('diary.videoToolLabel')}</Text>
             </TouchableOpacity>
             <TouchableOpacity
               style={styles.tool}
@@ -1970,15 +1993,15 @@ function DiaryEditorModal({ visible, dateStr, patientId, existing, onClose, onSa
                 hasAudio
                   ? () =>
                       dialog.alert({
-                        title: '음성은 1개만 넣을 수 있어요',
-                        message: '다른 음성을 넣으려면 기존 음성을 삭제한 뒤 추가해 주세요.',
+                        title: t('diary.audioOnlyOneTitle'),
+                        message: t('diary.audioOnlyOneMsg'),
                       })
                   : handleOpenRecordSheet
               }
               activeOpacity={0.8}
             >
               <Ionicons name="mic-outline" size={20} color={Journal.inkSoft} />
-              <Text style={styles.toolText}>음성</Text>
+              <Text style={styles.toolText}>{t('diary.audioToolLabel')}</Text>
             </TouchableOpacity>
           </View>
         </KeyboardAvoidingView>
@@ -2015,10 +2038,10 @@ function DiaryEditorModal({ visible, dateStr, patientId, existing, onClose, onSa
         {/* 사진 첨부 방식 선택 시트 (촬영 / 갤러리에서 선택) */}
         <AttachSheet
           visible={showPhotoSheet}
-          title="사진 추가"
-          captureLabel="촬영"
+          title={t('diary.addPhotoTitle')}
+          captureLabel={t('diary.captureLabel')}
           captureIcon="camera"
-          libraryLabel="갤러리에서 선택"
+          libraryLabel={t('diary.libraryLabel')}
           libraryIcon="images"
           onCapture={handleTakePhoto}
           onLibrary={handlePickPhotoFromLibrary}
@@ -2028,10 +2051,10 @@ function DiaryEditorModal({ visible, dateStr, patientId, existing, onClose, onSa
         {/* 동영상 첨부 방식 선택 시트 (촬영 / 갤러리에서 선택) */}
         <AttachSheet
           visible={showVideoSheet}
-          title="동영상 추가"
-          captureLabel="촬영"
+          title={t('diary.addVideoTitle')}
+          captureLabel={t('diary.captureLabel')}
           captureIcon="videocam"
-          libraryLabel="갤러리에서 선택"
+          libraryLabel={t('diary.libraryLabel')}
           libraryIcon="images"
           onCapture={handleRecordVideo}
           onLibrary={handlePickVideo}
@@ -2045,7 +2068,7 @@ function DiaryEditorModal({ visible, dateStr, patientId, existing, onClose, onSa
           <View style={styles.savingOverlay} pointerEvents="auto">
             <View style={styles.savingCard}>
               <ActivityIndicator size="large" color={Journal.accent} />
-              <Text style={styles.savingText}>{saveStage ?? '저장 중'}</Text>
+              <Text style={styles.savingText}>{saveStage ?? i18n.t('loading.savingShort')}</Text>
             </View>
           </View>
         )}
@@ -2073,6 +2096,7 @@ function RecordSheet({
   onStop: () => void;
   onClose: () => void;
 }) {
+  const { t } = useTranslation();
   const insets = useSafeAreaInsets();
   const { translateY, panHandlers, resetPosition } = useSwipeDownDismiss(onClose);
 
@@ -2103,34 +2127,34 @@ function RecordSheet({
         >
           <View style={styles.recSheetGrabber} />
 
-          <Text style={styles.recSheetTitle}>음성 녹음</Text>
+          <Text style={styles.recSheetTitle}>{t('diary.recordSheetTitle')}</Text>
 
           {!recording ? (
             <>
               <Text style={styles.recSheetGuide}>
-                {'아래 ‘녹음 시작’을 누르면 녹음이 시작돼요.\n다 말씀하신 뒤 ‘정지’를 누르면 저장됩니다.'}
+                {t('diary.recordSheetGuideLong')}
               </Text>
               <TouchableOpacity style={styles.recSheetStartBtn} onPress={onStart} activeOpacity={0.85}>
                 <Ionicons name="mic" size={20} color="#FAF5E9" />
-                <Text style={styles.recSheetStartText}>녹음 시작</Text>
+                <Text style={styles.recSheetStartText}>{t('diary.recordStart')}</Text>
               </TouchableOpacity>
               <TouchableOpacity style={styles.recSheetCancelBtn} onPress={onClose} activeOpacity={0.8}>
-                <Text style={styles.recSheetCancelText}>취소</Text>
+                <Text style={styles.recSheetCancelText}>{t('diary.cancel')}</Text>
               </TouchableOpacity>
             </>
           ) : (
             <>
               <View style={styles.recSheetLiveRow}>
                 <View style={styles.recSheetDot} />
-                <Text style={styles.recSheetLiveText}>녹음 중</Text>
+                <Text style={styles.recSheetLiveText}>{t('diary.recordingLive')}</Text>
                 <Text style={styles.recSheetTimer}>
                   {mm}:{ss}
                 </Text>
               </View>
-              <Text style={styles.recSheetGuide}>편하게 말씀하시고, 끝나면 정지를 눌러주세요.</Text>
+              <Text style={styles.recSheetGuide}>{t('diary.recordSheetGuideShort')}</Text>
               <TouchableOpacity style={styles.recSheetStopBtn} onPress={onStop} activeOpacity={0.85}>
                 <Ionicons name="stop" size={20} color="#FAF5E9" />
-                <Text style={styles.recSheetStartText}>정지</Text>
+                <Text style={styles.recSheetStartText}>{t('diary.recordStop')}</Text>
               </TouchableOpacity>
             </>
           )}
@@ -2164,6 +2188,7 @@ function AttachSheet({
   onLibrary: () => void;
   onClose: () => void;
 }) {
+  const { t } = useTranslation();
   const insets = useSafeAreaInsets();
   const { translateY, panHandlers, resetPosition } = useSwipeDownDismiss(onClose);
 
@@ -2202,7 +2227,7 @@ function AttachSheet({
             <Text style={styles.attachLibraryText}>{libraryLabel}</Text>
           </TouchableOpacity>
           <TouchableOpacity style={styles.recSheetCancelBtn} onPress={onClose} activeOpacity={0.8}>
-            <Text style={styles.recSheetCancelText}>취소</Text>
+            <Text style={styles.recSheetCancelText}>{t('diary.cancel')}</Text>
           </TouchableOpacity>
         </Animated.View>
       </View>
@@ -2811,16 +2836,9 @@ const styles = StyleSheet.create({
     gap: 10,
     marginBottom: 9,
   },
-  // 수면 + 변비를 한 줄에 두 칸으로 배치
-  recRowSplit: {
-    flexDirection: 'row',
-    alignItems: 'flex-start',
-    gap: 10,
-    marginBottom: 9,
-  },
-  recHalf: { flex: 1, marginBottom: 0 },
-  // 라벨: 고정 폭 칼럼 (한국어 라벨이 안 잘리는 선) → 값은 오른쪽 칼럼에서 wrap
-  recLab: { width: 84, flexShrink: 0, fontSize: 13, fontWeight: '700', lineHeight: 20, color: Journal.ink },
+  // 라벨: 고정 폭 칼럼. 84였을 땐 한글은 안 잘렸지만 영문 최장 라벨("🚽 Constipation")은
+  // 여전히 줄바뀜했다(오너 재지적, 2026-07-05) — 132로 확장해 영문 최장 라벨도 한 줄에 맞춤.
+  recLab: { width: 132, flexShrink: 0, fontSize: 13, fontWeight: '700', lineHeight: 20, color: Journal.ink },
   // 값: 남은 폭 차지 → 줄바뀐 줄도 값 칼럼 왼쪽(첫 값 아래)에 정렬
   recVal: { flex: 1, fontSize: 13, fontWeight: '500', lineHeight: 20, color: Journal.inkSoft },
   recEmpty: { flex: 1, fontSize: 13, fontWeight: '500', lineHeight: 20, color: Journal.inkFaint },

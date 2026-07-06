@@ -33,6 +33,8 @@ export type TrackingRecommendation = {
   active: boolean;
   /** UI에 띄울 분류별 안내 문구 (디스클레이머와 별개의 분류 특이사항) */
   note?: string;
+  /** note의 영어 번역 (해외 로케일용). isEnLocale() 분기는 소비측(recommendUtils)에서 처리. */
+  noteEn?: string;
   /**
    * @deprecated UI 미사용(§7.5). 추천근거는 약효 설명 문장이 아니라 "출처 표기" 한 줄로
    * 바뀌었다(recommendUtils.SOURCE_LABEL). onset/tmax/duration → 일반어 환산 문장이던
@@ -74,36 +76,42 @@ export const CLASS_RECOMMENDATION: Record<DrugClass, TrackingRecommendation> = {
     offsets: [],
     active: false,
     note: '이 약은 약효추적 알림 대상이 아니에요. 레보도파 약 기준으로 추적해요.',
+    noteEn: "This medication isn't tracked for effect timing. Tracking is based on your levodopa medication instead.",
   },
   rotigotine_patch: {
     drugClass: 'rotigotine_patch',
     offsets: [],
     active: false,
     note: '붙이는 약(패치)이라 복용 후 추적 알림이 맞지 않아요.',
+    noteEn: "This is a patch, so a post-dose tracking alert doesn't apply.",
   },
   comt_inhibitor: {
     drugClass: 'comt_inhibitor',
     offsets: [],
     active: false,
     note: '레보도파와 함께 드시는 약이에요. 레보도파 기준으로 추적해요.',
+    noteEn: 'This medication is taken together with levodopa. Tracking is based on your levodopa medication.',
   },
   mao_b_inhibitor: {
     drugClass: 'mao_b_inhibitor',
     offsets: [],
     active: false,
     note: '이 약은 약효추적 알림 대상이 아니에요.',
+    noteEn: "This medication isn't tracked for effect timing.",
   },
   amantadine: {
     drugClass: 'amantadine',
     offsets: [],
     active: false,
     note: '이 약은 약효추적 알림 대상이 아니에요.',
+    noteEn: "This medication isn't tracked for effect timing.",
   },
   anticholinergic: {
     drugClass: 'anticholinergic',
     offsets: [],
     active: false,
     note: '이 약은 약효추적 알림 대상이 아니에요.',
+    noteEn: "This medication isn't tracked for effect timing.",
   },
 };
 

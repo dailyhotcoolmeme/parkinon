@@ -10,6 +10,7 @@ import {
   ScrollView,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
+import { useTranslation } from 'react-i18next';
 import { useBottomSheetPadding } from '../../hooks/useBottomSheetPadding';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useNavigation } from '@react-navigation/native';
@@ -28,6 +29,7 @@ type ChoiceKey = 'yes' | 'no' | 'unsure';
 
 export function FamilyCheckScreen() {
   const navigation = useNavigation<Nav>();
+  const { t } = useTranslation();
   const { signOut } = useAuth();
   const dialog = useDialog();
   const bottomPadding = useBottomSheetPadding(24);
@@ -50,7 +52,7 @@ export function FamilyCheckScreen() {
   const handleCodeConfirm = async () => {
     const fullCode = code;
     if (fullCode.length < 6) {
-      dialog.alert({ message: '초대 번호를 모두 입력해주세요.' });
+      dialog.alert({ message: t('familyCheck.alertEnterAll') });
       return;
     }
     setLoading(true);
@@ -69,7 +71,7 @@ export function FamilyCheckScreen() {
       if (!accessToken) {
         // 코드 조회 RLS 정책(초대코드 조회)은 auth.uid() IS NOT NULL을 요구한다.
         // 세션 토큰이 없으면 조회가 비로그인(anon)으로 나가 0행이 되어 오판하므로 명확히 차단한다.
-        dialog.alert({ title: '로그인 필요', message: '로그인 정보가 만료됐어요. 앱을 다시 시작한 뒤 시도해주세요.' });
+        dialog.alert({ title: t('familyCheck.loginRequiredTitle'), message: t('familyCheck.loginRequiredMsg') });
         setLoading(false);
         return;
       }
@@ -92,7 +94,7 @@ export function FamilyCheckScreen() {
         // 조회 자체가 실패하면 group_id를 확정할 수 없으므로 진행 금지(조용히 무시 금지).
         const errText = await lookupRes.text().catch(() => '');
         console.warn('[FamilyCheck] 코드 조회 실패:', lookupRes.status, errText);
-        dialog.alert({ title: '확인 실패', message: '초대 코드 확인 중 문제가 생겼어요. 잠시 후 다시 시도해주세요.' });
+        dialog.alert({ title: t('familyCheck.lookupFailTitle'), message: t('familyCheck.lookupFailMsg') });
         setLoading(false);
         return;
       }
@@ -111,7 +113,7 @@ export function FamilyCheckScreen() {
       }
 
       if (!groupId) {
-        dialog.alert({ title: '코드 오류', message: '올바른 초대 번호가 아니거나 만료됐어요. 다시 확인해주세요.' });
+        dialog.alert({ title: t('familyCheck.codeErrorTitle'), message: t('familyCheck.codeErrorMsg') });
         setLoading(false);
         return;
       }
@@ -163,16 +165,16 @@ export function FamilyCheckScreen() {
       setLoading(false);
       const ok = hasPatient
         ? await dialog.confirm({
-            title: '연동할 가족 확인',
-            message: `${trimmedName} 님과 가족으로 연동돼요.\n맞으신가요?`,
-            confirmText: '네, 맞아요',
-            cancelText: '아니요, 다시 입력할게요',
+            title: t('familyCheck.confirmPatientTitle'),
+            message: t('familyCheck.confirmPatientMsg', { name: trimmedName }),
+            confirmText: t('familyCheck.confirmPatientYes'),
+            cancelText: t('familyCheck.confirmPatientNo'),
           })
         : await dialog.confirm({
-            title: '가족 연결 확인',
-            message: '아직 환자가 등록되지 않은 가족 그룹이에요.\n가족(보호자)끼리 먼저 연결되고, 환자분은 나중에 함께 연결할 수 있어요.\n이 가족과 연결할까요?',
-            confirmText: '네, 연결할게요',
-            cancelText: '아니요, 다시 입력할게요',
+            title: t('familyCheck.confirmGroupTitle'),
+            message: t('familyCheck.confirmGroupMsg'),
+            confirmText: t('familyCheck.confirmGroupYes'),
+            cancelText: t('familyCheck.confirmGroupNo'),
           });
       if (!ok) {
         // 취소 → 저장하지 않고 코드 입력 화면에 머무름(입력값 비우기)
@@ -185,7 +187,7 @@ export function FamilyCheckScreen() {
       await AsyncStorage.setItem('onboarding_invite_code', fullCode);
       await goToNextScreen();
     } catch (e: any) {
-      await dialog.alert({ title: '오류', message: '코드 확인 중 문제가 생겼어요.\n' + (e?.message ?? '') });
+      await dialog.alert({ title: t('common.error'), message: t('familyCheck.codeErrorGenericMsg') + (e?.message ?? '') });
     } finally {
       setLoading(false);
     }
@@ -216,7 +218,7 @@ export function FamilyCheckScreen() {
           <View style={styles.header}>
             <TouchableOpacity style={styles.backBtn} onPress={() => setViewMode('question')} activeOpacity={0.7}>
               <Text style={styles.backIcon}>←</Text>
-              <Text style={styles.backText}>뒤로</Text>
+              <Text style={styles.backText}>{t('common.back')}</Text>
             </TouchableOpacity>
           </View>
 
@@ -224,9 +226,9 @@ export function FamilyCheckScreen() {
             contentContainerStyle={styles.scrollContent}
             keyboardShouldPersistTaps="handled"
           >
-            <Text style={styles.title}>초대 코드를 입력해주세요</Text>
+            <Text style={styles.title}>{t('familyCheck.codeInputTitle')}</Text>
             <Text style={styles.subtitle}>
-              가족에게 받은 초대 번호를{'\n'}입력해주세요
+              {t('familyCheck.codeInputSubtitle')}
             </Text>
 
             <View style={styles.codeRow}>
@@ -234,7 +236,7 @@ export function FamilyCheckScreen() {
                 style={[styles.codeInput, code.length > 0 && styles.codeInputFilled]}
                 value={code}
                 onChangeText={handleCodeChange}
-                placeholder="초대 번호 (숫자)"
+                placeholder={t('familyCheck.codePlaceholder')}
                 placeholderTextColor={Colors.textHint}
                 maxLength={6}
                 keyboardType="number-pad"
@@ -247,13 +249,13 @@ export function FamilyCheckScreen() {
           {/* 하단 버튼 */}
           <View style={[styles.bottomArea, { paddingBottom: bottomPadding }]}>
             <PrimaryButton
-              title="확인하기"
+              title={t('familyCheck.confirmBtn')}
               onPress={handleCodeConfirm}
               loading={loading}
               disabled={code.length < 6}
             />
             <TouchableOpacity style={styles.closeBtn} onPress={handleClose} activeOpacity={0.7}>
-              <Text style={styles.closeBtnText}>닫기</Text>
+              <Text style={styles.closeBtnText}>{t('common.close')}</Text>
             </TouchableOpacity>
           </View>
         </KeyboardAvoidingView>
@@ -268,7 +270,7 @@ export function FamilyCheckScreen() {
       <View style={styles.header}>
         <TouchableOpacity style={styles.backBtn} onPress={() => navigation.goBack()} activeOpacity={0.7}>
           <Text style={styles.backIcon}>←</Text>
-          <Text style={styles.backText}>뒤로</Text>
+          <Text style={styles.backText}>{t('common.back')}</Text>
         </TouchableOpacity>
       </View>
 
@@ -277,17 +279,17 @@ export function FamilyCheckScreen() {
         keyboardShouldPersistTaps="handled"
       >
         <Text style={styles.title}>
-          가족 중에 파킨온을{'\n'}쓰고 있는 분이 계신가요?
+          {t('familyCheck.questionTitle')}
         </Text>
         <Text style={styles.subtitle}>
-          가족 연결하면 환자분의 기록을{'\n'}실시간으로 확인할 수 있어요
+          {t('familyCheck.questionSubtitle')}
         </Text>
 
         <View style={styles.btnGroup}>
           {([
-            { key: 'yes', label: '네, 있어요', desc: '초대 코드로 연결할게요' },
-            { key: 'no', label: '아니요, 저 혼자 처음 시작해요', desc: '나중에 가족을 초대할 수 있어요' },
-            { key: 'unsure', label: '잘 모르겠어요', desc: '' },
+            { key: 'yes', label: t('familyCheck.choiceYesLabel'), desc: t('familyCheck.choiceYesDesc') },
+            { key: 'no', label: t('familyCheck.choiceNoLabel'), desc: t('familyCheck.choiceNoDesc') },
+            { key: 'unsure', label: t('familyCheck.choiceUnsureLabel'), desc: '' },
           ] as { key: ChoiceKey; label: string; desc: string }[]).map((item) => {
             const selected = selectedChoice === item.key;
             return (
@@ -313,12 +315,12 @@ export function FamilyCheckScreen() {
       {/* 하단 버튼 */}
       <View style={[styles.bottomArea, { paddingBottom: bottomPadding }]}>
         <PrimaryButton
-          title="다음으로"
+          title={t('common.nextTo')}
           onPress={handleConfirm}
           disabled={!selectedChoice}
         />
         <TouchableOpacity style={styles.closeBtn} onPress={handleClose} activeOpacity={0.7}>
-          <Text style={styles.closeBtnText}>닫기</Text>
+          <Text style={styles.closeBtnText}>{t('common.close')}</Text>
         </TouchableOpacity>
       </View>
     </SafeAreaView>

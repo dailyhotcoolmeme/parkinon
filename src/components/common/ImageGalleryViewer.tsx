@@ -16,6 +16,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { R2Image } from './R2Image';
 import { getCommunityPhotoUrl } from '../../lib/r2Upload';
+import { useTranslation } from 'react-i18next';
 
 const { width: SCREEN_WIDTH, height: SCREEN_HEIGHT } = Dimensions.get('window');
 const CONTENT_PADDING = 20;
@@ -36,6 +37,7 @@ interface Props {
 }
 
 export function ImageGalleryViewer({ urls, initialFullscreenIndex, onClose, publicCommunity }: Props) {
+  const { t } = useTranslation();
   const insets = useSafeAreaInsets();
   const directFullscreen = initialFullscreenIndex != null;
   const [modalVisible, setModalVisible] = useState(directFullscreen);
@@ -153,7 +155,7 @@ export function ImageGalleryViewer({ urls, initialFullscreenIndex, onClose, publ
                 activeOpacity={0.8}
               >
                 <Ionicons name="close" size={28} color="#fff" />
-                <Text style={styles.closeBtnText}>닫기</Text>
+                <Text style={styles.closeBtnText}>{t('common.close')}</Text>
               </TouchableOpacity>
               <Text style={styles.fullscreenIndicator}>
                 {fullscreenIndex + 1}/{urls.length}

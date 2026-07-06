@@ -7,6 +7,7 @@ import {
   StyleSheet,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
+import { useTranslation } from 'react-i18next';
 import { useNavigation } from '@react-navigation/native';
 import { useFocusEffect } from '@react-navigation/native';
 import { StackNavigationProp } from '@react-navigation/stack';
@@ -33,11 +34,17 @@ interface MenuItem {
   icon: IoniconName | MaterialCommunityIconName;
   /** 아이콘 세트. 기본은 Ionicons. 톱바와 일관성을 위해 일기 항목만 MaterialCommunityIcons 사용. */
   iconSet?: 'ionicons' | 'material-community';
+  /** i18n 키(t()로 렌더). */
   label: string;
+  /** i18n 키(t()로 렌더). */
   desc: string;
+  /** 라벨/설명 보간 파라미터(예: 환자 이름). */
+  labelParams?: Record<string, unknown>;
+  descParams?: Record<string, unknown>;
 }
 
 interface MenuSection {
+  /** i18n 키(t()로 렌더). 섹션 식별에도 사용. */
   title: string;
   items: MenuItem[];
 }
@@ -46,8 +53,8 @@ interface MenuSection {
 const PATIENT_ONLY_MEASUREMENT_ITEM: MenuItem = {
   key: 'MeasurementRecords',
   icon: 'stats-chart-outline',
-  label: '컨디션 측정 기록 보기',
-  desc: '손가락·반응속도 측정 기록을 확인해요',
+  label: 'menu.measurementPatientLabel',
+  desc: 'menu.measurementPatientDesc',
 };
 
 /** 보호자 모드: 환자 측정 1회 이상일 때만 '기록' 섹션 최상단에 추가되는 항목 (Phase 5A).
@@ -56,98 +63,99 @@ const CAREGIVER_MEASUREMENT_VIEW_KEY = 'CaregiverMeasurementView';
 
 const MENU_SECTIONS: MenuSection[] = [
   {
-    title: '기록',
+    title: 'menu.sectionRecords',
     items: [
       {
         key: 'Diary',
         icon: 'notebook-edit-outline',
         iconSet: 'material-community',
-        label: '파킨온 일기',
-        desc: '하루하루 종합 일기를 써요',
+        label: 'menu.diaryLabel',
+        desc: 'menu.diaryDesc',
       },
       {
         key: 'Records',
         icon: 'bar-chart-outline',
-        label: '작성 기록 보기',
-        desc: '약복용·약효추적 기록을 확인해요',
+        label: 'menu.recordsLabel',
+        desc: 'menu.recordsDesc',
       },
       {
         key: 'VideoList',
         icon: 'videocam-outline',
-        label: '영상 기록 보기',
-        desc: '몸상태 촬영한 기록을 확인해요',
+        label: 'menu.videoListLabel',
+        desc: 'menu.videoListDesc',
       },
       {
         key: 'MedicalRecordList',
         icon: 'stethoscope',
         iconSet: 'material-community',
-        label: '진료 기록',
-        desc: '병원 진료 기록을 확인해요',
+        label: 'menu.medicalRecordLabel',
+        desc: 'menu.medicalRecordDesc',
       },
     ],
   },
   {
-    title: '관리',
+    title: 'menu.sectionManage',
     items: [
       {
         key: 'FamilyLink',
         icon: 'people-outline',
-        label: '가족 연동',
-        desc: '__FAMILY_LINK_DESC__',
+        label: 'menu.familyLinkLabel',
+        desc: 'menu.familyLinkDesc',
       },
       {
         key: 'MyMeds',
         icon: 'pill',
         iconSet: 'material-community',
-        label: '복용약 관리',
-        desc: '드시는 약을 등록하고 관리해요',
+        label: 'menu.myMedsLabel',
+        desc: 'menu.myMedsDesc',
       },
       {
         key: 'DoseSlots',
         icon: 'alarm-outline',
-        label: '복용시간 설정·알림',
-        desc: '약 드시는 시간과 알림을 설정해요',
+        label: 'menu.doseSlotsLabel',
+        desc: 'menu.doseSlotsDesc',
       },
       {
         key: 'Settings',
         icon: 'notifications-outline',
-        label: '그 밖의 알림',
-        desc: '미복용·운동 등 그 밖의 알림을 설정해요',
+        label: 'menu.settingsLabel',
+        desc: 'menu.settingsDesc',
       },
       {
         key: 'AlarmSoundSettings',
         icon: 'mic-outline',
-        label: '알림음 관리',
-        desc: '알림음을 직접 등록하고 관리해요',
+        label: 'menu.alarmSoundLabel',
+        desc: 'menu.alarmSoundDesc',
       },
     ],
   },
   {
-    title: '기타',
+    title: 'menu.sectionEtc',
     items: [
       {
         key: 'BlockedUsers',
         icon: 'person-remove-outline',
-        label: '차단한 사용자 관리',
-        desc: '차단한 사용자를 확인하고 해제해요',
+        label: 'menu.blockedUsersLabel',
+        desc: 'menu.blockedUsersDesc',
       },
       {
         key: 'Terms',
         icon: 'document-text-outline',
-        label: '이용약관',
-        desc: '서비스 이용약관을 확인해요',
+        label: 'menu.termsLabel',
+        desc: 'menu.termsDesc',
       },
       {
         key: 'Privacy',
         icon: 'lock-closed-outline',
-        label: '개인정보처리방침',
-        desc: '개인정보 처리방침을 확인해요',
+        label: 'menu.privacyLabel',
+        desc: 'menu.privacyDesc',
       },
     ],
   },
 ];
 
 export function MenuScreen() {
+  const { t } = useTranslation();
   const navigation = useNavigation<NavigationProp>();
   const { user, signOut, refreshUser } = useAuth();
   const { unreadCount } = useNotificationBadge();
@@ -167,9 +175,9 @@ export function MenuScreen() {
   // 프로필 카드 보조문구: 보호자는 '보호자', 환자는 진단연도(있으면)만 표시('환자' 글자 노출 안 함).
   const profileSub =
     user?.role === 'caregiver'
-      ? '보호자'
+      ? t('menu.profileRoleCaregiver')
       : user?.diagnosis_year
-        ? `${user.diagnosis_year}년 진단`
+        ? t('menu.profileDiagnosisYear', { year: user.diagnosis_year })
         : '';
 
   // Phase 5A — 보호자: 환자의 측정이 1회라도 있는지 체크 → 진입점 노출 가드
@@ -245,8 +253,8 @@ export function MenuScreen() {
                 i.key === 'Settings'
                   ? {
                       ...i,
-                      label: '보호자용 알림',
-                      desc: '미복용·약효추적·운동 등 알림을 설정해요',
+                      label: 'menu.settingsCaregiverLabel',
+                      desc: 'menu.settingsCaregiverDesc',
                     }
                   : i,
               ),
@@ -258,15 +266,17 @@ export function MenuScreen() {
     const isCaregiverWithData = user?.role === 'caregiver' && hasPatientMeasurement;
     if (!isPatient && !isCaregiverWithData) return base;
     // 보호자 항목 라벨/설명 — 환자 이름+님 사용. 이름 로드 전이면 잠시 '환자' fallback.
-    const pName = patientName ?? '환자';
+    const pName = patientName ?? t('menu.patientDefaultName');
     const caregiverItem: MenuItem = {
       key: CAREGIVER_MEASUREMENT_VIEW_KEY,
       icon: 'hand-left-outline',
-      label: `${pName}님 컨디션 보기`,
-      desc: `${pName}님의 손가락·반응속도 결과를 확인해요`,
+      label: 'menu.measurementCaregiverLabel',
+      labelParams: { name: pName },
+      desc: 'menu.measurementCaregiverDesc',
+      descParams: { name: pName },
     };
     return base.map((section) => {
-      if (section.title !== '기록') return section;
+      if (section.title !== 'menu.sectionRecords') return section;
       const extraItem = isPatient
         ? PATIENT_ONLY_MEASUREMENT_ITEM
         : caregiverItem;
@@ -280,10 +290,7 @@ export function MenuScreen() {
       ];
       return { ...section, items: nextItems };
     });
-  }, [user?.role, hasPatientMeasurement, patientName]);
-
-  // 가족 연동 설명 텍스트 (고정 문구)
-  const familyLinkDesc = '가족을 초대하고 함께 관리해요';
+  }, [user?.role, hasPatientMeasurement, patientName, t]);
 
   const handleMenuPress = async (key: string) => {
     // 약관·개인정보처리방침은 게스트도 열람 가능. 그 외 서버 데이터가 필요한 항목은 게스트 차단.
@@ -328,10 +335,10 @@ export function MenuScreen() {
 
   const handleLogout = async () => {
     const ok = await dialog.confirm({
-      title: '로그아웃',
-      message: '정말 로그아웃 하시겠어요?',
-      confirmText: '로그아웃',
-      cancelText: '취소',
+      title: t('menu.logout'),
+      message: t('menu.logoutConfirmMsg'),
+      confirmText: t('menu.logout'),
+      cancelText: t('common.cancel'),
       destructive: true,
     });
     if (!ok) return;
@@ -341,10 +348,10 @@ export function MenuScreen() {
   const handleWithdraw = async () => {
     if (await ensureNotGuest(user, dialog, { signOut })) return;
     const ok = await dialog.confirm({
-      title: '회원 탈퇴',
-      message: '탈퇴하시면 모든 기록이 삭제돼요.\n정말 탈퇴하시겠어요?',
-      confirmText: '탈퇴하기',
-      cancelText: '취소',
+      title: t('menu.withdrawTitle'),
+      message: t('menu.withdrawConfirmMsg'),
+      confirmText: t('menu.withdrawConfirmBtn'),
+      cancelText: t('common.cancel'),
       destructive: true,
     });
     if (!ok) return;
@@ -377,8 +384,8 @@ export function MenuScreen() {
       setDeleting(false);
       // 탈퇴 완료 안내 후 로컬 세션 정리
       await dialog.alert({
-        title: '탈퇴 완료',
-        message: '계정이 삭제되었습니다.\n이용해 주셔서 감사합니다.',
+        title: t('menu.withdrawDoneTitle'),
+        message: t('menu.withdrawDoneMsg'),
       });
       // useAuth의 signOut을 사용해 user state를 즉시 null로 만들고
       // 온보딩 임시 입력값(AsyncStorage) 등 사용자별 로컬 데이터를 정리한다.
@@ -387,7 +394,7 @@ export function MenuScreen() {
       await signOut();
     } catch (e: any) {
       setDeleting(false);
-      dialog.alert({ title: '오류', message: '탈퇴 처리 중 문제가 생겼어요. 다시 시도해주세요.' });
+      dialog.alert({ title: t('common.error'), message: t('menu.withdrawErrorMsg') });
     }
   };
 
@@ -418,11 +425,11 @@ export function MenuScreen() {
           activeOpacity={0.85}
         >
           <View style={styles.profileInfo}>
-            <Text style={styles.profileName}>{user?.name ?? '사용자'}</Text>
+            <Text style={styles.profileName}>{user?.name ?? t('menu.profileNameFallback')}</Text>
             {profileSub ? <Text style={styles.profileRole}>{profileSub}</Text> : null}
           </View>
           <View style={styles.profileEditRow}>
-            <Text style={styles.profileEditText}>프로필 수정</Text>
+            <Text style={styles.profileEditText}>{t('menu.profileEdit')}</Text>
             <Ionicons name="chevron-forward" size={18} color="#FFFFFF" />
           </View>
         </TouchableOpacity>
@@ -431,7 +438,7 @@ export function MenuScreen() {
         {menuSections.map((section) => (
           <View key={section.title}>
             <View style={styles.sectionHeader}>
-              <Text style={styles.sectionHeaderText}>{section.title.toUpperCase()}</Text>
+              <Text style={styles.sectionHeaderText}>{t(section.title).toUpperCase()}</Text>
             </View>
             <View style={styles.sectionCard}>
               {section.items.map((item, index) => (
@@ -459,9 +466,9 @@ export function MenuScreen() {
                       )}
                     </View>
                     <View style={styles.menuTextWrap}>
-                      <Text style={styles.menuLabel}>{item.label}</Text>
+                      <Text style={styles.menuLabel}>{t(item.label, item.labelParams)}</Text>
                       <Text style={styles.menuDesc}>
-                        {item.desc === '__FAMILY_LINK_DESC__' ? familyLinkDesc : item.desc}
+                        {t(item.desc, item.descParams)}
                       </Text>
                     </View>
                     <Ionicons name="chevron-forward" size={22} color={Colors.textHint} />
@@ -477,7 +484,7 @@ export function MenuScreen() {
 
         {/* 계정 섹션 */}
         <View style={styles.sectionHeader}>
-          <Text style={styles.sectionHeaderText}>계정</Text>
+          <Text style={styles.sectionHeaderText}>{t('menu.sectionAccount')}</Text>
         </View>
         <View style={styles.sectionCard}>
           <TouchableOpacity
@@ -489,7 +496,7 @@ export function MenuScreen() {
               <Ionicons name="log-out-outline" size={28} color={Colors.text} />
             </View>
             <View style={styles.menuTextWrap}>
-              <Text style={styles.menuLabel}>로그아웃</Text>
+              <Text style={styles.menuLabel}>{t('menu.logout')}</Text>
             </View>
             <Ionicons name="chevron-forward" size={22} color={Colors.textHint} />
           </TouchableOpacity>
@@ -505,7 +512,7 @@ export function MenuScreen() {
               <Ionicons name="close-circle-outline" size={28} color={Colors.danger} />
             </View>
             <View style={styles.menuTextWrap}>
-              <Text style={[styles.menuLabel, styles.dangerLabel]}>회원탈퇴</Text>
+              <Text style={[styles.menuLabel, styles.dangerLabel]}>{t('menu.withdraw')}</Text>
             </View>
             <Ionicons name="chevron-forward" size={22} color={Colors.textHint} />
           </TouchableOpacity>
@@ -514,8 +521,8 @@ export function MenuScreen() {
 
       <BrandProgressOverlay
         visible={deleting}
-        title="탈퇴 처리 중이에요"
-        subtitle="계정을 정리하고 있어요"
+        title={t('menu.withdrawSpinnerTitle')}
+        subtitle={t('menu.withdrawSpinnerSubtitle')}
       />
     </SafeAreaView>
   );

@@ -1,0 +1,49 @@
+- generic [ref=e7]:
+  - generic [ref=e8]:
+    - heading "Play Console 개발자 계정 만들기" [level=1] [ref=e9]
+    - generic "bibleqt2026@gmail.com" [ref=e10]:
+      - button "bibleqt2026@gmail.com" [ref=e11] [cursor=pointer]:
+        - generic [ref=e13]:
+          - text: bibleqt2026@gmail.com
+          - img [ref=e15]: keyboard_arrow_down
+  - generic [ref=e19]:
+    - img "Google Play Console 로고" [ref=e21]
+    - generic [ref=e23]:
+      - heading "시작하려면 계정 유형을 선택하세요." [level=2] [ref=e32]
+      - paragraph [ref=e33]:
+        - text: 누가 계정을 사용할 것인가요?
+        - link "계정 유형 선택에 관해 자세히 알아보기, 새 탭에서 열기" [ref=e35] [cursor=pointer]:
+          - /url: https://support.google.com/googleplay/android-developer/answer/13634885?hl=ko
+          - text: 계정 유형 선택에 관해 자세히 알아보기
+      - generic [ref=e37]:
+        - generic [ref=e38]:
+          - heading "기관/단체" [level=3] [ref=e47]
+          - paragraph [ref=e48]:
+            - generic [ref=e49]: 조직 또는 비즈니스의 계정을 만드는 경우 선택하세요. 조직을 인증해야 합니다.
+          - listbox "조직 유형" [ref=e53] [cursor=pointer]:
+            - generic [ref=e55]: 조직 유형
+            - generic [ref=e56]: 조직 유형 선택
+            - img [ref=e58]: arrow_drop_down
+          - button "시작하기" [disabled] [ref=e62]:
+            - generic "시작하기" [ref=e65]
+            - img [ref=e67]: arrow_right_alt
+        - img [ref=e69]
+      - generic [ref=e73]:
+        - generic [ref=e74]:
+          - heading "개인" [level=3] [ref=e83]
+          - paragraph [ref=e84]:
+            - generic [ref=e85]: 자신의 계정을 만드는 중이며 현재 조직이나 비즈니스가 없다면 선택하세요. 예를 들어 아마추어 개발자, 학생이거나 취미로 개발하는 경우가 여기에 해당합니다. 이 경우에도 Google Play에서 수익을 창출하고 다른 사람을 계정에 초대할 수 있습니다.
+          - generic [ref=e87]:
+            - img [ref=e91]: info
+            - generic [ref=e92]:
+              - text: 일부 유형의 앱은 조직에서만 배포할 수 있습니다.
+              - link "조직에서만 배포할 수 있는 앱 유형 자세히 알아보기, 새 탭에서 열기" [ref=e94] [cursor=pointer]:
+                - /url: https://support.google.com/googleplay/android-developer/answer/10788890?hl=ko
+                - text: 자세히 알아보기
+          - button "시작하기" [ref=e98]:
+            - generic "시작하기" [ref=e101]
+            - img [ref=e103]: arrow_right_alt
+        - img [ref=e105]
+      - paragraph [ref=e108]: 현재 로그인한 Google 계정[bibleqt2026@gmail.com]이 이 개발자 계정을 소유하게 됩니다. 개발자 계정을 만든 후에는 변경할 수 없습니다. 기존 개발자 계정에 참여하려면 관리자에게 초대를 요청하세요.
+      - button "계정 전환" [ref=e109]:
+        - generic [ref=e112]: 계정 전환

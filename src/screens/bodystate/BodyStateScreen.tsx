@@ -10,6 +10,8 @@ import {
   ActivityIndicator,
 } from 'react-native';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
+import { useTranslation } from 'react-i18next';
+import i18n from '../../i18n';
 import { useBottomSheetPadding } from '../../hooks/useBottomSheetPadding';
 import { useNavigation, useRoute, useFocusEffect } from '@react-navigation/native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
@@ -21,11 +23,11 @@ import { CaregiverConfirmModal } from '../../components/common/CaregiverConfirmM
 import { DatePickerModal } from '../../components/common/DatePickerModal';
 import { useAuth } from '../../context/AuthContext';
 import { useBodyState } from '../../hooks/useBodyState';
-import { triggerLabelToText, triggerLabelToMinutes, mealTimeToKorean, mealTimeToPeriod } from '../../utils/medUtils';
+import { triggerLabelToText, triggerLabelToMinutes, mealTimeToKorean, mealTimeToPeriod, mealTimeToPeriodKo } from '../../utils/medUtils';
 import { fetchPatientDoseSlots, fetchPatientLabelDoseSlots, resolveDisplaySlots, getTrackingDayBounds } from '../../hooks/useDoseSlots';
 import { useScrollTopOnTabPress } from '../../hooks/useScrollTopOnTabPress';
 import type { DoseSlot } from '../../hooks/useDoseSlots';
-import { nextDoseLabel, slotSortValue, buildSlotTitleMaps } from '../../constants/doseSlots';
+import { nextDoseLabel, slotSortValue, buildSlotTitleMaps, translateRawSlotLabel } from '../../constants/doseSlots';
 import { navigateTo } from '../../navigation/navigationRef';
 import { supabase } from '../../lib/supabase';
 import { useNotificationBadge } from '../../context/NotificationBadgeContext';
@@ -65,7 +67,15 @@ interface BodyRecord {
   constipation?: boolean;
 }
 
+// 현재 언어가 영어권인지. 한국어(ko)일 때는 아래 날짜/시간/기간 포맷을 기존과 100% 동일하게 유지한다.
+function isEnLocale(): boolean {
+  return (i18n.language || '').toLowerCase().startsWith('en');
+}
+
 function getDateLabel(date: Date): string {
+  if (isEnLocale()) {
+    return date.toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric' });
+  }
   const month = date.getMonth() + 1;
   const day = date.getDate();
   const dayNames = ['일요일', '월요일', '화요일', '수요일', '목요일', '금요일', '토요일'];
@@ -76,9 +86,11 @@ function formatTime(isoString: string): string {
   const d = new Date(isoString);
   const h = d.getHours();
   const m = d.getMinutes();
-  const ampm = h < 12 ? '오전' : '오후';
   const hour = h % 12 === 0 ? 12 : h % 12;
-  return `${ampm} ${hour}:${m.toString().padStart(2, '0')}`;
+  const mm = m.toString().padStart(2, '0');
+  if (isEnLocale()) return `${hour}:${mm} ${h < 12 ? 'AM' : 'PM'}`;
+  const ampm = h < 12 ? '오전' : '오후';
+  return `${ampm} ${hour}:${mm}`;
 }
 
 // 수시(식사시간대 없는) 기록의 시간대 키.
@@ -92,6 +104,16 @@ function getPeriod(isoString: string): string {
   if (h < 17) return '오후';  // 13–16 (15시 = 오후 = 해)
   if (h < 21) return '저녁';  // 17–20
   return '밤';                // 21–23
+}
+
+// getPeriod() 반환값(내부 키·PERIOD_COLOR/ICON 조회용)의 표시용 영어 라벨.
+// 수시(식사시간대 없는) 기록의 slotLabel 폴백에서만 사용 — 키 자체는 그대로 둔다(색/아이콘 조회 영향 없음).
+const PERIOD_LABEL_EN: Record<string, string> = {
+  '새벽': 'Early morning', '아침': 'Morning', '점심': 'Midday',
+  '오후': 'Afternoon', '저녁': 'Evening', '밤': 'Night', '취침': 'Bedtime',
+};
+function periodDisplayLabel(period: string): string {
+  return isEnLocale() ? (PERIOD_LABEL_EN[period] ?? period) : period;
 }
 
 function labelToMinutes(label: string): number | null {
@@ -211,8 +233,15 @@ function intervalMinutesToLabel(min: number): string {
   return `${min}min_after`;
 }
 
-// 인터벌(분) → 사용자 표시 텍스트 (예: 0→'직후', 60→'1시간 후')
+// 인터벌(분) → 사용자 표시 텍스트 (예: 0→'직후', 60→'1시간 후'). ko는 기존과 100% 동일.
 function intervalMinutesToText(min: number): string {
+  if (isEnLocale()) {
+    if (min === 0) return 'right after';
+    if (min < 60) return `${min} min later`;
+    const he = Math.floor(min / 60);
+    const reme = min % 60;
+    return reme === 0 ? `${he} hr later` : `${he} hr ${reme} min later`;
+  }
   if (min === 0) return '직후';
   if (min < 60) return `${min}분 후`;
   const h = Math.floor(min / 60);
@@ -220,9 +249,15 @@ function intervalMinutesToText(min: number): string {
   return rem === 0 ? `${h}시간 후` : `${h}시간 ${rem}분 후`;
 }
 
-// 경과/잔여 분 → 자연스러운 한국어 표현
+// 경과/잔여 분 → 자연스러운 표현. ko는 기존과 100% 동일.
 function formatDurationKo(totalMin: number): string {
   const m = Math.max(0, Math.round(totalMin));
+  if (isEnLocale()) {
+    if (m < 60) return `${m} min`;
+    const he = Math.floor(m / 60);
+    const reme = m % 60;
+    return reme === 0 ? `${he} hr` : `${he} hr ${reme} min`;
+  }
   if (m < 60) return `${m}분`;
   const h = Math.floor(m / 60);
   const rem = m % 60;
@@ -230,6 +265,7 @@ function formatDurationKo(totalMin: number): string {
 }
 
 export function BodyStateScreen() {
+  const { t } = useTranslation();
   const { user, signOut } = useAuth();
   const { todayLogs, saveBodyState, fetchVideoLogs, getBodyStateLogs, refresh } = useBodyState();
   const [showFlow, setShowFlow] = useState(false);
@@ -375,7 +411,7 @@ export function BodyStateScreen() {
 
   // 환자 식별 state — 아래 알림 useFocusEffect/useEffect 의존성 배열에서 참조하므로
   // "선언 전 사용"(TS2448/TS2454) 방지를 위해 effect들보다 먼저 선언한다.
-  const [patientName, setPatientName] = useState('환자');
+  const [patientName, setPatientName] = useState(i18n.t('medication.caregiverDefaultName'));
   const [patientId, setPatientId] = useState<string | null>(null);
 
   // 알림 탭 진입 시 trigger_time_label 자동 설정
@@ -699,6 +735,16 @@ export function BodyStateScreen() {
   // 표시할 로그: 오늘이면 todayLogs, 다른 날이면 dateLogs
   const activeLogs = isToday ? todayLogs : dateLogs;
 
+  // [수면 게이팅] 그날 이미 수면(sleep_quality)이 기록됐는지 — "하루 1회"(중복 방지) 불변식 유지용.
+  //   이미 로드된 해당 날짜 로그(activeLogs)에서 sleep_quality 가 채워진 on_off_log 유무로 판단.
+  //   → 추가 네트워크 쿼리 없이 계산. 저장 시 saveBodyState 가 insert 결과 행(sleep_quality 포함)을
+  //      todayLogs 에 낙관적 prepend + 재조회 + realtime 재조회로 반영하므로, 다음 진입에서 true 가 되어
+  //      중복 노출이 막힌다.
+  const hasSleepToday = React.useMemo(
+    () => activeLogs.some((log: any) => log?.sleep_quality != null),
+    [activeLogs]
+  );
+
   // trigger_time_label → 표시 텍스트 (공용 유틸 위임)
   const getTriggerLabel = (label: string): string => triggerLabelToText(label);
 
@@ -864,7 +910,7 @@ export function BodyStateScreen() {
   // 활성화된 medNotifs 인터벌 목록 (복용 직후 포함)
   const getEnabledIntervals = (): Array<{ minutes: number; labelKey: string; labelDisplay: string }> => {
     const result: Array<{ minutes: number; labelKey: string; labelDisplay: string }> = [
-      { minutes: 0, labelKey: 'after_medication', labelDisplay: '복용 직후' },
+      { minutes: 0, labelKey: 'after_medication', labelDisplay: getTriggerLabel('after_medication') },
     ];
     for (const notif of medNotifs) {
       if (notif.enabled && notif.minutes > 0) {
@@ -897,8 +943,8 @@ export function BodyStateScreen() {
     // 케이스 1: 약 복용 기록 없음
     if (!lastMedLog || !lastMedLog.taken_at) {
       dialog.alert({
-        title: '몸상태 기록 불가',
-        message: '약 복용 기록이 있어야 몸상태 기록을 남길 수 있어요.\n\n약을 드신 후 다시 시도해 주세요.',
+        title: t('bodystate.cannotRecordTitle'),
+        message: t('bodystate.noMedLogMsg'),
       });
       return;
     }
@@ -912,8 +958,8 @@ export function BodyStateScreen() {
 
     if (intervals.length === 0) {
       dialog.alert({
-        title: '몸상태 기록 불가',
-        message: '약효 추적 시간대가 설정되어 있지 않아요.\n\n설정 화면에서 알림 시간대를 먼저 설정해 주세요.',
+        title: t('bodystate.cannotRecordTitle'),
+        message: t('bodystate.noIntervalMsg'),
       });
       return;
     }
@@ -953,14 +999,14 @@ export function BodyStateScreen() {
       }
       if (!nextAt) {
         dialog.alert({
-          title: '몸상태 기록 불가',
-          message: '약효 추적 가능 시간 범위를 벗어났어요.\n\n다음 약 복용 후 다시 기록해 주세요.',
+          title: t('bodystate.cannotRecordTitle'),
+          message: t('bodystate.outOfRangeMsg'),
         });
       } else {
         const remainMin = (nextAt.getTime() - now.getTime()) / 60000;
         dialog.alert({
-          title: '몸상태 기록 불가',
-          message: `약효 추적 가능 시간 범위를 벗어났어요.\n\n다음 알림 시간까지 ${formatDurationKo(remainMin)} 남았어요.\n그때부터 기록 가능해요.`,
+          title: t('bodystate.cannotRecordTitle'),
+          message: t('bodystate.outOfRangeNextMsg', { duration: formatDurationKo(remainMin) }),
         });
       }
       return;
@@ -980,11 +1026,13 @@ export function BodyStateScreen() {
     if (existing) {
       // 케이스 5: 이미 기록됨 → 덮어쓰기 확인
       // 오타 수정: mealLabel이 이미 "저녁약" 형태이므로 추가 "약" 붙이지 않음
-      const targetLabel = mealLabel ? `${mealLabel} 복용 ${intervalText}` : `복용 ${intervalText}`;
+      const targetLabel = mealLabel
+        ? t('bodystate.targetWithMeal', { meal: mealLabel, interval: intervalText })
+        : t('bodystate.targetNoMeal', { interval: intervalText });
       const confirmed = await dialog.confirm({
-        title: '이미 기록되어 있어요',
-        message: `${targetLabel}는 이미 기록되어 있어요.\n덮어쓸까요?`,
-        confirmText: '덮어쓰기',
+        title: t('bodystate.alreadyRecordedTitle'),
+        message: t('bodystate.alreadyRecordedMsg', { target: targetLabel }),
+        confirmText: t('bodystate.overwrite'),
       });
       if (confirmed) {
         overrideLogIdRef.current = (existing as any).id ?? null;
@@ -1005,14 +1053,15 @@ export function BodyStateScreen() {
 
   // DB 로그 → BodyRecord 변환
   const records: BodyRecord[] = activeLogs.map((log: any) => {
-    const mealTimeKo = log.medication_meal_time ? mealTimeToPeriod(log.medication_meal_time) : null;
-    // 아이콘/색용 시간대 키(기존 동작 보존)
+    // 아이콘/색 조회용 키는 로케일 무관 한글 고정(mealTimeToPeriodKo) — mealTimeToPeriod을 쓰면
+    // 해외 로케일에서 영어 문자열이 되어 PERIOD_COLOR/PERIOD_ICON 매칭이 전부 실패한다.
+    const mealTimeKo = log.medication_meal_time ? mealTimeToPeriodKo(log.medication_meal_time) : null;
     const period = mealTimeKo ?? getPeriod(log.logged_at);
     // 표시용 슬롯 명칭(slotTitle): byId[dose_slot_id] 우선 → byLegacyKey[meal_time] → legacy 폴백
     const slotLabel =
       (log.dose_slot_id && slotTitleMaps.byId[log.dose_slot_id]) ||
       (log.medication_meal_time && slotTitleMaps.byLegacyKey[log.medication_meal_time]) ||
-      period;
+      periodDisplayLabel(period);
     // 그룹 정렬용 시각: 해당 슬롯의 time(없으면 기록 시각).
     // labelSlots(비활성 포함) 로 찾아 삭제된 슬롯 기록도 원래 시각으로 정렬되게 한다.
     const matchedSlot =
@@ -1030,7 +1079,7 @@ export function BodyStateScreen() {
       slotLabel,
       slotSort,
       trigger: (log.trigger_time_label && getTriggerLabel(log.trigger_time_label))
-        || (log.triggered_by === 'notification' ? '알림' : '직접 입력'),
+        || (log.triggered_by === 'notification' ? t('bodystate.triggerNotification') : t('bodystate.triggerManual')),
       triggeredBy: log.triggered_by ?? 'manual',
       bodyScore: log.body_state ?? 3,
       moodScore: log.mood ?? 3,
@@ -1050,10 +1099,10 @@ export function BodyStateScreen() {
   // 기록 한 건 취소(삭제) — RLS 우회 + 권한 자체검증 RPC 사용(직접 delete 금지)
   const handleCancelRecord = async (onOffLogId: string) => {
     const ok = await dialog.confirm({
-      title: '이 기록을 취소할까요?',
-      message: '취소하면 기록이 삭제되고 되돌릴 수 없어요.',
-      confirmText: '취소하기',
-      cancelText: '닫기',
+      title: t('bodystate.cancelRecordTitle'),
+      message: t('bodystate.cancelRecordMsg'),
+      confirmText: t('bodystate.cancelRecordConfirm'),
+      cancelText: t('common.close'),
       destructive: true,
     });
     if (!ok) return;
@@ -1065,7 +1114,7 @@ export function BodyStateScreen() {
 
     if (error) {
       console.error('[BodyStateScreen] handleCancelRecord 오류:', error);
-      dialog.alert({ title: '취소 실패', message: '기록을 취소하지 못했어요.\n다시 시도해 주세요.' });
+      dialog.alert({ title: t('bodystate.cancelFailTitle'), message: t('bodystate.cancelFailMsg') });
       return;
     }
 
@@ -1104,7 +1153,7 @@ export function BodyStateScreen() {
 
     if (error) {
       console.error('[BodyStateScreen] handleSaveEdit 오류:', error);
-      dialog.alert({ title: '수정 실패', message: '기록을 수정하지 못했어요.\n다시 시도해 주세요.' });
+      dialog.alert({ title: t('bodystate.editFailTitle'), message: t('bodystate.editFailMsg') });
       return;
     }
 
@@ -1168,7 +1217,7 @@ export function BodyStateScreen() {
 
       if (!success) {
         // 스피너 Modal 위에 AppDialog 를 적층하지 않도록, 알림은 onHidden 에서 단독 present.
-        pendingAfterSaveRef.current = { kind: 'alert', title: '저장 실패', message: '몸상태 기록 저장에 실패했어요. 다시 시도해주세요.' };
+        pendingAfterSaveRef.current = { kind: 'alert', title: t('bodystate.saveFailTitle'), message: t('bodystate.saveFailMsg') };
         return;
       }
 
@@ -1223,16 +1272,14 @@ export function BodyStateScreen() {
             const { data: deletedItems } = await (query as any).select();
             if (deletedItems && deletedItems.length > 0) {
               // 슬롯 표시명: byId[dose_slot_id] 우선 → byLegacyKey[meal_time] → legacy period 폴백
-              let slotName = getPeriod(new Date().toISOString());
+              let slotName = periodDisplayLabel(getPeriod(new Date().toISOString()));
               const mapped =
                 (savedDoseSlotId && slotTitleMaps.byId[savedDoseSlotId]) ||
                 (savedMealTime && slotTitleMaps.byLegacyKey[savedMealTime]) ||
                 (savedMealTime ? mealTimeToPeriod(savedMealTime) : null);
               if (mapped) slotName = mapped;
               const delta = triggerLabelToText(savedLabel!);
-              setPreRecordMessage(
-                `${slotName} 약 복용 ${delta} 후 몸상태 기록을 미리 남기셨어요.\n\n사전에 설정된 알림은 보내지 않을게요.`
-              );
+              setPreRecordMessage(t('bodystate.preRecordMsg', { slot: slotName, delta }));
               setShowPreRecordInfo(true);
             }
           } catch (queueErr) {
@@ -1289,7 +1336,7 @@ export function BodyStateScreen() {
   return (
     <SafeAreaView style={styles.safeArea} edges={['top']}>
       <TopBar
-        title="파킨온"
+        title={t('medication.brandTitle')}
         showParkinon
         showDiary
         onDiaryPress={() => navigateTo('Diary')}
@@ -1333,18 +1380,18 @@ export function BodyStateScreen() {
           >
             <View style={styles.mainButtonInner}>
               <Ionicons name="happy" size={40} color={Colors.white} />
-              <Text style={styles.mainButtonText}>몸상태·기분상태 기록하기</Text>
+              <Text style={styles.mainButtonText}>{t('bodystate.mainButton')}</Text>
             </View>
           </TouchableOpacity>
 
           {userRole === 'caregiver_no_patient' && (
-            <Text style={styles.caregiverNotice}>환자와 연동 후 기록할 수 있어요</Text>
+            <Text style={styles.caregiverNotice}>{t('bodystate.noticeCaregiverNoPatient')}</Text>
           )}
           {userRole === 'caregiver_separate' && (
-            <Text style={styles.caregiverNotice}>같이 계신 경우에만 대신 입력할 수 있어요</Text>
+            <Text style={styles.caregiverNotice}>{t('bodystate.noticeCaregiverSeparate')}</Text>
           )}
           {!isToday && userRole !== 'caregiver_separate' && userRole !== 'caregiver_no_patient' && (
-            <Text style={styles.caregiverNotice}>오늘 날짜에서만 기록할 수 있어요</Text>
+            <Text style={styles.caregiverNotice}>{t('bodystate.noticeNotToday')}</Text>
           )}
 
           {/* 컨디션 측정 진입점 (환자 본인만 노출) — 영상 두 항목 바로 위 */}
@@ -1360,7 +1407,7 @@ export function BodyStateScreen() {
               >
                 <View style={styles.outlineButtonInner}>
                   <Text style={styles.outlineButtonEmoji}>🖐️</Text>
-                  <Text style={styles.outlineButtonText}>컨디션 측정하기</Text>
+                  <Text style={styles.outlineButtonText}>{t('bodystate.measureNow')}</Text>
                 </View>
               </TouchableOpacity>
 
@@ -1374,7 +1421,7 @@ export function BodyStateScreen() {
               >
                 <View style={styles.outlineButtonInner}>
                   <Text style={styles.outlineButtonEmoji}>📊</Text>
-                  <Text style={styles.outlineButtonText}>측정 기록 보기</Text>
+                  <Text style={styles.outlineButtonText}>{t('bodystate.measureRecords')}</Text>
                 </View>
               </TouchableOpacity>
             </View>
@@ -1393,7 +1440,7 @@ export function BodyStateScreen() {
             >
               <View style={styles.outlineButtonInner}>
                 <Ionicons name="film-outline" size={24} color={isToday ? Colors.primary : '#BDBDBD'} />
-                <Text style={[styles.outlineButtonText, !isToday && styles.outlineButtonTextDisabled]}>영상 기록하기</Text>
+                <Text style={[styles.outlineButtonText, !isToday && styles.outlineButtonTextDisabled]}>{t('bodystate.videoRecord')}</Text>
               </View>
             </TouchableOpacity>
 
@@ -1404,7 +1451,7 @@ export function BodyStateScreen() {
             >
               <View style={styles.outlineButtonInner}>
                 <Ionicons name="albums-outline" size={24} color={Colors.primary} />
-                <Text style={styles.outlineButtonText}>저장 영상 보기</Text>
+                <Text style={styles.outlineButtonText}>{t('bodystate.videoList')}</Text>
               </View>
             </TouchableOpacity>
           </View>
@@ -1414,7 +1461,7 @@ export function BodyStateScreen() {
         <View style={styles.records}>
           <View style={styles.sectionHeader}>
             <View style={styles.divider} />
-            <Text style={styles.sectionTitle}>{isToday ? '오늘 몸상태 기록' : '몸상태 기록'}</Text>
+            <Text style={styles.sectionTitle}>{isToday ? t('bodystate.sectionTitleToday') : t('bodystate.sectionTitle')}</Text>
             <View style={styles.divider} />
           </View>
           {!isToday && dateLogsLoading ? (
@@ -1424,8 +1471,8 @@ export function BodyStateScreen() {
           ) : records.length === 0 ? (
             <View style={styles.emptyWrap}>
               <Ionicons name="happy-outline" size={48} color={Colors.textSub} />
-              <Text style={styles.emptyText}>기록이 없어요</Text>
-              <Text style={styles.emptySubText}>위 버튼을 눌러 기록해 보세요!</Text>
+              <Text style={styles.emptyText}>{t('bodystate.empty')}</Text>
+              <Text style={styles.emptySubText}>{t('bodystate.emptySub')}</Text>
             </View>
           ) : (
             (() => {
@@ -1484,12 +1531,18 @@ export function BodyStateScreen() {
           editTarget
             ? editTarget.sleepScore !== undefined
             : isDoseSlotPatient
-              // dose_slot 환자: 이 기록의 약효추적 시점이 "그날 첫(가장 이른) 약효추적 시점"과 일치할 때만.
-              ? (currentTrackingMin !== null &&
+              // dose_slot 환자: 그날 수면 미기록(!hasSleepToday) 상태에서, 이 기록의 약효추적 시점이
+              //   "그날 첫(가장 이른) 약효추적 시점" 이상인 다음 약효추적 기록에서 수면 노출.
+              //   [변경 이유] 기존엔 firstTrackingMin 과 '정확히 일치'할 때만 노출 → 아침 첫 약효추적
+              //   알림을 껐거나 그 시점 진입을 놓치면 그날 수면을 남길 유일한 진입점이 사라졌다.
+              //   미기록이면 "첫 시점 이후 첫 진입"에서 뜨도록 완화하고, hasSleepToday 로 하루 1회를 보장.
+              ? (!hasSleepToday &&
+                 currentTrackingMin !== null &&
                  trackingDayBounds.firstTrackingMin !== null &&
-                 currentTrackingMin === trackingDayBounds.firstTrackingMin)
-              // legacy 환자: 첫 시간대(아침) 게이팅 — 변비(bedtime=마지막)와 대칭
-              : (pendingMealTime === 'morning')
+                 currentTrackingMin >= trackingDayBounds.firstTrackingMin)
+              // legacy 환자: 그날 수면 미기록이면 노출(아침이 보통 첫 기록이라 자연히 아침 우선).
+              //   미기록 조건이 곧 중복 방지 → 한 번 남기면 이후엔 안 뜬다(정확 일치 → 미기록 게이팅).
+              : !hasSleepToday
         }
         showConstipation={
           editTarget
@@ -1548,7 +1601,7 @@ export function BodyStateScreen() {
       />
       <BrandProgressOverlay
         visible={saving}
-        title="기록하고 있어요"
+        title={t('bodystate.savingTitle')}
         minVisibleMs={500}
         // 스피너 Modal이 완전히 사라진 뒤에만 후속 모달을 단독 present(두 Modal 적층 불가 → 멈춤 0).
         onHidden={() => {
@@ -1607,6 +1660,7 @@ function RecordRow({
   onCancel: (id: string) => void;
   onEdit: (record: BodyRecord) => void;
 }) {
+  const { t } = useTranslation();
   const badgeBg = PERIOD_BADGE_BG[record.period] ?? 'rgba(0,0,0,0.08)';
   const badgeText = PERIOD_BADGE_TEXT[record.period] ?? '#333';
   const sep = <Text style={{ fontSize: 17, color: '#CCC', marginHorizontal: 10 }}>|</Text>;
@@ -1659,17 +1713,17 @@ function RecordRow({
       {/* 점수 한 줄 — 이모지 + 점수 | 구분 */}
       <View style={{ flexDirection: 'row', alignItems: 'center', flexWrap: 'wrap' }}>
         <Text style={{ fontSize: 18, color: scoreColor(record.bodyScore) }}>
-          몸상태 {record.bodyScore}점 {scoreEmoji(record.bodyScore)}
+          {t('bodystate.scoreBody', { score: record.bodyScore })} {scoreEmoji(record.bodyScore)}
         </Text>
         {sep}
         <Text style={{ fontSize: 18, color: scoreColor(record.moodScore) }}>
-          기분 {record.moodScore}점 {scoreEmoji(record.moodScore)}
+          {t('bodystate.scoreMood', { score: record.moodScore })} {scoreEmoji(record.moodScore)}
         </Text>
         {record.sleepScore !== undefined && (
           <>
             {sep}
             <Text style={{ fontSize: 18, color: scoreColor(record.sleepScore) }}>
-              수면 {record.sleepScore}점 {scoreEmoji(record.sleepScore)}
+              {t('bodystate.scoreSleep', { score: record.sleepScore })} {scoreEmoji(record.sleepScore)}
             </Text>
           </>
         )}
@@ -1677,7 +1731,7 @@ function RecordRow({
           <>
             {sep}
             <Text style={{ fontSize: 18, color: record.constipation ? '#B71C1C' : '#2E7D32' }}>
-              변비 {record.constipation ? '있음' : '없음'}
+              {record.constipation ? t('bodystate.constipationHas') : t('bodystate.constipationNone')}
             </Text>
           </>
         )}
@@ -1703,6 +1757,7 @@ function MealSectionCard({
   onCancel: (id: string) => void;
   onEdit: (record: BodyRecord) => void;
 }) {
+  const { t } = useTranslation();
   // 색·아이콘은 시간대 키(period) 기준 유지, 표시 텍스트만 displayTitle
   const color = PERIOD_COLOR[period] ?? '#888';
   const icon = PERIOD_ICON[period] ?? '🕐';
@@ -1721,29 +1776,35 @@ function MealSectionCard({
       shadowRadius: 4,
     }}>
       {/* 섹션 헤더 */}
+      {/* 아이콘은 고정 폭 칼럼, 나머지(제목·효과추적·개수뱃지)는 그 오른쪽의 별도
+          flexWrap 컨테이너에 넣는다 — 이렇게 해야 내용이 넘쳐 줄바뀜할 때 둘째 줄이
+          아이콘 밑이 아니라 첫째 줄 텍스트가 시작한 위치에 맞춰 정렬된다(오너 지적, 2026-07-05). */}
       <View style={{
         backgroundColor: color,
         paddingHorizontal: 18,
         paddingVertical: 12,
         flexDirection: 'row',
-        alignItems: 'center',
-        flexWrap: 'wrap',
+        alignItems: 'flex-start',
       }}>
-        <Text style={{ fontSize: 20, marginRight: 8 }}>{icon}</Text>
-        <Text style={{ fontSize: 20, fontWeight: '700', color: '#fff', flexShrink: 1 }}>{title}</Text>
-        <Text style={{ fontSize: 20, fontWeight: '700', color: '#fff', marginLeft: 8 }}>
-          복용약 약효추적
-        </Text>
-        <View style={{
-          marginLeft: 8,
-          paddingHorizontal: 12,
-          paddingVertical: 4,
-          borderRadius: 14,
-          backgroundColor: 'rgba(255,255,255,0.25)',
-        }}>
-          <Text style={{ fontSize: 16, fontWeight: '700', color: '#fff' }}>
-            {records.length}개
+        <Text style={{ fontSize: 20, width: 28, flexShrink: 0 }}>{icon}</Text>
+        {/* marginLeft(개별 여백) 대신 gap 사용 — marginLeft는 줄바뀜으로 그 항목이 새 줄
+            맨 앞으로 가도 그대로 붙어있어 둘째 줄이 한 칸 밀려 보이는 원인이었다(오너 재지적, 2026-07-05).
+            gap은 같은 줄 안의 항목 사이에만 여백을 주고, 새 줄 맨 앞 항목엔 안 붙는다. */}
+        <View style={{ flex: 1, flexDirection: 'row', alignItems: 'center', flexWrap: 'wrap', gap: 8 }}>
+          <Text style={{ fontSize: 20, fontWeight: '700', color: '#fff', flexShrink: 1 }}>{title}</Text>
+          <Text style={{ fontSize: 20, fontWeight: '700', color: '#fff' }}>
+            {t('bodystate.effectTracking')}
           </Text>
+          <View style={{
+            paddingHorizontal: 12,
+            paddingVertical: 4,
+            borderRadius: 14,
+            backgroundColor: 'rgba(255,255,255,0.25)',
+          }}>
+            <Text style={{ fontSize: 16, fontWeight: '700', color: '#fff' }}>
+              {t('bodystate.countUnit', { n: records.length })}
+            </Text>
+          </View>
         </View>
       </View>
 
@@ -1875,6 +1936,7 @@ interface TriggerSelectModalProps {
 }
 
 function TriggerSelectModal({ visible, medTime, options, selected, onSelect, onConfirm, onDismiss }: TriggerSelectModalProps) {
+  const { t } = useTranslation();
   const sheetBottomPad = useBottomSheetPadding(44, 24);
   if (!visible) return null;
 
@@ -1882,8 +1944,8 @@ function TriggerSelectModal({ visible, medTime, options, selected, onSelect, onC
   const elapsedMin = medTime ? Math.round((now.getTime() - medTime.getTime()) / 60000) : null;
   const elapsedText = elapsedMin !== null
     ? elapsedMin < 60
-      ? `약 ${elapsedMin}분 경과`
-      : `약 ${Math.floor(elapsedMin / 60)}시간 ${elapsedMin % 60}분 경과`
+      ? t('bodystate.elapsedUnderHour', { min: elapsedMin })
+      : t('bodystate.elapsedOverHour', { h: Math.floor(elapsedMin / 60), m: elapsedMin % 60 })
     : null;
 
   // 이 시트는 '오늘 같은 시간대 기록이 이미 있을 때(중복)'에만 열린다.
@@ -1892,8 +1954,8 @@ function TriggerSelectModal({ visible, medTime, options, selected, onSelect, onC
     ? options.find((o) => o.labelKey === selected)?.labelDisplay ?? null
     : null;
   const dupeText = selectedLabel
-    ? `${selectedLabel}는 오늘 이미 기록했어요.\n다시 기록하면 새 내용으로 바뀌어요.\n다른 시간대를 골라도 돼요.`
-    : '이 시간대는 오늘 이미 기록했어요.\n다시 기록하면 새 내용으로 바뀌어요.\n다른 시간대를 골라도 돼요.';
+    ? t('bodystate.dupeWithLabel', { label: selectedLabel })
+    : t('bodystate.dupeGeneric');
 
   return (
     <Modal visible={visible} transparent animationType="slide" statusBarTranslucent onRequestClose={onDismiss}>
@@ -1901,7 +1963,7 @@ function TriggerSelectModal({ visible, medTime, options, selected, onSelect, onC
         <TouchableOpacity style={tsStyles.backdrop} activeOpacity={1} onPress={onDismiss} />
         <View style={[tsStyles.sheet, { paddingBottom: sheetBottomPad }]}>
           <View style={tsStyles.header}>
-            <Text style={tsStyles.title}>약효 추적 다시 기록</Text>
+            <Text style={tsStyles.title}>{t('bodystate.triggerSelectTitle')}</Text>
             <TouchableOpacity onPress={onDismiss} hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}>
               <Ionicons name="close" size={26} color={Colors.textSub} />
             </TouchableOpacity>
@@ -1911,7 +1973,10 @@ function TriggerSelectModal({ visible, medTime, options, selected, onSelect, onC
             <Text style={tsStyles.medTimeText}>{dupeText}</Text>
             {medTime && (
               <Text style={tsStyles.elapsedText}>
-                {formatTime(medTime.toISOString())} 복용{elapsedText ? ` · ${elapsedText}` : ''}
+                {t('bodystate.medTakenLine', {
+                  time: formatTime(medTime.toISOString()),
+                  suffix: elapsedText ? ` · ${elapsedText}` : '',
+                })}
               </Text>
             )}
           </View>
@@ -1943,7 +2008,7 @@ function TriggerSelectModal({ visible, medTime, options, selected, onSelect, onC
             disabled={!selected}
             activeOpacity={0.85}
           >
-            <Text style={tsStyles.confirmBtnText}>기록하기</Text>
+            <Text style={tsStyles.confirmBtnText}>{t('bodystate.triggerConfirm')}</Text>
           </TouchableOpacity>
         </View>
       </View>
@@ -2027,9 +2092,48 @@ interface NextNotifInfo {
 function formatTimeHHMM_BS(date: Date): string {
   const h = date.getHours();
   const m = date.getMinutes();
-  const ampm = h < 12 ? '오전' : '오후';
   const hour = h % 12 === 0 ? 12 : h % 12;
-  return `${ampm} ${hour}:${m.toString().padStart(2, '0')}`;
+  const mm = m.toString().padStart(2, '0');
+  if (isEnLocale()) return `${hour}:${mm} ${h < 12 ? 'AM' : 'PM'}`;
+  const ampm = h < 12 ? '오전' : '오후';
+  return `${ampm} ${hour}:${mm}`;
+}
+
+// 약효추적 interval(분) → 라벨. ko는 기존과 100% 동일.
+function bsIntervalLabel(intervalMin: number): string {
+  if (isEnLocale()) {
+    if (intervalMin === 0) return 'right after taking';
+    if (intervalMin < 60) return `${intervalMin} min after taking`;
+    const h = Math.floor(intervalMin / 60);
+    const rem = intervalMin % 60;
+    return rem === 0 ? `${h} hr after taking` : `${h} hr ${rem} min after taking`;
+  }
+  if (intervalMin === 0) return '복용 직후';
+  if (intervalMin < 60) return `복용 ${intervalMin}분 후`;
+  const h = Math.floor(intervalMin / 60);
+  const rem = intervalMin % 60;
+  return rem === 0 ? `복용 ${h}시간 후` : `복용 ${h}시간 ${rem}분 후`;
+}
+
+// "{시간대} {interval} 약효추적" 라벨. ko는 기존과 100% 동일.
+function bsEffectTrackingLabel(mealKo: string | null, intervalLabel: string): string {
+  if (isEnLocale()) {
+    return mealKo ? `${mealKo} effect tracking, ${intervalLabel}` : `Effect tracking, ${intervalLabel}`;
+  }
+  return mealKo ? `${mealKo} ${intervalLabel} 약효추적` : `${intervalLabel} 약효추적`;
+}
+
+// nextDoseLabel(공용 유틸·한국어 고정)의 로케일 대응 래퍼. ko는 그대로 위임(회귀 0).
+function bsNextDoseLabelLoc(
+  legacyKey: Parameters<typeof nextDoseLabel>[0],
+  label: string | null | undefined,
+  time: string | null | undefined,
+): string {
+  if (!isEnLocale()) return nextDoseLabel(legacyKey, label, time);
+  if (legacyKey) return `Next ${mealTimeToKorean(legacyKey)}`;
+  const trimmed = (label ?? '').trim();
+  if (trimmed) return `Next ${trimmed}`;
+  return time ? `Next dose (${time})` : 'Next dose';
 }
 
 
@@ -2069,20 +2173,13 @@ async function fetchNextNotifMessage(
       if (row.dose_slot_id) {
         const qSlots = await fetchPatientDoseSlots(patientId);
         const qSlot = qSlots.find((s) => s.id === row.dose_slot_id);
-        mealKo = qSlot?.label ?? mealTimeToKorean(row.meal_time);
+        mealKo = translateRawSlotLabel(qSlot?.label) ?? mealTimeToKorean(row.meal_time);
       } else {
         mealKo = mealTimeToKorean(row.meal_time);
       }
 
-      let intervalLabel: string;
-      if (intervalMin === 0) intervalLabel = '복용 직후';
-      else if (intervalMin < 60) intervalLabel = `복용 ${intervalMin}분 후`;
-      else {
-        const h = Math.floor(intervalMin / 60);
-        const rem = intervalMin % 60;
-        intervalLabel = rem === 0 ? `복용 ${h}시간 후` : `복용 ${h}시간 ${rem}분 후`;
-      }
-      const label = mealKo ? `${mealKo} ${intervalLabel} 약효추적` : `${intervalLabel} 약효추적`;
+      const intervalLabel = bsIntervalLabel(intervalMin);
+      const label = bsEffectTrackingLabel(mealKo, intervalLabel);
       candidates.push({ minutesLeft, label, sendAt });
     }
 
@@ -2109,20 +2206,14 @@ async function fetchNextNotifMessage(
     if (justTaken) {
       const jSlot = doseSlots.find((s) => s.id === justTaken.doseSlotId);
       if (jSlot && jSlot.trackEnabled && jSlot.trackIntervals.length > 0) {
-        const mealKo = jSlot.label;
+        const mealKo = translateRawSlotLabel(jSlot.label);
         for (const intervalMin of jSlot.trackIntervals) {
           if (!intervalMin || intervalMin <= 0) continue; // 0=복용직후(과거) 제외
           const sendAt = new Date(justTaken.takenAt.getTime() + intervalMin * 60000);
           if (sendAt <= now) continue; // 미래만
           const minutesLeft = Math.round((sendAt.getTime() - now.getTime()) / 60000);
-          let intervalLabel: string;
-          if (intervalMin < 60) intervalLabel = `복용 ${intervalMin}분 후`;
-          else {
-            const h = Math.floor(intervalMin / 60);
-            const rem = intervalMin % 60;
-            intervalLabel = rem === 0 ? `복용 ${h}시간 후` : `복용 ${h}시간 ${rem}분 후`;
-          }
-          const label = mealKo ? `${mealKo} ${intervalLabel} 약효추적` : `${intervalLabel} 약효추적`;
+          const intervalLabel = bsIntervalLabel(intervalMin);
+          const label = bsEffectTrackingLabel(mealKo, intervalLabel);
           candidates.push({ minutesLeft, label, sendAt });
         }
       }
@@ -2143,7 +2234,7 @@ async function fetchNextNotifMessage(
         const minutesLeft = Math.round((scheduled.getTime() - now.getTime()) / 60000);
         candidates.push({
           minutesLeft,
-          label: nextDoseLabel(slot.legacyKey, slot.label, slot.time),
+          label: bsNextDoseLabelLoc(slot.legacyKey, slot.label, slot.time),
           sendAt: scheduled,
         });
         foundMeal = true;
@@ -2160,9 +2251,13 @@ async function fetchNextNotifMessage(
         tomorrowFirst.setDate(tomorrowFirst.getDate() + 1);
         tomorrowFirst.setHours(fh, fm || 0, 0, 0);
         const minutesLeft = Math.round((tomorrowFirst.getTime() - now.getTime()) / 60000);
+        const baseLabel = bsNextDoseLabelLoc(first.legacyKey, first.label, first.time);
+        const tomorrowLabel = isEnLocale()
+          ? `Tomorrow, ${baseLabel.replace(/^Next /, '')}`
+          : `내일 ${baseLabel.replace(/^다음 /, '')}`;
         candidates.push({
           minutesLeft,
-          label: `내일 ${nextDoseLabel(first.legacyKey, first.label, first.time).replace(/^다음 /, '')}`,
+          label: tomorrowLabel,
           sendAt: tomorrowFirst,
         });
       }
@@ -2182,7 +2277,7 @@ async function fetchNextNotifMessage(
         scheduled.setHours(hour, ep.minute, 0, 0);
         if (scheduled > now) {
           const minutesLeft = Math.round((scheduled.getTime() - now.getTime()) / 60000);
-          candidates.push({ minutesLeft, label: '운동 알림', sendAt: scheduled });
+          candidates.push({ minutesLeft, label: isEnLocale() ? 'Exercise reminder' : '운동 알림', sendAt: scheduled });
         }
       }
     }
@@ -2193,7 +2288,7 @@ async function fetchNextNotifMessage(
       tomorrow.setDate(tomorrow.getDate() + 1);
       tomorrow.setHours(8, 0, 0, 0);
       return {
-        label: '내일 아침약 복용',
+        label: isEnLocale() ? 'Tomorrow, morning dose' : '내일 아침약 복용',
         timeStr: formatTimeHHMM_BS(tomorrow),
         minutesLeft: Math.round((tomorrow.getTime() - now.getTime()) / 60000),
       };
@@ -2231,23 +2326,17 @@ async function fetchNextNotifMessage(
 // ─── NextNotifModal ───────────────────────────────────────────────────────────
 
 function NextNotifModal({ visible, info, onClose }: { visible: boolean; info: NextNotifInfo | null; onClose: () => void }) {
+  const { t } = useTranslation();
   if (!visible || !info) return null;
 
-  let minutesText: string;
-  if (info.minutesLeft < 60) {
-    minutesText = `${info.minutesLeft}분`;
-  } else {
-    const h = Math.floor(info.minutesLeft / 60);
-    const rem = info.minutesLeft % 60;
-    minutesText = rem === 0 ? `${h}시간` : `${h}시간 ${rem}분`;
-  }
+  const minutesText = formatDurationKo(info.minutesLeft);
 
   return (
     <Modal visible={visible} transparent animationType="fade" statusBarTranslucent onRequestClose={onClose}>
       <View style={nnStyles.overlay}>
         <View style={nnStyles.card}>
           <Text style={nnStyles.icon}>🔔</Text>
-          <Text style={nnStyles.title}>다음 알림 예고</Text>
+          <Text style={nnStyles.title}>{t('bodystate.nextNotifTitle')}</Text>
 
           {/* 알림 종류 — 오렌지 배경 pill */}
           <View style={nnStyles.labelPill}>
@@ -2259,11 +2348,11 @@ function NextNotifModal({ visible, info, onClose }: { visible: boolean; info: Ne
 
           {/* 서브텍스트 */}
           <Text style={nnStyles.subText}>
-            지금부터 약 {minutesText} 후에{'\n'}알림을 보내드릴게요
+            {t('bodystate.nextNotifSub', { minutes: minutesText })}
           </Text>
 
           <TouchableOpacity style={nnStyles.closeBtn} onPress={onClose} activeOpacity={0.85}>
-            <Text style={nnStyles.closeBtnText}>확인</Text>
+            <Text style={nnStyles.closeBtnText}>{t('common.confirm')}</Text>
           </TouchableOpacity>
         </View>
       </View>
@@ -2331,16 +2420,17 @@ const nnStyles = StyleSheet.create({
 // ─── PreRecordInfoModal ───────────────────────────────────────────────────────
 
 function PreRecordInfoModal({ visible, message, onClose }: { visible: boolean; message: string; onClose: () => void }) {
+  const { t } = useTranslation();
   if (!visible) return null;
   return (
     <Modal visible={visible} transparent animationType="fade" statusBarTranslucent onRequestClose={onClose}>
       <View style={piStyles.overlay}>
         <View style={piStyles.card}>
           <Text style={piStyles.icon}>🔕</Text>
-          <Text style={piStyles.title}>알림 취소 안내</Text>
+          <Text style={piStyles.title}>{t('bodystate.preRecordTitle')}</Text>
           <Text style={piStyles.message}>{message}</Text>
           <TouchableOpacity style={piStyles.closeBtn} onPress={onClose} activeOpacity={0.85}>
-            <Text style={piStyles.closeBtnText}>닫기</Text>
+            <Text style={piStyles.closeBtnText}>{t('common.close')}</Text>
           </TouchableOpacity>
         </View>
       </View>

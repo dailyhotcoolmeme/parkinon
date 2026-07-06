@@ -6,6 +6,7 @@ import {
   TouchableOpacity,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
+import { useTranslation } from 'react-i18next';
 import { useBottomSheetPadding } from '../../hooks/useBottomSheetPadding';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useNavigation } from '@react-navigation/native';
@@ -21,20 +22,13 @@ type Nav = StackNavigationProp<OnboardingStackParamList, 'RoleSelect'>;
 type RoleKey = 'patient' | 'caregiver';
 
 const ROLES = [
-  {
-    key: 'patient',
-    label: '파킨슨 진단을 받은 환자예요',
-    desc: '직접 약 복용과 몸 상태를\n기록할 수 있어요',
-  },
-  {
-    key: 'caregiver',
-    label: '파킨슨 환자 가족이에요',
-    desc: '가족의 건강 상태를 함께\n확인하고 도울 수 있어요',
-  },
+  { key: 'patient', labelKey: 'roleSelect.patientLabel', descKey: 'roleSelect.patientDesc' },
+  { key: 'caregiver', labelKey: 'roleSelect.caregiverLabel', descKey: 'roleSelect.caregiverDesc' },
 ] as const;
 
 export function RoleSelectScreen() {
   const navigation = useNavigation<Nav>();
+  const { t } = useTranslation();
   const { signOut } = useAuth();
   const dialog = useDialog();
   const [selectedRole, setSelectedRole] = useState<RoleKey | null>(null);
@@ -83,7 +77,7 @@ export function RoleSelectScreen() {
         navigation.navigate('CaregiverInfo', { step: 1 });
       }
     } catch (e: any) {
-      await dialog.alert({ title: '오류', message: '역할 저장 중 문제가 생겼어요. 다시 시도해주세요.\n' + (e?.message ?? '') });
+      await dialog.alert({ title: t('common.error'), message: t('roleSelect.saveErrorMessage') + (e?.message ?? '') });
     } finally {
       setLoading(false);
     }
@@ -99,13 +93,13 @@ export function RoleSelectScreen() {
       <View style={styles.header}>
         <TouchableOpacity style={styles.backBtn} onPress={() => navigation.goBack()} activeOpacity={0.7}>
           <Text style={styles.backIcon}>←</Text>
-          <Text style={styles.backText}>뒤로</Text>
+          <Text style={styles.backText}>{t('common.back')}</Text>
         </TouchableOpacity>
       </View>
 
       <View style={styles.content}>
-        <Text style={styles.title}>나는 누구인가요?</Text>
-        <Text style={styles.subtitle}>맞는 역할을 선택해주세요</Text>
+        <Text style={styles.title}>{t('roleSelect.title')}</Text>
+        <Text style={styles.subtitle}>{t('roleSelect.subtitle')}</Text>
 
         <View style={styles.cardsArea}>
           {ROLES.map((role) => {
@@ -125,10 +119,10 @@ export function RoleSelectScreen() {
                 {/* 중앙 콘텐츠 */}
                 <View style={styles.cardCenter}>
                   <Text style={[styles.cardLabel, selected && styles.cardLabelSelected]}>
-                    {role.label}
+                    {t(role.labelKey)}
                   </Text>
                   <Text style={[styles.cardDesc, selected && styles.cardDescSelected]}>
-                    {role.desc}
+                    {t(role.descKey)}
                   </Text>
                 </View>
 
@@ -143,13 +137,13 @@ export function RoleSelectScreen() {
       {/* 하단 버튼 영역 */}
       <View style={[styles.bottomArea, { paddingBottom: bottomPadding }]}>
         <PrimaryButton
-          title="다음으로"
+          title={t('common.nextTo')}
           onPress={handleConfirm}
           disabled={!selectedRole}
           loading={loading}
         />
         <TouchableOpacity style={styles.closeBtn} onPress={handleClose} activeOpacity={0.7}>
-          <Text style={styles.closeBtnText}>닫기</Text>
+          <Text style={styles.closeBtnText}>{t('common.close')}</Text>
         </TouchableOpacity>
       </View>
     </SafeAreaView>

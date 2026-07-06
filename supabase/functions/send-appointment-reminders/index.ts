@@ -12,19 +12,53 @@ const supabase = createClient(
 )
 
 const DAYS_KR = ['일', '월', '화', '수', '목', '금', '토']
+const DAYS_EN = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat']
+const MONTHS_EN = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec']
+const DOW_INDEX: Record<string, number> = { Sun: 0, Mon: 1, Tue: 2, Wed: 3, Thu: 4, Fri: 5, Sat: 6 }
 
-/** 진료 일시(UTC ISO) → KST 'M월 D일(요일) 오전/오후 H:MM'. 앱 apptWhenKor 과 동일 형식. */
-function kstWhen(iso: string): string {
-  const d = new Date(new Date(iso).getTime() + 9 * 60 * 60 * 1000) // KST로 시프트 후 UTC getter 사용
-  const mo = d.getUTCMonth() + 1
-  const day = d.getUTCDate()
-  const dow = DAYS_KR[d.getUTCDay()]
-  const h = d.getUTCHours()
-  const m = d.getUTCMinutes()
-  const ampm = h < 12 ? '오전' : '오후'
-  let h12 = h % 12
+/**
+ * 진료 일시(UTC ISO)를 환자의 tz 기준 벽시계 부품으로 분해(Phase1-S3d).
+ * tz='Asia/Seoul'이면 기존 `new Date(iso).getTime()+9h` 트릭과 동일한 순간을 가리킨다(회귀 0).
+ */
+function localParts(iso: string, tz: string) {
+  const d = new Date(iso)
+  const fmt = new Intl.DateTimeFormat('en-US', {
+    timeZone: tz,
+    hour12: false,
+    month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit',
+  })
+  const parts = fmt.formatToParts(d).reduce((acc, p) => {
+    acc[p.type] = p.value
+    return acc
+  }, {} as Record<string, string>)
+  const weekdayShort = new Intl.DateTimeFormat('en-US', { timeZone: tz, weekday: 'short' }).format(d)
+  return {
+    mo: Number(parts.month),
+    day: Number(parts.day),
+    hour: Number(parts.hour === '24' ? '0' : parts.hour),
+    minute: Number(parts.minute),
+    dowIdx: DOW_INDEX[weekdayShort] ?? 0,
+  }
+}
+
+/** 진료 일시 → 환자 tz 기준 'M월 D일(요일) 오전/오후 H:MM'. 앱 apptWhenKor 과 동일 형식. */
+function kstWhen(iso: string, tz: string): string {
+  const { mo, day, hour, minute, dowIdx } = localParts(iso, tz)
+  const dow = DAYS_KR[dowIdx]
+  const ampm = hour < 12 ? '오전' : '오후'
+  let h12 = hour % 12
   if (h12 === 0) h12 = 12
-  return `${mo}월 ${day}일(${dow}) ${ampm} ${h12}:${String(m).padStart(2, '0')}`
+  return `${mo}월 ${day}일(${dow}) ${ampm} ${h12}:${String(minute).padStart(2, '0')}`
+}
+
+/** kstWhen 영어판 — 앱 apptWhen isEnLocale 분기와 동일 형식: 'Mon, Jul 6 8:00 AM'. */
+function kstWhenEn(iso: string, tz: string): string {
+  const { mo, day, hour, minute, dowIdx } = localParts(iso, tz)
+  const dow = DAYS_EN[dowIdx]
+  const ampm = hour < 12 ? 'AM' : 'PM'
+  let h12 = hour % 12
+  if (h12 === 0) h12 = 12
+  return `${dow}, ${MONTHS_EN[mo - 1]} ${day} ${h12}:${String(minute).padStart(2, '0')} ${ampm}`
 }
 
 /** 수신자의 알림음 설정 → Android 채널 ID. (send-medication-reminders 와 동일 규칙) */
@@ -93,7 +127,7 @@ async function processBucket(rows: ApptRow[] | null, kind: 'week' | 'day') {
   for (const appt of rows ?? []) {
     const { data: patient } = await supabase
       .from('users')
-      .select('push_token, push_platform')
+      .select('push_token, push_platform, language, timezone')
       .eq('id', appt.patient_id)
       .single()
     // 진료 알림은 사용자가 직접 등록한 일정의 per-진료 토글(notify_week_before/notify_day_before,
@@ -102,16 +136,29 @@ async function processBucket(rows: ApptRow[] | null, kind: 'week' | 'day') {
     // 진료 알림은 유지되어야 한다. 토큰만 확인(없으면 보류: 나중에 발급되면 윈도우 안에서 발송).
     if (!patient?.push_token) continue
 
-    const hosp = appt.hospital_name?.trim() || '진료'
-    const when = kstWhen(appt.appointment_date)
-    const body = kind === 'week'
-      ? `${hosp} 진료가 1주일 후입니다.\n${when}`
-      : `${hosp} 진료가 내일입니다.\n${when}`
+    const isEn = (patient as any).language === 'en'
+    const tz = (patient as any).timezone || 'Asia/Seoul'
+    const title = isEn ? '🏥 Appointment Reminder' : '🏥 진료 일정 알림'
+    const body = isEn
+      ? (() => {
+          const hosp = appt.hospital_name?.trim() || 'your appointment'
+          const when = kstWhenEn(appt.appointment_date, tz)
+          return kind === 'week'
+            ? `${hosp} is in 1 week.\n${when}`
+            : `${hosp} is tomorrow.\n${when}`
+        })()
+      : (() => {
+          const hosp = appt.hospital_name?.trim() || '진료'
+          const when = kstWhen(appt.appointment_date, tz)
+          return kind === 'week'
+            ? `${hosp} 진료가 1주일 후입니다.\n${when}`
+            : `${hosp} 진료가 내일입니다.\n${when}`
+        })()
     const channelId = await resolveAlarmChannel(appt.patient_id)
     const data = { type: 'appointment_reminder', appointmentId: appt.id, kind }
 
-    await sendPush(patient.push_token, '🏥 진료 일정 알림', body, data, channelId, (patient as any).push_platform ?? null)
-    await logNotification(appt.patient_id, 'appointment_reminder', '🏥 진료 일정 알림', body, data)
+    await sendPush(patient.push_token, title, body, data, channelId, (patient as any).push_platform ?? null)
+    await logNotification(appt.patient_id, 'appointment_reminder', title, body, data)
     await supabase.from('medical_appointments').update({ [notifiedCol]: true }).eq('id', appt.id)
     sent++
   }

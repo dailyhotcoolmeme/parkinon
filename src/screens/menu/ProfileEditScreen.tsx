@@ -25,6 +25,8 @@ import { useAuth } from '../../context/AuthContext';
 import { supabase } from '../../lib/supabase';
 import { useDialog } from '../../context/DialogContext';
 import { useBottomSheetPadding } from '../../hooks/useBottomSheetPadding';
+import i18n from '../../i18n';
+import { useTranslation } from 'react-i18next';
 
 type Gender = 'male' | 'female';
 type Cohabiting = 'together' | 'apart';
@@ -44,7 +46,7 @@ const NET_TIMEOUT_MS = 15000;
 function withTimeout<T>(p: Promise<T>, ms: number, label: string): Promise<T> {
   return new Promise<T>((resolve, reject) => {
     const t = setTimeout(
-      () => reject(new Error(`${label} 응답이 지연되고 있어요. 네트워크를 확인하고 다시 시도해주세요.`)),
+      () => reject(new Error(i18n.t('profileEdit.timeoutMsg', { label }))),
       ms,
     );
     p.then(
@@ -80,7 +82,7 @@ async function patchUser(
     });
   } catch (e: any) {
     if (e?.name === 'AbortError') {
-      throw new Error('저장 요청 응답이 지연되고 있어요. 네트워크를 확인하고 다시 시도해주세요.');
+      throw new Error(i18n.t('profileEdit.saveTimeoutMsg'));
     }
     throw e;
   } finally {
@@ -89,6 +91,7 @@ async function patchUser(
 }
 
 export function ProfileEditScreen() {
+  const { t } = useTranslation();
   const navigation = useNavigation<any>();
   const { user, refreshUser } = useAuth();
   const { unreadCount } = useNotificationBadge();
@@ -166,6 +169,13 @@ export function ProfileEditScreen() {
   };
   const relKorToEng: Record<string, string> = {
     '배우자': 'spouse', '자녀': 'child', '형제/자매': 'sibling', '기타': 'other',
+  };
+  const relLabel = (r: string): string => {
+    const eng = relKorToEng[r];
+    if (eng === 'spouse') return t('profileEdit.relSpouse');
+    if (eng === 'child') return t('profileEdit.relChild');
+    if (eng === 'sibling') return t('profileEdit.relSibling');
+    return t('profileEdit.relOther');
   };
 
   // 화면 진입 시마다 DB에서 직접 최신 데이터를 불러와 폼 초기화
@@ -308,14 +318,14 @@ export function ProfileEditScreen() {
   };
 
   const activePickerTitle =
-    activePicker === 'myBirth' ? '출생연도'
-    : activePicker === 'myDiagnosis' ? '진단연도'
-    : activePicker === 'patientBirth' ? '환자 출생연도'
-    : '진단 연도';
+    activePicker === 'myBirth' ? t('profileEdit.birthYearLabel')
+    : activePicker === 'myDiagnosis' ? t('profileEdit.diagnosisYearLabel')
+    : activePicker === 'patientBirth' ? t('profileEdit.patientBirthYearLabel')
+    : t('profileEdit.patientDiagnosisYearLabel');
 
   const handleSave = async () => {
     if (!name.trim()) {
-      dialog.alert({ title: '이름 확인', message: '이름을 입력해주세요.' });
+      dialog.alert({ title: t('profileEdit.nameCheckTitle'), message: t('profileEdit.nameRequiredMsg') });
       return;
     }
     if (!user) return;
@@ -337,10 +347,10 @@ export function ProfileEditScreen() {
       const { data: { session } } = await withTimeout(
         supabase.auth.getSession(),
         NET_TIMEOUT_MS,
-        '세션 확인',
+        t('profileEdit.sessionCheckLabel'),
       );
       const accessToken = session?.access_token;
-      if (!accessToken) throw new Error('세션이 만료되었어요. 다시 로그인해주세요.');
+      if (!accessToken) throw new Error(t('profileEdit.sessionExpiredMsg'));
 
       // 내 정보 저장 (본인 행 → users UPDATE RLS 통과)
       const res = await patchUser(user.id, accessToken, {
@@ -357,7 +367,7 @@ export function ProfileEditScreen() {
       });
       if (!res.ok) {
         const txt = await res.text().catch(() => '');
-        throw new Error(`내 정보 저장 실패 (HTTP ${res.status})${txt ? `: ${txt}` : ''}`);
+        throw new Error(t('profileEdit.saveFailMsg', { status: res.status, detail: txt ? `: ${txt}` : '' }));
       }
 
       // 보호자 + 환자 연동된 경우: 환자 기본정보가 "실제로 변경됐을 때만" PATCH 시도.
@@ -406,8 +416,8 @@ export function ProfileEditScreen() {
       // (정보성 안내 → 스피너가 완전히 사라진 뒤 단독 AppDialog, 확인 시 goBack)
       if (!isPatient && !patientId) {
         queueAlertThenLeave({
-          title: '저장 완료 (환자 미연동)',
-          message: '내 정보는 저장됐어요.\n\n담당 환자가 연동되어 있지 않아 환자 정보는 저장할 수 없어요. 가족 연동 메뉴에서 환자를 먼저 연동해주세요.',
+          title: t('profileEdit.savedNoPatientTitle'),
+          message: t('profileEdit.savedNoPatientMsg'),
         });
         return;
       }
@@ -415,23 +425,23 @@ export function ProfileEditScreen() {
       // 환자 정보 PATCH가 RLS 등으로 막힌 경우: 본인 정보 저장은 성공으로 처리하고 안내만 별도 표시
       if (patientPartialFail) {
         queueAlertThenLeave({
-          title: '내 정보 저장 완료',
-          message: '내 정보는 저장됐어요.\n\n환자 정보는 환자 본인 계정에서 수정할 수 있어요.',
+          title: t('profileEdit.savedPartialTitle'),
+          message: t('profileEdit.savedPartialMsg'),
         });
         return;
       }
 
       // 정상 저장 — 차단 모달 없이 비차단 토스트(CenterToast, Modal 아님)로 피드백 후 즉시 복귀.
       // 토스트는 앱 루트(DialogProvider)에 떠서 화면을 떠나도 유지되며, 스피너 Modal과 절대 겹치지 않는다.
-      dialog.alert({ message: '프로필이 저장됐어요.', toast: true });
+      dialog.alert({ message: t('profileEdit.savedToast'), toast: true });
       setSaving(false);
       navigation.goBack();
     } catch (e: any) {
       // 오류 알림: pendingAlertRef에 담아 setSaving(false)만 호출 → 스피너가 완전히
       // 사라진 뒤 onHidden에서 단독 AppDialog로 표시한다(적층 hang 불가). 화면은 유지(재시도 가능).
       pendingAlertRef.current = {
-        title: '오류',
-        message: e.message ?? '저장 중 문제가 생겼어요. 다시 시도해주세요.',
+        title: t('profileEdit.errorTitle'),
+        message: e.message ?? t('profileEdit.saveGenericFailMsg'),
       };
       setSaving(false);
     }
@@ -440,7 +450,7 @@ export function ProfileEditScreen() {
   return (
     <SafeAreaView style={styles.safeArea} edges={['top']}>
       <TopBar
-        title="프로필 수정"
+        title={t('profileEdit.headerTitle')}
         showBack
         showBell
         bellBadge={unreadCount}
@@ -450,7 +460,7 @@ export function ProfileEditScreen() {
       {loading ? (
         <View style={styles.loadingWrap}>
           <ActivityIndicator size="large" color={Colors.primary} />
-          <Text style={styles.loadingText}>불러오는 중...</Text>
+          <Text style={styles.loadingText}>{i18n.t('loading.loadingGeneric')}</Text>
         </View>
       ) : (
       <KeyboardAvoidingView style={{ flex: 1 }} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
@@ -466,28 +476,28 @@ export function ProfileEditScreen() {
         <View style={styles.card}>
           <View style={styles.sectionHeader}>
             <Ionicons name="person-outline" size={22} color={Colors.primary} />
-            <Text style={styles.sectionTitle}>내 정보</Text>
+            <Text style={styles.sectionTitle}>{t('profileEdit.myInfoTitle')}</Text>
           </View>
 
           {/* 이름 */}
-          <Text style={styles.label}>이름</Text>
+          <Text style={styles.label}>{t('profileEdit.nameLabel')}</Text>
           <TextInput
             style={styles.input}
             value={name}
             onChangeText={setName}
-            placeholder="이름을 입력해주세요"
+            placeholder={t('profileEdit.namePlaceholder')}
             placeholderTextColor={Colors.textHint}
             returnKeyType="done"
           />
 
           {/* 출생연도 */}
-          <Text style={[styles.label, { marginTop: 20 }]}>출생연도</Text>
+          <Text style={[styles.label, { marginTop: 20 }]}>{t('profileEdit.birthYearLabel')}</Text>
           <TouchableOpacity
             style={styles.pickerRow}
             onPress={() => setActivePicker('myBirth')}
             activeOpacity={0.8}
           >
-            <Text style={styles.pickerText}>{birthYear}년</Text>
+            <Text style={styles.pickerText}>{t('profileEdit.yearSuffix', { y: birthYear })}</Text>
             <Ionicons name="chevron-down" size={22} color={Colors.textSub} />
           </TouchableOpacity>
         </View>
@@ -496,7 +506,7 @@ export function ProfileEditScreen() {
         <View style={styles.card}>
           <View style={styles.sectionHeader}>
             <Ionicons name="male-female-outline" size={22} color={Colors.primary} />
-            <Text style={styles.sectionTitle}>성별</Text>
+            <Text style={styles.sectionTitle}>{t('profileEdit.genderTitle')}</Text>
           </View>
 
           <View style={styles.segRow}>
@@ -506,7 +516,7 @@ export function ProfileEditScreen() {
               activeOpacity={0.8}
             >
               <Text style={[styles.segBtnText, gender === 'male' && styles.segBtnTextActive]}>
-                남자
+                {t('profileEdit.male')}
               </Text>
             </TouchableOpacity>
             <TouchableOpacity
@@ -515,7 +525,7 @@ export function ProfileEditScreen() {
               activeOpacity={0.8}
             >
               <Text style={[styles.segBtnText, gender === 'female' && styles.segBtnTextActive]}>
-                여자
+                {t('profileEdit.female')}
               </Text>
             </TouchableOpacity>
           </View>
@@ -526,16 +536,16 @@ export function ProfileEditScreen() {
           <View style={styles.card}>
             <View style={styles.sectionHeader}>
               <Ionicons name="medical-outline" size={22} color={Colors.primary} />
-              <Text style={styles.sectionTitle}>진단 정보</Text>
+              <Text style={styles.sectionTitle}>{t('profileEdit.diagnosisInfoTitle')}</Text>
             </View>
 
-            <Text style={styles.label}>진단연도</Text>
+            <Text style={styles.label}>{t('profileEdit.diagnosisYearLabel')}</Text>
             <TouchableOpacity
               style={styles.pickerRow}
               onPress={() => setActivePicker('myDiagnosis')}
               activeOpacity={0.8}
             >
-              <Text style={styles.pickerText}>{diagnosisYear}년</Text>
+              <Text style={styles.pickerText}>{t('profileEdit.yearSuffix', { y: diagnosisYear })}</Text>
               <Ionicons name="chevron-down" size={22} color={Colors.textSub} />
             </TouchableOpacity>
           </View>
@@ -548,7 +558,7 @@ export function ProfileEditScreen() {
             <View style={styles.card}>
               <View style={styles.sectionHeader}>
                 <Ionicons name="people-outline" size={22} color={Colors.primary} />
-                <Text style={styles.sectionTitle}>관계</Text>
+                <Text style={styles.sectionTitle}>{t('profileEdit.relationTitle')}</Text>
               </View>
 
               <View style={styles.relationGrid}>
@@ -560,19 +570,19 @@ export function ProfileEditScreen() {
                     activeOpacity={0.8}
                   >
                     <Text style={[styles.relBtnText, relation === r && styles.relBtnTextActive]}>
-                      {r}
+                      {relLabel(r)}
                     </Text>
                   </TouchableOpacity>
                 ))}
               </View>
               {relation === '기타' && (
                 <>
-                  <Text style={[styles.label, { marginTop: 16 }]}>어떤 관계인가요?</Text>
+                  <Text style={[styles.label, { marginTop: 16 }]}>{t('profileEdit.relationOtherLabel')}</Text>
                   <TextInput
                     style={styles.input}
                     value={relationOther}
                     onChangeText={setRelationOther}
-                    placeholder="예: 친구, 간병인, 이웃 등"
+                    placeholder={t('profileEdit.relationOtherPlaceholder')}
                     placeholderTextColor={Colors.textHint}
                     returnKeyType="done"
                     maxLength={30}
@@ -585,7 +595,7 @@ export function ProfileEditScreen() {
             <View style={styles.card}>
               <View style={styles.sectionHeader}>
                 <Ionicons name="home-outline" size={22} color={Colors.primary} />
-                <Text style={styles.sectionTitle}>거주</Text>
+                <Text style={styles.sectionTitle}>{t('profileEdit.residenceTitle')}</Text>
               </View>
 
               <View style={styles.segRow}>
@@ -600,7 +610,7 @@ export function ProfileEditScreen() {
                       cohabiting === 'together' && styles.segBtnTextActive,
                     ]}
                   >
-                    함께
+                    {t('profileEdit.together')}
                   </Text>
                 </TouchableOpacity>
                 <TouchableOpacity
@@ -614,7 +624,7 @@ export function ProfileEditScreen() {
                       cohabiting === 'apart' && styles.segBtnTextActive,
                     ]}
                   >
-                    따로
+                    {t('profileEdit.apart')}
                   </Text>
                 </TouchableOpacity>
               </View>
@@ -625,9 +635,9 @@ export function ProfileEditScreen() {
               <View style={styles.sectionHeader}>
                 <Ionicons name="person-outline" size={22} color={Colors.primary} />
                 <View style={{ flex: 1 }}>
-                  <Text style={styles.sectionTitle}>담당 환자 정보</Text>
+                  <Text style={styles.sectionTitle}>{t('profileEdit.patientInfoTitle')}</Text>
                   <Text style={[styles.label, { marginTop: 2, marginBottom: 0 }]}>
-                    가족 연동된 환자의 정보를 수정해요
+                    {t('profileEdit.patientInfoSub')}
                   </Text>
                 </View>
               </View>
@@ -637,14 +647,14 @@ export function ProfileEditScreen() {
               {patientLoading ? (
                 <View style={styles.patientLoadingWrap}>
                   <ActivityIndicator color={Colors.primary} />
-                  <Text style={styles.patientLoadingText}>환자 정보를 불러오고 있어요...</Text>
+                  <Text style={styles.patientLoadingText}>{i18n.t('loading.loadingPatientInfo')}</Text>
                 </View>
               ) : !patientId ? (
                 <>
                   <View style={styles.noPatientBanner}>
                     <Ionicons name="alert-circle-outline" size={20} color="#B45309" />
                     <Text style={styles.noPatientBannerText}>
-                      아직 연동된 환자가 없어요. 가족을 연동하면 환자분의 정보를 함께 관리할 수 있어요.
+                      {t('profileEdit.noPatientBanner')}
                     </Text>
                   </View>
                   <TouchableOpacity
@@ -653,18 +663,18 @@ export function ProfileEditScreen() {
                     activeOpacity={0.8}
                   >
                     <Ionicons name="person-add-outline" size={22} color={Colors.white} />
-                    <Text style={styles.linkFamilyBtnText}>가족 연동하기</Text>
+                    <Text style={styles.linkFamilyBtnText}>{t('profileEdit.linkFamilyBtn')}</Text>
                   </TouchableOpacity>
                 </>
               ) : (
                 <>
               {/* 환자 이름 */}
-              <Text style={styles.label}>환자 이름</Text>
+              <Text style={styles.label}>{t('profileEdit.patientNameLabel')}</Text>
               <TextInput
                 style={styles.input}
                 value={patientName}
                 onChangeText={setPatientName}
-                placeholder="환자 이름을 입력해주세요"
+                placeholder={t('profileEdit.patientNamePlaceholder')}
                 placeholderTextColor={Colors.textHint}
                 returnKeyType="done"
                 onFocus={() => {
@@ -674,18 +684,18 @@ export function ProfileEditScreen() {
               />
 
               {/* 환자 출생연도 */}
-              <Text style={[styles.label, { marginTop: 20 }]}>환자 출생연도</Text>
+              <Text style={[styles.label, { marginTop: 20 }]}>{t('profileEdit.patientBirthYearLabel')}</Text>
               <TouchableOpacity
                 style={styles.pickerRow}
                 onPress={() => setActivePicker('patientBirth')}
                 activeOpacity={0.8}
               >
-                <Text style={styles.pickerText}>{patientBirthYear}년</Text>
+                <Text style={styles.pickerText}>{t('profileEdit.yearSuffix', { y: patientBirthYear })}</Text>
                 <Ionicons name="chevron-down" size={22} color={Colors.textSub} />
               </TouchableOpacity>
 
               {/* 환자 성별 */}
-              <Text style={[styles.label, { marginTop: 20 }]}>환자 성별</Text>
+              <Text style={[styles.label, { marginTop: 20 }]}>{t('profileEdit.patientGenderLabel')}</Text>
               <View style={styles.segRow}>
                 <TouchableOpacity
                   style={[styles.segBtn, patientGender === 'male' && styles.segBtnActive]}
@@ -693,7 +703,7 @@ export function ProfileEditScreen() {
                   activeOpacity={0.8}
                 >
                   <Text style={[styles.segBtnText, patientGender === 'male' && styles.segBtnTextActive]}>
-                    남자
+                    {t('profileEdit.male')}
                   </Text>
                 </TouchableOpacity>
                 <TouchableOpacity
@@ -702,19 +712,19 @@ export function ProfileEditScreen() {
                   activeOpacity={0.8}
                 >
                   <Text style={[styles.segBtnText, patientGender === 'female' && styles.segBtnTextActive]}>
-                    여자
+                    {t('profileEdit.female')}
                   </Text>
                 </TouchableOpacity>
               </View>
 
               {/* 진단 연도 */}
-              <Text style={[styles.label, { marginTop: 20 }]}>진단 연도</Text>
+              <Text style={[styles.label, { marginTop: 20 }]}>{t('profileEdit.patientDiagnosisYearLabel')}</Text>
               <TouchableOpacity
                 style={styles.pickerRow}
                 onPress={() => setActivePicker('patientDiagnosis')}
                 activeOpacity={0.8}
               >
-                <Text style={styles.pickerText}>{patientDiagnosisYear}년</Text>
+                <Text style={styles.pickerText}>{t('profileEdit.yearSuffix', { y: patientDiagnosisYear })}</Text>
                 <Ionicons name="chevron-down" size={22} color={Colors.textSub} />
               </TouchableOpacity>
                 </>
@@ -751,7 +761,7 @@ export function ProfileEditScreen() {
                     }}
                   >
                     <Text style={[styles.pickerItemText, activePickerValue === y && styles.pickerItemTextActive]}>
-                      {y}년
+                      {t('profileEdit.yearSuffix', { y })}
                     </Text>
                   </TouchableOpacity>
                 )}
@@ -774,7 +784,7 @@ export function ProfileEditScreen() {
 
         {/* 저장 버튼 */}
         <TouchableOpacity style={styles.saveBtn} onPress={handleSave} activeOpacity={0.85} disabled={saving}>
-          <Text style={styles.saveBtnText}>저장하기</Text>
+          <Text style={styles.saveBtnText}>{t('profileEdit.saveBtn')}</Text>
         </TouchableOpacity>
 
         {/* 안드: 키보드 높이만큼 하단 스페이서 — 하단 입력 필드 포커스 시 키보드 위로 올림 (iOS는 automaticallyAdjustKeyboardInsets) */}
@@ -784,7 +794,7 @@ export function ProfileEditScreen() {
       )}
       <BrandProgressOverlay
         visible={saving}
-        title="저장하고 있어요"
+        title={i18n.t('loading.saving')}
         minVisibleMs={500}
         // 스피너 Modal이 완전히 사라진 뒤에만 단독으로 알림을 띄운다(두 Modal 적층 불가 → 멈춤 0).
         onHidden={() => {

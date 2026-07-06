@@ -1,0 +1,129 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<style>
+  * { margin:0; padding:0; box-sizing:border-box; -webkit-font-smoothing:antialiased; }
+  body {
+    font-family: -apple-system, "Apple SD Gothic Neo", "Noto Sans KR", sans-serif;
+    background:#ECECEC;
+    width:390px;
+  }
+  .strip { padding:16px 0; }
+  .case-label {
+    font-size:13px; font-weight:700; color:#888;
+    padding:0 16px 8px; letter-spacing:0.3px;
+  }
+  /* overlay (rgba(0,0,0,0.5)) — paddingHorizontal:32 */
+  .overlay {
+    background:rgba(0,0,0,0.5);
+    padding:24px 32px;
+    display:flex; justify-content:center;
+  }
+  /* card: radius24, padding32, alignItems center, shadow */
+  .card {
+    background:#fff;
+    border-radius:24px;
+    padding:32px;
+    width:100%;
+    display:flex; flex-direction:column; align-items:center;
+    box-shadow:0 6px 16px rgba(0,0,0,0.2);
+    text-align:center;
+  }
+  .icon { font-size:40px; margin-bottom:12px; line-height:1; }
+  .title { font-size:22px; font-weight:800; color:#1A1A1A; margin-bottom:20px; }
+
+  /* labelPill — 연한 오렌지 배경, 진한 글자(보조) */
+  .pill {
+    background:#FFF0E6;
+    border-radius:20px;
+    padding:8px 18px;
+    margin-bottom:14px;
+  }
+  .pill span { font-size:16px; font-weight:700; color:#E25A00; }
+
+  /* tomorrow — 시각 위 오렌지 강조 */
+  .tomorrow { font-size:20px; font-weight:800; color:#FF6B00; margin-bottom:2px; }
+
+  /* timeText — 메인 히어로 40px / 900 / 오렌지 */
+  .time {
+    font-size:40px; font-weight:900; color:#FF6B00;
+    letter-spacing:0.5px; margin-bottom:14px; line-height:1.05;
+  }
+
+  .sub { font-size:17px; color:#777; line-height:26px; margin-bottom:28px; }
+
+  /* closeBtn — Colors.primary 추정(오렌지 계열). radius14 */
+  .btn {
+    background:#FF6B00;
+    border-radius:14px;
+    padding:14px 48px;
+  }
+  .btn span { font-size:18px; font-weight:700; color:#fff; }
+</style>
+</head>
+<body>
+
+  <!-- ① 오늘 약효추적 -->
+  <div class="strip">
+    <div class="case-label">① 오늘 · 약효추적</div>
+    <div class="overlay">
+      <div class="card">
+        <div class="icon">🔔</div>
+        <div class="title">다음 알림 예고</div>
+        <div class="pill"><span>아침약 복용 30분 후 약효추적</span></div>
+        <div class="time">오전 9:30</div>
+        <div class="sub">이 시간에 알려드릴게요</div>
+        <div class="btn"><span>확인</span></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ② 다음 복용 -->
+  <div class="strip">
+    <div class="case-label">② 오늘 · 다음 복용</div>
+    <div class="overlay">
+      <div class="card">
+        <div class="icon">🔔</div>
+        <div class="title">다음 알림 예고</div>
+        <div class="pill"><span>다음 점심약 복용</span></div>
+        <div class="time">오후 12:00</div>
+        <div class="sub">이 시간에 알려드릴게요</div>
+        <div class="btn"><span>확인</span></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ③ 내일 폴백 -->
+  <div class="strip">
+    <div class="case-label">③ 내일 · 첫 복용 폴백</div>
+    <div class="overlay">
+      <div class="card">
+        <div class="icon">🔔</div>
+        <div class="title">다음 알림 예고</div>
+        <div class="pill"><span>다음 아침약 복용</span></div>
+        <div class="tomorrow">내일</div>
+        <div class="time">오전 8:00</div>
+        <div class="sub">이 시간에 알려드릴게요</div>
+        <div class="btn"><span>확인</span></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ④ 운동 시간 -->
+  <div class="strip">
+    <div class="case-label">④ 오늘 · 운동 시간</div>
+    <div class="overlay">
+      <div class="card">
+        <div class="icon">🔔</div>
+        <div class="title">다음 알림 예고</div>
+        <div class="pill"><span>운동 시간</span></div>
+        <div class="time">오후 3:00</div>
+        <div class="sub">이 시간에 알려드릴게요</div>
+        <div class="btn"><span>확인</span></div>
+      </div>
+    </div>
+  </div>
+
+</body>
+</html>

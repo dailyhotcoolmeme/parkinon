@@ -1,5 +1,11 @@
 import React, { useCallback, useEffect, useRef } from 'react';
 import { AppState, AppStateStatus, StatusBar } from 'react-native';
+// i18n 뼈대 초기화(side-effect import). 최상위에서 한 번 실행되어 i18next를 준비.
+// 순수 JS라 OTA 가능. 국내(기기 한국어)는 lng=ko라 동작 변화 없음.
+import './src/i18n';
+// 해외 로케일 폰트 축소 패치(side-effect import). i18n 초기화 직후, 모든 화면 모듈이
+// import되어 StyleSheet.create가 호출되기 전에 실행되어야 함.
+import './src/i18n/localeFontScale';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 import { AuthProvider } from './src/context/AuthContext';
@@ -11,6 +17,7 @@ import { ErrorBoundary, LAST_JS_ERROR_KEY } from './src/components/common/ErrorB
 import * as Notifications from 'expo-notifications';
 import { navigateTo } from './src/navigation/navigationRef';
 import * as Updates from 'expo-updates';
+import { useFonts } from 'expo-font';
 import { supabase } from './src/lib/supabase';
 import { requestPermissionsAndSaveToken } from './src/utils/notifications';
 import { notificationIntentManager } from './src/utils/NotificationIntentManager';
@@ -985,6 +992,13 @@ function AppInner() {
 }
 
 export default function App() {
+  // 나눔명조 폰트 런타임 로드(OTA). 앱 시작을 블로킹하지 않는다 —
+  // 로드 여부와 무관하게 즉시 렌더하고, 로드되면 편지 모달 텍스트에 fontFamily가 적용,
+  // 미로드/실패 시 시스템 폰트로 자연 폴백된다.
+  useFonts({
+    NanumMyeongjo: require('./assets/fonts/NanumMyeongjo-Regular.ttf'),
+  });
+
   return (
     <GestureHandlerRootView style={{ flex: 1 }}>
       <StatusBar

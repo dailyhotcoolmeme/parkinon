@@ -16,6 +16,8 @@ import { supabase } from '../../lib/supabase';
 import { useBlocks } from '../../hooks/useBlocks';
 import { useDialog } from '../../context/DialogContext';
 import { useBottomSheetPadding } from '../../hooks/useBottomSheetPadding';
+import { useTranslation } from 'react-i18next';
+import i18n from '../../i18n';
 
 interface BlockedUser {
   id: string;
@@ -23,9 +25,9 @@ interface BlockedUser {
   role: string | null;
 }
 
-/** 역할 코드 → 사용자에게 보이는 한글 라벨 (환자 일반어 노출 규칙 준수: 보호자만 명시) */
+/** 역할 코드 → 사용자에게 보이는 라벨 (환자 일반어 노출 규칙 준수: 보호자만 명시) */
 function roleLabel(role: string | null): string | null {
-  if (role === 'caregiver') return '보호자';
+  if (role === 'caregiver') return i18n.t('blockedUsers.roleCaregiver');
   return null;
 }
 
@@ -37,6 +39,7 @@ function roleLabel(role: string | null): string | null {
  * - 차단 해제 시 useBlocks.unblockUser 호출 → 피드/댓글은 재진입 시 refresh 로 자동 반영.
  */
 export function BlockedUsersScreen() {
+  const { t } = useTranslation();
   const navigation = useNavigation();
   const dialog = useDialog();
   const { unblockUser } = useBlocks();
@@ -74,7 +77,7 @@ export function BlockedUsersScreen() {
         const p = (profiles ?? []).find((row: any) => row.id === id) as any;
         return {
           id,
-          name: p?.name ?? '알 수 없는 사용자',
+          name: p?.name ?? t('blockedUsers.unknownUser'),
           role: p?.role ?? null,
         };
       });
@@ -92,10 +95,10 @@ export function BlockedUsersScreen() {
 
   const handleUnblock = async (target: BlockedUser) => {
     const ok = await dialog.confirm({
-      title: '차단 해제',
-      message: `${target.name}님의 차단을 해제할까요?\n이분의 글과 댓글이 다시 보이게 돼요.`,
-      confirmText: '차단 해제',
-      cancelText: '취소',
+      title: t('blockedUsers.unblockTitle'),
+      message: t('blockedUsers.unblockMsg', { name: target.name }),
+      confirmText: t('blockedUsers.unblockBtn'),
+      cancelText: t('blockedUsers.cancel'),
     });
     if (!ok) return;
     setRemovingId(target.id);
@@ -103,8 +106,8 @@ export function BlockedUsersScreen() {
     setRemovingId(null);
     if (!success) {
       dialog.alert({
-        title: '오류',
-        message: '차단 해제 중 문제가 생겼어요.\n다시 시도해주세요.',
+        title: t('blockedUsers.errorTitle'),
+        message: t('blockedUsers.unblockFailMsg'),
       });
       return;
     }
@@ -113,7 +116,7 @@ export function BlockedUsersScreen() {
 
   return (
     <SafeAreaView style={styles.safeArea} edges={['top']}>
-      <TopBar title="차단한 사용자 관리" showBack />
+      <TopBar title={t('blockedUsers.headerTitle')} showBack />
 
       {loading ? (
         <View style={styles.center}>
@@ -122,9 +125,9 @@ export function BlockedUsersScreen() {
       ) : users.length === 0 ? (
         <View style={styles.center}>
           <Ionicons name="ban-outline" size={56} color={Colors.textHint} />
-          <Text style={styles.emptyTitle}>차단한 사용자가 없어요</Text>
+          <Text style={styles.emptyTitle}>{t('blockedUsers.noBlockedTitle')}</Text>
           <Text style={styles.emptyDesc}>
-            {'커뮤니티에서 특정 사용자를 차단하면\n여기에서 관리할 수 있어요'}
+            {t('blockedUsers.noBlockedDesc')}
           </Text>
         </View>
       ) : (
@@ -156,7 +159,7 @@ export function BlockedUsersScreen() {
                       {removing ? (
                         <ActivityIndicator size="small" color={Colors.primary} />
                       ) : (
-                        <Text style={styles.unblockBtnText}>차단 해제</Text>
+                        <Text style={styles.unblockBtnText}>{t('blockedUsers.unblockBtn')}</Text>
                       )}
                     </TouchableOpacity>
                   </View>

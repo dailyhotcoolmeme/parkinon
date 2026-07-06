@@ -6,6 +6,7 @@ import {
   StyleSheet,
   Modal,
 } from 'react-native';
+import { useTranslation } from 'react-i18next';
 import { Colors } from '../../constants/colors';
 
 interface DatePickerModalProps {
@@ -15,9 +16,13 @@ interface DatePickerModalProps {
   onClose: () => void;
 }
 
-const WEEKDAYS = ['일', '월', '화', '수', '목', '금', '토'];
+const WEEKDAYS_KO = ['일', '월', '화', '수', '목', '금', '토'];
+const WEEKDAYS_EN = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
 
 export function DatePickerModal({ visible, selectedDate, onSelect, onClose }: DatePickerModalProps) {
+  const { t, i18n } = useTranslation();
+  const isEn = (i18n.language || '').toLowerCase().startsWith('en');
+  const WEEKDAYS = isEn ? WEEKDAYS_EN : WEEKDAYS_KO;
   const [viewYear, setViewYear] = useState(selectedDate.getFullYear());
   const [viewMonth, setViewMonth] = useState(selectedDate.getMonth());
 
@@ -69,7 +74,11 @@ export function DatePickerModal({ visible, selectedDate, onSelect, onClose }: Da
             <TouchableOpacity style={styles.navArrow} onPress={goToPrev} activeOpacity={0.7}>
               <Text style={styles.navArrowText}>‹</Text>
             </TouchableOpacity>
-            <Text style={styles.monthTitle}>{viewYear}년 {viewMonth + 1}월</Text>
+            <Text style={styles.monthTitle}>
+              {isEn
+                ? new Date(viewYear, viewMonth).toLocaleDateString('en-US', { month: 'long', year: 'numeric' })
+                : t('datePicker.monthTitle', { year: viewYear, month: viewMonth + 1 })}
+            </Text>
             <TouchableOpacity style={styles.navArrow} onPress={goToNext} activeOpacity={0.7}>
               <Text style={styles.navArrowText}>›</Text>
             </TouchableOpacity>
@@ -132,10 +141,10 @@ export function DatePickerModal({ visible, selectedDate, onSelect, onClose }: Da
           {/* ── 하단 버튼 ── */}
           <View style={styles.btnRow}>
             <TouchableOpacity style={styles.todayBtn} onPress={handleToday} activeOpacity={0.85}>
-              <Text style={styles.todayBtnText}>오늘</Text>
+              <Text style={styles.todayBtnText}>{t('datePicker.today')}</Text>
             </TouchableOpacity>
             <TouchableOpacity style={styles.closeBtn} onPress={onClose} activeOpacity={0.85}>
-              <Text style={styles.closeBtnText}>닫기</Text>
+              <Text style={styles.closeBtnText}>{t('common.close')}</Text>
             </TouchableOpacity>
           </View>
 

@@ -22,13 +22,18 @@ import { useDialog } from '../../context/DialogContext';
 import { supabase } from '../../lib/supabase';
 import { uploadSound } from '../../lib/r2Upload';
 import { provisionForUser } from '../../lib/alarmSound';
+import i18n from '../../i18n';
+import { useTranslation } from 'react-i18next';
 
 const MAX_DURATION_MS = 5000; // 최대 5초
-const DEFAULT_LABEL = '내 녹음';
 
 type Phase = 'idle' | 'ready' | 'recording' | 'recorded';
 
 export function RecordSoundScreen() {
+  const { t } = useTranslation();
+  // 모듈 스코프 상수(i18n.t 1회 평가)로 두면 앱 부팅 로케일에 영구 고정돼 언어 전환 후에도
+  // 안 바뀌는 버그가 있었다(AlarmSoundSettingsScreen과 동일 패턴, 오너 발견 2026-07-06).
+  const defaultLabel = t('recordSound.defaultLabel');
   const navigation = useNavigation<any>();
   const route = useRoute<any>();
   const { user } = useAuth();
@@ -86,9 +91,8 @@ export function RecordSoundScreen() {
       const perm = await Audio.requestPermissionsAsync();
       if (!perm.granted) {
         dialog.alert({
-          title: '마이크 권한이 필요해요',
-          message:
-            '녹음을 하려면 마이크 사용을 허용해 주세요.\n휴대폰 설정에서 마이크 권한을 켜 주세요.',
+          title: t('recordSound.micPermTitle'),
+          message: t('recordSound.micPermMsg'),
         });
         return;
       }
@@ -132,8 +136,8 @@ export function RecordSoundScreen() {
       clearTimers();
       setPhase('ready');
       dialog.alert({
-        title: '녹음을 시작할 수 없어요',
-        message: '잠시 후 다시 시도해 주세요.',
+        title: t('recordSound.recordStartFailTitle'),
+        message: t('recordSound.genericRetryMsg'),
       });
     }
   };
@@ -177,16 +181,16 @@ export function RecordSoundScreen() {
       } else {
         setPhase('ready');
         dialog.alert({
-          title: '녹음에 실패했어요',
-          message: '다시 한 번 녹음해 주세요.',
+          title: t('recordSound.recordFailTitle'),
+          message: t('recordSound.recordFailMsg'),
         });
       }
     } catch (e) {
       recordingRef.current = null;
       setPhase('ready');
       dialog.alert({
-        title: '녹음에 실패했어요',
-        message: '다시 한 번 녹음해 주세요.',
+        title: t('recordSound.recordFailTitle'),
+        message: t('recordSound.recordFailMsg'),
       });
     }
   }, [dialog]);
@@ -220,8 +224,8 @@ export function RecordSoundScreen() {
     } catch (e) {
       setIsPlaying(false);
       dialog.alert({
-        title: '재생할 수 없어요',
-        message: '다시 시도해 주세요.',
+        title: t('recordSound.playFailTitle'),
+        message: t('recordSound.playFailMsg'),
       });
     }
   };
@@ -277,9 +281,8 @@ export function RecordSoundScreen() {
 
     if (!user.patient_group_id) {
       dialog.alert({
-        title: '가족 연동이 필요해요',
-        message:
-          '알림음을 저장하려면 먼저 가족 연동을 해 주세요.\n메뉴에서 가족 연동을 진행할 수 있어요.',
+        title: t('recordSound.linkFamilyRequiredTitle'),
+        message: t('recordSound.linkFamilyRequiredMsg'),
       });
       return;
     }
@@ -295,7 +298,7 @@ export function RecordSoundScreen() {
         setIsPlaying(false);
       }
 
-      const finalLabel = label.trim() || DEFAULT_LABEL;
+      const finalLabel = label.trim() || defaultLabel;
 
       if (isEditMode && editSoundId) {
         // ── 수정: 기존 행 UPDATE (id 유지 → 참조 무결성 보존) ──
@@ -322,8 +325,8 @@ export function RecordSoundScreen() {
         if (error) throw new Error(error.message);
         if (!ok) {
           dialog.alert({
-            title: '수정할 수 없어요',
-            message: '같은 가족만 이 알림음을 수정할 수 있어요.',
+            title: t('recordSound.editForbiddenTitle'),
+            message: t('recordSound.editForbiddenMsg'),
           });
           return;
         }
@@ -334,8 +337,8 @@ export function RecordSoundScreen() {
         }
 
         await dialog.alert({
-          title: '수정 완료',
-          message: '알림음이 수정되었어요.',
+          title: t('recordSound.editDoneTitle'),
+          message: t('recordSound.editDoneMsg'),
         });
         // 목록 화면이 즉시 반영하도록 변경분 전달 (복제 지연으로 재조회가 옛 값일 수 있어 대비)
         navigation.navigate('AlarmSoundSettings', {
@@ -365,17 +368,17 @@ export function RecordSoundScreen() {
       }
 
       await dialog.alert({
-        title: '저장 완료',
-        message: '알림음이 저장되었어요.',
+        title: t('recordSound.saveDoneTitle'),
+        message: t('recordSound.saveDoneMsg'),
       });
       navigation.goBack();
     } catch (e: any) {
       dialog.alert({
-        title: '저장에 실패했어요',
+        title: t('recordSound.saveFailTitle'),
         message:
           e?.message === 'UPLOAD_TIMEOUT'
-            ? '인터넷 연결이 느려요.\n와이파이 연결 후 다시 시도해 주세요.'
-            : '잠시 후 다시 시도해 주세요.',
+            ? t('recordSound.slowInternetMsg')
+            : t('recordSound.genericRetryMsg'),
       });
     } finally {
       setSaving(false);
@@ -390,22 +393,22 @@ export function RecordSoundScreen() {
   // 활용 예시 카드 — 신규 등록은 상단, 수정 모드는 하단에 재사용
   const usageCard = (
     <View style={styles.usageBox}>
-      <Text style={styles.usageTitle}>💡 이렇게 활용해보세요</Text>
+      <Text style={styles.usageTitle}>{t('recordSound.usageTitle')}</Text>
       <View style={styles.usageRow}>
         <Text style={styles.usageEmoji}>👶</Text>
         <Text style={styles.usageText}>
-          손주가 <Text style={styles.usageQuote}>"할머니·할아버지, 약 드세요~"</Text> 녹음
+          {t('recordSound.usageGrandchild')}
         </Text>
       </View>
       <View style={styles.usageRow}>
         <Text style={styles.usageEmoji}>💕</Text>
         <Text style={styles.usageText}>
-          자녀가 <Text style={styles.usageQuote}>"엄마·아빠, 약 챙겨 드세요!"</Text> 녹음
+          {t('recordSound.usageChild')}
         </Text>
       </View>
       <View style={styles.usageRow}>
         <Text style={styles.usageEmoji}>🎵</Text>
-        <Text style={styles.usageText}>좋아하는 노래나 짧은 응원 한마디도 좋아요</Text>
+        <Text style={styles.usageText}>{t('recordSound.usageSong')}</Text>
       </View>
     </View>
   );
@@ -413,7 +416,7 @@ export function RecordSoundScreen() {
   return (
     <SafeAreaView style={styles.safeArea} edges={['top']}>
       {/* SafeAreaView edges는 위에서 처리 — 하단은 탭바가 인셋을 잡으므로 제외 */}
-      <TopBar title={isEditMode ? '알림음 수정' : '알림음 녹음'} showBack />
+      <TopBar title={isEditMode ? t('recordSound.headerEdit') : t('recordSound.headerNew')} showBack />
 
       <KeyboardAvoidingView
         style={styles.flex1}
@@ -429,10 +432,9 @@ export function RecordSoundScreen() {
         {/* 상단: 수정 모드는 안내 문구, 신규 등록은 활용 예시 카드(하단 중복 제거) */}
         {isEditMode ? (
           <View style={styles.guideBox}>
-            <Text style={styles.guideTitle}>알림음을 수정해요</Text>
+            <Text style={styles.guideTitle}>{t('recordSound.guideEditTitle')}</Text>
             <Text style={styles.guideText}>
-              이름만 바꾸거나, 다시 녹음해서 소리를 바꿀 수 있어요.{'\n'}
-              소리는 그대로 두고 이름만 바꿔도 돼요.
+              {t('recordSound.guideEditText')}
             </Text>
           </View>
         ) : (
@@ -445,7 +447,7 @@ export function RecordSoundScreen() {
             <Ionicons name="mic" size={48} color={Colors.primary} />
           </View>
           {!isEditMode && (
-            <Text style={styles.idleText}>5초 이내로 녹음해주세요</Text>
+            <Text style={styles.idleText}>{t('recordSound.idleHint')}</Text>
           )}
         </View>
 
@@ -460,8 +462,8 @@ export function RecordSoundScreen() {
                 activeOpacity={0.85}
                 disabled={saving}
               >
-                <Text style={styles.bigButtonText}>다시 녹음</Text>
-                <Text style={styles.bigButtonSub}>(소리 변경)</Text>
+                <Text style={styles.bigButtonText}>{t('recordSound.reRecord')}</Text>
+                <Text style={styles.bigButtonSub}>{t('recordSound.soundChange')}</Text>
               </TouchableOpacity>
 
               <TouchableOpacity
@@ -470,9 +472,9 @@ export function RecordSoundScreen() {
                 activeOpacity={0.85}
                 disabled={saving}
               >
-                <Text style={styles.bigButtonText}>이름만 변경</Text>
+                <Text style={styles.bigButtonText}>{t('recordSound.nameOnlyChange')}</Text>
                 <Text style={styles.bigButtonSub} numberOfLines={1}>
-                  (현재 이름: {label.trim() || DEFAULT_LABEL})
+                  {t('recordSound.currentNameLabel', { name: label.trim() || defaultLabel })}
                 </Text>
               </TouchableOpacity>
             </View>
@@ -483,7 +485,7 @@ export function RecordSoundScreen() {
               activeOpacity={0.85}
               disabled={saving}
             >
-              <Text style={styles.bigButtonText}>녹음 시작</Text>
+              <Text style={styles.bigButtonText}>{t('recordSound.startRecording')}</Text>
             </TouchableOpacity>
           )}
         </View>
@@ -505,22 +507,22 @@ export function RecordSoundScreen() {
           <View style={styles.recCard}>
             {phase === 'recording' ? (
               <>
-                <Text style={styles.recordingDot}>● 녹음 중</Text>
-                <Text style={styles.bigTimer}>{elapsedSecText}초</Text>
-                <Text style={styles.remainText}>{remainSec}초 남았어요</Text>
+                <Text style={styles.recordingDot}>{t('recordSound.recordingDot')}</Text>
+                <Text style={styles.bigTimer}>{t('recordSound.secondsSuffix', { n: elapsedSecText })}</Text>
+                <Text style={styles.remainText}>{t('recordSound.secondsLeft', { n: remainSec })}</Text>
                 <TouchableOpacity
                   style={[styles.recBtnBase, styles.recBtnDanger, styles.recFullBtn]}
                   onPress={handleStopRecording}
                   activeOpacity={0.85}
                 >
-                  <Text style={styles.recBtnTextLight}>중지</Text>
+                  <Text style={styles.recBtnTextLight}>{t('recordSound.stop')}</Text>
                 </TouchableOpacity>
               </>
             ) : phase === 'recorded' ? (
               <>
-                <Text style={styles.doneText}>녹음 완료</Text>
-                <Text style={styles.bigTimer}>{recordedSecText}초</Text>
-                <Text style={styles.remainText}>들어보고 저장하세요</Text>
+                <Text style={styles.doneText}>{t('recordSound.recordDoneText')}</Text>
+                <Text style={styles.bigTimer}>{t('recordSound.secondsSuffix', { n: recordedSecText })}</Text>
+                <Text style={styles.remainText}>{t('recordSound.listenAndSave')}</Text>
                 <View style={styles.recBtnRow}>
                   <TouchableOpacity
                     style={[styles.recBtnBase, styles.recBtnAccent, styles.recHalfBtn]}
@@ -529,7 +531,7 @@ export function RecordSoundScreen() {
                     disabled={saving}
                   >
                     <Ionicons name="play" size={18} color="#FFFFFF" style={styles.recBtnIcon} />
-                    <Text style={styles.recBtnTextLight}>{isPlaying ? '재생 중…' : '들어보기'}</Text>
+                    <Text style={styles.recBtnTextLight}>{isPlaying ? t('recordSound.playingNow') : t('recordSound.listen')}</Text>
                   </TouchableOpacity>
                   <TouchableOpacity
                     style={[styles.recBtnBase, styles.recBtnAccent, styles.recHalfBtn]}
@@ -538,7 +540,7 @@ export function RecordSoundScreen() {
                     disabled={saving}
                   >
                     <Ionicons name="ellipse" size={15} color="#FFFFFF" style={styles.recBtnIcon} />
-                    <Text style={styles.recBtnTextLight}>다시 녹음</Text>
+                    <Text style={styles.recBtnTextLight}>{t('recordSound.reRecord')}</Text>
                   </TouchableOpacity>
                 </View>
                 <View style={styles.recBtnRow}>
@@ -548,7 +550,7 @@ export function RecordSoundScreen() {
                     activeOpacity={0.85}
                     disabled={saving}
                   >
-                    <Text style={styles.recBtnTextDark}>닫기</Text>
+                    <Text style={styles.recBtnTextDark}>{t('recordSound.close')}</Text>
                   </TouchableOpacity>
                   <TouchableOpacity
                     style={[styles.recBtnBase, styles.recBtnPrimary, styles.recHalfBtn, saving && styles.disabledButton]}
@@ -559,15 +561,15 @@ export function RecordSoundScreen() {
                     activeOpacity={0.85}
                     disabled={saving}
                   >
-                    <Text style={styles.recBtnTextLight}>저장하기</Text>
+                    <Text style={styles.recBtnTextLight}>{t('recordSound.saveBtn')}</Text>
                   </TouchableOpacity>
                 </View>
               </>
             ) : (
               // 'ready' — 바로 시작하지 않고 버튼을 눌러야 녹음 시작
               <>
-                <Text style={styles.recTitle}>녹음 준비됐어요</Text>
-                <Text style={styles.recSub}>5초 이내로 또박또박 말해 주세요.</Text>
+                <Text style={styles.recTitle}>{t('recordSound.readyTitle')}</Text>
+                <Text style={styles.recSub}>{t('recordSound.readySub')}</Text>
                 <View style={styles.recMicCircle}>
                   <Ionicons name="mic" size={44} color={Colors.primary} />
                 </View>
@@ -577,14 +579,14 @@ export function RecordSoundScreen() {
                     onPress={closeRecorder}
                     activeOpacity={0.85}
                   >
-                    <Text style={styles.recBtnTextDark}>닫기</Text>
+                    <Text style={styles.recBtnTextDark}>{t('recordSound.close')}</Text>
                   </TouchableOpacity>
                   <TouchableOpacity
                     style={[styles.recBtnBase, styles.recBtnPrimary, styles.recHalfBtn]}
                     onPress={handleStartRecording}
                     activeOpacity={0.85}
                   >
-                    <Text style={styles.recBtnTextLight}>녹음 시작</Text>
+                    <Text style={styles.recBtnTextLight}>{t('recordSound.startRecording')}</Text>
                   </TouchableOpacity>
                 </View>
               </>
@@ -607,14 +609,14 @@ export function RecordSoundScreen() {
         >
           <View style={styles.modalCard}>
             <Text style={styles.modalTitle}>
-              {isEditMode ? '알림음 이름 수정' : '알림음 이름'}
+              {isEditMode ? t('recordSound.nameModalEditTitle') : t('recordSound.nameModalNewTitle')}
             </Text>
-            <Text style={styles.modalSub}>나중에 알아보기 쉽게 이름을 붙여주세요.</Text>
+            <Text style={styles.modalSub}>{t('recordSound.nameModalSub')}</Text>
             <TextInput
               style={styles.modalInput}
               value={label}
               onChangeText={setLabel}
-              placeholder="예: 딸이 녹음"
+              placeholder={t('recordSound.namePlaceholder')}
               placeholderTextColor={Colors.textHint}
               maxLength={20}
               autoFocus
@@ -627,14 +629,14 @@ export function RecordSoundScreen() {
                 onPress={() => setShowNameModal(false)}
                 activeOpacity={0.85}
               >
-                <Text style={styles.modalCancelText}>취소</Text>
+                <Text style={styles.modalCancelText}>{t('recordSound.cancel')}</Text>
               </TouchableOpacity>
               <TouchableOpacity
                 style={[styles.modalBtn, styles.modalSaveBtn]}
                 onPress={() => { setShowNameModal(false); handleSave(); }}
                 activeOpacity={0.85}
               >
-                <Text style={styles.modalSaveText}>저장</Text>
+                <Text style={styles.modalSaveText}>{t('recordSound.save')}</Text>
               </TouchableOpacity>
             </View>
           </View>
@@ -642,7 +644,7 @@ export function RecordSoundScreen() {
       </Modal>
       <BrandProgressOverlay
         visible={saving}
-        title="저장하고 있어요"
+        title={i18n.t('loading.saving')}
         minVisibleMs={500}
       />
     </SafeAreaView>

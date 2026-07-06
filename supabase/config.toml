@@ -1,7 +1,62 @@
-[functions.r2-upload]
-verify_jwt = false
+# 모든 엣지 함수 JWT 검증 명시 (게이트웨이 1차 방어; 실제 anon 차단은 각 함수 내부 getUser)
+[functions.claude-medical-record]
+verify_jwt = true
+
+[functions.convert-sound-caf]
+verify_jwt = false  # 내부 getUser/서비스롤 인증으로 자체 방어 — 현 배포상태(false) 유지(드리프트 방지)
+
+[functions.convert-sound-caf-probe]
+verify_jwt = true
+
+[functions.create-web-token]
+verify_jwt = true
+
+[functions.delete-account]
+verify_jwt = true
+
+[functions.delete-r2-file]
+verify_jwt = true
+
+[functions.exchange-web-token]
+verify_jwt = true
+
+[functions.kakao-auth]
+verify_jwt = true
+
+[functions.mfds-proxy]
+verify_jwt = true
+
+[functions.notify-measurement-completed]
+verify_jwt = true
+
+[functions.ocr-prescription]
+verify_jwt = true
+
+[functions.process-notification-queue]
+verify_jwt = true
+
+[functions.queue-effect-tracking]
+verify_jwt = true
 
 [functions.r2-get-url]
+verify_jwt = true
+
+[functions.r2-upload]
+verify_jwt = false  # 내부 getUser/서비스롤 인증으로 자체 방어 — 현 배포상태(false) 유지(드리프트 방지)
+
+[functions.save-push-token]
+verify_jwt = true
+
+[functions.send-appointment-reminders]
+verify_jwt = true
+
+[functions.send-medication-reminders]
+verify_jwt = true
+
+[functions.send-missed-med-reminders]
+verify_jwt = true
+
+[functions.send-push]
 verify_jwt = true
 
 [auth]

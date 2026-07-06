@@ -14,7 +14,14 @@
  * 순수 TS · OTA 호환.
  */
 import { supabase } from '../lib/supabase';
-import { getKSTToday, getKSTDayRange } from './medUtils';
+import { getLocalToday, getLocalDayRange } from './medUtils';
+import i18n from '../i18n';
+
+function isEnLocale(): boolean {
+  return (i18n.language || '').toLowerCase().startsWith('en');
+}
+
+const FALLBACK_TZ = 'Asia/Seoul';
 
 /** 'HH:MM[:SS]' → 자정 기준 분. 파싱 실패 시 null. */
 function hhmmToMinutes(hhmm: string | null | undefined): number | null {
@@ -26,20 +33,32 @@ function hhmmToMinutes(hhmm: string | null | undefined): number | null {
   return h * 60 + m;
 }
 
-/** KST 현재 시각의 자정 기준 분(0~1439). */
-function kstNowMinutes(): number {
-  const kst = new Date(Date.now() + 9 * 60 * 60 * 1000);
-  return kst.getUTCHours() * 60 + kst.getUTCMinutes();
+/** tz(IANA) 현재 시각의 자정 기준 분(0~1439). tz 미지정 시 Asia/Seoul(기존 KST 동일). */
+function localNowMinutes(tz: string = FALLBACK_TZ): number {
+  const parts = new Intl.DateTimeFormat('en-US', {
+    timeZone: tz || FALLBACK_TZ,
+    hour12: false,
+    hour: '2-digit',
+    minute: '2-digit',
+  }).formatToParts(new Date());
+  let h = 0;
+  let m = 0;
+  for (const p of parts) {
+    if (p.type === 'hour') h = parseInt(p.value, 10);
+    else if (p.type === 'minute') m = parseInt(p.value, 10);
+  }
+  if (h === 24) h = 0; // 일부 엔진의 자정 24시 표기 방어
+  return h * 60 + m;
 }
 
 /**
- * 슬롯/운동 시각(HH:MM)이 KST 현재 대비 이미 지났는지.
- * 파싱 실패 시 false(=안 지남)로 폴백(틀린 "내일부터" 단정 금지).
+ * 슬롯/운동 시각(HH:MM)이 사용자 tz 현재 대비 이미 지났는지.
+ * tz 미지정 시 Asia/Seoul(기존 KST 판정과 동일). 파싱 실패 시 false(=안 지남)로 폴백.
  */
-export function isTimePastKST(hhmm: string | null | undefined): boolean {
+export function isTimePastKST(hhmm: string | null | undefined, tz: string = FALLBACK_TZ): boolean {
   const target = hhmmToMinutes(hhmm);
   if (target === null) return false;
-  return kstNowMinutes() > target;
+  return localNowMinutes(tz) > target;
 }
 
 /** ampm/hour/minute → 'HH:MM'. (운동 알림 시각 비교용) */
@@ -54,10 +73,15 @@ export function formatTimeKor(hhmm: string | null | undefined): string {
   if (total === null) return hhmm ?? '';
   const h = Math.floor(total / 60);
   const m = total % 60;
-  const period = h < 12 ? '오전' : '오후';
   let dh = h % 12;
   if (dh === 0) dh = 12;
-  return `${period} ${dh}:${String(m).padStart(2, '0')}`;
+  const mm = String(m).padStart(2, '0');
+  if (isEnLocale()) {
+    const period = h < 12 ? 'AM' : 'PM';
+    return `${dh}:${mm} ${period}`;
+  }
+  const period = h < 12 ? '오전' : '오후';
+  return `${period} ${dh}:${mm}`;
 }
 
 /* ────────────────────────────────────────────────────────────────────────── *
@@ -70,48 +94,48 @@ export interface FeedbackPopup {
 }
 
 /** 시간 변경(remind 켜진 슬롯/운동) → 즉시형 안내. */
-export function timeChangeImmediatePopup(hhmm: string): FeedbackPopup {
+export function timeChangeImmediatePopup(hhmm: string, tz: string = FALLBACK_TZ): FeedbackPopup {
   const kor = formatTimeKor(hhmm);
-  return isTimePastKST(hhmm)
+  return isTimePastKST(hhmm, tz)
     ? {
-        title: '시간을 바꿨어요',
-        message: `바로 적용됐어요. 오늘 ${kor}은 지나서, 내일부터 이 시간에 알려드려요.`,
+        title: i18n.t('notifActionFeedback.timeChangeTitle'),
+        message: i18n.t('notifActionFeedback.timeChangePastMsg', { time: kor }),
       }
     : {
-        title: '시간을 바꿨어요',
-        message: `바로 적용됐어요. 오늘 ${kor}부터 알려드려요.`,
+        title: i18n.t('notifActionFeedback.timeChangeTitle'),
+        message: i18n.t('notifActionFeedback.timeChangeTodayMsg', { time: kor }),
       };
 }
 
 /** remind/운동 알림 꺼진 슬롯의 시간만 변경한 경우. */
 export function timeChangeWhileOffPopup(): FeedbackPopup {
   return {
-    title: '시간을 바꿨어요',
-    message: '이 약 복용 알림은 꺼져 있어요.',
+    title: i18n.t('notifActionFeedback.timeChangeTitle'),
+    message: i18n.t('notifActionFeedback.timeChangeWhileOffMsg'),
   };
 }
 
 /** 켜기 → 즉시형 안내. */
-export function turnOnImmediatePopup(hhmm: string): FeedbackPopup {
+export function turnOnImmediatePopup(hhmm: string, tz: string = FALLBACK_TZ): FeedbackPopup {
   const kor = formatTimeKor(hhmm);
-  return isTimePastKST(hhmm)
-    ? { title: '알림을 켰어요', message: '오늘은 지나서 내일부터 와요.' }
-    : { title: '알림을 켰어요', message: `오늘 ${kor}부터 와요.` };
+  return isTimePastKST(hhmm, tz)
+    ? { title: i18n.t('notifActionFeedback.turnOnTitle'), message: i18n.t('notifActionFeedback.turnOnPastMsg') }
+    : { title: i18n.t('notifActionFeedback.turnOnTitle'), message: i18n.t('notifActionFeedback.turnOnTodayMsg', { time: kor }) };
 }
 
 /** 끄기 → 즉시 중단. */
 export function turnOffImmediatePopup(): FeedbackPopup {
   return {
-    title: '알림을 껐어요',
-    message: '지금부터 이 시간 알림은 오지 않아요.',
+    title: i18n.t('notifActionFeedback.turnOffTitle'),
+    message: i18n.t('notifActionFeedback.turnOffMsg'),
   };
 }
 
 /** 약 복용 시간 슬롯 삭제 → 즉시 중단(약효추적 합산은 deleteSlotPopup 사용). */
 export function deleteImmediatePopup(): FeedbackPopup {
   return {
-    title: '복용 시간을 삭제했어요',
-    message: '지금부터 알림이 오지 않아요.',
+    title: i18n.t('notifActionFeedback.deleteSlotTitle'),
+    message: i18n.t('notifActionFeedback.deleteImmediateMsg'),
   };
 }
 
@@ -126,10 +150,11 @@ export function deleteImmediatePopup(): FeedbackPopup {
 export async function hasTakenTodayKST(
   patientId: string | null | undefined,
   doseSlotId: string | null | undefined,
+  tz: string = FALLBACK_TZ,
 ): Promise<boolean | null> {
   if (!patientId || !doseSlotId) return null;
   try {
-    const { start, end } = getKSTDayRange(getKSTToday());
+    const { start, end } = getLocalDayRange(getLocalToday(tz), tz);
     const { data, error } = await supabase
       .from('med_logs')
       .select('id')
@@ -153,15 +178,14 @@ export async function hasTakenTodayKST(
 export function trackChangePopup(takenToday: boolean | null): FeedbackPopup {
   if (takenToday === true) {
     return {
-      title: '약효 추적을 바꿨어요',
-      message:
-        '오늘 이 약은 이미 드셔서, 오늘 약효추적 알림은 기존 설정대로 와요. 바꾼 내용은 다음에 약을 드실 때부터 적용돼요.',
+      title: i18n.t('notifActionFeedback.trackChangeTitle'),
+      message: i18n.t('notifActionFeedback.trackChangeTakenMsg'),
     };
   }
   // false 또는 null(불확실) → "다음 복용부터" 일반 안내(틀린 단정 회피)
   return {
-    title: '약효 추적을 바꿨어요',
-    message: '바꾼 내용은 다음에 이 약을 드실 때부터 적용돼요. 오늘 복용분부터 반영돼요.',
+    title: i18n.t('notifActionFeedback.trackChangeTitle'),
+    message: i18n.t('notifActionFeedback.trackChangeNextMsg'),
   };
 }
 
@@ -171,14 +195,13 @@ export function trackChangePopup(takenToday: boolean | null): FeedbackPopup {
 export function trackOffPopup(takenToday: boolean | null): FeedbackPopup {
   if (takenToday === true) {
     return {
-      title: '약효 추적을 껐어요',
-      message:
-        '오늘 이 약은 이미 드셔서, 오늘 약효추적 알림은 기존 설정대로 와요. 바꾼 내용은 다음에 약을 드실 때부터 적용돼요. 이미 예약된 오늘 알림은 올 수 있어요.',
+      title: i18n.t('notifActionFeedback.trackOffTitle'),
+      message: i18n.t('notifActionFeedback.trackOffTakenMsg'),
     };
   }
   return {
-    title: '약효 추적을 껐어요',
-    message: '바꾼 내용은 다음에 이 약을 드실 때부터 적용돼요. 오늘 복용분부터 반영돼요.',
+    title: i18n.t('notifActionFeedback.trackOffTitle'),
+    message: i18n.t('notifActionFeedback.trackChangeNextMsg'),
   };
 }
 
@@ -190,13 +213,12 @@ export function trackOffPopup(takenToday: boolean | null): FeedbackPopup {
 export function deleteSlotCombinedPopup(takenToday: boolean | null): FeedbackPopup {
   if (takenToday === true) {
     return {
-      title: '복용 시간을 삭제했어요',
-      message:
-        '약 복용 알림은 지금부터 오지 않아요. 오늘 이 약은 이미 드셔서, 이미 예약된 오늘 약효추적 알림은 올 수 있어요. 바꾼 내용은 다음에 약을 드실 때부터 적용돼요.',
+      title: i18n.t('notifActionFeedback.deleteSlotTitle'),
+      message: i18n.t('notifActionFeedback.deleteSlotTakenMsg'),
     };
   }
   return {
-    title: '복용 시간을 삭제했어요',
-    message: '약 복용 알림은 지금부터 오지 않아요. 약효추적 알림도 다음 복용부터 오지 않아요.',
+    title: i18n.t('notifActionFeedback.deleteSlotTitle'),
+    message: i18n.t('notifActionFeedback.deleteSlotMsg'),
   };
 }

@@ -26,6 +26,7 @@ import { useAuth } from '../context/AuthContext';
 import { ensureGroupMember } from '../utils/groupMembership';
 import { invalidatePatientIdCache } from './usePatientId';
 import type { Database } from '../types/database';
+import i18n from '../i18n';
 
 const SUPABASE_URL = process.env.EXPO_PUBLIC_SUPABASE_URL!;
 const SUPABASE_ANON_KEY = process.env.EXPO_PUBLIC_SUPABASE_ANON_KEY!;
@@ -49,6 +50,7 @@ export interface UseFamilyLinkReturn {
   getGroupMembers: () => Promise<GroupMember[]>;
   getPatientForCaregiver: () => Promise<UserRow | null>;
   leaveGroup: () => Promise<boolean>;
+  removeFamilyMember: (targetUserId: string) => Promise<boolean>;
 }
 
 // 6자리 숫자 코드 생성 (숫자 전용). brute-force 방어는 서버측 만료 강제 + 시도 제한으로 처리.
@@ -77,7 +79,7 @@ async function fetchWithTimeout(
     return await fetch(input, { ...(init ?? {}), signal: controller.signal });
   } catch (err: any) {
     if (err?.name === 'AbortError') {
-      throw new Error(`요청 시간이 초과됐어요. 잠시 후 다시 시도해주세요. (timeout ${timeoutMs}ms)`);
+      throw new Error(i18n.t('familyLinkHook.timeoutError', { ms: timeoutMs }));
     }
     throw err;
   } finally {
@@ -144,7 +146,7 @@ export function useFamilyLink(): UseFamilyLinkReturn {
         );
         if (!res.ok) {
           const errText = await res.text();
-          throw new Error(`초대 코드 갱신 실패 (HTTP ${res.status}): ${errText}`);
+          throw new Error(i18n.t('familyLinkHook.codeRefreshFailError', { status: res.status, err: errText }));
         }
         return code;
       }
@@ -161,11 +163,11 @@ export function useFamilyLink(): UseFamilyLinkReturn {
       });
       if (!insertRes.ok) {
         const errText = await insertRes.text();
-        throw new Error(`그룹 생성 실패 (HTTP ${insertRes.status}): ${errText}`);
+        throw new Error(i18n.t('familyLinkHook.groupCreateFailError', { status: insertRes.status, err: errText }));
       }
       const insertedGroups: any[] = await insertRes.json();
       const newGroup = insertedGroups?.[0];
-      if (!newGroup?.id) throw new Error('그룹 생성에 실패했어요.');
+      if (!newGroup?.id) throw new Error(i18n.t('familyLinkHook.groupCreateFailSimple'));
 
       // patient_group_members에 본인 추가 (재시도 + 검증, 실패 시 throw)
       const baseHeaders = await buildHeaders();
@@ -183,7 +185,7 @@ export function useFamilyLink(): UseFamilyLinkReturn {
       );
       if (!userUpdateRes.ok) {
         const errText = await userUpdateRes.text();
-        throw new Error(`사용자 업데이트 실패 (HTTP ${userUpdateRes.status}): ${errText}`);
+        throw new Error(i18n.t('familyLinkHook.userUpdateFailError', { status: userUpdateRes.status, err: errText }));
       }
 
       await refreshUser();
@@ -191,7 +193,7 @@ export function useFamilyLink(): UseFamilyLinkReturn {
       return code;
     } catch (err: any) {
       console.error('[useFamilyLink] generateInviteCode 오류:', err);
-      setError(err.message ?? '초대 코드 생성에 실패했어요.');
+      setError(err.message ?? i18n.t('familyLinkHook.inviteCodeGenFail'));
       return null;
     } finally {
       setLoading(false);
@@ -216,7 +218,7 @@ export function useFamilyLink(): UseFamilyLinkReturn {
     code: string,
     force: boolean
   ): Promise<{ success: boolean; message: string; needsConfirm?: boolean }> => {
-    if (!user) return { success: false, message: '로그인이 필요해요.' };
+    if (!user) return { success: false, message: i18n.t('familyLinkHook.loginRequired') };
 
     setLoading(true);
     setError(null);
@@ -233,13 +235,13 @@ export function useFamilyLink(): UseFamilyLinkReturn {
       if (!res.ok) {
         const errText = await res.text().catch(() => '');
         console.warn('[useFamilyLink] join_family_by_code HTTP 오류:', res.status, errText);
-        return { success: false, message: '연동 중 문제가 생겼어요. 잠시 후 다시 시도해주세요.' };
+        return { success: false, message: i18n.t('familyLinkHook.joinHttpFail') };
       }
 
       // RPC는 jsonb 단일 반환 → { ok, code, message }
       const result: { ok?: boolean; code?: string; message?: string } = await res.json();
       const reason = result?.code ?? 'error';
-      const message = result?.message ?? '연동 중 문제가 생겼어요.';
+      const message = result?.message ?? i18n.t('familyLinkHook.joinGenericFail');
 
       if (result?.ok) {
         // 멤버십/그룹이 서버에서 바뀌었으므로 로컬 user 갱신 (patient_group_id 동기화)
@@ -258,7 +260,7 @@ export function useFamilyLink(): UseFamilyLinkReturn {
       return { success: false, message };
     } catch (err: any) {
       console.error('[useFamilyLink] join_family_by_code 오류:', err);
-      const message = err.message ?? '연동 중 오류가 발생했어요.';
+      const message = err.message ?? i18n.t('familyLinkHook.joinCatchFail');
       setError(message);
       return { success: false, message };
     } finally {
@@ -407,7 +409,7 @@ export function useFamilyLink(): UseFamilyLinkReturn {
       );
       if (!delMemberRes.ok) {
         const errText = await delMemberRes.text();
-        throw new Error(`멤버십 삭제 실패 (HTTP ${delMemberRes.status}): ${errText}`);
+        throw new Error(i18n.t('familyLinkHook.memberDeleteFailError', { status: delMemberRes.status, err: errText }));
       }
 
       // 2) 내 users.patient_group_id = null 설정
@@ -422,7 +424,7 @@ export function useFamilyLink(): UseFamilyLinkReturn {
       );
       if (!patchUserRes.ok) {
         const errText = await patchUserRes.text();
-        throw new Error(`사용자 업데이트 실패 (HTTP ${patchUserRes.status}): ${errText}`);
+        throw new Error(i18n.t('familyLinkHook.userUpdateFailError', { status: patchUserRes.status, err: errText }));
       }
 
       // 3) 그룹에 남은 멤버 수 확인
@@ -446,7 +448,59 @@ export function useFamilyLink(): UseFamilyLinkReturn {
       return true;
     } catch (err: any) {
       console.error('[useFamilyLink] leaveGroup 오류:', err);
-      setError(err.message ?? '가족 연결 해제에 실패했어요.');
+      setError(err.message ?? i18n.t('familyLinkHook.disconnectFail'));
+      return false;
+    } finally {
+      setLoading(false);
+    }
+  }, [user, refreshUser]);
+
+  // ─────────────────────────────────────────────────────────────────────────
+  // removeFamilyMember — "선택한 상대 1명(1개 링크)만" 연동 해제
+  //   ⚠️ leaveGroup() 은 "호출자 본인"을 그룹에서 빼기 때문에, 환자가 보호자
+  //   여럿 중 하나만 해제하려 해도 환자 자신이 그룹을 떠나 모든 연동이 끊겼다.
+  //   → 방향-무관 안전 삭제(교차 삭제는 RLS 상 불가)를 SECURITY DEFINER RPC
+  //   remove_family_member(p_target_user_id) 로 일원화한다.
+  //     · 환자 호출 + 대상=보호자 → 그 보호자 1명만 제거(다른 보호자 유지)
+  //     · 보호자 호출          → 본인만 그룹에서 이탈(환자·다른 보호자 유지)
+  //   ⚠️ New Architecture: .rpc() 도 fetch 직접 호출(쓰기 hang 우회).
+  // ─────────────────────────────────────────────────────────────────────────
+  const removeFamilyMember = useCallback(async (targetUserId: string): Promise<boolean> => {
+    if (!user?.id) return false;
+
+    setLoading(true);
+    setError(null);
+
+    const groupId = user.patient_group_id ?? undefined;
+
+    try {
+      const headers = await buildHeaders();
+      const res = await fetchWithTimeout(`${SUPABASE_URL}/rest/v1/rpc/remove_family_member`, {
+        method: 'POST',
+        headers,
+        body: JSON.stringify({ p_target_user_id: targetUserId }),
+      });
+
+      if (!res.ok) {
+        const errText = await res.text().catch(() => '');
+        throw new Error(i18n.t('familyLinkHook.removeFailError', { status: res.status, err: errText }));
+      }
+
+      const result: { ok?: boolean; code?: string; message?: string } = await res.json();
+      if (!result?.ok) {
+        // 이미 해제됨 등 서버 사유는 성공에 준해 화면을 새로고침만 하도록 두지 않고,
+        // 명확히 실패로 처리해 호출처가 안내하도록 한다.
+        setError(result?.message ?? i18n.t('familyLinkHook.disconnectFail'));
+        return false;
+      }
+
+      // 그룹 환자 매핑 캐시 무효화 + 로컬 user 동기화(보호자 이탈 시 patient_group_id null)
+      invalidatePatientIdCache(groupId);
+      await refreshUser();
+      return true;
+    } catch (err: any) {
+      console.error('[useFamilyLink] removeFamilyMember 오류:', err);
+      setError(err.message ?? i18n.t('familyLinkHook.disconnectFail'));
       return false;
     } finally {
       setLoading(false);
@@ -462,5 +516,6 @@ export function useFamilyLink(): UseFamilyLinkReturn {
     getGroupMembers,
     getPatientForCaregiver,
     leaveGroup,
+    removeFamilyMember,
   };
 }

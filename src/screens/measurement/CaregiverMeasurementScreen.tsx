@@ -44,6 +44,7 @@ import {
 } from '../../utils/biomarker';
 import { formatReactionMs } from '../../utils/measurementFormat';
 import type { RootStackParamList } from '../../navigation/RootNavigator';
+import i18n from '../../i18n';
 
 type RouteProps = RouteProp<RootStackParamList, 'CaregiverMeasurement'>;
 type Nav = StackNavigationProp<RootStackParamList, 'CaregiverMeasurement'>;
@@ -229,7 +230,7 @@ export function CaregiverMeasurementScreen() {
       <SafeAreaView style={styles.safeArea} edges={['top', 'bottom']}>
         <View style={styles.centerBody}>
           <ActivityIndicator size="large" color={Colors.primary} />
-          <Text style={styles.loadingText}>측정 결과를 불러오고 있어요</Text>
+          <Text style={styles.loadingText}>{i18n.t('loading.loadingMeasurement')}</Text>
         </View>
       </SafeAreaView>
     );

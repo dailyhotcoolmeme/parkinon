@@ -17,6 +17,8 @@ import type { OnboardingStackParamList } from '../../navigation/OnboardingNaviga
 import { useDialog } from '../../context/DialogContext';
 import { supabase } from '../../lib/supabase';
 import { useBottomSheetPadding } from '../../hooks/useBottomSheetPadding';
+import { useTranslation } from 'react-i18next';
+import { isOverseasLocale } from '../../i18n/detectLocale';
 
 type Nav = StackNavigationProp<OnboardingStackParamList, 'SensitiveInfoConsent'>;
 
@@ -27,9 +29,12 @@ export const SENSITIVE_INFO_CONSENT_VERSION = 1;
 export const INTERNATIONAL_TRANSFER_CONSENT_VERSION = 1;
 
 // 개인정보처리방침 링크 (자세히 보기)
-const PRIVACY_POLICY_URL = 'https://parkinon.com/privacy';
+function getPrivacyPolicyUrl(): string {
+  return isOverseasLocale() ? 'https://parkinon.com/privacy/en' : 'https://parkinon.com/privacy';
+}
 
 export function SensitiveInfoConsentScreen() {
+  const { t } = useTranslation();
   const navigation = useNavigation<Nav>();
   const dialog = useDialog();
   const bottomPadding = useBottomSheetPadding(32);
@@ -67,7 +72,7 @@ export function SensitiveInfoConsentScreen() {
         if (!res.ok) {
           const errText = await res.text();
           console.error('[SensitiveInfoConsent] DB 저장 실패:', res.status, errText);
-          dialog.alert({ title: '오류', message: '동의 처리에 실패했어요. 잠시 후 다시 시도해 주세요.' });
+          dialog.alert({ title: t('sensitiveConsent.errorTitle'), message: t('sensitiveConsent.consentSaveFailMsg') });
           return;
         }
       }
@@ -80,13 +85,13 @@ export function SensitiveInfoConsentScreen() {
       navigation.replace('FamilyCheck');
     } catch (e) {
       console.error('[SensitiveInfoConsent] handleAgree 예외:', e);
-      dialog.alert({ title: '오류', message: '동의 처리 중 문제가 생겼어요. 잠시 후 다시 시도해 주세요.' });
+      dialog.alert({ title: t('sensitiveConsent.errorTitle'), message: t('sensitiveConsent.consentSaveExceptionMsg') });
     }
   };
 
   const openPrivacyPolicy = () => {
-    Linking.openURL(PRIVACY_POLICY_URL).catch(() => {
-      dialog.alert({ title: '안내', message: '개인정보처리방침을 여는 데 실패했어요.' });
+    Linking.openURL(getPrivacyPolicyUrl()).catch(() => {
+      dialog.alert({ title: t('sensitiveConsent.noticeTitle'), message: t('sensitiveConsent.privacyPolicyOpenFailMsg') });
     });
   };
 
@@ -100,21 +105,21 @@ export function SensitiveInfoConsentScreen() {
         {/* 헤더 */}
         <View style={styles.header}>
           <Ionicons name="shield-checkmark" size={48} color={Colors.primary} />
-          <Text style={styles.title}>건강 정보 수집 동의</Text>
+          <Text style={styles.title}>{t('sensitiveConsent.headerTitle')}</Text>
           <Text style={styles.subtitle}>
-            서비스 이용을 위해 아래 건강 정보 수집에{'\n'}동의해 주세요.
+            {t('sensitiveConsent.headerSubtitle')}
           </Text>
         </View>
 
         {/* 수집 항목 카드 */}
         <View style={styles.card}>
-          <Text style={styles.cardTitle}>수집하는 건강 정보</Text>
+          <Text style={styles.cardTitle}>{t('sensitiveConsent.collectedInfoTitle')}</Text>
           <View style={styles.itemList}>
             {[
-              '복용 약물 및 처방 내역',
-              '약효 반응 기록',
-              '몸 상태 (증상, 운동 기능)',
-              '파킨슨병 진단 정보',
+              t('sensitiveConsent.item1'),
+              t('sensitiveConsent.item2'),
+              t('sensitiveConsent.item3'),
+              t('sensitiveConsent.item4'),
             ].map((item) => (
               <View key={item} style={styles.listItem}>
                 <View style={styles.bullet} />
@@ -127,25 +132,25 @@ export function SensitiveInfoConsentScreen() {
         {/* 처리 방침 카드 */}
         <View style={styles.card}>
           <View style={styles.infoRow}>
-            <Text style={styles.infoLabel}>수집 목적</Text>
-            <Text style={styles.infoValue}>약 복용 관리 및 몸 상태 기록 서비스</Text>
+            <Text style={styles.infoLabel}>{t('sensitiveConsent.purposeLabel')}</Text>
+            <Text style={styles.infoValue}>{t('sensitiveConsent.purposeValue')}</Text>
           </View>
           <View style={styles.infoDivider} />
           <View style={styles.infoRow}>
-            <Text style={styles.infoLabel}>보유 기간</Text>
-            <Text style={styles.infoValue}>회원 탈퇴 시 즉시 삭제</Text>
+            <Text style={styles.infoLabel}>{t('sensitiveConsent.retentionLabel')}</Text>
+            <Text style={styles.infoValue}>{t('sensitiveConsent.retentionValue')}</Text>
           </View>
           <View style={styles.infoDivider} />
           <View style={styles.infoRow}>
-            <Text style={styles.infoLabel}>제3자 제공</Text>
-            <Text style={styles.infoValue}>없음</Text>
+            <Text style={styles.infoLabel}>{t('sensitiveConsent.thirdPartyLabel')}</Text>
+            <Text style={styles.infoValue}>{t('sensitiveConsent.thirdPartyValue')}</Text>
           </View>
           {/* 가족 연동은 제3자 제공이 아니라 서비스 기능이지만, "제3자 제공 없음"만 보면
               가족과 기록을 함께 본다는 점을 오해할 수 있어 한 줄로 분명히 안내한다. */}
           <View style={styles.familyShareNote}>
             <Ionicons name="people-outline" size={18} color={Colors.textSub} style={styles.familyShareIcon} />
             <Text style={styles.familyShareText}>
-              가족을 연동하면 연동한 가족과 건강 기록을 함께 보고 공유하게 됩니다.
+              {t('sensitiveConsent.familyShareNote')}
             </Text>
           </View>
         </View>
@@ -154,36 +159,35 @@ export function SensitiveInfoConsentScreen() {
         <View style={styles.warningBanner}>
           <Ionicons name="warning-outline" size={22} color="#F57C00" />
           <Text style={styles.warningText}>
-            건강 정보는 민감정보로 분류되어{'\n'}별도 동의가 필요합니다.
+            {t('sensitiveConsent.warningText')}
           </Text>
         </View>
 
         {/* 국외 이전 안내 카드 */}
         <View style={styles.card}>
-          <Text style={styles.cardTitle}>개인정보 국외 이전 안내</Text>
+          <Text style={styles.cardTitle}>{t('sensitiveConsent.transferTitle')}</Text>
           <Text style={styles.transferIntro}>
-            약 정보 분석, 데이터 저장, 사진·영상 보관을 위해 일부 정보가{' '}
-            해외(미국)에 있는 안전한 서버로 전송·보관됩니다.
+            {t('sensitiveConsent.transferIntro')}
           </Text>
           <View style={styles.transferList}>
             <View style={styles.transferItem}>
-              <Text style={styles.transferLabel}>데이터 저장</Text>
-              <Text style={styles.transferValue}>Supabase (미국)</Text>
+              <Text style={styles.transferLabel}>{t('sensitiveConsent.dataStorageLabel')}</Text>
+              <Text style={styles.transferValue}>{t('sensitiveConsent.dataStorageValue')}</Text>
             </View>
             <View style={styles.infoDivider} />
             <View style={styles.transferItem}>
-              <Text style={styles.transferLabel}>사진·영상 보관</Text>
-              <Text style={styles.transferValue}>Cloudflare (미국)</Text>
+              <Text style={styles.transferLabel}>{t('sensitiveConsent.mediaStorageLabel')}</Text>
+              <Text style={styles.transferValue}>{t('sensitiveConsent.mediaStorageValue')}</Text>
             </View>
             <View style={styles.infoDivider} />
             <View style={styles.transferItem}>
-              <Text style={styles.transferLabel}>처방전 자동 인식</Text>
-              <Text style={styles.transferValue}>Anthropic (미국){'\n'}분석 후 보관하지 않음</Text>
+              <Text style={styles.transferLabel}>{t('sensitiveConsent.ocrLabel')}</Text>
+              <Text style={styles.transferValue}>{t('sensitiveConsent.ocrValue')}</Text>
             </View>
           </View>
           <TouchableOpacity onPress={openPrivacyPolicy} activeOpacity={0.7} style={styles.policyLinkRow}>
             <Ionicons name="document-text-outline" size={18} color={Colors.primary} />
-            <Text style={styles.policyLinkText}>자세한 내용은 개인정보처리방침에서 확인하실 수 있어요.</Text>
+            <Text style={styles.policyLinkText}>{t('sensitiveConsent.policyLinkText')}</Text>
           </TouchableOpacity>
         </View>
 
@@ -199,8 +203,8 @@ export function SensitiveInfoConsentScreen() {
             )}
           </View>
           <Text style={styles.checkLabel}>
-            위 건강 정보(민감정보) 수집 및 이용에 동의합니다.{' '}
-            <Text style={styles.required}>(필수)</Text>
+            {t('sensitiveConsent.checkHealthLabel')}{' '}
+            <Text style={styles.required}>{t('sensitiveConsent.requiredLabel')}</Text>
           </Text>
         </TouchableOpacity>
 
@@ -216,8 +220,8 @@ export function SensitiveInfoConsentScreen() {
             )}
           </View>
           <Text style={styles.checkLabel}>
-            개인정보의 국외 이전에 동의합니다.{' '}
-            <Text style={styles.required}>(필수)</Text>
+            {t('sensitiveConsent.checkTransferLabel')}{' '}
+            <Text style={styles.required}>{t('sensitiveConsent.requiredLabel')}</Text>
           </Text>
         </TouchableOpacity>
       </ScrollView>
@@ -231,10 +235,10 @@ export function SensitiveInfoConsentScreen() {
           disabled={!allAgreed}
         >
           <Text style={[styles.agreeBtnText, !allAgreed && styles.agreeBtnTextDisabled]}>
-            동의하고 계속하기
+            {t('sensitiveConsent.agreeBtn')}
           </Text>
         </TouchableOpacity>
-        <Text style={styles.noticeText}>동의하지 않으시면 서비스 이용이 불가합니다.</Text>
+        <Text style={styles.noticeText}>{t('sensitiveConsent.noticeBottom')}</Text>
       </View>
     </SafeAreaView>
   );

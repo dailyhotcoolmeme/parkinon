@@ -8,6 +8,7 @@ import React, {
 } from 'react';
 import { AppDialog, AppDialogButton, AppDialogButtonStyle } from '../components/common/AppDialog';
 import { CenterToast } from '../components/common/CenterToast';
+import { useTranslation } from 'react-i18next';
 
 /* ------------------------------------------------------------------ *
  *  명령형 API 타입
@@ -96,6 +97,7 @@ const TOAST_DURATION = 1800;
  * ------------------------------------------------------------------ */
 
 export function DialogProvider({ children }: { children: React.ReactNode }) {
+  const { t } = useTranslation();
   const [queue, setQueue] = useState<QueueItem[]>([]);
   const [visible, setVisible] = useState(false);
   const toastTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -157,7 +159,7 @@ export function DialogProvider({ children }: { children: React.ReactNode }) {
           animationType: 'fade',
           buttons: [
             {
-              text: opts.confirmText ?? '확인',
+              text: opts.confirmText ?? t('common.confirm'),
               style: 'primary',
               onPress: done,
             },
@@ -185,12 +187,12 @@ export function DialogProvider({ children }: { children: React.ReactNode }) {
           // 60대 세로 스택: 확인 버튼이 위, 취소가 아래
           buttons: [
             {
-              text: opts.confirmText ?? '확인',
+              text: opts.confirmText ?? t('common.confirm'),
               style: opts.destructive ? 'destructive' : 'primary',
               onPress: () => settle(true),
             },
             {
-              text: opts.cancelText ?? '취소',
+              text: opts.cancelText ?? t('common.cancel'),
               style: 'cancel',
               onPress: () => settle(false),
             },

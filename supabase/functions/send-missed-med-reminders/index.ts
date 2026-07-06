@@ -12,6 +12,12 @@ const MEAL_LABELS: Record<string, string> = {
   dinner: '저녁',
   bedtime: '취침',
 }
+const MEAL_LABELS_EN: Record<string, string> = {
+  morning: 'Morning',
+  lunch: 'Lunch',
+  dinner: 'Dinner',
+  bedtime: 'Bedtime',
+}
 
 // ─── {시간대} {시각} 표기 (send-medication-reminders 와 1:1 동일 복제) ──────────
 const STANDARD_LABELS = new Set(['아침', '점심', '저녁', '취침'])
@@ -36,11 +42,36 @@ function periodWord(time: string | null | undefined): string {
   return '밤'
 }
 
+/** periodWord 영어판 — 앱 doseSlots.periodWord isEnLocale 분기와 1:1 동일. */
+function periodWordEn(time: string | null | undefined): string {
+  if (!time) return ''
+  const h = parseInt(time.split(':')[0] ?? '', 10)
+  if (Number.isNaN(h)) return ''
+  if (h < 6) return 'Early morning'
+  if (h < 11) return 'Morning'
+  if (h < 13) return 'Midday'
+  if (h < 17) return 'Afternoon'
+  if (h < 21) return 'Evening'
+  return 'Night'
+}
+
 /** 푸시 문구 {시간대} 라벨. 표준 라벨 우선, 없으면 시각 기반 periodWord. */
 function periodLabelFor(label: string | null | undefined, time: string | null | undefined): string {
   const trimmed = (label ?? '').trim()
   if (trimmed && STANDARD_LABELS.has(trimmed)) return trimmed
   const p = periodWord(time)
+  if (p) return p
+  return ''
+}
+
+/** periodLabelFor 영어판 — 표준 라벨은 MEAL_LABELS_EN 역매핑, 비표준은 periodWordEn. */
+function periodLabelForEn(label: string | null | undefined, time: string | null | undefined): string {
+  const trimmed = (label ?? '').trim()
+  if (trimmed && STANDARD_LABELS.has(trimmed)) {
+    const key = Object.keys(MEAL_LABELS).find((k) => MEAL_LABELS[k] === trimmed)
+    if (key) return MEAL_LABELS_EN[key]
+  }
+  const p = periodWordEn(time)
   if (p) return p
   return ''
 }
@@ -69,12 +100,60 @@ function missedBody(label: string | null | undefined, time: string | null | unde
   return head ? `아직 ${head} 약을 드시지 않으셨어요.` : '아직 약을 드시지 않으셨어요.'
 }
 
+/** missedBody 영어판 */
+function missedBodyEn(label: string | null | undefined, time: string | null | undefined): string {
+  const head = periodWithTime(periodLabelForEn(label, time), formatClockTime(time))
+  return head ? `You haven't taken your ${head} medication yet.` : "You haven't taken your medication yet."
+}
+
 /** 보호자 미복용 body: "{환자명}님이 아직 {시간대} {시각} 약을 안 드셨어요. 약 드시도록 챙겨주세요." */
 function caregiverMissedBody(subject: string, label: string | null | undefined, time: string | null | undefined): string {
   const head = periodWithTime(periodLabelFor(label, time), formatClockTime(time))
   return head
     ? `${subject}이 아직 ${head} 약을 안 드셨어요. 약 드시도록 챙겨주세요.`
     : `${subject}이 아직 약을 안 드셨어요. 약 드시도록 챙겨주세요.`
+}
+
+/** caregiverMissedBody 영어판. subject(en) = 이름 또는 'The patient'. */
+function caregiverMissedBodyEn(subject: string, label: string | null | undefined, time: string | null | undefined): string {
+  const head = periodWithTime(periodLabelForEn(label, time), formatClockTime(time))
+  return head
+    ? `${subject} hasn't taken their ${head} medication yet. Please check in on them.`
+    : `${subject} hasn't taken their medication yet. Please check in on them.`
+}
+
+/** 주어진 IANA tz에서 "오늘" 날짜(YYYY-MM-DD). en-CA 포맷이 그대로 YYYY-MM-DD. */
+function localTodayStr(tz: string): string {
+  return new Intl.DateTimeFormat('en-CA', { timeZone: tz }).format(new Date())
+}
+
+/**
+ * 주어진 IANA tz에서 dateStr(YYYY-MM-DD)의 00:00:00~23:59:59 벽시계 경계를
+ * UTC ISO 문자열로 변환(send-medication-reminders 의 localDayRangeUtc 와 1:1 동일 기법).
+ * Asia/Seoul(DST 없음)에서는 기존 `${today}T00:00:00+09:00`~`T23:59:59+09:00`와 동일 순간(회귀 0).
+ */
+function localDayRangeUtc(dateStr: string, tz: string): { start: string; end: string } {
+  const [y, m, d] = dateStr.split('-').map(Number)
+  const guess = new Date(Date.UTC(y, (m ?? 1) - 1, d ?? 1, 0, 0, 0))
+  const fmt = new Intl.DateTimeFormat('en-US', {
+    timeZone: tz,
+    hour12: false,
+    year: 'numeric', month: '2-digit', day: '2-digit',
+    hour: '2-digit', minute: '2-digit', second: '2-digit',
+  })
+  const parts = fmt.formatToParts(guess).reduce((acc, p) => {
+    acc[p.type] = p.value
+    return acc
+  }, {} as Record<string, string>)
+  const hour = parts.hour === '24' ? '00' : parts.hour
+  const localAsUtc = Date.UTC(
+    Number(parts.year), Number(parts.month) - 1, Number(parts.day),
+    Number(hour), Number(parts.minute), Number(parts.second),
+  )
+  const offsetMs = localAsUtc - guess.getTime()
+  const start = new Date(guess.getTime() - offsetMs)
+  const end = new Date(start.getTime() + 24 * 60 * 60 * 1000 - 1000)
+  return { start: start.toISOString(), end: end.toISOString() }
 }
 
 async function sendPush(to: string, title: string, body: string, data: Record<string, unknown>) {
@@ -112,10 +191,8 @@ Deno.serve(async (req: Request) => {
     return new Response(JSON.stringify({ error: 'invalid request: meal_time or dose_slot_id required' }), { status: 400 })
   }
 
-  const kstNow = new Date(Date.now() + 9 * 60 * 60 * 1000)
-  const today = kstNow.toISOString().split('T')[0]
-  const dayStart = `${today}T00:00:00+09:00`
-  const dayEnd = `${today}T23:59:59+09:00`
+  // 하루 경계는 이제 환자별 tz로 개별 계산(Phase1-S3c, 전역 KST today 제거).
+  // 아래 두 경로(신규 dose_slot_id / 구 legacy meal_time) 각각에서 patient.timezone 기준으로 산출.
 
   let patientSent = 0
   let caregiverSent = 0
@@ -138,7 +215,7 @@ Deno.serve(async (req: Request) => {
 
     const { data: patient } = await supabase
       .from('users')
-      .select('id, name, push_token, notification_enabled, patient_group_id')
+      .select('id, name, push_token, notification_enabled, patient_group_id, language, timezone')
       .eq('id', slot.patient_id)
       .maybeSingle()
 
@@ -147,6 +224,9 @@ Deno.serve(async (req: Request) => {
         headers: { 'Content-Type': 'application/json' },
       })
     }
+    const patientIsEn = (patient as any).language === 'en'
+    const patientTz = (patient as any).timezone || 'Asia/Seoul'
+    const { start: dayStart, end: dayEnd } = localDayRangeUtc(localTodayStr(patientTz), patientTz)
 
     // 복용 여부: dose_slot_id 기록 + (있다면) meal_time 기록 union
     const { data: bySlot } = await supabase
@@ -176,10 +256,14 @@ Deno.serve(async (req: Request) => {
       })
     }
 
+    const patientTitle = patientIsEn ? '💊 Medication not yet taken' : '💊 약을 아직 안 드셨어요'
+    const patientBody = patientIsEn
+      ? missedBodyEn((slot as any).label, (slot as any).time)
+      : missedBody((slot as any).label, (slot as any).time)
     await sendPush(
       patient.push_token,
-      '💊 약을 아직 안 드셨어요',
-      missedBody((slot as any).label, (slot as any).time),
+      patientTitle,
+      patientBody,
       { type: 'missed_medication', mealTime: meal_time ?? null, doseSlotId: dose_slot_id },
     )
     patientSent++
@@ -194,19 +278,23 @@ Deno.serve(async (req: Request) => {
       if (caregivers?.length) {
         const { data: caregiverUsers } = await supabase
           .from('users')
-          .select('id, push_token, caregiver_notif_prefs')
+          .select('id, push_token, caregiver_notif_prefs, language')
           .in('id', caregivers.map((c: any) => c.user_id))
           .not('push_token', 'is', null)
 
         const patientName = (patient as any).name?.trim()
         const subject = patientName ? `${patientName}님` : '환자분'
-        const cgTitle = '💊 약을 아직 안 드셨어요'
-        const cgBody = caregiverMissedBody(subject, (slot as any).label, (slot as any).time)
+        const subjectEn = patientName || 'The patient'
 
         for (const cu of caregiverUsers ?? []) {
           if (!cu.push_token) continue
           const prefs = (cu.caregiver_notif_prefs ?? {}) as Record<string, boolean>
           if (prefs.med_missed === false) continue
+          const cuIsEn = (cu as any).language === 'en'
+          const cgTitle = cuIsEn ? '💊 Medication not yet taken' : '💊 약을 아직 안 드셨어요'
+          const cgBody = cuIsEn
+            ? caregiverMissedBodyEn(subjectEn, (slot as any).label, (slot as any).time)
+            : caregiverMissedBody(subject, (slot as any).label, (slot as any).time)
           await sendPush(cu.push_token, cgTitle, cgBody, {
             type: 'caregiver_missed_med',
             mealTime: meal_time ?? null,
@@ -234,7 +322,7 @@ Deno.serve(async (req: Request) => {
   // ============================================================
   const { data: patients } = await supabase
     .from('users')
-    .select('id, name, push_token, patient_group_id, med_time_notif_prefs')
+    .select('id, name, push_token, patient_group_id, med_time_notif_prefs, language, timezone')
     .eq('role', 'patient')
     .eq('notification_enabled', true)
     .not('push_token', 'is', null)
@@ -252,6 +340,10 @@ Deno.serve(async (req: Request) => {
     const medTimePrefs = (patient.med_time_notif_prefs ?? {}) as Record<string, boolean>
     if (medTimePrefs[meal_time!] === false) continue
 
+    // 환자별 tz로 하루 경계 개별 산출(Phase1-S3c). tz='Asia/Seoul'이면 기존과 동일 순간(회귀 0).
+    const patientTz = (patient as any).timezone || 'Asia/Seoul'
+    const { start: dayStart, end: dayEnd } = localDayRangeUtc(localTodayStr(patientTz), patientTz)
+
     const { data: logs } = await supabase
       .from('med_logs')
       .select('id')
@@ -263,10 +355,15 @@ Deno.serve(async (req: Request) => {
 
     if (logs?.length) continue
 
+    const patientIsEn = (patient as any).language === 'en'
+    const patientTitle = patientIsEn ? '💊 Medication not yet taken' : '💊 약을 아직 안 드셨어요'
+    const patientBody = patientIsEn
+      ? missedBodyEn(MEAL_LABELS[meal_time!], LEGACY_MEAL_DEFAULT_TIME[meal_time!])
+      : missedBody(MEAL_LABELS[meal_time!], LEGACY_MEAL_DEFAULT_TIME[meal_time!])
     await sendPush(
       patient.push_token,
-      '💊 약을 아직 안 드셨어요',
-      missedBody(MEAL_LABELS[meal_time!], LEGACY_MEAL_DEFAULT_TIME[meal_time!]),
+      patientTitle,
+      patientBody,
       { type: 'missed_medication', mealTime: meal_time },
     )
     patientSent++
@@ -281,7 +378,7 @@ Deno.serve(async (req: Request) => {
       if (caregivers?.length) {
         const { data: caregiverUsers } = await supabase
           .from('users')
-          .select('id, push_token, caregiver_notif_prefs')
+          .select('id, push_token, caregiver_notif_prefs, language')
           .in('id', caregivers.map((c: any) => c.user_id))
           .not('push_token', 'is', null)
 
@@ -292,9 +389,13 @@ Deno.serve(async (req: Request) => {
 
           const patientName = (patient as any).name?.trim()
           const subject = patientName ? `${patientName}님` : '환자분'
-          const cgTitle = '💊 약을 아직 안 드셨어요'
+          const subjectEn = patientName || 'The patient'
+          const cuIsEn = (cu as any).language === 'en'
+          const cgTitle = cuIsEn ? '💊 Medication not yet taken' : '💊 약을 아직 안 드셨어요'
           // 구 경로: meal_time → 라벨 + 기본 시각으로 {시간대} {시각} 구성.
-          const cgBody = caregiverMissedBody(subject, MEAL_LABELS[meal_time!], LEGACY_MEAL_DEFAULT_TIME[meal_time!])
+          const cgBody = cuIsEn
+            ? caregiverMissedBodyEn(subjectEn, MEAL_LABELS[meal_time!], LEGACY_MEAL_DEFAULT_TIME[meal_time!])
+            : caregiverMissedBody(subject, MEAL_LABELS[meal_time!], LEGACY_MEAL_DEFAULT_TIME[meal_time!])
           await sendPush(
             cu.push_token,
             cgTitle,

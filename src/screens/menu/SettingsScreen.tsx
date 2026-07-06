@@ -48,6 +48,9 @@ import { provisionForUser } from '../../lib/alarmSound';
 import { AlarmSoundPickerRow, AlarmSoundOption } from '../../components/common/AlarmSoundPickerRow';
 import { ensurePatientDoseSlots } from '../../hooks/useDoseSlots';
 import { MEASUREMENT_FEATURE_ENABLED } from '../../constants/featureFlags';
+import { useTranslation } from 'react-i18next';
+import i18n from '../../i18n';
+import { isOverseasLocale } from '../../i18n/detectLocale';
 
 interface CaregiverNotif {
   id: string;
@@ -57,20 +60,20 @@ interface CaregiverNotif {
 }
 
 const DEFAULT_CAREGIVER_NOTIFS: CaregiverNotif[] = [
-  { id: 'med_taken', label: '환자 약 복용 기록 시', sub: '환자가 약 복용 기록 시 알림을 받아요', enabled: true },
-  { id: 'med_missed', label: '환자 약 미복용 알림 2차', sub: '환자가 약 미복용 20분이 되면 알림을 받아요\n알림을 받으면 환자께 알려주세요', enabled: true },
+  { id: 'med_taken', label: i18n.t('settings.notifMedTakenLabel'), sub: i18n.t('settings.notifMedTakenSub'), enabled: true },
+  { id: 'med_missed', label: i18n.t('settings.notifMedMissedLabel'), sub: i18n.t('settings.notifMedMissedSub'), enabled: true },
   // 라벨 앞 '환자 ' 접두 → pt() 가 연동 환자 이름으로 치환("{환자명}님 몸상태·기분 기록 시").
   // 미연동 시엔 "환자"로 표시(fallback). 몸상태~변비 항목(운동 포함)만 접두.
   // 몸상태·기분은 환자가 항상 한 번에 기록 → 보호자 알림도 1개 → 토글 통합.
   // id는 발송부(useBodyState) 호환 위해 body_state 유지. 저장 시 mood도 같은 값으로 동기화.
-  { id: 'body_state', label: '환자 약효추적 기록 시', sub: '환자가 약효추적(몸 상태·기분)을 기록하면 알림을 받아요', enabled: true },
-  { id: 'exercise', label: '환자 운동 기록 시', enabled: true },
+  { id: 'body_state', label: i18n.t('settings.notifBodyStateLabel'), sub: i18n.t('settings.notifBodyStateSub'), enabled: true },
+  { id: 'exercise', label: i18n.t('settings.notifExerciseLabel'), enabled: true },
   // 컨디션 측정 기능 숨김 시 측정 완료 알림도 비노출.
   ...(MEASUREMENT_FEATURE_ENABLED
-    ? [{ id: 'measurement_completed', label: '컨디션 측정 완료 시', sub: '환자가 손가락·반응속도 측정을 마치면 알림을 받아요', enabled: true }]
+    ? [{ id: 'measurement_completed', label: i18n.t('settings.notifMeasurementLabel'), sub: i18n.t('settings.notifMeasurementSub'), enabled: true }]
     : []),
-  { id: 'sleep', label: '환자 수면 기록 시', enabled: false },
-  { id: 'constipation', label: '환자 변비 기록 시', enabled: false },
+  { id: 'sleep', label: i18n.t('settings.notifSleepLabel'), enabled: false },
+  { id: 'constipation', label: i18n.t('settings.notifConstipationLabel'), enabled: false },
 ];
 
 const STORAGE_KEY_CAREGIVER = 'settings_caregiver_notifs';
@@ -80,7 +83,10 @@ const { width: SCREEN_WIDTH } = Dimensions.get('window');
 // ─── Data model ───────────────────────────────────────────────────────────────
 
 const SLOT_ORDER: MedTimeSlotKey[] = ['morning', 'lunch', 'dinner', 'bedtime'];
-const SLOT_LABELS: Record<string, string> = { morning: '아침', lunch: '점심', dinner: '저녁', bedtime: '취침' };
+// 갭 충돌 확인 다이얼로그(checkMealGapConflict)에만 쓰이는 표시용 문자열 — 로케일 분기 필요.
+const SLOT_LABELS_KO: Record<string, string> = { morning: '아침', lunch: '점심', dinner: '저녁', bedtime: '취침' };
+const SLOT_LABELS_EN: Record<string, string> = { morning: 'Morning', lunch: 'Lunch', dinner: 'Dinner', bedtime: 'Bedtime' };
+const slotLabel = (key: string): string => (isOverseasLocale() ? SLOT_LABELS_EN : SLOT_LABELS_KO)[key];
 
 function timeHHMMtoMinutes(hhmm: string): number {
   const [h, m] = hhmm.split(':').map(Number);
@@ -104,7 +110,7 @@ function checkMealGapConflict(
     const gap = timeHHMMtoMinutes(slotTimes[next] ?? '12:00') - timeHHMMtoMinutes(slotTimes[curr] ?? '08:00');
     if (gap > 0 && gap < minGap) {
       minGap = gap;
-      conflictPair = `${SLOT_LABELS[curr]}(${slotTimes[curr]})~${SLOT_LABELS[next]}(${slotTimes[next]})`;
+      conflictPair = `${slotLabel(curr)}(${slotTimes[curr]})~${slotLabel(next)}(${slotTimes[next]})`;
     }
   }
 
@@ -114,9 +120,12 @@ function checkMealGapConflict(
 function formatMinutes(minutes: number): string {
   const h = Math.floor(minutes / 60);
   const m = minutes % 60;
-  if (h > 0 && m > 0) return `${h}시간 ${m}분`;
-  if (h > 0) return `${h}시간`;
-  return `${m}분`;
+  const sep = isOverseasLocale() ? ' ' : ''; // "2 Hour 30 Minute" vs "2시간 30분"
+  const hourUnit = i18n.t('settings.hourUnit');
+  const minuteUnit = i18n.t('settings.minuteUnit');
+  if (h > 0 && m > 0) return `${h}${sep}${hourUnit} ${m}${sep}${minuteUnit}`;
+  if (h > 0) return `${h}${sep}${hourUnit}`;
+  return `${m}${sep}${minuteUnit}`;
 }
 
 const MED_TIME_OPTIONS = [0, 10, 30, 60, 90, 120, 180, 240];
@@ -176,11 +185,13 @@ function computeAnyNotifOn(
 }
 // ─── Component ────────────────────────────────────────────────────────────────
 
+// label은 legacy 시간대 삭제 확인 다이얼로그(deleteMedSlot)에만 쓰이는 표시용 문자열이라
+// 로케일 분기 필요 — 해외에서 한글 라벨이 영문 문장에 섞여 나오던 버그(2026-07).
 const MED_TIME_SLOTS = [
-  { key: 'morning', label: '아침' },
-  { key: 'lunch',   label: '점심' },
-  { key: 'dinner',  label: '저녁' },
-  { key: 'bedtime', label: '취침' },
+  { key: 'morning', label: isOverseasLocale() ? 'Morning' : '아침' },
+  { key: 'lunch',   label: isOverseasLocale() ? 'Lunch' : '점심' },
+  { key: 'dinner',  label: isOverseasLocale() ? 'Dinner' : '저녁' },
+  { key: 'bedtime', label: isOverseasLocale() ? 'Bedtime' : '취침' },
 ] as const;
 
 type MedTimeSlotKey = 'morning' | 'lunch' | 'dinner' | 'bedtime';
@@ -208,6 +219,7 @@ function OptimisticSwitch({ value, onValueChange }: { value: boolean; onValueCha
 }
 
 export function SettingsScreen() {
+  const { t } = useTranslation();
   const { user, signOut } = useAuth();
   const navigation = useNavigation<StackNavigationProp<MenuStackParamList>>();
   const insets = useSafeAreaInsets();
@@ -400,18 +412,18 @@ export function SettingsScreen() {
       await dialog.alert(
         willEnable
           ? {
-              title: '미복용 알림을 켰어요',
-              message: '바로 적용돼요. 미복용 알림은 약 복용 시각 10분·20분 후에 와요.',
+              title: t('settings.turnedOnMissedTitle'),
+              message: t('settings.turnedOnMissedMsg'),
             }
           : {
-              title: '미복용 알림을 껐어요',
-              message: '지금부터 미복용 알림은 오지 않아요.',
+              title: t('settings.turnedOffMissedTitle'),
+              message: t('settings.turnedOffMissedMsg'),
             },
       );
     } catch (e) {
       console.error('[SettingsScreen] toggleMedTimeSlot 저장 실패:', e);
       setMedTimePrefs(prev);
-      await dialog.alert({ title: '저장 실패', message: '알림 설정을 저장하지 못했어요.\n인터넷 연결을 확인하고 다시 시도해주세요.' });
+      await dialog.alert({ title: t('settings.saveFailTitle'), message: t('settings.saveNotifFailMsg') });
     }
   };
 
@@ -578,7 +590,7 @@ export function SettingsScreen() {
       console.error('[SettingsScreen] togglePatientMedTimeSlot 저장 실패:', e);
       setPatientMedTimePrefs(prev);
       setPatientNotificationEnabled(prevMaster);
-      await dialog.alert({ title: '저장 실패', message: '환자분 알림 설정을 저장하지 못했어요.\n인터넷 연결을 확인하고 다시 시도해주세요.' });
+      await dialog.alert({ title: t('settings.saveFailTitle'), message: t('settings.savePatientNotifFailMsg') });
     }
   };
 
@@ -653,8 +665,8 @@ export function SettingsScreen() {
         setCaregiverNotifs(prevNotifs);
         await AsyncStorage.setItem(STORAGE_KEY_CAREGIVER, JSON.stringify(prevNotifs)).catch(() => {});
         await dialog.alert({
-          title: '저장 실패',
-          message: '알림 설정을 저장하지 못했어요.\n인터넷 연결을 확인하고 다시 시도해 주세요.',
+          title: t('settings.saveFailTitle'),
+          message: t('settings.saveNotifFailMsg'),
         });
       }
     }
@@ -1075,7 +1087,7 @@ export function SettingsScreen() {
     } catch (e) {
       console.error('[SettingsScreen] 환자 알림 설정 저장 실패:', e);
       prevSnapshot(); // 실패 시 롤백
-      dialog.alert({ title: '저장 실패', message: '환자분 알림 설정을 저장하지 못했어요.\n인터넷 연결을 확인하고 다시 시도해주세요.' });
+      dialog.alert({ title: t('settings.saveFailTitle'), message: t('settings.savePatientNotifFailMsg') });
     }
   };
 
@@ -1085,14 +1097,14 @@ export function SettingsScreen() {
       ? patientMedNotifs.some(n => n.id !== editingPatientMedId && n.minutes === patientSelectedMinutes)
       : patientMedNotifs.some(n => n.minutes === patientSelectedMinutes);
     if (isDuplicate) {
-      closePatientPicker(() => dialog.alert({ title: '중복된 알림', message: '이미 같은 시간의 알림이 있어요.' }));
+      closePatientPicker(() => dialog.alert({ title: t('settings.duplicateNotifTitle'), message: t('settings.duplicateNotifMsg') }));
       return;
     }
     const { conflict, minGap, conflictPair } = checkMealGapConflict(patientSelectedMinutes, patientMedSlotTimes, patientActiveMedSlots);
     if (conflict) {
       closePatientPicker(() => dialog.alert({
-        title: '약 복용 시간과 겹쳐요',
-        message: `${conflictPair} 간격이 ${formatMinutes(minGap)}이에요.\n약효추적 알림은 ${formatMinutes(minGap - 1)} 이하로 설정해주세요.`,
+        title: t('settings.mealGapConflictTitle'),
+        message: t('settings.mealGapConflictMsg', { pair: conflictPair, gap: formatMinutes(minGap), maxGap: formatMinutes(minGap - 1) }),
       }));
       return;
     }
@@ -1114,7 +1126,7 @@ export function SettingsScreen() {
       ? patientExerciseNotifs.some(n => n.id !== editingPatientExerciseId && toTotal24hMinutes(n) === newTotal)
       : patientExerciseNotifs.some(n => toTotal24hMinutes(n) === newTotal);
     if (isDuplicate) {
-      closePatientPicker(() => dialog.alert({ title: '중복된 알림', message: '이미 같은 시간의 알림이 있어요.' }));
+      closePatientPicker(() => dialog.alert({ title: t('settings.duplicateNotifTitle'), message: t('settings.duplicateNotifMsg') }));
       return;
     }
     const prev = patientExerciseNotifs;
@@ -1153,10 +1165,10 @@ export function SettingsScreen() {
   const deletePatientMedNotif = async (id: string) => {
     if (!patientId) return;
     const ok = await dialog.confirm({
-      title: '알림 삭제',
-      message: '이 알림을 삭제하시겠어요?',
-      confirmText: '삭제',
-      cancelText: '취소',
+      title: t('settings.deleteNotifTitle'),
+      message: t('settings.deleteNotifMsg'),
+      confirmText: t('settings.deleteNotifConfirm'),
+      cancelText: t('common.cancel'),
       destructive: true,
     });
     if (!ok) return;
@@ -1170,10 +1182,10 @@ export function SettingsScreen() {
   const deletePatientExerciseNotif = async (id: string) => {
     if (!patientId) return;
     const ok = await dialog.confirm({
-      title: '알림 삭제',
-      message: '이 알림을 삭제하시겠어요?',
-      confirmText: '삭제',
-      cancelText: '취소',
+      title: t('settings.deleteNotifTitle'),
+      message: t('settings.deleteNotifMsg'),
+      confirmText: t('settings.deleteNotifConfirm'),
+      cancelText: t('common.cancel'),
       destructive: true,
     });
     if (!ok) return;
@@ -1199,7 +1211,7 @@ export function SettingsScreen() {
     } catch (e) {
       console.error('[SettingsScreen] 환자 운동 알림음 저장 실패:', e);
       setPatientExerciseNotifs(prev);
-      dialog.alert({ title: '저장 실패', message: '환자분 알림 소리를 저장하지 못했어요.\n인터넷 연결을 확인하고 다시 시도해주세요.' });
+      dialog.alert({ title: t('settings.saveFailTitle'), message: t('settings.savePatientSoundFailMsg') });
     }
   };
 
@@ -1225,7 +1237,7 @@ export function SettingsScreen() {
     } catch (e) {
       console.error('[SettingsScreen] 환자 미복용 알림음 저장 실패:', e);
       setPatientMissedMedSounds(prev);
-      dialog.alert({ title: '저장 실패', message: '환자분 알림 소리를 저장하지 못했어요.\n인터넷 연결을 확인하고 다시 시도해주세요.' });
+      dialog.alert({ title: t('settings.saveFailTitle'), message: t('settings.savePatientSoundFailMsg') });
     }
   };
 
@@ -1249,7 +1261,7 @@ export function SettingsScreen() {
         setAlarmSounds(
           ((data as any[]) ?? []).map((s) => ({
             id: s.id,
-            label: s.label?.trim() || '내 녹음',
+            label: s.label?.trim() || t('settings.myRecording'),
             previewUrl: s.public_url ?? null,
           })),
         );
@@ -1303,10 +1315,10 @@ export function SettingsScreen() {
 
   const deleteMed = async (id: string) => {
     const ok = await dialog.confirm({
-      title: '알림 삭제',
-      message: '이 알림을 삭제하시겠어요?',
-      confirmText: '삭제',
-      cancelText: '취소',
+      title: t('settings.deleteNotifTitle'),
+      message: t('settings.deleteNotifMsg'),
+      confirmText: t('settings.deleteNotifConfirm'),
+      cancelText: t('common.cancel'),
       destructive: true,
     });
     if (!ok) return;
@@ -1320,14 +1332,14 @@ export function SettingsScreen() {
       ? medNotifs.some(n => n.id !== editingMedId && n.minutes === selectedMinutes)
       : medNotifs.some(n => n.minutes === selectedMinutes);
     if (isDuplicate) {
-      dialog.alert({ title: '중복된 알림', message: '이미 같은 시간의 알림이 있어요.' });
+      dialog.alert({ title: t('settings.duplicateNotifTitle'), message: t('settings.duplicateNotifMsg') });
       return;
     }
     const { conflict, minGap, conflictPair } = checkMealGapConflict(selectedMinutes, medSlotTimes, activeMedSlots);
     if (conflict) {
       dialog.alert({
-        title: '약 복용 시간과 겹쳐요',
-        message: `${conflictPair} 간격이 ${formatMinutes(minGap)}이에요.\n약효추적 알림은 ${formatMinutes(minGap - 1)} 이하로 설정해주세요.`,
+        title: t('settings.mealGapConflictTitle'),
+        message: t('settings.mealGapConflictMsg', { pair: conflictPair, gap: formatMinutes(minGap), maxGap: formatMinutes(minGap - 1) }),
       });
       return;
     }
@@ -1365,10 +1377,10 @@ export function SettingsScreen() {
 
   const deleteExercise = async (id: string) => {
     const ok = await dialog.confirm({
-      title: '알림 삭제',
-      message: '이 알림을 삭제하시겠어요?',
-      confirmText: '삭제',
-      cancelText: '취소',
+      title: t('settings.deleteNotifTitle'),
+      message: t('settings.deleteNotifMsg'),
+      confirmText: t('settings.deleteNotifConfirm'),
+      cancelText: t('common.cancel'),
       destructive: true,
     });
     if (!ok) return;
@@ -1382,7 +1394,7 @@ export function SettingsScreen() {
       ? exerciseNotifs.some(n => n.id !== editingExerciseId && toTotal24hMinutes(n) === newTotal)
       : exerciseNotifs.some(n => toTotal24hMinutes(n) === newTotal);
     if (isDuplicate) {
-      dialog.alert({ title: '중복된 알림', message: '이미 같은 시간의 알림이 있어요.' });
+      dialog.alert({ title: t('settings.duplicateNotifTitle'), message: t('settings.duplicateNotifMsg') });
       return;
     }
     if (editingExerciseId) {
@@ -1478,10 +1490,10 @@ export function SettingsScreen() {
 
   const deleteMedSlot = async (slotKey: MedTimeSlotKey) => {
     const ok = await dialog.confirm({
-      title: '알림 삭제',
-      message: `${MED_TIME_SLOTS.find(s => s.key === slotKey)?.label} 시간대 알림을 삭제하시겠어요?`,
-      confirmText: '삭제',
-      cancelText: '취소',
+      title: t('settings.deleteNotifTitle'),
+      message: t('settings.deleteMedSlotMsg', { slot: MED_TIME_SLOTS.find(s => s.key === slotKey)?.label }),
+      confirmText: t('settings.deleteNotifConfirm'),
+      cancelText: t('common.cancel'),
       destructive: true,
     });
     if (!ok) return;
@@ -1513,19 +1525,22 @@ export function SettingsScreen() {
   // 연결된 환자 이름으로 텍스트 내 "환자" 치환 (미연결 시 원문 그대로)
   // 환자명 뒤에는 항상 "님"을 붙이고, 뒤따르는 조사(가/이/은/는/을/를/에게 등)는 제거해
   // "최성철가" 같은 비문 대신 "최성철님" 형태로 통일한다.
-  const pt = (text: string) =>
-    linkedPatientName
-      ? text.replace(
-          /환자(이|가|은|는|을|를|의|와|과|랑|이랑|에게|에게서|도|만|보다|처럼|로서|으로|로)?/g,
-          `${linkedPatientName}님`,
-        )
-      : text;
+  const pt = (text: string) => {
+    if (!linkedPatientName) return text;
+    if (isOverseasLocale()) {
+      return text.replace(/\bpatient\b/gi, linkedPatientName);
+    }
+    return text.replace(
+      /환자(이|가|은|는|을|를|의|와|과|랑|이랑|에게|에게서|도|만|보다|처럼|로서|으로|로)?/g,
+      `${linkedPatientName}님`,
+    );
+  };
 
   // ─── Render ─────────────────────────────────────────────────────────────────
   return (
     <SafeAreaView edges={['top']} style={styles.safe}>
       <TopBar
-        title={isCaregiver ? '보호자용 알림' : '그 밖의 알림'}
+        title={isCaregiver ? t('settings.caregiverTitle') : t('settings.patientOtherTitle')}
         showBack
         rightComponent={
           <TouchableOpacity
@@ -1572,8 +1587,8 @@ export function SettingsScreen() {
             >
               <Ionicons name="warning-outline" size={22} color="#E65100" style={{ marginRight: 8 }} />
               <View style={{ flex: 1 }}>
-                <Text style={styles.permissionBannerTitle}>시스템 알림이 차단되어 있어요</Text>
-                <Text style={styles.permissionBannerSub}>탭하여 설정에서 파킨온 알림을 허용해주세요</Text>
+                <Text style={styles.permissionBannerTitle}>{t('settings.systemBlockedTitle')}</Text>
+                <Text style={styles.permissionBannerSub}>{t('settings.systemBlockedSub')}</Text>
               </View>
               <Ionicons name="chevron-forward" size={18} color="#E65100" />
             </TouchableOpacity>
@@ -1588,14 +1603,14 @@ export function SettingsScreen() {
             <View style={styles.cardHeader}>
               <Ionicons name="alarm-outline" size={24} color={Colors.primary} style={styles.cardHeaderIcon} />
               <View style={styles.cardHeaderText}>
-                <Text style={styles.cardHeaderTitle}>약 미복용 알림</Text>
-                <Text style={styles.cardHeaderSub}>복용 시간이 지나도 기록이 없으면 알려드려요</Text>
+                <Text style={styles.cardHeaderTitle}>{t('settings.missedNotifTitle')}</Text>
+                <Text style={styles.cardHeaderSub}>{t('settings.missedNotifSub')}</Text>
               </View>
             </View>
             <View style={styles.notifRow}>
               <View style={styles.notifLeft}>
-                <Text style={styles.notifTitle}>약 미복용 알림 1차</Text>
-                <Text style={styles.notifSub}>복용 시간 10분 후 미복용 시 알림을 보내요</Text>
+                <Text style={styles.notifTitle}>{t('settings.missedNotif1Title')}</Text>
+                <Text style={styles.notifSub}>{t('settings.missedNotif1Sub')}</Text>
               </View>
               <OptimisticSwitch
                 value={!!medTimePrefs['missed_first']}
@@ -1614,8 +1629,8 @@ export function SettingsScreen() {
             )}
             <View style={styles.notifRow}>
               <View style={styles.notifLeft}>
-                <Text style={styles.notifTitle}>약 미복용 알림 2차</Text>
-                <Text style={styles.notifSub}>복용 시간 20분 후에도 미복용 시 알림을 보내요</Text>
+                <Text style={styles.notifTitle}>{t('settings.missedNotif2Title')}</Text>
+                <Text style={styles.notifSub}>{t('settings.missedNotif2Sub')}</Text>
               </View>
               <OptimisticSwitch
                 value={!!medTimePrefs['missed_second']}
@@ -1645,8 +1660,8 @@ export function SettingsScreen() {
               style={styles.cardHeaderIcon}
             />
             <View style={styles.cardHeaderText}>
-              <Text style={styles.cardHeaderTitle}>운동 알림</Text>
-              <Text style={styles.cardHeaderSub}>매일 운동을 권장해드려요</Text>
+              <Text style={styles.cardHeaderTitle}>{t('settings.exerciseNotifTitle')}</Text>
+              <Text style={styles.cardHeaderSub}>{t('settings.exerciseNotifSub')}</Text>
             </View>
           </View>
 
@@ -1656,7 +1671,7 @@ export function SettingsScreen() {
               <View style={styles.notifLeft}>
                 <Text style={styles.notifTitle}>{formatExerciseNotif(notif)}</Text>
                 <Text style={styles.notifSub}>
-                  매일 {formatExerciseNotif(notif)}에 운동 알림을 보내요
+                  {t('settings.exerciseNotifDaily', { time: formatExerciseNotif(notif) })}
                 </Text>
               </View>
               <View style={styles.notifRight}>
@@ -1706,7 +1721,7 @@ export function SettingsScreen() {
               color={Colors.accent}
               style={{ marginRight: 8 }}
             />
-            <Text style={styles.addLabel}>알림 추가하기</Text>
+            <Text style={styles.addLabel}>{t('settings.addNotifBtn')}</Text>
           </TouchableOpacity>
         </View>}
 
@@ -1721,9 +1736,9 @@ export function SettingsScreen() {
                 style={styles.cardHeaderIcon}
               />
               <View style={styles.cardHeaderText}>
-                <Text style={styles.cardHeaderTitle}>보호자 알림</Text>
+                <Text style={styles.cardHeaderTitle}>{t('settings.caregiverNotifTitle')}</Text>
                 <Text style={styles.cardHeaderSub}>
-                  {pt('환자가 기록할 때 알림을 받아요')}
+                  {pt(t('settings.caregiverNotifSub'))}
                 </Text>
               </View>
             </View>
@@ -1733,7 +1748,7 @@ export function SettingsScreen() {
                   <Text style={styles.notifTitle}>{pt(notif.label)}</Text>
                   <Text style={styles.notifSub}>
                     {/* label 이 '환자 ' 로 시작하면 fallback sub 에서 중복되지 않게 한 번만 붙인다. */}
-                    {pt(notif.sub ?? `${notif.label.replace(/^환자\s*/, '환자 ')} 알림을 받아요`)}
+                    {pt(notif.sub ?? t('settings.notifGenericSub', { label: notif.label }))}
                   </Text>
                 </View>
                 <Switch
@@ -1761,9 +1776,9 @@ export function SettingsScreen() {
                 style={styles.cardHeaderIcon}
               />
               <View style={styles.cardHeaderText}>
-                <Text style={styles.cardHeaderTitle}>아직 연동된 환자가 없어요</Text>
+                <Text style={styles.cardHeaderTitle}>{t('settings.noLinkedPatientTitle')}</Text>
                 <Text style={styles.cardHeaderSub}>
-                  가족을 연동하면 환자분의 알림을 함께 설정할 수 있어요
+                  {t('settings.noLinkedPatientSub')}
                 </Text>
               </View>
             </View>
@@ -1772,7 +1787,7 @@ export function SettingsScreen() {
               style={styles.linkFamilyTextBtn}
               onPress={() => navigation.navigate('FamilyLink')}
             >
-              <Text style={styles.linkFamilyTextBtnText}>가족 연동하기</Text>
+              <Text style={styles.linkFamilyTextBtnText}>{t('settings.linkFamilyBtn')}</Text>
             </TouchableOpacity>
           </View>
           </>
@@ -1785,7 +1800,7 @@ export function SettingsScreen() {
           <View style={styles.caregiverNote}>
             <Ionicons name="information-circle" size={20} color={Colors.primary} style={{ marginTop: 1 }} />
             <Text style={styles.caregiverNoteText}>
-              여기서 알림을 바꾸면 {(linkedPatientName || '환자')}님 휴대폰의 알림도 똑같이 바뀌어요.
+              {t('settings.patientSyncNote', { name: linkedPatientName || t('settings.patientFallback') })}
             </Text>
           </View>
           <View style={[styles.card, styles.cardMarginTop]}>
@@ -1804,8 +1819,8 @@ export function SettingsScreen() {
                 style={styles.cardHeaderIcon}
               />
               <View style={styles.cardHeaderText}>
-                <Text style={styles.cardHeaderTitle}>{pt('환자 알림 수정')}</Text>
-                <Text style={styles.cardHeaderSub}>{pt('환자 대신 알림 설정을 변경해요')}</Text>
+                <Text style={styles.cardHeaderTitle}>{pt(t('settings.editPatientNotifTitle'))}</Text>
+                <Text style={styles.cardHeaderSub}>{pt(t('settings.editPatientNotifSub'))}</Text>
               </View>
               <Ionicons
                 name={showPatientNotifs ? 'chevron-up' : 'chevron-down'}
@@ -1823,12 +1838,12 @@ export function SettingsScreen() {
                   <View style={{ marginTop: 10, borderRadius: 12, overflow: 'hidden', borderWidth: 1, borderColor: '#FFE0B2' }}>
                     <View style={{ flexDirection: 'row', alignItems: 'center', backgroundColor: '#FFF3E0', paddingHorizontal: 16, paddingVertical: 12 }}>
                       <Ionicons name="alarm-outline" size={20} color="#E65100" style={{ marginRight: 10 }} />
-                      <Text style={{ fontSize: 17, fontWeight: '700', color: '#E65100' }}>복용 시간 알림</Text>
+                      <Text style={{ fontSize: 17, fontWeight: '700', color: '#E65100' }}>{t('settings.medTimeNotifTitle')}</Text>
                     </View>
                     <View style={[styles.notifRow, styles.notifRowTop, { backgroundColor: Colors.white, minHeight: 64 }]}>
                       <View style={styles.notifLeft}>
                         <Text style={styles.notifSub}>
-                          {(linkedPatientName || '환자')}님의 복용 시간과 복용 알림을 대신 설정할 수 있어요
+                          {t('settings.medTimeNotifDesc', { name: linkedPatientName || t('settings.patientFallback') })}
                         </Text>
                       </View>
                     </View>
@@ -1838,7 +1853,7 @@ export function SettingsScreen() {
                       onPress={() => navigation.navigate('MedicationManage', { mode: 'slots' })}
                     >
                       <Ionicons name="settings-outline" size={22} color="#E65100" style={{ marginRight: 8 }} />
-                      <Text style={[styles.addLabel, { color: '#E65100' }]}>복용시간 알림 설정하기</Text>
+                      <Text style={[styles.addLabel, { color: '#E65100' }]}>{t('settings.medTimeNotifSetupBtn')}</Text>
                       <Ionicons name="chevron-forward" size={20} color="#E65100" style={{ marginLeft: 'auto' }} />
                     </TouchableOpacity>
                   </View>
@@ -1849,14 +1864,14 @@ export function SettingsScreen() {
                       <View style={styles.cardHeader}>
                         <Ionicons name="alarm-outline" size={24} color={Colors.primary} style={styles.cardHeaderIcon} />
                         <View style={styles.cardHeaderText}>
-                          <Text style={styles.cardHeaderTitle}>약 미복용 알림</Text>
-                          <Text style={styles.cardHeaderSub}>복용 시간이 지나도 기록이 없으면 알려드려요</Text>
+                          <Text style={styles.cardHeaderTitle}>{t('settings.missedNotifTitle')}</Text>
+                          <Text style={styles.cardHeaderSub}>{t('settings.missedNotifSub')}</Text>
                         </View>
                       </View>
                       <View style={styles.notifRow}>
                         <View style={styles.notifLeft}>
-                          <Text style={styles.notifTitle}>약 미복용 알림 1차</Text>
-                          <Text style={styles.notifSub}>복용 시간 10분 후 미복용 시 알림을 보내요</Text>
+                          <Text style={styles.notifTitle}>{t('settings.missedNotif1Title')}</Text>
+                          <Text style={styles.notifSub}>{t('settings.missedNotif1Sub')}</Text>
                         </View>
                         <Switch
                           value={!!patientMedTimePrefs['missed_first']}
@@ -1877,8 +1892,8 @@ export function SettingsScreen() {
                       )}
                       <View style={styles.notifRow}>
                         <View style={styles.notifLeft}>
-                          <Text style={styles.notifTitle}>약 미복용 알림 2차</Text>
-                          <Text style={styles.notifSub}>복용 시간 20분 후에도 미복용 시 알림을 보내요</Text>
+                          <Text style={styles.notifTitle}>{t('settings.missedNotif2Title')}</Text>
+                          <Text style={styles.notifSub}>{t('settings.missedNotif2Sub')}</Text>
                         </View>
                         <Switch
                           value={!!patientMedTimePrefs['missed_second']}
@@ -1910,8 +1925,8 @@ export function SettingsScreen() {
                         style={styles.cardHeaderIcon}
                       />
                       <View style={styles.cardHeaderText}>
-                        <Text style={styles.cardHeaderTitle}>운동 알림</Text>
-                        <Text style={styles.cardHeaderSub}>매일 운동을 권장해드려요</Text>
+                        <Text style={styles.cardHeaderTitle}>{t('settings.exerciseNotifTitle')}</Text>
+                        <Text style={styles.cardHeaderSub}>{t('settings.exerciseNotifSub')}</Text>
                       </View>
                     </View>
                     {patientExerciseNotifs.map((notif) => (
@@ -1920,7 +1935,7 @@ export function SettingsScreen() {
                           <View style={styles.notifLeft}>
                             <Text style={styles.notifTitle}>{formatExerciseNotif(notif)}</Text>
                             <Text style={styles.notifSub}>
-                              매일 {formatExerciseNotif(notif)}에 운동 알림을 보내요
+                              {t('settings.exerciseNotifDaily', { time: formatExerciseNotif(notif) })}
                             </Text>
                           </View>
                           <View style={styles.notifRight}>
@@ -1969,7 +1984,7 @@ export function SettingsScreen() {
                         color={Colors.accent}
                         style={{ marginRight: 8 }}
                       />
-                      <Text style={styles.addLabel}>알림 추가하기</Text>
+                      <Text style={styles.addLabel}>{t('settings.addNotifBtn')}</Text>
                     </TouchableOpacity>
                   </View>
                 </>
@@ -2004,7 +2019,7 @@ export function SettingsScreen() {
             {pickerType === 'med' ? (
               /* ── Med time picker ── */
               <>
-                <Text style={styles.pickerTitle}>알림 시간 선택</Text>
+                <Text style={styles.pickerTitle}>{t('settings.pickerTimeSelectTitle')}</Text>
 
                 <View style={styles.optionGrid}>
                   {MED_TIME_OPTIONS.map((opt) => {
@@ -2042,7 +2057,7 @@ export function SettingsScreen() {
                   style={styles.saveBtn}
                   onPress={saveMedTime}
                 >
-                  <Text style={styles.saveBtnText}>저장하기</Text>
+                  <Text style={styles.saveBtnText}>{t('settings.saveBtn')}</Text>
                 </TouchableOpacity>
 
                 <TouchableOpacity
@@ -2051,13 +2066,13 @@ export function SettingsScreen() {
                   onPress={closePicker}
                 >
                   <Ionicons name="close-outline" size={22} color={Colors.textSub} />
-                  <Text style={styles.cancelLinkText}>닫기</Text>
+                  <Text style={styles.cancelLinkText}>{t('common.close')}</Text>
                 </TouchableOpacity>
               </>
             ) : pickerType === 'medSlot' ? (
               /* ── Med Slot time picker ── */
               <>
-                <Text style={styles.pickerTitle}>약 복용 알림 시간</Text>
+                <Text style={styles.pickerTitle}>{t('settings.pickerMedSlotTimeTitle')}</Text>
 
                 {/* AM/PM row */}
                 <View style={styles.ampmRow}>
@@ -2085,7 +2100,7 @@ export function SettingsScreen() {
                               : styles.ampmBtnTextInactive,
                           ]}
                         >
-                          {ap}
+                          {ap === '오전' ? t('common.am') : t('common.pm')}
                         </Text>
                       </TouchableOpacity>
                     );
@@ -2093,7 +2108,7 @@ export function SettingsScreen() {
                 </View>
 
                 {/* Hour label */}
-                <Text style={styles.unitLabel}>시</Text>
+                <Text style={styles.unitLabel}>{t('settings.hourUnit')}</Text>
 
                 {/* Hour grid */}
                 <View style={styles.hourGrid}>
@@ -2130,7 +2145,7 @@ export function SettingsScreen() {
                 </View>
 
                 {/* Minute label */}
-                <Text style={[styles.unitLabel, { marginTop: 16 }]}>분</Text>
+                <Text style={[styles.unitLabel, { marginTop: 16 }]}>{t('settings.minuteUnit')}</Text>
 
                 {/* Minute grid */}
                 <View style={styles.minuteGrid}>
@@ -2173,7 +2188,7 @@ export function SettingsScreen() {
                   style={styles.saveBtn}
                   onPress={saveMedSlotTime}
                 >
-                  <Text style={styles.saveBtnText}>저장하기</Text>
+                  <Text style={styles.saveBtnText}>{t('settings.saveBtn')}</Text>
                 </TouchableOpacity>
 
                 <TouchableOpacity
@@ -2182,13 +2197,13 @@ export function SettingsScreen() {
                   onPress={closePicker}
                 >
                   <Ionicons name="close-outline" size={22} color={Colors.textSub} />
-                  <Text style={styles.cancelLinkText}>닫기</Text>
+                  <Text style={styles.cancelLinkText}>{t('common.close')}</Text>
                 </TouchableOpacity>
               </>
             ) : (
               /* ── Exercise time picker ── */
               <>
-                <Text style={styles.pickerTitle}>운동 알림 시간</Text>
+                <Text style={styles.pickerTitle}>{t('settings.pickerExerciseTimeTitle')}</Text>
 
                 {/* AM/PM row */}
                 <View style={styles.ampmRow}>
@@ -2216,7 +2231,7 @@ export function SettingsScreen() {
                               : styles.ampmBtnTextInactive,
                           ]}
                         >
-                          {ap}
+                          {ap === '오전' ? t('common.am') : t('common.pm')}
                         </Text>
                       </TouchableOpacity>
                     );
@@ -2224,7 +2239,7 @@ export function SettingsScreen() {
                 </View>
 
                 {/* Hour label */}
-                <Text style={styles.unitLabel}>시</Text>
+                <Text style={styles.unitLabel}>{t('settings.hourUnit')}</Text>
 
                 {/* Hour grid */}
                 <View style={styles.hourGrid}>
@@ -2261,7 +2276,7 @@ export function SettingsScreen() {
                 </View>
 
                 {/* Minute label */}
-                <Text style={[styles.unitLabel, { marginTop: 16 }]}>분</Text>
+                <Text style={[styles.unitLabel, { marginTop: 16 }]}>{t('settings.minuteUnit')}</Text>
 
                 {/* Minute grid */}
                 <View style={styles.minuteGrid}>
@@ -2304,7 +2319,7 @@ export function SettingsScreen() {
                   style={styles.saveBtn}
                   onPress={saveExerciseTime}
                 >
-                  <Text style={styles.saveBtnText}>저장하기</Text>
+                  <Text style={styles.saveBtnText}>{t('settings.saveBtn')}</Text>
                 </TouchableOpacity>
 
                 <TouchableOpacity
@@ -2313,7 +2328,7 @@ export function SettingsScreen() {
                   onPress={closePicker}
                 >
                   <Ionicons name="close-outline" size={22} color={Colors.textSub} />
-                  <Text style={styles.cancelLinkText}>닫기</Text>
+                  <Text style={styles.cancelLinkText}>{t('common.close')}</Text>
                 </TouchableOpacity>
               </>
             )}
@@ -2345,7 +2360,7 @@ export function SettingsScreen() {
             {patientPickerType === 'med' ? (
               /* ── 환자 Med time picker ── */
               <>
-                <Text style={styles.pickerTitle}>알림 시간 선택</Text>
+                <Text style={styles.pickerTitle}>{t('settings.pickerTimeSelectTitle')}</Text>
 
                 <View style={styles.optionGrid}>
                   {MED_TIME_OPTIONS.map((opt) => {
@@ -2379,7 +2394,7 @@ export function SettingsScreen() {
                   style={styles.saveBtn}
                   onPress={savePatientMedTime}
                 >
-                  <Text style={styles.saveBtnText}>저장하기</Text>
+                  <Text style={styles.saveBtnText}>{t('settings.saveBtn')}</Text>
                 </TouchableOpacity>
 
                 <TouchableOpacity
@@ -2388,13 +2403,13 @@ export function SettingsScreen() {
                   onPress={() => closePatientPicker()}
                 >
                   <Ionicons name="close-outline" size={22} color={Colors.textSub} />
-                  <Text style={styles.cancelLinkText}>닫기</Text>
+                  <Text style={styles.cancelLinkText}>{t('common.close')}</Text>
                 </TouchableOpacity>
               </>
             ) : (
               /* ── 환자 Exercise time picker ── */
               <>
-                <Text style={styles.pickerTitle}>운동 알림 시간</Text>
+                <Text style={styles.pickerTitle}>{t('settings.pickerExerciseTimeTitle')}</Text>
 
                 {/* AM/PM row */}
                 <View style={styles.ampmRow}>
@@ -2416,7 +2431,7 @@ export function SettingsScreen() {
                             active ? styles.ampmBtnTextActive : styles.ampmBtnTextInactive,
                           ]}
                         >
-                          {ap}
+                          {ap === '오전' ? t('common.am') : t('common.pm')}
                         </Text>
                       </TouchableOpacity>
                     );
@@ -2424,7 +2439,7 @@ export function SettingsScreen() {
                 </View>
 
                 {/* Hour label */}
-                <Text style={styles.unitLabel}>시</Text>
+                <Text style={styles.unitLabel}>{t('settings.hourUnit')}</Text>
 
                 {/* Hour grid */}
                 <View style={styles.hourGrid}>
@@ -2455,7 +2470,7 @@ export function SettingsScreen() {
                 </View>
 
                 {/* Minute label */}
-                <Text style={[styles.unitLabel, { marginTop: 16 }]}>분</Text>
+                <Text style={[styles.unitLabel, { marginTop: 16 }]}>{t('settings.minuteUnit')}</Text>
 
                 {/* Minute grid */}
                 <View style={styles.minuteGrid}>
@@ -2489,7 +2504,7 @@ export function SettingsScreen() {
                   style={styles.saveBtn}
                   onPress={savePatientExerciseTime}
                 >
-                  <Text style={styles.saveBtnText}>저장하기</Text>
+                  <Text style={styles.saveBtnText}>{t('settings.saveBtn')}</Text>
                 </TouchableOpacity>
 
                 <TouchableOpacity
@@ -2498,7 +2513,7 @@ export function SettingsScreen() {
                   onPress={() => closePatientPicker()}
                 >
                   <Ionicons name="close-outline" size={22} color={Colors.textSub} />
-                  <Text style={styles.cancelLinkText}>닫기</Text>
+                  <Text style={styles.cancelLinkText}>{t('common.close')}</Text>
                 </TouchableOpacity>
               </>
             )}
@@ -2541,12 +2556,12 @@ export function SettingsScreen() {
 
           {/* 제목 */}
           <Text style={{ fontSize: 24, fontWeight: 'bold', color: '#111111', textAlign: 'center', marginTop: 16 }}>
-            알림이 꺼져 있어요
+            {t('settings.blockedSheetTitle')}
           </Text>
 
           {/* 본문 */}
           <Text style={{ fontSize: 18, color: '#444444', textAlign: 'center', lineHeight: 28, marginTop: 10, marginBottom: 28 }}>
-            {'약 복용 알림을 받으려면\n스마트폰 설정에서\n파킨온 알림을 켜주세요.'}
+            {t('settings.blockedSheetMsg')}
           </Text>
 
           {/* 설정 열기 버튼 */}
@@ -2562,7 +2577,7 @@ export function SettingsScreen() {
             }}
             onPress={() => Linking.openSettings()}
           >
-            <Text style={{ fontSize: 18, fontWeight: 'bold', color: '#FFFFFF' }}>설정 열기</Text>
+            <Text style={{ fontSize: 18, fontWeight: 'bold', color: '#FFFFFF' }}>{t('settings.openSettingsBtn')}</Text>
           </TouchableOpacity>
 
           {/* 나중에 버튼 */}
@@ -2582,7 +2597,7 @@ export function SettingsScreen() {
               setPendingOn(false);
             }}
           >
-            <Text style={{ fontSize: 18, fontWeight: 'bold', color: '#666666' }}>나중에</Text>
+            <Text style={{ fontSize: 18, fontWeight: 'bold', color: '#666666' }}>{t('settings.laterBtn')}</Text>
           </TouchableOpacity>
         </View>
       </Modal>

@@ -12,6 +12,7 @@ import {
   FlatList,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
+import { useTranslation } from 'react-i18next';
 import { useBottomSheetPadding } from '../../hooks/useBottomSheetPadding';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useNavigation, useRoute } from '@react-navigation/native';
@@ -34,6 +35,7 @@ export function PatientInfoScreen() {
   const navigation = useNavigation<Nav>();
   const route = useRoute<RouteType>();
   const step = route.params?.step ?? 1;
+  const { t } = useTranslation();
   const { user, signOut } = useAuth();
   const bottomPadding = useBottomSheetPadding(24);
 
@@ -53,7 +55,7 @@ export function PatientInfoScreen() {
     const savedBirth = await AsyncStorage.getItem('onboarding_birth_year');
     const savedGender = await AsyncStorage.getItem('onboarding_gender');
     const savedDiag = await AsyncStorage.getItem('onboarding_diag_year');
-    if (user?.name && user.name !== '사용자') setName(user.name);
+    if (user?.name && user.name !== t('authHook.defaultUserName')) setName(user.name);
     else if (savedName) setName(savedName);
     if (savedBirth) setBirthYear(savedBirth);
     if (savedGender) setGender(savedGender as 'male' | 'female');
@@ -95,7 +97,7 @@ export function PatientInfoScreen() {
         <View style={styles.header}>
           <TouchableOpacity style={styles.backBtn} onPress={() => navigation.goBack()} activeOpacity={0.7}>
             <Text style={styles.backIcon}>←</Text>
-            <Text style={styles.backText}>뒤로</Text>
+            <Text style={styles.backText}>{t('common.back')}</Text>
           </TouchableOpacity>
         </View>
 
@@ -110,12 +112,12 @@ export function PatientInfoScreen() {
         <ScrollView contentContainerStyle={styles.scrollContent} keyboardShouldPersistTaps="handled">
           {step === 1 && (
             <View>
-              <Text style={styles.title}>성함이 어떻게 되세요?</Text>
+              <Text style={styles.title}>{t('patientInfo.nameTitle')}</Text>
               <TextInput
                 style={styles.textInput}
                 value={name}
                 onChangeText={setName}
-                placeholder="이름을 입력해주세요"
+                placeholder={t('patientInfo.namePlaceholder')}
                 placeholderTextColor={Colors.textHint}
                 maxLength={20}
                 autoFocus
@@ -126,15 +128,15 @@ export function PatientInfoScreen() {
 
           {step === 2 && (
             <View>
-              <Text style={styles.title}>출생연도를 알려주세요</Text>
-              <Text style={styles.subtitle}>건강 정보 분석에 활용돼요</Text>
+              <Text style={styles.title}>{t('patientInfo.birthTitle')}</Text>
+              <Text style={styles.subtitle}>{t('patientInfo.healthAnalysisNote')}</Text>
               <TouchableOpacity
                 style={[styles.dropdownBtn, birthYear && styles.dropdownBtnFilled]}
                 onPress={() => setShowBirthPicker(true)}
                 activeOpacity={0.85}
               >
                 <Text style={[styles.dropdownText, !birthYear && styles.dropdownPlaceholder]}>
-                  {birthYear ? `${birthYear}년` : '출생연도 선택'}
+                  {birthYear ? t('common.yearValue', { year: birthYear }) : t('patientInfo.birthSelect')}
                 </Text>
                 <Text style={styles.dropdownArrow}>▼</Text>
               </TouchableOpacity>
@@ -143,22 +145,22 @@ export function PatientInfoScreen() {
 
           {step === 3 && (
             <View>
-              <Text style={styles.title}>성별을 알려주세요</Text>
-              <Text style={styles.subtitle}>건강 정보 분석에 활용돼요</Text>
+              <Text style={styles.title}>{t('patientInfo.genderTitle')}</Text>
+              <Text style={styles.subtitle}>{t('patientInfo.healthAnalysisNote')}</Text>
               <View style={styles.genderRow}>
                 <TouchableOpacity
                   style={[styles.genderBtn, gender === 'male' && styles.genderBtnSelected]}
                   onPress={() => setGender('male')}
                   activeOpacity={0.85}
                 >
-                  <Text style={[styles.genderText, gender === 'male' && styles.genderTextSelected]}>남자</Text>
+                  <Text style={[styles.genderText, gender === 'male' && styles.genderTextSelected]}>{t('patientInfo.male')}</Text>
                 </TouchableOpacity>
                 <TouchableOpacity
                   style={[styles.genderBtn, gender === 'female' && styles.genderBtnSelected]}
                   onPress={() => setGender('female')}
                   activeOpacity={0.85}
                 >
-                  <Text style={[styles.genderText, gender === 'female' && styles.genderTextSelected]}>여자</Text>
+                  <Text style={[styles.genderText, gender === 'female' && styles.genderTextSelected]}>{t('patientInfo.female')}</Text>
                 </TouchableOpacity>
               </View>
             </View>
@@ -166,15 +168,15 @@ export function PatientInfoScreen() {
 
           {step === 4 && (
             <View>
-              <Text style={styles.title}>파킨슨 진단을 받으신{'\n'}연도를 알려주세요</Text>
-              <Text style={styles.subtitle}>기억나지 않으시면{'\n'}나중에 입력하셔도 괜찮아요</Text>
+              <Text style={styles.title}>{t('patientInfo.diagTitle')}</Text>
+              <Text style={styles.subtitle}>{t('patientInfo.diagSubtitle')}</Text>
               <TouchableOpacity
                 style={[styles.dropdownBtn, diagYear && styles.dropdownBtnFilled]}
                 onPress={() => setShowDiagPicker(true)}
                 activeOpacity={0.85}
               >
                 <Text style={[styles.dropdownText, !diagYear && styles.dropdownPlaceholder]}>
-                  {diagYear ? `${diagYear}년` : '진단연도 선택 (선택사항)'}
+                  {diagYear ? t('common.yearValue', { year: diagYear }) : t('patientInfo.diagSelect')}
                 </Text>
                 <Text style={styles.dropdownArrow}>▼</Text>
               </TouchableOpacity>
@@ -184,9 +186,9 @@ export function PatientInfoScreen() {
 
         {/* 하단 버튼 */}
         <View style={[styles.bottomArea, { paddingBottom: bottomPadding }]}>
-          <PrimaryButton title={step < TOTAL_STEPS ? '다음으로' : '완료'} onPress={handleNext} disabled={!canProceed()} />
+          <PrimaryButton title={step < TOTAL_STEPS ? t('common.nextTo') : t('common.done')} onPress={handleNext} disabled={!canProceed()} />
           <TouchableOpacity style={styles.closeBtn} onPress={signOut}>
-            <Text style={styles.closeBtnText}>닫기</Text>
+            <Text style={styles.closeBtnText}>{t('common.close')}</Text>
           </TouchableOpacity>
         </View>
 
@@ -216,6 +218,7 @@ function YearPickerModal({ visible, years, selected, onSelect, onClose }: {
   onSelect: (y: string) => void;
   onClose: () => void;
 }) {
+  const { t } = useTranslation();
   const sheetPadding = useBottomSheetPadding(32);
   const flatListRef = useRef<FlatList<string>>(null);
 
@@ -234,7 +237,7 @@ function YearPickerModal({ visible, years, selected, onSelect, onClose }: {
         <TouchableOpacity style={pickerStyles.overlay} onPress={onClose} activeOpacity={1} />
         <View style={[pickerStyles.sheet, { paddingBottom: sheetPadding }]}>
           <View style={pickerStyles.handle} />
-          <Text style={pickerStyles.sheetTitle}>연도 선택</Text>
+          <Text style={pickerStyles.sheetTitle}>{t('patientInfo.yearPickerTitle')}</Text>
           <FlatList
             ref={flatListRef}
             data={years}
@@ -249,7 +252,7 @@ function YearPickerModal({ visible, years, selected, onSelect, onClose }: {
                 activeOpacity={0.85}
               >
                 <Text style={[pickerStyles.yearText, item === selected && pickerStyles.yearTextSelected]}>
-                  {item}년
+                  {t('common.yearValue', { year: item })}
                 </Text>
                 {item === selected && <Ionicons name="checkmark" size={18} color="#4CAF50" />}
               </TouchableOpacity>

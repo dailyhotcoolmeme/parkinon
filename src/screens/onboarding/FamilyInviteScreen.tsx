@@ -12,6 +12,8 @@ import {
   Clipboard,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
+import { useTranslation } from 'react-i18next';
+import { isOverseasLocale } from '../../i18n/detectLocale';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useBottomSheetPadding } from '../../hooks/useBottomSheetPadding';
 import { useNavigation } from '@react-navigation/native';
@@ -58,6 +60,9 @@ function formatInviteCode(code: string): string {
 
 export function FamilyInviteScreen() {
   const navigation = useNavigation<Nav>();
+  const { t } = useTranslation();
+  // 해외 로케일: 노란 카카오 스타일 대신 중립 스타일(공유 텍스트/라벨은 로케일별 리소스).
+  const overseas = isOverseasLocale();
   const { refreshUser, forceCompleteOnboarding } = useAuth();
   const dialog = useDialog();
   const [inviteCode, setInviteCode] = useState('');
@@ -73,7 +78,7 @@ export function FamilyInviteScreen() {
 
   const handleCopyCode = () => {
     Clipboard.setString(inviteCode);
-    dialog.alert({ message: '초대 번호를 복사했어요.' });
+    dialog.alert({ message: t('familyInvite.copied') });
   };
 
   useEffect(() => {
@@ -92,14 +97,19 @@ export function FamilyInviteScreen() {
     if (name) setUserName(name);
   };
 
-  const handleKakaoShare = async () => {
+  const handleShareInvite = async () => {
     try {
+      // 공유 문구는 로케일 리소스(shareMessage)로 자동 전환 — 스토어 링크는 리소스에 그대로 병기.
+      const inviterName = userName || t('familyInvite.defaultInviter');
       await Share.share({
-        message: `💊 파킨온 - 파킨슨 케어 앱\n\n${userName || '가족'}님이 파킨온에 초대했어요.\n\n🔑 초대 번호: ${formatInviteCode(inviteCode)}\n앱 설치 후 보호자로 시작하고 이 번호를 입력하면 가족으로 연결돼요.\n\n파킨온은 파킨슨 환자와 가족이 함께 사용하는 건강 관리 앱이에요.\n✅ 약 복용 알림 및 기록\n✅ 약효 추적 (복용 후 상태 확인)\n✅ 몸 상태·운동 기록\n✅ 가족과 실시간 공유\n\n📱 구글 플레이에서 설치하기\nhttps://play.google.com/store/apps/details?id=com.ourmine.parkinon`,
-        title: '파킨온 가족 초대',
+        message: t('familyInvite.shareMessage', {
+          name: inviterName,
+          code: formatInviteCode(inviteCode),
+        }),
+        title: t('familyInvite.shareTitle'),
       });
     } catch {
-      dialog.alert({ message: '공유하기에 실패했어요. 코드를 직접 전달해주세요.' });
+      dialog.alert({ message: t('familyInvite.shareFailMsg') });
     }
   };
 
@@ -248,8 +258,8 @@ export function FamilyInviteScreen() {
             // 환자 2명 → 명확히 안내하고 그룹 합류 없이 단독 가입 완료(데이터 안전 우선).
             finalGroupId = null;
             await dialog.alert({
-              title: '연결할 수 없어요',
-              message: rpcResult.message ?? '환자 두 분은 한 가족으로 묶을 수 없어요. 가입을 마친 뒤 가족 연동에서 다시 시도해주세요.',
+              title: t('familyInvite.twoPatientsTitle'),
+              message: rpcResult.message ?? t('familyInvite.twoPatientsMsg'),
             });
           } else {
             // already_member 등 → finalGroupId 유지(이미 같은 그룹일 수 있음). 안내만 생략.
@@ -419,8 +429,8 @@ export function FamilyInviteScreen() {
     } catch (e: any) {
       console.error('[FamilyInviteScreen] handleFinish 오류:', e);
       await dialog.alert({
-        title: '저장 오류',
-        message: '정보 저장 중 문제가 발생했어요. 다시 시도해 주세요.\n\n' + (e?.message ?? ''),
+        title: t('familyInvite.saveErrorTitle'),
+        message: t('familyInvite.saveErrorMsg') + (e?.message ?? ''),
       });
     } finally {
       setIsSaving(false);
@@ -433,22 +443,22 @@ export function FamilyInviteScreen() {
       <View style={styles.header}>
         <TouchableOpacity style={styles.backBtn} onPress={() => navigation.goBack()} activeOpacity={0.7}>
           <Text style={styles.backIcon}>←</Text>
-          <Text style={styles.backText}>뒤로</Text>
+          <Text style={styles.backText}>{t('common.back')}</Text>
         </TouchableOpacity>
       </View>
 
       <ScrollView contentContainerStyle={styles.scrollContent}>
         <View style={styles.heroArea}>
-          <Text style={styles.title}>준비가 끝났어요</Text>
+          <Text style={styles.title}>{t('familyInvite.title')}</Text>
           <Text style={styles.subtitle}>
-            바로 시작하거나,{'\n'}가족을 초대할 수 있어요
+            {t('familyInvite.subtitle')}
           </Text>
         </View>
 
         {/* 가족 초대 — 펼친 내용 (트리거는 하단 "가족 초대하기" 버튼) */}
         {inviteExpanded && (
           <View style={styles.expandedCard}>
-            <Text style={styles.guideText}>가족에게 이 번호를 알려주세요</Text>
+            <Text style={styles.guideText}>{t('familyInvite.guideText')}</Text>
 
             {/* 초대 번호 박스 */}
             <View style={styles.codeBox}>
@@ -458,25 +468,25 @@ export function FamilyInviteScreen() {
                 onPress={handleCopyCode}
                 activeOpacity={0.7}
               >
-                <Text style={styles.copyBtnText}>복사하기</Text>
+                <Text style={styles.copyBtnText}>{t('familyInvite.copyBtn')}</Text>
               </TouchableOpacity>
             </View>
-            <Text style={styles.codeExpiry}>이 번호는 24시간 동안 유효해요</Text>
+            <Text style={styles.codeExpiry}>{t('familyInvite.expiry')}</Text>
 
-            {/* 사용법 3단계 */}
+            {/* 사용법 단계 */}
             <View style={styles.steps}>
-              <Text style={styles.step}>1. 가족이 파킨온 앱을 설치해요</Text>
-              <Text style={styles.step}>2. 이 번호를 입력하면 연결돼요</Text>
+              <Text style={styles.step}>{t('familyInvite.step1')}</Text>
+              <Text style={styles.step}>{t('familyInvite.step2')}</Text>
             </View>
 
-            {/* 카카오톡으로 번호 보내기 (보조) */}
+            {/* 번호 공유 (보조) — 국내: 카카오 노란 버튼 / 해외: 중립 버튼 */}
             <TouchableOpacity
-              style={[styles.kakaoBtn, isSaving && styles.disabledBtn]}
-              onPress={handleKakaoShare}
+              style={[overseas ? styles.shareBtnNeutral : styles.kakaoBtn, isSaving && styles.disabledBtn]}
+              onPress={handleShareInvite}
               activeOpacity={0.85}
               disabled={isSaving}
             >
-              <Text style={styles.kakaoBtnText}>카카오톡으로 번호 보내기</Text>
+              <Text style={overseas ? styles.shareBtnNeutralText : styles.kakaoBtnText}>{t('familyInvite.shareBtn')}</Text>
             </TouchableOpacity>
           </View>
         )}
@@ -490,7 +500,7 @@ export function FamilyInviteScreen() {
           activeOpacity={0.85}
           disabled={isSaving}
         >
-          <Text style={styles.startBtnText}>바로 시작하기</Text>
+          <Text style={styles.startBtnText}>{t('familyInvite.startBtn')}</Text>
         </TouchableOpacity>
         <TouchableOpacity
           style={[styles.inviteBtn, isSaving && styles.disabledBtn]}
@@ -498,12 +508,12 @@ export function FamilyInviteScreen() {
           activeOpacity={0.85}
           disabled={isSaving}
         >
-          <Text style={styles.inviteBtnText}>가족 초대하기</Text>
+          <Text style={styles.inviteBtnText}>{t('familyInvite.inviteBtn')}</Text>
         </TouchableOpacity>
       </View>
       <BrandProgressOverlay
         visible={isSaving}
-        title="준비하고 있어요"
+        title={t('familyInvite.savingTitle')}
         minVisibleMs={500}
       />
     </SafeAreaView>
@@ -632,6 +642,23 @@ const styles = StyleSheet.create({
     fontSize: 18,
     fontWeight: '700',
     color: '#3C1E1E',
+  },
+  /* 해외용 중립 공유 버튼 (카카오 노란 스타일 대체) */
+  shareBtnNeutral: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: Colors.white,
+    borderRadius: 12,
+    borderWidth: 2,
+    borderColor: Colors.primary,
+    minHeight: 56,
+    gap: 10,
+  },
+  shareBtnNeutralText: {
+    fontSize: 18,
+    fontWeight: '700',
+    color: Colors.primary,
   },
 
   /* 메인 CTA */

@@ -2,6 +2,7 @@ import React from 'react';
 import { View, Text, TouchableOpacity, ScrollView, StyleSheet } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { Colors } from '../../constants/colors';
+import i18n from '../../i18n';
 
 // 마지막으로 잡은 JS 오류를 저장하는 AsyncStorage 키.
 // 다음 세션 시작 시(App.tsx) 읽어 console.warn 으로 노출 → 폰 로그/디버그에서 원인 확인 가능.
@@ -34,7 +35,7 @@ export class ErrorBoundary extends React.Component<Props, State> {
   }
 
   static getDerivedStateFromError(error: Error): State {
-    return { hasError: true, errorMessage: error?.message ?? '알 수 없는 오류' };
+    return { hasError: true, errorMessage: error?.message ?? i18n.t('errorBoundary.unknownError') };
   }
 
   componentDidCatch(error: Error, info: { componentStack?: string }) {
@@ -66,21 +67,21 @@ export class ErrorBoundary extends React.Component<Props, State> {
         <View style={styles.container}>
           <ScrollView contentContainerStyle={styles.content}>
             <Text style={styles.emoji}>😣</Text>
-            <Text style={styles.title}>화면을 불러오지 못했어요</Text>
+            <Text style={styles.title}>{i18n.t('errorBoundary.title')}</Text>
             <Text style={styles.subtitle}>
-              잠시 문제가 생겼어요.{'\n'}아래 버튼을 눌러 다시 시도해 주세요.
+              {i18n.t('errorBoundary.subtitle')}
             </Text>
 
             {/* 디버그용 오류 메시지 노출 — 원인 확인을 위해 error.message 표시 */}
             {this.state.errorMessage ? (
               <View style={styles.errorBox}>
-                <Text style={styles.errorLabel}>오류 메시지</Text>
+                <Text style={styles.errorLabel}>{i18n.t('errorBoundary.errorLabel')}</Text>
                 <Text style={styles.errorText}>{this.state.errorMessage}</Text>
               </View>
             ) : null}
 
             <TouchableOpacity style={styles.button} onPress={this.handleReset} activeOpacity={0.85}>
-              <Text style={styles.buttonText}>홈으로</Text>
+              <Text style={styles.buttonText}>{i18n.t('errorBoundary.homeBtn')}</Text>
             </TouchableOpacity>
           </ScrollView>
         </View>

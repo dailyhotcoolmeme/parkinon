@@ -1,0 +1,38 @@
+- generic [active] [ref=e1]:
+  - generic:
+    - generic:
+      - generic:
+        - generic:
+          - img
+      - progressbar
+      - generic:
+        - img
+        - generic: Google Play Console 로드 중
+  - generic [ref=e3]:
+    - banner [ref=e4]:
+      - generic [ref=e6]:
+        - link "Google Play Console 로고" [ref=e7] [cursor=pointer]:
+          - /url: /console/u/0/developers/7956091603166413274/app-list
+          - button "Google Play Console 로고" [ref=e8]
+        - button "개발자 계정 전환" [ref=e14] [cursor=pointer]:
+          - img "개발자 계정 전환" [ref=e16]
+    - generic [ref=e20]:
+      - generic:
+        - navigation:
+          - list
+    - generic [ref=e30]:
+      - generic [ref=e31]:
+        - link "제품 업데이트" [ref=e32] [cursor=pointer]:
+          - /url: https://play.google.com/console/about/whats-new/
+        - link "상태 대시보드" [ref=e33] [cursor=pointer]:
+          - /url: https://status.play.google.com/
+        - link "도움말" [ref=e34] [cursor=pointer]:
+          - /url: /console/u/0/developers/7956091603166413274/help-and-support
+      - generic [ref=e35]:
+        - generic [ref=e36]: © 2026 Google
+        - link "개인 정보 보호" [ref=e37] [cursor=pointer]:
+          - /url: https://www.google.com/policies/privacy/
+        - link "개발자 배포 계약" [ref=e38] [cursor=pointer]:
+          - /url: https://play.google.com/about/developer-distribution-agreement.html
+        - link "서비스 약관" [ref=e39] [cursor=pointer]:
+          - /url: https://play.google.com/about/console/terms-of-service/

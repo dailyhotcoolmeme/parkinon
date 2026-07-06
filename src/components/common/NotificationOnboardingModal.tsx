@@ -36,6 +36,8 @@ import { Colors } from '../../constants/colors';
 import { useSettings } from '../../context/SettingsContext';
 import { supabase } from '../../lib/supabase';
 import { requestPermissionsAndSaveToken } from '../../utils/notifications';
+import { useTranslation } from 'react-i18next';
+import i18n from '../../i18n';
 
 const SUPABASE_URL = process.env.EXPO_PUBLIC_SUPABASE_URL!;
 const SUPABASE_ANON_KEY = process.env.EXPO_PUBLIC_SUPABASE_ANON_KEY!;
@@ -49,11 +51,13 @@ interface PatientItem {
   desc: string;
 }
 
-const PATIENT_ITEMS: PatientItem[] = [
-  { id: 'med',           label: '약 복용 알림', desc: '약 드실 시간을 알려드려요' },
-  { id: 'effect_track',  label: '약효 추적 알림', desc: '복용 후 몸 상태를 기록할 시간을 알려드려요' },
-  { id: 'exercise',      label: '운동 알림', desc: '운동할 시간을 알려드려요' },
-];
+function getPatientItems(): PatientItem[] {
+  return [
+    { id: 'med', label: i18n.t('notifOnboard.medLabel'), desc: i18n.t('notifOnboard.medDesc') },
+    { id: 'effect_track', label: i18n.t('notifOnboard.effectTrackLabel'), desc: i18n.t('notifOnboard.effectTrackDesc') },
+    { id: 'exercise', label: i18n.t('notifOnboard.exerciseLabel'), desc: i18n.t('notifOnboard.exerciseDesc') },
+  ];
+}
 
 // ─── 보호자 알림 항목 ──────────────────────────────────────────────────────────
 interface CaregiverItem {
@@ -64,11 +68,13 @@ interface CaregiverItem {
 
 // ※ 아래는 안내용 표시 항목(3개)일 뿐, 실제 보호자 알림 저장은
 //   DEFAULT_CAREGIVER_PREFS(전체 기본 키)로 한다. (handleConfirm 참조)
-const CAREGIVER_ITEMS: CaregiverItem[] = [
-  { id: 'med_taken',    label: '환자 약 복용 알림',  desc: '환자분이 약을 드시면 알려드려요' },
-  { id: 'effect_track', label: '환자 약효 추적 알림', desc: '환자분이 몸 상태를 기록하면 알려드려요' },
-  { id: 'med_missed',   label: '약 미복용 알림',      desc: '환자분이 약을 안 드시면 알려드려요' },
-];
+function getCaregiverItems(): CaregiverItem[] {
+  return [
+    { id: 'med_taken', label: i18n.t('notifOnboard.caregiverMedTakenLabel'), desc: i18n.t('notifOnboard.caregiverMedTakenDesc') },
+    { id: 'effect_track', label: i18n.t('notifOnboard.caregiverEffectTrackLabel'), desc: i18n.t('notifOnboard.caregiverEffectTrackDesc') },
+    { id: 'med_missed', label: i18n.t('notifOnboard.caregiverMedMissedLabel'), desc: i18n.t('notifOnboard.caregiverMedMissedDesc') },
+  ];
+}
 
 // 실제 보호자 알림 설정 저장용 기본 키 전체.
 // SettingsScreen.tsx의 DEFAULT_CAREGIVER_NOTIFS와 동일한 스키마를 유지해야
@@ -94,6 +100,7 @@ interface Props {
 
 // ─── Inner Content (SafeAreaProvider 내부에서만 useSafeAreaInsets 사용) ───────
 function NotificationOnboardingModalContent({ isCaregiver, userId, visible, onClose }: Props) {
+  const { t } = useTranslation();
   const { setNotificationEnabled } = useSettings();
   const insets = useSafeAreaInsets();
   // 삼성 3버튼 nav bar(고정) 환경에서 insets.bottom이 0으로 잡히는 경우가 있어 fallback
@@ -177,7 +184,7 @@ function NotificationOnboardingModalContent({ isCaregiver, userId, visible, onCl
     closeWithAnim(onClose);
   };
 
-  const items = isCaregiver ? CAREGIVER_ITEMS : PATIENT_ITEMS;
+  const items = isCaregiver ? getCaregiverItems() : getPatientItems();
 
   return (
     <Animated.View style={[styles.backdrop, { opacity: fadeAnim }]}>
@@ -199,11 +206,9 @@ function NotificationOnboardingModalContent({ isCaregiver, userId, visible, onCl
             <View style={styles.iconCircle}>
               <Ionicons name="notifications" size={32} color={Colors.primary} />
             </View>
-            <Text style={styles.title}>알림을 허용해야 해요</Text>
+            <Text style={styles.title}>{t('notifOnboard.title')}</Text>
             <Text style={styles.subtitle}>
-              {isCaregiver
-                ? '환자분의 기록을 놓치지 않으려면\n아래 알림을 허용해주세요.'
-                : '약 복용 시간과 몸 상태 알림을\n허용해야 파킨온을 제대로 쓸 수 있어요.'}
+              {isCaregiver ? t('notifOnboard.subtitleCaregiver') : t('notifOnboard.subtitlePatient')}
             </Text>
           </View>
 
@@ -230,17 +235,17 @@ function NotificationOnboardingModalContent({ isCaregiver, userId, visible, onCl
           {/* 광고·홍보 알림 없음 강조 (환자·보호자 공통) */}
           <View style={styles.adFreeBox}>
             <Text style={styles.adFreeText}>
-              <Text style={styles.adFreeStrong}>광고·홍보 알림은 보내지 않아요.</Text>
-              {' 약·건강 관련 알림만 보내드려요.'}
+              <Text style={styles.adFreeStrong}>{t('notifOnboard.adFreeStrong')}</Text>
+              {' ' + t('notifOnboard.adFreeRest')}
             </Text>
           </View>
 
           {/* 사전 안내 박스 */}
           <View style={styles.noticeBox}>
             <Text style={styles.noticeText}>
-              {'잠시 후 스마트폰이 알림 허용 여부를\n물어봐요. '}
-              <Text style={styles.noticeStrong}>"허용"</Text>
-              {' 버튼을 눌러주세요.'}
+              {t('notifOnboard.noticePre')}
+              <Text style={styles.noticeStrong}>{t('notifOnboard.noticeAllowWord')}</Text>
+              {' ' + t('notifOnboard.noticePost')}
             </Text>
           </View>
         </ScrollView>
@@ -257,10 +262,10 @@ function NotificationOnboardingModalContent({ isCaregiver, userId, visible, onCl
             style={styles.confirmBtn}
             onPress={handleConfirm}
           >
-            <Text style={styles.confirmBtnText}>알림 허용하기</Text>
+            <Text style={styles.confirmBtnText}>{t('notifOnboard.confirmBtn')}</Text>
           </TouchableOpacity>
           <TouchableOpacity activeOpacity={0.7} style={styles.laterBtn} onPress={handleLater}>
-            <Text style={styles.laterBtnText}>나중에 설정할게요</Text>
+            <Text style={styles.laterBtnText}>{t('notifOnboard.laterBtn')}</Text>
           </TouchableOpacity>
         </View>
       </Animated.View>

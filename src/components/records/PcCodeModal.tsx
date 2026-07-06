@@ -22,6 +22,12 @@ import {
 import { Ionicons } from '@expo/vector-icons';
 import { Colors } from '../../constants/colors';
 import { useSwipeDownDismiss } from '../../hooks/useSwipeDownDismiss';
+import { useTranslation } from 'react-i18next';
+import i18n from '../../i18n';
+
+function isEnLocale(): boolean {
+  return (i18n.language || '').toLowerCase().startsWith('en');
+}
 
 // react-native 코어 Clipboard는 최신 RN에서 제거되어 import가 undefined일 수 있다.
 // expo-clipboard는 미설치(네이티브라 OTA로 새로 못 넣음).
@@ -47,9 +53,14 @@ export interface PcCodeModalProps {
 
 /** 남은 시간(초) → "m분 s초" / "s초" */
 function formatRemain(sec: number): string {
-  if (sec <= 0) return '0초';
   const m = Math.floor(sec / 60);
   const s = sec % 60;
+  if (isEnLocale()) {
+    if (sec <= 0) return '0s';
+    if (m > 0) return `${m}m ${s}s`;
+    return `${s}s`;
+  }
+  if (sec <= 0) return '0초';
   if (m > 0) return `${m}분 ${s}초`;
   return `${s}초`;
 }
@@ -63,6 +74,7 @@ export function PcCodeModal({
   onReissue,
   onClose,
 }: PcCodeModalProps) {
+  const { t } = useTranslation();
   const { translateY, panHandlers, resetPosition } = useSwipeDownDismiss(onClose);
 
   // 남은 시간(초). expiresAt 기반으로 1초마다 갱신
@@ -143,14 +155,14 @@ export function PcCodeModal({
             <View style={styles.iconWrap}>
               <Ionicons name="desktop-outline" size={34} color={Colors.primary} />
             </View>
-            <Text style={styles.title}>PC에서 보기</Text>
+            <Text style={styles.title}>{t('pcCode.title')}</Text>
           </View>
 
           {/* 로딩 */}
           {loading && (
             <View style={styles.stateBox}>
               <ActivityIndicator size="large" color={Colors.primary} />
-              <Text style={styles.stateText}>번호를 만들고 있어요...</Text>
+              <Text style={styles.stateText}>{t('pcCode.generating')}</Text>
             </View>
           )}
 
@@ -165,7 +177,7 @@ export function PcCodeModal({
                 activeOpacity={0.85}
               >
                 <Ionicons name="refresh-outline" size={20} color={Colors.white} />
-                <Text style={styles.primaryBtnText}>번호 다시 받기</Text>
+                <Text style={styles.primaryBtnText}>{t('pcCode.reissueBtn')}</Text>
               </TouchableOpacity>
             </View>
           )}
@@ -174,9 +186,9 @@ export function PcCodeModal({
           {!loading && !errorMsg && !!code && (
             <>
               <Text style={styles.guideText}>
-                PC에서 인터넷 주소창에{'\n'}
-                <Text style={styles.guideStrong}>parkinon.com</Text> 을 입력해 접속한 뒤,
-                {'\n'}아래 번호를 입력하세요.
+                {t('pcCode.guidePre')}{'\n'}
+                <Text style={styles.guideStrong}>parkinon.com</Text> {t('pcCode.guideMid')}
+                {'\n'}{t('pcCode.guidePost')}
               </Text>
 
               {/* 6자리 코드 */}
@@ -203,7 +215,7 @@ export function PcCodeModal({
                     color={Colors.primary}
                   />
                   <Text style={styles.copyBtnText}>
-                    {copied ? '번호를 복사했어요' : '번호 복사'}
+                    {copied ? t('pcCode.copiedLabel') : t('pcCode.copyLabel')}
                   </Text>
                 </TouchableOpacity>
               )}
@@ -211,12 +223,12 @@ export function PcCodeModal({
               {/* 남은 시간 / 만료 안내 */}
               {expired ? (
                 <Text style={styles.expiredText}>
-                  번호 사용 시간이 지났어요. 번호를 다시 받아주세요.
+                  {t('pcCode.expiredText')}
                 </Text>
               ) : (
                 <Text style={styles.timeText}>
-                  이 번호는 5분 동안만 쓸 수 있어요.{'\n'}
-                  남은 시간 <Text style={styles.timeStrong}>{formatRemain(remainSec)}</Text>
+                  {t('pcCode.validForText')}{'\n'}
+                  {t('pcCode.remainingLabel')} <Text style={styles.timeStrong}>{formatRemain(remainSec)}</Text>
                 </Text>
               )}
 
@@ -232,7 +244,7 @@ export function PcCodeModal({
                   color={expired ? Colors.white : Colors.primary}
                 />
                 <Text style={[styles.primaryBtnText, !expired && styles.outlineBtnText]}>
-                  번호 다시 받기
+                  {t('pcCode.reissueBtn')}
                 </Text>
               </TouchableOpacity>
             </>
@@ -240,7 +252,7 @@ export function PcCodeModal({
 
           {/* 닫기 */}
           <TouchableOpacity style={styles.closeBtn} onPress={onClose} activeOpacity={0.85}>
-            <Text style={styles.closeBtnText}>닫기</Text>
+            <Text style={styles.closeBtnText}>{t('common.close')}</Text>
           </TouchableOpacity>
         </Animated.View>
       </View>

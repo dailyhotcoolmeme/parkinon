@@ -18,6 +18,11 @@ import {
 } from '../constants/medEffectProfiles';
 // MedNotif 타입은 SettingsContext 단일 정의를 재사용한다(중복 정의 금지).
 import type { MedNotif } from '../context/SettingsContext';
+import i18n from '../i18n';
+
+function isEnLocale(): boolean {
+  return (i18n.language || '').toLowerCase().startsWith('en');
+}
 
 /** 키워드 매칭용 정규화: 소문자 + 모든 공백 제거 (§5) */
 function normalize(s: string | null | undefined): string {
@@ -106,7 +111,7 @@ export function buildRecommendedMedNotifs(
       }
     } else if (rec.note) {
       // 추적 비대상(비레보도파) — 알림 미생성, 안내 문구만 수집
-      noteSet.add(rec.note);
+      noteSet.add((isEnLocale() && rec.noteEn) ? rec.noteEn : rec.note);
     }
   }
 
@@ -143,7 +148,9 @@ export type SlotMedInput = { name: string; mfdsClassName?: string | null };
  *   라벨 B: '약효 시간 출처: ' + SOURCE_LABEL
  * UI 는 'recommendUtils.SOURCE_LABEL' 만 보면 된다(60대 일반어·전문어 "약동학" 제거).
  */
-export const SOURCE_LABEL = '미국 FDA·제조사 의약품 정보';
+export function getSourceLabel(): string {
+  return isEnLocale() ? 'US FDA & manufacturer drug information' : '미국 FDA·제조사 의약품 정보';
+}
 
 /** 슬롯 단위 안내 결과 (DoseSlotSetList 박스2 안내 렌더용 — §7.3·"슬롯 단위 안내" 절) */
 export type SlotRecommendation = {
@@ -193,6 +200,6 @@ export function recommendForSlotMeds(meds: SlotMedInput[]): SlotRecommendation {
     levodopaNames,
     offsets: Array.from(offsetSet).sort((a, b) => a - b),
     // 추천근거 = 출처 표기 한 줄. 레보도파 약이 있을 때만 노출(없으면 빈 문자열).
-    source: levodopaNames.length > 0 ? SOURCE_LABEL : '',
+    source: levodopaNames.length > 0 ? getSourceLabel() : '',
   };
 }

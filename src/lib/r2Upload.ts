@@ -9,6 +9,7 @@
 
 import * as FileSystem from 'expo-file-system/legacy';
 import { supabase } from './supabase';
+import i18n from '../i18n';
 
 export const R2_BUCKET = 'parkinon-media';
 
@@ -90,7 +91,7 @@ async function uploadToR2(
   });
 
   if (invokeError) {
-    throw new Error(`presigned URL 발급 실패: ${invokeError.message}`);
+    throw new Error(i18n.t('r2Upload.presignedUrlFailError', { err: invokeError.message }));
   }
 
   const { presignedUrl, publicUrl } = invokeData;
@@ -98,7 +99,7 @@ async function uploadToR2(
   // R2에 직접 PUT — XMLHttpRequest로 upload progress 추적
   const fileInfo = await FileSystem.getInfoAsync(localUri);
   if (!fileInfo.exists) {
-    throw new Error('파일을 찾을 수 없어요.');
+    throw new Error(i18n.t('r2Upload.fileNotFoundError'));
   }
 
   await new Promise<void>((resolve, reject) => {
@@ -120,13 +121,13 @@ async function uploadToR2(
       if (xhr.status >= 200 && xhr.status < 300) {
         resolve();
       } else {
-        reject(new Error(`R2 업로드 실패: HTTP ${xhr.status} - ${xhr.responseText}`));
+        reject(new Error(i18n.t('r2Upload.uploadFailError', { status: xhr.status, err: xhr.responseText })));
       }
     };
 
     xhr.onerror = () => {
       if (timeoutId) clearTimeout(timeoutId);
-      reject(new Error('R2 업로드 중 네트워크 오류가 발생했어요.'));
+      reject(new Error(i18n.t('r2Upload.networkError')));
     };
 
     xhr.ontimeout = () => {

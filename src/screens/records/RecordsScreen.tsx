@@ -12,6 +12,8 @@ import { useNavigation, useFocusEffect } from '@react-navigation/native';
 import { StackNavigationProp } from '@react-navigation/stack';
 import { Ionicons } from '@expo/vector-icons';
 import * as WebBrowser from 'expo-web-browser';
+import i18n from '../../i18n';
+import { useTranslation } from 'react-i18next';
 import { Colors } from '../../constants/colors';
 import { TopBar } from '../../components/common/TopBar';
 import { MenuStackParamList } from '../../navigation/MenuNavigator';
@@ -39,12 +41,12 @@ const prevLabels: Record<Period, string> = {
 };
 
 const ITEMS: { key: ItemKey; icon: IoniconName; label: string; accentColor: string }[] = [
-  { key: 'medication', icon: 'medkit-outline', label: '약 복용', accentColor: Colors.primary },
-  { key: 'bodyState', icon: 'happy-outline', label: '몸 상태', accentColor: '#E65100' },
-  { key: 'mood', icon: 'happy', label: '기분 상태', accentColor: '#FF8F00' },
-  { key: 'sleep', icon: 'moon-outline', label: '수면', accentColor: '#7B1FA2' },
-  { key: 'constipation', icon: 'water-outline', label: '변비', accentColor: '#0277BD' },
-  { key: 'exercise', icon: 'fitness-outline', label: '운동', accentColor: '#BF360C' },
+  { key: 'medication', icon: 'medkit-outline', label: i18n.t('records.itemMedication'), accentColor: Colors.primary },
+  { key: 'bodyState', icon: 'happy-outline', label: i18n.t('records.itemBodyState'), accentColor: '#E65100' },
+  { key: 'mood', icon: 'happy', label: i18n.t('records.itemMood'), accentColor: '#FF8F00' },
+  { key: 'sleep', icon: 'moon-outline', label: i18n.t('records.itemSleep'), accentColor: '#7B1FA2' },
+  { key: 'constipation', icon: 'water-outline', label: i18n.t('records.itemConstipation'), accentColor: '#0277BD' },
+  { key: 'exercise', icon: 'fitness-outline', label: i18n.t('records.itemExercise'), accentColor: '#BF360C' },
 ];
 
 // trigger_time_label → 표시용 텍스트 (공용 유틸 사용)
@@ -60,10 +62,16 @@ const ITEM_ROWS: ItemKey[][] = ITEMS.reduce<ItemKey[][]>((rows, item, i) => {
 }, []);
 
 export function RecordsScreen() {
+  const { t } = useTranslation();
   const navigation = useNavigation<NavigationProp>();
   const [period, setPeriod] = useState<Period>('이번 주');
   const { unreadCount } = useNotificationBadge();
   const dialog = useDialog();
+
+  const periodLabel = (p: Period): string =>
+    p === '이번 주' ? t('records.periodWeek') : p === '이번 달' ? t('records.periodMonth') : t('records.period3Month');
+  const prevLabelDisplay = (p: Period): string =>
+    p === '이번 주' ? t('records.prevWeek') : p === '이번 달' ? t('records.prevMonth') : t('records.prev3Month');
 
   // Supabase 실제 데이터
   const { summary, loading, error, refresh, unlinkedCaregiver } = useRecordsData(period);
@@ -86,10 +94,10 @@ export function RecordsScreen() {
     setWebLoading(true);
     try {
       const { data, error: fnError } = await supabase.functions.invoke('create-web-token');
-      if (fnError || !data?.url) throw new Error(fnError?.message || '링크 생성 실패');
+      if (fnError || !data?.url) throw new Error(fnError?.message || t('records.linkGenFailMsg'));
       await Linking.openURL(data.url as string);
     } catch (e: any) {
-      dialog.alert({ title: '오류', message: e?.message || '잠시 후 다시 시도해주세요.' });
+      dialog.alert({ title: t('records.errorTitle'), message: e?.message || t('records.genericRetryMsg') });
     } finally {
       setWebLoading(false);
     }
@@ -107,13 +115,13 @@ export function RecordsScreen() {
     setPcError(null);
     try {
       const { data, error: fnError } = await supabase.functions.invoke('create-web-token');
-      if (fnError || !data?.code) throw new Error(fnError?.message || '번호 생성 실패');
+      if (fnError || !data?.code) throw new Error(fnError?.message || t('records.pcCodeGenFailMsg'));
       setPcCode(data.code as string);
       setPcExpiresAt((data.expires_at as string) ?? null);
     } catch (e: any) {
       setPcCode(null);
       setPcExpiresAt(null);
-      setPcError(e?.message || '번호를 만들지 못했어요. 잠시 후 다시 시도해주세요.');
+      setPcError(e?.message || t('records.pcCodeGenFailMsg2'));
     } finally {
       setPcLoading(false);
     }
@@ -141,8 +149,8 @@ export function RecordsScreen() {
       const midData = entries[midIdx] ?? entries[0];
       const midLabel = Object.keys(summary.bodyState)[midIdx] ?? '';
       return {
-        value: midData.current > 0 ? midData.current.toFixed(1) + '점' : '-',
-        subLabel: midLabel ? triggerLabelToDisplay(midLabel) + ' 기준' : undefined,
+        value: midData.current > 0 ? t('records.pointSuffix', { n: midData.current.toFixed(1) }) : '-',
+        subLabel: midLabel ? t('records.basisSuffix', { label: triggerLabelToDisplay(midLabel) }) : undefined,
       };
     }
     if (key === 'mood') {
@@ -152,21 +160,21 @@ export function RecordsScreen() {
       const midData = entries[midIdx] ?? entries[0];
       const midLabel = Object.keys(summary.mood)[midIdx] ?? '';
       return {
-        value: midData.current > 0 ? midData.current.toFixed(1) + '점' : '-',
-        subLabel: midLabel ? triggerLabelToDisplay(midLabel) + ' 기준' : undefined,
+        value: midData.current > 0 ? t('records.pointSuffix', { n: midData.current.toFixed(1) }) : '-',
+        subLabel: midLabel ? t('records.basisSuffix', { label: triggerLabelToDisplay(midLabel) }) : undefined,
       };
     }
     if (key === 'sleep') {
       return {
-        value: summary.sleep.current > 0 ? summary.sleep.current.toFixed(1) + '점' : '-',
+        value: summary.sleep.current > 0 ? t('records.pointSuffix', { n: summary.sleep.current.toFixed(1) }) : '-',
       };
     }
     if (key === 'constipation') {
-      return { value: `${summary.constipation.currentDays}일` };
+      return { value: t('records.daysSuffix', { n: summary.constipation.currentDays }) };
     }
     if (key === 'exercise') {
       return {
-        value: `${summary.exercise.currentCount}회 / ${summary.exercise.currentMinutes}분`,
+        value: t('records.exerciseValue', { count: summary.exercise.currentCount, minutes: summary.exercise.currentMinutes }),
       };
     }
     return { value: '-' };
@@ -175,14 +183,14 @@ export function RecordsScreen() {
   // ── 변화 정보 계산 (실제 데이터 기반) ──────────────────────────────────────
   function getChangeInfo(key: ItemKey): { text: string; positive: boolean | null } {
     if (!summary) return { text: '', positive: null };
-    const prevLabel = prevLabels[period];
+    const prevLabel = prevLabelDisplay(period);
 
     if (key === 'medication') {
       const diff = summary.medication.current - summary.medication.prev;
-      if (diff === 0) return { text: `${prevLabel}과 같아요`, positive: null };
+      if (diff === 0) return { text: t('records.sameAsPrev', { prevLabel }), positive: null };
       return diff > 0
-        ? { text: `${prevLabel}보다 ${diff}%p 올랐어요`, positive: true }
-        : { text: `${prevLabel}보다 ${Math.abs(diff)}%p 낮아요`, positive: false };
+        ? { text: t('records.medUpFromPrev', { prevLabel, diff }), positive: true }
+        : { text: t('records.medDownFromPrev', { prevLabel, diff: Math.abs(diff) }), positive: false };
     }
     if (key === 'bodyState') {
       const entries = Object.values(summary.bodyState);
@@ -191,10 +199,10 @@ export function RecordsScreen() {
       const midData = entries[midIdx] ?? entries[0];
       const diff = midData.current - midData.prev;
       if (midData.current === 0 && midData.prev === 0) return { text: '', positive: null };
-      if (Math.abs(diff) < 0.01) return { text: `${prevLabel}과 같아요`, positive: null };
+      if (Math.abs(diff) < 0.01) return { text: t('records.sameAsPrev', { prevLabel }), positive: null };
       return diff > 0
-        ? { text: `${prevLabel}보다 ${diff.toFixed(1)}점 좋아졌어요`, positive: true }
-        : { text: `${prevLabel}보다 ${Math.abs(diff).toFixed(1)}점 낮아요`, positive: false };
+        ? { text: t('records.scoreUpFromPrev', { prevLabel, diff: diff.toFixed(1) }), positive: true }
+        : { text: t('records.scoreDownFromPrevWorse', { prevLabel, diff: Math.abs(diff).toFixed(1) }), positive: false };
     }
     if (key === 'mood') {
       const entries = Object.values(summary.mood);
@@ -203,32 +211,32 @@ export function RecordsScreen() {
       const midData = entries[midIdx] ?? entries[0];
       const diff = midData.current - midData.prev;
       if (midData.current === 0 && midData.prev === 0) return { text: '', positive: null };
-      if (Math.abs(diff) < 0.01) return { text: `${prevLabel}과 같아요`, positive: null };
+      if (Math.abs(diff) < 0.01) return { text: t('records.sameAsPrev', { prevLabel }), positive: null };
       return diff > 0
-        ? { text: `${prevLabel}보다 ${diff.toFixed(1)}점 좋아졌어요`, positive: true }
-        : { text: `${prevLabel}보다 ${Math.abs(diff).toFixed(1)}점 낮아요`, positive: false };
+        ? { text: t('records.scoreUpFromPrev', { prevLabel, diff: diff.toFixed(1) }), positive: true }
+        : { text: t('records.scoreDownFromPrevWorse', { prevLabel, diff: Math.abs(diff).toFixed(1) }), positive: false };
     }
     if (key === 'sleep') {
       const diff = summary.sleep.current - summary.sleep.prev;
       if (summary.sleep.current === 0 && summary.sleep.prev === 0) return { text: '', positive: null };
-      if (Math.abs(diff) < 0.01) return { text: `${prevLabel}과 같아요`, positive: null };
+      if (Math.abs(diff) < 0.01) return { text: t('records.sameAsPrev', { prevLabel }), positive: null };
       return diff > 0
-        ? { text: `${prevLabel}보다 ${diff.toFixed(1)}점 좋아졌어요`, positive: true }
-        : { text: `${prevLabel}보다 ${Math.abs(diff).toFixed(1)}점 나빠요`, positive: false };
+        ? { text: t('records.sleepUpFromPrev', { prevLabel, diff: diff.toFixed(1) }), positive: true }
+        : { text: t('records.sleepDownFromPrev', { prevLabel, diff: Math.abs(diff).toFixed(1) }), positive: false };
     }
     if (key === 'constipation') {
       const diff = summary.constipation.currentDays - summary.constipation.prevDays;
-      if (diff === 0) return { text: `${prevLabel}과 같아요`, positive: null };
+      if (diff === 0) return { text: t('records.sameAsPrev', { prevLabel }), positive: null };
       return diff > 0
-        ? { text: `${prevLabel}보다 ${diff}일 늘었어요`, positive: true }
-        : { text: `${prevLabel}보다 ${Math.abs(diff)}일 줄었어요`, positive: false };
+        ? { text: t('records.constipationUpFromPrev', { prevLabel, diff }), positive: true }
+        : { text: t('records.constipationDownFromPrev', { prevLabel, diff: Math.abs(diff) }), positive: false };
     }
     if (key === 'exercise') {
       const diff = summary.exercise.currentCount - summary.exercise.prevCount;
-      if (diff === 0) return { text: `${prevLabel}과 같아요`, positive: null };
+      if (diff === 0) return { text: t('records.sameAsPrev', { prevLabel }), positive: null };
       return diff > 0
-        ? { text: `${prevLabel}보다 ${diff}회 더 했어요`, positive: true }
-        : { text: `${prevLabel}보다 ${Math.abs(diff)}회 줄었어요`, positive: false };
+        ? { text: t('records.exerciseUpFromPrev', { prevLabel, diff }), positive: true }
+        : { text: t('records.exerciseDownFromPrev', { prevLabel, diff: Math.abs(diff) }), positive: false };
     }
     return { text: '', positive: null };
   }
@@ -240,7 +248,7 @@ export function RecordsScreen() {
   return (
     <SafeAreaView style={styles.safeArea} edges={['top']}>
       <TopBar
-        title="기록 보기"
+        title={t('records.headerTitle')}
         showBack
         showBell
         bellBadge={unreadCount}
@@ -251,15 +259,15 @@ export function RecordsScreen() {
       {unlinkedCaregiver ? (
         <View style={styles.unlinkedWrap}>
           <Ionicons name="people-outline" size={56} color={Colors.textHint} />
-          <Text style={styles.unlinkedTitle}>환자를 먼저 연동해주세요</Text>
-          <Text style={styles.unlinkedDesc}>{'가족을 연동하면 환자분의\n기록을 함께 볼 수 있어요'}</Text>
+          <Text style={styles.unlinkedTitle}>{t('records.unlinkedTitle')}</Text>
+          <Text style={styles.unlinkedDesc}>{t('records.unlinkedDesc')}</Text>
           <TouchableOpacity
             style={styles.linkFamilyBtn}
             onPress={() => navigation.navigate('FamilyLink' as never)}
             activeOpacity={0.85}
           >
             <Ionicons name="person-add-outline" size={22} color={Colors.white} />
-            <Text style={styles.linkFamilyBtnText}>가족 연동하기</Text>
+            <Text style={styles.linkFamilyBtnText}>{t('records.linkFamilyBtn')}</Text>
           </TouchableOpacity>
         </View>
       ) : (
@@ -273,7 +281,7 @@ export function RecordsScreen() {
           disabled={webLoading}
         >
           <Ionicons name="globe-outline" size={20} color={Colors.primary} />
-          <Text style={styles.webBtnText}>웹에서 보기</Text>
+          <Text style={styles.webBtnText}>{t('records.viewOnWeb')}</Text>
         </TouchableOpacity>
         <TouchableOpacity
           style={styles.webBtn}
@@ -281,7 +289,7 @@ export function RecordsScreen() {
           activeOpacity={0.85}
         >
           <Ionicons name="desktop-outline" size={20} color={Colors.primary} />
-          <Text style={styles.webBtnText}>PC에서 보기</Text>
+          <Text style={styles.webBtnText}>{t('records.viewOnPc')}</Text>
         </TouchableOpacity>
       </View>
 
@@ -295,7 +303,7 @@ export function RecordsScreen() {
             activeOpacity={0.8}
           >
             <Text style={[styles.tabBtnText, period === p && styles.tabBtnTextActive]}>
-              {p}
+              {periodLabel(p)}
             </Text>
           </TouchableOpacity>
         ))}
@@ -315,7 +323,7 @@ export function RecordsScreen() {
       {!loading && !error && !summary && (
         <View style={styles.stateBox}>
           <Ionicons name="bar-chart-outline" size={40} color={Colors.textHint} />
-          <Text style={styles.stateText}>아직 기록된 데이터가 없어요.{'\n'}약 복용 및 몸 상태를 기록해보세요.</Text>
+          <Text style={styles.stateText}>{t('records.noDataYet')}</Text>
         </View>
       )}
 
@@ -329,9 +337,11 @@ export function RecordsScreen() {
           <View style={styles.banner}>
             <Ionicons name="medkit" size={24} color={Colors.primary} />
             <Text style={styles.bannerText}>
-              {period} 약 복용률 <Text style={styles.bannerHighlight}>{medCurrent}%</Text>
+              {t('records.medRateBanner', { period: periodLabel(period) })} <Text style={styles.bannerHighlight}>{medCurrent}%</Text>
               {summary && medDiff !== 0
-                ? ` · ${prevLabels[period]}보다 ${Math.abs(medDiff)}%p ${medDiff >= 0 ? '올랐어요 ↑' : '낮아요 ↓'}`
+                ? ` ${medDiff >= 0
+                    ? t('records.medBannerDiffUp', { prevLabel: prevLabelDisplay(period), diff: Math.abs(medDiff) })
+                    : t('records.medBannerDiffDown', { prevLabel: prevLabelDisplay(period), diff: Math.abs(medDiff) })}`
                 : ''}
             </Text>
           </View>
@@ -426,8 +436,8 @@ export function RecordsScreen() {
       {/* 웹에서 보기 — 토큰 발급 동안 브랜드 프로그레스 오버레이 */}
       <BrandProgressOverlay
         visible={webLoading}
-        title="웹 화면을 준비하고 있어요"
-        subtitle="곧 브라우저가 열려요"
+        title={i18n.t('loading.webPreparing')}
+        subtitle={t('records.webBrowserOpeningSoon')}
       />
     </SafeAreaView>
   );

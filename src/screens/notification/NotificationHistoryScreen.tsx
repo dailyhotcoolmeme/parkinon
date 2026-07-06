@@ -17,6 +17,12 @@ import { supabase } from '../../lib/supabase';
 import { TopBar } from '../../components/common/TopBar';
 import { useNotificationBadge } from '../../context/NotificationBadgeContext';
 import { navigateTo } from '../../navigation/navigationRef';
+import { useTranslation } from 'react-i18next';
+import i18n from '../../i18n';
+
+function isEnLocale(): boolean {
+  return (i18n.language || '').toLowerCase().startsWith('en');
+}
 
 // ─────────────────────────────────────────────
 // 타입
@@ -60,17 +66,18 @@ const DEFAULT_NOTIF_CONFIG = { icon: 'notifications', bgColor: '#F5F5F5', iconCo
 // 유틸 함수
 // ─────────────────────────────────────────────
 function groupByDate(logs: NotifLog[]): Section[] {
+  const locale = isEnLocale() ? 'en-US' : 'ko-KR';
   const groups: Record<string, NotifLog[]> = {};
-  const today = new Date().toLocaleDateString('ko-KR', {
+  const today = new Date().toLocaleDateString(locale, {
     year: 'numeric', month: '2-digit', day: '2-digit',
   });
-  const yesterday = new Date(Date.now() - 86400000).toLocaleDateString('ko-KR', {
+  const yesterday = new Date(Date.now() - 86400000).toLocaleDateString(locale, {
     year: 'numeric', month: '2-digit', day: '2-digit',
   });
 
   for (const log of logs) {
     const d = new Date(log.created_at);
-    const dateKey = d.toLocaleDateString('ko-KR', {
+    const dateKey = d.toLocaleDateString(locale, {
       year: 'numeric', month: '2-digit', day: '2-digit',
     });
     if (!groups[dateKey]) groups[dateKey] = [];
@@ -80,10 +87,10 @@ function groupByDate(logs: NotifLog[]): Section[] {
   return Object.entries(groups).map(([key, data]) => ({
     title:
       key === today
-        ? '오늘'
+        ? i18n.t('notifHistory.today')
         : key === yesterday
-        ? '어제'
-        : new Date(data[0].created_at).toLocaleDateString('ko-KR', {
+        ? i18n.t('notifHistory.yesterday')
+        : new Date(data[0].created_at).toLocaleDateString(locale, {
             month: 'long',
             day: 'numeric',
           }),
@@ -95,8 +102,9 @@ function formatTime(iso: string): string {
   const d = new Date(iso);
   const h = d.getHours();
   const m = d.getMinutes();
-  const ampm = h < 12 ? '오전' : '오후';
   const hour = h === 0 ? 12 : h > 12 ? h - 12 : h;
+  if (isEnLocale()) return `${hour}:${String(m).padStart(2, '0')} ${h < 12 ? 'AM' : 'PM'}`;
+  const ampm = h < 12 ? '오전' : '오후';
   return `${ampm} ${hour}:${String(m).padStart(2, '0')}`;
 }
 
@@ -104,6 +112,7 @@ function formatTime(iso: string): string {
 // 메인 컴포넌트
 // ─────────────────────────────────────────────
 export function NotificationHistoryScreen() {
+  const { t } = useTranslation();
   const { user } = useAuth();
 
   const { markAllRead, markRead, refreshBadge } = useNotificationBadge();
@@ -364,7 +373,7 @@ export function NotificationHistoryScreen() {
     if (days >= 30) return null;
     return (
       <TouchableOpacity style={styles.moreButton} onPress={handleExpandDays} activeOpacity={0.7}>
-        <Text style={styles.moreButtonText}>이전 알림 보기</Text>
+        <Text style={styles.moreButtonText}>{t('notifHistory.viewOlder')}</Text>
       </TouchableOpacity>
     );
   };
@@ -375,8 +384,8 @@ export function NotificationHistoryScreen() {
     return (
       <View style={styles.emptyContainer}>
         <Ionicons name="notifications-off-outline" size={64} color="#CCCCCC" />
-        <Text style={styles.emptyTitle}>아직 받은 알림이 없어요</Text>
-        <Text style={styles.emptyBody}>{`최근 ${days}일간 받은 알림이 여기에 표시돼요.`}</Text>
+        <Text style={styles.emptyTitle}>{t('notifHistory.noNotifTitle')}</Text>
+        <Text style={styles.emptyBody}>{t('notifHistory.noNotifBody', { days })}</Text>
       </View>
     );
   };
@@ -388,7 +397,7 @@ export function NotificationHistoryScreen() {
       onPress={handleMarkAllRead}
       hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
     >
-      <Text style={styles.markAllBtn}>전체 읽음</Text>
+      <Text style={styles.markAllBtn}>{t('notifHistory.markAllRead')}</Text>
     </TouchableOpacity>
   ) : undefined;
 
@@ -396,7 +405,7 @@ export function NotificationHistoryScreen() {
   if (loading) {
     return (
       <SafeAreaView style={styles.flex} edges={['top', 'bottom']}>
-        <TopBar title="알림 내역" showBack rightComponent={rightComponent} />
+        <TopBar title={t('notifHistory.headerTitle')} showBack rightComponent={rightComponent} />
         <SkeletonList count={6} visible={loading} style={styles.skeletonWrap} />
       </SafeAreaView>
     );
@@ -404,7 +413,7 @@ export function NotificationHistoryScreen() {
 
   return (
     <SafeAreaView style={styles.flex} edges={['top']}>
-      <TopBar title="알림 내역" showBack rightComponent={rightComponent} />
+      <TopBar title={t('notifHistory.headerTitle')} showBack rightComponent={rightComponent} />
       <SectionList
         sections={sections}
         keyExtractor={(item) => item.id}

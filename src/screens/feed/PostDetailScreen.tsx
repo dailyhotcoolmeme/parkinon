@@ -12,18 +12,20 @@ import {
   ActivityIndicator,
 } from 'react-native';
 
-// 카테고리별 색상 매핑
-const CATEGORY_COLORS: Record<string, { bg: string; text: string; icon: string }> = {
-  '자유':    { bg: '#E8F5E9', text: '#2E7D32', icon: '#4CAF50' },
-  '질문':    { bg: '#E3F2FD', text: '#1565C0', icon: '#1E88E5' },
-  '정보':    { bg: '#FFF8E1', text: '#E65100', icon: '#FB8C00' },
-  '운동인증': { bg: '#FCE4EC', text: '#880E4F', icon: '#E91E63' },
-  '응원':    { bg: '#EDE7F6', text: '#4527A0', icon: '#7B1FA2' },
+// 카테고리별 색상 매핑 (categoryId 기준 — 라벨 텍스트는 로케일에 따라 바뀌므로 ID로 매칭)
+const CATEGORY_COLORS_BY_ID: Record<string, { bg: string; text: string; icon: string }> = {
+  chat:     { bg: '#E8F5E9', text: '#2E7D32', icon: '#4CAF50' },
+  question: { bg: '#E3F2FD', text: '#1565C0', icon: '#1E88E5' },
+  info:     { bg: '#FFF8E1', text: '#E65100', icon: '#FB8C00' },
+  exercise: { bg: '#FCE4EC', text: '#880E4F', icon: '#E91E63' },
+  cheer:    { bg: '#EDE7F6', text: '#4527A0', icon: '#7B1FA2' },
 };
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useRoute, useNavigation, useFocusEffect } from '@react-navigation/native';
 import type { NativeStackScreenProps, NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { Ionicons } from '@expo/vector-icons';
+import { useTranslation } from 'react-i18next';
+import i18n from '../../i18n';
 import { Colors } from '../../constants/colors';
 import { TopBar } from '../../components/common/TopBar';
 import { BrandProgressOverlay } from '../../components/common/BrandProgressOverlay';
@@ -73,12 +75,15 @@ interface ReplyDisplay {
   likeCount: number;
 }
 
-const DAYS = ['일', '월', '화', '수', '목', '금', '토'];
+const DAYS_KO = ['일', '월', '화', '수', '목', '금', '토'];
 function formatTimeAgo(isoString: string): string {
   const d = new Date(isoString);
+  if (i18n.language !== 'ko') {
+    return d.toLocaleString('en-US', { month: 'short', day: 'numeric', weekday: 'short', hour: '2-digit', minute: '2-digit' });
+  }
   const month = d.getMonth() + 1;
   const date = d.getDate();
-  const day = DAYS[d.getDay()];
+  const day = DAYS_KO[d.getDay()];
   const hh = String(d.getHours()).padStart(2, '0');
   const mm = String(d.getMinutes()).padStart(2, '0');
   return `${month}월 ${date}일 (${day}) ${hh}:${mm}`;
@@ -88,7 +93,7 @@ function buildCommentTree(rows: CommentRow[]): CommentDisplay[] {
   const topLevel = rows.filter((r) => r.parent_id === null);
   return topLevel.map((c) => ({
     id: c.id,
-    author: c.author?.name ?? '알 수 없음',
+    author: c.author?.name ?? i18n.t('feed.authorUnknown'),
     authorId: c.author_id,
     timeAgo: formatTimeAgo(c.created_at),
     content: c.content,
@@ -97,7 +102,7 @@ function buildCommentTree(rows: CommentRow[]): CommentDisplay[] {
       .filter((r) => r.parent_id === c.id)
       .map((r) => ({
         id: r.id,
-        author: r.author?.name ?? '알 수 없음',
+        author: r.author?.name ?? i18n.t('feed.authorUnknown'),
         authorId: r.author_id,
         timeAgo: formatTimeAgo(r.created_at),
         content: r.content,
@@ -107,6 +112,7 @@ function buildCommentTree(rows: CommentRow[]): CommentDisplay[] {
 }
 
 export function PostDetailScreen() {
+  const { t } = useTranslation();
   const route = useRoute<RouteProps>();
   const navigation = useNavigation<NavProp>();
   const { post } = route.params;
@@ -188,10 +194,10 @@ export function PostDetailScreen() {
   // 삭제하기
   const handleDelete = async () => {
     const ok = await dialog.confirm({
-      title: '게시글 삭제',
-      message: '정말 삭제하시겠어요?\n삭제된 글은 복구할 수 없어요.',
-      confirmText: '삭제',
-      cancelText: '취소',
+      title: t('postDetail.deleteConfirmTitle'),
+      message: t('postDetail.deleteConfirmMsg'),
+      confirmText: t('postDetail.deleteConfirmBtn'),
+      cancelText: t('postDetail.cancel'),
       destructive: true,
     });
     if (!ok) return;
@@ -203,12 +209,12 @@ export function PostDetailScreen() {
         .eq('id', post.id);
       if (error) throw error;
       await dialog.alert({
-        title: '삭제 완료',
-        message: '게시글이 삭제되었어요.',
+        title: t('postDetail.deleteDoneTitle'),
+        message: t('postDetail.deleteDoneMsg'),
       });
       navigation.goBack();
     } catch (e: any) {
-      await dialog.alert({ title: '오류', message: e.message ?? '삭제 중 문제가 생겼어요. 다시 시도해주세요.' });
+      await dialog.alert({ title: t('postDetail.errorTitle'), message: e.message ?? t('postDetail.deleteFailMsg') });
       console.error('[PostDetail] handleDelete 오류:', e);
     } finally {
       setDeleting(false);
@@ -218,11 +224,11 @@ export function PostDetailScreen() {
   // 더보기 메뉴
   const handleMore = async () => {
     const id = await dialog.show({
-      title: '게시글 관리',
+      title: t('postDetail.manageTitle'),
       buttons: [
-        { id: 'edit', text: '수정하기' },
-        { id: 'delete', text: '삭제하기', style: 'destructive' },
-        { id: 'cancel', text: '취소', style: 'cancel' },
+        { id: 'edit', text: t('postDetail.editAction') },
+        { id: 'delete', text: t('postDetail.deleteAction'), style: 'destructive' },
+        { id: 'cancel', text: t('postDetail.cancel'), style: 'cancel' },
       ],
     });
     if (id === 'edit') handleEdit();
@@ -234,16 +240,16 @@ export function PostDetailScreen() {
     if (!blockedId) return;
     if (await ensureNotGuest(user, dialog, { signOut })) return;
     const ok = await dialog.confirm({
-      title: '이 사용자 차단하기',
-      message: `${name}님을 차단하면 작성한 글과 댓글이 보이지 않아요.\n차단할까요?`,
-      confirmText: '차단하기',
-      cancelText: '취소',
+      title: t('postDetail.blockUserTitle'),
+      message: t('postDetail.blockUserMsg', { name }),
+      confirmText: t('postDetail.blockUserBtn'),
+      cancelText: t('postDetail.cancel'),
       destructive: true,
     });
     if (!ok) return;
     const success = await blockUser(blockedId);
     if (success) {
-      await dialog.alert({ title: '차단 완료', message: '이제 이 사용자의 글과 댓글이 보이지 않아요.' });
+      await dialog.alert({ title: t('postDetail.blockDoneTitle'), message: t('postDetail.blockDoneMsg') });
       // 게시글 작성자를 차단했으면 목록으로 돌아감
       if (blockedId === post.authorId) {
         navigation.goBack();
@@ -252,7 +258,7 @@ export function PostDetailScreen() {
         fetchComments();
       }
     } else {
-      await dialog.alert({ title: '오류', message: '차단 처리 중 문제가 생겼어요. 다시 시도해주세요.' });
+      await dialog.alert({ title: t('postDetail.errorTitle'), message: t('postDetail.blockFailMsg') });
     }
   };
 
@@ -260,11 +266,11 @@ export function PostDetailScreen() {
   const handlePostMoreOther = async () => {
     if (await ensureNotGuest(user, dialog, { signOut })) return;
     const id = await dialog.show({
-      title: '게시글',
+      title: t('postDetail.postMenuTitle'),
       buttons: [
-        { id: 'report', text: '🚩 신고하기' },
-        { id: 'block', text: '🚫 이 사용자 차단하기', style: 'destructive' },
-        { id: 'cancel', text: '취소', style: 'cancel' },
+        { id: 'report', text: t('postDetail.reportAction') },
+        { id: 'block', text: t('postDetail.blockAction'), style: 'destructive' },
+        { id: 'cancel', text: t('postDetail.cancel'), style: 'cancel' },
       ],
     });
     if (id === 'report') setReportTarget({ type: 'post', id: post.id });
@@ -275,11 +281,11 @@ export function PostDetailScreen() {
   const handleCommentMoreOther = async (commentId: string, authorId: string, authorName: string) => {
     if (await ensureNotGuest(user, dialog, { signOut })) return;
     const id = await dialog.show({
-      title: '댓글',
+      title: t('postDetail.commentMenuTitle'),
       buttons: [
-        { id: 'report', text: '🚩 신고하기' },
-        { id: 'block', text: '🚫 이 사용자 차단하기', style: 'destructive' },
-        { id: 'cancel', text: '취소', style: 'cancel' },
+        { id: 'report', text: t('postDetail.reportAction') },
+        { id: 'block', text: t('postDetail.blockAction'), style: 'destructive' },
+        { id: 'cancel', text: t('postDetail.cancel'), style: 'cancel' },
       ],
     });
     if (id === 'report') setReportTarget({ type: 'comment', id: commentId });
@@ -364,11 +370,11 @@ export function PostDetailScreen() {
     setIsBookmarked(next);
     if (next) {
       await supabase.from('post_bookmarks').insert({ user_id: user.id, post_id: post.id });
-      showToast('즐겨찾기에 추가했어요 ⭐');
+      showToast(t('postDetail.bookmarkOn'));
     } else {
       await supabase.from('post_bookmarks').delete()
         .eq('user_id', user.id).eq('post_id', post.id);
-      showToast('즐겨찾기를 해제했어요');
+      showToast(t('postDetail.bookmarkOff'));
     }
   };
 
@@ -385,7 +391,7 @@ export function PostDetailScreen() {
       if (error) throw error;
       setComments(buildCommentTree((data ?? []) as CommentRow[]));
     } catch (e: any) {
-      await dialog.alert({ title: '오류', message: '댓글을 불러오지 못했어요. 다시 시도해주세요.' });
+      await dialog.alert({ title: t('postDetail.errorTitle'), message: t('postDetail.commentsLoadFailMsg') });
       console.error('[PostDetail] fetchComments 오류:', e);
     } finally {
       setCommentsLoading(false);
@@ -413,7 +419,7 @@ export function PostDetailScreen() {
           .from('post_likes')
           .upsert({ post_id: post.id, user_id: user.id }, { onConflict: 'post_id,user_id' });
         if (error) throw error;
-        showToast('좋아요를 눌렀어요 ❤️');
+        showToast(t('postDetail.likeOn'));
       } else {
         const { error } = await supabase
           .from('post_likes')
@@ -421,7 +427,7 @@ export function PostDetailScreen() {
           .eq('post_id', post.id)
           .eq('user_id', user.id);
         if (error) throw error;
-        showToast('좋아요를 취소했어요');
+        showToast(t('postDetail.likeOff'));
       }
       // DB 트리거(sync_post_like_count)가 like_count를 자동 계산하므로
       // 클라이언트 계산값 대신 DB 실제 값으로 동기화
@@ -437,7 +443,7 @@ export function PostDetailScreen() {
       // 에러 시 롤백
       setLiked(prevLiked);
       setLikeCount(prevCount);
-      await dialog.alert({ title: '오류', message: '좋아요 처리 중 문제가 생겼어요. 다시 시도해주세요.' });
+      await dialog.alert({ title: t('postDetail.errorTitle'), message: t('postDetail.likeFailMsg') });
       console.error('[PostDetail] handleLike 오류:', e);
     }
   };
@@ -477,7 +483,7 @@ export function PostDetailScreen() {
       if (isBanRlsError(e)) {
         showBannedDialog(dialog);
       } else {
-        await dialog.alert({ title: '오류', message: e.message ?? '댓글 등록 중 문제가 생겼어요. 다시 시도해주세요.' });
+        await dialog.alert({ title: t('postDetail.errorTitle'), message: e.message ?? t('postDetail.commentFailMsg') });
       }
       console.error('[PostDetail] handleCommentSubmit 오류:', e);
     } finally {
@@ -510,7 +516,7 @@ export function PostDetailScreen() {
       }
       await fetchComments();
     } catch (e: any) {
-      await dialog.alert({ title: '오류', message: '좋아요 처리 중 문제가 생겼어요.' });
+      await dialog.alert({ title: t('postDetail.errorTitle'), message: t('postDetail.commentLikeFailMsg') });
       console.error('[PostDetail] handleCommentLike 오류:', e);
     }
   };
@@ -526,14 +532,14 @@ export function PostDetailScreen() {
   // 댓글 + 대댓글 합산 (차단 제외 후)
   const totalCommentCount = visibleComments.reduce((acc, c) => acc + 1 + c.replies.length, 0);
 
-  // 카테고리 라벨 결정
-  const categoryLabel = post.isNews ? '정보' : (post.category ?? '자유');
-  const categoryColor = CATEGORY_COLORS[categoryLabel] ?? CATEGORY_COLORS['자유수다'];
+  // 카테고리 라벨/색상 결정 (색상은 categoryId 기준 — 로케일에 안전)
+  const categoryLabel = post.isNews ? t('feed.typeInfo') : (post.category ?? t('feed.typeChat'));
+  const categoryColor = CATEGORY_COLORS_BY_ID[post.isNews ? 'info' : (post.categoryId ?? 'chat')] ?? CATEGORY_COLORS_BY_ID.chat;
 
   return (
     <SafeAreaView style={styles.safe} edges={['top']}>
       <TopBar
-        title="글 보기"
+        title={t('postDetail.title')}
         showBack
         rightComponent={
           isOwner ? (
@@ -548,7 +554,7 @@ export function PostDetailScreen() {
                   marginRight: 4,
                 }}
               >
-                <Text style={{ fontSize: 14, color: '#555' }}>수정</Text>
+                <Text style={{ fontSize: 14, color: '#555' }}>{t('postDetail.edit')}</Text>
               </TouchableOpacity>
               <TouchableOpacity
                 onPress={handleDelete}
@@ -559,7 +565,7 @@ export function PostDetailScreen() {
                   backgroundColor: '#FFF0F0',
                 }}
               >
-                <Text style={{ fontSize: 14, color: '#F44336' }}>삭제</Text>
+                <Text style={{ fontSize: 14, color: '#F44336' }}>{t('postDetail.delete')}</Text>
               </TouchableOpacity>
             </View>
           ) : (!post.isNews && post.authorId) ? (
@@ -576,7 +582,7 @@ export function PostDetailScreen() {
               }}
             >
               <Ionicons name="ellipsis-horizontal" size={16} color="#555" />
-              <Text style={{ fontSize: 14, color: '#555' }}>더보기</Text>
+              <Text style={{ fontSize: 14, color: '#555' }}>{t('postDetail.more')}</Text>
             </TouchableOpacity>
           ) : undefined
         }
@@ -640,7 +646,7 @@ export function PostDetailScreen() {
                 color={liked ? Colors.danger : '#888'}
               />
               <Text style={[styles.statLabel, liked && { color: Colors.danger }]}>
-                좋아요 {likeCount}
+                {t('postDetail.likeCount', { count: likeCount })}
               </Text>
             </TouchableOpacity>
 
@@ -648,14 +654,14 @@ export function PostDetailScreen() {
 
             <View style={styles.statItem}>
               <Ionicons name="chatbubble-outline" size={20} color="#888" />
-              <Text style={styles.statLabel}>댓글 {totalCommentCount}</Text>
+              <Text style={styles.statLabel}>{t('postDetail.commentCount', { count: totalCommentCount })}</Text>
             </View>
 
             <View style={styles.statSep} />
 
             <View style={styles.statItem}>
               <Ionicons name="eye-outline" size={20} color="#888" />
-              <Text style={styles.statLabel}>조회 {post.views}</Text>
+              <Text style={styles.statLabel}>{t('postDetail.viewsCount', { count: post.views })}</Text>
             </View>
 
             <View style={styles.statSep} />
@@ -667,14 +673,14 @@ export function PostDetailScreen() {
                 color={isBookmarked ? Colors.primary : '#888'}
               />
               <Text style={[styles.statLabel, isBookmarked && { color: Colors.primary }]}>
-                즐겨찾기
+                {t('postDetail.bookmark')}
               </Text>
             </TouchableOpacity>
           </View>
 
           {/* ── 댓글 섹션 ── */}
           <View style={styles.commentHeader}>
-            <Text style={styles.commentTitle}>댓글 {totalCommentCount}개</Text>
+            <Text style={styles.commentTitle}>{t('postDetail.commentsHeader', { count: totalCommentCount })}</Text>
           </View>
 
           {commentsLoading ? (
@@ -714,7 +720,7 @@ export function PostDetailScreen() {
                       onPress={() => setReplyingTo(replyingTo === comment.id ? null : comment.id)}
                     >
                       <Text style={styles.actionText}>
-                        {replyingTo === comment.id ? '취소' : '답글달기'}
+                        {replyingTo === comment.id ? t('postDetail.replyCancel') : t('postDetail.replyAction')}
                       </Text>
                     </TouchableOpacity>
                     {!commentIsOwner && (
@@ -724,7 +730,7 @@ export function PostDetailScreen() {
                       >
                         <View style={styles.actionRow}>
                           <Ionicons name="ellipsis-horizontal" size={16} color={Colors.textSub} />
-                          <Text style={styles.actionText}>더보기</Text>
+                          <Text style={styles.actionText}>{t('postDetail.more')}</Text>
                         </View>
                       </TouchableOpacity>
                     )}
@@ -760,7 +766,7 @@ export function PostDetailScreen() {
                           >
                             <View style={styles.actionRow}>
                               <Ionicons name="ellipsis-horizontal" size={16} color={Colors.textSub} />
-                              <Text style={styles.actionText}>더보기</Text>
+                              <Text style={styles.actionText}>{t('postDetail.more')}</Text>
                             </View>
                           </TouchableOpacity>
                         )}
@@ -781,7 +787,7 @@ export function PostDetailScreen() {
           {isBannedUser(user) ? (
             <View style={[styles.commentInputArea, { paddingBottom: bottomPad }]}>
               <Text style={styles.bannedNotice}>
-                커뮤니티 이용이 제한된 계정이에요.{'\n'}문의: contact@ourmine.co.kr
+                {t('postDetail.bannedNotice')}
               </Text>
             </View>
           ) : (
@@ -789,17 +795,17 @@ export function PostDetailScreen() {
             {replyingTo && (
               <View style={styles.replyingBanner}>
                 <Text style={styles.replyingText}>
-                  {comments.find((c) => c.id === replyingTo)?.author}에게 답글 작성 중
+                  {t('postDetail.replyingTo', { name: comments.find((c) => c.id === replyingTo)?.author })}
                 </Text>
                 <TouchableOpacity onPress={() => setReplyingTo(null)}>
-                  <Text style={styles.replyCancelText}>취소</Text>
+                  <Text style={styles.replyCancelText}>{t('postDetail.cancel')}</Text>
                 </TouchableOpacity>
               </View>
             )}
             <View style={[styles.commentInputRow, { paddingBottom: bottomPad }]}>
               <TextInput
                 style={styles.commentInput}
-                placeholder={replyingTo ? '답글을 입력해주세요' : '댓글을 입력해주세요'}
+                placeholder={replyingTo ? t('postDetail.replyPlaceholder') : t('postDetail.commentPlaceholder')}
                 placeholderTextColor={Colors.textHint}
                 value={commentText}
                 onChangeText={setCommentText}
@@ -820,7 +826,7 @@ export function PostDetailScreen() {
                 onPress={handleCommentSubmit}
                 disabled={!commentText.trim() || submittingComment}
               >
-                <Text style={styles.commentSubmitText}>등록</Text>
+                <Text style={styles.commentSubmitText}>{t('postDetail.submit')}</Text>
               </TouchableOpacity>
             </View>
           </View>
@@ -840,12 +846,12 @@ export function PostDetailScreen() {
       {deleting && (
         <View style={styles.deletingOverlay}>
           <ActivityIndicator size="large" color={Colors.white} />
-          <Text style={styles.deletingText}>삭제하고 있어요…</Text>
+          <Text style={styles.deletingText}>{t('postDetail.deleting')}</Text>
         </View>
       )}
       <BrandProgressOverlay
         visible={submittingComment}
-        title="댓글을 등록하고 있어요"
+        title={t('postDetail.submittingComment')}
         minVisibleMs={500}
       />
     </SafeAreaView>

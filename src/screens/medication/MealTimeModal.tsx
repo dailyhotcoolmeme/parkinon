@@ -8,6 +8,7 @@ import {
   Animated,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
+import { useTranslation } from 'react-i18next';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Colors } from '../../constants/colors';
 import { useDoseSlots, resolveDisplaySlots, type DoseSlot } from '../../hooks/useDoseSlots';
@@ -73,7 +74,8 @@ function buildOptions(slots: DoseSlot[]): MealOption[] {
       key: (slot.id ?? slot.legacyKey ?? slot.time) as string,
       selectKey: slot.legacyKey,
       doseSlotId: slot.id,
-      label: `${title} 약`,
+      // 이름+시각(raw). " 약" 접미사는 렌더에서 i18n(medication.cardMedLabel)으로 붙인다.
+      label: title,
       time: slot.time,
       labelHasTime: true,
       icon,
@@ -84,6 +86,7 @@ function buildOptions(slots: DoseSlot[]): MealOption[] {
 }
 
 export function MealTimeModal({ visible, onSelect, onClose, mealSchedules, notifPrefs }: Props) {
+  const { t } = useTranslation();
   const insets = useSafeAreaInsets();
   const fadeAnim = useRef(new Animated.Value(0)).current;
   const slideAnim = useRef(new Animated.Value(80)).current;
@@ -123,8 +126,8 @@ export function MealTimeModal({ visible, onSelect, onClose, mealSchedules, notif
             <View style={styles.handleBar} />
           </View>
 
-          <Text style={styles.title}>어느 시간 약을 드셨나요?</Text>
-          <Text style={styles.subtitle}>복용한 시간대를 선택해주세요</Text>
+          <Text style={styles.title}>{t('medication.mealTimeTitle')}</Text>
+          <Text style={styles.subtitle}>{t('medication.mealTimeSubtitle')}</Text>
 
           <View style={styles.optionList}>
             {options.map((opt, i) => {
@@ -155,7 +158,7 @@ export function MealTimeModal({ visible, onSelect, onClose, mealSchedules, notif
                   <View style={styles.optionText}>
                     {/* 기록 시트에서는 알림 ON/OFF로 슬롯을 흐리게(dim) 하지 않는다.
                         알림 OFF 슬롯이 '약 복용 없음'처럼 보여 혼란을 주므로, 선택 불가일 때만 dim. */}
-                    <Text style={[styles.optionLabel, !selectable && styles.dimText]}>{opt.label}</Text>
+                    <Text style={[styles.optionLabel, !selectable && styles.dimText]}>{t('medication.cardMedLabel', { label: opt.label })}</Text>
                     {/* 비표준 슬롯은 라벨에 이미 시각이 있어 시각 줄 생략(중복 방지) */}
                     {!opt.labelHasTime && (
                       <Text style={[styles.optionTime, !selectable && styles.dimText]}>{displayTime}</Text>
@@ -175,7 +178,7 @@ export function MealTimeModal({ visible, onSelect, onClose, mealSchedules, notif
           <View style={styles.actionRow}>
             <TouchableOpacity style={styles.closeBtn} onPress={onClose} activeOpacity={0.75}>
               <Ionicons name="close-outline" size={22} color={Colors.textSub} />
-              <Text style={styles.closeText}>닫기</Text>
+              <Text style={styles.closeText}>{t('common.close')}</Text>
             </TouchableOpacity>
             <TouchableOpacity
               style={[styles.submitBtn, !(selectedOption?.doseSlotId || selectedOption?.selectKey) && styles.submitBtnDisabled]}
@@ -183,7 +186,7 @@ export function MealTimeModal({ visible, onSelect, onClose, mealSchedules, notif
               activeOpacity={0.8}
               disabled={!(selectedOption?.doseSlotId || selectedOption?.selectKey)}
             >
-              <Text style={styles.submitText}>등록</Text>
+              <Text style={styles.submitText}>{t('medication.mealTimeSubmit')}</Text>
             </TouchableOpacity>
           </View>
         </Animated.View>

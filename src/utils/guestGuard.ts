@@ -15,6 +15,7 @@
 import type { DialogApi } from '../context/DialogContext';
 import type { UserProfile } from '../hooks/useAuth';
 import { navigateTo } from '../navigation/navigationRef';
+import i18n from '../i18n';
 
 /** useAuth.devSignIn이 주입하는 mock 사용자 id (useAuth.ts와 동기화 필요) */
 export const GUEST_USER_ID = '00000000-0000-0000-0000-000000000001';
@@ -42,11 +43,11 @@ export async function showGuestRestrictedDialog(
   },
 ): Promise<boolean> {
   const choice = await dialog.show({
-    title: '회원가입 후 사용 가능',
-    message: '이 기능은 회원가입 후 사용하실 수 있어요.\n지금 가입하시겠어요?',
+    title: i18n.t('guestGuard.title'),
+    message: i18n.t('guestGuard.message'),
     buttons: [
-      { id: 'signup', text: '회원가입하기', style: 'primary' },
-      { id: 'close', text: '닫기', style: 'cancel' },
+      { id: 'signup', text: i18n.t('guestGuard.signupBtn'), style: 'primary' },
+      { id: 'close', text: i18n.t('guestGuard.closeBtn'), style: 'cancel' },
     ],
     cancelable: true,
   });

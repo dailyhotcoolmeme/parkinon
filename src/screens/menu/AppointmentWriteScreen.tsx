@@ -29,6 +29,12 @@ import { supabase } from '../../lib/supabase';
 import { MenuStackParamList } from '../../navigation/MenuNavigator';
 import { useNotificationBadge } from '../../context/NotificationBadgeContext';
 import { useDialog } from '../../context/DialogContext';
+import i18n from '../../i18n';
+import { useTranslation } from 'react-i18next';
+
+function isEnLocale(): boolean {
+  return (i18n.language || '').toLowerCase().startsWith('en');
+}
 
 type NavProp = StackNavigationProp<MenuStackParamList>;
 type RouteType = RouteProp<{ AppointmentWrite: { appointmentId?: string } }, 'AppointmentWrite'>;
@@ -49,13 +55,14 @@ const PICKER_MINUTES = Array.from({ length: 12 }, (_, i) => i * 5);
 const TODAY = new Date(NOW.getFullYear(), NOW.getMonth(), NOW.getDate());
 
 const DAYS_KR = ['일', '월', '화', '수', '목', '금', '토'];
+const DAYS_EN = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
 
 function getDaysInMonth(y: number, m: number): number {
   return new Date(y, m, 0).getDate();
 }
 
 function getDayOfWeek(y: number, m: number, d: number): string {
-  return DAYS_KR[new Date(y, m - 1, d).getDay()];
+  return (isEnLocale() ? DAYS_EN : DAYS_KR)[new Date(y, m - 1, d).getDay()];
 }
 
 // ─── 알림 유틸 ──────────────────────────────────────────────────────────────
@@ -156,6 +163,7 @@ function DatePickerModal({
   onConfirm: () => void;
   onClose: () => void;
 }) {
+  const { t } = useTranslation();
   const sheetBottomPad = useBottomSheetPadding(40, 20);
   // 선택 가능한 월 목록: 올해면 오늘 월 이후만, 그 외 전체
   const availableMonths = year === TODAY.getFullYear()
@@ -196,47 +204,47 @@ function DatePickerModal({
         <TouchableOpacity style={mpStyles.overlay} onPress={onClose} activeOpacity={1} />
         <View style={[mpStyles.sheet, { paddingBottom: sheetBottomPad }]}>
           <View style={mpStyles.handle} />
-          <Text style={mpStyles.title}>날짜 선택</Text>
+          <Text style={mpStyles.title}>{t('appointmentWrite.dateSelectTitle')}</Text>
           <View style={mpStyles.colsRow}>
             {/* 년도 */}
             <View style={{ flex: 5 }}>
-              <Text style={mpStyles.colHeader}>년도</Text>
+              <Text style={mpStyles.colHeader}>{t('appointmentWrite.yearHeader')}</Text>
               <PickerCol
                 data={PICKER_YEARS}
                 selected={year}
                 onSelect={handleYearChange}
-                suffix="년"
+                suffix={isEnLocale() ? '' : '년'}
                 fontSize={19}
               />
             </View>
             <View style={mpStyles.colDivider} />
             {/* 월 */}
             <View style={{ flex: 3 }}>
-              <Text style={mpStyles.colHeader}>월</Text>
+              <Text style={mpStyles.colHeader}>{t('appointmentWrite.monthHeader')}</Text>
               <PickerCol
                 data={availableMonths}
                 selected={month}
                 onSelect={handleMonthChange}
-                suffix="월"
+                suffix={isEnLocale() ? '' : '월'}
                 fontSize={19}
               />
             </View>
             <View style={mpStyles.colDivider} />
             {/* 일 + 요일 */}
             <View style={{ flex: 5 }}>
-              <Text style={mpStyles.colHeader}>일</Text>
+              <Text style={mpStyles.colHeader}>{t('appointmentWrite.dayHeader')}</Text>
               <PickerCol
                 data={days}
                 selected={day}
                 onSelect={onDayChange}
-                suffix="일"
+                suffix={isEnLocale() ? '' : '일'}
                 fontSize={18}
-                getLabel={(d) => `${d}일 (${getDayOfWeek(year, month, d)})`}
+                getLabel={(d) => isEnLocale() ? `${d} (${getDayOfWeek(year, month, d)})` : `${d}일 (${getDayOfWeek(year, month, d)})`}
               />
             </View>
           </View>
           <TouchableOpacity style={mpStyles.confirmBtn} onPress={onConfirm} activeOpacity={0.8}>
-            <Text style={mpStyles.confirmText}>선택 완료</Text>
+            <Text style={mpStyles.confirmText}>{t('appointmentWrite.selectDone')}</Text>
           </TouchableOpacity>
         </View>
       </View>
@@ -257,6 +265,7 @@ function TimePickerModal({
   onConfirm: () => void;
   onClose: () => void;
 }) {
+  const { t } = useTranslation();
   const sheetBottomPad = useBottomSheetPadding(40, 20);
   return (
     <Modal visible={visible} transparent animationType="slide">
@@ -264,32 +273,32 @@ function TimePickerModal({
         <TouchableOpacity style={mpStyles.overlay} onPress={onClose} activeOpacity={1} />
         <View style={[mpStyles.sheet, { paddingBottom: sheetBottomPad }]}>
           <View style={mpStyles.handle} />
-          <Text style={mpStyles.title}>시간 선택</Text>
+          <Text style={mpStyles.title}>{t('appointmentWrite.timeSelectTitle')}</Text>
           <View style={mpStyles.colsRow}>
             <View style={{ flex: 1 }}>
-              <Text style={mpStyles.colHeader}>시</Text>
+              <Text style={mpStyles.colHeader}>{t('appointmentWrite.hourHeader')}</Text>
               <PickerCol
                 data={PICKER_HOURS}
                 selected={hour}
                 onSelect={onHourChange}
-                suffix="시"
+                suffix={isEnLocale() ? '' : '시'}
                 padLen={2}
               />
             </View>
             <View style={mpStyles.colDivider} />
             <View style={{ flex: 1 }}>
-              <Text style={mpStyles.colHeader}>분</Text>
+              <Text style={mpStyles.colHeader}>{t('appointmentWrite.minuteHeader')}</Text>
               <PickerCol
                 data={PICKER_MINUTES}
                 selected={minute}
                 onSelect={onMinuteChange}
-                suffix="분"
+                suffix={isEnLocale() ? '' : '분'}
                 padLen={2}
               />
             </View>
           </View>
           <TouchableOpacity style={mpStyles.confirmBtn} onPress={onConfirm} activeOpacity={0.8}>
-            <Text style={mpStyles.confirmText}>선택 완료</Text>
+            <Text style={mpStyles.confirmText}>{t('appointmentWrite.selectDone')}</Text>
           </TouchableOpacity>
         </View>
       </View>
@@ -299,6 +308,7 @@ function TimePickerModal({
 
 // ─── 메인 화면 ───────────────────────────────────────────────────────────────
 export function AppointmentWriteScreen() {
+  const { t } = useTranslation();
   const navigation = useNavigation<NavProp>();
   const route = useRoute<RouteType>();
   const appointmentId = (route.params as any)?.appointmentId as string | undefined;
@@ -385,7 +395,7 @@ export function AppointmentWriteScreen() {
           `${SUPABASE_URL}/rest/v1/medical_appointments?id=eq.${appointmentId}`,
           { headers: { apikey: SUPABASE_ANON_KEY, Authorization: `Bearer ${token}` } },
         );
-        if (!res.ok) throw new Error('데이터 로드 실패');
+        if (!res.ok) throw new Error(t('appointmentWrite.loadFailMsg'));
         const data = await res.json();
         if (data.length > 0) {
           const appt = data[0];
@@ -401,7 +411,7 @@ export function AppointmentWriteScreen() {
           if (appt.notification_ids?.length > 0) setExistingNotifIds(appt.notification_ids);
         }
       } catch (e: any) {
-        dialog.alert({ title: '오류', message: e.message ?? '데이터를 불러오지 못했어요.' });
+        dialog.alert({ title: t('appointmentWrite.errorTitle'), message: e.message ?? t('appointmentWrite.loadFailAlertMsg') });
       } finally {
         setIsLoading(false);
       }
@@ -439,14 +449,18 @@ export function AppointmentWriteScreen() {
   };
 
   const dow = getDayOfWeek(selYear, selMonth, selDay);
-  const displayDate = `${selYear}년 ${selMonth}월 ${selDay}일 (${dow})`;
-  const displayTime = `${String(selHour).padStart(2, '0')}시 ${String(selMinute).padStart(2, '0')}분`;
+  const displayDate = isEnLocale()
+    ? `${selYear}-${selMonth}-${selDay} (${dow})`
+    : `${selYear}년 ${selMonth}월 ${selDay}일 (${dow})`;
+  const displayTime = isEnLocale()
+    ? `${String(selHour).padStart(2, '0')}:${String(selMinute).padStart(2, '0')}`
+    : `${String(selHour).padStart(2, '0')}시 ${String(selMinute).padStart(2, '0')}분`;
 
   const handleSave = async () => {
     if (!user) return;
     // 미연동 보호자는 저장 직전 차단(폴백 본인 id 저장으로 유령 레코드 생기는 것 방지).
     if (caregiverUnlinked) {
-      await dialog.alert({ title: '환자 연동 후 가능해요', message: '가족 연동 메뉴에서 환자를 먼저 연동해주세요.' });
+      await dialog.alert({ title: t('appointmentWrite.linkRequiredTitle'), message: t('appointmentWrite.linkRequiredMsg') });
       return;
     }
     const apptDate = new Date(selYear, selMonth - 1, selDay, selHour, selMinute);
@@ -489,19 +503,19 @@ export function AppointmentWriteScreen() {
           `${SUPABASE_URL}/rest/v1/medical_appointments?id=eq.${appointmentId}`,
           { method: 'PATCH', headers, body: JSON.stringify(payload) },
         );
-        if (!res.ok) throw new Error('일정 수정에 실패했어요.');
+        if (!res.ok) throw new Error(t('appointmentWrite.updateFailMsg'));
       } else {
         const res = await fetch(
           `${SUPABASE_URL}/rest/v1/medical_appointments`,
           { method: 'POST', headers, body: JSON.stringify(payload) },
         );
-        if (!res.ok) throw new Error('일정 저장에 실패했어요.');
+        if (!res.ok) throw new Error(t('appointmentWrite.insertFailMsg'));
       }
 
-      await dialog.alert({ title: '저장 완료', message: '진료 일정이 저장되었어요.' });
+      await dialog.alert({ title: t('appointmentWrite.saveDoneTitle'), message: t('appointmentWrite.saveDoneMsg') });
       navigation.goBack();
     } catch (e: any) {
-      dialog.alert({ title: '오류', message: e.message ?? '저장에 실패했어요.' });
+      dialog.alert({ title: t('appointmentWrite.errorTitle'), message: e.message ?? t('appointmentWrite.saveFailMsg') });
     } finally {
       setIsSaving(false);
     }
@@ -511,7 +525,7 @@ export function AppointmentWriteScreen() {
     return (
       <SafeAreaView style={styles.container} edges={['top', 'bottom']}>
         <TopBar
-          title={appointmentId ? '일정 수정' : '진료 일정 등록'}
+          title={appointmentId ? t('appointmentWrite.headerEdit') : t('appointmentWrite.headerNew')}
           showBack
           showBell
           bellBadge={unreadCount}
@@ -527,18 +541,18 @@ export function AppointmentWriteScreen() {
   if (caregiverUnlinked) {
     return (
       <SafeAreaView style={styles.container} edges={['top']}>
-        <TopBar title={appointmentId ? '일정 수정' : '진료 일정 등록'} showBack />
+        <TopBar title={appointmentId ? t('appointmentWrite.headerEdit') : t('appointmentWrite.headerNew')} showBack />
         <View style={styles.unlinkedWrap}>
           <Ionicons name="people-outline" size={56} color={Colors.textHint} />
-          <Text style={styles.unlinkedTitle}>환자를 먼저 연동해주세요</Text>
-          <Text style={styles.unlinkedDesc}>{'가족을 연동하면 환자분의\n진료 일정을 대신 등록할 수 있어요'}</Text>
+          <Text style={styles.unlinkedTitle}>{t('appointmentWrite.unlinkedTitle')}</Text>
+          <Text style={styles.unlinkedDesc}>{t('appointmentWrite.unlinkedDesc')}</Text>
           <TouchableOpacity
             style={styles.linkFamilyBtn}
             onPress={() => navigation.navigate('FamilyLink')}
             activeOpacity={0.85}
           >
             <Ionicons name="person-add-outline" size={22} color={Colors.white} />
-            <Text style={styles.linkFamilyBtnText}>가족 연동하기</Text>
+            <Text style={styles.linkFamilyBtnText}>{t('appointmentWrite.linkFamilyBtn')}</Text>
           </TouchableOpacity>
         </View>
       </SafeAreaView>
@@ -547,7 +561,7 @@ export function AppointmentWriteScreen() {
 
   return (
     <SafeAreaView style={styles.container} edges={['top']}>
-      <TopBar title={appointmentId ? '일정 수정' : '진료 일정 등록'} showBack />
+      <TopBar title={appointmentId ? t('appointmentWrite.headerEdit') : t('appointmentWrite.headerNew')} showBack />
       <KeyboardAvoidingView
         style={{ flex: 1 }}
         behavior={Platform.OS === 'ios' ? 'padding' : undefined}
@@ -555,14 +569,14 @@ export function AppointmentWriteScreen() {
         <ScrollView contentContainerStyle={styles.scroll} keyboardShouldPersistTaps="handled">
 
           {/* 진료 날짜 */}
-          <Text style={styles.label}>진료 날짜 *</Text>
+          <Text style={styles.label}>{t('appointmentWrite.visitDateLabel')}</Text>
           <TouchableOpacity style={styles.pickerBtn} onPress={openDatePicker} activeOpacity={0.8}>
             <Text style={styles.pickerBtnText}>📅  {displayDate}</Text>
             <Text style={styles.pickerArrow}>▼</Text>
           </TouchableOpacity>
 
           {/* 진료 시간 */}
-          <Text style={styles.label}>진료 시간 *</Text>
+          <Text style={styles.label}>{t('appointmentWrite.visitTimeLabel')}</Text>
           <TouchableOpacity style={styles.pickerBtn} onPress={openTimePicker} activeOpacity={0.8}>
             <Text style={styles.pickerBtnText}>🕐  {displayTime}</Text>
             <Text style={styles.pickerArrow}>▼</Text>
@@ -572,16 +586,16 @@ export function AppointmentWriteScreen() {
           {isFirstAppointment && (
             <View style={styles.hintCard}>
               <Text style={styles.hintText}>
-                💡 병원명과 의사명을 한 번만 입력하면{'\n'}다음부터는 자동으로 불러와요
+                {t('appointmentWrite.autoFillHint')}
               </Text>
             </View>
           )}
 
           {/* 병원명 */}
-          <Text style={styles.label}>병원명 *</Text>
+          <Text style={styles.label}>{t('appointmentWrite.hospitalLabel')}</Text>
           <TextInput
             style={styles.input}
-            placeholder="예) 한강성심병원"
+            placeholder={t('appointmentWrite.hospitalPlaceholder')}
             placeholderTextColor={Colors.textHint}
             value={hospitalName}
             onChangeText={setHospitalName}
@@ -589,10 +603,10 @@ export function AppointmentWriteScreen() {
           />
 
           {/* 의사명 */}
-          <Text style={styles.label}>의사명</Text>
+          <Text style={styles.label}>{t('appointmentWrite.doctorLabel')}</Text>
           <TextInput
             style={styles.input}
-            placeholder="예) 김민준"
+            placeholder={t('appointmentWrite.doctorPlaceholder')}
             placeholderTextColor={Colors.textHint}
             value={doctorName}
             onChangeText={setDoctorName}
@@ -602,13 +616,13 @@ export function AppointmentWriteScreen() {
           {/* 알림 설정 */}
           <View style={styles.sectionLabelRow}>
             <Ionicons name="notifications-outline" size={24} color={Colors.primary} style={{ marginRight: 8 }} />
-            <Text style={[styles.label, { marginTop: 0 }]}>알림 설정</Text>
+            <Text style={[styles.label, { marginTop: 0 }]}>{t('appointmentWrite.notifSettingsTitle')}</Text>
           </View>
           <View style={styles.notifCard}>
             <View style={styles.notifRow}>
               <View style={styles.notifLeft}>
-                <Text style={styles.notifTitle}>1주일 전 알림</Text>
-                <Text style={styles.notifDesc}>진료 7일 전에 알려드려요</Text>
+                <Text style={styles.notifTitle}>{t('appointmentWrite.weekBeforeTitle')}</Text>
+                <Text style={styles.notifDesc}>{t('appointmentWrite.weekBeforeDesc')}</Text>
               </View>
               <Switch
                 value={notifyWeekBefore}
@@ -620,8 +634,8 @@ export function AppointmentWriteScreen() {
             <View style={styles.divider} />
             <View style={styles.notifRow}>
               <View style={styles.notifLeft}>
-                <Text style={styles.notifTitle}>하루 전 알림</Text>
-                <Text style={styles.notifDesc}>진료 1일 전에 알려드려요</Text>
+                <Text style={styles.notifTitle}>{t('appointmentWrite.dayBeforeTitle')}</Text>
+                <Text style={styles.notifDesc}>{t('appointmentWrite.dayBeforeDesc')}</Text>
               </View>
               <Switch
                 value={notifyDayBefore}
@@ -631,7 +645,7 @@ export function AppointmentWriteScreen() {
               />
             </View>
           </View>
-          <Text style={styles.notifNote}>알림이 오려면 기기 알림 설정을 허용해 주세요.</Text>
+          <Text style={styles.notifNote}>{t('appointmentWrite.notifNote')}</Text>
 
           {/* 저장 버튼 */}
           <TouchableOpacity
@@ -640,7 +654,7 @@ export function AppointmentWriteScreen() {
             activeOpacity={0.8}
             disabled={isSaving}
           >
-            <Text style={styles.saveBtnText}>저장하기</Text>
+            <Text style={styles.saveBtnText}>{t('appointmentWrite.saveBtn')}</Text>
           </TouchableOpacity>
         </ScrollView>
       </KeyboardAvoidingView>
@@ -665,7 +679,7 @@ export function AppointmentWriteScreen() {
       />
       <BrandProgressOverlay
         visible={isSaving}
-        title="저장하고 있어요"
+        title={i18n.t('loading.saving')}
         minVisibleMs={500}
       />
     </SafeAreaView>

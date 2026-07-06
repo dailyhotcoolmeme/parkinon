@@ -15,10 +15,7 @@
  *   ... catch (e) { if (isBanRlsError(e)) { showBannedDialog(dialog); return; } }
  */
 import type { DialogApi } from '../context/DialogContext';
-
-/** 커뮤니티 이용 제한 안내 문구 (60대 타깃 — 표준어, 큰 글씨) */
-const BANNED_MESSAGE =
-  '커뮤니티 이용이 제한된 계정이에요.\n문의: contact@ourmine.co.kr';
+import i18n from '../i18n';
 
 /** 사용자의 banned 플래그가 true 인지 판정 */
 export function isBannedUser(
@@ -29,7 +26,7 @@ export function isBannedUser(
 
 /** 커뮤니티 이용 제한 안내 다이얼로그 표시 */
 export function showBannedDialog(dialog: DialogApi): void {
-  dialog.alert({ title: '이용 제한', message: BANNED_MESSAGE });
+  dialog.alert({ title: i18n.t('banGuard.title'), message: i18n.t('banGuard.message') });
 }
 
 /**

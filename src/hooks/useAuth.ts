@@ -15,9 +15,11 @@ import * as Notifications from 'expo-notifications';
 import { login as kakaoLogin } from '@react-native-seoul/kakao-login';
 import { supabase } from '../lib/supabase';
 import { requestPermissionsAndSaveToken } from '../utils/notifications';
+import { getDeviceTimeZone } from '../utils/timezone';
 import { provisionForUser } from '../lib/alarmSound';
 import { useDialog, DialogApi } from '../context/DialogContext';
 import { GUEST_USER_ID } from '../utils/guestGuard';
+import i18n from '../i18n';
 
 // ─── 딥링크 redirect URI ────────────────────────────────────────────────────
 const REDIRECT_TO = 'parkinon://auth/callback';
@@ -44,6 +46,8 @@ export interface UserProfile {
   international_transfer_consent_version: number | null;
   /** 커뮤니티 이용 제한(밴) 여부. true면 글/댓글 작성 차단 */
   banned: boolean | null;
+  /** 사용자 기기 IANA 타임존(예: 'Asia/Seoul', 'America/New_York'). Phase1 S1에서 저장만, S2/S3에서 사용 */
+  timezone: string;
 }
 
 export type AuthUser = UserProfile;
@@ -83,7 +87,7 @@ async function processAuthUrl(
     const { error } = await supabase.auth.setSession({ access_token: accessToken, refresh_token: refreshToken });
     if (error) {
       console.error('[useAuth] setSession 오류:', error.message);
-      dialog?.alert({ title: '로그인 실패', message: '카카오 로그인 처리 중 오류가 발생했습니다. 다시 시도해주세요.' });
+      dialog?.alert({ title: i18n.t('authHook.loginFailTitle'), message: i18n.t('authHook.kakaoErrorMsg') });
     }
   } else {
     // PKCE 방식 (code 파라미터)
@@ -95,7 +99,7 @@ async function processAuthUrl(
       const { data, error } = await supabase.auth.exchangeCodeForSession(code);
       if (error) {
         console.error('[useAuth] exchangeCodeForSession 오류:', error.message, error.status);
-        dialog?.alert({ title: '로그인 실패', message: '카카오 로그인 처리 중 오류가 발생했습니다. 다시 시도해주세요.' });
+        dialog?.alert({ title: i18n.t('authHook.loginFailTitle'), message: i18n.t('authHook.kakaoErrorMsg') });
         return;
       }
       // onAuthStateChange가 발동하지 않을 경우를 대비해 세션 직접 확인
@@ -115,7 +119,7 @@ async function processAuthUrl(
       }
     } else {
       if (__DEV__) console.error('[useAuth] Auth URL에서 토큰/코드 없음. 파라미터:', Object.keys(parsed.queryParams ?? {}));
-      dialog?.alert({ title: '로그인 실패', message: '카카오 로그인 응답이 올바르지 않습니다. 다시 시도해주세요.' });
+      dialog?.alert({ title: i18n.t('authHook.loginFailTitle'), message: i18n.t('authHook.kakaoInvalidResponseMsg') });
     }
   }
 
@@ -304,7 +308,7 @@ export function useAuthProvider(): UseAuthReturn {
           } else {
             // Edge Function 행이 끝내 안 보임 → 로그인 실패 처리(클라 INSERT 금지)
             console.error('[useAuth] 카카오 유저 행을 찾지 못함 — Edge Function 행 누락 추정');
-            dialog?.alert({ title: '로그인 실패', message: '로그인 처리 중 문제가 발생했습니다. 잠시 후 다시 시도해주세요.' });
+            dialog?.alert({ title: i18n.t('authHook.loginFailTitle'), message: i18n.t('authHook.genericLoginFailMsg') });
             setUser(null);
             setLoading(false);
             return;
@@ -321,7 +325,7 @@ export function useAuthProvider(): UseAuthReturn {
         }
 
         // 구글 등 비-카카오 경로 — Edge Function/트리거가 없으므로 클라 INSERT로 행 생성
-        const name = userMeta?.full_name || userMeta?.name || '사용자';
+        const name = userMeta?.full_name || userMeta?.name || i18n.t('authHook.defaultUserName');
         const newUser = {
           id: userId, name,
           role: 'patient' as const,
@@ -335,6 +339,9 @@ export function useAuthProvider(): UseAuthReturn {
           international_transfer_consented: false,
           international_transfer_consent_version: null,
           banned: false,
+          // 기기 IANA 타임존(Phase1 S1). 컬럼 DEFAULT도 'Asia/Seoul'이라 미지정도 안전하나,
+          // 구글 등 비-카카오 신규 가입 시 실제 기기 tz를 즉시 채운다.
+          timezone: getDeviceTimeZone(),
         };
         try {
           const inserted: UserProfile[] = await dbFetch('/users?select=*', token, {
@@ -673,7 +680,7 @@ export function useAuthProvider(): UseAuthReturn {
       ) {
         return false;
       }
-      dialog.alert({ title: '로그인 오류', message: '오류가 발생했습니다. 다시 시도해주세요.\n\n[디버그] ' + msg.substring(0, 200) });
+      dialog.alert({ title: i18n.t('authHook.loginErrorTitle'), message: i18n.t('authHook.genericErrorMsg') + '\n\n[debug] ' + msg.substring(0, 200) });
       return false;
     }
   }, [loadUserProfile, dialog]);
@@ -682,7 +689,7 @@ export function useAuthProvider(): UseAuthReturn {
   const devSignIn = useCallback(async () => {
     const mockUser: UserProfile = {
       id: GUEST_USER_ID,
-      name: '홍길동',
+      name: i18n.t('authHook.mockGuestName'),
       role: 'patient',
       onboarding_done: true,
       notification_enabled: true,
@@ -699,6 +706,7 @@ export function useAuthProvider(): UseAuthReturn {
       international_transfer_consented: true,
       international_transfer_consent_version: 1,
       banned: false,
+      timezone: 'Asia/Seoul',
     };
     setUser(mockUser);
   }, []);

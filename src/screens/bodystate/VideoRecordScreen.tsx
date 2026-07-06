@@ -23,6 +23,8 @@ import { useNotificationBadge } from '../../context/NotificationBadgeContext';
 import { uploadVideo, saveMediaLog } from '../../lib/r2Upload';
 import { Video as VideoCompressor } from 'react-native-compressor';
 import { useDialog } from '../../context/DialogContext';
+import i18n from '../../i18n';
+import { useTranslation } from 'react-i18next';
 
 const { height: SCREEN_HEIGHT } = Dimensions.get('window');
 
@@ -36,6 +38,7 @@ interface SelectedVideo {
 }
 
 export function VideoRecordScreen() {
+  const { t } = useTranslation();
   const navigation = useNavigation<any>();
   const { user } = useAuth();
   const { getPatientId } = useBodyState();
@@ -59,7 +62,7 @@ export function VideoRecordScreen() {
     try {
       const permResult = await ImagePicker.requestMediaLibraryPermissionsAsync();
       if (!permResult.granted) {
-        dialog.alert({ title: '권한 필요', message: '갤러리 접근 권한이 필요해요.' });
+        dialog.alert({ title: t('videoRecord.permRequiredTitle'), message: t('videoRecord.galleryPermMsg') });
         return;
       }
 
@@ -76,8 +79,8 @@ export function VideoRecordScreen() {
 
         if (durationSec > MAX_DURATION_SEC) {
           dialog.alert({
-            title: '영상이 너무 길어요',
-            message: '2분 이하의 영상만 선택할 수 있어요.\n더 짧은 영상을 선택해주세요.',
+            title: t('videoRecord.videoTooLongTitle'),
+            message: t('videoRecord.videoTooLongSelectMsg'),
           });
           return;
         }
@@ -92,7 +95,7 @@ export function VideoRecordScreen() {
         setDuration(0);
       }
     } catch (e) {
-      dialog.alert({ title: '오류', message: '영상을 불러오는 중 문제가 생겼어요. 다시 시도해주세요.' });
+      dialog.alert({ title: t('videoRecord.errorTitle'), message: t('videoRecord.loadVideoFailMsg') });
     }
   };
 
@@ -100,7 +103,7 @@ export function VideoRecordScreen() {
     try {
       const camPerm = await ImagePicker.requestCameraPermissionsAsync();
       if (!camPerm.granted) {
-        dialog.alert({ title: '권한 필요', message: '카메라 접근 권한이 필요해요.' });
+        dialog.alert({ title: t('videoRecord.permRequiredTitle'), message: t('videoRecord.cameraPermMsg') });
         return;
       }
 
@@ -116,8 +119,8 @@ export function VideoRecordScreen() {
 
         if (durationSec > MAX_DURATION_SEC) {
           dialog.alert({
-            title: '영상이 너무 길어요',
-            message: '2분 이하의 영상만 선택할 수 있어요.',
+            title: t('videoRecord.videoTooLongTitle'),
+            message: t('videoRecord.videoTooLongSelectMsgShort'),
           });
           return;
         }
@@ -132,7 +135,7 @@ export function VideoRecordScreen() {
         setDuration(0);
       }
     } catch (e) {
-      dialog.alert({ title: '오류', message: '카메라를 열 수 없어요. 다시 시도해주세요.' });
+      dialog.alert({ title: t('videoRecord.errorTitle'), message: t('videoRecord.cameraOpenFailMsg') });
     }
   };
 
@@ -163,7 +166,7 @@ export function VideoRecordScreen() {
     try {
       const patientId = await getPatientId();
       if (!patientId) {
-        dialog.alert({ title: '오류', message: '연동된 환자 정보를 찾을 수 없어요.' });
+        dialog.alert({ title: t('videoRecord.errorTitle'), message: t('videoRecord.noPatientLinkMsg') });
         setUploadStage(null);
         setLoading(false);
         return;
@@ -212,18 +215,18 @@ export function VideoRecordScreen() {
       if (e?.message === 'UPLOAD_TIMEOUT') {
         dialog
           .show({
-            title: '업로드 시간 초과',
-            message: '네트워크가 느려서 저장에 실패했어요.\n와이파이 연결 후 다시 시도해주세요.',
+            title: t('videoRecord.uploadTimeoutTitle'),
+            message: t('videoRecord.uploadTimeoutMsg'),
             buttons: [
-              { id: 'retry', text: '다시 시도', style: 'primary' },
-              { id: 'cancel', text: '취소', style: 'cancel' },
+              { id: 'retry', text: t('videoRecord.retry'), style: 'primary' },
+              { id: 'cancel', text: t('videoRecord.cancel'), style: 'cancel' },
             ],
           })
           .then((picked) => {
             if (picked === 'retry') handleSave();
           });
       } else {
-        dialog.alert({ title: '오류', message: e.message ?? '저장 중 문제가 생겼어요. 다시 시도해주세요.' });
+        dialog.alert({ title: t('videoRecord.errorTitle'), message: e.message ?? t('videoRecord.saveFailMsg') });
       }
     } finally {
       if (!cancelledRef.current && uploadStage !== 'done') setLoading(false);
@@ -284,13 +287,13 @@ export function VideoRecordScreen() {
   const formatDuration = (sec: number): string => {
     const m = Math.floor(sec / 60);
     const s = Math.floor(sec % 60);
-    return `${m}분 ${s}초`;
+    return t('videoRecord.minSecDuration', { m, s });
   };
 
   return (
     <SafeAreaView style={styles.safeArea}>
       <TopBar
-        title="영상 기록하기"
+        title={t('videoRecord.headerTitle')}
         showBack
         showBell
         bellBadge={unreadCount}
@@ -396,7 +399,7 @@ export function VideoRecordScreen() {
                 durationRef.current = 0;
               }}
             >
-              <Text style={styles.reSelectText}>다시 선택하기</Text>
+              <Text style={styles.reSelectText}>{t('videoRecord.reselect')}</Text>
             </TouchableOpacity>
           </View>
         ) : (
@@ -404,11 +407,11 @@ export function VideoRecordScreen() {
           <View style={styles.emptyCenter}>
             {/* 2분 제한 강조 안내 문구 */}
             <View style={styles.noticeRow}>
-              <Text style={styles.noticeRowText}>최대 </Text>
+              <Text style={styles.noticeRowText}>{t('videoRecord.maxPrefix')}</Text>
               <View style={styles.noticePill}>
-                <Text style={styles.noticePillText}>2분</Text>
+                <Text style={styles.noticePillText}>{t('videoRecord.maxDuration')}</Text>
               </View>
-              <Text style={styles.noticeRowText}> 이내 영상만 등록할 수 있어요</Text>
+              <Text style={styles.noticeRowText}>{t('videoRecord.maxSuffix')}</Text>
             </View>
 
             {/* 촬영하기 버튼 */}
@@ -418,8 +421,8 @@ export function VideoRecordScreen() {
               activeOpacity={0.85}
             >
               <Ionicons name="camera-outline" size={52} color="#fff" />
-              <Text style={styles.actionBtnLabel}>지금 촬영하기</Text>
-              <Text style={styles.actionBtnSub}>카메라로 바로 촬영해요</Text>
+              <Text style={styles.actionBtnLabel}>{t('videoRecord.recordNowTitle')}</Text>
+              <Text style={styles.actionBtnSub}>{t('videoRecord.recordNowSub')}</Text>
             </TouchableOpacity>
 
             {/* 갤러리 버튼 */}
@@ -429,8 +432,8 @@ export function VideoRecordScreen() {
               activeOpacity={0.85}
             >
               <Ionicons name="images-outline" size={52} color="#fff" />
-              <Text style={styles.actionBtnLabel}>갤러리에서 선택하기</Text>
-              <Text style={styles.actionBtnSub}>저장된 영상을 불러와요</Text>
+              <Text style={styles.actionBtnLabel}>{t('videoRecord.galleryTitle')}</Text>
+              <Text style={styles.actionBtnSub}>{t('videoRecord.gallerySub')}</Text>
             </TouchableOpacity>
           </View>
         )}
@@ -439,7 +442,7 @@ export function VideoRecordScreen() {
         {selectedVideo && (
           <View style={styles.buttonArea}>
             <PrimaryButton
-              title="저장하기"
+              title={t('videoRecord.saveBtn')}
               onPress={handleSave}
               loading={loading}
             />
@@ -453,21 +456,25 @@ export function VideoRecordScreen() {
 
 // ─── 업로드 로딩 오버레이 ─────────────────────────────────────────────────────
 
-const TIPS = [
-  { icon: 'people-outline', title: '기록을 남기면 보호자도 알 수 있어요', desc: '가족이 함께 건강 상태를 확인할 수 있어요' },
-  { icon: 'bar-chart-outline', title: '꾸준한 기록이 힘이에요', desc: '약효 패턴은 반복 기록이 쌓여야 보여요' },
-  { icon: 'time-outline', title: '정해진 시간에 기록해요', desc: '알림 시간에 맞춰 기록하면 더 정확해요' },
-  { icon: 'medical-outline', title: '복용 직후 기록이 중요해요', desc: '약효 시작 시점을 정확히 파악할 수 있어요' },
-  { icon: 'walk-outline', title: '몸 상태가 좋으면 운동도 해봐요', desc: '파킨슨엔 꾸준한 운동이 큰 도움이 돼요' },
-  { icon: 'analytics-outline', title: '기록할수록 정확해져요', desc: '데이터가 쌓일수록 의미 있는 분석이 가능해요' },
-] as const;
+function getTips(t: (k: string) => string) {
+  return [
+    { icon: 'people-outline', title: t('videoRecord.tip1Title'), desc: t('videoRecord.tip1Desc') },
+    { icon: 'bar-chart-outline', title: t('videoRecord.tip2Title'), desc: t('videoRecord.tip2Desc') },
+    { icon: 'time-outline', title: t('videoRecord.tip3Title'), desc: t('videoRecord.tip3Desc') },
+    { icon: 'medical-outline', title: t('videoRecord.tip4Title'), desc: t('videoRecord.tip4Desc') },
+    { icon: 'walk-outline', title: t('videoRecord.tip5Title'), desc: t('videoRecord.tip5Desc') },
+    { icon: 'analytics-outline', title: t('videoRecord.tip6Title'), desc: t('videoRecord.tip6Desc') },
+  ] as const;
+}
 
-const STAGES = [
-  { key: 'compressing', label: '압축 중' },
-  { key: 'uploading',   label: '업로드 중' },
-  { key: 'saving',      label: '저장 중' },
-  { key: 'done',        label: '완료' },
-] as const;
+function getStages(t: (k: string) => string) {
+  return [
+    { key: 'compressing', label: t('videoRecord.stageCompressing') },
+    { key: 'uploading',   label: t('videoRecord.stageUploading') },
+    { key: 'saving',      label: t('videoRecord.stageSaving') },
+    { key: 'done',        label: t('videoRecord.stageDone') },
+  ] as const;
+}
 
 function UploadOverlay({
   stage,
@@ -476,6 +483,9 @@ function UploadOverlay({
   stage: 'compressing' | 'uploading' | 'saving' | 'done' | null;
   onCancel: () => void;
 }) {
+  const { t } = useTranslation();
+  const TIPS = getTips(t);
+  const STAGES = getStages(t);
   const [tipIndex, setTipIndex] = useState(0);
   const [elapsed, setElapsed] = useState(0);
   const fadeAnim = useRef(new Animated.Value(1)).current;
@@ -506,8 +516,8 @@ function UploadOverlay({
   const currentStageIdx = STAGES.findIndex(s => s.key === stage);
   const tip = TIPS[tipIndex];
   const elapsedStr = elapsed < 60
-    ? `${elapsed}초`
-    : `${Math.floor(elapsed / 60)}분 ${elapsed % 60}초`;
+    ? t('videoRecord.secOnly', { s: elapsed })
+    : t('videoRecord.minSecDuration', { m: Math.floor(elapsed / 60), s: elapsed % 60 });
 
   return (
     <Modal transparent visible animationType="fade">
@@ -519,13 +529,13 @@ function UploadOverlay({
               <View style={ovStyles.checkCircle}>
                 <Ionicons name="checkmark-circle" size={80} color="#4CAF50" />
               </View>
-              <Text style={ovStyles.stageTitleLarge}>저장 완료!</Text>
+              <Text style={ovStyles.stageTitleLarge}>{t('videoRecord.saveDoneTitle')}</Text>
             </>
           ) : (
             <>
               {/* 타이틀 + 경과시간 */}
               <View style={ovStyles.titleRow}>
-                <Text style={ovStyles.stageTitle}>영상을 저장하고 있어요</Text>
+                <Text style={ovStyles.stageTitle}>{i18n.t('loading.savingVideo')}</Text>
                 <Text style={ovStyles.stageElapsed}> · {elapsedStr}</Text>
               </View>
 
@@ -571,7 +581,7 @@ function UploadOverlay({
 
               {/* 취소 버튼 */}
               <TouchableOpacity style={ovStyles.cancelBtn} onPress={onCancel}>
-                <Text style={ovStyles.cancelBtnText}>저장 취소</Text>
+                <Text style={ovStyles.cancelBtnText}>{t('videoRecord.cancelSaveBtn')}</Text>
               </TouchableOpacity>
             </>
           )}

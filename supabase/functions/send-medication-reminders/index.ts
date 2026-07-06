@@ -9,6 +9,9 @@ const supabase = createClient(
 const MEAL_LABELS: Record<string, string> = {
   morning: '아침', lunch: '점심', dinner: '저녁', bedtime: '취침',
 }
+const MEAL_LABELS_EN: Record<string, string> = {
+  morning: 'Morning', lunch: 'Lunch', dinner: 'Dinner', bedtime: 'Bedtime',
+}
 
 // ─── 앱 슬롯 표시명(slotTitle) 복제 ───────────────────────────────────────────
 // 앱은 src/constants/doseSlots.ts 의 slotTitle(label, legacyKey, time) 로
@@ -35,6 +38,19 @@ function periodWord(time: string | null | undefined): string {
   return '밤' // 21–23
 }
 
+/** periodWord 영어판 — 앱 doseSlots.periodWord isEnLocale 분기와 1:1 동일. */
+function periodWordEn(time: string | null | undefined): string {
+  if (!time) return ''
+  const h = parseInt(time.split(':')[0] ?? '', 10)
+  if (Number.isNaN(h)) return ''
+  if (h < 6) return 'Early morning'
+  if (h < 11) return 'Morning'
+  if (h < 13) return 'Midday'
+  if (h < 17) return 'Afternoon'
+  if (h < 21) return 'Evening'
+  return 'Night'
+}
+
 /**
  * 푸시 문구의 {시간대} 자리에 들어갈 시간대 라벨 결정.
  * - 표준 4슬롯('아침/점심/저녁/취침' 라벨): 그 라벨 그대로 사용(취침도 그대로).
@@ -49,6 +65,18 @@ function periodLabelFor(label: string | null | undefined, time: string | null | 
   const trimmed = (label ?? '').trim()
   if (trimmed && STANDARD_LABELS.has(trimmed)) return trimmed
   const p = periodWord(time)
+  if (p) return p
+  return ''
+}
+
+/** periodLabelFor 영어판 — 표준 라벨은 MEAL_LABELS_EN 역매핑, 비표준은 periodWordEn. */
+function periodLabelForEn(label: string | null | undefined, time: string | null | undefined): string {
+  const trimmed = (label ?? '').trim()
+  if (trimmed && STANDARD_LABELS.has(trimmed)) {
+    const key = Object.keys(MEAL_LABELS).find((k) => MEAL_LABELS[k] === trimmed)
+    if (key) return MEAL_LABELS_EN[key]
+  }
+  const p = periodWordEn(time)
   if (p) return p
   return ''
 }
@@ -102,10 +130,12 @@ function slotTitle(label: string | null | undefined, time: string | null | undef
 }
 
 /**
- * get_meds_at_time RPC가 반환하는 1행.
+ * get_meds_due RPC(Phase1-S3, tz-aware — 구 get_meds_at_time 대체)가 반환하는 1행.
  * - legacy 행: meal_time(슬롯키) 채워짐, dose_slot_id/label NULL.
  * - 신규(dose_slot) 행: dose_slot_id/label 채워짐. meal_time은 표준 4라벨이면
  *   호환용 슬롯키, 비표준 라벨이면 NULL.
+ * - local_today: 그 환자의 users.timezone 기준 "오늘"(YYYY-MM-DD). hasTakenMed의
+ *   하루 경계 산출에 사용(전역 KST today 제거).
  */
 interface MedRow {
   patient_id: string
@@ -113,6 +143,49 @@ interface MedRow {
   dose_slot_id: string | null
   label: string | null
   time: string | null
+  local_today: string | null
+}
+
+/**
+ * 주어진 IANA tz에서 dateStr(YYYY-MM-DD)의 00:00:00~23:59:59.999 벽시계 경계를
+ * UTC ISO 문자열로 변환(date-fns-tz 의 zonedTimeToUtc 와 동일한 왕복-보정 기법).
+ * Asia/Seoul(DST 없음)에서는 기존 `${today}T00:00:00+09:00` ~ `T23:59:59+09:00` 와
+ * 정확히 동일한 순간을 산출한다(회귀 0, 직접 계산으로 검증됨).
+ */
+function localDayRangeUtc(dateStr: string, tz: string): { start: string; end: string } {
+  const [y, m, d] = dateStr.split('-').map(Number)
+  const guess = new Date(Date.UTC(y, (m ?? 1) - 1, d ?? 1, 0, 0, 0))
+  const fmt = new Intl.DateTimeFormat('en-US', {
+    timeZone: tz,
+    hour12: false,
+    year: 'numeric', month: '2-digit', day: '2-digit',
+    hour: '2-digit', minute: '2-digit', second: '2-digit',
+  })
+  const parts = fmt.formatToParts(guess).reduce((acc, p) => {
+    acc[p.type] = p.value
+    return acc
+  }, {} as Record<string, string>)
+  const hour = parts.hour === '24' ? '00' : parts.hour
+  const localAsUtc = Date.UTC(
+    Number(parts.year), Number(parts.month) - 1, Number(parts.day),
+    Number(hour), Number(parts.minute), Number(parts.second),
+  )
+  const offsetMs = localAsUtc - guess.getTime()
+  const start = new Date(guess.getTime() - offsetMs)
+  // 기존 `${today}T23:59:59+09:00`(초 단위, ms 없음)와 비트 동일하도록 -1000ms(정확히 23:59:59.000).
+  const end = new Date(start.getTime() + 24 * 60 * 60 * 1000 - 1000)
+  return { start: start.toISOString(), end: end.toISOString() }
+}
+
+/** 환자 현지 시각 'HH:MM'(24h). 운동 알림 시각 비교용(전역 KST currentTime 대체). */
+function nowHHMMInTz(tz: string): string {
+  const fmt = new Intl.DateTimeFormat('en-US', { timeZone: tz, hour12: false, hour: '2-digit', minute: '2-digit' })
+  const parts = fmt.formatToParts(new Date()).reduce((acc, p) => {
+    acc[p.type] = p.value
+    return acc
+  }, {} as Record<string, string>)
+  const hour = parts.hour === '24' ? '00' : parts.hour
+  return `${hour}:${parts.minute}`
 }
 
 /**
@@ -130,8 +203,12 @@ interface DoseTarget {
   displayLabel: string
   /** 푸시 문구 {시간대} 자리(예 "아침/점심/오후/저녁/밤"). 합의 문구용. */
   periodLabel: string
+  /** periodLabel 영어판(해외 로케일 사용자용). */
+  periodLabelEn: string
   /** 슬롯 시각 'HH:MM'(24h, 없으면 null). 푸시 문구에 12시간제 H:MM로 표기. */
   time: string | null
+  /** 이 환자의 tz 기준 "오늘"(YYYY-MM-DD). hasTakenMed 하루 경계 계산용. */
+  localToday: string
 }
 
 function toDoseTarget(row: MedRow): DoseTarget | null {
@@ -151,10 +228,18 @@ function toDoseTarget(row: MedRow): DoseTarget | null {
     periodLabelFor(row.label, row.time) ||
     (mealTime ? MEAL_LABELS[mealTime] : '') ||
     ''
+  const periodLabelEn =
+    periodLabelForEn(row.label, row.time) ||
+    (mealTime ? MEAL_LABELS_EN[mealTime] : '') ||
+    ''
   // 안정 키: dose_slot_id 우선, 없으면 meal_time. 둘 다 없으면 식별 불가 → skip.
   const key = doseSlotId ?? mealTime
   if (!key) return null
-  return { key, mealTime, doseSlotId, displayLabel, periodLabel, time: row.time ?? null }
+  return {
+    key, mealTime, doseSlotId, displayLabel, periodLabel, periodLabelEn,
+    time: row.time ?? null,
+    localToday: row.local_today ?? new Date().toISOString().split('T')[0],
+  }
 }
 
 // ─── 시간대별 푸시 문구 (합의 문구 — AGENT_06_notification.md §알림 문구 목록) ─────
@@ -175,12 +260,26 @@ function reminderBody(periodLabel: string, clock: string): string {
   return head ? `${head} 약 복용 시간이에요.` : '약 드실 시간이에요.'
 }
 
+/** reminderBody 영어판: "It's time for your {head} medication." */
+function reminderBodyEn(periodLabel: string, clock: string): string {
+  const head = periodWithTime(periodLabel, clock)
+  return head ? `${head} — time to take your medication.` : 'Time to take your medication.'
+}
+
 /** 미복용 재알림 body(환자): "아직 {시간대} {시각} 약을 드시지 않으셨어요." */
 function missedBody(periodLabel: string, clock: string): string {
   const head = periodWithTime(periodLabel, clock)
   return head
     ? `아직 ${head} 약을 드시지 않으셨어요.`
     : '아직 약을 드시지 않으셨어요.'
+}
+
+/** missedBody 영어판 */
+function missedBodyEn(periodLabel: string, clock: string): string {
+  const head = periodWithTime(periodLabel, clock)
+  return head
+    ? `You haven't taken your ${head} medication yet.`
+    : "You haven't taken your medication yet."
 }
 
 /**
@@ -192,6 +291,14 @@ function caregiverMissedBody(subject: string, periodLabel: string, clock: string
   return head
     ? `${subject}이 아직 ${head} 약을 안 드셨어요. 약 드시도록 챙겨주세요.`
     : `${subject}이 아직 약을 안 드셨어요. 약 드시도록 챙겨주세요.`
+}
+
+/** caregiverMissedBody 영어판. subject(en) = 이름 또는 'The patient'. */
+function caregiverMissedBodyEn(subject: string, periodLabel: string, clock: string): string {
+  const head = periodWithTime(periodLabel, clock)
+  return head
+    ? `${subject} hasn't taken their ${head} medication yet. Please check in on them.`
+    : `${subject} hasn't taken their medication yet. Please check in on them.`
 }
 
 /** 환자별 DoseTarget 목록을 RPC 행에서 구성 (key 기준 중복제거). */
@@ -310,14 +417,15 @@ async function logNotification(userId: string, type: string, title: string, body
  * 오늘 이 복용 슬롯을 이미 복용했는지.
  * 구버전(meal_time) 기록과 신버전(dose_slot_id) 기록 둘 중 하나라도 있으면 true.
  * → 구버전 앱이 meal_time으로 기록해도, 신버전이 dose_slot_id로 기록해도 인식.
+ * "오늘" 하루 경계는 이 환자의 tz(target.localToday + tz)로 산출(Phase1-S3, 전역 KST today 제거).
+ * tz='Asia/Seoul'이면 기존 `${today}T00:00:00+09:00`~`T23:59:59+09:00`와 동일 순간(회귀 0).
  */
 async function hasTakenMed(
   patientId: string,
   target: DoseTarget,
-  today: string,
+  tz: string,
 ): Promise<boolean> {
-  const start = `${today}T00:00:00+09:00`
-  const end = `${today}T23:59:59+09:00`
+  const { start, end } = localDayRangeUtc(target.localToday, tz)
 
   // 신규 경로: dose_slot_id 기록 확인
   if (target.doseSlotId) {
@@ -368,10 +476,11 @@ async function sendCaregiverMissed(
     .single()
   const patientName = patientUser?.name?.trim()
   const subject = patientName ? `${patientName}님` : '환자분'
+  const subjectEn = patientName || 'The patient'
 
   const { data: caregiverUsers } = await supabase
     .from('users')
-    .select('id, push_token, push_platform, caregiver_notif_prefs')
+    .select('id, push_token, push_platform, caregiver_notif_prefs, language')
     .in('id', caregivers.map((c: any) => c.user_id))
     .not('push_token', 'is', null)
 
@@ -380,8 +489,11 @@ async function sendCaregiverMissed(
     const prefs = (cu.caregiver_notif_prefs ?? {}) as Record<string, boolean>
     if (prefs.med_missed === false) continue
     const channelId = await resolveAlarmChannel(cu.id)
-    const title = '💊 약을 아직 안 드셨어요'
-    const body = caregiverMissedBody(subject, target.periodLabel, formatClockTime(target.time))
+    const isEn = (cu as any).language === 'en'
+    const title = isEn ? '💊 Medication not yet taken' : '💊 약을 아직 안 드셨어요'
+    const body = isEn
+      ? caregiverMissedBodyEn(subjectEn, target.periodLabelEn, formatClockTime(target.time))
+      : caregiverMissedBody(subject, target.periodLabel, formatClockTime(target.time))
     const data = { type: 'caregiver_missed_med', mealTime: target.mealTime, doseSlotId: target.doseSlotId }
     await sendPush(
       cu.push_token,
@@ -403,7 +515,7 @@ async function sendCaregiverMissed(
  * dose_slot.remind_enabled(RPC가 이미 필터)로 대체되므로 통과시킨다.
  */
 function isMuted(prefs: Record<string, boolean>, target: DoseTarget): boolean {
-  // 신규 dose_slot 타겟: get_meds_at_time 이 이미 dose_slots.remind_enabled 로 필터함.
+  // 신규 dose_slot 타겟: get_meds_due 가 이미 dose_slots.remind_enabled 로 필터함.
   //   → legacy med_time_notif_prefs[mealTime] 로 추가 차단하면, 새 토글(remind_enabled)을
   //     켜도 옛 prefs(예: morning:false)가 남아 알림이 막히는 desync 버그가 생긴다.
   //   → dose_slot 타겟은 remind_enabled 를 단일 진실로 삼고 추가 차단하지 않는다.
@@ -450,24 +562,25 @@ async function getMissedSoundPrefs(
 }
 
 Deno.serve(async (_req: Request) => {
+  // 진단/응답 로그 전용 참고값(KST 기준) — 실제 매칭은 이제 get_meds_due(offset)가
+  // 각 환자의 tz로 직접 계산하므로 이 값들은 어떤 발송 로직도 좌우하지 않는다.
   const kstNow = new Date(Date.now() + 9 * 60 * 60 * 1000)
   const hh = String(kstNow.getHours()).padStart(2, '0')
   const mm = String(kstNow.getMinutes()).padStart(2, '0')
   const currentTime = `${hh}:${mm}`
   const time10 = subtractMinutes(currentTime, 10)
   const time20 = subtractMinutes(currentTime, 20)
-  const today = kstNow.toISOString().split('T')[0]
 
   let sent = 0
 
   // ── 1. 정시 알림 ──────────────────────────────────────────────────
-  const { data: matchedMeds } = await supabase.rpc('get_meds_at_time', { target_time: currentTime })
+  const { data: matchedMeds } = await supabase.rpc('get_meds_due', { offset_minutes: 0 })
 
   const onTime = groupTargets(matchedMeds as MedRow[] | null)
   for (const [patientId, targets] of onTime.entries()) {
     const { data: patient } = await supabase
       .from('users')
-      .select('push_token, push_platform, notification_enabled, med_time_notif_prefs, med_time_sound_prefs, patient_group_id')
+      .select('push_token, push_platform, notification_enabled, med_time_notif_prefs, med_time_sound_prefs, patient_group_id, language, timezone')
       .eq('id', patientId)
       .single()
 
@@ -475,36 +588,41 @@ Deno.serve(async (_req: Request) => {
 
     const prefs = (patient.med_time_notif_prefs ?? {}) as Record<string, boolean>
     const soundPrefs = (patient.med_time_sound_prefs ?? {}) as Record<string, string | null>
+    const isEn = (patient as any).language === 'en'
+    const tz = (patient as any).timezone || 'Asia/Seoul'
 
     for (const target of targets) {
       if (isMuted(prefs, target)) continue
-      if (await hasTakenMed(patientId, target, today)) continue
+      if (await hasTakenMed(patientId, target, tz)) continue
 
       const channelId = channelFor(soundPrefs, target)
       const data = { type: 'medication_reminder', mealTime: target.mealTime, doseSlotId: target.doseSlotId }
-      const body = reminderBody(target.periodLabel, formatClockTime(target.time))
+      const title = isEn ? '💊 Time for your medication' : '💊 약 드실 시간이에요'
+      const body = isEn
+        ? reminderBodyEn(target.periodLabelEn, formatClockTime(target.time))
+        : reminderBody(target.periodLabel, formatClockTime(target.time))
 
       await sendPush(
         patient.push_token,
-        '💊 약 드실 시간이에요',
+        title,
         body,
         data,
         channelId,
         (patient as any).push_platform ?? null,
       )
-      await logNotification(patientId, 'medication_reminder', '💊 약 드실 시간이에요', body, data)
+      await logNotification(patientId, 'medication_reminder', title, body, data)
       sent++
     }
   }
 
   // ── 2. 1차 미복용 알림 (+10분) — 환자에게만 ───────────────────────
-  const { data: meds10 } = await supabase.rpc('get_meds_at_time', { target_time: time10 })
+  const { data: meds10 } = await supabase.rpc('get_meds_due', { offset_minutes: 10 })
 
   const first = groupTargets(meds10 as MedRow[] | null)
   for (const [patientId, targets] of first.entries()) {
     const { data: patient } = await supabase
       .from('users')
-      .select('push_token, push_platform, notification_enabled, med_time_notif_prefs, med_time_sound_prefs, patient_group_id')
+      .select('push_token, push_platform, notification_enabled, med_time_notif_prefs, med_time_sound_prefs, patient_group_id, language, timezone')
       .eq('id', patientId)
       .single()
 
@@ -512,6 +630,8 @@ Deno.serve(async (_req: Request) => {
 
     const prefs = (patient.med_time_notif_prefs ?? {}) as Record<string, boolean>
     const soundPrefs = (patient.med_time_sound_prefs ?? {}) as Record<string, string | null>
+    const isEn = (patient as any).language === 'en'
+    const tz = (patient as any).timezone || 'Asia/Seoul'
     // 환자가 1차 미복용 알림을 끈 경우 발송 안 함
     if (prefs.missed_first === false) continue
     // 미복용 1차 전용 알림음 (없으면 med_time_sound_prefs로 fallback)
@@ -519,33 +639,36 @@ Deno.serve(async (_req: Request) => {
 
     for (const target of targets) {
       if (isMuted(prefs, target)) continue
-      if (await hasTakenMed(patientId, target, today)) continue
+      if (await hasTakenMed(patientId, target, tz)) continue
 
       const channelId = missedChannelFor(missedSounds.first, soundPrefs, target)
       const data = { type: 'missed_medication_first', mealTime: target.mealTime, doseSlotId: target.doseSlotId }
-      const body = missedBody(target.periodLabel, formatClockTime(target.time))
+      const title = isEn ? '💊 Medication not yet taken' : '💊 약을 아직 안 드셨어요'
+      const body = isEn
+        ? missedBodyEn(target.periodLabelEn, formatClockTime(target.time))
+        : missedBody(target.periodLabel, formatClockTime(target.time))
 
       await sendPush(
         patient.push_token,
-        '💊 약을 아직 안 드셨어요',
+        title,
         body,
         data,
         channelId,
         (patient as any).push_platform ?? null,
       )
-      await logNotification(patientId, 'missed_medication', '💊 약을 아직 안 드셨어요', body, data)
+      await logNotification(patientId, 'missed_medication', title, body, data)
       sent++
     }
   }
 
   // ── 3. 2차 미복용 알림 (+20분) — 환자 + 보호자 ───────────────────
-  const { data: meds20 } = await supabase.rpc('get_meds_at_time', { target_time: time20 })
+  const { data: meds20 } = await supabase.rpc('get_meds_due', { offset_minutes: 20 })
 
   const second = groupTargets(meds20 as MedRow[] | null)
   for (const [patientId, targets] of second.entries()) {
     const { data: patient } = await supabase
       .from('users')
-      .select('push_token, push_platform, notification_enabled, med_time_notif_prefs, med_time_sound_prefs, patient_group_id')
+      .select('push_token, push_platform, notification_enabled, med_time_notif_prefs, med_time_sound_prefs, patient_group_id, language, timezone')
       .eq('id', patientId)
       .single()
 
@@ -553,28 +676,33 @@ Deno.serve(async (_req: Request) => {
 
     const prefs = (patient.med_time_notif_prefs ?? {}) as Record<string, boolean>
     const soundPrefs = (patient.med_time_sound_prefs ?? {}) as Record<string, string | null>
+    const isEn = (patient as any).language === 'en'
+    const tz = (patient as any).timezone || 'Asia/Seoul'
     // 미복용 2차 전용 알림음 (없으면 med_time_sound_prefs로 fallback) — 환자 본인만 적용
     const missedSounds = await getMissedSoundPrefs(patientId)
 
     for (const target of targets) {
       if (isMuted(prefs, target)) continue
-      if (await hasTakenMed(patientId, target, today)) continue
+      if (await hasTakenMed(patientId, target, tz)) continue
 
       const channelId = missedChannelFor(missedSounds.second, soundPrefs, target)
 
       // 환자에게 2차 알림 (환자가 2차 미복용 알림을 끈 경우 보내지 않음 — 보호자 알림은 아래에서 독립 처리)
       if (patient.push_token && prefs.missed_second !== false) {
         const data = { type: 'missed_medication_second', mealTime: target.mealTime, doseSlotId: target.doseSlotId }
-        const body = missedBody(target.periodLabel, formatClockTime(target.time))
+        const title = isEn ? '💊 Medication not yet taken' : '💊 약을 아직 안 드셨어요'
+        const body = isEn
+          ? missedBodyEn(target.periodLabelEn, formatClockTime(target.time))
+          : missedBody(target.periodLabel, formatClockTime(target.time))
         await sendPush(
           patient.push_token,
-          '💊 약을 아직 안 드셨어요',
+          title,
           body,
           data,
           channelId,
           (patient as any).push_platform ?? null,
         )
-        await logNotification(patientId, 'missed_medication', '💊 약을 아직 안 드셨어요', body, data)
+        await logNotification(patientId, 'missed_medication', title, body, data)
         sent++
       }
 
@@ -588,35 +716,41 @@ Deno.serve(async (_req: Request) => {
   // ── 4. 운동 알림 ────────────────────────────────────────────────
   const { data: allPatients } = await supabase
     .from('users')
-    .select('id, push_token, push_platform, notification_enabled, exercise_notif_prefs')
+    .select('id, push_token, push_platform, notification_enabled, exercise_notif_prefs, language, timezone')
     .eq('role', 'patient')
     .eq('notification_enabled', true)
     .not('push_token', 'is', null)
 
   for (const patient of allPatients ?? []) {
     if (!patient.push_token) continue
+    const isEn = (patient as any).language === 'en'
+    // 이 환자 tz 기준 현재 현지 HH:MM(Phase1-S3, 전역 KST currentTime 대체).
+    // tz='Asia/Seoul'이면 기존 currentTime과 매분 동일 문자열(회귀 0).
+    const patientCurrentTime = nowHHMMInTz((patient as any).timezone || 'Asia/Seoul')
     const prefs = (patient.exercise_notif_prefs ?? []) as Array<{
       id: string; ampm: string; hour: number; minute: number; enabled: boolean; soundId?: string | null
     }>
     for (const pref of prefs) {
       if (!pref.enabled) continue
-      // ampm + hour → 24시간 KST HH:MM 변환
+      // ampm + hour → 24시간 현지 HH:MM 변환 (ampm은 로케일 무관 내부 저장값 '오전'/'오후')
       let h = pref.hour
       if (pref.ampm === '오후' && h !== 12) h += 12
       if (pref.ampm === '오전' && h === 12) h = 0
       const target = `${String(h).padStart(2, '0')}:${String(pref.minute).padStart(2, '0')}`
-      if (target !== currentTime) continue
+      if (target !== patientCurrentTime) continue
       // 이 운동 알림 항목에 지정된 목소리(soundId). 없으면("기본 목소리") 휴대폰 시스템 기본음('default').
       const exerciseChannelId = pref.soundId ? `parkinon_alarm_${pref.soundId}` : 'default'
+      const title = isEn ? '🏃 Time to exercise!' : '🏃 운동할 시간이에요!'
+      const body = isEn ? 'Log your exercise for today.' : '오늘 운동 기록을 남겨보세요.'
       await sendPush(
         patient.push_token,
-        '🏃 운동할 시간이에요!',
-        '오늘 운동 기록을 남겨보세요.',
+        title,
+        body,
         { type: 'exercise_reminder' },
         exerciseChannelId,
         (patient as any).push_platform ?? null,
       )
-      await logNotification(patient.id, 'exercise_reminder', '🏃 운동할 시간이에요!', '오늘 운동 기록을 남겨보세요.', { type: 'exercise_reminder' })
+      await logNotification(patient.id, 'exercise_reminder', title, body, { type: 'exercise_reminder' })
       sent++
     }
   }

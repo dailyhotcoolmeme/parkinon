@@ -9,6 +9,8 @@ import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context'
 import { useNavigation, useFocusEffect } from '@react-navigation/native';
 import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { Ionicons } from '@expo/vector-icons';
+import { useTranslation } from 'react-i18next';
+import i18n from '../../i18n';
 import { Colors } from '../../constants/colors';
 import { TopBar } from '../../components/common/TopBar';
 import type { FeedStackParamList } from '../../navigation/FeedNavigator';
@@ -63,13 +65,16 @@ const POST_TYPE_ICON: Record<string, IoniconName> = {
   cheer: 'heart-circle-outline',
 };
 
-const POST_TYPE_LABEL: Record<string, string> = {
-  chat: '자유',
-  question: '질문',
-  info: '정보',
-  exercise: '운동인증',
-  cheer: '응원',
-};
+function getPostTypeLabel(type: string): string {
+  const map: Record<string, string> = {
+    chat: i18n.t('feed.typeChat'),
+    question: i18n.t('feed.typeQuestion'),
+    info: i18n.t('feed.typeInfo'),
+    exercise: i18n.t('feed.typeExercise'),
+    cheer: i18n.t('feed.typeCheer'),
+  };
+  return map[type] ?? type;
+}
 
 // 카테고리별 뱃지 색상
 const CATEGORY_BADGE_COLORS: Record<string, { bg: string; text: string }> = {
@@ -82,20 +87,25 @@ const CATEGORY_BADGE_COLORS: Record<string, { bg: string; text: string }> = {
 };
 
 // 서브탭 목록 (뉴스는 정보에 통합)
-const SUB_TABS = [
-  { id: 'all',      label: '전체' },
-  { id: 'chat',     label: '자유' },
-  { id: 'question', label: '질문' },
-  { id: 'info',     label: '정보' },
-  { id: 'cheer',    label: '응원' },
-];
+function getSubTabs() {
+  return [
+    { id: 'all',      label: i18n.t('feed.typeAll') },
+    { id: 'chat',     label: i18n.t('feed.typeChat') },
+    { id: 'question', label: i18n.t('feed.typeQuestion') },
+    { id: 'info',     label: i18n.t('feed.typeInfo') },
+    { id: 'cheer',    label: i18n.t('feed.typeCheer') },
+  ];
+}
 
-const DAYS = ['일', '월', '화', '수', '목', '금', '토'];
+const DAYS_KO = ['일', '월', '화', '수', '목', '금', '토'];
 function formatDate(isoString: string): string {
   const d = new Date(isoString);
+  if (i18n.language !== 'ko') {
+    return d.toLocaleString('en-US', { month: 'short', day: 'numeric', weekday: 'short', hour: '2-digit', minute: '2-digit' });
+  }
   const month = d.getMonth() + 1;
   const date = d.getDate();
-  const day = DAYS[d.getDay()];
+  const day = DAYS_KO[d.getDay()];
   const hh = String(d.getHours()).padStart(2, '0');
   const mm = String(d.getMinutes()).padStart(2, '0');
   return `${month}월 ${date}일 (${day}) ${hh}:${mm}`;
@@ -104,6 +114,7 @@ function formatDate(isoString: string): string {
 type MainTab = 'all' | 'bookmarks' | 'mine';
 
 export function FeedScreen() {
+  const { t } = useTranslation();
   const navigation = useNavigation<Nav>();
   const insets = useSafeAreaInsets();
   const { unreadCount } = useNotificationBadge();
@@ -161,14 +172,14 @@ export function FeedScreen() {
   const mapPost = useCallback((p: any): PostItem => ({
     id: p.id,
     isNews: p.is_news ?? false,
-    category: POST_TYPE_LABEL[p.post_type] ?? p.post_type ?? '기타',
+    category: p.post_type ? getPostTypeLabel(p.post_type) : i18n.t('feed.typeEtc'),
     categoryId: p.post_type ?? undefined,
     categoryIcon: POST_TYPE_ICON[p.post_type] ?? 'chatbubble-outline',
-    author: p.author?.name ?? '알 수 없음',
+    author: p.author?.name ?? i18n.t('feed.authorUnknown'),
     authorId: p.author_id ?? undefined,
     // 작성자 역할 라벨 (DiaryScreen 과 동일 규칙: caregiver→보호자, 그 외→환자)
     authorRole: p.author?.role
-      ? (p.author.role === 'caregiver' ? '보호자' : '환자')
+      ? (p.author.role === 'caregiver' ? i18n.t('feed.authorRoleCaregiver') : i18n.t('feed.authorRolePatient'))
       : undefined,
     date: formatDate(p.created_at),
     views: p.view_count ?? 0,
@@ -203,10 +214,10 @@ export function FeedScreen() {
     if (currentlyBookmarked) {
       await supabase.from('post_bookmarks').delete()
         .eq('user_id', session.user.id).eq('post_id', postId);
-      showToast('즐겨찾기를 해제했어요');
+      showToast(t('feed.bookmarkOff'));
     } else {
       await supabase.from('post_bookmarks').insert({ user_id: session.user.id, post_id: postId });
-      showToast('즐겨찾기에 추가했어요 ⭐');
+      showToast(t('feed.bookmarkOn'));
     }
   }, [showToast]);
 
@@ -267,9 +278,9 @@ export function FeedScreen() {
       let newsFeedItems: PostItem[] = [];
 
       const mapNews = (n: any): PostItem => ({
-        id: 'news_' + n.id, isNews: true, category: '정보',
+        id: 'news_' + n.id, isNews: true, category: i18n.t('feed.typeInfo'),
         categoryIcon: 'newspaper-outline' as IoniconName,
-        author: n.source_name ?? '파킨온 뉴스',
+        author: n.source_name ?? i18n.t('feed.newsSourceDefault'),
         date: formatDate(n.published_at ?? new Date().toISOString()),
         views: 0, title: n.title ?? '', preview: n.description ?? '',
         commentCount: 0, likeCount: 0,
@@ -442,15 +453,15 @@ export function FeedScreen() {
   // Empty State 텍스트
   const getEmptyText = () => {
     if (searchQuery.trim()) {
-      return `'${searchQuery}'에 대한\n게시글을 찾지 못했어요`;
+      return t('feed.emptySearch', { query: searchQuery });
     }
-    if (mainTab === 'bookmarks') return '즐겨찾기한 글이 없어요\n북마크를 추가해보세요!';
-    if (mainTab === 'mine') return '작성한 글이 없어요\n첫 글을 써보세요!';
+    if (mainTab === 'bookmarks') return t('feed.emptyBookmarks');
+    if (mainTab === 'mine') return t('feed.emptyMine');
     if (typeFilter !== 'all') {
-      const opt = SUB_TABS.find(o => o.id === typeFilter);
-      return `아직 ${opt?.label ?? typeFilter} 글이 없어요\n첫 번째로 글을 써보세요!`;
+      const opt = getSubTabs().find(o => o.id === typeFilter);
+      return t('feed.emptyTypeFilter', { type: opt?.label ?? typeFilter });
     }
-    return '아직 게시글이 없어요.\n첫 글을 작성해보세요!';
+    return t('feed.emptyDefault');
   };
 
   const renderItem = ({ item }: { item: PostItem }) => {
@@ -477,7 +488,7 @@ export function FeedScreen() {
           </View>
           <View style={styles.rowMeta}>
             <Text style={styles.metaText} numberOfLines={1}>
-              {item.author}{' · '}{item.date}{' · 조회 '}{item.views}
+              {item.author}{' · '}{item.date}{t('feed.viewsMeta')}{item.views}
             </Text>
           </View>
         </View>
@@ -485,7 +496,7 @@ export function FeedScreen() {
         {/* 댓글 박스 */}
         <View style={styles.commentBox}>
           <Text style={styles.commentCount}>{item.commentCount}</Text>
-          <Text style={styles.commentLabel}>댓글</Text>
+          <Text style={styles.commentLabel}>{t('feed.commentLabel')}</Text>
         </View>
       </TouchableOpacity>
     );
@@ -494,7 +505,7 @@ export function FeedScreen() {
   return (
     <SafeAreaView style={styles.safe} edges={['top']}>
       <TopBar
-        title="파킨온"
+        title={t('medication.brandTitle')}
         showParkinon
         showDiary
         onDiaryPress={() => navigateTo('Diary')}
@@ -505,7 +516,7 @@ export function FeedScreen() {
 
       {/* 메인 탭 */}
       <View style={styles.tabRow}>
-        {([['all', '전체'], ['bookmarks', '즐겨찾기'], ['mine', '내가쓴글']] as [MainTab, string][]).map(([tab, label]) => (
+        {([['all', t('feed.mainTabAll')], ['bookmarks', t('feed.mainTabBookmarks')], ['mine', t('feed.mainTabMine')]] as [MainTab, string][]).map(([tab, label]) => (
           <TouchableOpacity
             key={tab}
             style={[styles.tab, mainTab === tab && styles.tabActive]}
@@ -520,7 +531,7 @@ export function FeedScreen() {
       {/* 서브탭 (글유형 필터) — 전체 탭에서만 */}
       {mainTab === 'all' && (
         <View style={styles.subTabRow}>
-          {SUB_TABS.map((sub) => {
+          {getSubTabs().map((sub) => {
             const isActive = typeFilter === sub.id;
             return (
               <TouchableOpacity
@@ -544,7 +555,7 @@ export function FeedScreen() {
           <Ionicons name="search-outline" size={20} color="#AAAAAA" style={styles.searchIcon} />
           <TextInput
             style={styles.searchInput}
-            placeholder="제목으로 검색..."
+            placeholder={t('feed.searchPlaceholder')}
             placeholderTextColor="#AAAAAA"
             value={searchInput}
             onChangeText={setSearchInput}
@@ -609,7 +620,7 @@ export function FeedScreen() {
           activeOpacity={0.85}
         >
           <Ionicons name="create-outline" size={24} color={Colors.white} />
-          {fabExpanded && <Text style={styles.fabText}>글쓰기</Text>}
+          {fabExpanded && <Text style={styles.fabText}>{t('feed.writeButton')}</Text>}
         </TouchableOpacity>
       </View>
       <CenterToast message={toastMsg} visible={toastVisible} />

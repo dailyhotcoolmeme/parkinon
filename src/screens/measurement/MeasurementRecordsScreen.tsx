@@ -48,6 +48,7 @@ import {
 import type { MeasurementMedPhase } from '../../types/database';
 import { formatReactionMs, formatDateTimeWithWeekday } from '../../utils/measurementFormat';
 import type { RootStackParamList } from '../../navigation/RootNavigator';
+import i18n from '../../i18n';
 import {
   MeasurementInfoModal,
   type MeasurementInfoType,
@@ -238,7 +239,7 @@ export function MeasurementRecordsScreen() {
         <Header onBack={handleBack} title={headerTitle} />
         <View style={styles.center}>
           <ActivityIndicator size="large" color={Colors.primary} />
-          <Text style={styles.loadingText}>기록을 불러오는 중이에요…</Text>
+          <Text style={styles.loadingText}>{i18n.t('loading.loadingRecords')}</Text>
         </View>
       </SafeAreaView>
     );

@@ -8,9 +8,12 @@
 //   - 'permit-list'   : 의약품 제품 허가정보 목록 (DrugPrdtPrmsnInfoService07/getDrugPrdtPrmsnInq07, item_name 검색)
 //   - 'permit-detail' : 의약품 제품 허가정보 상세 (DrugPrdtPrmsnInfoService07/getDrugPrdtPrmsnDtlInq06, item_seq 조회)
 //
+// 인증: verify_jwt=true 게이트웨이는 anon 키도 통과시키므로(공개 키),
+//   함수 내부에서 supabase.auth.getUser()로 실제 로그인 사용자만 허용해 anon 키 남용을 차단한다.
 // 간단한 in-memory rate limit (user_id 단위, 분당 30회).
 
 import 'jsr:@supabase/functions-js/edge-runtime.d.ts';
+import { createClient } from 'npm:@supabase/supabase-js@2';
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
@@ -54,19 +57,6 @@ function rateLimit(userId: string): boolean {
   return true;
 }
 
-function extractUserIdFromJwt(authHeader: string | null): string | null {
-  if (!authHeader) return null;
-  const token = authHeader.replace(/^Bearer\s+/i, '');
-  const parts = token.split('.');
-  if (parts.length !== 3) return null;
-  try {
-    const payload = JSON.parse(atob(parts[1].replace(/-/g, '+').replace(/_/g, '/')));
-    return payload.sub ?? null;
-  } catch {
-    return null;
-  }
-}
-
 Deno.serve(async (req: Request) => {
   if (req.method === 'OPTIONS') {
     return new Response('ok', { headers: corsHeaders });
@@ -88,12 +78,31 @@ Deno.serve(async (req: Request) => {
       });
     }
 
-    // verify_jwt=true 면 Supabase 게이트웨이가 JWT 서명을 이미 검증하므로 sub는 신뢰 가능.
-    // 추가로 user_id 단위 rate limit. sub 파싱 실패 시 공유 버킷('anonymous') 대신 per-IP 키로 폴백
-    // → 한 사용자가 키를 비워 전체 공유 한도를 우회/소모하는 것을 방지.
-    const clientIp = (req.headers.get('x-forwarded-for')?.split(',')[0] ?? '').trim() || 'unknown';
-    const userId = extractUserIdFromJwt(req.headers.get('authorization')) ?? `ip:${clientIp}`;
-    if (!rateLimit(userId)) {
+    // 인증 필수: anon 키만으로는 통과 불가(실제 로그인 사용자만 허용).
+    const authHeader = req.headers.get('Authorization');
+    if (!authHeader) {
+      return new Response(JSON.stringify({ error: '인증이 필요합니다.' }), {
+        status: 401,
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+      });
+    }
+
+    const supabase = createClient(
+      Deno.env.get('SUPABASE_URL')!,
+      Deno.env.get('SUPABASE_ANON_KEY')!,
+      { global: { headers: { Authorization: authHeader } } },
+    );
+
+    const { data: { user }, error: authError } = await supabase.auth.getUser();
+    if (authError || !user) {
+      return new Response(JSON.stringify({ error: '인증이 필요합니다.' }), {
+        status: 401,
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+      });
+    }
+
+    // user_id 단위 rate limit
+    if (!rateLimit(user.id)) {
       return new Response(JSON.stringify({ error: '요청이 너무 많습니다. 잠시 후 다시 시도해주세요.' }), {
         status: 429,
         headers: { ...corsHeaders, 'Content-Type': 'application/json' },

@@ -8,6 +8,7 @@ import {
   TextInput,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
+import { useTranslation } from 'react-i18next';
 import { useNavigation } from '@react-navigation/native';
 import type { CompositeNavigationProp } from '@react-navigation/native';
 import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
@@ -34,28 +35,29 @@ interface Exercise {
   id: string;
   iconLib: 'MCI' | 'Ionicons';
   iconName: MCIName | IoniconName;
-  label: string;
-  desc: string;
+  labelKey: string;
+  descKey: string;
 }
 
 const BASIC_EXERCISES: Exercise[] = [
-  { id: 'walk',     iconLib: 'MCI',      iconName: 'walk',          label: '걷기',     desc: '산책, 실내외 걷기' },
-  { id: 'strength', iconLib: 'MCI',      iconName: 'dumbbell',      label: '근력',     desc: '스쿼트, 팔굽혀펴기' },
-  { id: 'balance',  iconLib: 'Ionicons', iconName: 'body-outline',  label: '균형',     desc: '한발 서기, 균형 훈련' },
-  { id: 'stretch',  iconLib: 'MCI',      iconName: 'yoga',          label: '스트레칭', desc: '전신 스트레칭' },
+  { id: 'walk',     iconLib: 'MCI',      iconName: 'walk',          labelKey: 'exercise.types.walkLabel',     descKey: 'exercise.types.walkDesc' },
+  { id: 'strength', iconLib: 'MCI',      iconName: 'dumbbell',      labelKey: 'exercise.types.strengthLabel', descKey: 'exercise.types.strengthDesc' },
+  { id: 'balance',  iconLib: 'Ionicons', iconName: 'body-outline',  labelKey: 'exercise.types.balanceLabel',  descKey: 'exercise.types.balanceDesc' },
+  { id: 'stretch',  iconLib: 'MCI',      iconName: 'yoga',          labelKey: 'exercise.types.stretchLabel',  descKey: 'exercise.types.stretchDesc' },
 ];
 
 const OTHER_EXERCISES: Exercise[] = [
-  { id: 'bike',   iconLib: 'MCI',      iconName: 'bike',           label: '자전거',  desc: '실내·외 자전거' },
-  { id: 'swim',   iconLib: 'MCI',      iconName: 'swim',           label: '수영',    desc: '수영, 아쿠아로빅' },
-  { id: 'dance',  iconLib: 'MCI',      iconName: 'music-note',     label: '댄스',    desc: '댄스, 에어로빅' },
-  { id: 'boxing', iconLib: 'MCI',      iconName: 'boxing-glove',   label: '복싱',    desc: '복싱, 권투 훈련' },
-  { id: 'yoga',   iconLib: 'MCI',      iconName: 'meditation',     label: '요가',    desc: '요가, 필라테스' },
-  { id: 'jog',    iconLib: 'MCI',      iconName: 'run',            label: '조깅',    desc: '가벼운 달리기' },
-  { id: 'custom', iconLib: 'Ionicons', iconName: 'create-outline', label: '직접입력', desc: '다른 운동 입력하기' },
+  { id: 'bike',   iconLib: 'MCI',      iconName: 'bike',           labelKey: 'exercise.types.bikeLabel',   descKey: 'exercise.types.bikeDesc' },
+  { id: 'swim',   iconLib: 'MCI',      iconName: 'swim',           labelKey: 'exercise.types.swimLabel',   descKey: 'exercise.types.swimDesc' },
+  { id: 'dance',  iconLib: 'MCI',      iconName: 'music-note',     labelKey: 'exercise.types.danceLabel',  descKey: 'exercise.types.danceDesc' },
+  { id: 'boxing', iconLib: 'MCI',      iconName: 'boxing-glove',   labelKey: 'exercise.types.boxingLabel', descKey: 'exercise.types.boxingDesc' },
+  { id: 'yoga',   iconLib: 'MCI',      iconName: 'meditation',     labelKey: 'exercise.types.yogaLabel',   descKey: 'exercise.types.yogaDesc' },
+  { id: 'jog',    iconLib: 'MCI',      iconName: 'run',            labelKey: 'exercise.types.jogLabel',    descKey: 'exercise.types.jogDesc' },
+  { id: 'custom', iconLib: 'Ionicons', iconName: 'create-outline', labelKey: 'exercise.types.customLabel', descKey: 'exercise.types.customDesc' },
 ];
 
 function ExerciseRow({ ex, selected, onPress }: { ex: Exercise; selected: boolean; onPress: () => void }) {
+  const { t } = useTranslation();
   return (
     <TouchableOpacity
       style={[styles.row, selected && styles.rowSelected]}
@@ -70,8 +72,8 @@ function ExerciseRow({ ex, selected, onPress }: { ex: Exercise; selected: boolea
         )}
       </View>
       <View style={styles.rowText}>
-        <Text style={[styles.rowLabel, selected && styles.rowLabelSelected]}>{ex.label}</Text>
-        <Text style={styles.rowDesc}>{ex.desc}</Text>
+        <Text style={[styles.rowLabel, selected && styles.rowLabelSelected]}>{t(ex.labelKey)}</Text>
+        <Text style={styles.rowDesc}>{t(ex.descKey)}</Text>
       </View>
       <View style={[styles.radio, selected && styles.radioSelected]}>
         {selected && <View style={styles.radioDot} />}
@@ -84,6 +86,7 @@ export function ExerciseRecordScreen() {
   const navigation = useNavigation<Nav>();
   const { unreadCount } = useNotificationBadge();
   const dialog = useDialog();
+  const { t } = useTranslation();
   const [selected, setSelected] = useState<string | null>(null);
   const [customText, setCustomText] = useState('');
   const [showOther, setShowOther] = useState(false);
@@ -94,13 +97,13 @@ export function ExerciseRecordScreen() {
     setCustomText('');
     const found = [...BASIC_EXERCISES, ...OTHER_EXERCISES].find(e => e.id === id);
     setTimeout(() => {
-      navigation.navigate('ExerciseDuration', { exerciseName: found?.label ?? '' });
+      navigation.navigate('ExerciseDuration', { exerciseName: found ? t(found.labelKey) : '' });
     }, 300);
   };
 
   const handleCustomNext = () => {
     if (!customText.trim()) {
-      dialog.alert({ title: '운동 입력', message: '운동 이름을 입력해주세요.' });
+      dialog.alert({ title: t('exercise.customAlertTitle'), message: t('exercise.customAlertMsg') });
       return;
     }
     navigation.navigate('ExerciseDuration', { exerciseName: customText.trim() });
@@ -109,16 +112,16 @@ export function ExerciseRecordScreen() {
   return (
     <SafeAreaView style={styles.safe} edges={['top']}>
       <TopBar
-        title="운동 기록하기"
+        title={t('exercise.recordTitle')}
         showBack
         showBell
         bellBadge={unreadCount}
         onBellPress={() => navigation.navigate('NotificationHistory', { mode: 'all' })}
       />
       <ScrollView contentContainerStyle={styles.content} showsVerticalScrollIndicator={false}>
-        <Text style={styles.question}>어떤 운동을 하셨나요?</Text>
+        <Text style={styles.question}>{t('exercise.question')}</Text>
 
-        <Text style={styles.groupLabel}>기본 운동</Text>
+        <Text style={styles.groupLabel}>{t('exercise.groupBasic')}</Text>
         <View style={styles.listCard}>
           {BASIC_EXERCISES.map((ex, i) => (
             <View key={ex.id}>
@@ -129,7 +132,7 @@ export function ExerciseRecordScreen() {
         </View>
 
         <TouchableOpacity style={styles.otherToggle} onPress={() => setShowOther(v => !v)} activeOpacity={0.7}>
-          <Text style={styles.otherToggleText}>다른 운동 보기</Text>
+          <Text style={styles.otherToggleText}>{t('exercise.otherToggle')}</Text>
           <Ionicons name={showOther ? 'chevron-up' : 'chevron-down'} size={22} color={Colors.primary} />
         </TouchableOpacity>
 
@@ -148,14 +151,14 @@ export function ExerciseRecordScreen() {
           <View style={styles.customWrap}>
             <TextInput
               style={styles.customInput}
-              placeholder="운동 이름을 입력해주세요"
+              placeholder={t('exercise.customPlaceholder')}
               placeholderTextColor={Colors.textHint}
               value={customText}
               onChangeText={setCustomText}
               maxLength={20}
               autoFocus
             />
-            <PrimaryButton title="다음으로" onPress={handleCustomNext} disabled={!customText.trim()} />
+            <PrimaryButton title={t('exercise.customNext')} onPress={handleCustomNext} disabled={!customText.trim()} />
           </View>
         )}
       </ScrollView>

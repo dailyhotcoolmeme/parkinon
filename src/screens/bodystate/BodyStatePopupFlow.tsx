@@ -11,6 +11,7 @@ import {
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { useTranslation } from 'react-i18next';
 import { Colors } from '../../constants/colors';
 import { ScoreSelector } from '../../components/common/ScoreSelector';
 import { useDialog } from '../../context/DialogContext';
@@ -43,33 +44,35 @@ const { height: SCREEN_HEIGHT } = Dimensions.get('window');
 
 type StepKey = Exclude<Step, 'constipation'>;
 
+// 화면 텍스트(title/desc/stepLabel)는 i18n 키로 보관하고 렌더 시 t()로 해석한다.
+// 색·타입 등 비문자 설정은 그대로 유지(국내 회귀 0).
 const STEP_CONFIG: Record<StepKey, {
-  title: string; desc: string; type: 'body' | 'mood' | 'sleep';
-  accentColor: string; bgColor: string; stepLabel: string;
+  titleKey: string; descKey: string; type: 'body' | 'mood' | 'sleep';
+  accentColor: string; bgColor: string; stepLabelKey: string;
 }> = {
   body: {
-    title: '지금 몸 상태는 어떠세요?',
-    desc: '현재 몸 컨디션을 알려주세요',
+    titleKey: 'bodystate.popup.bodyTitle',
+    descKey: 'bodystate.popup.bodyDesc',
     type: 'body',
     accentColor: Colors.primary,
     bgColor: '#E8F5E9',
-    stepLabel: '몸 상태',
+    stepLabelKey: 'bodystate.popup.bodyLabel',
   },
   mood: {
-    title: '지금 기분은 어떠세요?',
-    desc: '마음 상태를 알려주세요',
+    titleKey: 'bodystate.popup.moodTitle',
+    descKey: 'bodystate.popup.moodDesc',
     type: 'mood',
     accentColor: '#7C4DFF',
     bgColor: '#F3E8FF',
-    stepLabel: '기분 상태',
+    stepLabelKey: 'bodystate.popup.moodLabel',
   },
   sleep: {
-    title: '어젯밤 수면은 어떠셨어요?',
-    desc: '잠자리가 어떠셨는지 알려주세요',
+    titleKey: 'bodystate.popup.sleepTitle',
+    descKey: 'bodystate.popup.sleepDesc',
     type: 'sleep',
     accentColor: '#1565C0',
     bgColor: '#E3F2FD',
-    stepLabel: '수면',
+    stepLabelKey: 'bodystate.popup.sleepLabel',
   },
 };
 
@@ -88,6 +91,7 @@ export function BodyStatePopupFlow({
   const isEdit = mode === 'edit';
   const insets = useSafeAreaInsets();
   const dialog = useDialog();
+  const { t } = useTranslation();
   const [step, setStep] = useState<Step>('body');
   const [bodyScore, setBodyScore] = useState<number | null>(null);
   const [moodScore, setMoodScore] = useState<number | null>(null);
@@ -201,12 +205,16 @@ export function BodyStatePopupFlow({
           <View style={[styles.stepBanner, { backgroundColor: '#FFF8E1' }]}>
             <View style={styles.stepBannerText}>
               <Text style={[styles.stepBannerLabel, { color: '#F57F17' }]}>
-                변비{isEdit ? ' 수정' : ''}  {currentIndex + 1}/{orderedSteps.length}단계
+                {t(isEdit ? 'bodystate.popup.stepBadgeEdit' : 'bodystate.popup.stepBadge', {
+                  label: t('bodystate.popup.constipationLabel'),
+                  current: currentIndex + 1,
+                  total: orderedSteps.length,
+                })}
               </Text>
-              <Text style={styles.stepTitle}>오늘 변비 증상이 있으셨나요?</Text>
+              <Text style={styles.stepTitle}>{t('bodystate.popup.constipationTitle')}</Text>
             </View>
           </View>
-          <Text style={styles.stepDesc}>솔직하게 알려주세요</Text>
+          <Text style={styles.stepDesc}>{t('bodystate.popup.constipationDesc')}</Text>
           <View style={styles.constipationCol}>
             <TouchableOpacity
               style={[styles.constipationBtn, constipation === true && styles.constipationBtnActive]}
@@ -214,7 +222,7 @@ export function BodyStatePopupFlow({
               activeOpacity={0.75}
             >
               <Text style={[styles.constipationLabel, constipation === true && styles.constipationLabelActive]}>
-                네, 있었어요
+                {t('bodystate.popup.constipationYes')}
               </Text>
             </TouchableOpacity>
             <TouchableOpacity
@@ -223,7 +231,7 @@ export function BodyStatePopupFlow({
               activeOpacity={0.75}
             >
               <Text style={[styles.constipationLabel, constipation === false && styles.constipationLabelActive]}>
-                아니요, 없었어요
+                {t('bodystate.popup.constipationNo')}
               </Text>
             </TouchableOpacity>
           </View>
@@ -238,13 +246,17 @@ export function BodyStatePopupFlow({
         <View style={[styles.stepBanner, { backgroundColor: cfg.bgColor }]}>
           <View style={styles.stepBannerText}>
             <Text style={[styles.stepBannerLabel, { color: cfg.accentColor }]}>
-              {cfg.stepLabel}{isEdit ? ' 수정' : ''}  {currentIndex + 1}/{orderedSteps.length}단계
+              {t(isEdit ? 'bodystate.popup.stepBadgeEdit' : 'bodystate.popup.stepBadge', {
+                label: t(cfg.stepLabelKey),
+                current: currentIndex + 1,
+                total: orderedSteps.length,
+              })}
             </Text>
-            <Text style={styles.stepTitle}>{cfg.title}</Text>
+            <Text style={styles.stepTitle}>{t(cfg.titleKey)}</Text>
           </View>
         </View>
         <View style={styles.contentWrap}>
-          <Text style={styles.stepDesc}>{cfg.desc}</Text>
+          <Text style={styles.stepDesc}>{t(cfg.descKey)}</Text>
           <ScrollView showsVerticalScrollIndicator={false} style={styles.scoreScroll}>
             <ScoreSelector
               value={scoreForStep()}
@@ -268,10 +280,10 @@ export function BodyStatePopupFlow({
       return;
     }
     const ok = await dialog.confirm({
-      title: '기록을 닫을까요?',
-      message: '기록 중인 내용이 있어요. 닫으면 저장되지 않아요.',
-      confirmText: '닫기',
-      cancelText: '취소',
+      title: t('bodystate.popup.closeConfirmTitle'),
+      message: t('bodystate.popup.closeConfirmMsg'),
+      confirmText: t('bodystate.popup.close'),
+      cancelText: t('common.cancel'),
       destructive: true,
     });
     if (!ok) return;
@@ -322,12 +334,12 @@ export function BodyStatePopupFlow({
           <View style={styles.navRow}>
             {currentIndex > 0 ? (
               <TouchableOpacity style={styles.navBtnOutline} onPress={handlePrevPress} activeOpacity={0.75}>
-                <Text style={styles.navBtnOutlineText}>이전</Text>
+                <Text style={styles.navBtnOutlineText}>{t('bodystate.popup.prev')}</Text>
               </TouchableOpacity>
             ) : (
               <TouchableOpacity style={styles.navBtnOutline} onPress={onClose} activeOpacity={0.75}>
                 <Ionicons name="close-outline" size={20} color={Colors.textSub} />
-                <Text style={styles.navBtnOutlineText}>닫기</Text>
+                <Text style={styles.navBtnOutlineText}>{t('bodystate.popup.close')}</Text>
               </TouchableOpacity>
             )}
             {(() => {
@@ -344,7 +356,7 @@ export function BodyStatePopupFlow({
                   activeOpacity={0.8}
                   disabled={disabled}
                 >
-                  <Text style={styles.navBtnPrimaryText}>{isLastStep ? '완료' : '다음'}</Text>
+                  <Text style={styles.navBtnPrimaryText}>{isLastStep ? t('bodystate.popup.done') : t('bodystate.popup.next')}</Text>
                 </TouchableOpacity>
               );
             })()}

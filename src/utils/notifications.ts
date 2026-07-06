@@ -12,7 +12,14 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import Constants from 'expo-constants';
 import { Platform } from 'react-native';
 import { supabase } from '../lib/supabase';
+import { getDeviceTimeZone } from './timezone';
 import type { MedNotif, ExerciseNotif } from '../context/SettingsContext';
+import i18n from '../i18n';
+import { isOverseasLocale } from '../i18n/detectLocale';
+
+function isEnLocale(): boolean {
+  return (i18n.language || '').toLowerCase().startsWith('en');
+}
 
 const SUPABASE_URL = process.env.EXPO_PUBLIC_SUPABASE_URL!;
 const SUPABASE_ANON_KEY = process.env.EXPO_PUBLIC_SUPABASE_ANON_KEY!;
@@ -55,10 +62,15 @@ const MEAL_TIMES: Record<string, { hour: number; minute: number; label: string }
 };
 
 function minutesToLabel(m: number): string {
-  if (m === 0) return '복용 직후';
-  if (m < 60) return `${m}분 후`;
   const h = Math.floor(m / 60);
   const rem = m % 60;
+  if (isEnLocale()) {
+    if (m === 0) return 'right after taking';
+    if (m < 60) return `${m} min later`;
+    return rem === 0 ? `${h} hr later` : `${h} hr ${rem} min later`;
+  }
+  if (m === 0) return '복용 직후';
+  if (m < 60) return `${m}분 후`;
   return rem === 0 ? `${h}시간 후` : `${h}시간 ${rem}분 후`;
 }
 
@@ -95,7 +107,7 @@ export async function requestPermissionsAndSaveToken(
   // 2. Android 알림 채널 생성 (MAX 중요도 — 시스템 알림 설정에 채널이 표시되어야 차단 해제 가능)
   if (Platform.OS === 'android') {
     await Notifications.setNotificationChannelAsync('default', {
-      name: '파킨온 알림',
+      name: i18n.t('notifications.defaultChannelName'),
       importance: Notifications.AndroidImportance.MAX,
       vibrationPattern: [0, 250, 250, 250],
       lightColor: '#4CAF50',
@@ -106,7 +118,7 @@ export async function requestPermissionsAndSaveToken(
     });
     // 약 복용 알림 전용 채널
     await Notifications.setNotificationChannelAsync('medication', {
-      name: '약 복용 알림',
+      name: i18n.t('notifications.medicationChannelName'),
       importance: Notifications.AndroidImportance.MAX,
       vibrationPattern: [0, 250, 250, 250],
       lightColor: '#4CAF50',
@@ -158,7 +170,18 @@ export async function requestPermissionsAndSaveToken(
         'Prefer': 'return=minimal',
       },
       // push_platform: iOS/Android 구분 동시 저장 (푸시 라우팅 — 알림음 채널/사운드 분기용)
-      body: JSON.stringify({ push_token: token, push_platform: Platform.OS }),
+      // timezone: 기기 IANA 타임존을 부팅마다 실행되는 이 PATCH에 함께 upsert(Phase1 S1).
+      //   이미 push_token을 쓰는 요청에 한 필드만 얹으므로 추가 쓰기 비용 0.
+      //   해외 이동 시 자동 갱신되고, 국내 기기는 항상 'Asia/Seoul'(DEFAULT와 동일) → 회귀 0.
+      //   서버/화면 로직은 아직 timezone을 사용하지 않는다(S2/S3).
+      // language: 서버 푸시(약 복용/진료/미복용 알림 등) title·body 로케일 분기용.
+      //   국내 기기는 항상 'ko'(DEFAULT와 동일) → 회귀 0. 해외 기기만 'en'으로 upsert.
+      body: JSON.stringify({
+        push_token: token,
+        push_platform: Platform.OS,
+        timezone: getDeviceTimeZone(),
+        language: isOverseasLocale() ? 'en' : 'ko',
+      }),
     });
 
     if (!res.ok) {
@@ -212,12 +235,12 @@ export async function scheduleEffectTrackingNotifications(medNotifs: MedNotif[])
     if (!n.enabled || n.minutes === 0) continue;
     await Notifications.scheduleNotificationAsync({
       content: {
-        title: '😊 몸 상태는 어때요?',
+        title: i18n.t('notifications.effectTrackTitle'),
         // 로컬 폴백은 슬롯 시간대/시각을 모르므로 시간대 없는 폴백 문구 사용.
         // (서버 약효추적 본문과 동일 체계: "복용약의 {N분 후}" / "복용약 드신 직후")
         body: n.minutes === 0
-          ? `복용약 드신 직후 몸 상태를 기록해보세요.`
-          : `복용약의 ${minutesToLabel(n.minutes)} 몸 상태를 기록해보세요.`,
+          ? i18n.t('notifications.effectTrackBodyImmediate')
+          : i18n.t('notifications.effectTrackBody', { when: minutesToLabel(n.minutes) }),
         data: { type: 'effect_tracking', minutes: n.minutes },
       },
       trigger: {

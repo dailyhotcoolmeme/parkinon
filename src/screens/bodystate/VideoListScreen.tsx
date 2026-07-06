@@ -10,6 +10,7 @@ import {
   ActivityIndicator,
   StatusBar,
   Platform,
+  ScrollView,
 } from 'react-native';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useFocusEffect, useNavigation } from '@react-navigation/native';
@@ -24,6 +25,12 @@ import { supabase } from '../../lib/supabase';
 import { resolveMediaUrl, resolveMediaUrlSync, prefetchMediaUrls } from '../../lib/r2Get';
 import { useNotificationBadge } from '../../context/NotificationBadgeContext';
 import { useDialog } from '../../context/DialogContext';
+import i18n from '../../i18n';
+import { useTranslation } from 'react-i18next';
+
+function isEnLocale(): boolean {
+  return (i18n.language || '').toLowerCase().startsWith('en');
+}
 
 const SCREEN_WIDTH = Dimensions.get('window').width;
 const THUMB_WIDTH = 120;
@@ -57,6 +64,10 @@ function formatDateLabel(isoString: string): string {
   const d = new Date(isoString);
   const month = d.getMonth() + 1;
   const day = d.getDate();
+  if (isEnLocale()) {
+    const dayNamesEn = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
+    return `${month}/${day} (${dayNamesEn[d.getDay()]})`;
+  }
   const dayNames = ['일', '월', '화', '수', '목', '금', '토'];
   return `${month}월 ${day}일 (${dayNames[d.getDay()]})`;
 }
@@ -65,14 +76,19 @@ function formatTime(isoString: string): string {
   const d = new Date(isoString);
   const h = d.getHours();
   const m = d.getMinutes();
-  const ampm = h < 12 ? '오전' : '오후';
   const hour = h % 12 === 0 ? 12 : h % 12;
+  if (isEnLocale()) return `${hour}:${m.toString().padStart(2, '0')} ${h < 12 ? 'AM' : 'PM'}`;
+  const ampm = h < 12 ? '오전' : '오후';
   return `${ampm} ${hour}시 ${m.toString().padStart(2, '0')}분`;
 }
 
 
 function getSectionKey(isoString: string): string {
   const d = new Date(isoString);
+  if (isEnLocale()) {
+    const monthNames = ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December'];
+    return `${monthNames[d.getMonth()]} ${d.getFullYear()}`;
+  }
   return `${d.getFullYear()}년 ${d.getMonth() + 1}월`;
 }
 
@@ -287,6 +303,7 @@ interface VideoCardProps {
 }
 
 function VideoCard({ item, onPress, onDelete, previewingId, onPreviewPress, onOpenDiary }: VideoCardProps) {
+  const { t } = useTranslation();
   const isDiary = item.source === 'diary';
   return (
     <View style={cardStyles.card}>
@@ -312,7 +329,7 @@ function VideoCard({ item, onPress, onDelete, previewingId, onPreviewPress, onOp
             <View style={cardStyles.diaryRow}>
               <View style={cardStyles.diaryBadge}>
                 <MaterialCommunityIcons name="notebook-edit-outline" size={14} color={Colors.primary} />
-                <Text style={cardStyles.diaryBadgeText}>일기 기록</Text>
+                <Text style={cardStyles.diaryBadgeText}>{t('videoList.diaryBadge')}</Text>
               </View>
               <TouchableOpacity
                 style={cardStyles.diaryLink}
@@ -320,7 +337,7 @@ function VideoCard({ item, onPress, onDelete, previewingId, onPreviewPress, onOp
                 activeOpacity={0.6}
                 hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
               >
-                <Text style={cardStyles.diaryLinkText}>일기보기</Text>
+                <Text style={cardStyles.diaryLinkText}>{t('videoList.diaryViewLink')}</Text>
                 <Ionicons name="chevron-forward" size={15} color={Colors.textSub} />
               </TouchableOpacity>
             </View>
@@ -416,6 +433,7 @@ function estimateAndroidNavBarPad(insetBottom: number): number {
 }
 
 function VideoPlayerModal({ url, onClose, insetTop, insetBottom }: VideoPlayerModalProps) {
+  const { t } = useTranslation();
   // 모달 밖에서 받은 inset 을 신뢰. 안드에서 0 으로 떨어지면 내비바 높이 추정으로 보강.
   const bottomPad = estimateAndroidNavBarPad(insetBottom);
   const videoRef = useRef<AVVideo>(null);
@@ -481,7 +499,7 @@ function VideoPlayerModal({ url, onClose, insetTop, insetBottom }: VideoPlayerMo
         <View style={[playerStyles.header, { top: insetTop }]}>
           <TouchableOpacity style={playerStyles.closeBtn} onPress={handleClose} activeOpacity={0.8}>
             <Ionicons name="close" size={26} color="#fff" />
-            <Text style={playerStyles.closeText}>닫기</Text>
+            <Text style={playerStyles.closeText}>{t('videoList.closeBtn')}</Text>
           </TouchableOpacity>
         </View>
 
@@ -502,7 +520,7 @@ function VideoPlayerModal({ url, onClose, insetTop, insetBottom }: VideoPlayerMo
           url && (
             <View style={playerStyles.loadingOverlay}>
               <ActivityIndicator size="large" color={Colors.white} />
-              <Text style={playerStyles.loadingText}>영상을 불러오고 있어요…</Text>
+              <Text style={playerStyles.loadingText}>{i18n.t('loading.loadingVideo')}</Text>
             </View>
           )
         )}
@@ -562,14 +580,18 @@ const playerStyles = StyleSheet.create({
 
 // ── 메인 화면 ─────────────────────────────────────────────────────────────────
 
-const FILTERS: { key: FilterType; label: string }[] = [
-  { key: 'all', label: '전체' },
-  { key: 'this_week', label: '이번 주' },
-  { key: 'this_month', label: '이번 달' },
-  { key: 'last_3_months', label: '최근 3개월' },
-];
+function getFilters(t: (k: string) => string): { key: FilterType; label: string }[] {
+  return [
+    { key: 'all', label: t('videoList.filterAll') },
+    { key: 'this_week', label: t('videoList.filterWeek') },
+    { key: 'this_month', label: t('videoList.filterMonth') },
+    { key: 'last_3_months', label: t('videoList.filter3Month') },
+  ];
+}
 
 export function VideoListScreen() {
+  const { t } = useTranslation();
+  const FILTERS = getFilters(t);
   const navigation = useNavigation<any>();
   const insets = useSafeAreaInsets();
   const { unreadCount } = useNotificationBadge();
@@ -708,10 +730,10 @@ export function VideoListScreen() {
 
   const handleDelete = async (item: VideoLog) => {
     const ok = await dialog.confirm({
-      title: '영상 삭제',
-      message: '영상을 삭제하시겠어요?\n삭제된 영상은 복구할 수 없어요.',
-      confirmText: '삭제',
-      cancelText: '취소',
+      title: t('videoList.deleteVideoTitle'),
+      message: t('videoList.deleteVideoMsg'),
+      confirmText: t('videoList.delete'),
+      cancelText: t('videoList.cancel'),
       destructive: true,
     });
     if (!ok) return;
@@ -736,7 +758,7 @@ export function VideoListScreen() {
       fetchVideos(filter, excludeDiary);
     } catch (e) {
       console.error('[VideoListScreen] 삭제 오류:', e);
-      dialog.alert({ title: '삭제 실패', message: '영상 삭제에 실패했어요. 다시 시도해 주세요.' });
+      dialog.alert({ title: t('videoList.deleteFailTitle'), message: t('videoList.deleteFailMsg') });
     } finally {
       setDeleting(false);
     }
@@ -745,7 +767,7 @@ export function VideoListScreen() {
   return (
     <SafeAreaView style={styles.safeArea} edges={['top']}>
       <TopBar
-        title="영상 기록"
+        title={t('videoList.headerTitle')}
         showBack
         showBell
         bellBadge={unreadCount}
@@ -755,20 +777,25 @@ export function VideoListScreen() {
       {unlinkedCaregiver ? (
         <View style={styles.unlinkedWrap}>
           <Ionicons name="people-outline" size={56} color={Colors.textHint} />
-          <Text style={styles.unlinkedTitle}>환자를 먼저 연동해주세요</Text>
-          <Text style={styles.unlinkedDesc}>{'가족을 연동하면 환자분의\n영상 기록을 함께 볼 수 있어요'}</Text>
+          <Text style={styles.unlinkedTitle}>{t('videoList.unlinkedTitle')}</Text>
+          <Text style={styles.unlinkedDesc}>{t('videoList.unlinkedDesc')}</Text>
           <TouchableOpacity
             style={styles.linkFamilyBtn}
             onPress={() => navigation.navigate('Main', { screen: 'MyInfo', params: { screen: 'FamilyLink' } })}
             activeOpacity={0.85}
           >
             <Ionicons name="person-add-outline" size={22} color={Colors.white} />
-            <Text style={styles.linkFamilyBtnText}>가족 연동하기</Text>
+            <Text style={styles.linkFamilyBtnText}>{t('videoList.linkFamilyBtn')}</Text>
           </TouchableOpacity>
         </View>
       ) : (
       <>
-      <View style={styles.filterRow}>
+      <ScrollView
+        horizontal
+        showsHorizontalScrollIndicator={false}
+        style={styles.filterRowScroll}
+        contentContainerStyle={styles.filterRow}
+      >
         {FILTERS.map(f => (
           <TouchableOpacity
             key={f.key}
@@ -781,7 +808,7 @@ export function VideoListScreen() {
             </Text>
           </TouchableOpacity>
         ))}
-      </View>
+      </ScrollView>
 
       {/* 일기 기록 영상 제외 토글 */}
       <TouchableOpacity
@@ -794,7 +821,7 @@ export function VideoListScreen() {
           size={26}
           color={excludeDiary ? Colors.primary : Colors.textSub}
         />
-        <Text style={styles.excludeText}>일기 기록 영상 제외</Text>
+        <Text style={styles.excludeText}>{t('videoList.excludeDiaryLabel')}</Text>
       </TouchableOpacity>
 
       {loading ? (
@@ -804,8 +831,8 @@ export function VideoListScreen() {
       ) : sections.length === 0 ? (
         <View style={styles.emptyBox}>
           <Ionicons name="film-outline" size={56} color={Colors.border} />
-          <Text style={styles.emptyTitle}>아직 기록된 영상이 없어요</Text>
-          <Text style={styles.emptyDesc}>몸상태 탭에서 영상을 기록해보세요.</Text>
+          <Text style={styles.emptyTitle}>{t('videoList.noVideosTitle')}</Text>
+          <Text style={styles.emptyDesc}>{t('videoList.noVideosDesc')}</Text>
         </View>
       ) : (
         <SectionList
@@ -850,14 +877,14 @@ export function VideoListScreen() {
         activeOpacity={0.85}
       >
         <Ionicons name="videocam-outline" size={24} color={Colors.white} />
-        {fabExpanded && <Text style={styles.fabText}>기록하기</Text>}
+        {fabExpanded && <Text style={styles.fabText}>{t('videoList.recordBtn')}</Text>}
       </TouchableOpacity>
       )}
 
       {deleting && (
         <View style={styles.deletingOverlay}>
           <ActivityIndicator size="large" color={Colors.white} />
-          <Text style={styles.deletingText}>삭제하고 있어요…</Text>
+          <Text style={styles.deletingText}>{t('videoList.deletingText')}</Text>
         </View>
       )}
 
@@ -873,14 +900,16 @@ export function VideoListScreen() {
 
 const styles = StyleSheet.create({
   safeArea: { flex: 1, backgroundColor: Colors.background },
+  filterRowScroll: {
+    backgroundColor: Colors.white,
+    borderBottomWidth: 1,
+    borderBottomColor: Colors.border,
+  },
   filterRow: {
     flexDirection: 'row',
     gap: 10,
     paddingHorizontal: 20,
     paddingVertical: 14,
-    backgroundColor: Colors.white,
-    borderBottomWidth: 1,
-    borderBottomColor: Colors.border,
   },
   filterPill: {
     paddingHorizontal: 18,

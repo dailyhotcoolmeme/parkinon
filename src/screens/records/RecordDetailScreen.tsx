@@ -15,6 +15,7 @@ import { SkeletonList } from '../../components/common/SkeletonCard';
 import { MenuStackParamList } from '../../navigation/MenuNavigator';
 import { useRecordDetailData } from '../../hooks/useRecordDetailData';
 import { useNotificationBadge } from '../../context/NotificationBadgeContext';
+import { useTranslation } from 'react-i18next';
 
 type RouteProps = RouteProp<MenuStackParamList, 'RecordDetail'>;
 type IoniconName = React.ComponentProps<typeof Ionicons>['name'];
@@ -30,14 +31,23 @@ const prevLabels: Record<Period, string> = {
 
 const TIME_COLORS_PALETTE = ['#F44336', '#4CAF50', '#2196F3', '#FF9800', '#9C27B0'];
 
-const itemMeta: Record<string, { icon: IoniconName; label: string }> = {
-  medication: { icon: 'medkit-outline', label: '약 복용' },
-  bodyState: { icon: 'happy-outline', label: '몸 상태' },
-  mood: { icon: 'happy', label: '기분 상태' },
-  sleep: { icon: 'moon-outline', label: '수면' },
-  constipation: { icon: 'water-outline', label: '변비' },
-  exercise: { icon: 'fitness-outline', label: '운동' },
-};
+function getItemMeta(t: (k: string) => string): Record<string, { icon: IoniconName; label: string }> {
+  return {
+    medication: { icon: 'medkit-outline', label: t('records.itemMedication') },
+    bodyState: { icon: 'happy-outline', label: t('records.itemBodyState') },
+    mood: { icon: 'happy', label: t('records.itemMood') },
+    sleep: { icon: 'moon-outline', label: t('records.itemSleep') },
+    constipation: { icon: 'water-outline', label: t('records.itemConstipation') },
+    exercise: { icon: 'fitness-outline', label: t('records.itemExercise') },
+  };
+}
+
+function getPeriodLabel(p: Period, t: (k: string) => string): string {
+  return p === '이번 주' ? t('records.periodWeek') : p === '이번 달' ? t('records.periodMonth') : t('records.period3Month');
+}
+function getPrevLabel(p: Period, t: (k: string) => string): string {
+  return p === '이번 주' ? t('records.prevWeek') : p === '이번 달' ? t('records.prevMonth') : t('records.prev3Month');
+}
 
 import { triggerLabelToDisplay } from '../../hooks/useRecordDetailData';
 
@@ -62,6 +72,7 @@ interface BarChartProps {
 }
 
 function BarChart({ values, labels, color, max, unit }: BarChartProps) {
+  const { t } = useTranslation();
   const [offset, setOffset] = useState(Math.max(0, values.length - VISIBLE_COUNT));
 
   const visible = values.slice(offset, offset + VISIBLE_COUNT);
@@ -95,7 +106,7 @@ function BarChart({ values, labels, color, max, unit }: BarChartProps) {
           activeOpacity={canPrev ? 0.7 : 1}
         >
           <Text style={[chartStyles.navBtnText, !canPrev && chartStyles.navBtnTextDisabled]}>
-            ← 이전
+            {t('recordDetail.prevBtn')}
           </Text>
         </TouchableOpacity>
         <TouchableOpacity
@@ -106,7 +117,7 @@ function BarChart({ values, labels, color, max, unit }: BarChartProps) {
           activeOpacity={canNext ? 0.7 : 1}
         >
           <Text style={[chartStyles.navBtnText, !canNext && chartStyles.navBtnTextDisabled]}>
-            다음 →
+            {t('recordDetail.nextBtn')}
           </Text>
         </TouchableOpacity>
       </View>
@@ -172,6 +183,7 @@ const chartStyles = StyleSheet.create({
 });
 
 export function RecordDetailScreen() {
+  const { t } = useTranslation();
   const route = useRoute<RouteProps>();
   const navigation = useNavigation<any>();
   const { type, period: initialPeriod } = route.params;
@@ -179,8 +191,9 @@ export function RecordDetailScreen() {
   const [period, setPeriod] = useState<Period>((initialPeriod as Period) || '이번 주');
   const { unreadCount } = useNotificationBadge();
 
+  const itemMeta = getItemMeta(t);
   const meta = itemMeta[type];
-  const prevLabel = prevLabels[period];
+  const prevLabel = getPrevLabel(period, t);
   const isTimeItem = type === 'bodyState' || type === 'mood';
   const isMedItem = type === 'medication';
 
@@ -210,7 +223,7 @@ export function RecordDetailScreen() {
             activeOpacity={0.8}
           >
             <Text style={[styles.tabBtnText, period === p && styles.tabBtnTextActive]}>
-              {p}
+              {getPeriodLabel(p, t)}
             </Text>
           </TouchableOpacity>
         ))}
@@ -231,7 +244,7 @@ export function RecordDetailScreen() {
         <View style={styles.stateBox}>
           <Ionicons name="bar-chart-outline" size={40} color={Colors.textHint} />
           <Text style={styles.stateText}>
-            이 기간에 기록된 데이터가 없어요.{'\n'}기록을 먼저 입력해보세요.
+            {t('recordDetail.noDataMsg')}
           </Text>
         </View>
       )}
@@ -244,7 +257,7 @@ export function RecordDetailScreen() {
             <View style={styles.card}>
               <View style={styles.cardTitleRow}>
                 <Ionicons name={meta.icon} size={24} color={Colors.primary} />
-                <Text style={styles.cardSubTitle}>{period} 현황</Text>
+                <Text style={styles.cardSubTitle}>{t('recordDetail.currentStatus', { period: getPeriodLabel(period, t) })}</Text>
               </View>
               <View style={styles.cardValueRow}>
                 <Text style={styles.cardBigValue}>
@@ -260,7 +273,7 @@ export function RecordDetailScreen() {
                 {prevLabel}{' '}
                 {summarySlot.prev > 0
                   ? `${type === 'sleep' ? summarySlot.prev.toFixed(1) : summarySlot.prev}${summarySlot.unit}`
-                  : '기록 없음'}
+                  : t('recordDetail.noRecordShort')}
               </Text>
             </View>
           )}
@@ -270,7 +283,7 @@ export function RecordDetailScreen() {
             <View style={styles.card}>
               <View style={styles.cardTitleRow}>
                 <Ionicons name="time-outline" size={24} color={Colors.primary} />
-                <Text style={styles.cardSubTitle}>시간대별 복용 현황</Text>
+                <Text style={styles.cardSubTitle}>{t('recordDetail.mealTimeStatusTitle')}</Text>
               </View>
               {Object.entries(summarySlot.mealTimeSlots).map(([meal, vals], i) => {
                 const color = TIME_COLORS_PALETTE[i % TIME_COLORS_PALETTE.length];
@@ -279,13 +292,13 @@ export function RecordDetailScreen() {
                     <Text style={styles.timeSlotLabel}>{summarySlot.mealSlotLabels?.[meal] ?? meal}</Text>
                     <View style={styles.timeSlotRow}>
                       <Text style={[styles.timeSlotValue, { color }]}>
-                        {vals.current > 0 ? `${vals.current}회` : '-'}
+                        {vals.current > 0 ? t('recordDetail.timesUnit', { n: vals.current }) : '-'}
                       </Text>
                       {vals.current > 0 && (
                         <ArrowBadge curr={vals.current} prev={vals.prev} size={22} />
                       )}
                       <Text style={styles.timeSlotPrev}>
-                        {prevLabel} {vals.prev > 0 ? `${vals.prev}회` : '기록 없음'}
+                        {prevLabel} {vals.prev > 0 ? t('recordDetail.timesUnit', { n: vals.prev }) : t('recordDetail.noRecordShort')}
                       </Text>
                     </View>
                   </View>
@@ -299,10 +312,10 @@ export function RecordDetailScreen() {
             <View style={styles.card}>
               <View style={styles.cardTitleRow}>
                 <Ionicons name={meta.icon} size={24} color={Colors.primary} />
-                <Text style={styles.cardSubTitle}>{period} 시간대별 현황</Text>
+                <Text style={styles.cardSubTitle}>{t('recordDetail.timeSlotStatusTitle', { period: getPeriodLabel(period, t) })}</Text>
               </View>
               <Text style={styles.cardNote}>
-                ※ 약효 추적 알림을 통해 입력한 기록만 반영돼요
+                {t('recordDetail.effectTrackNote')}
               </Text>
               {Object.entries(summarySlot.timeSlots).map(([triggerLabel, vals], i) => {
                 const color = TIME_COLORS_PALETTE[i % TIME_COLORS_PALETTE.length];
@@ -315,20 +328,20 @@ export function RecordDetailScreen() {
                     <Text style={styles.timeSlotLabel}>{displayLabel}</Text>
                     <View style={styles.timeSlotRow}>
                       <Text style={[styles.timeSlotValue, { color }]}>
-                        {vals.current > 0 ? vals.current.toFixed(1) + '점' : '-'}
+                        {vals.current > 0 ? t('records.pointSuffix', { n: vals.current.toFixed(1) }) : '-'}
                       </Text>
                       {vals.current > 0 && (
                         <ArrowBadge curr={vals.current} prev={vals.prev} size={22} />
                       )}
                       <Text style={styles.timeSlotPrev}>
-                        {prevLabel} {vals.prev > 0 ? vals.prev.toFixed(1) + '점' : '기록 없음'}
+                        {prevLabel} {vals.prev > 0 ? t('records.pointSuffix', { n: vals.prev.toFixed(1) }) : t('recordDetail.noRecordShort')}
                       </Text>
                     </View>
                   </View>
                 );
               })}
               {Object.keys(summarySlot.timeSlots).length === 0 && (
-                <Text style={styles.cardNote}>이 기간에 알림을 통한 기록이 없어요</Text>
+                <Text style={styles.cardNote}>{t('recordDetail.noAlarmRecordNote')}</Text>
               )}
             </View>
           )}
@@ -341,7 +354,7 @@ export function RecordDetailScreen() {
               <View key={triggerLabel} style={styles.card}>
                 <View style={styles.trendTitleRow}>
                   <View style={[styles.trendDot, { backgroundColor: color }]} />
-                  <Text style={styles.trendTitle}>{displayLabel} 트렌드</Text>
+                  <Text style={styles.trendTitle}>{t('recordDetail.trendSuffix', { label: displayLabel })}</Text>
                 </View>
                 <BarChart
                   values={series.points.map(p => p.value)}
@@ -358,7 +371,7 @@ export function RecordDetailScreen() {
           {!isTimeItem && trendSeries && (
             <View style={styles.card}>
               <Text style={styles.trendTitle}>
-                {period === '이번 주' ? '주별' : period === '이번 달' ? '월별' : '3개월별'} 트렌드
+                {period === '이번 주' ? t('recordDetail.weeklyTrend') : period === '이번 달' ? t('recordDetail.monthlyTrend') : t('recordDetail.threeMonthTrend')}
               </Text>
               <BarChart
                 values={trendSeries.points.map(p => p.value)}
@@ -375,7 +388,7 @@ export function RecordDetailScreen() {
             <View key={meal} style={styles.card}>
               <View style={styles.trendTitleRow}>
                 <View style={[styles.trendDot, { backgroundColor: series.color }]} />
-                <Text style={styles.trendTitle}>{summarySlot.mealSlotLabels?.[meal] ?? meal} 트렌드</Text>
+                <Text style={styles.trendTitle}>{t('recordDetail.trendSuffix', { label: summarySlot.mealSlotLabels?.[meal] ?? meal })}</Text>
               </View>
               <BarChart
                 values={series.points.map(p => p.value)}

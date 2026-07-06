@@ -3,6 +3,7 @@
 import React from 'react';
 import { View, Text, TouchableOpacity, StyleSheet } from 'react-native';
 import { Colors } from '../../constants/colors';
+import { useTranslation } from 'react-i18next';
 
 interface Props {
   value: number | null;
@@ -10,32 +11,35 @@ interface Props {
   type?: 'body' | 'mood' | 'sleep';
 }
 
-const SCORE_DATA = {
-  body: [
-    { score: 5, emoji: '😄', label: '매우 좋아요', sub: '활기차고 컨디션 최고예요' },
-    { score: 4, emoji: '🙂', label: '좋아요', sub: '편안하고 괜찮아요' },
-    { score: 3, emoji: '😐', label: '보통이에요', sub: '특별히 좋지도 나쁘지도 않아요' },
-    { score: 2, emoji: '😟', label: '좋지 않아요', sub: '몸이 좀 불편해요' },
-    { score: 1, emoji: '😢', label: '매우 나빠요', sub: '몸이 많이 힘들어요' },
-  ],
-  mood: [
-    { score: 5, emoji: '😄', label: '매우 좋아요', sub: '기분이 정말 좋아요' },
-    { score: 4, emoji: '🙂', label: '좋아요', sub: '마음이 편안해요' },
-    { score: 3, emoji: '😐', label: '보통이에요', sub: '그냥 그래요' },
-    { score: 2, emoji: '😟', label: '좋지 않아요', sub: '기분이 좀 가라앉아요' },
-    { score: 1, emoji: '😢', label: '매우 나빠요', sub: '많이 우울하고 힘들어요' },
-  ],
-  sleep: [
-    { score: 5, emoji: '😄', label: '아주 잘 잤어요', sub: '깊이 자고 개운해요' },
-    { score: 4, emoji: '🙂', label: '잘 잤어요', sub: '대체로 편안했어요' },
-    { score: 3, emoji: '😐', label: '그저 그랬어요', sub: '자다 깬 것 같아요' },
-    { score: 2, emoji: '😟', label: '잘 못 잤어요', sub: '자주 깼어요' },
-    { score: 1, emoji: '😢', label: '거의 못 잤어요', sub: '밤새 힘들었어요' },
-  ],
-};
+function getScoreData(t: (key: string) => string) {
+  return {
+    body: [
+      { score: 5, emoji: '😄', label: t('scoreSelector.bodyLabel5'), sub: t('scoreSelector.bodySub5') },
+      { score: 4, emoji: '🙂', label: t('scoreSelector.bodyLabel4'), sub: t('scoreSelector.bodySub4') },
+      { score: 3, emoji: '😐', label: t('scoreSelector.bodyLabel3'), sub: t('scoreSelector.bodySub3') },
+      { score: 2, emoji: '😟', label: t('scoreSelector.bodyLabel2'), sub: t('scoreSelector.bodySub2') },
+      { score: 1, emoji: '😢', label: t('scoreSelector.bodyLabel1'), sub: t('scoreSelector.bodySub1') },
+    ],
+    mood: [
+      { score: 5, emoji: '😄', label: t('scoreSelector.bodyLabel5'), sub: t('scoreSelector.moodSub5') },
+      { score: 4, emoji: '🙂', label: t('scoreSelector.bodyLabel4'), sub: t('scoreSelector.moodSub4') },
+      { score: 3, emoji: '😐', label: t('scoreSelector.bodyLabel3'), sub: t('scoreSelector.moodSub3') },
+      { score: 2, emoji: '😟', label: t('scoreSelector.bodyLabel2'), sub: t('scoreSelector.moodSub2') },
+      { score: 1, emoji: '😢', label: t('scoreSelector.bodyLabel1'), sub: t('scoreSelector.moodSub1') },
+    ],
+    sleep: [
+      { score: 5, emoji: '😄', label: t('scoreSelector.sleepLabel5'), sub: t('scoreSelector.sleepSub5') },
+      { score: 4, emoji: '🙂', label: t('scoreSelector.sleepLabel4'), sub: t('scoreSelector.sleepSub4') },
+      { score: 3, emoji: '😐', label: t('scoreSelector.sleepLabel3'), sub: t('scoreSelector.sleepSub3') },
+      { score: 2, emoji: '😟', label: t('scoreSelector.sleepLabel2'), sub: t('scoreSelector.sleepSub2') },
+      { score: 1, emoji: '😢', label: t('scoreSelector.sleepLabel1'), sub: t('scoreSelector.sleepSub1') },
+    ],
+  };
+}
 
 export function ScoreSelector({ value, onChange, type = 'body' }: Props) {
-  const items = SCORE_DATA[type];
+  const { t } = useTranslation();
+  const items = getScoreData(t)[type];
   return (
     <View style={styles.container}>
       {items.map(({ score, emoji, label, sub }) => {

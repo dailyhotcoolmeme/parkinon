@@ -12,6 +12,7 @@ import {
   FlatList,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
+import { useTranslation } from 'react-i18next';
 import { useBottomSheetPadding } from '../../hooks/useBottomSheetPadding';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useNavigation, useRoute } from '@react-navigation/native';
@@ -29,15 +30,15 @@ type RouteType = RouteProp<OnboardingStackParamList, 'CaregiverInfo'>;
 const BIRTH_YEARS = Array.from({ length: 2005 - 1940 + 1 }, (_, i) => String(1940 + i)).reverse();
 
 const RELATIONS = [
-  { key: 'spouse', label: '배우자' },
-  { key: 'child', label: '자녀' },
-  { key: 'sibling', label: '형제/자매' },
-  { key: 'other', label: '기타' },
+  { key: 'spouse', labelKey: 'caregiverInfo.relationSpouse' },
+  { key: 'child', labelKey: 'caregiverInfo.relationChild' },
+  { key: 'sibling', labelKey: 'caregiverInfo.relationSibling' },
+  { key: 'other', labelKey: 'caregiverInfo.relationOther' },
 ] as const;
 
 const LIVING = [
-  { key: 'together', label: '함께 살고 있어요' },
-  { key: 'separate', label: '따로 살고 있어요' },
+  { key: 'together', labelKey: 'caregiverInfo.livingTogether' },
+  { key: 'separate', labelKey: 'caregiverInfo.livingSeparate' },
 ] as const;
 
 type RelationKey = typeof RELATIONS[number]['key'];
@@ -49,6 +50,7 @@ export function CaregiverInfoScreen() {
   const navigation = useNavigation<Nav>();
   const route = useRoute<RouteType>();
   const step = route.params?.step ?? 1;
+  const { t } = useTranslation();
   const { user, signOut } = useAuth();
   const bottomPadding = useBottomSheetPadding(24);
   const sheetPadding = useBottomSheetPadding(32);
@@ -71,7 +73,7 @@ export function CaregiverInfoScreen() {
     const savedGender = await AsyncStorage.getItem('onboarding_gender');
     const savedRelation = await AsyncStorage.getItem('onboarding_relation');
     const savedLiving = await AsyncStorage.getItem('onboarding_living');
-    if (user?.name && user.name !== '사용자') setName(user.name);
+    if (user?.name && user.name !== t('authHook.defaultUserName')) setName(user.name);
     else if (savedName) setName(savedName);
     if (savedBirth) setBirthYear(savedBirth);
     if (savedGender) setGender(savedGender as 'male' | 'female');
@@ -121,7 +123,7 @@ export function CaregiverInfoScreen() {
         <View style={styles.header}>
           <TouchableOpacity style={styles.backBtn} onPress={() => navigation.goBack()} activeOpacity={0.7}>
             <Text style={styles.backIcon}>←</Text>
-            <Text style={styles.backText}>뒤로</Text>
+            <Text style={styles.backText}>{t('common.back')}</Text>
           </TouchableOpacity>
         </View>
 
@@ -136,12 +138,12 @@ export function CaregiverInfoScreen() {
         <ScrollView contentContainerStyle={styles.scrollContent} keyboardShouldPersistTaps="handled">
           {step === 1 && (
             <View>
-              <Text style={styles.title}>성함이 어떻게 되세요?</Text>
+              <Text style={styles.title}>{t('caregiverInfo.nameTitle')}</Text>
               <TextInput
                 style={styles.textInput}
                 value={name}
                 onChangeText={setName}
-                placeholder="이름을 입력해주세요"
+                placeholder={t('caregiverInfo.namePlaceholder')}
                 placeholderTextColor={Colors.textHint}
                 maxLength={20}
                 autoFocus
@@ -152,15 +154,15 @@ export function CaregiverInfoScreen() {
 
           {step === 2 && (
             <View>
-              <Text style={styles.title}>출생연도를 알려주세요</Text>
-              <Text style={styles.subtitle}>건강 정보 분석에 활용돼요</Text>
+              <Text style={styles.title}>{t('caregiverInfo.birthTitle')}</Text>
+              <Text style={styles.subtitle}>{t('caregiverInfo.healthAnalysisNote')}</Text>
               <TouchableOpacity
                 style={[styles.dropdownBtn, birthYear && styles.dropdownBtnFilled]}
                 onPress={() => setShowBirthPicker(true)}
                 activeOpacity={0.85}
               >
                 <Text style={[styles.dropdownText, !birthYear && styles.dropdownPlaceholder]}>
-                  {birthYear ? `${birthYear}년` : '출생연도 선택'}
+                  {birthYear ? t('common.yearValue', { year: birthYear }) : t('caregiverInfo.birthSelect')}
                 </Text>
                 <Text style={styles.dropdownArrow}>▼</Text>
               </TouchableOpacity>
@@ -169,22 +171,22 @@ export function CaregiverInfoScreen() {
 
           {step === 3 && (
             <View>
-              <Text style={styles.title}>성별을 알려주세요</Text>
-              <Text style={styles.subtitle}>건강 정보 분석에 활용돼요</Text>
+              <Text style={styles.title}>{t('caregiverInfo.genderTitle')}</Text>
+              <Text style={styles.subtitle}>{t('caregiverInfo.healthAnalysisNote')}</Text>
               <View style={styles.genderRow}>
                 <TouchableOpacity
                   style={[styles.genderBtn, gender === 'male' && styles.genderBtnSelected]}
                   onPress={() => setGender('male')}
                   activeOpacity={0.85}
                 >
-                  <Text style={[styles.genderText, gender === 'male' && styles.genderTextSelected]}>남자</Text>
+                  <Text style={[styles.genderText, gender === 'male' && styles.genderTextSelected]}>{t('caregiverInfo.male')}</Text>
                 </TouchableOpacity>
                 <TouchableOpacity
                   style={[styles.genderBtn, gender === 'female' && styles.genderBtnSelected]}
                   onPress={() => setGender('female')}
                   activeOpacity={0.85}
                 >
-                  <Text style={[styles.genderText, gender === 'female' && styles.genderTextSelected]}>여자</Text>
+                  <Text style={[styles.genderText, gender === 'female' && styles.genderTextSelected]}>{t('caregiverInfo.female')}</Text>
                 </TouchableOpacity>
               </View>
             </View>
@@ -192,8 +194,8 @@ export function CaregiverInfoScreen() {
 
           {step === 4 && (
             <View>
-              <Text style={styles.title}>환자분과 어떤{'\n'}관계이신가요?</Text>
-              <Text style={styles.subtitle}>돌봄 방식을 맞춤으로 설정해드릴게요</Text>
+              <Text style={styles.title}>{t('caregiverInfo.relationTitle')}</Text>
+              <Text style={styles.subtitle}>{t('caregiverInfo.relationSubtitle')}</Text>
 
               <View style={styles.relationGrid}>
                 {RELATIONS.map((r) => (
@@ -203,7 +205,7 @@ export function CaregiverInfoScreen() {
                     onPress={() => setRelation(r.key)}
                     activeOpacity={0.85}
                   >
-                    <Text style={[styles.relationText, relation === r.key && styles.relationTextSelected]}>{r.label}</Text>
+                    <Text style={[styles.relationText, relation === r.key && styles.relationTextSelected]}>{t(r.labelKey)}</Text>
                   </TouchableOpacity>
                 ))}
               </View>
@@ -212,8 +214,8 @@ export function CaregiverInfoScreen() {
 
           {step === 5 && (
             <View>
-              <Text style={styles.title}>현재 어디서{'\n'}지내시나요?</Text>
-              <Text style={styles.subtitle}>환자분과 함께 지내시는지 알려주세요</Text>
+              <Text style={styles.title}>{t('caregiverInfo.livingTitle')}</Text>
+              <Text style={styles.subtitle}>{t('caregiverInfo.livingSubtitle')}</Text>
 
               <View style={styles.livingArea}>
                 {LIVING.map((l) => (
@@ -223,7 +225,7 @@ export function CaregiverInfoScreen() {
                     onPress={() => setLiving(l.key)}
                     activeOpacity={0.85}
                   >
-                    <Text style={[styles.livingText, living === l.key && styles.livingTextSelected]}>{l.label}</Text>
+                    <Text style={[styles.livingText, living === l.key && styles.livingTextSelected]}>{t(l.labelKey)}</Text>
                     <View style={[styles.radioOuter, living === l.key && styles.radioOuterSelected]}>
                       {living === l.key && <View style={styles.radioInner} />}
                     </View>
@@ -235,9 +237,9 @@ export function CaregiverInfoScreen() {
         </ScrollView>
 
         <View style={[styles.bottomArea, { paddingBottom: bottomPadding }]}>
-          <PrimaryButton title={step < TOTAL_STEPS ? '다음으로' : '완료'} onPress={handleNext} disabled={!canProceed()} />
+          <PrimaryButton title={step < TOTAL_STEPS ? t('common.nextTo') : t('common.done')} onPress={handleNext} disabled={!canProceed()} />
           <TouchableOpacity style={styles.closeBtn} onPress={signOut}>
-            <Text style={styles.closeBtnText}>닫기</Text>
+            <Text style={styles.closeBtnText}>{t('common.close')}</Text>
           </TouchableOpacity>
         </View>
 
@@ -247,7 +249,7 @@ export function CaregiverInfoScreen() {
             <TouchableOpacity style={pickerStyles.overlay} onPress={() => setShowBirthPicker(false)} activeOpacity={1} />
             <View style={[pickerStyles.sheet, { paddingBottom: sheetPadding }]}>
               <View style={pickerStyles.handle} />
-              <Text style={pickerStyles.sheetTitle}>출생연도 선택</Text>
+              <Text style={pickerStyles.sheetTitle}>{t('caregiverInfo.birthPickerTitle')}</Text>
               <FlatList
                 ref={birthPickerRef}
                 data={BIRTH_YEARS}
@@ -269,7 +271,7 @@ export function CaregiverInfoScreen() {
                     activeOpacity={0.85}
                   >
                     <Text style={[pickerStyles.yearText, item === birthYear && pickerStyles.yearTextSelected]}>
-                      {item}년
+                      {t('common.yearValue', { year: item })}
                     </Text>
                     {item === birthYear && <Ionicons name="checkmark" size={18} color="#4CAF50" />}
                   </TouchableOpacity>

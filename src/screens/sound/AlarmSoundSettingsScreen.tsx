@@ -26,8 +26,8 @@ import { useAuth } from '../../context/AuthContext';
 import { useDialog } from '../../context/DialogContext';
 import { supabase } from '../../lib/supabase';
 import { resolveMediaUrl } from '../../lib/r2Get';
-
-const DEFAULT_LABEL = '내 녹음';
+import i18n from '../../i18n';
+import { useTranslation } from 'react-i18next';
 
 interface CustomSound {
   id: string;
@@ -37,10 +37,13 @@ interface CustomSound {
   created_at: string;
 }
 
-/** 녹음 날짜를 "2026년 5월 31일" 형식으로 표시 */
+/** 녹음 날짜를 "2026년 5월 31일" 형식으로 표시 (해외는 "May 31, 2026") */
 function formatDate(iso: string): string {
   try {
     const d = new Date(iso);
+    if ((i18n.language || '').toLowerCase().startsWith('en')) {
+      return d.toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric' });
+    }
     return `${d.getFullYear()}년 ${d.getMonth() + 1}월 ${d.getDate()}일`;
   } catch {
     return '';
@@ -48,6 +51,11 @@ function formatDate(iso: string): string {
 }
 
 export function AlarmSoundSettingsScreen() {
+  const { t } = useTranslation();
+  // 모듈 스코프 상수로 두면 앱 부팅 시 로케일로 영구 고정돼(해외↔국내 전환 후에도 안 바뀜)
+  // 라벨 없는 녹음이 계속 옛 언어로 보이는 버그가 있었다(오너 발견, 2026-07-06).
+  // 키도 실제 존재하지 않는 'alarmSound.defaultLabel'이었음 — 실제 키(defaultRecordingLabel)로 수정.
+  const defaultLabel = t('alarmSound.defaultRecordingLabel');
   const { user } = useAuth();
   const dialog = useDialog();
   const route = useRoute<any>();
@@ -164,8 +172,8 @@ export function AlarmSoundSettingsScreen() {
   const handlePlay = async (item: CustomSound) => {
     if (!item.public_url) {
       dialog.alert({
-        title: '들을 수 없어요',
-        message: '이 녹음은 재생 정보가 없어요.\n다시 녹음해 주세요.',
+        title: t('alarmSound.cannotHearTitle'),
+        message: t('alarmSound.cannotHearMsg'),
       });
       return;
     }
@@ -199,8 +207,8 @@ export function AlarmSoundSettingsScreen() {
     } catch (e) {
       setPlayingId(null);
       dialog.alert({
-        title: '재생할 수 없어요',
-        message: '인터넷 연결을 확인하고 다시 시도해 주세요.',
+        title: t('alarmSound.playFailTitle'),
+        message: t('alarmSound.playFailMsg'),
       });
     } finally {
       setPreparingId(null);
@@ -214,7 +222,7 @@ export function AlarmSoundSettingsScreen() {
   //      .isAvailable=false 라 설치/재생이 불가하므로 크래시 없이 안내만 한다.
   const handleTestAlarm = async (item: CustomSound) => {
     if (!item.public_url) {
-      dialog.alert({ title: '테스트할 수 없어요', message: '재생 정보가 없는 녹음이에요.' });
+      dialog.alert({ title: t('alarmSound.cannotTestTitle'), message: t('alarmSound.cannotTestMsg') });
       return;
     }
     setTestingId(item.id);
@@ -223,9 +231,8 @@ export function AlarmSoundSettingsScreen() {
         // 네이티브 알림음 모듈이 없으면(빌드 전) caf 설치 불가 → 안전 안내(크래시 방지).
         if (!AlarmSoundNative.isAvailable) {
           dialog.alert({
-            title: '앱 업데이트 후 사용할 수 있어요',
-            message:
-              '아이폰 알림음 테스트는 다음 앱 업데이트부터 사용할 수 있어요.\n그때까지는 기본 알림음으로 울려요.',
+            title: t('alarmSound.iosUpdateRequiredTitle'),
+            message: t('alarmSound.iosUpdateRequiredMsg'),
           });
           return;
         }
@@ -233,16 +240,16 @@ export function AlarmSoundSettingsScreen() {
         const fileName = await ensureRecordedSoundIOS(item.id, item.public_url);
         if (!fileName) {
           dialog.alert({
-            title: '테스트 준비 실패',
-            message: '알림음 파일을 준비하지 못했어요.\n인터넷 연결을 확인하고 다시 시도해 주세요.',
+            title: t('alarmSound.testPrepFailTitle'),
+            message: t('alarmSound.testPrepFailMsg'),
           });
           return;
         }
         await Notifications.requestPermissionsAsync();
         await Notifications.scheduleNotificationAsync({
           content: {
-            title: '🔔 파킨온 약 알림 (테스트)',
-            body: `${item.label?.trim() || DEFAULT_LABEL} 목소리로 울리면 성공이에요!\n휴대폰이 무음 모드면 소리가 들리지 않아요.`,
+            title: t('alarmSound.testNotifTitle'),
+            body: t('alarmSound.testNotifBodyIOS', { label: item.label?.trim() || defaultLabel }),
             // iOS 는 Library/Sounds/<파일명> 에 설치된 caf 파일명을 sound 에 지정.
             // (서버 푸시도 동일 파일명 alarmSoundFileNameIOS(item.id) 를 보냄)
             sound: fileName,
@@ -258,11 +265,11 @@ export function AlarmSoundSettingsScreen() {
       const channelId = await ensureRecordedChannel(
         item.id,
         item.public_url,
-        item.label?.trim() || DEFAULT_LABEL,
+        item.label?.trim() || defaultLabel,
       );
       await notifee.displayNotification({
-        title: '🔔 파킨온 약 알림 (테스트)',
-        body: `${item.label?.trim() || DEFAULT_LABEL} 목소리로 울리면 성공이에요!\n휴대폰이 진동 모드면 소리가 들리지 않아요.`,
+        title: t('alarmSound.testNotifTitle'),
+        body: t('alarmSound.testNotifBodyAndroid', { label: item.label?.trim() || defaultLabel }),
         android: {
           channelId,
           smallIcon: 'ic_launcher',
@@ -271,7 +278,7 @@ export function AlarmSoundSettingsScreen() {
       });
     } catch (e: any) {
       dialog.alert({
-        title: '테스트 실패',
+        title: t('alarmSound.testFailTitle'),
         message: String(e?.message ?? e),
       });
     } finally {
@@ -283,10 +290,10 @@ export function AlarmSoundSettingsScreen() {
   const handleDelete = async (item: CustomSound) => {
     if (!user) return;
     const ok = await dialog.confirm({
-      title: '녹음 삭제',
-      message: '이 녹음을 삭제할까요?\n삭제하면 되돌릴 수 없어요.',
-      confirmText: '삭제하기',
-      cancelText: '취소',
+      title: t('alarmSound.deleteTitle'),
+      message: t('alarmSound.deleteMsg'),
+      confirmText: t('alarmSound.deleteBtn'),
+      cancelText: t('alarmSound.cancel'),
       destructive: true,
     });
     if (!ok) return;
@@ -304,8 +311,8 @@ export function AlarmSoundSettingsScreen() {
 
       if (!ok) {
         dialog.alert({
-          title: '삭제할 수 없어요',
-          message: '같은 가족만 이 녹음을 삭제할 수 있어요.',
+          title: t('alarmSound.deleteForbiddenTitle'),
+          message: t('alarmSound.deleteForbiddenMsg'),
         });
         return;
       }
@@ -315,8 +322,8 @@ export function AlarmSoundSettingsScreen() {
       setSounds((prev) => prev.filter((s) => s.id !== item.id));
     } catch (e) {
       dialog.alert({
-        title: '삭제에 실패했어요',
-        message: '잠시 후 다시 시도해 주세요.',
+        title: t('alarmSound.deleteFailTitle'),
+        message: t('alarmSound.genericRetryMsg'),
       });
     } finally {
       setDeletingId(null);
@@ -327,18 +334,18 @@ export function AlarmSoundSettingsScreen() {
   if (user && !user.patient_group_id) {
     return (
       <SafeAreaView style={styles.safeArea}>
-        <TopBar title="알림음 관리" showBack />
+        <TopBar title={t('alarmSound.headerTitle')} showBack />
         <View style={styles.unlinkedWrap}>
           <Ionicons name="people-outline" size={56} color={Colors.textHint} />
-          <Text style={styles.unlinkedTitle}>환자를 먼저 연동해주세요</Text>
-          <Text style={styles.unlinkedDesc}>{'가족을 연동하면 환자분의\n알림음을 만들 수 있어요'}</Text>
+          <Text style={styles.unlinkedTitle}>{t('alarmSound.unlinkedTitle')}</Text>
+          <Text style={styles.unlinkedDesc}>{t('alarmSound.unlinkedDesc')}</Text>
           <TouchableOpacity
             style={styles.linkFamilyBtn}
             onPress={() => navigation.navigate('FamilyLink')}
             activeOpacity={0.85}
           >
             <Ionicons name="person-add-outline" size={22} color={Colors.white} />
-            <Text style={styles.linkFamilyBtnText}>가족 연동하기</Text>
+            <Text style={styles.linkFamilyBtnText}>{t('alarmSound.linkFamilyBtn')}</Text>
           </TouchableOpacity>
         </View>
       </SafeAreaView>
@@ -347,7 +354,7 @@ export function AlarmSoundSettingsScreen() {
 
   return (
     <SafeAreaView style={styles.safeArea}>
-      <TopBar title="알림음 관리" showBack />
+      <TopBar title={t('alarmSound.headerTitle')} showBack />
 
       <ScrollView
         style={styles.scroll}
@@ -357,20 +364,19 @@ export function AlarmSoundSettingsScreen() {
         {loading ? (
           <View style={styles.loadingWrap}>
             <ActivityIndicator size="large" color={Colors.primary} />
-            <Text style={styles.loadingText}>불러오고 있어요…</Text>
+            <Text style={styles.loadingText}>{i18n.t('loading.loadingGeneric2')}</Text>
           </View>
         ) : (
           <>
             {/* 상단 안내 한 줄 */}
             <Text style={styles.intro}>
-              알림이 울릴 때 들리는 소리를 만들고 관리해요.
+              {t('alarmSound.intro')}
             </Text>
 
             {sounds.length === 0 ? (
               <View style={styles.noSoundsBox}>
                 <Text style={styles.noSoundsText}>
-                  아직 만든 알림음이 없어요.{'\n'}
-                  아래에서 새로 등록해 보세요.
+                  {t('alarmSound.noSoundsText')}
                 </Text>
               </View>
             ) : (
@@ -388,7 +394,7 @@ export function AlarmSoundSettingsScreen() {
                       </View>
                       <View style={styles.cardHeaderText}>
                         <Text style={styles.cardTitle}>
-                          {item.label?.trim() || DEFAULT_LABEL}
+                          {item.label?.trim() || defaultLabel}
                         </Text>
                       </View>
                       <View style={styles.headerActions}>
@@ -399,7 +405,7 @@ export function AlarmSoundSettingsScreen() {
                           onPress={() =>
                             navigation.navigate('RecordSound', {
                               editSoundId: item.id,
-                              editLabel: item.label?.trim() || DEFAULT_LABEL,
+                              editLabel: item.label?.trim() || defaultLabel,
                             })
                           }
                         >
@@ -440,7 +446,7 @@ export function AlarmSoundSettingsScreen() {
                               style={styles.btnIcon}
                             />
                             <Text style={styles.playBtnText}>
-                              {isPlaying ? '멈추기' : '들어보기'}
+                              {isPlaying ? t('alarmSound.stopBtn') : t('alarmSound.listenBtn')}
                             </Text>
                           </>
                         )}
@@ -462,13 +468,13 @@ export function AlarmSoundSettingsScreen() {
                               color={Colors.dark}
                               style={styles.btnIcon}
                             />
-                            <Text style={styles.testBtnText}>알림 테스트</Text>
+                            <Text style={styles.testBtnText}>{t('alarmSound.testAlarmBtn')}</Text>
                           </>
                         )}
                       </TouchableOpacity>
                     </View>
                     <Text style={styles.testHint}>
-                      ⓘ 휴대폰이 진동 모드면 소리가 들리지 않아요
+                      {t('alarmSound.silentModeHint')}
                     </Text>
                   </View>
                 );
@@ -481,7 +487,7 @@ export function AlarmSoundSettingsScreen() {
               onPress={() => navigation.navigate('RecordSound')}
               activeOpacity={0.85}
             >
-              <Text style={styles.addButtonText}>＋ 새 알림음 등록</Text>
+              <Text style={styles.addButtonText}>{t('alarmSound.addNewBtn')}</Text>
             </TouchableOpacity>
           </>
         )}

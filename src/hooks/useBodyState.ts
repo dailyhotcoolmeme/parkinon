@@ -11,8 +11,9 @@ import { useState, useEffect, useCallback } from 'react';
 import { supabase } from '../lib/supabase';
 import { useAuth } from '../context/AuthContext';
 import { sendCaregiverPush } from '../utils/notifications';
-import { getKSTToday, getKSTDayRange } from '../utils/medUtils';
+import { getLocalToday, getLocalDayRange } from '../utils/medUtils';
 import type { Database } from '../types/database';
+import i18n from '../i18n';
 
 type OnOffLogRow = Database['public']['Tables']['on_off_logs']['Row'];
 type TriggeredBy = Database['public']['Tables']['on_off_logs']['Row']['triggered_by'];
@@ -80,8 +81,9 @@ export function useBodyState(): UseBodyStateReturn {
         return;
       }
 
-      const today = getKSTToday();
-      const { start, end } = getKSTDayRange(today);
+      const tz = user?.timezone || 'Asia/Seoul';
+      const today = getLocalToday(tz);
+      const { start, end } = getLocalDayRange(today, tz);
 
       const { data, error: queryError } = await supabase
         .from('on_off_logs')
@@ -95,7 +97,7 @@ export function useBodyState(): UseBodyStateReturn {
       setTodayLogs(data ?? []);
     } catch (err: any) {
       console.error('[useBodyState] fetchTodayLogs 오류:', err);
-      setError(err.message ?? '기록을 불러오지 못했어요.');
+      setError(err.message ?? i18n.t('bodyStateHook.fetchError'));
     } finally {
       setLoading(false);
     }
@@ -114,7 +116,7 @@ export function useBodyState(): UseBodyStateReturn {
     try {
       const patientId = await getPatientId();
       if (!patientId) {
-        setError('연동된 환자 정보를 찾을 수 없어요.');
+        setError(i18n.t('bodyStateHook.noPatientError'));
         return false;
       }
 
@@ -182,9 +184,9 @@ export function useBodyState(): UseBodyStateReturn {
               .not('push_token', 'is', null);
 
             // 환자 이름 조회
-            let patientName = '환자분';
+            let patientName = i18n.t('bodyStateHook.defaultPatientName');
             if (user.role === 'patient') {
-              patientName = user.name || '환자분';
+              patientName = user.name || i18n.t('bodyStateHook.defaultPatientName');
             } else {
               // 보호자인 경우 연동된 환자 이름 조회
               const { data: patientRow } = await supabase
@@ -203,22 +205,22 @@ export function useBodyState(): UseBodyStateReturn {
               // 항목별 보호자 수신 설정(prefs)은 그대로 존중 — 켜진 항목만 묶음에 포함.
               const parts: string[] = [];
               if (data.body_state !== undefined && prefs.body_state !== false) {
-                parts.push(`몸 상태 ${data.body_state}점`);
+                parts.push(i18n.t('bodyStateHook.partBodyState', { score: data.body_state }));
               }
               if (data.mood !== undefined && prefs.mood !== false) {
-                parts.push(`기분 ${data.mood}점`);
+                parts.push(i18n.t('bodyStateHook.partMood', { score: data.mood }));
               }
               if (data.sleep_quality !== undefined && prefs.sleep !== false) {
-                parts.push('수면');
+                parts.push(i18n.t('bodyStateHook.partSleep'));
               }
               if (data.constipation !== undefined && prefs.constipation !== false) {
-                parts.push('변비');
+                parts.push(i18n.t('bodyStateHook.partConstipation'));
               }
               if (parts.length > 0) {
                 await sendCaregiverPush(
                   cu.push_token,
-                  '😊 건강 상태를 기록했어요',
-                  `${patientName}님이 기록을 남겼어요 (${parts.join(' · ')})`,
+                  i18n.t('bodyStateHook.pushTitle'),
+                  i18n.t('bodyStateHook.pushBody', { name: patientName, parts: parts.join(' · ') }),
                   { type: 'caregiver_body_state' },
                 );
               }
@@ -233,7 +235,7 @@ export function useBodyState(): UseBodyStateReturn {
       return true;
     } catch (err: any) {
       console.error('[useBodyState] saveBodyState 오류:', err);
-      setError(err.message ?? '기록 저장에 실패했어요.');
+      setError(err.message ?? i18n.t('bodyStateHook.saveError'));
       return false;
     } finally {
       setLoading(false);
@@ -248,7 +250,7 @@ export function useBodyState(): UseBodyStateReturn {
       const patientId = await getPatientId();
       if (!patientId) return [];
 
-      const { start, end } = getKSTDayRange(date);
+      const { start, end } = getLocalDayRange(date, user?.timezone || 'Asia/Seoul');
       const { data, error: queryError } = await supabase
         .from('on_off_logs')
         .select('*')
@@ -273,8 +275,9 @@ export function useBodyState(): UseBodyStateReturn {
       const patientId = await getPatientId();
       if (!patientId) return true;
 
-      const today = getKSTToday();
-      const { start } = getKSTDayRange(today);
+      const tz = user?.timezone || 'Asia/Seoul';
+      const today = getLocalToday(tz);
+      const { start } = getLocalDayRange(today, tz);
 
       const { count, error: queryError } = await supabase
         .from('on_off_logs')
@@ -298,7 +301,7 @@ export function useBodyState(): UseBodyStateReturn {
       const patientId = await getPatientId();
       if (!patientId) return [];
 
-      const { start, end } = getKSTDayRange(date);
+      const { start, end } = getLocalDayRange(date, user?.timezone || 'Asia/Seoul');
       const { data } = await supabase
         .from('media_logs')
         .select('*')

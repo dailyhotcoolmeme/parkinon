@@ -30,8 +30,10 @@ import Animated, {
   cancelAnimation,
 } from 'react-native-reanimated';
 import { LoadingTokens as T, standardEasing } from './loadingTokens';
+import { getBrandLogo } from '../../utils/brandLogo';
+import { useTranslation } from 'react-i18next';
 
-const LOGO = require('../../../assets/parkinon-logo.png');
+const LOGO = getBrandLogo();
 
 export interface BrandProgressOverlayProps {
   visible: boolean;
@@ -78,6 +80,7 @@ export function BrandProgressOverlay({
   minVisibleMs = 0,
   onHidden,
 }: BrandProgressOverlayProps) {
+  const { t } = useTranslation();
   const { width: screenW } = useWindowDimensions();
 
   // 최소 표시 시간 보장용 — 실제 화면 표시 여부
@@ -291,7 +294,7 @@ export function BrandProgressOverlay({
           {/* 경과 10초↑ 보조 문구 */}
           {elapsedHint && !done && (
             <Text style={styles.elapsedHint}>
-              조금만 더 기다려 주세요{T.ellipsis}
+              {t('brandProgress.elapsedHint')}{T.ellipsis}
             </Text>
           )}
         </Animated.View>

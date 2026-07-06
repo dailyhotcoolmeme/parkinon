@@ -22,13 +22,20 @@ import { supabase } from '../../lib/supabase';
 import { MenuStackParamList } from '../../navigation/MenuNavigator';
 import { useNotificationBadge } from '../../context/NotificationBadgeContext';
 import { useDialog } from '../../context/DialogContext';
+import { useTranslation } from 'react-i18next';
+import i18n from '../../i18n';
 
 type NavProp = StackNavigationProp<MenuStackParamList>;
 
 const SUPABASE_URL = process.env.EXPO_PUBLIC_SUPABASE_URL!;
 const SUPABASE_ANON_KEY = process.env.EXPO_PUBLIC_SUPABASE_ANON_KEY!;
 
+function isEnLocale(): boolean {
+  return (i18n.language || '').toLowerCase().startsWith('en');
+}
+
 const DAYS_KR = ['일', '월', '화', '수', '목', '금', '토'];
+const DAYS_EN = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
 
 interface Appointment {
   id: string;
@@ -47,22 +54,30 @@ function alarmDate(iso: string, daysBefore: number): Date {
   return new Date(new Date(iso).getTime() - daysBefore * DAY_MS);
 }
 
-/** '2026년 9월 26일(수) 08:00' (24시간) — 알림 발송 정확한 일시 안내용. */
+/** '2026년 9월 26일(수) 08:00' (24시간) — 알림 발송 정확한 일시 안내용. ko는 기존과 100% 동일. */
 function formatNotifDateTime(d: Date): string {
-  const dow = DAYS_KR[d.getDay()];
   const hh = String(d.getHours()).padStart(2, '0');
   const mm = String(d.getMinutes()).padStart(2, '0');
+  if (isEnLocale()) {
+    const dow = DAYS_EN[d.getDay()];
+    return `${d.getFullYear()}-${d.getMonth() + 1}-${d.getDate()} (${dow}) ${hh}:${mm}`;
+  }
+  const dow = DAYS_KR[d.getDay()];
   return `${d.getFullYear()}년 ${d.getMonth() + 1}월 ${d.getDate()}일(${dow}) ${hh}:${mm}`;
 }
 
-/** '10월 3일(수) 오후 2:00' — 알림 본문에 넣는 진료 일시. */
+/** '10월 3일(수) 오후 2:00' — 알림 본문에 넣는 진료 일시. ko는 기존과 100% 동일. */
 function apptWhenKor(iso: string): string {
   const d = new Date(iso);
-  const dow = DAYS_KR[d.getDay()];
   const h = d.getHours();
   const m = d.getMinutes();
-  const ampm = h < 12 ? '오전' : '오후';
   const h12 = h % 12 === 0 ? 12 : h % 12;
+  if (isEnLocale()) {
+    const dow = DAYS_EN[d.getDay()];
+    return `${d.getMonth() + 1}/${d.getDate()} (${dow}) ${h12}:${String(m).padStart(2, '0')} ${h < 12 ? 'AM' : 'PM'}`;
+  }
+  const dow = DAYS_KR[d.getDay()];
+  const ampm = h < 12 ? '오전' : '오후';
   return `${d.getMonth() + 1}월 ${d.getDate()}일(${dow}) ${ampm} ${h12}:${String(m).padStart(2, '0')}`;
 }
 
@@ -95,6 +110,10 @@ interface MedRecord {
 
 function formatApptDate(iso: string): string {
   const d = new Date(iso);
+  if (isEnLocale()) {
+    const dow = DAYS_EN[d.getDay()];
+    return `${d.getFullYear()}-${d.getMonth() + 1}-${d.getDate()} (${dow})`;
+  }
   const dow = DAYS_KR[d.getDay()];
   return `${d.getFullYear()}년 ${d.getMonth() + 1}월 ${d.getDate()}일 (${dow})`;
 }
@@ -103,8 +122,9 @@ function formatApptTime(iso: string): string {
   const d = new Date(iso);
   const h = d.getHours();
   const m = d.getMinutes();
-  const ampm = h < 12 ? '오전' : '오후';
   const h12 = h % 12 === 0 ? 12 : h % 12;
+  if (isEnLocale()) return `${h12}:${String(m).padStart(2, '0')} ${h < 12 ? 'AM' : 'PM'}`;
+  const ampm = h < 12 ? '오전' : '오후';
   return `${ampm} ${h12}:${String(m).padStart(2, '0')}`;
 }
 
@@ -124,7 +144,7 @@ function apptPlaceText(appt: { hospital_name: string | null; doctor_name: string
 
 function formatRecordDate(iso: string): string {
   const d = new Date(iso);
-  const dow = DAYS_KR[d.getDay()];
+  const dow = isEnLocale() ? DAYS_EN[d.getDay()] : DAYS_KR[d.getDay()];
   return `${d.getFullYear()}. ${d.getMonth() + 1}. ${d.getDate()}. (${dow})`;
 }
 
@@ -132,8 +152,9 @@ function formatRecordTime(iso: string): string {
   const d = new Date(iso);
   const h = d.getHours();
   const m = d.getMinutes();
-  const ampm = h < 12 ? '오전' : '오후';
   const h12 = h % 12 === 0 ? 12 : h % 12;
+  if (isEnLocale()) return `${h12}:${String(m).padStart(2, '0')} ${h < 12 ? 'AM' : 'PM'}`;
+  const ampm = h < 12 ? '오전' : '오후';
   return `${ampm} ${h12}:${String(m).padStart(2, '0')}`;
 }
 
@@ -154,9 +175,9 @@ function alarmSubText(appt: Appointment, which: 'week' | 'day'): React.ReactNode
   const on = which === 'week' ? appt.notify_week_before : appt.notify_day_before;
   const dateStr = formatNotifDateTime(d);
   // (꺼짐)만 색 강조 — 중첩 Text라 부모 lineHeight를 그대로 상속(줄간격 영향 없음)
-  if (!on) return (<>{dateStr} <Text style={styles.apptAlarmOff}>(꺼짐)</Text></>);
-  if (d.getTime() <= Date.now()) return `${dateStr}\n이미 지난 시점이라 알림이 오지 않아요`;
-  return `${dateStr}에 알림을 보내요`;
+  if (!on) return (<>{dateStr} <Text style={styles.apptAlarmOff}>{i18n.t('medRecordList.alarmOff')}</Text></>);
+  if (d.getTime() <= Date.now()) return `${dateStr}\n${i18n.t('medRecordList.alarmPastNote')}`;
+  return i18n.t('medRecordList.alarmWillSend', { date: dateStr });
 }
 
 function hasPrescriptionChange(meds: { change_type: string }[]): boolean {
@@ -164,6 +185,7 @@ function hasPrescriptionChange(meds: { change_type: string }[]): boolean {
 }
 
 export function MedicalRecordListScreen() {
+  const { t } = useTranslation();
   const navigation = useNavigation<NavProp>();
   const { user } = useAuth();
   const { patientId, loading: pidLoading } = usePatientId();
@@ -211,12 +233,12 @@ export function MedicalRecordListScreen() {
         ),
       ]);
 
-      if (!apptRes.ok || !recRes.ok) throw new Error('데이터를 불러오지 못했어요.');
+      if (!apptRes.ok || !recRes.ok) throw new Error(t('medRecordList.fetchFailMsg'));
 
       setAppointments(await apptRes.json());
       setRecords(await recRes.json());
     } catch (e: any) {
-      setError(e.message ?? '오류가 발생했어요.');
+      setError(e.message ?? t('medRecordList.genericErrorMsg'));
     } finally {
       setLoading(false);
     }
@@ -226,10 +248,10 @@ export function MedicalRecordListScreen() {
 
   const handleDeleteAppointment = async (appt: Appointment) => {
     const ok = await dialog.confirm({
-      title: '일정 삭제',
-      message: `${formatApptDate(appt.appointment_date)} 일정을 삭제할까요?`,
-      confirmText: '삭제',
-      cancelText: '취소',
+      title: t('medRecordList.deleteScheduleTitle'),
+      message: t('medRecordList.deleteScheduleMsg', { date: formatApptDate(appt.appointment_date) }),
+      confirmText: t('medRecordList.delete'),
+      cancelText: t('medRecordList.cancel'),
       destructive: true,
     });
     if (!ok) return;
@@ -248,10 +270,10 @@ export function MedicalRecordListScreen() {
           headers: { apikey: SUPABASE_ANON_KEY, Authorization: `Bearer ${token}` },
         },
       );
-      if (!res.ok) throw new Error('삭제에 실패했어요.');
+      if (!res.ok) throw new Error(t('medRecordList.deleteFailMsg'));
       setAppointments(prev => prev.filter(a => a.id !== appt.id));
     } catch (e: any) {
-      dialog.alert({ title: '오류', message: e.message ?? '삭제에 실패했어요.' });
+      dialog.alert({ title: t('medRecordList.errorTitle'), message: e.message ?? t('medRecordList.deleteFailMsg') });
     }
   };
 
@@ -287,7 +309,7 @@ export function MedicalRecordListScreen() {
           }),
         },
       );
-      if (!res.ok) throw new Error('알림 설정 저장 실패');
+      if (!res.ok) throw new Error(t('medRecordList.alarmSaveFailMsg'));
       setAppointments(prev => prev.map(a =>
         a.id === appt.id ? { ...a, notify_week_before: newWeek, notify_day_before: newDay } : a,
       ));
@@ -296,11 +318,11 @@ export function MedicalRecordListScreen() {
       if (value) {
         dialog.alert(
           dPast
-            ? { title: '알림을 켰어요', message: `다만 ${dateStr}은 이미 지나서 이번엔 알림이 오지 않아요.` }
-            : { title: '알림을 켰어요', message: `${dateStr}에 알림을 보내요.` },
+            ? { title: t('medRecordList.alarmOnTitle'), message: t('medRecordList.alarmOnPastMsg', { date: dateStr }) }
+            : { title: t('medRecordList.alarmOnTitle'), message: t('medRecordList.alarmOnFutureMsg', { date: dateStr }) },
         );
       } else {
-        dialog.alert({ title: '알림을 껐어요', message: `${dateStr} 알림을 보내지 않아요.` });
+        dialog.alert({ title: t('medRecordList.alarmOffTitle'), message: t('medRecordList.alarmOffMsg', { date: dateStr }) });
       }
     } catch (e) {
       // 실패 시 원복
@@ -309,16 +331,16 @@ export function MedicalRecordListScreen() {
           ? { ...a, notify_week_before: appt.notify_week_before, notify_day_before: appt.notify_day_before }
           : a,
       ));
-      dialog.alert({ title: '오류', message: '알림 설정을 바꾸지 못했어요. 다시 시도해주세요.' });
+      dialog.alert({ title: t('medRecordList.errorTitle'), message: t('medRecordList.alarmSaveFailAlertMsg') });
     }
   };
 
   const handleDeleteRecord = async (rec: MedRecord) => {
     const ok = await dialog.confirm({
-      title: '진료 기록 삭제',
-      message: `${formatApptDate(rec.visit_date)} 진료 기록을 삭제할까요?`,
-      confirmText: '삭제',
-      cancelText: '취소',
+      title: t('medRecordList.deleteRecordTitle'),
+      message: t('medRecordList.deleteRecordMsg', { date: formatApptDate(rec.visit_date) }),
+      confirmText: t('medRecordList.delete'),
+      cancelText: t('medRecordList.cancel'),
       destructive: true,
     });
     if (!ok) return;
@@ -328,17 +350,17 @@ export function MedicalRecordListScreen() {
       // 연결된 처방약 스냅샷 먼저 삭제 후 기록 삭제
       await fetch(`${SUPABASE_URL}/rest/v1/medical_record_medications?medical_record_id=eq.${rec.id}`, { method: 'DELETE', headers: h });
       const res = await fetch(`${SUPABASE_URL}/rest/v1/medical_records?id=eq.${rec.id}`, { method: 'DELETE', headers: h });
-      if (!res.ok) throw new Error('삭제에 실패했어요.');
+      if (!res.ok) throw new Error(t('medRecordList.deleteFailMsg'));
       setRecords(prev => prev.filter(r => r.id !== rec.id));
     } catch (e: any) {
-      dialog.alert({ title: '오류', message: e.message ?? '삭제에 실패했어요.' });
+      dialog.alert({ title: t('medRecordList.errorTitle'), message: e.message ?? t('medRecordList.deleteFailMsg') });
     }
   };
 
   return (
     <SafeAreaView style={styles.container} edges={['top']}>
       <TopBar
-        title="진료 기록"
+        title={t('medRecordList.headerTitle')}
         showBack
         showBell
         bellBadge={unreadCount}
@@ -351,22 +373,22 @@ export function MedicalRecordListScreen() {
       ) : caregiverUnlinked ? (
         <View style={styles.unlinkedWrap}>
           <Ionicons name="people-outline" size={56} color={Colors.textHint} />
-          <Text style={styles.unlinkedTitle}>환자를 먼저 연동해주세요</Text>
-          <Text style={styles.unlinkedDesc}>{'가족을 연동하면 환자분의\n진료 일정·기록을 함께 관리할 수 있어요'}</Text>
+          <Text style={styles.unlinkedTitle}>{t('medRecordList.unlinkedTitle')}</Text>
+          <Text style={styles.unlinkedDesc}>{t('medRecordList.unlinkedDesc')}</Text>
           <TouchableOpacity
             style={styles.linkFamilyBtn}
             onPress={() => navigation.navigate('FamilyLink')}
             activeOpacity={0.85}
           >
             <Ionicons name="person-add-outline" size={22} color={Colors.white} />
-            <Text style={styles.linkFamilyBtnText}>가족 연동하기</Text>
+            <Text style={styles.linkFamilyBtnText}>{t('medRecordList.linkFamilyBtn')}</Text>
           </TouchableOpacity>
         </View>
       ) : error ? (
         <View style={styles.center}>
           <Text style={styles.errorText}>{error}</Text>
           <TouchableOpacity style={styles.retryBtn} onPress={fetchData}>
-            <Text style={styles.retryBtnText}>다시 시도</Text>
+            <Text style={styles.retryBtnText}>{t('medRecordList.retry')}</Text>
           </TouchableOpacity>
         </View>
       ) : (
@@ -376,20 +398,20 @@ export function MedicalRecordListScreen() {
           <View style={styles.sectionHeader}>
             <View style={styles.sectionLabelRow}>
               <Ionicons name="calendar-outline" size={24} color={Colors.primary} style={{ marginRight: 8 }} />
-              <Text style={styles.sectionLabel}>진료 일정</Text>
+              <Text style={styles.sectionLabel}>{t('medRecordList.scheduleSection')}</Text>
             </View>
             <TouchableOpacity
               style={styles.addApptBtn}
               onPress={() => navigation.navigate('AppointmentWrite' as any)}
               activeOpacity={0.8}
             >
-              <Text style={styles.addApptBtnText}>+ 일정 등록</Text>
+              <Text style={styles.addApptBtnText}>{t('medRecordList.addSchedule')}</Text>
             </TouchableOpacity>
           </View>
 
           {appointments.length === 0 ? (
             <View style={styles.emptyCard}>
-              <Text style={styles.emptyText}>등록된 진료 일정이 없어요</Text>
+              <Text style={styles.emptyText}>{t('medRecordList.noSchedule')}</Text>
             </View>
           ) : (
             appointments.map(appt => (
@@ -407,7 +429,7 @@ export function MedicalRecordListScreen() {
                       hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
                       onPress={() => navigation.navigate('AppointmentWrite', { appointmentId: appt.id } as any)}
                       activeOpacity={0.7}
-                      accessibilityLabel="일정 수정"
+                      accessibilityLabel={t('medRecordList.a11yEditSchedule')}
                     >
                       <Ionicons name="create-outline" size={22} color={Colors.textSub} />
                     </TouchableOpacity>
@@ -416,7 +438,7 @@ export function MedicalRecordListScreen() {
                       hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
                       onPress={() => handleDeleteAppointment(appt)}
                       activeOpacity={0.7}
-                      accessibilityLabel="일정 삭제"
+                      accessibilityLabel={t('medRecordList.a11yDeleteSchedule')}
                     >
                       <Ionicons name="trash-outline" size={22} color={Colors.danger} />
                     </TouchableOpacity>
@@ -430,7 +452,7 @@ export function MedicalRecordListScreen() {
                 <View style={styles.apptAlarmBox}>
                   <View style={styles.apptAlarmRow}>
                     <View style={styles.apptAlarmLeft}>
-                      <Text style={styles.apptAlarmTitle}>D-7일 알림</Text>
+                      <Text style={styles.apptAlarmTitle}>{t('medRecordList.weekBeforeAlarm')}</Text>
                       <Text style={styles.apptAlarmSub}>{alarmSubText(appt, 'week')}</Text>
                     </View>
                     <Switch
@@ -442,7 +464,7 @@ export function MedicalRecordListScreen() {
                   </View>
                   <View style={styles.apptAlarmRow}>
                     <View style={styles.apptAlarmLeft}>
-                      <Text style={styles.apptAlarmTitle}>D-1일 알림</Text>
+                      <Text style={styles.apptAlarmTitle}>{t('medRecordList.dayBeforeAlarm')}</Text>
                       <Text style={styles.apptAlarmSub}>{alarmSubText(appt, 'day')}</Text>
                     </View>
                     <Switch
@@ -461,19 +483,19 @@ export function MedicalRecordListScreen() {
           <View style={[styles.sectionHeader, { marginTop: 32, marginBottom: 12 }]}>
             <View style={styles.sectionLabelRow}>
               <Ionicons name="clipboard-outline" size={24} color={Colors.primary} style={{ marginRight: 8 }} />
-              <Text style={styles.sectionLabel}>진료 이력</Text>
+              <Text style={styles.sectionLabel}>{t('medRecordList.historySection')}</Text>
             </View>
             <TouchableOpacity
               style={styles.addApptBtn}
               onPress={() => navigation.navigate('MedicalRecordWrite' as any)}
               activeOpacity={0.8}
             >
-              <Text style={styles.addApptBtnText}>+ 기록 추가</Text>
+              <Text style={styles.addApptBtnText}>{t('medRecordList.addRecord')}</Text>
             </TouchableOpacity>
           </View>
           {records.length === 0 ? (
             <View style={styles.emptyCard}>
-              <Text style={styles.emptyText}>아직 진료 기록이 없어요</Text>
+              <Text style={styles.emptyText}>{t('medRecordList.noRecord')}</Text>
             </View>
           ) : (
             records.map(rec => {
@@ -495,7 +517,7 @@ export function MedicalRecordListScreen() {
                         hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
                         onPress={() => navigation.navigate('MedicalRecordWrite', { recordId: rec.id } as any)}
                         activeOpacity={0.7}
-                        accessibilityLabel="진료 기록 수정"
+                        accessibilityLabel={t('medRecordList.a11yEditRecord')}
                       >
                         <Ionicons name="create-outline" size={22} color={Colors.textSub} />
                       </TouchableOpacity>
@@ -504,7 +526,7 @@ export function MedicalRecordListScreen() {
                         hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
                         onPress={() => handleDeleteRecord(rec)}
                         activeOpacity={0.7}
-                        accessibilityLabel="진료 기록 삭제"
+                        accessibilityLabel={t('medRecordList.a11yDeleteRecord')}
                       >
                         <Ionicons name="trash-outline" size={22} color={Colors.danger} />
                       </TouchableOpacity>
@@ -519,9 +541,9 @@ export function MedicalRecordListScreen() {
                           style={styles.recChangedBtn}
                           onPress={() => navigation.navigate('MedicationManage', { mode: 'meds' } as any)}
                           activeOpacity={0.7}
-                          accessibilityLabel="처방 변경 — 복용약 관리로 이동"
+                          accessibilityLabel={t('medRecordList.a11yPrescriptionChanged')}
                         >
-                          <Text style={styles.recChangedBtnText}>처방 변경</Text>
+                          <Text style={styles.recChangedBtnText}>{t('medRecordList.prescriptionChanged')}</Text>
                           <Ionicons name="chevron-forward" size={14} color={Colors.danger} />
                         </TouchableOpacity>
                       ) : null}

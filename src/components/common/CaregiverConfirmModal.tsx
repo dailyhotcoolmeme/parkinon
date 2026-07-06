@@ -6,6 +6,7 @@ import {
   StyleSheet,
   Modal,
 } from 'react-native';
+import { useTranslation } from 'react-i18next';
 import { Colors } from '../../constants/colors';
 import { PrimaryButton } from './PrimaryButton';
 
@@ -22,10 +23,12 @@ interface Props {
  */
 export function CaregiverConfirmModal({
   visible,
-  patientName = '환자',
+  patientName,
   onConfirm,
   onCancel,
 }: Props) {
+  const { t } = useTranslation();
+  const name = patientName ?? t('medication.caregiverDefaultName');
   return (
     <Modal
       visible={visible}
@@ -41,20 +44,20 @@ export function CaregiverConfirmModal({
       <View style={styles.centerContainer}>
         <View style={styles.card}>
           <Text style={styles.emoji}>👨‍👩‍👧</Text>
-          <Text style={styles.title}>{patientName}님 대신{'\n'}입력하시나요?</Text>
+          <Text style={styles.title}>{t('medication.caregiverConfirmTitle', { name })}</Text>
           <Text style={styles.subtitle}>
-            보호자 분이 대신 기록할 수 있어요
+            {t('medication.caregiverConfirmSubtitle')}
           </Text>
 
           <View style={styles.btnRow}>
             <PrimaryButton
-              title="네, 대신 입력할게요"
+              title={t('medication.caregiverConfirmYes')}
               onPress={onConfirm}
             />
           </View>
 
           <TouchableOpacity style={styles.cancelBtn} onPress={onCancel}>
-            <Text style={styles.cancelText}>닫기</Text>
+            <Text style={styles.cancelText}>{t('common.close')}</Text>
           </TouchableOpacity>
         </View>
       </View>
