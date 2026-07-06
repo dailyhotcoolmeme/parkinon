@@ -1328,10 +1328,13 @@ export function DoseSlotSetList({
                                 : `${recSentence.subject}${recSentence.particle} ${recSentence.timing}에 몸 상태를 확인하는 걸 추천해요.`)
                             : t('doseSlotSetList.noRecTiming')}
                         </Text>
-                        <Text style={styles.recSource} numberOfLines={1}>
+                        {/* numberOfLines=1 제거: source가 실제로는 "US FDA & manufacturer drug
+                            information"처럼 길어서(recSourceLabel 템플릿만 보고 짧다고 착각한 게
+                            recMain과 똑같은 실수) 1줄로는 잘렸었다. recSource도 minHeight라 안전. */}
+                        <Text style={styles.recSource}>
                           {showRec && rec.source ? t('doseSlotSetList.recSourceLabel', { source: rec.source }) : ' '}
                         </Text>
-                        <Text style={styles.recDisclaimer} numberOfLines={3}>
+                        <Text style={styles.recDisclaimer}>
                           {showRec
                             ? t('doseSlotSetList.recDisclaimer')
                             : ' '}
