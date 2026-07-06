@@ -66,8 +66,8 @@
     "subtitle": "Please choose the role that fits you",
     "patientLabel": "I have been diagnosed with Parkinson's",
     "patientDesc": "You can record your own medication\nand how you feel",
-    "caregiverLabel": "I'm a family member of a person with Parkinson's",
-    "caregiverDesc": "You can check and support your\nfamily's health together",
+    "caregiverLabel": "I care for a Parkinson's patient",
+    "caregiverDesc": "Check on and support\nyour family's health",
     "saveErrorMessage": "Something went wrong saving your role. Please try again.\n"
   },
   "patientInfo": {
