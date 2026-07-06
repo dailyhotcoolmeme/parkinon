@@ -126,9 +126,18 @@ Deno.serve(async (req) => {
     return jsonErr(vErr?.message ?? "verify failed", 500);
   }
 
+  // 웹(parkinon-web)이 앱과 동일한 언어로 뜨도록, 앱이 push_token 저장 시 함께 upsert하는
+  // users.language('ko'|'en')를 실어 보낸다. 실패해도 로그인 자체는 막지 않고 'ko' 폴백.
+  let language = "ko";
+  try {
+    const { data: userRow } = await admin.from("users").select("language").eq("id", row.user_id).maybeSingle();
+    if (userRow?.language) language = userRow.language;
+  } catch { /* 폴백 유지 */ }
+
   return new Response(JSON.stringify({
     access_token: verified.session.access_token,
     refresh_token: verified.session.refresh_token,
     user_id: row.user_id,
+    language,
   }), { headers: JSON_HEADERS });
 });

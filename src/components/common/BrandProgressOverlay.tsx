@@ -30,10 +30,13 @@ import Animated, {
   cancelAnimation,
 } from 'react-native-reanimated';
 import { LoadingTokens as T, standardEasing } from './loadingTokens';
-import { getBrandLogo } from '../../utils/brandLogo';
 import { useTranslation } from 'react-i18next';
 
-const LOGO = getBrandLogo();
+// 톱바(TopBar.tsx symbolBadge)와 동일한 심볼(텍스트 없는 흰 아이콘) + 초록 배지.
+// 예전엔 getBrandLogo()(텍스트 워드마크 박힌 정사각 로고)를 48x48로 cover 해서
+// 작은 배지 안에 글자가 뭉개져 보였다 — 부트 스플래시(FullscreenBoot)는 큰 워드마크가
+// 맞지만, 이 좁은 진행 배지엔 톱바처럼 심볼만 쓰는 게 맞다.
+const SYMBOL_LOGO = require('../../../assets/parkinon-symbol-en.png');
 
 export interface BrandProgressOverlayProps {
   visible: boolean;
@@ -242,7 +245,7 @@ export function BrandProgressOverlay({
               </Animated.View>
             ) : (
               <Animated.View style={[styles.symbolBadge, symbolStyle]}>
-                <Image source={LOGO} style={styles.symbol} resizeMode="cover" />
+                <Image source={SYMBOL_LOGO} style={styles.symbol} resizeMode="contain" />
               </Animated.View>
             )}
           </View>
@@ -336,11 +339,14 @@ const styles = StyleSheet.create({
     width: 48,
     height: 48,
     borderRadius: 12,
+    backgroundColor: T.green,
+    alignItems: 'center',
+    justifyContent: 'center',
     overflow: 'hidden',
   },
   symbol: {
-    width: 48,
-    height: 48,
+    width: 30,
+    height: 30,
   },
   checkCircle: {
     width: 48,
