@@ -39,7 +39,7 @@ export function OverseasMedTabScreen() {
           activeOpacity={0.75}
         >
           <Text style={[styles.tabText, active === 'meds' && styles.tabTextActive]} numberOfLines={1}>
-            {t('menu.myMedsLabel')}
+            {t('menu.medsTabLabel')}
           </Text>
         </TouchableOpacity>
         <TouchableOpacity
@@ -48,7 +48,7 @@ export function OverseasMedTabScreen() {
           activeOpacity={0.75}
         >
           <Text style={[styles.tabText, active === 'slots' && styles.tabTextActive]} numberOfLines={1}>
-            {t('menu.doseSlotsLabel')}
+            {t('menu.doseSlotsTabLabel')}
           </Text>
         </TouchableOpacity>
       </View>

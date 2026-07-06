@@ -371,7 +371,7 @@ export function RecordsScreen() {
                         >
                           <Ionicons name={item.icon} size={20} color={item.accentColor} />
                         </View>
-                        <Text style={styles.cardLabel} numberOfLines={1}>
+                        <Text style={styles.cardLabel} numberOfLines={2}>
                           {item.label}
                         </Text>
                         <Ionicons
@@ -482,7 +482,8 @@ const styles = StyleSheet.create({
   },
   tabBtn: {
     flex: 1,
-    height: 52,
+    minHeight: 52,
+    paddingVertical: 8,
     borderRadius: 26,
     backgroundColor: Colors.border,
     alignItems: 'center',

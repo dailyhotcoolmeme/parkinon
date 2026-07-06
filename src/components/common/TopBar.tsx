@@ -96,7 +96,7 @@ export function TopBar({ title, showBack, showClose, showParkinon, rightIcon, ri
             </TouchableOpacity>
           )}
         </View>
-        {!showParkinon && !!title && <Text style={styles.title}>{title}</Text>}
+        {!showParkinon && !!title && <Text style={styles.title} numberOfLines={1}>{title}</Text>}
         <View style={[styles.right, rightIconCount >= 2 && styles.rightWide, rightIconCount >= 3 && styles.rightWider]}>
           {rightComponent ?? rightIcon ?? (
             <View style={styles.rightIcons}>

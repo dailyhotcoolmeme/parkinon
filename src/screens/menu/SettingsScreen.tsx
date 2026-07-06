@@ -13,6 +13,8 @@ import {
   AppState,
   InteractionManager,
   Platform,
+  StyleProp,
+  ViewStyle,
 } from 'react-native';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useFocusEffect, useNavigation } from '@react-navigation/native';
@@ -205,11 +207,12 @@ const SWITCH_TRACK_COLOR = { false: Colors.border, true: Colors.primary };
  * 스위치 값을 작은 래퍼의 로컬 state로 분리해, 탭 즉시 가볍게 리렌더 → 네이티브에 곧바로 반영되게 한다.
  * 부모 value가 실제로 바뀌면(원격/로드) 동기화한다.
  */
-function OptimisticSwitch({ value, onValueChange }: { value: boolean; onValueChange: (v: boolean) => void }) {
+function OptimisticSwitch({ value, onValueChange, style }: { value: boolean; onValueChange: (v: boolean) => void; style?: StyleProp<ViewStyle> }) {
   const [shown, setShown] = useState(value);
   useEffect(() => { setShown(value); }, [value]);
   return (
     <Switch
+      style={style}
       value={shown}
       onValueChange={(v) => { setShown(v); onValueChange(v); }}
       trackColor={SWITCH_TRACK_COLOR}
@@ -1607,12 +1610,13 @@ export function SettingsScreen() {
                 <Text style={styles.cardHeaderSub}>{t('settings.missedNotifSub')}</Text>
               </View>
             </View>
-            <View style={styles.notifRow}>
+            <View style={[styles.notifRow, styles.notifRowTop]}>
               <View style={styles.notifLeft}>
                 <Text style={styles.notifTitle}>{t('settings.missedNotif1Title')}</Text>
                 <Text style={styles.notifSub}>{t('settings.missedNotif1Sub')}</Text>
               </View>
               <OptimisticSwitch
+                style={styles.notifSwitch}
                 value={!!medTimePrefs['missed_first']}
                 onValueChange={() => toggleMedTimeSlot('missed_first')}
               />
@@ -1627,12 +1631,13 @@ export function SettingsScreen() {
                 />
               </View>
             )}
-            <View style={styles.notifRow}>
+            <View style={[styles.notifRow, styles.notifRowTop]}>
               <View style={styles.notifLeft}>
                 <Text style={styles.notifTitle}>{t('settings.missedNotif2Title')}</Text>
                 <Text style={styles.notifSub}>{t('settings.missedNotif2Sub')}</Text>
               </View>
               <OptimisticSwitch
+                style={styles.notifSwitch}
                 value={!!medTimePrefs['missed_second']}
                 onValueChange={() => toggleMedTimeSlot('missed_second')}
               />
@@ -1868,12 +1873,13 @@ export function SettingsScreen() {
                           <Text style={styles.cardHeaderSub}>{t('settings.missedNotifSub')}</Text>
                         </View>
                       </View>
-                      <View style={styles.notifRow}>
+                      <View style={[styles.notifRow, styles.notifRowTop]}>
                         <View style={styles.notifLeft}>
                           <Text style={styles.notifTitle}>{t('settings.missedNotif1Title')}</Text>
                           <Text style={styles.notifSub}>{t('settings.missedNotif1Sub')}</Text>
                         </View>
                         <Switch
+                          style={styles.notifSwitch}
                           value={!!patientMedTimePrefs['missed_first']}
                           onValueChange={() => togglePatientMedTimeSlot('missed_first')}
                           trackColor={{ false: Colors.border, true: Colors.primary }}
@@ -1890,12 +1896,13 @@ export function SettingsScreen() {
                           />
                         </View>
                       )}
-                      <View style={styles.notifRow}>
+                      <View style={[styles.notifRow, styles.notifRowTop]}>
                         <View style={styles.notifLeft}>
                           <Text style={styles.notifTitle}>{t('settings.missedNotif2Title')}</Text>
                           <Text style={styles.notifSub}>{t('settings.missedNotif2Sub')}</Text>
                         </View>
                         <Switch
+                          style={styles.notifSwitch}
                           value={!!patientMedTimePrefs['missed_second']}
                           onValueChange={() => togglePatientMedTimeSlot('missed_second')}
                           trackColor={{ false: Colors.border, true: Colors.primary }}

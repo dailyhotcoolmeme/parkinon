@@ -1224,13 +1224,20 @@ export function DoseSlotSetList({
                           <TouchableOpacity
                             activeOpacity={0.85}
                             style={styles.recRegisterBtn}
-                            onPress={() =>
+                            onPress={() => {
                               // ⚠️ 이 컴포넌트는 BodyStateScreen/MealTimeModal 등 MenuNavigator
                               // 바깥(다른 탭)에서도 마운트되므로 로컬 useNavigation()으로는
                               // 'MedicationManage'를 못 찾아 조용히 실패한다(다른 탭에서 버튼 무반응 버그).
                               // 루트 기준 전역 네비게이션(navigateTo)으로 항상 도달 가능하게 한다.
-                              navigateTo('Main', { screen: 'MyInfo', params: { screen: 'MedicationManage', params: { mode: 'meds' } } })
-                            }
+                              //
+                              // 이 버튼은 MedicationManageScreen이 슬롯 수정 시트(Modal)로 띄운
+                              // DoseSlotSetList 안에서도 쓰이는데, 그 Modal은 네비게이터 트리
+                              // 바깥이라 navigateTo로 화면이 바뀌어도 자동으로 안 닫힌다.
+                              // 그대로 두면 내부적으로는 이동했는데 시트가 화면을 덮고 있어
+                              // "버튼이 안 먹는다"처럼 보인다 — 이동 전에 시트부터 닫는다.
+                              onSoloClose?.();
+                              navigateTo('Main', { screen: 'MyInfo', params: { screen: 'MedicationManage', params: { mode: 'meds' } } });
+                            }}
                           >
                             <Text style={styles.recRegisterBtnText}>{t('doseSlotSetList.goRegisterMeds')}</Text>
                           </TouchableOpacity>

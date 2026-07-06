@@ -433,9 +433,12 @@ export function FamilyLinkScreen() {
             <Text style={styles.famGuideFlow}>
               {t('familyLink.guideReceiveText')}
             </Text>
-            <Text style={styles.famGuideNote}>
-              {t('familyLink.guideReceiveNote')}
-            </Text>
+            <View style={styles.famGuideNoteRow}>
+              <Text style={styles.famGuideNote}>※</Text>
+              <Text style={[styles.famGuideNote, styles.famGuideNoteBody]}>
+                {t('familyLink.guideReceiveNote')}
+              </Text>
+            </View>
           </View>
         </View>
       </ScrollView>
@@ -530,7 +533,11 @@ const styles = StyleSheet.create({
   famGuideSection: { gap: 4 },
   famGuideHead: { fontSize: 15, fontWeight: '800', color: Colors.text },
   famGuideFlow: { fontSize: 15, lineHeight: 24, color: Colors.textSub },
-  famGuideNote: { fontSize: 15, lineHeight: 24, color: Colors.textSub, marginTop: 6 },
+  famGuideNote: { fontSize: 15, lineHeight: 24, color: Colors.textSub },
+  // "※" 기호와 본문을 별도 Text로 분리한 행(hanging indent) — 본문이 줄바꿈돼도
+  // 둘째 줄이 기호 밑(0열)이 아니라 첫 줄 본문 시작 위치에 맞춰지게 한다.
+  famGuideNoteRow: { flexDirection: 'row', alignItems: 'flex-start', gap: 4, marginTop: 6 },
+  famGuideNoteBody: { flex: 1 },
   safeArea: {
     flex: 1,
     backgroundColor: Colors.white,

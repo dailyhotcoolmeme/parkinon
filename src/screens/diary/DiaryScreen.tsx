@@ -60,7 +60,12 @@ const Journal = {
   mine: '#B89A52', // 내 글 표시(작은 점/마크)
 } as const;
 
-const SERIF = Platform.select({ ios: 'Georgia', android: 'serif' });
+// 'Georgia'/'serif'엔 한글 글리프가 없어 한국어는 원래도 OS가 자동으로 다른
+// 폰트로 대체해 그려왔다(=RULE_SPACING 괘선 정렬은 그 대체 폰트 기준으로 맞춰짐).
+// 영어는 실제로 Georgia가 적용되는데, 폰트마다 줄 안에서 글자가 앉는 높이(베이스라인)
+// 비율이 달라 같은 lineHeight=RULE_SPACING이어도 글이 괘선 위에 안 앉고 어긋난다.
+// 해외 로케일은 한국어와 동일하게 시스템 기본 폰트를 쓰게 해 정렬을 맞춘다.
+const SERIF = isOverseasLocale() ? undefined : Platform.select({ ios: 'Georgia', android: 'serif' });
 
 const WEEKDAYS_FULL = isOverseasLocale()
   ? ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday']

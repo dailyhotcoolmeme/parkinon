@@ -24,6 +24,7 @@ import { useDialog } from '../../context/DialogContext';
 import { ensureNotGuest } from '../../utils/guestGuard';
 import { MEASUREMENT_FEATURE_ENABLED } from '../../constants/featureFlags';
 import { useScrollTopOnTabPress } from '../../hooks/useScrollTopOnTabPress';
+import { isOverseasLocale } from '../../i18n/detectLocale';
 
 type NavigationProp = StackNavigationProp<MenuStackParamList, 'MenuHome'>;
 type IoniconName = React.ComponentProps<typeof Ionicons>['name'];
@@ -260,11 +261,19 @@ export function MenuScreen() {
               ),
           }))
         : MENU_SECTIONS;
+    // 차단된 사용자 관리는 정보/나눔(커뮤니티) 기능 전용 — 해외 로케일은 커뮤니티 탭 자체가
+    // 없으므로 메뉴에서도 숨긴다.
+    const withBlockedUsersGate = isOverseasLocale()
+      ? base.map((section) => ({
+          ...section,
+          items: section.items.filter((i) => i.key !== 'BlockedUsers'),
+        }))
+      : base;
     // 컨디션 측정 기능 숨김 시 측정 관련 메뉴 항목(환자/보호자) 모두 비노출.
-    if (!MEASUREMENT_FEATURE_ENABLED) return base;
+    if (!MEASUREMENT_FEATURE_ENABLED) return withBlockedUsersGate;
     const isPatient = user?.role === 'patient';
     const isCaregiverWithData = user?.role === 'caregiver' && hasPatientMeasurement;
-    if (!isPatient && !isCaregiverWithData) return base;
+    if (!isPatient && !isCaregiverWithData) return withBlockedUsersGate;
     // 보호자 항목 라벨/설명 — 환자 이름+님 사용. 이름 로드 전이면 잠시 '환자' fallback.
     const pName = patientName ?? t('menu.patientDefaultName');
     const caregiverItem: MenuItem = {
@@ -275,7 +284,7 @@ export function MenuScreen() {
       desc: 'menu.measurementCaregiverDesc',
       descParams: { name: pName },
     };
-    return base.map((section) => {
+    return withBlockedUsersGate.map((section) => {
       if (section.title !== 'menu.sectionRecords') return section;
       const extraItem = isPatient
         ? PATIENT_ONLY_MEASUREMENT_ITEM

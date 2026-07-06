@@ -48,12 +48,9 @@ const DURATION_GROUPS = [
 ];
 
 function formatDuration(min: number): string {
-  if (isEnLocale()) {
-    if (min < 60) return `${min} min`;
-    const he = Math.floor(min / 60);
-    const me = min % 60;
-    return me > 0 ? `${he} hr ${me} min` : `${he} hr`;
-  }
+  // 영문은 시:분 분해 대신 기록 리스트(exercise.recordLabel 등)와 동일하게
+  // 항상 "{min} min"으로 표기(한 줄 고정 + 저장 후 기록 표시와의 일관성).
+  if (isEnLocale()) return `${min} min`;
   if (min < 60) return `${min}분`;
   const h = Math.floor(min / 60);
   const m = min % 60;
@@ -273,11 +270,20 @@ export function ExerciseDurationScreen() {
     setSaving(true);
     // 저장과 다음 알림 조회를 병렬 실행 (서로 독립적)
     const patientId = user?.role === 'patient' ? user?.id : null;
-    const [success, info] = await Promise.all([
-      saveExercise(exerciseName, selected),
-      patientId ? fetchExerciseNextNotif(patientId) : Promise.resolve(null),
-    ]);
-    setSaving(false);
+    let success = false;
+    let info: ExNextNotifInfo | null = null;
+    try {
+      [success, info] = await Promise.all([
+        saveExercise(exerciseName, selected),
+        patientId ? fetchExerciseNextNotif(patientId) : Promise.resolve(null),
+      ]);
+    } catch (e) {
+      console.error('[ExerciseDurationScreen] handleSave 오류:', e);
+    } finally {
+      // 위 저장/조회 중 예기치 못한 예외가 나도 저장중 오버레이가 영구히 뜬 채
+      // 멈춘 것처럼 보이는 상황을 막기 위해 반드시 해제한다.
+      setSaving(false);
+    }
     if (success) {
       refreshBadge().catch(() => {});
       setSavedExerciseName(exerciseName);

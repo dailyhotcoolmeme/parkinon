@@ -803,7 +803,7 @@ export function VideoListScreen() {
             onPress={() => handleFilterChange(f.key)}
             activeOpacity={0.75}
           >
-            <Text style={[styles.filterText, filter === f.key && styles.filterTextActive]}>
+            <Text style={[styles.filterText, filter === f.key && styles.filterTextActive]} numberOfLines={1}>
               {f.label}
             </Text>
           </TouchableOpacity>
