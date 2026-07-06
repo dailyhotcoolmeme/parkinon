@@ -270,9 +270,9 @@
     "withdrawErrorMsg": "Something went wrong while deleting your account. Please try again.",
     "withdrawSpinnerTitle": "Deleting your account…",
     "withdrawSpinnerSubtitle": "Cleaning up your account",
-    "overseasMedTabLabel": "Settings",
+    "overseasMedTabLabel": "Reminders",
     "feedTabLabel": "Community",
-    "myInfoTabLabel": "Records"
+    "myInfoTabLabel": "More"
   },
   "timeline": {
     "toggleShow": "View past records",
@@ -745,8 +745,8 @@
     "deleteNotifConfirm": "Delete",
     "deleteMedSlotMsg": "Delete the {{slot}} time slot notification?",
     "myRecording": "My recording",
-    "caregiverTitle": "Caregiver notifications",
-    "patientOtherTitle": "Other notifications",
+    "caregiverTitle": "Caregiver Alerts",
+    "patientOtherTitle": "Other Alerts",
     "systemBlockedTitle": "System notifications are blocked",
     "systemBlockedSub": "Tap to allow ParkinON notifications in settings",
     "missedNotifTitle": "Missed-medication alert",
@@ -1053,8 +1053,8 @@
     "alarmWillSend": "We'll send a notification at {{date}}"
   },
   "medRecordWrite": {
-    "headerEdit": "Edit Medical Record",
-    "headerNew": "Add Medical Record",
+    "headerEdit": "Edit Record",
+    "headerNew": "Add Record",
     "dateSelectTitle": "Select date",
     "timeSelectTitle": "Select time",
     "yearHeader": "Year",
@@ -1110,7 +1110,7 @@
     "deleteDoneTitle": "Deleted",
     "deleteDoneMsg": "The medical record was deleted.",
     "errorTitle": "Error",
-    "headerTitle": "Medical Record Detail",
+    "headerTitle": "Record Detail",
     "retry": "Retry",
     "doctorSuffix": "Dr. {{name}}",
     "consultResultTitle": "Consultation result",
@@ -1375,7 +1375,7 @@
   "notifHistory": {
     "today": "Today",
     "yesterday": "Yesterday",
-    "headerTitle": "Notification History",
+    "headerTitle": "Notifications",
     "markAllRead": "Mark all read",
     "viewOlder": "View older notifications",
     "noNotifTitle": "No notifications yet",
@@ -1390,7 +1390,7 @@
     "cancel": "Cancel",
     "errorTitle": "Error",
     "unblockFailMsg": "A problem occurred while unblocking.\nPlease try again.",
-    "headerTitle": "Manage Blocked Users",
+    "headerTitle": "Blocked Users",
     "noBlockedTitle": "You haven't blocked anyone",
     "noBlockedDesc": "When you block someone in the community,\nyou can manage it here"
   },

@@ -1040,9 +1040,12 @@ interface MedicationManageScreenProps {
   // 해외 탭 내부 임베드 시 이 화면 자체 TopBar를 완전히 숨김(바깥 OverseasMedTabScreen이
   // 정식 TopBar+세그먼트 탭을 이미 그리므로 중복 방지). true면 SafeAreaView top 인셋도 부모가 처리.
   hideTopBar?: boolean;
+  // 슬롯 편집 중 "약 등록하러 가기" CTA를 눌렀을 때의 동작. 지정 시 DoseSlotSetList로 그대로 전달됨
+  // (해외판 OverseasMedTabScreen이 로컬 세그먼트 전환 콜백을 넘겨 다른 탭으로 안 벗어나게 함).
+  onGoRegisterMeds?: () => void;
 }
 
-export function MedicationManageScreen({ modeOverride, hideBack, hideTopBar }: MedicationManageScreenProps = {}) {
+export function MedicationManageScreen({ modeOverride, hideBack, hideTopBar, onGoRegisterMeds }: MedicationManageScreenProps = {}) {
   const { t } = useTranslation();
   const { user } = useAuth();
   const { getPatientForCaregiver } = useFamilyLink();
@@ -2631,7 +2634,7 @@ export function MedicationManageScreen({ modeOverride, hideBack, hideTopBar }: M
       <LoadingWrap style={styles.safeArea} {...(hideTopBar ? {} : { edges: ['top'] })}>
         {!hideTopBar && (
           <TopBar
-            title={isMedsMode ? t('menu.myMedsLabel') : t('menu.doseSlotsLabel')}
+            title={isMedsMode ? t('menu.medsTabLabel') : t('menu.doseSlotsTabLabel')}
             showBack={!hideBack}
             showBell
             bellBadge={unreadCount}
@@ -2672,7 +2675,7 @@ export function MedicationManageScreen({ modeOverride, hideBack, hideTopBar }: M
     <MainWrap style={styles.safeArea} {...(hideTopBar ? {} : { edges: ['top'] })}>
       {!hideTopBar && (
         <TopBar
-          title={isMedsMode ? t('menu.myMedsLabel') : t('menu.doseSlotsLabel')}
+          title={isMedsMode ? t('menu.medsTabLabel') : t('menu.doseSlotsTabLabel')}
           showBack={!hideBack}
           showBell
           bellBadge={unreadCount}
@@ -3266,6 +3269,7 @@ export function MedicationManageScreen({ modeOverride, hideBack, hideTopBar }: M
             autoOpenAddNonce={slotAlarmAddNonce}
             addOnly
             onAddDone={handleSlotAlarmAddDone}
+            onGoRegisterMeds={onGoRegisterMeds}
           />
         </View>
       )}
@@ -3306,6 +3310,7 @@ export function MedicationManageScreen({ modeOverride, hideBack, hideTopBar }: M
                 focusSlotId={slotAlarmFocusId}
                 focusNonce={slotAlarmFocusNonce}
                 autoOpenAddNonce={slotAlarmAddNonce}
+                onGoRegisterMeds={onGoRegisterMeds}
                 onFocusScrollTo={(y) =>
                   slotAlarmScrollRef.current?.scrollTo({
                     y: Math.max(0, y - 12),

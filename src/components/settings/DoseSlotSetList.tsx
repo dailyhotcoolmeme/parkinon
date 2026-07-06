@@ -249,6 +249,13 @@ interface Props {
    * - 취소/닫기(미저장) → 인자 없이 호출. 부모는 모달을 닫아 본 화면으로 복귀한다.
    */
   onAddDone?: (newSlotId?: string) => void;
+  /**
+   * "약 등록하러 가기" CTA(연결할 약이 0개일 때) 커스텀 동작.
+   * 지정하면 기본 동작(전역 navigateTo로 MyInfo>MedicationManage 이동) 대신 이 콜백만 호출한다.
+   * 해외판(OverseasMedTabScreen)처럼 이 컴포넌트가 이미 "약 관리" 탭과 같은 화면 안에
+   * 내장된 경우, 다른 탭으로 크로스 네비게이션할 필요 없이 로컬 탭만 전환하면 되므로 사용.
+   */
+  onGoRegisterMeds?: () => void;
 }
 
 export function DoseSlotSetList({
@@ -261,6 +268,7 @@ export function DoseSlotSetList({
   autoOpenAddNonce,
   addOnly,
   onAddDone,
+  onGoRegisterMeds,
 }: Props) {
   const { t } = useTranslation();
   const dialog = useDialog();
@@ -1225,17 +1233,19 @@ export function DoseSlotSetList({
                             activeOpacity={0.85}
                             style={styles.recRegisterBtn}
                             onPress={() => {
+                              // 시트(Modal)로 떠 있는 상태면 이동 전에 먼저 닫는다 — 안 닫으면
+                              // 내부적으론 이동했는데 시트가 화면을 덮고 있어 "버튼이 안 먹는다"처럼 보임.
+                              onSoloClose?.();
+                              if (onGoRegisterMeds) {
+                                // 해외판(OverseasMedTabScreen)처럼 이 컴포넌트가 이미 "약 관리"와
+                                // 같은 화면에 내장된 경우 — 로컬 탭만 전환(다른 바텀탭으로 안 감).
+                                onGoRegisterMeds();
+                                return;
+                              }
                               // ⚠️ 이 컴포넌트는 BodyStateScreen/MealTimeModal 등 MenuNavigator
                               // 바깥(다른 탭)에서도 마운트되므로 로컬 useNavigation()으로는
                               // 'MedicationManage'를 못 찾아 조용히 실패한다(다른 탭에서 버튼 무반응 버그).
                               // 루트 기준 전역 네비게이션(navigateTo)으로 항상 도달 가능하게 한다.
-                              //
-                              // 이 버튼은 MedicationManageScreen이 슬롯 수정 시트(Modal)로 띄운
-                              // DoseSlotSetList 안에서도 쓰이는데, 그 Modal은 네비게이터 트리
-                              // 바깥이라 navigateTo로 화면이 바뀌어도 자동으로 안 닫힌다.
-                              // 그대로 두면 내부적으로는 이동했는데 시트가 화면을 덮고 있어
-                              // "버튼이 안 먹는다"처럼 보인다 — 이동 전에 시트부터 닫는다.
-                              onSoloClose?.();
                               navigateTo('Main', { screen: 'MyInfo', params: { screen: 'MedicationManage', params: { mode: 'meds' } } });
                             }}
                           >

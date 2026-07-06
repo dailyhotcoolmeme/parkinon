@@ -54,7 +54,12 @@ export function OverseasMedTabScreen() {
       </View>
 
       <View style={styles.content}>
-        <MedicationManageScreen modeOverride={active} hideBack hideTopBar />
+        <MedicationManageScreen
+          modeOverride={active}
+          hideBack
+          hideTopBar
+          onGoRegisterMeds={() => setActive('meds')}
+        />
       </View>
     </SafeAreaView>
   );
