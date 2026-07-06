@@ -26,6 +26,7 @@ import { useAuth } from '../../context/AuthContext';
 import { CaregiverConfirmModal } from '../../components/common/CaregiverConfirmModal';
 import { supabase } from '../../lib/supabase';
 import { useNotificationBadge } from '../../context/NotificationBadgeContext';
+import { isOverseasLocale } from '../../i18n/detectLocale';
 import { HistoryTimeline } from '../../components/common/HistoryTimeline';
 import { useDialog } from '../../context/DialogContext';
 import { ensureNotGuest } from '../../utils/guestGuard';
@@ -300,16 +301,19 @@ export function ExerciseScreen() {
             <Text style={styles.caregiverNotice}>{t('exercise.noticeNotToday')}</Text>
           )}
 
-          <TouchableOpacity
-            style={styles.outlineBtn}
-            onPress={() => navigation.navigate('ExerciseVideo')}
-            activeOpacity={0.85}
-          >
-            <View style={styles.outlineBtnInner}>
-              <Ionicons name="videocam-outline" size={24} color={Colors.primary} />
-              <Text style={styles.outlineBtnText}>{t('exercise.videoButton')}</Text>
-            </View>
-          </TouchableOpacity>
+          {/* 운동 영상은 parkinson.co.kr 국내 콘텐츠 기반이라 해외 로케일에선 숨김. */}
+          {!isOverseasLocale() && (
+            <TouchableOpacity
+              style={styles.outlineBtn}
+              onPress={() => navigation.navigate('ExerciseVideo')}
+              activeOpacity={0.85}
+            >
+              <View style={styles.outlineBtnInner}>
+                <Ionicons name="videocam-outline" size={24} color={Colors.primary} />
+                <Text style={styles.outlineBtnText}>{t('exercise.videoButton')}</Text>
+              </View>
+            </TouchableOpacity>
+          )}
         </View>
 
         {/* 운동 기록 */}
