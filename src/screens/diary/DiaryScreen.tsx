@@ -28,6 +28,13 @@ import { R2Image } from '../../components/common/R2Image';
 import { PcCodeModal } from '../../components/records/PcCodeModal';
 import { useAuth } from '../../context/AuthContext';
 import { useDialog } from '../../context/DialogContext';
+import { useSubscription } from '../../context/SubscriptionContext';
+import {
+  countTodayGroupMedia,
+  FREE_DAILY_LIMITS,
+  EMPTY_USAGE,
+  type DailyMediaUsage,
+} from '../../lib/mediaQuota';
 import { supabase } from '../../lib/supabase';
 import { useDiary, DiaryEntry, AutoSummary, fetchDiaryEntryDates } from '../../hooks/useDiary';
 import { uploadPhoto, uploadVideo, uploadSound } from '../../lib/r2Upload';
@@ -1295,7 +1302,32 @@ function DiaryEditorModal({ visible, dateStr, patientId, existing, onClose, onSa
   const { t } = useTranslation();
   const { user } = useAuth();
   const dialog = useDialog();
+  const { isPremium } = useSubscription();
   const insets = useSafeAreaInsets();
+
+  // ── Free 그룹 하루 미디어 풀 게이팅 ──
+  // free 는 그룹당 하루 사진5·영상2·음성1 공유 풀. 남들이 오늘 쓴 양(내 글 제외)을 불러와
+  // 내 작성기 잔여 한도를 계산. premium 은 무제한(게이팅 스킵).
+  const [groupOthers, setGroupOthers] = useState<DailyMediaUsage>(EMPTY_USAGE);
+  useEffect(() => {
+    if (!visible || isPremium || !patientId) { setGroupOthers(EMPTY_USAGE); return; }
+    let cancelled = false;
+    countTodayGroupMedia(patientId, user?.timezone, user?.id)
+      .then((u) => { if (!cancelled) setGroupOthers(u); })
+      .catch(() => { if (!cancelled) setGroupOthers(EMPTY_USAGE); });
+    return () => { cancelled = true; };
+  }, [visible, isPremium, patientId, user?.id, user?.timezone]);
+
+  // premium=사실상 무제한(999), free=그룹 하루 잔여.
+  const photoCapNum = isPremium ? 999 : Math.max(0, FREE_DAILY_LIMITS.photo - groupOthers.photo);
+  const videoPoolFull = !isPremium && groupOthers.video >= FREE_DAILY_LIMITS.video;
+  const voicePoolFull = !isPremium && groupOthers.voice >= FREE_DAILY_LIMITS.voice;
+
+  const showQuotaUpsell = (kind: 'photo' | 'video' | 'voice') => {
+    const msgKey =
+      kind === 'photo' ? 'diary.quotaPhotoMsg' : kind === 'video' ? 'diary.quotaVideoMsg' : 'diary.quotaVoiceMsg';
+    dialog.alert({ title: t('diary.quotaReachedTitle'), message: t(msgKey) });
+  };
   // 하단 도구막대(키보드 위 고정) 하단 패딩 — 안드 3버튼/홈인디케이터 잘림 방지(글로벌 규칙).
   const toolbarBottomPad = useBottomSheetPadding(20);
 
@@ -1413,8 +1445,9 @@ function DiaryEditorModal({ visible, dateStr, patientId, existing, onClose, onSa
   // [사진] 버튼 → 바로 갤러리를 열지 않고 "촬영/갤러리에서 선택" 시트를 연다.
   const handleOpenPhotoSheet = () => {
     const total = photoUrls.length + newPhotoUris.length;
-    if (total >= 5) {
-      dialog.alert({ title: t('diary.photoMax5Title'), message: t('diary.photoMax5Msg') });
+    if (total >= photoCapNum) {
+      if (!isPremium) showQuotaUpsell('photo');
+      else dialog.alert({ title: t('diary.photoMax5Title'), message: t('diary.photoMax5Msg') });
       return;
     }
     setShowPhotoSheet(true);
@@ -1425,9 +1458,10 @@ function DiaryEditorModal({ visible, dateStr, patientId, existing, onClose, onSa
   const addPhotoFromResult = (result: ImagePicker.ImagePickerResult) => {
     if (result.canceled || result.assets.length === 0) return;
     const total = photoUrls.length + newPhotoUris.length;
-    const remaining = 5 - total;
+    const remaining = photoCapNum - total;
     if (remaining <= 0) {
-      dialog.alert({ title: t('diary.photoMax5TitleAlt'), message: t('diary.photoMax5MsgAlt') });
+      if (!isPremium) showQuotaUpsell('photo');
+      else dialog.alert({ title: t('diary.photoMax5TitleAlt'), message: t('diary.photoMax5MsgAlt') });
       return;
     }
     const picked = result.assets.slice(0, remaining).map((a) => a.uri);
@@ -1442,8 +1476,9 @@ function DiaryEditorModal({ visible, dateStr, patientId, existing, onClose, onSa
   const handlePickPhotoFromLibrary = async () => {
     setShowPhotoSheet(false);
     const total = photoUrls.length + newPhotoUris.length;
-    if (total >= 5) {
-      dialog.alert({ title: t('diary.photoMax5TitleAlt'), message: t('diary.photoMax5MsgAlt') });
+    if (total >= photoCapNum) {
+      if (!isPremium) showQuotaUpsell('photo');
+      else dialog.alert({ title: t('diary.photoMax5TitleAlt'), message: t('diary.photoMax5MsgAlt') });
       return;
     }
     const perm = await ImagePicker.requestMediaLibraryPermissionsAsync();
@@ -1451,7 +1486,7 @@ function DiaryEditorModal({ visible, dateStr, patientId, existing, onClose, onSa
       dialog.alert({ title: t('diary.permRequiredTitle'), message: t('diary.galleryPermMsg') });
       return;
     }
-    const remaining = 5 - total;
+    const remaining = photoCapNum - total;
     const result = await ImagePicker.launchImageLibraryAsync({
       mediaTypes: ImagePicker.MediaTypeOptions.Images,
       quality: 0.7,
@@ -1465,8 +1500,9 @@ function DiaryEditorModal({ visible, dateStr, patientId, existing, onClose, onSa
   const handleTakePhoto = async () => {
     setShowPhotoSheet(false);
     const total = photoUrls.length + newPhotoUris.length;
-    if (total >= 5) {
-      dialog.alert({ title: t('diary.photoMax5TitleAlt'), message: t('diary.photoMax5MsgAlt') });
+    if (total >= photoCapNum) {
+      if (!isPremium) showQuotaUpsell('photo');
+      else dialog.alert({ title: t('diary.photoMax5TitleAlt'), message: t('diary.photoMax5MsgAlt') });
       return;
     }
     const perm = await ImagePicker.requestCameraPermissionsAsync();
@@ -1492,6 +1528,7 @@ function DiaryEditorModal({ visible, dateStr, patientId, existing, onClose, onSa
   // ── 영상 선택 ──
   // [동영상] 버튼 → "촬영/갤러리에서 선택" 시트를 연다.
   const handleOpenVideoSheet = () => {
+    if (videoPoolFull) { showQuotaUpsell('video'); return; }
     setShowVideoSheet(true);
   };
 
@@ -1558,6 +1595,7 @@ function DiaryEditorModal({ visible, dateStr, patientId, existing, onClose, onSa
   // ── 음성 녹음 ──
   // [음성] 버튼 → 바로 녹음하지 않고 안내 시트를 연다.
   const handleOpenRecordSheet = () => {
+    if (voicePoolFull) { showQuotaUpsell('voice'); return; }
     setRecordSeconds(0);
     setShowRecordSheet(true);
   };
@@ -1967,8 +2005,10 @@ function DiaryEditorModal({ visible, dateStr, patientId, existing, onClose, onSa
             {editorKbHeight > 0 && <View style={{ height: editorKbHeight }} />}
           </ScrollView>
 
-          {/* 첨부 조건 안내 (도구막대 바로 위) */}
-          <Text style={styles.toolbarHint}>{t('diary.attachHint')}</Text>
+          {/* 첨부 조건 안내 (도구막대 바로 위) — premium 은 무제한이라 숨김, free 는 구독 유도 문구 */}
+          {!isPremium && (
+            <Text style={styles.toolbarHint}>{t('diary.attachHintUpsell')}</Text>
+          )}
 
           {/* 도구막대 (키보드 위 고정) — [사진] [동영상] [음성] */}
           <View style={[styles.toolbarBar, { paddingBottom: toolbarBottomPad }]}>
