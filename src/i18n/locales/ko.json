@@ -1258,6 +1258,10 @@
     "unlinkedDesc": "가족을 연동하면 환자분의\n알림음을 함께 관리할 수 있어요",
     "linkFamilyBtn": "가족 연동하기"
   },
+  "ads": {
+    "sponsored": "광고",
+    "removeAds": "광고 제거"
+  },
   "subscription": {
     "headerTitle": "프리미엄",
     "currentFree": "무료 플랜",
