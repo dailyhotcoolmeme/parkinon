@@ -34,6 +34,12 @@ interface Props {
   showParkinon?: boolean;
   rightIcon?: React.ReactNode;
   rightComponent?: React.ReactNode;
+  /**
+   * rightComponent가 아이콘 하나보다 넓은 텍스트 버튼 등일 때(예: "Mark all read")
+   * true로 넘기면 우측 영역을 넓힌다. rightIconCount 기반 자동 확장은 showBell/
+   * showDiary/showKakao 개수만 세므로 커스텀 rightComponent엔 적용되지 않아서 생긴 좁음.
+   */
+  rightWide?: boolean;
   showBell?: boolean;
   bellBadge?: number;
   onBellPress?: () => void;
@@ -43,7 +49,7 @@ interface Props {
   onKakaoPress?: () => void;
 }
 
-export function TopBar({ title, showBack, showClose, showParkinon, rightIcon, rightComponent, showBell, bellBadge, onBellPress, showDiary, onDiaryPress, showKakao, onKakaoPress }: Props) {
+export function TopBar({ title, showBack, showClose, showParkinon, rightIcon, rightComponent, rightWide, showBell, bellBadge, onBellPress, showDiary, onDiaryPress, showKakao, onKakaoPress }: Props) {
   const navigation = useNavigation();
   const spinDeg = useBrandSpin(!!showParkinon);
   // 카카오는 국내 전용 채널 — 호출부가 실수로 showKakao를 넘겨도 해외 로케일에선 항상 숨김.
@@ -97,7 +103,7 @@ export function TopBar({ title, showBack, showClose, showParkinon, rightIcon, ri
           )}
         </View>
         {!showParkinon && !!title && <Text style={styles.title} numberOfLines={1}>{title}</Text>}
-        <View style={[styles.right, rightIconCount >= 2 && styles.rightWide, rightIconCount >= 3 && styles.rightWider]}>
+        <View style={[styles.right, (rightIconCount >= 2 || rightWide) && styles.rightWide, rightIconCount >= 3 && styles.rightWider]}>
           {rightComponent ?? rightIcon ?? (
             <View style={styles.rightIcons}>
               {kakaoVisible && (

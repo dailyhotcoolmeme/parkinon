@@ -407,7 +407,7 @@ export function NotificationHistoryScreen() {
   if (loading) {
     return (
       <SafeAreaView style={styles.flex} edges={['top', 'bottom']}>
-        <TopBar title={t('notifHistory.headerTitle')} showBack rightComponent={rightComponent} />
+        <TopBar title={t('notifHistory.headerTitle')} showBack rightComponent={rightComponent} rightWide />
         <SkeletonList count={6} visible={loading} style={styles.skeletonWrap} />
       </SafeAreaView>
     );
@@ -415,7 +415,7 @@ export function NotificationHistoryScreen() {
 
   return (
     <SafeAreaView style={styles.flex} edges={['top']}>
-      <TopBar title={t('notifHistory.headerTitle')} showBack rightComponent={rightComponent} />
+      <TopBar title={t('notifHistory.headerTitle')} showBack rightComponent={rightComponent} rightWide />
       <SectionList
         sections={sections}
         keyExtractor={(item) => item.id}
