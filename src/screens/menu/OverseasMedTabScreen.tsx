@@ -18,7 +18,7 @@ type SegKey = 'meds' | 'slots';
 export function OverseasMedTabScreen() {
   const { t } = useTranslation();
   const { unreadCount } = useNotificationBadge();
-  const [active, setActive] = useState<SegKey>('meds');
+  const [active, setActive] = useState<SegKey>('slots');
 
   return (
     <SafeAreaView style={styles.safe} edges={['top']}>
@@ -34,21 +34,21 @@ export function OverseasMedTabScreen() {
 
       <View style={styles.tabRow}>
         <TouchableOpacity
-          style={[styles.tab, active === 'meds' && styles.tabActive]}
-          onPress={() => setActive('meds')}
-          activeOpacity={0.75}
-        >
-          <Text style={[styles.tabText, active === 'meds' && styles.tabTextActive]} numberOfLines={1}>
-            {t('menu.medsTabLabel')}
-          </Text>
-        </TouchableOpacity>
-        <TouchableOpacity
           style={[styles.tab, active === 'slots' && styles.tabActive]}
           onPress={() => setActive('slots')}
           activeOpacity={0.75}
         >
           <Text style={[styles.tabText, active === 'slots' && styles.tabTextActive]} numberOfLines={1}>
             {t('menu.doseSlotsTabLabel')}
+          </Text>
+        </TouchableOpacity>
+        <TouchableOpacity
+          style={[styles.tab, active === 'meds' && styles.tabActive]}
+          onPress={() => setActive('meds')}
+          activeOpacity={0.75}
+        >
+          <Text style={[styles.tabText, active === 'meds' && styles.tabTextActive]} numberOfLines={1}>
+            {t('menu.medsTabLabel')}
           </Text>
         </TouchableOpacity>
       </View>
