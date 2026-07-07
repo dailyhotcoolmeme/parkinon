@@ -1306,23 +1306,26 @@ function DiaryEditorModal({ visible, dateStr, patientId, existing, onClose, onSa
   const { isPremium } = useSubscription();
   const insets = useSafeAreaInsets();
 
-  // ── Free 그룹 하루 미디어 풀 게이팅 ──
-  // free 는 그룹당 하루 사진5·영상2·음성1 공유 풀. 남들이 오늘 쓴 양(내 글 제외)을 불러와
-  // 내 작성기 잔여 한도를 계산. premium 은 무제한(게이팅 스킵).
+  // ── Free 그룹 하루 미디어 풀 게이팅 (해외판 전용) ──
+  // 수익화는 해외 전용 → 국내는 기존 하드캡(사진5·영상1·음성1/글) 그대로 유지, 게이팅 없음.
+  // 해외 free 는 그룹당 하루 사진5·영상2·음성1 공유 풀. 남들이 오늘 쓴 양(내 글 제외)을 불러와
+  // 내 작성기 잔여 한도를 계산. 해외 premium 은 무제한.
+  const overseas = isOverseasLocale();
   const [groupOthers, setGroupOthers] = useState<DailyMediaUsage>(EMPTY_USAGE);
   useEffect(() => {
-    if (!visible || isPremium || !patientId) { setGroupOthers(EMPTY_USAGE); return; }
+    // 국내이거나 premium 이면 그룹 사용량 조회 불필요.
+    if (!visible || !overseas || isPremium || !patientId) { setGroupOthers(EMPTY_USAGE); return; }
     let cancelled = false;
     countTodayGroupMedia(patientId, user?.timezone, user?.id)
       .then((u) => { if (!cancelled) setGroupOthers(u); })
       .catch(() => { if (!cancelled) setGroupOthers(EMPTY_USAGE); });
     return () => { cancelled = true; };
-  }, [visible, isPremium, patientId, user?.id, user?.timezone]);
+  }, [visible, overseas, isPremium, patientId, user?.id, user?.timezone]);
 
-  // premium=사실상 무제한(999), free=그룹 하루 잔여.
-  const photoCapNum = isPremium ? 999 : Math.max(0, FREE_DAILY_LIMITS.photo - groupOthers.photo);
-  const videoPoolFull = !isPremium && groupOthers.video >= FREE_DAILY_LIMITS.video;
-  const voicePoolFull = !isPremium && groupOthers.voice >= FREE_DAILY_LIMITS.voice;
+  // 국내: 기존 하드캡 5 유지. 해외 premium: 무제한(999). 해외 free: 그룹 하루 잔여.
+  const photoCapNum = !overseas ? 5 : isPremium ? 999 : Math.max(0, FREE_DAILY_LIMITS.photo - groupOthers.photo);
+  const videoPoolFull = overseas && !isPremium && groupOthers.video >= FREE_DAILY_LIMITS.video;
+  const voicePoolFull = overseas && !isPremium && groupOthers.voice >= FREE_DAILY_LIMITS.voice;
 
   const showQuotaUpsell = (kind: 'photo' | 'video' | 'voice') => {
     const msgKey =
@@ -1454,7 +1457,7 @@ function DiaryEditorModal({ visible, dateStr, patientId, existing, onClose, onSa
   const handleOpenPhotoSheet = () => {
     const total = photoUrls.length + newPhotoUris.length;
     if (total >= photoCapNum) {
-      if (!isPremium) showQuotaUpsell('photo');
+      if (overseas && !isPremium) showQuotaUpsell('photo');
       else dialog.alert({ title: t('diary.photoMax5Title'), message: t('diary.photoMax5Msg') });
       return;
     }
@@ -1468,7 +1471,7 @@ function DiaryEditorModal({ visible, dateStr, patientId, existing, onClose, onSa
     const total = photoUrls.length + newPhotoUris.length;
     const remaining = photoCapNum - total;
     if (remaining <= 0) {
-      if (!isPremium) showQuotaUpsell('photo');
+      if (overseas && !isPremium) showQuotaUpsell('photo');
       else dialog.alert({ title: t('diary.photoMax5TitleAlt'), message: t('diary.photoMax5MsgAlt') });
       return;
     }
@@ -1485,7 +1488,7 @@ function DiaryEditorModal({ visible, dateStr, patientId, existing, onClose, onSa
     setShowPhotoSheet(false);
     const total = photoUrls.length + newPhotoUris.length;
     if (total >= photoCapNum) {
-      if (!isPremium) showQuotaUpsell('photo');
+      if (overseas && !isPremium) showQuotaUpsell('photo');
       else dialog.alert({ title: t('diary.photoMax5TitleAlt'), message: t('diary.photoMax5MsgAlt') });
       return;
     }
@@ -1509,7 +1512,7 @@ function DiaryEditorModal({ visible, dateStr, patientId, existing, onClose, onSa
     setShowPhotoSheet(false);
     const total = photoUrls.length + newPhotoUris.length;
     if (total >= photoCapNum) {
-      if (!isPremium) showQuotaUpsell('photo');
+      if (overseas && !isPremium) showQuotaUpsell('photo');
       else dialog.alert({ title: t('diary.photoMax5TitleAlt'), message: t('diary.photoMax5MsgAlt') });
       return;
     }

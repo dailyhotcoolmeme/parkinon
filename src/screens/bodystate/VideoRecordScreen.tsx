@@ -26,6 +26,7 @@ import { Video as VideoCompressor } from 'react-native-compressor';
 import { useDialog } from '../../context/DialogContext';
 import { useSubscription } from '../../context/SubscriptionContext';
 import { countTodayGroupMedia, FREE_DAILY_LIMITS } from '../../lib/mediaQuota';
+import { isOverseasLocale } from '../../i18n/detectLocale';
 import i18n from '../../i18n';
 import { useTranslation } from 'react-i18next';
 
@@ -176,8 +177,8 @@ export function VideoRecordScreen() {
         return;
       }
 
-      // Free 그룹 하루 영상 풀(일기 영상 포함 2개) 게이팅. premium 은 무제한.
-      if (!isPremium) {
+      // Free 그룹 하루 영상 풀(일기 영상 포함 2개) 게이팅 — 해외판 전용(국내는 제한 없음). premium 무제한.
+      if (isOverseasLocale() && !isPremium) {
         const usage = await countTodayGroupMedia(patientId, user.timezone);
         if (usage.video >= FREE_DAILY_LIMITS.video) {
           dialog
