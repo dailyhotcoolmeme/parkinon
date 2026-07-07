@@ -1306,38 +1306,45 @@ function DiaryEditorModal({ visible, dateStr, patientId, existing, onClose, onSa
   const { isPremium } = useSubscription();
   const insets = useSafeAreaInsets();
 
-  // ── Free 그룹 하루 미디어 풀 게이팅 (해외판 전용) ──
-  // 수익화는 해외 전용 → 국내는 기존 하드캡(사진5·영상1·음성1/글) 그대로 유지, 게이팅 없음.
-  // 해외 free 는 그룹당 하루 사진5·영상2·음성1 공유 풀. 남들이 오늘 쓴 양(내 글 제외)을 불러와
-  // 내 작성기 잔여 한도를 계산. 해외 premium 은 무제한.
+  // ── 그룹 하루 미디어 풀 게이팅 (국내·해외 동일 기준) ──
+  // 사진5·영상2·음성1을 그룹당 하루 공유 풀로 제한(국내·해외 free 동일). 남들이 오늘 쓴 양
+  // (내 글 제외)을 불러와 내 작성기 잔여 한도를 계산. 해외 premium 만 무제한.
+  // 한도 도달 안내: 해외=구독 유도(업셀), 국내=결제 문구 없는 담백한 안내.
   const overseas = isOverseasLocale();
+  const unlimited = overseas && isPremium; // 해외 프리미엄만 무제한
   const [groupOthers, setGroupOthers] = useState<DailyMediaUsage>(EMPTY_USAGE);
   useEffect(() => {
-    // 국내이거나 premium 이면 그룹 사용량 조회 불필요.
-    if (!visible || !overseas || isPremium || !patientId) { setGroupOthers(EMPTY_USAGE); return; }
+    if (!visible || unlimited || !patientId) { setGroupOthers(EMPTY_USAGE); return; }
     let cancelled = false;
     countTodayGroupMedia(patientId, user?.timezone, user?.id)
       .then((u) => { if (!cancelled) setGroupOthers(u); })
       .catch(() => { if (!cancelled) setGroupOthers(EMPTY_USAGE); });
     return () => { cancelled = true; };
-  }, [visible, overseas, isPremium, patientId, user?.id, user?.timezone]);
+  }, [visible, unlimited, patientId, user?.id, user?.timezone]);
 
-  // 국내: 기존 하드캡 5 유지. 해외 premium: 무제한(999). 해외 free: 그룹 하루 잔여.
-  const photoCapNum = !overseas ? 5 : isPremium ? 999 : Math.max(0, FREE_DAILY_LIMITS.photo - groupOthers.photo);
-  const videoPoolFull = overseas && !isPremium && groupOthers.video >= FREE_DAILY_LIMITS.video;
-  const voicePoolFull = overseas && !isPremium && groupOthers.voice >= FREE_DAILY_LIMITS.voice;
+  const photoCapNum = unlimited ? 999 : Math.max(0, FREE_DAILY_LIMITS.photo - groupOthers.photo);
+  const videoPoolFull = !unlimited && groupOthers.video >= FREE_DAILY_LIMITS.video;
+  const voicePoolFull = !unlimited && groupOthers.voice >= FREE_DAILY_LIMITS.voice;
 
-  const showQuotaUpsell = (kind: 'photo' | 'video' | 'voice') => {
-    const msgKey =
-      kind === 'photo' ? 'diary.quotaPhotoMsg' : kind === 'video' ? 'diary.quotaVideoMsg' : 'diary.quotaVoiceMsg';
-    dialog
-      .confirm({
-        title: t('diary.quotaReachedTitle'),
-        message: t(msgKey),
-        confirmText: t('subscription.upgradeBtn'),
-        cancelText: t('common.cancel'),
-      })
-      .then((ok) => { if (ok) navigateTo('SubscriptionManage'); });
+  const showQuotaReached = (kind: 'photo' | 'video' | 'voice') => {
+    if (overseas) {
+      // 해외: 구독 유도
+      const msgKey =
+        kind === 'photo' ? 'diary.quotaPhotoMsg' : kind === 'video' ? 'diary.quotaVideoMsg' : 'diary.quotaVoiceMsg';
+      dialog
+        .confirm({
+          title: t('diary.quotaReachedTitle'),
+          message: t(msgKey),
+          confirmText: t('subscription.upgradeBtn'),
+          cancelText: t('common.cancel'),
+        })
+        .then((ok) => { if (ok) navigateTo('SubscriptionManage'); });
+    } else {
+      // 국내: 결제/구독 문구 없이 담백하게 안내
+      const msgKey =
+        kind === 'photo' ? 'diary.quotaPlainPhotoMsg' : kind === 'video' ? 'diary.quotaPlainVideoMsg' : 'diary.quotaPlainVoiceMsg';
+      dialog.alert({ title: t('diary.quotaReachedTitlePlain'), message: t(msgKey) });
+    }
   };
   // 하단 도구막대(키보드 위 고정) 하단 패딩 — 안드 3버튼/홈인디케이터 잘림 방지(글로벌 규칙).
   const toolbarBottomPad = useBottomSheetPadding(20);
@@ -1457,8 +1464,7 @@ function DiaryEditorModal({ visible, dateStr, patientId, existing, onClose, onSa
   const handleOpenPhotoSheet = () => {
     const total = photoUrls.length + newPhotoUris.length;
     if (total >= photoCapNum) {
-      if (overseas && !isPremium) showQuotaUpsell('photo');
-      else dialog.alert({ title: t('diary.photoMax5Title'), message: t('diary.photoMax5Msg') });
+      showQuotaReached('photo');
       return;
     }
     setShowPhotoSheet(true);
@@ -1471,8 +1477,7 @@ function DiaryEditorModal({ visible, dateStr, patientId, existing, onClose, onSa
     const total = photoUrls.length + newPhotoUris.length;
     const remaining = photoCapNum - total;
     if (remaining <= 0) {
-      if (overseas && !isPremium) showQuotaUpsell('photo');
-      else dialog.alert({ title: t('diary.photoMax5TitleAlt'), message: t('diary.photoMax5MsgAlt') });
+      showQuotaReached('photo');
       return;
     }
     const picked = result.assets.slice(0, remaining).map((a) => a.uri);
@@ -1488,8 +1493,7 @@ function DiaryEditorModal({ visible, dateStr, patientId, existing, onClose, onSa
     setShowPhotoSheet(false);
     const total = photoUrls.length + newPhotoUris.length;
     if (total >= photoCapNum) {
-      if (overseas && !isPremium) showQuotaUpsell('photo');
-      else dialog.alert({ title: t('diary.photoMax5TitleAlt'), message: t('diary.photoMax5MsgAlt') });
+      showQuotaReached('photo');
       return;
     }
     const perm = await ImagePicker.requestMediaLibraryPermissionsAsync();
@@ -1512,8 +1516,7 @@ function DiaryEditorModal({ visible, dateStr, patientId, existing, onClose, onSa
     setShowPhotoSheet(false);
     const total = photoUrls.length + newPhotoUris.length;
     if (total >= photoCapNum) {
-      if (overseas && !isPremium) showQuotaUpsell('photo');
-      else dialog.alert({ title: t('diary.photoMax5TitleAlt'), message: t('diary.photoMax5MsgAlt') });
+      showQuotaReached('photo');
       return;
     }
     const perm = await ImagePicker.requestCameraPermissionsAsync();
@@ -1539,7 +1542,7 @@ function DiaryEditorModal({ visible, dateStr, patientId, existing, onClose, onSa
   // ── 영상 선택 ──
   // [동영상] 버튼 → "촬영/갤러리에서 선택" 시트를 연다.
   const handleOpenVideoSheet = () => {
-    if (videoPoolFull) { showQuotaUpsell('video'); return; }
+    if (videoPoolFull) { showQuotaReached('video'); return; }
     setShowVideoSheet(true);
   };
 
@@ -1606,7 +1609,7 @@ function DiaryEditorModal({ visible, dateStr, patientId, existing, onClose, onSa
   // ── 음성 녹음 ──
   // [음성] 버튼 → 바로 녹음하지 않고 안내 시트를 연다.
   const handleOpenRecordSheet = () => {
-    if (voicePoolFull) { showQuotaUpsell('voice'); return; }
+    if (voicePoolFull) { showQuotaReached('voice'); return; }
     setRecordSeconds(0);
     setShowRecordSheet(true);
   };
@@ -2016,9 +2019,12 @@ function DiaryEditorModal({ visible, dateStr, patientId, existing, onClose, onSa
             {editorKbHeight > 0 && <View style={{ height: editorKbHeight }} />}
           </ScrollView>
 
-          {/* 첨부 조건 안내 (도구막대 바로 위) — premium 은 무제한이라 숨김, free 는 구독 유도 문구 */}
-          {!isPremium && (
-            <Text style={styles.toolbarHint}>{t('diary.attachHintUpsell')}</Text>
+          {/* 첨부 조건 안내 (도구막대 바로 위)
+              해외 premium=무제한이라 숨김 / 해외 free=구독 유도 문구 / 국내=담백한 한도 안내(결제문구 없음) */}
+          {!unlimited && (
+            <Text style={styles.toolbarHint}>
+              {overseas ? t('diary.attachHintUpsell') : t('diary.attachHint')}
+            </Text>
           )}
 
           {/* 도구막대 (키보드 위 고정) — [사진] [동영상] [음성] */}

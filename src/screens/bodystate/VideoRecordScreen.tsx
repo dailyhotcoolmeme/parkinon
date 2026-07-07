@@ -177,18 +177,28 @@ export function VideoRecordScreen() {
         return;
       }
 
-      // Free 그룹 하루 영상 풀(일기 영상 포함 2개) 게이팅 — 해외판 전용(국내는 제한 없음). premium 무제한.
-      if (isOverseasLocale() && !isPremium) {
+      // 그룹 하루 영상 풀(일기 영상 포함 2개) 게이팅 — 국내·해외 동일. 해외 premium 만 무제한.
+      const overseasVR = isOverseasLocale();
+      if (!(overseasVR && isPremium)) {
         const usage = await countTodayGroupMedia(patientId, user.timezone);
         if (usage.video >= FREE_DAILY_LIMITS.video) {
-          dialog
-            .confirm({
-              title: t('videoRecord.quotaReachedTitle'),
-              message: t('videoRecord.quotaVideoMsg'),
-              confirmText: t('subscription.upgradeBtn'),
-              cancelText: t('common.cancel'),
-            })
-            .then((ok) => { if (ok) navigateTo('SubscriptionManage'); });
+          if (overseasVR) {
+            // 해외: 구독 유도
+            dialog
+              .confirm({
+                title: t('videoRecord.quotaReachedTitle'),
+                message: t('videoRecord.quotaVideoMsg'),
+                confirmText: t('subscription.upgradeBtn'),
+                cancelText: t('common.cancel'),
+              })
+              .then((ok) => { if (ok) navigateTo('SubscriptionManage'); });
+          } else {
+            // 국내: 결제 문구 없이 담백하게
+            dialog.alert({
+              title: t('videoRecord.quotaReachedTitlePlain'),
+              message: t('videoRecord.quotaVideoPlainMsg'),
+            });
+          }
           setUploadStage(null);
           setLoading(false);
           return;
