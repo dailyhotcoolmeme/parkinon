@@ -14,17 +14,22 @@
 
 ## Phase 5 — 수익화 백엔드 설계 (OTA 가능, 재빌드 불필요)
 
-### 5.1 DB 스키마
-- `users`에 컬럼 추가: `subscription_tier text NOT NULL DEFAULT 'free'` (`'free' | 'premium'`), `subscription_expires_at timestamptz`, `revenuecat_synced_at timestamptz`(디버깅용, 선택).
-- RevenueCat의 `appUserID`는 Supabase `users.id`를 그대로 사용(별도 매핑 테이블 불필요, RevenueCat 대시보드에서 그대로 조회 가능).
+### 5.1 DB 스키마 (2026-07-07 확정: **그룹 단위 구독**)
+구독은 개인이 아니라 **가족 그룹(patient_group) 단위**다. 근거: 미디어가 `media_logs.patient_id`(환자 중심)라 저장이 애초에 환자/그룹 공유이고, `users.patient_group_id`로 유저는 항상 1개 그룹에 속함(1인 1그룹). 그룹 구성원 아무나 1명이 결제하면 그룹 전체가 Premium.
+- `patient_groups`에 컬럼 추가: `subscription_tier text NOT NULL DEFAULT 'free'` (`'free' | 'premium'`), `subscription_expires_at timestamptz`, `subscription_payer_user_id uuid`(결제자 기록), `revenuecat_synced_at timestamptz`(선택).
+- 어떤 유저의 실질 티어 = `users.patient_group_id` → 해당 그룹의 `subscription_tier`. (그룹 없으면 free fallback, 정상 온보딩 시 항상 그룹 존재)
+- RevenueCat `appUserID`는 Supabase `users.id`(결제자). webhook에서 결제자의 `patient_group_id`를 찾아 **그 그룹**을 premium으로 승격 + `subscription_payer_user_id` 기록.
+- 페이월 노출 전 그룹이 이미 premium이면 "이미 프리미엄" 처리(중복 결제 방지).
 
-### 5.2 저장 티어 정의 (2026-07-07 오너 확정: **2단계**만)
-바이트 단위 정밀 계량은 하지 않는다(`media_logs`에 파일 크기 컬럼이 없고, 새로 추가하는 것보다 **개수+기간** 기준이 심사·구현 모두 단순하고 "확실히 늘어난 저장"으로 충분히 어필됨):
-- **Free**: 보관기간 3개월, 활성 미디어 최대 50개(사진·영상 합산)
-- **Premium**: 보관기간 24개월, 활성 미디어 최대 500개
-- `subscription_tier`는 `'free' | 'premium'` 2값만(오너 "free랑 유료 2개로만" 확정).
-- 광고 제거는 프리미엄의 **부가 혜택**으로만 마케팅(구독 심사 뼈대 아님).
-- (위 50/500·3·24 숫자는 제안 유지값 — 오너가 다른 숫자 주면 그때 교체, 구조는 고정)
+### 5.2 저장 티어 정의 (2026-07-07 오너 확정: **총량 제한 없음 · 하루 업로드 개수로 게이팅**)
+R2 요금 분석 결과(egress **무료** + 저장 $0.015/GB·월 + 첫 10GB 무료 + 영상 2분 상한으로 파일크기 이미 묶임) 총 저장량 제한이 불필요하다. Free 유저가 매일 상한을 꽉 채워도(영상+사진+음성 1개씩) 유저당 1년 누적 ~8.6GB = 월 $0.13, Premium 헤비유저(영상 5개/일)도 월 $0.54 수준. 그래서 티어 구분을 "총 저장량/개수"가 아니라 **"하루 업로드 허용 개수"**로 한다:
+- **Free**: 환자 1명당 **하루에 영상 1 · 사진 1 · 음성 1**(미디어 타입별 각 1개/일). **광고 유지.**
+- **Premium**(그룹 단위, 구성원 1명 결제로 그룹 전체 승격): **영상/사진/음성 무제한 업로드 + 광고 제거(그룹 전체 = A안).**
+- `subscription_tier`는 `'free' | 'premium'` 2값만.
+- 하루 카운터는 **환자(그룹)당**이지 업로드 유저별 아님 — 미디어가 patient 중심이라 보호자 여럿이어도 그 환자의 하루 몫 공유.
+- **광고 제거 범위 = A(그룹 전체)** 확정(2026-07-07 오너). 저장은 물리적 공유라 당연히 그룹, 광고 제거도 그룹 전체.
+- 총 개수·보관기간 상한 **없음** → 5.4의 `expire-media` 크론 불필요, `calcExpiresAt` 만료 로직 폐기(신규 업로드 `expires_at=null`, 자동삭제 안 함). 취소해도 기존 미디어 유지.
+- ⚠️ **음성(voice)은 현재 미기능**: `media_logs.media_type`이 `video|photo`뿐. "하루 음성 1개"는 지금 적용 대상 없음 — quota 로직을 media_type별로 일반화해 두면 음성 기능 추가 시 자동 적용. (음성 업로드 기능 신설은 별도 지시 대기)
 
 ### 5.2b 구독 가격 (2026-07-07 외부 조사 기반 제안)
 외부 조사 결과(2026-07 기준):
@@ -37,13 +42,13 @@
 - 스토어 다국가 가격은 App Store/Play의 가격 티어가 USD 기준가에서 GBP/CAD/AUD/EUR/NZD로 자동 환산 → 오너는 USD 기준가만 결정하면 됨.
 - 가격은 스토어 콘솔 설정값이라 나중에 A/B·변경 용이(RevenueCat로 손쉬움).
 
-### 5.3 업로드 시 티어 반영
-- `src/lib/r2Upload.ts`의 `calcExpiresAt()`(현재 전원 +6개월 고정, r2Upload.ts:49-54)을 사용자 `subscription_tier`를 인자로 받아 free=3개월/premium=24개월로 분기하도록 수정.
-- 업로드 전 quota 체크: 해당 patient의 활성 `media_logs`(expires_at > now()) COUNT가 티어 한도 이상이면 업로드 차단 + "저장 공간이 가득 찼어요 → 구독하고 늘리기" 유도 다이얼로그(신규 `useDialog` 활용, 기존 패턴 재사용).
+### 5.3 업로드 시 게이팅 (하루 개수 기반)
+- 업로드 직전 quota 체크: 해당 patient의 **오늘(환자 timezone 기준 하루경계) 같은 `media_type` `media_logs` COUNT**가 free 티어에서 이미 1 이상이면 업로드 차단 + "오늘은 이 유형을 이미 올렸어요 → 프리미엄으로 무제한" 업그레이드 유도(`useDialog` 재사용, 진입점=6.1의 SubscriptionManageScreen). premium이면 무제한 통과.
+- 하루경계는 환자 timezone 기준(Phase 1 tz 인프라 재사용, `now() at time zone u.timezone`).
+- `calcExpiresAt()`(r2Upload.ts, 현재 +6개월 고정)은 **만료 폐기** → 신규 업로드 `expires_at=null`(자동삭제 안 함). 컬럼 자체는 하위호환 위해 유지하되 미사용.
 
-### 5.4 실제 보관기간 만료 삭제(신규 — 지금까지 없던 기능)
-- 신규 Supabase Edge Function `expire-media`: `media_logs`에서 `expires_at < now()`인 행을 찾아 R2 오브젝트 삭제(`delete-r2-file`과 동일한 삭제 로직 재사용) 후 행 삭제. pg_cron으로 매일 1회 실행(기존 `cron_http_post_timeout_30s.sql` 패턴 참고).
-- **구독 취소 시 즉시삭제 금지 원칙**: 이미 올린 파일의 `expires_at`은 업로드 당시 티어 기준으로 이미 고정돼 있으므로 별도 처리 불필요(취소해도 소급 단축 안 함) — 오직 신규 업로드만 free 한도로 즉시 차단됨. 이게 곧 "유예기간 읽기전용"에 해당.
+### 5.4 (폐기) 만료 삭제 크론 불필요
+새 모델은 총량/보관기간 상한이 없어 원래 계획한 `expire-media` 자동삭제 크론이 **불필요**. 구현하지 않는다. (취소해도 기존 미디어 유지 = 자동으로 성립. 신규 업로드만 free 하루 한도로 게이팅됨 = "유예기간 읽기전용" 대체)
 
 ### 5.5 광고 배치 설계 — 화면·위치 확정(2026-07-07 오너 결정, 광고 포맷=네이티브로 정정)
 
@@ -112,17 +117,17 @@
 ---
 
 ## 진행 순서
-1. **지금 시작 가능**(OTA, 재빌드 불필요): Phase 5 전체 — DB 마이그레이션 + `calcExpiresAt` 티어 분기 + 업로드 quota 체크 + `expire-media` 크론 + `SubscriptionManageScreen`(구독 상태 표시만, 실제 결제 버튼은 6단계 완료 전까지 "준비 중" 처리 가능) + 광고 배치용 UI 자리(빈 슬롯, SDK는 6단계에서).
-2. Phase 5 완료·검증 후 → Phase 6(재빌드) 착수. RevenueCat 계정 생성, AdMob 계정 생성은 오너가 먼저 해줘야 진행 가능(계정 생성은 엔지니어링 범위 밖).
+1. **지금 시작 가능**(OTA, 재빌드 불필요): Phase 5 — `patient_groups`에 구독 컬럼 DB 마이그레이션 + `useSubscription`(그룹 티어 resolve) + 업로드 하루 개수 게이팅(5.3) + `SubscriptionManageScreen`(구독 상태 표시만, 실제 결제 버튼은 6단계 완료 전까지 "준비 중" 처리) + 광고 배치용 UI 자리(빈 슬롯, SDK는 6단계에서). (`expire-media` 크론·`calcExpiresAt` 티어분기는 폐기 — 5.4 참고)
+2. Phase 5 완료·검증 후 → Phase 6(재빌드) 착수. RevenueCat 계정 생성은 오너가 먼저 해줘야 진행 가능(AdMob은 완료). 
 3. Phase 6 빌드 완료 후 → Phase 7(오너 주도, 사업자 세팅·스토어 등록).
 
 ## 검증 방법
-- Phase 5: `npx tsc --noEmit` 통과 + Supabase에서 마이그레이션/Edge Function 직접 테스트(테스트 계정으로 quota 초과 업로드 차단 확인, `expire-media` 수동 호출로 만료 삭제 확인).
+- Phase 5: `npx tsc --noEmit` 통과 + Supabase에서 마이그레이션 직접 테스트(테스트 계정으로 하루 2번째 같은 타입 업로드 차단 확인, 그룹 구성원 1명 premium 승격 시 다른 구성원도 무제한·광고제거 되는지 확인).
 - Phase 6: EAS 개발 빌드로 실기기에서 배너 노출 확인 + RevenueCat 대시보드에서 테스트 구매(Sandbox) → `users.subscription_tier` 갱신 확인.
 - Phase 7: 스토어 심사 제출 전 체크리스트(App Privacy 라벨, 구독 설명 문구) 재확인.
 
 ## 선행 확인 필요(오너 결정 — 2026-07-07 갱신)
-- ~~저장 티어 단계~~ → **확정: free/premium 2단계**(숫자 50/500·3/24개월은 제안 유지값).
+- ~~저장 티어 단계·숫자~~ → **확정: 총량 제한 없음. Free=하루 영상1·사진1·음성1 + 광고유지 / Premium=무제한+광고제거(그룹 전체)**. 구독은 **그룹 단위**(1명 결제=그룹 전체). 상세 5.1/5.2.
 - ~~구독 가격~~ → **제안 확정 대기: 월 $4.99 / 연 $39.99 + 연간 7일 트라이얼**(5.2b, 오너 최종 OK만 남음).
 - ~~앱 영문명~~ → **확정: `ParkinON`**. `app.json expo.name`은 로케일 분기 없이 `ParkinON` 고정. 아이콘 표시명=ParkinON. **스토어 등록정보(제목·키워드·설명)에는 "Parkinson" 검색 노출되게 작성**(표시명과 별개).
 - **AdMob 계정·광고단위 → 완료**(ID 12개+앱ID 2개 발급·저장: `src/constants/adUnitIds.ts`, `docs/admob_ad_units.md`).
