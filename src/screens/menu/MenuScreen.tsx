@@ -26,6 +26,7 @@ import { MEASUREMENT_FEATURE_ENABLED } from '../../constants/featureFlags';
 import { useScrollTopOnTabPress } from '../../hooks/useScrollTopOnTabPress';
 import { isOverseasLocale } from '../../i18n/detectLocale';
 import { useSubscription } from '../../context/SubscriptionContext';
+import { AdSlot } from '../../components/common/AdSlot';
 
 type NavigationProp = StackNavigationProp<MenuStackParamList, 'MenuHome'>;
 type IoniconName = React.ComponentProps<typeof Ionicons>['name'];
@@ -479,8 +480,10 @@ export function MenuScreen() {
         )}
 
         {/* 섹션별 메뉴 */}
-        {menuSections.map((section) => (
+        {menuSections.map((section, sIdx) => (
           <View key={section.title}>
+            {/* 광고: 첫 번째 섹션과 두 번째 섹션 사이 (해외+free 전용) */}
+            {sIdx === 1 && <AdSlot placement="more" />}
             <View style={styles.sectionHeader}>
               <Text style={styles.sectionHeaderText}>{t(section.title).toUpperCase()}</Text>
             </View>

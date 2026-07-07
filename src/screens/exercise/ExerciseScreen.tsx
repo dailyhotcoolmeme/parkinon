@@ -16,6 +16,7 @@ import { useFocusEffect } from '@react-navigation/native';
 import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { Ionicons } from '@expo/vector-icons';
 import { Colors } from '../../constants/colors';
+import { AdSlot } from '../../components/common/AdSlot';
 import { TopBar } from '../../components/common/TopBar';
 import type { ExerciseStackParamList } from '../../navigation/ExerciseNavigator';
 import { useExercise } from '../../hooks/useExercise';
@@ -327,6 +328,9 @@ export function ExerciseScreen() {
             </Text>
             <View style={styles.dividerLine} />
           </View>
+
+          {/* 광고: 오늘 기록 리스트 최상단(첫 슬롯 자리) — 해외+free 전용 */}
+          <AdSlot placement="exercise" />
 
           {isLoading ? (
             <View style={styles.emptyWrap}>

@@ -16,6 +16,7 @@ import { useFocusEffect, useRoute, useNavigation, RouteProp } from '@react-navig
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { Ionicons } from '@expo/vector-icons';
 import { Colors } from '../../constants/colors';
+import { AdSlot } from '../../components/common/AdSlot';
 import { TopBar } from '../../components/common/TopBar';
 import { MealTimeModal } from './MealTimeModal';
 import { BodyStatePopupFlow } from '../bodystate/BodyStatePopupFlow';
@@ -1272,6 +1273,8 @@ export function MedicationScreen() {
             <Text style={styles.sectionTitle}>{isToday ? t('medication.statusTitleToday') : t('medication.statusTitle')}</Text>
             <View style={styles.divider} />
           </View>
+          {/* 광고: 오늘 복용 현황 리스트 최상단(첫 슬롯 자리) — 해외+free 전용 */}
+          <AdSlot placement="medication" />
           {slotsResolving ? (
             /* 콜드스타트 로딩 중 — 디폴트 시각 대신 스켈레톤(깜빡임 방지) */
             <>

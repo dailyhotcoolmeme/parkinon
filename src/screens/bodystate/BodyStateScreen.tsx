@@ -17,6 +17,7 @@ import { useNavigation, useRoute, useFocusEffect } from '@react-navigation/nativ
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { Ionicons } from '@expo/vector-icons';
 import { Colors } from '../../constants/colors';
+import { AdSlot } from '../../components/common/AdSlot';
 import { TopBar } from '../../components/common/TopBar';
 import { BodyStatePopupFlow } from './BodyStatePopupFlow';
 import { CaregiverConfirmModal } from '../../components/common/CaregiverConfirmModal';
@@ -1464,6 +1465,8 @@ export function BodyStateScreen() {
             <Text style={styles.sectionTitle}>{isToday ? t('bodystate.sectionTitleToday') : t('bodystate.sectionTitle')}</Text>
             <View style={styles.divider} />
           </View>
+          {/* 광고: 오늘 기록 리스트 최상단(첫 슬롯 자리) — 해외+free 전용 */}
+          <AdSlot placement="bodyState" />
           {!isToday && dateLogsLoading ? (
             <View style={styles.emptyWrap}>
               <ActivityIndicator size="large" color={Colors.primary} />

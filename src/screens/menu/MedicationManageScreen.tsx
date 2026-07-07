@@ -51,6 +51,7 @@ import {
   type DoseSlot,
 } from '../../hooks/useDoseSlots';
 import { DoseSlotSetList } from '../../components/settings/DoseSlotSetList';
+import { AdSlot } from '../../components/common/AdSlot';
 import { AlarmSoundOption } from '../../components/common/AlarmSoundPickerRow';
 import {
   turnOnImmediatePopup,
@@ -2717,6 +2718,9 @@ export function MedicationManageScreen({ modeOverride, hideBack, hideTopBar, onG
               ══════════════════════════════════════════════════════════════ */}
           {!isMedsMode && (
             <View style={styles.slotCentric}>
+              {/* 광고: 복용시간·알림 설정 슬롯 목록 상단 — 해외+free 전용
+                  (정확한 "슬롯 1·2 사이" 위치는 Phase 6에서 OTA로 조정) */}
+              <AdSlot placement="remindersDoseTimes" />
               {/* 시간대에 아직 안 넣은 약 안내 — 등록만 하고 배정 안 한 약이 있을 때 */}
               {doseSlotList.length > 0 && unassignedMeds.length > 0 && (
                 <TouchableOpacity
@@ -2886,6 +2890,9 @@ export function MedicationManageScreen({ modeOverride, hideBack, hideTopBar, onG
             </View>
             <Ionicons name="chevron-forward" size={24} color={Colors.primary} />
           </TouchableOpacity>
+
+          {/* 광고: 처방전 등록 버튼 바로 아래 — 해외+free 전용 */}
+          <AdSlot placement="remindersMeds" />
 
           {/* ── ① 약 직접 입력 (섹션 제목은 박스 바깥) ── */}
           <Text style={styles.regSecTitle}>{t('medManage.directInputTitle')}</Text>
