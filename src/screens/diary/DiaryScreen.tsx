@@ -18,6 +18,7 @@ import {
 } from 'react-native';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useNavigation, useRoute } from '@react-navigation/native';
+import { navigateTo } from '../../navigation/navigationRef';
 import { Ionicons } from '@expo/vector-icons';
 import { Audio, Video as AVVideo, ResizeMode } from 'expo-av';
 import * as ImagePicker from 'expo-image-picker';
@@ -1326,7 +1327,14 @@ function DiaryEditorModal({ visible, dateStr, patientId, existing, onClose, onSa
   const showQuotaUpsell = (kind: 'photo' | 'video' | 'voice') => {
     const msgKey =
       kind === 'photo' ? 'diary.quotaPhotoMsg' : kind === 'video' ? 'diary.quotaVideoMsg' : 'diary.quotaVoiceMsg';
-    dialog.alert({ title: t('diary.quotaReachedTitle'), message: t(msgKey) });
+    dialog
+      .confirm({
+        title: t('diary.quotaReachedTitle'),
+        message: t(msgKey),
+        confirmText: t('subscription.upgradeBtn'),
+        cancelText: t('common.cancel'),
+      })
+      .then((ok) => { if (ok) navigateTo('SubscriptionManage'); });
   };
   // 하단 도구막대(키보드 위 고정) 하단 패딩 — 안드 3버튼/홈인디케이터 잘림 방지(글로벌 규칙).
   const toolbarBottomPad = useBottomSheetPadding(20);

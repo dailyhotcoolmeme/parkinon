@@ -18,6 +18,7 @@ import { NotificationHistoryScreen } from '../screens/notification/NotificationH
 import { RecordSoundScreen } from '../screens/sound/RecordSoundScreen';
 import { AlarmSoundSettingsScreen } from '../screens/sound/AlarmSoundSettingsScreen';
 import { BlockedUsersScreen } from '../screens/menu/BlockedUsersScreen';
+import { SubscriptionManageScreen } from '../screens/menu/SubscriptionManageScreen';
 
 export type MenuStackParamList = {
   MenuHome: undefined;
@@ -46,6 +47,8 @@ export type MenuStackParamList = {
     | undefined;
   // 차단한 사용자 관리 화면 — 커뮤니티 차단 해제 UI
   BlockedUsers: undefined;
+  // 구독 관리 화면 (해외판 프리미엄) — Phase 5 뼈대, 결제는 Phase 6
+  SubscriptionManage: undefined;
 };
 
 const Stack = createStackNavigator<MenuStackParamList>();
@@ -71,6 +74,7 @@ export function MenuNavigator() {
       <Stack.Screen name="RecordSound" component={RecordSoundScreen} />
       <Stack.Screen name="AlarmSoundSettings" component={AlarmSoundSettingsScreen} />
       <Stack.Screen name="BlockedUsers" component={BlockedUsersScreen} />
+      <Stack.Screen name="SubscriptionManage" component={SubscriptionManageScreen} />
     </Stack.Navigator>
   );
 }

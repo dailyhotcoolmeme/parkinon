@@ -25,6 +25,7 @@ import { ensureNotGuest } from '../../utils/guestGuard';
 import { MEASUREMENT_FEATURE_ENABLED } from '../../constants/featureFlags';
 import { useScrollTopOnTabPress } from '../../hooks/useScrollTopOnTabPress';
 import { isOverseasLocale } from '../../i18n/detectLocale';
+import { useSubscription } from '../../context/SubscriptionContext';
 
 type NavigationProp = StackNavigationProp<MenuStackParamList, 'MenuHome'>;
 type IoniconName = React.ComponentProps<typeof Ionicons>['name'];
@@ -161,6 +162,9 @@ export function MenuScreen() {
   const { user, signOut, refreshUser } = useAuth();
   const { unreadCount } = useNotificationBadge();
   const dialog = useDialog();
+  const { isPremium } = useSubscription();
+  // 수익화(구독)는 해외판 전용 → 국내 메뉴엔 배너 노출 안 함.
+  const showSubscriptionBanner = isOverseasLocale();
 
   // 탭 버튼 누를 때 항상 맨 위로
   const scrollRef = React.useRef<ScrollView>(null);
@@ -446,6 +450,34 @@ export function MenuScreen() {
           </View>
         </TouchableOpacity>
 
+        {/* 구독 배너 (해외판 전용, 프로필 카드 바로 아래) */}
+        {showSubscriptionBanner && (
+          <TouchableOpacity
+            style={[styles.subBanner, isPremium && styles.subBannerPremium]}
+            onPress={() => navigation.navigate('SubscriptionManage')}
+            activeOpacity={0.85}
+          >
+            <Ionicons
+              name={isPremium ? 'star' : 'star-outline'}
+              size={22}
+              color={isPremium ? '#fff' : Colors.primary}
+            />
+            <Text style={[styles.subBannerTitle, isPremium && styles.subBannerTextOnGreen]}>
+              {isPremium ? t('subscription.bannerPremiumTitle') : t('subscription.bannerFreeTitle')}
+            </Text>
+            <View style={styles.subBannerCtaRow}>
+              <Text style={[styles.subBannerCta, isPremium && styles.subBannerTextOnGreen]}>
+                {isPremium ? t('subscription.bannerPremiumCta') : t('subscription.bannerFreeCta')}
+              </Text>
+              <Ionicons
+                name="chevron-forward"
+                size={16}
+                color={isPremium ? '#fff' : Colors.primary}
+              />
+            </View>
+          </TouchableOpacity>
+        )}
+
         {/* 섹션별 메뉴 */}
         {menuSections.map((section) => (
           <View key={section.title}>
@@ -568,6 +600,24 @@ const styles = StyleSheet.create({
     elevation: 2,
     marginBottom: 4,
   },
+  subBanner: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 10,
+    backgroundColor: Colors.white,
+    borderRadius: 14,
+    paddingHorizontal: 16,
+    paddingVertical: 14,
+    minHeight: 60,
+    borderWidth: 1.5,
+    borderColor: Colors.primary,
+    marginTop: 12,
+  },
+  subBannerPremium: { backgroundColor: Colors.primary, borderColor: Colors.primary },
+  subBannerTitle: { flex: 1, fontSize: 16, fontWeight: '700', color: Colors.text },
+  subBannerTextOnGreen: { color: '#fff' },
+  subBannerCtaRow: { flexDirection: 'row', alignItems: 'center', gap: 2 },
+  subBannerCta: { fontSize: 14, fontWeight: '700', color: Colors.primary },
   profileInfo: {
     flex: 1,
   },

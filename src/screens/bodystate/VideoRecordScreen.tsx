@@ -12,6 +12,7 @@ import {
 import { SafeAreaView } from 'react-native-safe-area-context';
 import * as ImagePicker from 'expo-image-picker';
 import { useNavigation } from '@react-navigation/native';
+import { navigateTo } from '../../navigation/navigationRef';
 import { Ionicons } from '@expo/vector-icons';
 import { Video, ResizeMode } from 'expo-av';
 import { Colors } from '../../constants/colors';
@@ -23,6 +24,8 @@ import { useNotificationBadge } from '../../context/NotificationBadgeContext';
 import { uploadVideo, saveMediaLog } from '../../lib/r2Upload';
 import { Video as VideoCompressor } from 'react-native-compressor';
 import { useDialog } from '../../context/DialogContext';
+import { useSubscription } from '../../context/SubscriptionContext';
+import { countTodayGroupMedia, FREE_DAILY_LIMITS } from '../../lib/mediaQuota';
 import i18n from '../../i18n';
 import { useTranslation } from 'react-i18next';
 
@@ -44,6 +47,7 @@ export function VideoRecordScreen() {
   const { getPatientId } = useBodyState();
   const { unreadCount } = useNotificationBadge();
   const dialog = useDialog();
+  const { isPremium } = useSubscription();
   const [selectedVideo, setSelectedVideo] = useState<SelectedVideo | null>(null);
   const [loading, setLoading] = useState(false);
   const [uploadStage, setUploadStage] = useState<'compressing' | 'uploading' | 'saving' | 'done' | null>(null);
@@ -170,6 +174,24 @@ export function VideoRecordScreen() {
         setUploadStage(null);
         setLoading(false);
         return;
+      }
+
+      // Free 그룹 하루 영상 풀(일기 영상 포함 2개) 게이팅. premium 은 무제한.
+      if (!isPremium) {
+        const usage = await countTodayGroupMedia(patientId, user.timezone);
+        if (usage.video >= FREE_DAILY_LIMITS.video) {
+          dialog
+            .confirm({
+              title: t('videoRecord.quotaReachedTitle'),
+              message: t('videoRecord.quotaVideoMsg'),
+              confirmText: t('subscription.upgradeBtn'),
+              cancelText: t('common.cancel'),
+            })
+            .then((ok) => { if (ok) navigateTo('SubscriptionManage'); });
+          setUploadStage(null);
+          setLoading(false);
+          return;
+        }
       }
 
       // 영상 압축 (720p H.264, ~1500kbps)
