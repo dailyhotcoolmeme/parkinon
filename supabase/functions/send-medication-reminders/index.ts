@@ -490,7 +490,7 @@ async function sendCaregiverMissed(
     if (prefs.med_missed === false) continue
     const channelId = await resolveAlarmChannel(cu.id)
     const isEn = (cu as any).language === 'en'
-    const title = isEn ? '💊 Medication not yet taken' : '💊 약을 아직 안 드셨어요'
+    const title = isEn ? '💊 Missed medication' : '💊 약을 아직 안 드셨어요'
     const body = isEn
       ? caregiverMissedBodyEn(subjectEn, target.periodLabelEn, formatClockTime(target.time))
       : caregiverMissedBody(subject, target.periodLabel, formatClockTime(target.time))
@@ -597,7 +597,7 @@ Deno.serve(async (_req: Request) => {
 
       const channelId = channelFor(soundPrefs, target)
       const data = { type: 'medication_reminder', mealTime: target.mealTime, doseSlotId: target.doseSlotId }
-      const title = isEn ? '💊 Time for your medication' : '💊 약 드실 시간이에요'
+      const title = isEn ? '💊 Medication time' : '💊 약 드실 시간이에요'
       const body = isEn
         ? reminderBodyEn(target.periodLabelEn, formatClockTime(target.time))
         : reminderBody(target.periodLabel, formatClockTime(target.time))
@@ -643,7 +643,7 @@ Deno.serve(async (_req: Request) => {
 
       const channelId = missedChannelFor(missedSounds.first, soundPrefs, target)
       const data = { type: 'missed_medication_first', mealTime: target.mealTime, doseSlotId: target.doseSlotId }
-      const title = isEn ? '💊 Medication not yet taken' : '💊 약을 아직 안 드셨어요'
+      const title = isEn ? '💊 Missed medication' : '💊 약을 아직 안 드셨어요'
       const body = isEn
         ? missedBodyEn(target.periodLabelEn, formatClockTime(target.time))
         : missedBody(target.periodLabel, formatClockTime(target.time))
@@ -690,7 +690,7 @@ Deno.serve(async (_req: Request) => {
       // 환자에게 2차 알림 (환자가 2차 미복용 알림을 끈 경우 보내지 않음 — 보호자 알림은 아래에서 독립 처리)
       if (patient.push_token && prefs.missed_second !== false) {
         const data = { type: 'missed_medication_second', mealTime: target.mealTime, doseSlotId: target.doseSlotId }
-        const title = isEn ? '💊 Medication not yet taken' : '💊 약을 아직 안 드셨어요'
+        const title = isEn ? '💊 Missed medication' : '💊 약을 아직 안 드셨어요'
         const body = isEn
           ? missedBodyEn(target.periodLabelEn, formatClockTime(target.time))
           : missedBody(target.periodLabel, formatClockTime(target.time))
@@ -740,7 +740,7 @@ Deno.serve(async (_req: Request) => {
       if (target !== patientCurrentTime) continue
       // 이 운동 알림 항목에 지정된 목소리(soundId). 없으면("기본 목소리") 휴대폰 시스템 기본음('default').
       const exerciseChannelId = pref.soundId ? `parkinon_alarm_${pref.soundId}` : 'default'
-      const title = isEn ? '🏃 Time to exercise!' : '🏃 운동할 시간이에요!'
+      const title = isEn ? '🏃 Exercise time!' : '🏃 운동할 시간이에요!'
       const body = isEn ? 'Log your exercise for today.' : '오늘 운동 기록을 남겨보세요.'
       await sendPush(
         patient.push_token,

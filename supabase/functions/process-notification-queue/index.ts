@@ -301,7 +301,7 @@ Deno.serve(async (_req: Request) => {
     const doseSlot = Array.isArray(item.dose_slot) ? (item.dose_slot[0] ?? null) : (item.dose_slot ?? null)
     const isEn = languageByPatient.get(item.patient_id) === 'en'
     const isImmediate = item.interval_minutes === 0
-    const titleText = isEn ? '😊 How are you feeling?' : '😊 몸 상태는 어때요?'
+    const titleText = isEn ? '😊 How do you feel?' : '😊 몸 상태는 어때요?'
     let bodyText: string
     if (isEn) {
       const headEn = resolvePeriodHeadEn(doseSlot, item.meal_time)

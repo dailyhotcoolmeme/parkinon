@@ -1419,7 +1419,7 @@
     "noPatientError": "Couldn't find the linked patient's info.",
     "saveError": "Failed to save the record.",
     "defaultPatientName": "The patient",
-    "pushTitle": "😊 A health record was logged",
+    "pushTitle": "😊 New health record",
     "pushBody": "{{name}} logged a record ({{parts}})",
     "partBodyState": "Body state {{score}}/5",
     "partMood": "Mood {{score}}/5",
@@ -1491,7 +1491,7 @@
   "notifications": {
     "defaultChannelName": "ParkinON alerts",
     "medicationChannelName": "Medication alerts",
-    "effectTrackTitle": "😊 How are you feeling?",
+    "effectTrackTitle": "😊 How do you feel?",
     "effectTrackBodyImmediate": "Log your body state right after taking your medication.",
     "effectTrackBody": "Log your body state ({{when}})."
   },
