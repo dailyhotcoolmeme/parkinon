@@ -6,6 +6,7 @@ import './src/i18n';
 // 해외 로케일 폰트 축소 패치(side-effect import). i18n 초기화 직후, 모든 화면 모듈이
 // import되어 StyleSheet.create가 호출되기 전에 실행되어야 함.
 import './src/i18n/localeFontScale';
+import { initAds } from './src/lib/ads';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 import { AuthProvider } from './src/context/AuthContext';
@@ -142,6 +143,11 @@ function AppInner() {
       }
     }
     checkForUpdates();
+  }, []);
+
+  // AdMob 초기화 (광고 로드 전 1회, 재빌드 전엔 no-op)
+  useEffect(() => {
+    initAds();
   }, []);
 
   // 백그라운드 30초+ 후 active 복귀 시 OTA 체크 + 적용
