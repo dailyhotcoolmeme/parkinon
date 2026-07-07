@@ -1451,21 +1451,36 @@ export type Database = {
       patient_groups: {
         Row: {
           created_at: string | null
+          created_by: string | null
           id: string
           invite_code: string
           invite_code_expires_at: string | null
+          revenuecat_synced_at: string | null
+          subscription_expires_at: string | null
+          subscription_payer_user_id: string | null
+          subscription_tier: string
         }
         Insert: {
           created_at?: string | null
+          created_by?: string | null
           id?: string
           invite_code: string
           invite_code_expires_at?: string | null
+          revenuecat_synced_at?: string | null
+          subscription_expires_at?: string | null
+          subscription_payer_user_id?: string | null
+          subscription_tier?: string
         }
         Update: {
           created_at?: string | null
+          created_by?: string | null
           id?: string
           invite_code?: string
           invite_code_expires_at?: string | null
+          revenuecat_synced_at?: string | null
+          subscription_expires_at?: string | null
+          subscription_payer_user_id?: string | null
+          subscription_tier?: string
         }
         Relationships: []
       }

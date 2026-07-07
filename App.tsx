@@ -10,6 +10,7 @@ import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 import { AuthProvider } from './src/context/AuthContext';
 import { NotificationBadgeProvider, useNotificationBadge } from './src/context/NotificationBadgeContext';
+import { SubscriptionProvider } from './src/context/SubscriptionContext';
 import { SettingsProvider } from './src/context/SettingsContext';
 import { DialogProvider } from './src/context/DialogContext';
 import { RootNavigator } from './src/navigation/RootNavigator';
@@ -1008,9 +1009,11 @@ export default function App() {
       <SafeAreaProvider>
         <DialogProvider>
           <AuthProvider>
-            <NotificationBadgeProvider>
-              <AppInner />
-            </NotificationBadgeProvider>
+            <SubscriptionProvider>
+              <NotificationBadgeProvider>
+                <AppInner />
+              </NotificationBadgeProvider>
+            </SubscriptionProvider>
           </AuthProvider>
         </DialogProvider>
       </SafeAreaProvider>
