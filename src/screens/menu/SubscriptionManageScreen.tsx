@@ -1,9 +1,11 @@
-// 구독 관리 화면 (Phase 5 뼈대).
-// 현재 티어 표시 + 프리미엄 혜택 + 가격 안내 + 업그레이드 CTA.
-// ⚠️ 실제 결제(RevenueCat)는 네이티브 모듈이라 Phase 6 재빌드에서 연결된다.
-//    지금은 업그레이드 버튼이 "출시 준비 중" 안내만 띄운다(handleUpgrade의 Phase 6 지점 참고).
-import React from 'react';
-import { View, Text, StyleSheet, ScrollView, TouchableOpacity } from 'react-native';
+// 구독 관리 화면.
+// 현재 티어 표시 + 프리미엄 혜택 + 가격 + 구매/복원(RevenueCat).
+// ⚠️ RevenueCat 은 네이티브 모듈이라 재빌드 후에만 실제 결제가 된다. 재빌드 전(또는 스토어에
+//    구독상품 미등록)엔 패키지가 비어 있어 자동으로 "준비 중" 안내로 폴백한다.
+// 구매 성공 → RevenueCat webhook 이 patient_groups.subscription_tier 를 premium 으로 갱신 →
+//    refresh() 로 반영. (webhook 은 supabase functions/revenuecat-webhook)
+import React, { useState, useEffect } from 'react';
+import { View, Text, StyleSheet, ScrollView, TouchableOpacity, ActivityIndicator } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useTranslation } from 'react-i18next';
 import { Ionicons } from '@expo/vector-icons';
@@ -12,6 +14,12 @@ import { Colors } from '../../constants/colors';
 import { useSubscription } from '../../context/SubscriptionContext';
 import { useDialog } from '../../context/DialogContext';
 import { useBottomSheetPadding } from '../../hooks/useBottomSheetPadding';
+import {
+  getPremiumPackages,
+  purchasePackage,
+  restorePurchases,
+  isRevenueCatAvailable,
+} from '../../lib/revenueCat';
 
 const BENEFIT_KEYS = [
   'subscription.benefitUnlimitedMedia',
@@ -21,17 +29,56 @@ const BENEFIT_KEYS = [
 
 export function SubscriptionManageScreen() {
   const { t } = useTranslation();
-  const { isPremium } = useSubscription();
+  const { isPremium, refresh } = useSubscription();
   const dialog = useDialog();
   const bottomPad = useBottomSheetPadding(20);
 
-  const handleUpgrade = () => {
-    // Phase 6(재빌드): 여기서 RevenueCat 페이월/구매 흐름을 호출한다.
-    // 지금(Phase 5)은 결제 SDK 미탑재라 출시 준비 중 안내만.
-    dialog.alert({
-      title: t('subscription.comingSoonTitle'),
-      message: t('subscription.comingSoonMsg'),
-    });
+  const [packages, setPackages] = useState<any[]>([]);
+  const [busy, setBusy] = useState(false);
+
+  useEffect(() => {
+    if (isPremium) return;
+    let cancelled = false;
+    getPremiumPackages()
+      .then((pkgs) => { if (!cancelled) setPackages(pkgs); })
+      .catch(() => { if (!cancelled) setPackages([]); });
+    return () => { cancelled = true; };
+  }, [isPremium]);
+
+  const purchasable = isRevenueCatAvailable() && packages.length > 0;
+
+  const doPurchase = async (type: 'ANNUAL' | 'MONTHLY') => {
+    const pkg = packages.find((p) => p.packageType === type) ?? packages[0];
+    if (!purchasable || !pkg) {
+      dialog.alert({ title: t('subscription.comingSoonTitle'), message: t('subscription.comingSoonMsg') });
+      return;
+    }
+    setBusy(true);
+    const { ok, cancelled } = await purchasePackage(pkg);
+    setBusy(false);
+    if (cancelled) return;
+    if (ok) {
+      await refresh(); // 서버 webhook 반영엔 몇 초 걸릴 수 있음
+      dialog.alert({ title: t('subscription.purchaseDoneTitle'), message: t('subscription.purchaseDoneMsg') });
+    } else {
+      dialog.alert({ title: t('subscription.purchaseFailTitle'), message: t('subscription.purchaseFailMsg') });
+    }
+  };
+
+  const doRestore = async () => {
+    if (!isRevenueCatAvailable()) {
+      dialog.alert({ title: t('subscription.comingSoonTitle'), message: t('subscription.comingSoonMsg') });
+      return;
+    }
+    setBusy(true);
+    const ok = await restorePurchases();
+    setBusy(false);
+    await refresh();
+    dialog.alert(
+      ok
+        ? { title: t('subscription.restoreDoneTitle'), message: t('subscription.restoreDoneMsg') }
+        : { title: t('subscription.restoreNoneTitle'), message: t('subscription.restoreNoneMsg') },
+    );
   };
 
   return (
@@ -75,10 +122,28 @@ export function SubscriptionManageScreen() {
               <Text style={styles.priceTrial}>{t('subscription.priceTrial')}</Text>
             </View>
 
-            <TouchableOpacity style={styles.upgradeBtn} onPress={handleUpgrade} activeOpacity={0.85}>
-              <Text style={styles.upgradeBtnText}>{t('subscription.upgradeBtn')}</Text>
+            <TouchableOpacity
+              style={[styles.upgradeBtn, busy && styles.btnDisabled]}
+              onPress={() => doPurchase('ANNUAL')}
+              disabled={busy}
+              activeOpacity={0.85}
+            >
+              {busy ? (
+                <ActivityIndicator color="#fff" />
+              ) : (
+                <Text style={styles.upgradeBtnText}>{t('subscription.upgradeBtn')}</Text>
+              )}
             </TouchableOpacity>
+
+            <TouchableOpacity onPress={() => doPurchase('MONTHLY')} disabled={busy} activeOpacity={0.7}>
+              <Text style={styles.secondaryLink}>{t('subscription.subscribeMonthly')}</Text>
+            </TouchableOpacity>
+
             <Text style={styles.finePrint}>{t('subscription.finePrint')}</Text>
+
+            <TouchableOpacity onPress={doRestore} disabled={busy} activeOpacity={0.7}>
+              <Text style={styles.restoreLink}>{t('subscription.restoreBtn')}</Text>
+            </TouchableOpacity>
           </>
         )}
       </ScrollView>
@@ -134,5 +199,8 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
   },
   upgradeBtnText: { fontSize: 18, fontWeight: '800', color: '#fff' },
+  btnDisabled: { opacity: 0.6 },
+  secondaryLink: { fontSize: 15, fontWeight: '700', color: Colors.primary, textAlign: 'center', paddingVertical: 6 },
   finePrint: { fontSize: 13, color: Colors.textSub, textAlign: 'center', lineHeight: 19 },
+  restoreLink: { fontSize: 14, color: Colors.textSub, textAlign: 'center', textDecorationLine: 'underline', paddingVertical: 8 },
 });
