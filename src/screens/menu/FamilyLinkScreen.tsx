@@ -18,6 +18,7 @@ import { useFocusEffect, useNavigation } from '@react-navigation/native';
 import { Ionicons } from '@expo/vector-icons';
 import { TopBar } from '../../components/common/TopBar';
 import { BrandProgressOverlay } from '../../components/common/BrandProgressOverlay';
+import { HangingText } from '../../components/common/HangingText';
 import { Colors } from '../../constants/colors';
 import { useFamilyLink } from '../../hooks/useFamilyLink';
 import { useAuth } from '../../context/AuthContext';
@@ -412,7 +413,7 @@ export function FamilyLinkScreen() {
 
         {/* 가족 연동 흐름 안내 */}
         <View style={styles.famGuideBox}>
-          <Text style={styles.famGuideTitle}>{t('familyLink.guideTitle')}</Text>
+          <HangingText text={t('familyLink.guideTitle')} style={styles.famGuideTitle} />
 
           <View style={styles.famGuideSection}>
             <Text style={styles.famGuideHead}>{t('familyLink.guideFlowHead')}</Text>
@@ -422,14 +423,14 @@ export function FamilyLinkScreen() {
           </View>
 
           <View style={styles.famGuideSection}>
-            <Text style={styles.famGuideHead}>{t('familyLink.guideInviteHead')}</Text>
+            <HangingText text={t('familyLink.guideInviteHead')} style={styles.famGuideHead} />
             <Text style={styles.famGuideFlow}>
               {t('familyLink.guideInviteText')}
             </Text>
           </View>
 
           <View style={styles.famGuideSection}>
-            <Text style={styles.famGuideHead}>{t('familyLink.guideReceiveHead')}</Text>
+            <HangingText text={t('familyLink.guideReceiveHead')} style={styles.famGuideHead} />
             <Text style={styles.famGuideFlow}>
               {t('familyLink.guideReceiveText')}
             </Text>

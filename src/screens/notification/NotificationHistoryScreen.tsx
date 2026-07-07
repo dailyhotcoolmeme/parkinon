@@ -98,6 +98,22 @@ function groupByDate(logs: NotifLog[]): Section[] {
   }));
 }
 
+/**
+ * 알림 제목은 "💊 Missed medication"처럼 이모지+공백+본문 형태로 저장된다.
+ * 이걸 한 Text에 그대로 넣고 줄바꿈시키면, 둘째 줄이 이모지 자리(왼쪽 끝)로
+ * 내려가 첫 줄 텍스트 시작 위치와 안 맞는(행잉 인덴트 위반) 문제가 생긴다.
+ * 이모지(또는 기호) 접두사를 분리해 별도 Text로 렌더링하고 본문만 flex:1로
+ * 감싸면, 본문이 줄바꿈돼도 둘째 줄이 본문 시작 위치에 그대로 맞는다.
+ */
+function splitTitleIcon(title: string): { icon: string; rest: string } {
+  const m = title.match(/^(\S+)\s(.+)$/s);
+  if (!m) return { icon: '', rest: title };
+  const [, first, rest] = m;
+  // 첫 "단어"가 문자/숫자로 시작하면 이모지가 아니라 그냥 첫 단어 — 분리하지 않는다.
+  if (/^[\p{L}\p{N}]/u.test(first)) return { icon: '', rest: title };
+  return { icon: first, rest };
+}
+
 function formatTime(iso: string): string {
   const d = new Date(iso);
   const h = d.getHours();
@@ -342,10 +358,22 @@ export function NotificationHistoryScreen() {
           {/* 중앙: 제목 + 본문 */}
           <View style={styles.itemCenter}>
             {/* itemRow가 minHeight(고정 아님)라 줄바꿈돼도 그냥 늘어나면 됨 —
-                제목/본문 다 줄 수 제한 없이 전체 노출(과거 알림 다시 읽는 화면이라 잘림 없이). */}
-            <Text style={[styles.itemTitle, !isUnread && styles.itemTitleRead]}>
-              {item.title}
-            </Text>
+                제목/본문 다 줄 수 제한 없이 전체 노출(과거 알림 다시 읽는 화면이라 잘림 없이).
+                제목의 이모지 접두사는 별도 Text로 분리(행잉 인덴트) — 안 그러면 본문이
+                줄바꿈될 때 둘째 줄이 이모지 자리(왼쪽 끝)로 내려가 정렬이 깨진다. */}
+            {(() => {
+              const { icon, rest } = splitTitleIcon(item.title);
+              return (
+                <View style={styles.itemTitleRow}>
+                  {!!icon && (
+                    <Text style={[styles.itemTitle, !isUnread && styles.itemTitleRead]}>{icon} </Text>
+                  )}
+                  <Text style={[styles.itemTitle, !isUnread && styles.itemTitleRead, styles.itemTitleBody]}>
+                    {rest}
+                  </Text>
+                </View>
+              );
+            })()}
             <Text style={styles.itemBody}>
               {item.body}
             </Text>
@@ -490,11 +518,18 @@ const styles = StyleSheet.create({
     flex: 1,
     marginRight: 8,
   },
+  itemTitleRow: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    marginBottom: 4,
+  },
+  itemTitleBody: {
+    flex: 1,
+  },
   itemTitle: {
     fontSize: 18,
     fontWeight: '700',
     color: Colors.text,
-    marginBottom: 4,
   },
   itemTitleRead: {
     color: '#999999',

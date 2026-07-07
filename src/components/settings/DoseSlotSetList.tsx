@@ -55,6 +55,7 @@ import {
 import { useSwipeDownDismiss } from '../../hooks/useSwipeDownDismiss';
 import { useBottomSheetPadding } from '../../hooks/useBottomSheetPadding';
 import { AlarmSoundPickerRow, AlarmSoundOption } from '../common/AlarmSoundPickerRow';
+import { HangingText } from '../common/HangingText';
 import { useDialog } from '../../context/DialogContext';
 import { useAuth } from '../../context/AuthContext';
 import i18n from '../../i18n';
@@ -1408,9 +1409,7 @@ export function DoseSlotSetList({
                       {/* 소프트 경고 (막지 않음) */}
                       {warn && (
                         <View style={styles.warn}>
-                          <Text style={styles.warnTitle}>
-                            {t('doseSlotSetList.warnTitle')}
-                          </Text>
+                          <HangingText text={t('doseSlotSetList.warnTitle')} style={styles.warnTitle} />
                           <Text style={styles.warnBody}>
                             {t('doseSlotSetList.warnBody')}
                           </Text>

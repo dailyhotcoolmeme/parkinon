@@ -12,6 +12,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { Colors } from '../../constants/colors';
 import { TopBar } from '../../components/common/TopBar';
 import { SkeletonList } from '../../components/common/SkeletonCard';
+import { HangingText } from '../../components/common/HangingText';
 import { MenuStackParamList } from '../../navigation/MenuNavigator';
 import { useRecordDetailData } from '../../hooks/useRecordDetailData';
 import { useNotificationBadge } from '../../context/NotificationBadgeContext';
@@ -314,9 +315,7 @@ export function RecordDetailScreen() {
                 <Ionicons name={meta.icon} size={24} color={Colors.primary} />
                 <Text style={styles.cardSubTitle}>{t('recordDetail.timeSlotStatusTitle', { period: getPeriodLabel(period, t) })}</Text>
               </View>
-              <Text style={styles.cardNote}>
-                {t('recordDetail.effectTrackNote')}
-              </Text>
+              <HangingText text={t('recordDetail.effectTrackNote')} style={styles.cardNote} />
               {Object.entries(summarySlot.timeSlots).map(([triggerLabel, vals], i) => {
                 const color = TIME_COLORS_PALETTE[i % TIME_COLORS_PALETTE.length];
                 const displayLabel = triggerLabelToDisplay(triggerLabel);

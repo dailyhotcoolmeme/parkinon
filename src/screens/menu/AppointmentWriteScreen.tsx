@@ -23,6 +23,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { Colors } from '../../constants/colors';
 import { TopBar } from '../../components/common/TopBar';
 import { BrandProgressOverlay } from '../../components/common/BrandProgressOverlay';
+import { HangingText } from '../../components/common/HangingText';
 import { useAuth } from '../../context/AuthContext';
 import { usePatientId } from '../../hooks/usePatientId';
 import { supabase } from '../../lib/supabase';
@@ -585,9 +586,7 @@ export function AppointmentWriteScreen() {
           {/* 처음 등록 안내 */}
           {isFirstAppointment && (
             <View style={styles.hintCard}>
-              <Text style={styles.hintText}>
-                {t('appointmentWrite.autoFillHint')}
-              </Text>
+              <HangingText text={t('appointmentWrite.autoFillHint')} style={styles.hintText} />
             </View>
           )}
 

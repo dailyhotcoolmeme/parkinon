@@ -17,6 +17,7 @@ import { Audio } from 'expo-av';
 import { Colors } from '../../constants/colors';
 import { TopBar } from '../../components/common/TopBar';
 import { BrandProgressOverlay } from '../../components/common/BrandProgressOverlay';
+import { HangingText } from '../../components/common/HangingText';
 import { useAuth } from '../../context/AuthContext';
 import { useDialog } from '../../context/DialogContext';
 import { supabase } from '../../lib/supabase';
@@ -393,7 +394,7 @@ export function RecordSoundScreen() {
   // 활용 예시 카드 — 신규 등록은 상단, 수정 모드는 하단에 재사용
   const usageCard = (
     <View style={styles.usageBox}>
-      <Text style={styles.usageTitle}>{t('recordSound.usageTitle')}</Text>
+      <HangingText text={t('recordSound.usageTitle')} style={styles.usageTitle} />
       <View style={styles.usageRow}>
         <Text style={styles.usageEmoji}>👶</Text>
         <Text style={styles.usageText}>
