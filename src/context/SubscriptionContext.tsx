@@ -14,6 +14,7 @@ import React, {
 } from 'react';
 import { supabase } from '../lib/supabase';
 import { useAuth } from './AuthContext';
+import { initRevenueCat } from '../lib/revenueCat';
 
 export type SubscriptionTier = 'free' | 'premium';
 
@@ -38,6 +39,11 @@ function resolveIsPremium(tier: string | null, expiresAt: string | null): boolea
 export function SubscriptionProvider({ children }: { children: React.ReactNode }) {
   const { user } = useAuth();
   const groupId = user?.patient_group_id ?? null;
+
+  // 구매자(Supabase user)와 RevenueCat 연결 — 재빌드 전엔 내부에서 조용히 no-op.
+  useEffect(() => {
+    initRevenueCat(user?.id ?? null);
+  }, [user?.id]);
 
   const [tier, setTier] = useState<SubscriptionTier>('free');
   const [expiresAt, setExpiresAt] = useState<string | null>(null);
