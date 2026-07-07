@@ -96,6 +96,10 @@
       ],
       "expo-font",
       [
+        "./plugins/withAndroidLocalizedName",
+        { "en": "ParkinON" }
+      ],
+      [
         "react-native-google-mobile-ads",
         {
           "androidAppId": "ca-app-pub-2792582436871752~4028284031",
