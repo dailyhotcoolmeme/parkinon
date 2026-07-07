@@ -94,7 +94,16 @@
           "kakaoAppKey": "a46e187c314536d5fd4ef610710479ab"
         }
       ],
-      "expo-font"
+      "expo-font",
+      [
+        "react-native-google-mobile-ads",
+        {
+          "androidAppId": "ca-app-pub-2792582436871752~4028284031",
+          "iosAppId": "ca-app-pub-2792582436871752~9641708372",
+          "userTrackingUsageDescription": "Your data is used to make ads shown to you more relevant. Ads help keep ParkinON free.",
+          "delayAppMeasurementInit": true
+        }
+      ]
     ],
     "runtimeVersion": {
       "policy": "appVersion"
