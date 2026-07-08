@@ -96,6 +96,7 @@
       ],
       "expo-font",
       "./plugins/withExtraMavenRepos",
+      "./plugins/withDisableExtraTranslationLint",
       [
         "./plugins/withAndroidLocalizedName",
         { "en": "ParkinON" }
