@@ -114,10 +114,13 @@ const styles = StyleSheet.create({
   wrap: { marginVertical: 8, marginHorizontal: 0 },
   card: {
     backgroundColor: Colors.white,
-    borderRadius: 12,
-    borderWidth: 1,
-    borderColor: Colors.border,
+    borderRadius: 16, // 주변 카드와 동일
     padding: 12,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.06,
+    shadowRadius: 4,
+    elevation: 2,
   },
   row: { flexDirection: 'row', alignItems: 'center', gap: 10 },
   icon: { width: 44, height: 44, borderRadius: 8, backgroundColor: '#EEE' },
@@ -152,7 +155,7 @@ const styles = StyleSheet.create({
   },
   devPlaceholder: {
     minHeight: 76,
-    borderRadius: 12,
+    borderRadius: 16, // 주변 카드와 동일
     borderWidth: 1,
     borderColor: '#C8C8C8',
     borderStyle: 'dashed',
