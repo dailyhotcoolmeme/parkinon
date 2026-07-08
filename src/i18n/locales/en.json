@@ -1287,6 +1287,8 @@
     "priceTrial": "7-day free trial",
     "upgradeBtn": "Upgrade to Premium",
     "finePrint": "Cancel anytime. Billing is handled through your App Store or Google Play account.",
+    "manageSubscription": "Manage subscription",
+    "manageHint": "Cancel or change your plan anytime in your App Store or Google Play subscription settings.",
     "comingSoonTitle": "Coming soon",
     "comingSoonMsg": "Subscriptions will be available very soon. Thanks for your patience!",
     "subscribeMonthly": "Or subscribe monthly for $4.99",

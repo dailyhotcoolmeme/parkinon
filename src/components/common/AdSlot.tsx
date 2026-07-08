@@ -155,9 +155,11 @@ const styles = StyleSheet.create({
   devPlaceholder: {
     minHeight: 76,
     borderRadius: 16, // 주변 카드와 동일
+    overflow: 'hidden',
     borderWidth: 1,
-    borderColor: '#C8C8C8',
-    borderStyle: 'dashed',
+    borderColor: '#D8D8D8',
+    // 안드로이드는 점선+둥근모서리를 함께 못 그려 직사각형이 됨 → 실선 사용
+    borderStyle: 'solid',
     backgroundColor: '#FAFAFA',
     alignItems: 'center',
     justifyContent: 'center',

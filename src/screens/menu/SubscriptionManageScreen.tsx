@@ -5,7 +5,7 @@
 // 구매 성공 → RevenueCat webhook 이 patient_groups.subscription_tier 를 premium 으로 갱신 →
 //    refresh() 로 반영. (webhook 은 supabase functions/revenuecat-webhook)
 import React, { useState, useEffect } from 'react';
-import { View, Text, StyleSheet, ScrollView, TouchableOpacity, ActivityIndicator } from 'react-native';
+import { View, Text, StyleSheet, ScrollView, TouchableOpacity, ActivityIndicator, Linking, Platform } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useTranslation } from 'react-i18next';
 import { Ionicons } from '@expo/vector-icons';
@@ -66,6 +66,15 @@ export function SubscriptionManageScreen() {
     }
   };
 
+  // 구독 해지·다운그레이드는 앱에서 직접 못 하고(스토어 정책) OS 구독 설정으로 보낸다.
+  const openManageSubscription = () => {
+    const url = Platform.select({
+      ios: 'https://apps.apple.com/account/subscriptions',
+      android: 'https://play.google.com/store/account/subscriptions?package=com.ourmine.parkinon',
+    });
+    if (url) Linking.openURL(url).catch(() => {});
+  };
+
   const doRestore = async () => {
     if (!isRevenueCatAvailable()) {
       dialog.alert({ title: t('subscription.comingSoonTitle'), message: t('subscription.comingSoonMsg') });
@@ -113,6 +122,16 @@ export function SubscriptionManageScreen() {
             </View>
           ))}
         </View>
+
+        {isPremium && (
+          <>
+            <TouchableOpacity style={styles.manageBtn} onPress={openManageSubscription} activeOpacity={0.8}>
+              <Ionicons name="settings-outline" size={18} color={Colors.text} />
+              <Text style={styles.manageBtnText}>{t('subscription.manageSubscription')}</Text>
+            </TouchableOpacity>
+            <Text style={styles.manageHint}>{t('subscription.manageHint')}</Text>
+          </>
+        )}
 
         {!isPremium && (
           <>
@@ -277,4 +296,17 @@ const styles = StyleSheet.create({
   secondaryLink: { fontSize: 15, fontWeight: '700', color: Colors.primary, textAlign: 'center', paddingVertical: 6 },
   finePrint: { fontSize: 13, color: Colors.textSub, textAlign: 'center', lineHeight: 19 },
   restoreLink: { fontSize: 14, color: Colors.textSub, textAlign: 'center', textDecorationLine: 'underline', paddingVertical: 8 },
+  manageBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 8,
+    minHeight: 52,
+    borderRadius: 14,
+    borderWidth: 1.5,
+    borderColor: Colors.border,
+    backgroundColor: Colors.white,
+  },
+  manageBtnText: { fontSize: 16, fontWeight: '700', color: Colors.text },
+  manageHint: { fontSize: 13, color: Colors.textSub, textAlign: 'center', lineHeight: 19, marginTop: -4 },
 });

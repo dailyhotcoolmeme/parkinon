@@ -1287,6 +1287,8 @@
     "priceTrial": "7일 무료 체험",
     "upgradeBtn": "프리미엄으로 업그레이드",
     "finePrint": "구독은 언제든 해지할 수 있어요. 결제는 App Store·Google Play 계정으로 진행됩니다.",
+    "manageSubscription": "구독 관리·해지",
+    "manageHint": "해지·플랜 변경은 App Store/Google Play 구독 설정에서 할 수 있어요.",
     "comingSoonTitle": "출시 준비 중",
     "comingSoonMsg": "구독 결제가 곧 제공될 예정이에요. 조금만 기다려 주세요!",
     "subscribeMonthly": "또는 월 $4.99로 구독",
