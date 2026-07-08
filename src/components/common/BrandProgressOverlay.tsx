@@ -170,7 +170,7 @@ export function BrandProgressOverlay({
       // 심볼 회전(연속·등속). 커지는 펄스 대신 다른 로딩 아이콘과 동일하게 회전만.
       pulse.value = 0;
       pulse.value = withRepeat(
-        withTiming(1, { duration: 900, easing: Easing.linear }),
+        withTiming(1, { duration: 2500, easing: Easing.linear }),
         -1,
         false,
       );

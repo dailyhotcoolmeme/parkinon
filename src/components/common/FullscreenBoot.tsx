@@ -30,7 +30,7 @@ export function FullscreenBoot({ message }: FullscreenBootProps) {
 
   useEffect(() => {
     spin.value = withRepeat(
-      withTiming(1, { duration: 800, easing: Easing.linear }),
+      withTiming(1, { duration: 2500, easing: Easing.linear }),
       -1,
       false,
     );
