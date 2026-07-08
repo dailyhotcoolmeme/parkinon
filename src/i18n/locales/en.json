@@ -34,15 +34,15 @@
     "start": "Get started",
     "slide1": {
       "title": "Never forget\nto take your medication.",
-      "desc": "We'll remind you when it's time.\nOnce you've taken it, just one tap."
+      "desc": "We'll remind you when it's time. Once you've taken it, just one tap."
     },
     "slide2": {
       "title": "Your family can see it too,\nso everyone feels at ease.",
-      "desc": "When you take your medication, your family knows.\nNo need to check in with each other."
+      "desc": "When you take your medication, your family knows, so there's no need to check in with each other."
     },
     "slide3": {
       "title": "Your records can help\nat your next doctor's visit.",
-      "desc": "Jot down how you feel after taking your medication,\nand you'll see the changes over time."
+      "desc": "Jot down how you feel after taking your medication, and you'll see the changes over time."
     }
   },
   "login": {
