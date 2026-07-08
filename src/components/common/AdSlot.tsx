@@ -109,7 +109,9 @@ export function AdSlot({ placement }: { placement: AdPlacement }) {
 }
 
 const styles = StyleSheet.create({
-  wrap: { marginVertical: 8, marginHorizontal: 16 },
+  // 좌우 여백 0 — 이미 좌우 패딩 있는 컨테이너 안에 배치되므로, 부모 폭을 꽉 채워
+  // 위아래 박스(카드)와 가로폭을 정확히 맞춘다.
+  wrap: { marginVertical: 8, marginHorizontal: 0 },
   card: {
     backgroundColor: Colors.white,
     borderRadius: 12,
@@ -158,7 +160,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
     marginVertical: 8,
-    marginHorizontal: 16,
+    marginHorizontal: 0,
     paddingVertical: 12,
   },
   devLabel: { fontSize: 13, fontWeight: '700', color: '#999' },
