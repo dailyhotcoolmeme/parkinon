@@ -13,7 +13,7 @@ export const REVENUECAT_TEST_KEY = 'test_lJBoBYNBCtwQlFDoNEPVzPrGbXV';
 
 /** 실제 출시용 공개 SDK 키 (스토어 구독상품 생성 후 RevenueCat에서 발급 → 여기 채움). */
 export const REVENUECAT_PROD_KEY = {
-  ios: '', // appl_... (RevenueCat App Store 앱 생성 시 발급 — ASC API 키 연동 필요)
+  ios: 'appl_sBIbfKJeuHaDSeAMNDywCPNUSOn', // App Store 앱 공개 SDK 키
   android: 'goog_uaXvxBhEdIaKrxJgpKGktHZPbKf', // Play 앱 공개 SDK 키
 } as const;
 
