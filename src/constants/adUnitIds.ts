@@ -40,7 +40,15 @@ const AD_UNIT_IOS: Record<AdPlacement, string> = {
   more: 'ca-app-pub-2792582436871752/9288273594',
 };
 
-/** 구글 공식 테스트 네이티브 광고단위 ID (개발용 — 실 ID 대신 __DEV__ 에서 사용) */
+/**
+ * 테스트 광고 강제 플래그.
+ * true면 릴리즈 빌드(__DEV__=false)에서도 실 광고 대신 구글 테스트 광고를 띄운다.
+ * ⚠️ 내부 테스트 APK 배포 중에는 true(실제 광고 오클릭=계정 정지 방지).
+ * ⚠️ Phase 7 실제 스토어 출시 전에 반드시 false 로 바꿀 것.
+ */
+export const FORCE_TEST_ADS = true;
+
+/** 구글 공식 테스트 네이티브 광고단위 ID (개발용 — 실 ID 대신 __DEV__/FORCE_TEST_ADS 에서 사용) */
 export const TEST_NATIVE_AD_UNIT_ID = Platform.select({
   ios: 'ca-app-pub-3940256099942544/3986624511',
   android: 'ca-app-pub-3940256099942544/2247696110',
@@ -55,6 +63,6 @@ export const AD_UNIT_ID: Record<AdPlacement, string> =
  * 개발 빌드(__DEV__)에서는 항상 테스트 ID를 반환해 실 광고 오클릭을 원천 차단.
  */
 export function getAdUnitId(placement: AdPlacement): string {
-  if (__DEV__) return TEST_NATIVE_AD_UNIT_ID;
+  if (__DEV__ || FORCE_TEST_ADS) return TEST_NATIVE_AD_UNIT_ID;
   return AD_UNIT_ID[placement];
 }
