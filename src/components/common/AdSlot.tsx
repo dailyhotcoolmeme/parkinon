@@ -115,11 +115,10 @@ const styles = StyleSheet.create({
   card: {
     backgroundColor: Colors.white,
     borderRadius: 16, // 주변 카드와 동일
+    overflow: 'hidden', // 안드: 네이티브 광고 내용이 둥근 모서리를 따라가도록 클립
     padding: 12,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 1 },
-    shadowOpacity: 0.06,
-    shadowRadius: 4,
+    borderWidth: 1,
+    borderColor: Colors.border,
     elevation: 2,
   },
   row: { flexDirection: 'row', alignItems: 'center', gap: 10 },

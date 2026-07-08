@@ -35,6 +35,7 @@ export function SubscriptionManageScreen() {
 
   const [packages, setPackages] = useState<any[]>([]);
   const [busy, setBusy] = useState(false);
+  const [selectedPlan, setSelectedPlan] = useState<'ANNUAL' | 'MONTHLY'>('ANNUAL');
 
   useEffect(() => {
     if (isPremium) return;
@@ -115,28 +116,72 @@ export function SubscriptionManageScreen() {
 
         {!isPremium && (
           <>
-            {/* 가격 */}
-            <View style={styles.priceCard}>
-              <Text style={styles.priceMain}>{t('subscription.priceAnnual')}</Text>
-              <Text style={styles.priceSub}>{t('subscription.priceMonthly')}</Text>
-              <Text style={styles.priceTrial}>{t('subscription.priceTrial')}</Text>
-            </View>
+            {/* 플랜 선택 — 연간(추천)·월간 두 카드 */}
+            <Text style={styles.sectionTitle}>{t('subscription.choosePlanTitle')}</Text>
 
+            {/* 연간 (추천) */}
+            <TouchableOpacity
+              style={[styles.planCard, selectedPlan === 'ANNUAL' && styles.planCardSelected]}
+              onPress={() => setSelectedPlan('ANNUAL')}
+              activeOpacity={0.85}
+              disabled={busy}
+            >
+              <View style={styles.bestBadge}>
+                <Text style={styles.bestBadgeText}>{t('subscription.planBestValue')}</Text>
+              </View>
+              <View style={styles.planRadioCol}>
+                <Ionicons
+                  name={selectedPlan === 'ANNUAL' ? 'radio-button-on' : 'radio-button-off'}
+                  size={24}
+                  color={selectedPlan === 'ANNUAL' ? Colors.primary : '#C4C4C4'}
+                />
+              </View>
+              <View style={styles.planInfo}>
+                <Text style={styles.planTitle}>{t('subscription.planAnnualTitle')}</Text>
+                <View style={styles.planPriceRow}>
+                  <Text style={styles.planPriceOriginal}>{t('subscription.planAnnualOriginal')}</Text>
+                  <Text style={styles.planPrice}>{t('subscription.planAnnualPrice')}</Text>
+                </View>
+                <Text style={styles.planTrialNote}>{t('subscription.planTrialNote')}</Text>
+              </View>
+              <View style={styles.saveTag}>
+                <Text style={styles.saveTagText}>{t('subscription.planAnnualSave')}</Text>
+              </View>
+            </TouchableOpacity>
+
+            {/* 월간 */}
+            <TouchableOpacity
+              style={[styles.planCard, selectedPlan === 'MONTHLY' && styles.planCardSelected]}
+              onPress={() => setSelectedPlan('MONTHLY')}
+              activeOpacity={0.85}
+              disabled={busy}
+            >
+              <View style={styles.planRadioCol}>
+                <Ionicons
+                  name={selectedPlan === 'MONTHLY' ? 'radio-button-on' : 'radio-button-off'}
+                  size={24}
+                  color={selectedPlan === 'MONTHLY' ? Colors.primary : '#C4C4C4'}
+                />
+              </View>
+              <View style={styles.planInfo}>
+                <Text style={styles.planTitle}>{t('subscription.planMonthlyTitle')}</Text>
+                <Text style={styles.planPrice}>{t('subscription.planMonthlyPrice')}</Text>
+                <Text style={styles.planTrialNote}>{t('subscription.planTrialNote')}</Text>
+              </View>
+            </TouchableOpacity>
+
+            {/* 결제 CTA — 선택한 플랜으로 */}
             <TouchableOpacity
               style={[styles.upgradeBtn, busy && styles.btnDisabled]}
-              onPress={() => doPurchase('ANNUAL')}
+              onPress={() => doPurchase(selectedPlan)}
               disabled={busy}
               activeOpacity={0.85}
             >
               {busy ? (
                 <ActivityIndicator color="#fff" />
               ) : (
-                <Text style={styles.upgradeBtnText}>{t('subscription.upgradeBtn')}</Text>
+                <Text style={styles.upgradeBtnText}>{t('subscription.trialCta')}</Text>
               )}
-            </TouchableOpacity>
-
-            <TouchableOpacity onPress={() => doPurchase('MONTHLY')} disabled={busy} activeOpacity={0.7}>
-              <Text style={styles.secondaryLink}>{t('subscription.subscribeMonthly')}</Text>
             </TouchableOpacity>
 
             <Text style={styles.finePrint}>{t('subscription.finePrint')}</Text>
@@ -180,17 +225,46 @@ const styles = StyleSheet.create({
   },
   benefitRow: { flexDirection: 'row', alignItems: 'flex-start', gap: 12 },
   benefitText: { flex: 1, fontSize: 16, color: Colors.text, lineHeight: 23 },
-  priceCard: {
+  planCard: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
     backgroundColor: Colors.white,
     borderRadius: 16,
-    padding: 20,
-    alignItems: 'center',
+    paddingVertical: 16,
+    paddingHorizontal: 16,
     borderWidth: 1.5,
-    borderColor: Colors.primary,
+    borderColor: Colors.border,
   },
-  priceMain: { fontSize: 24, fontWeight: '800', color: Colors.text },
-  priceSub: { fontSize: 15, color: Colors.textSub, marginTop: 4 },
-  priceTrial: { fontSize: 15, fontWeight: '700', color: Colors.primary, marginTop: 8 },
+  planCardSelected: { borderColor: Colors.primary, backgroundColor: '#F4FBF5' },
+  bestBadge: {
+    position: 'absolute',
+    top: -10,
+    left: 16,
+    backgroundColor: Colors.primary,
+    borderRadius: 8,
+    paddingHorizontal: 8,
+    paddingVertical: 2,
+  },
+  bestBadgeText: { fontSize: 11, fontWeight: '800', color: '#fff' },
+  planRadioCol: { width: 26, alignItems: 'center' },
+  planInfo: { flex: 1 },
+  planTitle: { fontSize: 17, fontWeight: '700', color: Colors.text },
+  planPriceRow: { flexDirection: 'row', alignItems: 'baseline', gap: 8, marginTop: 2 },
+  planPriceOriginal: {
+    fontSize: 15,
+    color: Colors.textSub,
+    textDecorationLine: 'line-through',
+  },
+  planPrice: { fontSize: 18, fontWeight: '800', color: Colors.text, marginTop: 2 },
+  planTrialNote: { fontSize: 13, fontWeight: '700', color: Colors.primary, marginTop: 4 },
+  saveTag: {
+    backgroundColor: '#E8F6EA',
+    borderRadius: 8,
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+  },
+  saveTagText: { fontSize: 12, fontWeight: '800', color: Colors.primary },
   upgradeBtn: {
     minHeight: 56,
     borderRadius: 14,
