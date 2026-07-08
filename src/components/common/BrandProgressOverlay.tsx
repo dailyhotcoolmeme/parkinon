@@ -28,6 +28,7 @@ import Animated, {
   withTiming,
   withSpring,
   cancelAnimation,
+  Easing,
 } from 'react-native-reanimated';
 import { LoadingTokens as T, standardEasing } from './loadingTokens';
 import { useTranslation } from 'react-i18next';
@@ -166,10 +167,12 @@ export function BrandProgressOverlay({
   useEffect(() => {
     if (effectiveVisible) {
       enter.value = withTiming(1, { duration: T.enterDuration, easing: standardEasing });
+      // 심볼 회전(연속·등속). 커지는 펄스 대신 다른 로딩 아이콘과 동일하게 회전만.
+      pulse.value = 0;
       pulse.value = withRepeat(
-        withTiming(1, { duration: 1600, easing: standardEasing }),
+        withTiming(1, { duration: 900, easing: Easing.linear }),
         -1,
-        true,
+        false,
       );
       barPos.value = withRepeat(
         withTiming(1, { duration: 1200, easing: standardEasing }),
@@ -205,8 +208,7 @@ export function BrandProgressOverlay({
   }));
 
   const symbolStyle = useAnimatedStyle(() => ({
-    transform: [{ scale: 1.0 + pulse.value * 0.06 }],
-    opacity: 0.85 + pulse.value * 0.15,
+    transform: [{ rotate: `${pulse.value * 360}deg` }],
   }));
 
   const barW = Math.min(BAR_WIDTH, screenW - T.cardPadding * 2 - 48);
