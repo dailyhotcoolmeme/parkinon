@@ -10,9 +10,10 @@ import { View, Text, Image, StyleSheet, TouchableOpacity } from 'react-native';
 import { useTranslation } from 'react-i18next';
 import { useSubscription } from '../../context/SubscriptionContext';
 import { isOverseasLocale } from '../../i18n/detectLocale';
-import { getAdUnitId, type AdPlacement } from '../../constants/adUnitIds';
+import { getAdUnitId, FORCE_TEST_ADS, type AdPlacement } from '../../constants/adUnitIds';
 import { navigateTo } from '../../navigation/navigationRef';
 import { Colors } from '../../constants/colors';
+import { whenAdsReady } from '../../lib/ads';
 
 // 네이티브 모듈 lazy 로드(패키지 JS는 있으나 실제 광고 요청은 네이티브 필요).
 let GMA: any = null;
@@ -34,9 +35,13 @@ export function AdSlot({ placement }: { placement: AdPlacement }) {
     if (!active || !GMA?.NativeAd?.createForAdRequest) return;
     let ad: any = null;
     let cancelled = false;
-    GMA.NativeAd.createForAdRequest(getAdUnitId(placement), {
-      requestNonPersonalizedAdsOnly: true, // 비개인화 고정
-    })
+    // SDK 초기화 완료를 기다린 뒤 광고 요청(init 레이스 방지).
+    whenAdsReady()
+      .then(() =>
+        GMA.NativeAd.createForAdRequest(getAdUnitId(placement), {
+          requestNonPersonalizedAdsOnly: true, // 비개인화 고정
+        }),
+      )
       .then((a: any) => {
         if (cancelled) { a?.destroy?.(); return; }
         ad = a;
@@ -89,8 +94,10 @@ export function AdSlot({ placement }: { placement: AdPlacement }) {
     );
   }
 
-  // 아직 광고 없음(재빌드 전/로딩): dev=자리표시, prod=미노출
-  if (__DEV__) {
+  // 아직 광고 없음(로딩/실패): 테스트 단계(__DEV__ 또는 FORCE_TEST_ADS)에선 슬롯 위치
+  // 확인용 자리표시를 보여준다(광고 네트워크가 늦거나 실패해도 슬롯이 안 보이지 않도록).
+  // 실제 출시(FORCE_TEST_ADS=false)에선 미노출 → 빈 박스 없음.
+  if (__DEV__ || FORCE_TEST_ADS) {
     return (
       <View style={styles.devPlaceholder}>
         <Text style={styles.devLabel}>[Ad · {placement}]</Text>
