@@ -1,12 +1,14 @@
 // FullscreenBoot — 통일 로딩 패턴 4
 //
 // 콜드 스타트(앱 초기 진입) 풀스크린 로딩.
-// 그린(#4CAF50) 풀스크린 + 흰 로고 + 흰 링 스피너(2px, 0.8s linear) + 흰 문구.
+// 그린(#4CAF50) 풀스크린 + 흰 심볼이 회전 + 흰 문구.
+// (예전엔 파킨온 워드마크 로고 + 별도 링이었으나, 새 브랜드 심볼 회전으로 통일 —
+//  국내·해외 공통. TopBar/BrandProgressOverlay 와 동일한 "흰 심볼 회전".)
 //
 // 사용: <FullscreenBoot message="파킨온을 준비하고 있어요" />
 
 import React, { useEffect } from 'react';
-import { View, Text, StyleSheet, Image } from 'react-native';
+import { View, Text, StyleSheet } from 'react-native';
 import Animated, {
   useSharedValue,
   useAnimatedStyle,
@@ -15,9 +17,9 @@ import Animated, {
   Easing,
 } from 'react-native-reanimated';
 import { LoadingTokens as T } from './loadingTokens';
-import { getBrandLogo } from '../../utils/brandLogo';
 
-const LOGO = getBrandLogo();
+// 텍스트 없는 흰 심볼(투명 배경) — 그린 풀스크린 위에서 흰 심볼만 보인다.
+const SYMBOL = require('../../../assets/parkinon-symbol-en.png');
 
 export interface FullscreenBootProps {
   message?: string;
@@ -34,14 +36,13 @@ export function FullscreenBoot({ message }: FullscreenBootProps) {
     );
   }, []);
 
-  const ringStyle = useAnimatedStyle(() => ({
+  const symbolStyle = useAnimatedStyle(() => ({
     transform: [{ rotate: `${spin.value * 360}deg` }],
   }));
 
   return (
     <View style={styles.container}>
-      <Image source={LOGO} style={styles.logo} resizeMode="contain" />
-      <Animated.View style={[styles.ring, ringStyle]} />
+      <Animated.Image source={SYMBOL} style={[styles.symbol, symbolStyle]} resizeMode="contain" />
       {!!message && <Text style={styles.message}>{message}</Text>}
     </View>
   );
@@ -55,19 +56,9 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     gap: 24,
   },
-  logo: {
-    // parkinon-logo는 배경이 #4CB051(≈#4CAF50)이라 그린 풀스크린에 자연스럽게 녹아
-    // 흰 심볼+워드마크만 보인다. 별도 틴트 불필요.
-    width: 160,
-    height: 160,
-  },
-  ring: {
-    width: 28,
-    height: 28,
-    borderRadius: 14,
-    borderWidth: 2,
-    borderColor: 'rgba(255,255,255,0.3)',
-    borderTopColor: '#FFFFFF',
+  symbol: {
+    width: 96,
+    height: 96,
   },
   message: {
     fontSize: T.titleSize,
