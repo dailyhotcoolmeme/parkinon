@@ -58,7 +58,10 @@ export function AdSlot({ placement }: { placement: AdPlacement }) {
     const { NativeAdView, NativeAsset, NativeAssetType } = GMA;
     return (
       <View style={styles.wrap}>
-        <NativeAdView nativeAd={nativeAd} style={styles.card}>
+        {/* NativeAdView(네이티브 뷰)는 자체 borderRadius/overflow가 안 먹으므로,
+            일반 View(cardClip)로 감싸 부모가 둥근 모서리로 클립하게 한다(안드 핵심). */}
+        <View style={styles.cardClip}>
+          <NativeAdView nativeAd={nativeAd} style={styles.cardInner}>
           <View style={styles.row}>
             {!!nativeAd.icon?.url && (
               <NativeAsset assetType={NativeAssetType.ICON}>
@@ -86,7 +89,8 @@ export function AdSlot({ placement }: { placement: AdPlacement }) {
               </NativeAsset>
             )}
           </View>
-        </NativeAdView>
+          </NativeAdView>
+        </View>
         <TouchableOpacity onPress={() => navigateTo('SubscriptionManage')} activeOpacity={0.7}>
           <Text style={styles.removeAds}>{t('ads.removeAds')}</Text>
         </TouchableOpacity>
@@ -112,14 +116,19 @@ const styles = StyleSheet.create({
   // 좌우 여백 0 — 이미 좌우 패딩 있는 컨테이너 안에 배치되므로, 부모 폭을 꽉 채워
   // 위아래 박스(카드)와 가로폭을 정확히 맞춘다.
   wrap: { marginVertical: 8, marginHorizontal: 0 },
-  card: {
+  // 일반 View — 둥근 모서리로 자식(NativeAdView)을 클립하는 실제 클리핑 컨테이너
+  cardClip: {
     backgroundColor: Colors.white,
-    borderRadius: 16, // 주변 카드와 동일
-    overflow: 'hidden', // 안드: 네이티브 광고 내용이 둥근 모서리를 따라가도록 클립
-    padding: 12,
+    borderRadius: 16,
+    overflow: 'hidden',
     borderWidth: 1,
     borderColor: Colors.border,
     elevation: 2,
+  },
+  // NativeAdView — 클립은 부모가 하므로 여기선 패딩만
+  cardInner: {
+    padding: 12,
+    backgroundColor: Colors.white,
   },
   row: { flexDirection: 'row', alignItems: 'center', gap: 10 },
   icon: { width: 44, height: 44, borderRadius: 8, backgroundColor: '#EEE' },
