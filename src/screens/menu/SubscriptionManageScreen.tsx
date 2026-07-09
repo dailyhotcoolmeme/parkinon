@@ -31,14 +31,14 @@ const BENEFITS = [
   { key: 'subscription.benefitNoAds', icon: 'ban' as const },
 ];
 
-// 무료 vs 프리미엄 비교표 행. 항목별로 각각 구분(사진·음성·영상 개별 행).
-const COMPARE_ROWS = [
-  { label: 'subscription.rowFamily', free: 'subscription.valUnlimited', premium: 'subscription.valUnlimited' },
-  { label: 'subscription.rowAlarm', free: 'subscription.freeValAlarm', premium: 'subscription.valUnlimited' },
-  { label: 'subscription.rowPhoto', free: 'subscription.freeValPhoto', premium: 'subscription.valUnlimited' },
-  { label: 'subscription.rowAudio', free: 'subscription.freeValAudio', premium: 'subscription.valUnlimited' },
-  { label: 'subscription.rowVideo', free: 'subscription.freeValVideo', premium: 'subscription.valUnlimited' },
-  { label: 'subscription.rowAds', free: 'subscription.freeValAds', premium: 'subscription.premiumValAds' },
+// 무료 vs 프리미엄 플랜 카드 행. 항목별로 각각 구분(사진·음성·영상 개별 행).
+const PLAN_ROWS = [
+  { label: 'subscription.cardFamily', free: 'subscription.valUnlimited', premium: 'subscription.valUnlimited' },
+  { label: 'subscription.cardAlarm', free: 'subscription.freeValAlarm', premium: 'subscription.valUnlimited' },
+  { label: 'subscription.cardPhoto', free: 'subscription.freeValPhoto', premium: 'subscription.valUnlimited' },
+  { label: 'subscription.cardAudio', free: 'subscription.freeValAudio', premium: 'subscription.valUnlimited' },
+  { label: 'subscription.cardVideo', free: 'subscription.freeValVideo', premium: 'subscription.valUnlimited' },
+  { label: 'subscription.cardAds', free: 'subscription.freeValAds', premium: 'subscription.premiumValAds' },
 ];
 
 const DAY_MS = 24 * 60 * 60 * 1000;
@@ -204,64 +204,50 @@ export function SubscriptionManageScreen() {
 
         {!isPremium && (
           <>
-            {/* 플랜 비교 — 무료(현재) vs 프리미엄(강조 박스). 항목별 각각 구분. */}
+            {/* 플랜 비교 — 무료(현재) vs 프리미엄. 두 플랜 각각 완결된 박스. */}
             <Text style={styles.sectionTitle}>{t('subscription.compareTitle')}</Text>
-            <View style={styles.compareRow3}>
-              {/* 라벨 열 */}
-              <View style={styles.compareColLabels}>
-                <View style={styles.compareHeadSpacer} />
-                {COMPARE_ROWS.map((r, i) => (
-                  <View
-                    key={r.label}
-                    style={[styles.compareCell, i < COMPARE_ROWS.length - 1 && styles.compareCellDivider]}
-                  >
-                    <Text style={styles.compareLabelText}>{t(r.label)}</Text>
+            <View style={styles.planCompareRow}>
+              {/* 무료 (현재 플랜) */}
+              <View style={styles.planBox}>
+                <Text style={styles.planBoxName}>{t('subscription.comparePlanFree')}</Text>
+                <Text style={styles.planBoxPrice}>{t('subscription.comparePriceFree')}</Text>
+                <View style={styles.planBoxDivider} />
+                {PLAN_ROWS.map((r) => (
+                  <View key={r.label} style={styles.planBoxRow}>
+                    <Text style={styles.planBoxLabel}>{t(r.label)}</Text>
+                    <Text style={styles.planBoxValFree}>{t(r.free)}</Text>
                   </View>
                 ))}
+                <View style={styles.planBoxTagFree}>
+                  <Text style={styles.planBoxTagFreeText}>{t('subscription.compareCurrentTag')}</Text>
+                </View>
               </View>
 
-              {/* 무료 열 (현재 플랜) */}
-              <View style={styles.compareColFree}>
-                <View style={styles.compareHead}>
-                  <Text style={styles.compareColName}>{t('subscription.comparePlanFree')}</Text>
-                  <Text style={styles.compareColPrice}>{t('subscription.comparePriceFree')}</Text>
+              {/* 프리미엄 (강조 박스) */}
+              <View style={[styles.planBox, styles.planBoxPremium]}>
+                <View style={styles.planBadgeWrap}>
+                  <View style={styles.planBadge}>
+                    <Text style={styles.planBadgeText}>{t('subscription.compareBadge')}</Text>
+                  </View>
                 </View>
-                {COMPARE_ROWS.map((r, i) => (
-                  <View
-                    key={r.label}
-                    style={[styles.compareCell, i < COMPARE_ROWS.length - 1 && styles.compareCellDivider]}
-                  >
-                    <Text style={styles.compareFreeVal}>{t(r.free)}</Text>
+                <Text style={[styles.planBoxName, styles.planBoxNameP]}>{t('subscription.comparePlanPremium')}</Text>
+                <Text style={[styles.planBoxPrice, styles.planBoxPriceP]}>{t('subscription.comparePricePremium')}</Text>
+                <View style={[styles.planBoxDivider, styles.planBoxDividerP]} />
+                {PLAN_ROWS.map((r) => (
+                  <View key={r.label} style={styles.planBoxRow}>
+                    <Text style={styles.planBoxLabel}>{t(r.label)}</Text>
+                    <View style={styles.planBoxValPWrap}>
+                      <Ionicons name="checkmark" size={13} color={Colors.primary} />
+                      <Text style={styles.planBoxValP}>{t(r.premium)}</Text>
+                    </View>
                   </View>
                 ))}
-              </View>
-
-              {/* 프리미엄 열 (강조 박스) */}
-              <View style={styles.compareColPremium}>
-                <View style={styles.compareBadgeWrap}>
-                  <View style={styles.compareBadge}>
-                    <Text style={styles.compareBadgeText}>{t('subscription.compareBadge')}</Text>
-                  </View>
+                <View style={styles.planBoxTagP}>
+                  <Text style={styles.planBoxTagPText}>{t('subscription.planTrialNote')}</Text>
                 </View>
-                <View style={styles.compareHead}>
-                  <Text style={styles.compareColNamePremium}>{t('subscription.comparePlanPremium')}</Text>
-                  <Text style={styles.compareColPricePremium}>{t('subscription.comparePricePremium')}</Text>
-                </View>
-                {COMPARE_ROWS.map((r, i) => (
-                  <View
-                    key={r.label}
-                    style={[
-                      styles.compareCell,
-                      styles.compareCellPremium,
-                      i < COMPARE_ROWS.length - 1 && styles.compareCellDividerPremium,
-                    ]}
-                  >
-                    <Ionicons name="checkmark-circle" size={14} color={Colors.primary} />
-                    <Text style={styles.comparePremiumVal}>{t(r.premium)}</Text>
-                  </View>
-                ))}
               </View>
             </View>
+            <Text style={styles.planCompareNote}>{t('subscription.compareDailyNote')}</Text>
 
             {/* 플랜 선택 — 연간(추천)·월간 두 카드 */}
             <Text style={styles.sectionTitle}>{t('subscription.choosePlanTitle')}</Text>
@@ -414,39 +400,65 @@ const styles = StyleSheet.create({
   heroTitle: { fontSize: 22, fontWeight: '800', color: '#fff', textAlign: 'center' },
   heroSub: { fontSize: 15, color: '#EAF7EC', textAlign: 'center', marginTop: 8, lineHeight: 22 },
   sectionTitle: { fontSize: 16, fontWeight: '700', color: Colors.text, marginTop: 4 },
-  /* 플랜 비교표 (라벨 열 + 무료 열 + 프리미엄 강조 박스). 셀 높이 고정으로 3열 정렬. */
-  compareRow3: { flexDirection: 'row', alignItems: 'flex-start', marginTop: 16 },
-  compareColLabels: { flex: 1, borderWidth: 2, borderColor: 'transparent' },
-  compareColFree: { width: 74, borderWidth: 2, borderColor: 'transparent', marginLeft: 4 },
-  compareColPremium: {
-    width: 104,
+  /* 플랜 비교 — 두 플랜 각각 완결 박스 (무료 / 프리미엄 강조). 행 높이 고정으로 좌우 정렬. */
+  planCompareRow: { flexDirection: 'row', gap: 10, marginTop: 16, alignItems: 'stretch' },
+  planBox: {
+    flex: 1,
+    backgroundColor: Colors.white,
+    borderRadius: 16,
+    borderWidth: 1.5,
+    borderColor: Colors.border,
+    paddingHorizontal: 14,
+    paddingTop: 16,
+    paddingBottom: 14,
+  },
+  planBoxPremium: {
     borderWidth: 2,
     borderColor: Colors.primary,
-    borderRadius: 16,
     backgroundColor: '#F4FBF5',
-    marginLeft: 6,
   },
-  compareHeadSpacer: { height: 62 },
-  compareHead: { height: 62, alignItems: 'center', justifyContent: 'center' },
-  compareColName: { fontSize: 15, fontWeight: '800', color: Colors.textSub },
-  compareColPrice: { fontSize: 12, color: Colors.textHint, marginTop: 2 },
-  compareColNamePremium: { fontSize: 15, fontWeight: '800', color: Colors.primary },
-  compareColPricePremium: { fontSize: 12, fontWeight: '700', color: Colors.primary, marginTop: 2 },
-  compareBadgeWrap: { position: 'absolute', top: -11, left: 0, right: 0, alignItems: 'center', zIndex: 2 },
-  compareBadge: {
+  planBadgeWrap: { position: 'absolute', top: -11, left: 0, right: 0, alignItems: 'center', zIndex: 2 },
+  planBadge: {
     backgroundColor: Colors.primary,
     borderRadius: 8,
-    paddingHorizontal: 9,
+    paddingHorizontal: 10,
     paddingVertical: 3,
   },
-  compareBadgeText: { fontSize: 11, fontWeight: '800', color: '#fff', letterSpacing: 0.3 },
-  compareCell: { height: 46, justifyContent: 'center' },
-  compareCellPremium: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 3 },
-  compareCellDivider: { borderBottomWidth: 1, borderBottomColor: '#F0F0F0' },
-  compareCellDividerPremium: { borderBottomWidth: 1, borderBottomColor: 'rgba(76,175,80,0.16)' },
-  compareLabelText: { fontSize: 14, fontWeight: '600', color: Colors.text },
-  compareFreeVal: { fontSize: 13, color: Colors.textSub, textAlign: 'center', fontWeight: '600' },
-  comparePremiumVal: { fontSize: 13, fontWeight: '800', color: Colors.text },
+  planBadgeText: { fontSize: 11, fontWeight: '800', color: '#fff', letterSpacing: 0.3 },
+  planBoxName: { fontSize: 16, fontWeight: '800', color: Colors.textSub },
+  planBoxNameP: { color: Colors.primary },
+  planBoxPrice: { fontSize: 14, color: Colors.textHint, marginTop: 2, fontWeight: '700' },
+  planBoxPriceP: { color: Colors.primary },
+  planBoxDivider: { height: 1, backgroundColor: Colors.border, marginVertical: 12 },
+  planBoxDividerP: { backgroundColor: 'rgba(76,175,80,0.2)' },
+  planBoxRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    minHeight: 34,
+    gap: 6,
+  },
+  planBoxLabel: { fontSize: 13.5, color: Colors.textSub, fontWeight: '600', flexShrink: 1 },
+  planBoxValFree: { fontSize: 13.5, color: Colors.textSub, fontWeight: '700' },
+  planBoxValPWrap: { flexDirection: 'row', alignItems: 'center', gap: 2 },
+  planBoxValP: { fontSize: 13.5, color: Colors.text, fontWeight: '800' },
+  planBoxTagFree: {
+    marginTop: 12,
+    borderRadius: 10,
+    backgroundColor: Colors.light,
+    paddingVertical: 7,
+    alignItems: 'center',
+  },
+  planBoxTagFreeText: { fontSize: 12.5, color: Colors.textSub, fontWeight: '700' },
+  planBoxTagP: {
+    marginTop: 12,
+    borderRadius: 10,
+    backgroundColor: Colors.primary,
+    paddingVertical: 7,
+    alignItems: 'center',
+  },
+  planBoxTagPText: { fontSize: 12.5, color: '#fff', fontWeight: '800' },
+  planCompareNote: { fontSize: 12.5, color: Colors.textHint, marginTop: 8, textAlign: 'center' },
   benefitCard: {
     backgroundColor: Colors.white,
     borderRadius: 16,
