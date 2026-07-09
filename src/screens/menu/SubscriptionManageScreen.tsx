@@ -31,14 +31,14 @@ const BENEFITS = [
   { key: 'subscription.benefitNoAds', icon: 'ban' as const },
 ];
 
-// 무료 vs 프리미엄 플랜 카드 행. 항목별로 각각 구분(사진·음성·영상 개별 행).
+// 무료 vs 프리미엄 비교표 행. 항목명(풀네임)은 1회만, 플랜별로 값만 다르게.
 const PLAN_ROWS = [
-  { label: 'subscription.cardFamily', free: 'subscription.valUnlimited', premium: 'subscription.valUnlimited' },
-  { label: 'subscription.cardAlarm', free: 'subscription.freeValAlarm', premium: 'subscription.valUnlimited' },
-  { label: 'subscription.cardPhoto', free: 'subscription.freeValPhoto', premium: 'subscription.valUnlimited' },
-  { label: 'subscription.cardAudio', free: 'subscription.freeValAudio', premium: 'subscription.valUnlimited' },
-  { label: 'subscription.cardVideo', free: 'subscription.freeValVideo', premium: 'subscription.valUnlimited' },
-  { label: 'subscription.cardAds', free: 'subscription.freeValAds', premium: 'subscription.premiumValAds' },
+  { label: 'subscription.rowFamily', free: 'subscription.valUnlimited', premium: 'subscription.valUnlimited' },
+  { label: 'subscription.rowAlarm', free: 'subscription.freeValAlarm', premium: 'subscription.valUnlimited' },
+  { label: 'subscription.rowPhoto', free: 'subscription.freeValPhoto', premium: 'subscription.valUnlimited' },
+  { label: 'subscription.rowAudio', free: 'subscription.freeValAudio', premium: 'subscription.valUnlimited' },
+  { label: 'subscription.rowVideo', free: 'subscription.freeValVideo', premium: 'subscription.valUnlimited' },
+  { label: 'subscription.rowAds', free: 'subscription.freeValAds', premium: 'subscription.premiumValAds' },
 ];
 
 const DAY_MS = 24 * 60 * 60 * 1000;
@@ -204,48 +204,53 @@ export function SubscriptionManageScreen() {
 
         {!isPremium && (
           <>
-            {/* 플랜 비교 — 무료(현재) vs 프리미엄. 두 플랜 각각 완결된 박스. */}
+            {/* 플랜 비교 — 항목명 1회 + 무료/프리미엄 값 열(프리미엄 강조 박스). */}
             <Text style={styles.sectionTitle}>{t('subscription.compareTitle')}</Text>
-            <View style={styles.planCompareRow}>
-              {/* 무료 (현재 플랜) */}
-              <View style={styles.planBox}>
-                <Text style={styles.planBoxName}>{t('subscription.comparePlanFree')}</Text>
-                <Text style={styles.planBoxPrice}>{t('subscription.comparePriceFree')}</Text>
-                <View style={styles.planBoxDivider} />
-                {PLAN_ROWS.map((r) => (
-                  <View key={r.label} style={styles.planBoxRow}>
-                    <Text style={styles.planBoxLabel}>{t(r.label)}</Text>
-                    <Text style={styles.planBoxValFree}>{t(r.free)}</Text>
+            <View style={styles.cmpTable}>
+              {/* 헤더: 플랜명/가격 */}
+              <View style={styles.cmpRow}>
+                <View style={styles.cmpFeatCol} />
+                <View style={[styles.cmpValCol, styles.cmpHeadCell]}>
+                  <Text style={styles.cmpPlanName}>{t('subscription.comparePlanFree')}</Text>
+                  <Text style={styles.cmpPlanPrice}>{t('subscription.comparePriceFree')}</Text>
+                </View>
+                <View style={[styles.cmpValCol, styles.cmpHeadCell, styles.cmpPremCol, styles.cmpPremTop]}>
+                  <View style={styles.cmpBadgeWrap}>
+                    <View style={styles.cmpBadge}>
+                      <Text style={styles.cmpBadgeText}>{t('subscription.compareBadge')}</Text>
+                    </View>
                   </View>
-                ))}
-                <View style={styles.planBoxTagFree}>
-                  <Text style={styles.planBoxTagFreeText}>{t('subscription.compareCurrentTag')}</Text>
+                  <Text style={[styles.cmpPlanName, styles.cmpPlanNameP]}>{t('subscription.comparePlanPremium')}</Text>
+                  <Text style={[styles.cmpPlanPrice, styles.cmpPlanPriceP]}>{t('subscription.comparePricePremium')}</Text>
                 </View>
               </View>
 
-              {/* 프리미엄 (강조 박스) */}
-              <View style={[styles.planBox, styles.planBoxPremium]}>
-                <View style={styles.planBadgeWrap}>
-                  <View style={styles.planBadge}>
-                    <Text style={styles.planBadgeText}>{t('subscription.compareBadge')}</Text>
-                  </View>
-                </View>
-                <Text style={[styles.planBoxName, styles.planBoxNameP]}>{t('subscription.comparePlanPremium')}</Text>
-                <Text style={[styles.planBoxPrice, styles.planBoxPriceP]}>{t('subscription.comparePricePremium')}</Text>
-                <View style={[styles.planBoxDivider, styles.planBoxDividerP]} />
-                {PLAN_ROWS.map((r) => (
-                  <View key={r.label} style={styles.planBoxRow}>
-                    <Text style={styles.planBoxLabel}>{t(r.label)}</Text>
-                    <View style={styles.planBoxValPWrap}>
-                      <Ionicons name="checkmark" size={13} color={Colors.primary} />
-                      <Text style={styles.planBoxValP}>{t(r.premium)}</Text>
+              {/* 항목 행: 항목명(1회) + 무료값 + 프리미엄값 */}
+              {PLAN_ROWS.map((r, i) => {
+                const last = i === PLAN_ROWS.length - 1;
+                return (
+                  <View key={r.label} style={styles.cmpRow}>
+                    <View style={[styles.cmpFeatCol, styles.cmpCell, !last && styles.cmpDivider]}>
+                      <Text style={styles.cmpFeatText}>{t(r.label)}</Text>
+                    </View>
+                    <View style={[styles.cmpValCol, styles.cmpCell, !last && styles.cmpDivider]}>
+                      <Text style={styles.cmpFreeVal}>{t(r.free)}</Text>
+                    </View>
+                    <View
+                      style={[
+                        styles.cmpValCol,
+                        styles.cmpCell,
+                        styles.cmpPremCell,
+                        styles.cmpPremCol,
+                        last && styles.cmpPremBottom,
+                      ]}
+                    >
+                      <Ionicons name="checkmark-circle" size={15} color={Colors.primary} />
+                      <Text style={styles.cmpPremVal}>{t(r.premium)}</Text>
                     </View>
                   </View>
-                ))}
-                <View style={styles.planBoxTagP}>
-                  <Text style={styles.planBoxTagPText}>{t('subscription.planTrialNote')}</Text>
-                </View>
-              </View>
+                );
+              })}
             </View>
             <Text style={styles.planCompareNote}>{t('subscription.compareDailyNote')}</Text>
 
@@ -400,65 +405,43 @@ const styles = StyleSheet.create({
   heroTitle: { fontSize: 22, fontWeight: '800', color: '#fff', textAlign: 'center' },
   heroSub: { fontSize: 15, color: '#EAF7EC', textAlign: 'center', marginTop: 8, lineHeight: 22 },
   sectionTitle: { fontSize: 16, fontWeight: '700', color: Colors.text, marginTop: 4 },
-  /* 플랜 비교 — 두 플랜 각각 완결 박스 (무료 / 프리미엄 강조). 행 높이 고정으로 좌우 정렬. */
-  planCompareRow: { flexDirection: 'row', gap: 10, marginTop: 16, alignItems: 'stretch' },
-  planBox: {
-    flex: 1,
-    backgroundColor: Colors.white,
-    borderRadius: 16,
-    borderWidth: 1.5,
-    borderColor: Colors.border,
-    paddingHorizontal: 14,
-    paddingTop: 16,
-    paddingBottom: 14,
-  },
-  planBoxPremium: {
-    borderWidth: 2,
-    borderColor: Colors.primary,
+  /* 플랜 비교표 — 항목명 1회(좌) + 무료 값 + 프리미엄 값(강조 열 박스). */
+  cmpTable: { marginTop: 18 },
+  cmpRow: { flexDirection: 'row', alignItems: 'stretch' },
+  cmpFeatCol: { flex: 1, justifyContent: 'center', paddingRight: 10 },
+  cmpValCol: { width: 84, alignItems: 'center', justifyContent: 'center' },
+  cmpHeadCell: { height: 60, position: 'relative' },
+  cmpCell: { minHeight: 48, justifyContent: 'center' },
+  cmpPremCell: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 4 },
+  cmpDivider: { borderBottomWidth: 1, borderBottomColor: '#EFEFEF' },
+  /* 프리미엄 강조 열(박스): 좌우 세로선 연속 + 상/하단만 모서리·가로선 */
+  cmpPremCol: {
     backgroundColor: '#F4FBF5',
+    borderLeftWidth: 2,
+    borderRightWidth: 2,
+    borderColor: Colors.primary,
   },
-  planBadgeWrap: { position: 'absolute', top: -11, left: 0, right: 0, alignItems: 'center', zIndex: 2 },
-  planBadge: {
-    backgroundColor: Colors.primary,
-    borderRadius: 8,
-    paddingHorizontal: 10,
-    paddingVertical: 3,
+  cmpPremTop: {
+    borderTopWidth: 2,
+    borderTopLeftRadius: 16,
+    borderTopRightRadius: 16,
   },
-  planBadgeText: { fontSize: 11, fontWeight: '800', color: '#fff', letterSpacing: 0.3 },
-  planBoxName: { fontSize: 16, fontWeight: '800', color: Colors.textSub },
-  planBoxNameP: { color: Colors.primary },
-  planBoxPrice: { fontSize: 14, color: Colors.textHint, marginTop: 2, fontWeight: '700' },
-  planBoxPriceP: { color: Colors.primary },
-  planBoxDivider: { height: 1, backgroundColor: Colors.border, marginVertical: 12 },
-  planBoxDividerP: { backgroundColor: 'rgba(76,175,80,0.2)' },
-  planBoxRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    minHeight: 34,
-    gap: 6,
+  cmpPremBottom: {
+    borderBottomWidth: 2,
+    borderBottomLeftRadius: 16,
+    borderBottomRightRadius: 16,
   },
-  planBoxLabel: { fontSize: 13.5, color: Colors.textSub, fontWeight: '600', flexShrink: 1 },
-  planBoxValFree: { fontSize: 13.5, color: Colors.textSub, fontWeight: '700' },
-  planBoxValPWrap: { flexDirection: 'row', alignItems: 'center', gap: 2 },
-  planBoxValP: { fontSize: 13.5, color: Colors.text, fontWeight: '800' },
-  planBoxTagFree: {
-    marginTop: 12,
-    borderRadius: 10,
-    backgroundColor: Colors.light,
-    paddingVertical: 7,
-    alignItems: 'center',
-  },
-  planBoxTagFreeText: { fontSize: 12.5, color: Colors.textSub, fontWeight: '700' },
-  planBoxTagP: {
-    marginTop: 12,
-    borderRadius: 10,
-    backgroundColor: Colors.primary,
-    paddingVertical: 7,
-    alignItems: 'center',
-  },
-  planBoxTagPText: { fontSize: 12.5, color: '#fff', fontWeight: '800' },
-  planCompareNote: { fontSize: 12.5, color: Colors.textHint, marginTop: 8, textAlign: 'center' },
+  cmpBadgeWrap: { position: 'absolute', top: -11, left: 0, right: 0, alignItems: 'center', zIndex: 2 },
+  cmpBadge: { backgroundColor: Colors.primary, borderRadius: 8, paddingHorizontal: 10, paddingVertical: 3 },
+  cmpBadgeText: { fontSize: 11, fontWeight: '800', color: '#fff', letterSpacing: 0.3 },
+  cmpPlanName: { fontSize: 15, fontWeight: '800', color: Colors.textSub },
+  cmpPlanNameP: { color: Colors.primary },
+  cmpPlanPrice: { fontSize: 12, color: Colors.textHint, marginTop: 2, fontWeight: '700' },
+  cmpPlanPriceP: { color: Colors.primary },
+  cmpFeatText: { fontSize: 15, fontWeight: '600', color: Colors.text },
+  cmpFreeVal: { fontSize: 14, color: Colors.textSub, fontWeight: '700', textAlign: 'center' },
+  cmpPremVal: { fontSize: 14, color: Colors.text, fontWeight: '800' },
+  planCompareNote: { fontSize: 12.5, color: Colors.textHint, marginTop: 10, textAlign: 'center' },
   benefitCard: {
     backgroundColor: Colors.white,
     borderRadius: 16,
