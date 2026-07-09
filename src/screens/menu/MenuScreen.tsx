@@ -64,21 +64,6 @@ const PATIENT_ONLY_MEASUREMENT_ITEM: MenuItem = {
  *  라벨/설명은 환자 이름으로 동적 생성(아래 menuSections). '환자' 일반어 노출 금지 — 이름+님 사용. */
 const CAREGIVER_MEASUREMENT_VIEW_KEY = 'CaregiverMeasurementView';
 
-/** More 메뉴 구독 슬롯 비교표.
- *  무료: 현재값(freeKey, 취소선) → 프리미엄값(premiumKey). freeHas=true면 무료도 이미 제공(취소선 없이 체크).
- *  순서(오너 지정): 가족 연동 → 커스텀 알림음 → 하루 미디어 → 광고. */
-const SLOT_FEATURES: {
-  labelKey: string;
-  freeKey: string;
-  premiumKey: string;
-  freeHas?: boolean;
-}[] = [
-  { labelKey: 'subscription.slotFeatureFamily', freeKey: 'subscription.slotUnlimited', premiumKey: 'subscription.slotUnlimited', freeHas: true },
-  { labelKey: 'subscription.slotFeatureAlarm', freeKey: 'subscription.slotFreeAlarm', premiumKey: 'subscription.slotUnlimited' },
-  { labelKey: 'subscription.slotFeatureMedia', freeKey: 'subscription.slotFreeMedia', premiumKey: 'subscription.slotUnlimited' },
-  { labelKey: 'subscription.slotFeatureAds', freeKey: 'subscription.slotFreeAds', premiumKey: 'subscription.slotPremiumAds' },
-];
-
 const MENU_SECTIONS: MenuSection[] = [
   {
     title: 'menu.sectionRecords',
@@ -483,32 +468,9 @@ export function MenuScreen() {
               </Text>
             </View>
 
-            <View style={styles.subFeatList}>
-              {SLOT_FEATURES.map((f) => {
-                const showUpgrade = !isPremium && !f.freeHas;
-                return (
-                  <View key={f.labelKey} style={styles.subFeatRow}>
-                    <Text style={styles.subFeatLabel}>{t(f.labelKey)}</Text>
-                    <View style={styles.subFeatValues}>
-                      {showUpgrade ? (
-                        <>
-                          <Text style={styles.subFeatFree}>{t(f.freeKey)}</Text>
-                          <Ionicons name="arrow-forward" size={13} color="rgba(255,255,255,0.85)" />
-                          <Text style={styles.subFeatPremium}>{t(f.premiumKey)}</Text>
-                        </>
-                      ) : (
-                        <>
-                          <Ionicons name="checkmark" size={15} color="#fff" />
-                          <Text style={styles.subFeatPremium}>
-                            {isPremium ? t(f.premiumKey) : t(f.freeKey)}
-                          </Text>
-                        </>
-                      )}
-                    </View>
-                  </View>
-                );
-              })}
-            </View>
+            <Text style={styles.subCardPitch}>
+              {isPremium ? t('subscription.slotPitchPremium') : t('subscription.slotPitchFree')}
+            </Text>
 
             <View style={styles.subCtaPill}>
               <Text style={styles.subCtaPillText}>
@@ -664,24 +626,9 @@ const styles = StyleSheet.create({
     shadowRadius: 6,
     elevation: 3,
   },
-  subCardHeader: { flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: 12 },
+  subCardHeader: { flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: 8 },
   subCardTitle: { fontSize: 17, fontWeight: '800', color: '#fff' },
-  subFeatList: { gap: 9 },
-  subFeatRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    gap: 10,
-  },
-  subFeatLabel: { fontSize: 15, color: 'rgba(255,255,255,0.92)', fontWeight: '600', flexShrink: 1 },
-  subFeatValues: { flexDirection: 'row', alignItems: 'center', gap: 6 },
-  subFeatFree: {
-    fontSize: 14,
-    color: 'rgba(255,255,255,0.7)',
-    textDecorationLine: 'line-through',
-    fontWeight: '600',
-  },
-  subFeatPremium: { fontSize: 15, color: '#fff', fontWeight: '800' },
+  subCardPitch: { fontSize: 14, color: 'rgba(255,255,255,0.92)', lineHeight: 20, fontWeight: '500' },
   subCtaPill: {
     flexDirection: 'row',
     alignItems: 'center',
