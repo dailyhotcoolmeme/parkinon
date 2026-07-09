@@ -441,40 +441,35 @@ export function MenuScreen() {
           }}
           activeOpacity={0.85}
         >
+          <View style={styles.profileAvatar}>
+            <Ionicons name="person" size={26} color={Colors.primary} />
+          </View>
           <View style={styles.profileInfo}>
             <Text style={styles.profileName}>{user?.name ?? t('menu.profileNameFallback')}</Text>
             {profileSub ? <Text style={styles.profileRole}>{profileSub}</Text> : null}
           </View>
           <View style={styles.profileEditRow}>
             <Text style={styles.profileEditText}>{t('menu.profileEdit')}</Text>
-            <Ionicons name="chevron-forward" size={18} color="#FFFFFF" />
+            <Ionicons name="chevron-forward" size={18} color={Colors.primary} />
           </View>
         </TouchableOpacity>
 
         {/* 구독 배너 (해외판 전용, 프로필 카드 바로 아래) */}
         {showSubscriptionBanner && (
           <TouchableOpacity
-            style={[styles.subBanner, isPremium && styles.subBannerPremium]}
+            style={styles.subBanner}
             onPress={() => navigation.navigate('SubscriptionManage')}
             activeOpacity={0.85}
           >
-            <Ionicons
-              name={isPremium ? 'star' : 'star-outline'}
-              size={22}
-              color={isPremium ? '#fff' : Colors.primary}
-            />
-            <Text style={[styles.subBannerTitle, isPremium && styles.subBannerTextOnGreen]}>
+            <Ionicons name="star" size={22} color="#fff" />
+            <Text style={styles.subBannerTitle}>
               {isPremium ? t('subscription.bannerPremiumTitle') : t('subscription.bannerFreeTitle')}
             </Text>
             <View style={styles.subBannerCtaRow}>
-              <Text style={[styles.subBannerCta, isPremium && styles.subBannerTextOnGreen]}>
+              <Text style={styles.subBannerCta}>
                 {isPremium ? t('subscription.bannerPremiumCta') : t('subscription.bannerFreeCta')}
               </Text>
-              <Ionicons
-                name="chevron-forward"
-                size={16}
-                color={isPremium ? '#fff' : Colors.primary}
-              />
+              <Ionicons name="chevron-forward" size={16} color="#fff" />
             </View>
           </TouchableOpacity>
         )}
@@ -589,7 +584,7 @@ const styles = StyleSheet.create({
 
   /* 프로필 컴팩트 카드 */
   profileCard: {
-    backgroundColor: '#4CAF50',
+    backgroundColor: Colors.white,
     borderRadius: 14,
     paddingHorizontal: 16,
     paddingVertical: 14,
@@ -603,36 +598,46 @@ const styles = StyleSheet.create({
     elevation: 2,
     marginBottom: 4,
   },
+  profileAvatar: {
+    width: 48,
+    height: 48,
+    borderRadius: 24,
+    backgroundColor: Colors.light,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginRight: 14,
+  },
   subBanner: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: 10,
-    backgroundColor: Colors.white,
+    backgroundColor: Colors.primary,
     borderRadius: 14,
     paddingHorizontal: 16,
     paddingVertical: 14,
     minHeight: 60,
-    borderWidth: 1.5,
-    borderColor: Colors.primary,
     marginTop: 12,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.07,
+    shadowRadius: 4,
+    elevation: 2,
   },
-  subBannerPremium: { backgroundColor: Colors.primary, borderColor: Colors.primary },
-  subBannerTitle: { flex: 1, fontSize: 16, fontWeight: '700', color: Colors.text },
-  subBannerTextOnGreen: { color: '#fff' },
+  subBannerTitle: { flex: 1, fontSize: 16, fontWeight: '700', color: '#fff' },
   subBannerCtaRow: { flexDirection: 'row', alignItems: 'center', gap: 2 },
-  subBannerCta: { fontSize: 14, fontWeight: '700', color: Colors.primary },
+  subBannerCta: { fontSize: 14, fontWeight: '700', color: '#fff' },
   profileInfo: {
     flex: 1,
   },
   profileName: {
     fontSize: 18,
     fontWeight: '700',
-    color: '#FFFFFF',
+    color: Colors.text,
     marginBottom: 2,
   },
   profileRole: {
     fontSize: 16,
-    color: '#FFFFFF',
+    color: Colors.textSub,
     fontWeight: '500',
   },
   profileEditRow: {
@@ -642,8 +647,8 @@ const styles = StyleSheet.create({
   },
   profileEditText: {
     fontSize: 16,
-    color: '#FFFFFF',
-    fontWeight: '500',
+    color: Colors.primary,
+    fontWeight: '600',
   },
 
   /* 섹션 헤더 */

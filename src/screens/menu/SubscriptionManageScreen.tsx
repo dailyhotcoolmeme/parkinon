@@ -21,11 +21,11 @@ import {
   isRevenueCatAvailable,
 } from '../../lib/revenueCat';
 
-const BENEFIT_KEYS = [
-  'subscription.benefitUnlimitedMedia',
-  'subscription.benefitNoAds',
-  'subscription.benefitFamily',
-] as const;
+const BENEFITS = [
+  { key: 'subscription.benefitUnlimitedMedia', icon: 'infinite' as const },
+  { key: 'subscription.benefitNoAds', icon: 'ban' as const },
+  { key: 'subscription.benefitFamily', icon: 'people' as const },
+];
 
 export function SubscriptionManageScreen() {
   const { t } = useTranslation();
@@ -95,30 +95,39 @@ export function SubscriptionManageScreen() {
     <SafeAreaView style={styles.safe} edges={['top']}>
       <TopBar title={t('subscription.headerTitle')} showBack />
       <ScrollView contentContainerStyle={[styles.content, { paddingBottom: bottomPad + 24 }]}>
-        {/* 현재 플랜 상태 */}
-        <View style={[styles.statusCard, isPremium && styles.statusCardPremium]}>
-          <Ionicons
-            name={isPremium ? 'star' : 'star-outline'}
-            size={28}
-            color={isPremium ? '#fff' : Colors.primary}
-          />
-          <View style={styles.statusTextWrap}>
-            <Text style={[styles.statusLabel, isPremium && styles.statusTextOnGreen]}>
-              {isPremium ? t('subscription.currentPremium') : t('subscription.currentFree')}
-            </Text>
-            <Text style={[styles.statusSub, isPremium && styles.statusTextOnGreen]}>
-              {isPremium ? t('subscription.currentPremiumSub') : t('subscription.currentFreeSub')}
-            </Text>
+        {isPremium ? (
+          /* 프리미엄 사용자: 현재 상태 카드 */
+          <View style={[styles.statusCard, styles.statusCardPremium]}>
+            <Ionicons name="star" size={28} color="#fff" />
+            <View style={styles.statusTextWrap}>
+              <Text style={[styles.statusLabel, styles.statusTextOnGreen]}>
+                {t('subscription.currentPremium')}
+              </Text>
+              <Text style={[styles.statusSub, styles.statusTextOnGreen]}>
+                {t('subscription.currentPremiumSub')}
+              </Text>
+            </View>
           </View>
-        </View>
+        ) : (
+          /* 무료 사용자: 업그레이드를 유도하는 히어로 카드 */
+          <View style={styles.heroCard}>
+            <View style={styles.heroBadge}>
+              <Ionicons name="star" size={26} color={Colors.primary} />
+            </View>
+            <Text style={styles.heroTitle}>{t('subscription.heroTitle')}</Text>
+            <Text style={styles.heroSub}>{t('subscription.heroSub')}</Text>
+          </View>
+        )}
 
         {/* 프리미엄 혜택 */}
         <Text style={styles.sectionTitle}>{t('subscription.benefitsTitle')}</Text>
         <View style={styles.benefitCard}>
-          {BENEFIT_KEYS.map((k) => (
-            <View key={k} style={styles.benefitRow}>
-              <Ionicons name="checkmark-circle" size={22} color={Colors.primary} />
-              <Text style={styles.benefitText}>{t(k)}</Text>
+          {BENEFITS.map((b) => (
+            <View key={b.key} style={styles.benefitRow}>
+              <View style={styles.benefitIcon}>
+                <Ionicons name={b.icon} size={20} color={Colors.primary} />
+              </View>
+              <Text style={styles.benefitText}>{t(b.key)}</Text>
             </View>
           ))}
         </View>
@@ -233,16 +242,48 @@ const styles = StyleSheet.create({
   statusLabel: { fontSize: 19, fontWeight: '700', color: Colors.text },
   statusSub: { fontSize: 15, color: Colors.textSub, marginTop: 3, lineHeight: 21 },
   statusTextOnGreen: { color: '#fff' },
+  /* 무료 사용자 히어로 카드 */
+  heroCard: {
+    backgroundColor: Colors.primary,
+    borderRadius: 18,
+    paddingVertical: 24,
+    paddingHorizontal: 20,
+    alignItems: 'center',
+    shadowColor: Colors.primary,
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.25,
+    shadowRadius: 12,
+    elevation: 4,
+  },
+  heroBadge: {
+    width: 52,
+    height: 52,
+    borderRadius: 26,
+    backgroundColor: '#fff',
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginBottom: 12,
+  },
+  heroTitle: { fontSize: 22, fontWeight: '800', color: '#fff', textAlign: 'center' },
+  heroSub: { fontSize: 15, color: '#EAF7EC', textAlign: 'center', marginTop: 8, lineHeight: 22 },
   sectionTitle: { fontSize: 16, fontWeight: '700', color: Colors.text, marginTop: 4 },
   benefitCard: {
     backgroundColor: Colors.white,
     borderRadius: 16,
     padding: 18,
-    gap: 14,
+    gap: 16,
     borderWidth: 1,
     borderColor: Colors.border,
   },
-  benefitRow: { flexDirection: 'row', alignItems: 'flex-start', gap: 12 },
+  benefitRow: { flexDirection: 'row', alignItems: 'center', gap: 14 },
+  benefitIcon: {
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    backgroundColor: Colors.light,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
   benefitText: { flex: 1, fontSize: 16, color: Colors.text, lineHeight: 23 },
   planCard: {
     flexDirection: 'row',
