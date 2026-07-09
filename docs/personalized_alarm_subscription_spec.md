@@ -90,4 +90,5 @@
   - 현재 빌드엔 entitlement 미탑재 → 실제 무음 뚫기 없음(정상). 애플 신청건은 진행하지 않음(회신 와도 미사용). `com.apple.developer.usernotifications.critical-alerts` **추가 금지.**
   - 관련 UI 문구 "무음 모드에서도 들려요" 는 오해 소지라 제거함(alarmSound.silentModeHint 교체).
 - [x] **커스텀 알림음 무료 = 0개 (2026-07-09 오너 확정).** 무료는 커스텀 알림음 전면 불가(프리미엄/무료체험 전용). "1개만 쏙 빼먹고 미구독" 방지. 무료 1개 제공안 폐기. (`AlarmSoundSettingsScreen.FREE_SOUND_LIMIT = 0`, 해외 로케일만 적용)
-- 확정된 세부: 프리셋 없음 / 녹음 최대 5초(`RecordSoundScreen.MAX_DURATION_MS`) / 체험종료 시 초과 커스텀음 → 기본 알림음 복귀(다운그레이드 처리, **미구현**).
+- 확정된 세부: 프리셋 없음 / 녹음 최대 5초(`RecordSoundScreen.MAX_DURATION_MS`).
+- [x] **체험종료(다운그레이드) 시 커스텀 알림음 → 기본음 자동 복귀 (2026-07-09 구현).** RevenueCat webhook `EXPIRATION` → `reset_group_custom_sounds(group_id)` RPC. 그룹 유저의 모든 커스텀 사운드 참조 초기화(alarm_sound_prefs·missed_med_sound_prefs 삭제, effect_tracking_queue.sound_id null, med_time_sound_prefs null, med/exercise_notif_prefs 는 soundId 키만 제거해 스케줄 보존). 녹음(custom_sounds)은 보존 → 재구독 시 재선택.
