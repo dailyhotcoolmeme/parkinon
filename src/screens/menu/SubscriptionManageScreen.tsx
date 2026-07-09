@@ -19,13 +19,19 @@ import {
   purchasePackage,
   restorePurchases,
   isRevenueCatAvailable,
+  getTrialInfo,
+  type TrialInfo,
 } from '../../lib/revenueCat';
 
+// 혜택 순서(오너 지정, 구독 슬롯과 동일): 가족 연동 → 커스텀 알림음 → 미디어 무제한 → 광고 없음.
 const BENEFITS = [
+  { key: 'subscription.benefitFamily', icon: 'people' as const },
+  { key: 'subscription.benefitAlarmSound', icon: 'musical-notes' as const },
   { key: 'subscription.benefitUnlimitedMedia', icon: 'infinite' as const },
   { key: 'subscription.benefitNoAds', icon: 'ban' as const },
-  { key: 'subscription.benefitFamily', icon: 'people' as const },
 ];
+
+const DAY_MS = 24 * 60 * 60 * 1000;
 
 export function SubscriptionManageScreen() {
   const { t } = useTranslation();
@@ -36,6 +42,7 @@ export function SubscriptionManageScreen() {
   const [packages, setPackages] = useState<any[]>([]);
   const [busy, setBusy] = useState(false);
   const [selectedPlan, setSelectedPlan] = useState<'ANNUAL' | 'MONTHLY'>('ANNUAL');
+  const [trial, setTrial] = useState<TrialInfo | null>(null);
 
   useEffect(() => {
     if (isPremium) return;
@@ -45,6 +52,30 @@ export function SubscriptionManageScreen() {
       .catch(() => { if (!cancelled) setPackages([]); });
     return () => { cancelled = true; };
   }, [isPremium]);
+
+  // 프리미엄 사용자: 무료 체험 진행 정보 조회(체험 중이 아니면 바 미표시).
+  useEffect(() => {
+    if (!isPremium) { setTrial(null); return; }
+    let cancelled = false;
+    getTrialInfo()
+      .then((ti) => { if (!cancelled) setTrial(ti); })
+      .catch(() => { if (!cancelled) setTrial(null); });
+    return () => { cancelled = true; };
+  }, [isPremium]);
+
+  // 체험 진행률 계산 (체험 중 + 시작/만료 시각이 유효할 때만).
+  const trialProgress = (() => {
+    if (!trial?.isTrial || !trial.startedAtMs || !trial.expiresAtMs) return null;
+    const total = trial.expiresAtMs - trial.startedAtMs;
+    if (total <= 0) return null;
+    const now = Date.now();
+    const elapsed = Math.min(Math.max(now - trial.startedAtMs, 0), total);
+    const pct = Math.round((elapsed / total) * 100);
+    const totalDays = Math.max(1, Math.round(total / DAY_MS));
+    const dayNum = Math.min(totalDays, Math.floor(elapsed / DAY_MS) + 1);
+    const daysLeft = Math.max(0, Math.ceil((trial.expiresAtMs - now) / DAY_MS));
+    return { pct, dayNum, totalDays, daysLeft };
+  })();
 
   const purchasable = isRevenueCatAvailable() && packages.length > 0;
 
@@ -108,7 +139,27 @@ export function SubscriptionManageScreen() {
               </Text>
             </View>
           </View>
-        ) : (
+        ) : null}
+
+        {/* 무료 체험 진행 바 — 체험 중인 프리미엄 사용자에게만 */}
+        {trialProgress && (
+          <View style={styles.trialCard}>
+            <View style={styles.trialHeaderRow}>
+              <Text style={styles.trialTitle}>{t('subscription.trialProgressTitle')}</Text>
+              <Text style={styles.trialDaysLeft}>
+                {t('subscription.trialDaysLeft', { days: trialProgress.daysLeft })}
+              </Text>
+            </View>
+            <View style={styles.trialBarTrack}>
+              <View style={[styles.trialBarFill, { width: `${trialProgress.pct}%` }]} />
+            </View>
+            <Text style={styles.trialDayLabel}>
+              {t('subscription.trialDayOf', { day: trialProgress.dayNum, total: trialProgress.totalDays })}
+            </Text>
+          </View>
+        )}
+
+        {!isPremium && (
           /* 무료 사용자: 업그레이드를 유도하는 히어로 카드 */
           <View style={styles.heroCard}>
             <View style={styles.heroBadge}>
@@ -242,6 +293,34 @@ const styles = StyleSheet.create({
   statusLabel: { fontSize: 19, fontWeight: '700', color: Colors.text },
   statusSub: { fontSize: 15, color: Colors.textSub, marginTop: 3, lineHeight: 21 },
   statusTextOnGreen: { color: '#fff' },
+  /* 무료 체험 진행 바 */
+  trialCard: {
+    backgroundColor: Colors.white,
+    borderRadius: 16,
+    padding: 18,
+    borderWidth: 1,
+    borderColor: Colors.border,
+  },
+  trialHeaderRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    marginBottom: 12,
+  },
+  trialTitle: { fontSize: 16, fontWeight: '700', color: Colors.text },
+  trialDaysLeft: { fontSize: 15, fontWeight: '800', color: Colors.primary },
+  trialBarTrack: {
+    height: 10,
+    borderRadius: 5,
+    backgroundColor: Colors.light,
+    overflow: 'hidden',
+  },
+  trialBarFill: {
+    height: '100%',
+    borderRadius: 5,
+    backgroundColor: Colors.primary,
+  },
+  trialDayLabel: { fontSize: 14, color: Colors.textSub, marginTop: 8, fontWeight: '600' },
   /* 무료 사용자 히어로 카드 */
   heroCard: {
     backgroundColor: Colors.primary,

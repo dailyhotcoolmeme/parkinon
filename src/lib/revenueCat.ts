@@ -46,6 +46,39 @@ export async function hasPremiumEntitlement(): Promise<boolean> {
   }
 }
 
+export interface TrialInfo {
+  /** 현재 무료 체험(trial) 기간 중인지. */
+  isTrial: boolean;
+  /** 체험/구독 시작 시각(ms). */
+  startedAtMs: number | null;
+  /** 만료 시각(ms) — 체험이면 체험 종료(=첫 결제) 시점. */
+  expiresAtMs: number | null;
+}
+
+/**
+ * 현재 활성 프리미엄 entitlement 의 무료 체험 진행 정보.
+ * - entitlement 이 없거나(무료) RevenueCat 미탑재(재빌드 전)면 null.
+ * - periodType 이 'TRIAL' 일 때만 isTrial=true. (paid 구독은 체험바 미표시)
+ */
+export async function getTrialInfo(): Promise<TrialInfo | null> {
+  if (!Purchases) return null;
+  try {
+    const info = await Purchases.getCustomerInfo();
+    const ent = info?.entitlements?.active?.[REVENUECAT_ENTITLEMENT_ID];
+    if (!ent) return null;
+    const period = String(ent.periodType ?? '').toUpperCase();
+    const start = ent.latestPurchaseDate ?? ent.originalPurchaseDate ?? null;
+    const exp = ent.expirationDate ?? null;
+    return {
+      isTrial: period === 'TRIAL',
+      startedAtMs: start ? new Date(start).getTime() : null,
+      expiresAtMs: exp ? new Date(exp).getTime() : null,
+    };
+  } catch {
+    return null;
+  }
+}
+
 /** 페이월용 구독 상품(패키지) 목록. 없으면 빈 배열. */
 export async function getPremiumPackages(): Promise<any[]> {
   if (!Purchases) return [];

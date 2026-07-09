@@ -64,6 +64,21 @@ const PATIENT_ONLY_MEASUREMENT_ITEM: MenuItem = {
  *  라벨/설명은 환자 이름으로 동적 생성(아래 menuSections). '환자' 일반어 노출 금지 — 이름+님 사용. */
 const CAREGIVER_MEASUREMENT_VIEW_KEY = 'CaregiverMeasurementView';
 
+/** More 메뉴 구독 슬롯 비교표.
+ *  무료: 현재값(freeKey, 취소선) → 프리미엄값(premiumKey). freeHas=true면 무료도 이미 제공(취소선 없이 체크).
+ *  순서(오너 지정): 가족 연동 → 커스텀 알림음 → 하루 미디어 → 광고. */
+const SLOT_FEATURES: {
+  labelKey: string;
+  freeKey: string;
+  premiumKey: string;
+  freeHas?: boolean;
+}[] = [
+  { labelKey: 'subscription.slotFeatureFamily', freeKey: 'subscription.slotUnlimited', premiumKey: 'subscription.slotUnlimited', freeHas: true },
+  { labelKey: 'subscription.slotFeatureAlarm', freeKey: 'subscription.slotFreeAlarm', premiumKey: 'subscription.slotUnlimited' },
+  { labelKey: 'subscription.slotFeatureMedia', freeKey: 'subscription.slotFreeMedia', premiumKey: 'subscription.slotUnlimited' },
+  { labelKey: 'subscription.slotFeatureAds', freeKey: 'subscription.slotFreeAds', premiumKey: 'subscription.slotPremiumAds' },
+];
+
 const MENU_SECTIONS: MenuSection[] = [
   {
     title: 'menu.sectionRecords',
@@ -457,19 +472,49 @@ export function MenuScreen() {
         {/* 구독 배너 (해외판 전용, 프로필 카드 바로 아래) */}
         {showSubscriptionBanner && (
           <TouchableOpacity
-            style={styles.subBanner}
+            style={styles.subCard}
             onPress={() => navigation.navigate('SubscriptionManage')}
-            activeOpacity={0.85}
+            activeOpacity={0.9}
           >
-            <Ionicons name="star" size={22} color="#fff" />
-            <Text style={styles.subBannerTitle}>
-              {isPremium ? t('subscription.bannerPremiumTitle') : t('subscription.bannerFreeTitle')}
-            </Text>
-            <View style={styles.subBannerCtaRow}>
-              <Text style={styles.subBannerCta}>
-                {isPremium ? t('subscription.bannerPremiumCta') : t('subscription.bannerFreeCta')}
+            <View style={styles.subCardHeader}>
+              <Ionicons name="star" size={20} color="#fff" />
+              <Text style={styles.subCardTitle}>
+                {isPremium ? t('subscription.slotPremiumTitle') : t('subscription.slotFreeTitle')}
               </Text>
-              <Ionicons name="chevron-forward" size={16} color="#fff" />
+            </View>
+
+            <View style={styles.subFeatList}>
+              {SLOT_FEATURES.map((f) => {
+                const showUpgrade = !isPremium && !f.freeHas;
+                return (
+                  <View key={f.labelKey} style={styles.subFeatRow}>
+                    <Text style={styles.subFeatLabel}>{t(f.labelKey)}</Text>
+                    <View style={styles.subFeatValues}>
+                      {showUpgrade ? (
+                        <>
+                          <Text style={styles.subFeatFree}>{t(f.freeKey)}</Text>
+                          <Ionicons name="arrow-forward" size={13} color="rgba(255,255,255,0.85)" />
+                          <Text style={styles.subFeatPremium}>{t(f.premiumKey)}</Text>
+                        </>
+                      ) : (
+                        <>
+                          <Ionicons name="checkmark" size={15} color="#fff" />
+                          <Text style={styles.subFeatPremium}>
+                            {isPremium ? t(f.premiumKey) : t(f.freeKey)}
+                          </Text>
+                        </>
+                      )}
+                    </View>
+                  </View>
+                );
+              })}
+            </View>
+
+            <View style={styles.subCtaPill}>
+              <Text style={styles.subCtaPillText}>
+                {isPremium ? t('subscription.slotCtaPremium') : t('subscription.slotCtaFree')}
+              </Text>
+              <Ionicons name="chevron-forward" size={16} color={Colors.primary} />
             </View>
           </TouchableOpacity>
         )}
@@ -607,25 +652,47 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     marginRight: 14,
   },
-  subBanner: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 10,
+  /* 구독 슬롯 카드 (해외 전용) — 현재 플랜 상태 + 무료→프리미엄 비교 + CTA */
+  subCard: {
     backgroundColor: Colors.primary,
-    borderRadius: 14,
-    paddingHorizontal: 16,
-    paddingVertical: 14,
-    minHeight: 60,
+    borderRadius: 16,
+    padding: 16,
     marginTop: 12,
     shadowColor: '#000',
-    shadowOffset: { width: 0, height: 1 },
-    shadowOpacity: 0.07,
-    shadowRadius: 4,
-    elevation: 2,
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.12,
+    shadowRadius: 6,
+    elevation: 3,
   },
-  subBannerTitle: { flex: 1, fontSize: 16, fontWeight: '700', color: '#fff' },
-  subBannerCtaRow: { flexDirection: 'row', alignItems: 'center', gap: 2 },
-  subBannerCta: { fontSize: 14, fontWeight: '700', color: '#fff' },
+  subCardHeader: { flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: 12 },
+  subCardTitle: { fontSize: 17, fontWeight: '800', color: '#fff' },
+  subFeatList: { gap: 9 },
+  subFeatRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    gap: 10,
+  },
+  subFeatLabel: { fontSize: 15, color: 'rgba(255,255,255,0.92)', fontWeight: '600', flexShrink: 1 },
+  subFeatValues: { flexDirection: 'row', alignItems: 'center', gap: 6 },
+  subFeatFree: {
+    fontSize: 14,
+    color: 'rgba(255,255,255,0.7)',
+    textDecorationLine: 'line-through',
+    fontWeight: '600',
+  },
+  subFeatPremium: { fontSize: 15, color: '#fff', fontWeight: '800' },
+  subCtaPill: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 4,
+    backgroundColor: '#fff',
+    borderRadius: 12,
+    paddingVertical: 12,
+    marginTop: 14,
+  },
+  subCtaPillText: { fontSize: 16, fontWeight: '800', color: Colors.primary },
   profileInfo: {
     flex: 1,
   },

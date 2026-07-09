@@ -24,6 +24,8 @@ import { Colors } from '../../constants/colors';
 import { TopBar } from '../../components/common/TopBar';
 import { useAuth } from '../../context/AuthContext';
 import { useDialog } from '../../context/DialogContext';
+import { useSubscription } from '../../context/SubscriptionContext';
+import { isOverseasLocale } from '../../i18n/detectLocale';
 import { supabase } from '../../lib/supabase';
 import { resolveMediaUrl } from '../../lib/r2Get';
 import i18n from '../../i18n';
@@ -58,8 +60,12 @@ export function AlarmSoundSettingsScreen() {
   const defaultLabel = t('alarmSound.defaultRecordingLabel');
   const { user } = useAuth();
   const dialog = useDialog();
+  const { isPremium } = useSubscription();
   const route = useRoute<any>();
   const navigation = useNavigation<any>();
+
+  // 커스텀 알림음: 무료 1개, 프리미엄 무제한. 수익화(구독)는 해외판 전용이므로 국내엔 제한 미적용.
+  const FREE_SOUND_LIMIT = 1;
 
   const [loading, setLoading] = useState(true);
   const [sounds, setSounds] = useState<CustomSound[]>([]);
@@ -330,6 +336,24 @@ export function AlarmSoundSettingsScreen() {
     }
   };
 
+  // ── 새 알림음 등록 (무료는 1개 제한 → 프리미엄 유도) ─────────
+  const atFreeLimit =
+    isOverseasLocale() && !isPremium && sounds.length >= FREE_SOUND_LIMIT;
+
+  const handleAddNew = async () => {
+    if (atFreeLimit) {
+      const go = await dialog.confirm({
+        title: t('alarmSound.limitTitle'),
+        message: t('alarmSound.limitMsg'),
+        confirmText: t('alarmSound.limitCta'),
+        cancelText: t('alarmSound.cancel'),
+      });
+      if (go) navigation.navigate('SubscriptionManage');
+      return;
+    }
+    navigation.navigate('RecordSound');
+  };
+
   // ── 가족 연동 안 된 경우 안내 ──────────────────────────────
   if (user && !user.patient_group_id) {
     return (
@@ -484,11 +508,14 @@ export function AlarmSoundSettingsScreen() {
             {/* 새 알림음 등록 */}
             <TouchableOpacity
               style={styles.addButton}
-              onPress={() => navigation.navigate('RecordSound')}
+              onPress={handleAddNew}
               activeOpacity={0.85}
             >
               <Text style={styles.addButtonText}>{t('alarmSound.addNewBtn')}</Text>
             </TouchableOpacity>
+            {atFreeLimit && (
+              <Text style={styles.limitHint}>{t('alarmSound.limitHint')}</Text>
+            )}
           </>
         )}
       </ScrollView>
@@ -696,6 +723,13 @@ const styles = StyleSheet.create({
     fontSize: 20,
     fontWeight: '800',
     color: '#fff',
+  },
+  limitHint: {
+    fontSize: 14,
+    color: Colors.textSub,
+    textAlign: 'center',
+    marginTop: 10,
+    lineHeight: 20,
   },
 
   // 미연동 보호자 안내(가족 연동 유도) — 기준 화면(기록 보기·영상 기록)과 동일한 중앙 심플 안내
