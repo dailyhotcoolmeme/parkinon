@@ -34,6 +34,7 @@ const BENEFITS = [
 // 무료 vs 프리미엄 비교표 행. 항목명(풀네임)은 1회만, 플랜별로 값만 다르게.
 const PLAN_ROWS = [
   { label: 'subscription.rowFamily', free: 'subscription.valUnlimited', premium: 'subscription.valUnlimited' },
+  { label: 'subscription.rowReport', free: 'subscription.valIncluded', premium: 'subscription.valIncluded' },
   { label: 'subscription.rowAlarm', free: 'subscription.freeValAlarm', premium: 'subscription.valUnlimited' },
   { label: 'subscription.rowPhoto', free: 'subscription.freeValPhoto', premium: 'subscription.valUnlimited' },
   { label: 'subscription.rowAudio', free: 'subscription.freeValAudio', premium: 'subscription.valUnlimited' },
