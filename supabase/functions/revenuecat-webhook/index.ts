@@ -90,6 +90,13 @@ Deno.serve(async (req: Request) => {
         revenuecat_synced_at: nowIso,
       })
       .eq('id', groupId)
+    // 다운그레이드 → 커스텀 알림음(프리미엄 기능)을 기본음으로 되돌린다.
+    // 녹음(custom_sounds)은 삭제 안 함(재구독 시 재선택). 실패해도 만료 처리 자체는 성공 응답.
+    try {
+      await supabase.rpc('reset_group_custom_sounds', { p_group_id: groupId })
+    } catch (e) {
+      console.error('[revenuecat-webhook] reset_group_custom_sounds 실패:', e)
+    }
     return new Response('expired', { status: 200 })
   }
 
