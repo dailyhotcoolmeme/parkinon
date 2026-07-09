@@ -64,8 +64,9 @@ export function AlarmSoundSettingsScreen() {
   const route = useRoute<any>();
   const navigation = useNavigation<any>();
 
-  // 커스텀 알림음: 무료 1개, 프리미엄 무제한. 수익화(구독)는 해외판 전용이므로 국내엔 제한 미적용.
-  const FREE_SOUND_LIMIT = 1;
+  // 커스텀 알림음: 무료 0개(전면 프리미엄/체험 전용), 프리미엄 무제한.
+  // 수익화(구독)는 해외판 전용이므로 국내엔 제한 미적용.
+  const FREE_SOUND_LIMIT = 0;
 
   const [loading, setLoading] = useState(true);
   const [sounds, setSounds] = useState<CustomSound[]>([]);

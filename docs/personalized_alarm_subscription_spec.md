@@ -86,6 +86,8 @@
 - 🚀 **[최우선] 직접 녹음 기능 실동작 완성 → 첫 빌드.** (프리셋 없이 출시)
   - 현재: 녹음(RecordSoundScreen)·R2 업로드·custom_sounds/alarm_sound_prefs 저장·미리듣기까지 됨.
   - 남은 핵심: **저장된 녹음이 실제 "알림음"으로 울리게** 하기. expo-notifications는 런타임 임의 사운드 불가 → **notifee(네이티브)** 도입 + 수신 기기 다운로드/프로비저닝(iOS caf 변환·Library/Sounds, Android 채널) + 약 알림 스케줄을 notifee로 발송. → **네이티브 변경이라 빌드 필요**(`expo run:android` 로컬, EAS 무료티어 미소모).
-- [x] **iOS Critical Alerts entitlement 신청 — 제출 완료** (2026-05-31). App Type=Healthcare, Bundle ID=`com.ourmine.parkinon`, frequency="regularly scheduled". 소명 문구는 `docs/apple_critical_alerts_request.md`. → **Apple 회신(이메일) 대기.** 수 주 소요 가능, 무응답 시 정중히 follow-up. (무음뚫기/끝까지는 승인 후 별도 빌드)
-- [ ] Apple 승인 시: entitlements에 `com.apple.developer.usernotifications.critical-alerts` 추가 + provisioning 갱신 후 빌드.
-- [ ] (병행) 남은 자잘한 결정(프리셋·녹음 길이·체험종료 녹음 처리·국내 결제사) + 전체 상세 설계서.
+- ❌ **iOS Critical Alerts — 미추진/철회 (2026-07-09 오너 확정).** 파킨온은 단순 복약 알림 앱이라 **무음/진동 설정을 무시하고 강제로 소리내는 것은 부적절**하다(위급 의료 알림 아님). 사용자가 무음/진동으로 두면 알림도 그에 따른다.
+  - 현재 빌드엔 entitlement 미탑재 → 실제 무음 뚫기 없음(정상). 애플 신청건은 진행하지 않음(회신 와도 미사용). `com.apple.developer.usernotifications.critical-alerts` **추가 금지.**
+  - 관련 UI 문구 "무음 모드에서도 들려요" 는 오해 소지라 제거함(alarmSound.silentModeHint 교체).
+- [x] **커스텀 알림음 무료 = 0개 (2026-07-09 오너 확정).** 무료는 커스텀 알림음 전면 불가(프리미엄/무료체험 전용). "1개만 쏙 빼먹고 미구독" 방지. 무료 1개 제공안 폐기. (`AlarmSoundSettingsScreen.FREE_SOUND_LIMIT = 0`, 해외 로케일만 적용)
+- 확정된 세부: 프리셋 없음 / 녹음 최대 5초(`RecordSoundScreen.MAX_DURATION_MS`) / 체험종료 시 초과 커스텀음 → 기본 알림음 복귀(다운그레이드 처리, **미구현**).
