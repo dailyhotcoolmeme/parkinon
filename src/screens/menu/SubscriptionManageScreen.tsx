@@ -221,6 +221,9 @@ export function SubscriptionManageScreen() {
                     </View>
                   </View>
                   <Text style={[styles.cmpPlanName, styles.cmpPlanNameP]}>{t('subscription.comparePlanPremium')}</Text>
+                  <View style={styles.cmpTrialPill}>
+                    <Text style={styles.cmpTrialPillText}>{t('subscription.cmpTrialPill')}</Text>
+                  </View>
                   <Text style={[styles.cmpPlanPrice, styles.cmpPlanPriceP]}>{t('subscription.comparePricePremium')}</Text>
                 </View>
               </View>
@@ -410,7 +413,15 @@ const styles = StyleSheet.create({
   cmpRow: { flexDirection: 'row', alignItems: 'stretch' },
   cmpFeatCol: { flex: 1, justifyContent: 'center', paddingRight: 10 },
   cmpValCol: { width: 84, alignItems: 'center', justifyContent: 'center' },
-  cmpHeadCell: { height: 60, position: 'relative' },
+  cmpHeadCell: { height: 82, position: 'relative' },
+  cmpTrialPill: {
+    marginTop: 4,
+    backgroundColor: Colors.primary,
+    borderRadius: 8,
+    paddingHorizontal: 8,
+    paddingVertical: 3,
+  },
+  cmpTrialPillText: { fontSize: 11, fontWeight: '800', color: '#fff' },
   cmpCell: { minHeight: 48, justifyContent: 'center' },
   cmpPremCell: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 4 },
   cmpDivider: { borderBottomWidth: 1, borderBottomColor: '#EFEFEF' },
