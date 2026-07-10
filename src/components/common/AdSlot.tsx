@@ -91,7 +91,7 @@ export function AdSlot({ placement }: { placement: AdPlacement }) {
           </View>
           </NativeAdView>
         </View>
-        <TouchableOpacity onPress={() => navigateTo('SubscriptionManage')} activeOpacity={0.7}>
+        <TouchableOpacity onPress={() => navigateTo('Main', { screen: 'MyInfo', params: { screen: 'SubscriptionManage' } })} activeOpacity={0.7}>
           <Text style={styles.removeAds}>{t('ads.removeAds')}</Text>
         </TouchableOpacity>
       </View>

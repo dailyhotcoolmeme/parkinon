@@ -1338,7 +1338,7 @@ function DiaryEditorModal({ visible, dateStr, patientId, existing, onClose, onSa
           confirmText: t('subscription.upgradeBtn'),
           cancelText: t('common.cancel'),
         })
-        .then((ok) => { if (ok) navigateTo('SubscriptionManage'); });
+        .then((ok) => { if (ok) navigateTo('Main', { screen: 'MyInfo', params: { screen: 'SubscriptionManage' } }); });
     } else {
       // 국내: 결제/구독 문구 없이 담백하게 안내
       const msgKey =
@@ -2026,7 +2026,7 @@ function DiaryEditorModal({ visible, dateStr, patientId, existing, onClose, onSa
               /* 해외 무료: 실제 결제 유도 CTA — 탭하면 구독(결제) 페이지로 이동 */
               <TouchableOpacity
                 style={styles.toolbarUpsell}
-                onPress={() => navigateTo('SubscriptionManage')}
+                onPress={() => navigateTo('Main', { screen: 'MyInfo', params: { screen: 'SubscriptionManage' } })}
                 activeOpacity={0.85}
               >
                 <Ionicons name="star" size={15} color={Journal.accent} />

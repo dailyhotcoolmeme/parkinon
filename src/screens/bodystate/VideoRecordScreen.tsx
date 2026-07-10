@@ -191,7 +191,7 @@ export function VideoRecordScreen() {
                 confirmText: t('subscription.upgradeBtn'),
                 cancelText: t('common.cancel'),
               })
-              .then((ok) => { if (ok) navigateTo('SubscriptionManage'); });
+              .then((ok) => { if (ok) navigateTo('Main', { screen: 'MyInfo', params: { screen: 'SubscriptionManage' } }); });
           } else {
             // 국내: 결제 문구 없이 담백하게
             dialog.alert({
