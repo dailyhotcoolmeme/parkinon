@@ -302,7 +302,7 @@ export function RecordsScreen() {
             onPress={() => setPeriod(p)}
             activeOpacity={0.8}
           >
-            <Text style={[styles.tabBtnText, period === p && styles.tabBtnTextActive]}>
+            <Text style={[styles.tabBtnText, period === p && styles.tabBtnTextActive]} numberOfLines={1}>
               {periodLabel(p)}
             </Text>
           </TouchableOpacity>

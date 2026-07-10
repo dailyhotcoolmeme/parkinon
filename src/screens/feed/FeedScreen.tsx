@@ -523,7 +523,7 @@ export function FeedScreen() {
             onPress={() => handleTabChange(tab)}
             activeOpacity={0.75}
           >
-            <Text style={[styles.tabText, mainTab === tab && styles.tabTextActive]}>{label}</Text>
+            <Text style={[styles.tabText, mainTab === tab && styles.tabTextActive]} numberOfLines={1}>{label}</Text>
           </TouchableOpacity>
         ))}
       </View>
@@ -540,7 +540,7 @@ export function FeedScreen() {
                 onPress={() => handleTypeFilterSelect(sub.id)}
                 activeOpacity={0.75}
               >
-                <Text style={[styles.subTabText, isActive && styles.subTabTextActive]}>
+                <Text style={[styles.subTabText, isActive && styles.subTabTextActive]} numberOfLines={1}>
                   {sub.label}
                 </Text>
               </TouchableOpacity>

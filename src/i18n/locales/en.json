@@ -453,7 +453,7 @@
     "mainTabMine": "My Posts",
     "typeAll": "All",
     "typeChat": "Chat",
-    "typeQuestion": "Question",
+    "typeQuestion": "Q&A",
     "typeInfo": "Info",
     "typeExercise": "Exercise",
     "typeCheer": "Cheer",
@@ -976,8 +976,8 @@
     "save": "Save"
   },
   "records": {
-    "periodWeek": "This week",
-    "periodMonth": "This month",
+    "periodWeek": "Week",
+    "periodMonth": "Month",
     "period3Month": "3 months",
     "prevWeek": "Last week",
     "prevMonth": "Last month",
