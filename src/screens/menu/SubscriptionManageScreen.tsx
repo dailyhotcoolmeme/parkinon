@@ -4,8 +4,8 @@
 //    구독상품 미등록)엔 패키지가 비어 있어 자동으로 "준비 중" 안내로 폴백한다.
 // 구매 성공 → RevenueCat webhook 이 patient_groups.subscription_tier 를 premium 으로 갱신 →
 //    refresh() 로 반영. (webhook 은 supabase functions/revenuecat-webhook)
-import React, { useState, useEffect } from 'react';
-import { View, Text, StyleSheet, ScrollView, TouchableOpacity, ActivityIndicator, Linking, Platform, Image } from 'react-native';
+import React, { useState, useEffect, useRef } from 'react';
+import { View, Text, StyleSheet, ScrollView, TouchableOpacity, ActivityIndicator, Linking, Platform, Image, Animated, Easing } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useTranslation } from 'react-i18next';
 import { Ionicons } from '@expo/vector-icons';
@@ -43,14 +43,29 @@ const PLAN_ROWS = [
 
 const DAY_MS = 24 * 60 * 60 * 1000;
 
-// 히어로 배지 안 아이콘 = 앱 심볼(초록, 텍스트 없음). RN Image라 iOS는 GIF도 애니 재생.
-// GIF 파일로 교체 시 애니 적용(안드는 expo-image 필요 → 재빌드).
+// 히어로 배지 안 아이콘 = 앱 심볼(초록). 톱바와 동일한 Animated 회전(정적 PNG를 돌림 —
+// GIF 아님, 안드·iOS 모두 OTA로 동작).
 const HERO_SYMBOL = require('../../../assets/parkinon-symbol-en-green.png');
 
 export function SubscriptionManageScreen() {
   const { t } = useTranslation();
   const { isPremium, refresh } = useSubscription();
   const dialog = useDialog();
+
+  // 히어로 심볼 회전 (톱바 브랜드 스핀과 동일: 6초 회전 → 3.5초 정지 루프. useNativeDriver, OTA·양 플랫폼).
+  const heroSpin = useRef(new Animated.Value(0)).current;
+  useEffect(() => {
+    const loop = Animated.loop(
+      Animated.sequence([
+        Animated.timing(heroSpin, { toValue: 1, duration: 6000, easing: Easing.inOut(Easing.ease), useNativeDriver: true }),
+        Animated.delay(3500),
+        Animated.timing(heroSpin, { toValue: 0, duration: 0, useNativeDriver: true }),
+      ]),
+    );
+    loop.start();
+    return () => loop.stop();
+  }, [heroSpin]);
+  const heroSpinDeg = heroSpin.interpolate({ inputRange: [0, 1], outputRange: ['0deg', '360deg'] });
 
   const [packages, setPackages] = useState<any[]>([]);
   const [busy, setBusy] = useState(false);
@@ -176,7 +191,7 @@ export function SubscriptionManageScreen() {
           /* 무료 사용자: 업그레이드를 유도하는 히어로 카드 */
           <View style={styles.heroCard}>
             <View style={styles.heroBadge}>
-              <Image source={HERO_SYMBOL} style={styles.heroSymbol} resizeMode="contain" />
+              <Animated.Image source={HERO_SYMBOL} style={[styles.heroSymbol, { transform: [{ rotate: heroSpinDeg }] }]} resizeMode="contain" />
             </View>
             <Text style={styles.heroTitle}>{t('subscription.heroTitle')}</Text>
             <Text style={styles.heroSub}>{t('subscription.heroSub')}</Text>
