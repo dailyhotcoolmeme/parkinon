@@ -211,11 +211,11 @@ export function SubscriptionManageScreen() {
               {/* 헤더: 플랜명/가격 */}
               <View style={styles.cmpRow}>
                 <View style={styles.cmpFeatCol} />
-                <View style={[styles.cmpValCol, styles.cmpHeadCell]}>
+                <View style={[styles.cmpValFree, styles.cmpHeadCell]}>
                   <Text style={styles.cmpPlanName}>{t('subscription.comparePlanFree')}</Text>
                   <Text style={styles.cmpPlanPrice}>{t('subscription.comparePriceFree')}</Text>
                 </View>
-                <View style={[styles.cmpValCol, styles.cmpHeadCell, styles.cmpPremCol, styles.cmpPremTop]}>
+                <View style={[styles.cmpValPrem, styles.cmpHeadCell, styles.cmpPremCol, styles.cmpPremTop]}>
                   <View style={styles.cmpBadgeWrap}>
                     <View style={styles.cmpBadge}>
                       <Text style={styles.cmpBadgeText}>{t('subscription.compareBadge')}</Text>
@@ -237,12 +237,12 @@ export function SubscriptionManageScreen() {
                     <View style={[styles.cmpFeatCol, styles.cmpCell, !last && styles.cmpDivider]}>
                       <Text style={styles.cmpFeatText}>{t(r.label)}</Text>
                     </View>
-                    <View style={[styles.cmpValCol, styles.cmpCell, !last && styles.cmpDivider]}>
+                    <View style={[styles.cmpValFree, styles.cmpCell, !last && styles.cmpDivider]}>
                       <Text style={styles.cmpFreeVal}>{t(r.free)}</Text>
                     </View>
                     <View
                       style={[
-                        styles.cmpValCol,
+                        styles.cmpValPrem,
                         styles.cmpCell,
                         styles.cmpPremCell,
                         styles.cmpPremCol,
@@ -412,8 +412,9 @@ const styles = StyleSheet.create({
   /* 플랜 비교표 — 항목명 1회(좌) + 무료 값 + 프리미엄 값(강조 열 박스). */
   cmpTable: { marginTop: 18 },
   cmpRow: { flexDirection: 'row', alignItems: 'stretch' },
-  cmpFeatCol: { flex: 1, justifyContent: 'center', paddingRight: 10 },
-  cmpValCol: { width: 84, alignItems: 'center', justifyContent: 'center' },
+  cmpFeatCol: { flex: 1.35, justifyContent: 'center', paddingRight: 6 },
+  cmpValFree: { flex: 1, alignItems: 'center', justifyContent: 'center' },
+  cmpValPrem: { flex: 1.45, alignItems: 'center', justifyContent: 'center' },
   cmpHeadCell: { height: 82, position: 'relative' },
   cmpTrialPill: {
     marginTop: 4,
