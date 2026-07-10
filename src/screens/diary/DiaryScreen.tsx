@@ -2022,9 +2022,22 @@ function DiaryEditorModal({ visible, dateStr, patientId, existing, onClose, onSa
           {/* 첨부 조건 안내 (도구막대 바로 위)
               해외 premium=무제한이라 숨김 / 해외 free=구독 유도 문구 / 국내=담백한 한도 안내(결제문구 없음) */}
           {!unlimited && (
-            <Text style={styles.toolbarHint}>
-              {overseas ? t('diary.attachHintUpsell') : t('diary.attachHint')}
-            </Text>
+            overseas ? (
+              /* 해외 무료: 실제 결제 유도 CTA — 탭하면 구독(결제) 페이지로 이동 */
+              <TouchableOpacity
+                style={styles.toolbarUpsell}
+                onPress={() => navigateTo('SubscriptionManage')}
+                activeOpacity={0.85}
+              >
+                <Ionicons name="star" size={15} color={Journal.accent} />
+                <Text style={styles.toolbarUpsellText} numberOfLines={2}>
+                  {t('diary.attachHintUpsell')}
+                </Text>
+                <Ionicons name="chevron-forward" size={16} color={Journal.accent} />
+              </TouchableOpacity>
+            ) : (
+              <Text style={styles.toolbarHint}>{t('diary.attachHint')}</Text>
+            )
           )}
 
           {/* 도구막대 (키보드 위 고정) — [사진] [동영상] [음성] */}
@@ -3012,6 +3025,29 @@ const styles = StyleSheet.create({
     paddingHorizontal: 14,
     paddingTop: 8,
     backgroundColor: Journal.pageDeep,
+  },
+  // 해외 무료: 결제 유도 CTA 바 (탭 → 구독 페이지). 눈에 띄게 테라코타 강조.
+  toolbarUpsell: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    backgroundColor: Journal.accentSoft,
+    borderWidth: 1,
+    borderColor: Journal.accent,
+    marginHorizontal: 12,
+    marginTop: 8,
+    marginBottom: 2,
+    paddingVertical: 9,
+    paddingHorizontal: 12,
+    borderRadius: 10,
+  },
+  toolbarUpsellText: {
+    flex: 1,
+    fontFamily: SERIF,
+    fontSize: 12.5,
+    lineHeight: 17,
+    color: Journal.ink,
+    fontWeight: '700',
   },
 
   // 도구막대 (키보드 위 고정)
