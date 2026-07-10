@@ -204,8 +204,8 @@ export function SubscriptionManageScreen() {
         {!isPremium && (
           <>
             {/* 플랜 비교 — 흰 카드(제목 + 표), 항목명 1회 + 무료/프리미엄 값 열. */}
+            <Text style={styles.sectionTitle}>{t('subscription.compareTitle')}</Text>
             <View style={styles.compareCard}>
-            <Text style={styles.compareTitle}>{t('subscription.compareTitle')}</Text>
             <View style={styles.cmpTable}>
               {/* 헤더: 플랜명/가격 */}
               <View style={styles.cmpRow}>
@@ -243,12 +243,10 @@ export function SubscriptionManageScreen() {
                       style={[
                         styles.cmpValPrem,
                         styles.cmpCell,
-                        styles.cmpPremCell,
                         styles.cmpPremCol,
                         last && styles.cmpPremBottom,
                       ]}
                     >
-                      <Ionicons name="checkmark-circle" size={15} color={Colors.primary} />
                       <Text style={styles.cmpPremVal}>{t(r.premium)}</Text>
                     </View>
                   </View>
@@ -421,7 +419,7 @@ const styles = StyleSheet.create({
   },
   compareTitle: { fontSize: 16, fontWeight: '700', color: Colors.text },
   /* 플랜 비교표 — 항목명 1회(좌) + 무료 값 + 프리미엄 값(강조 열 박스). */
-  cmpTable: { marginTop: 18 },
+  cmpTable: { marginTop: 8 },
   cmpRow: { flexDirection: 'row', alignItems: 'stretch' },
   cmpFeatCol: { flex: 1.35, justifyContent: 'center', paddingRight: 6 },
   cmpValFree: { flex: 1, alignItems: 'center', justifyContent: 'center' },
@@ -464,7 +462,7 @@ const styles = StyleSheet.create({
   cmpPlanPriceP: { color: Colors.primary },
   cmpFeatText: { fontSize: 15, fontWeight: '600', color: Colors.text },
   cmpFreeVal: { fontSize: 14, color: Colors.textSub, fontWeight: '700', textAlign: 'center' },
-  cmpPremVal: { fontSize: 14, color: Colors.text, fontWeight: '800' },
+  cmpPremVal: { fontSize: 14, color: '#388E3C', fontWeight: '800' },
   planCompareNote: { fontSize: 12.5, color: Colors.textHint, marginTop: 10, textAlign: 'center' },
   benefitCard: {
     backgroundColor: Colors.white,
