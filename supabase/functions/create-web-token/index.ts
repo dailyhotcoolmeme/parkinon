@@ -2,7 +2,7 @@ import "jsr:@supabase/functions-js/edge-runtime.d.ts";
 import { createClient } from "jsr:@supabase/supabase-js@2";
 
 const WEB_BASE = Deno.env.get("WEB_BASE_URL") ?? "https://parkinon.com";
-const TTL_MINUTES = 5; // 6-digit PC-login code lives 5 minutes
+const TTL_MINUTES = 10; // 6-digit PC-login code lives 10 minutes
 const RATE_LIMIT_PER_MINUTE = 30;
 const MAX_CODE_GEN_TRIES = 12;
 
