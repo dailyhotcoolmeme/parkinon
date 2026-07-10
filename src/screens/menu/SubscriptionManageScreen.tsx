@@ -415,7 +415,6 @@ const styles = StyleSheet.create({
     paddingHorizontal: 16,
     paddingTop: 16,
     paddingBottom: 12,
-    marginTop: 6, // 히어로와 섹션 경계 여백(내부 간격은 안 건드림)
   },
   compareTitle: { fontSize: 16, fontWeight: '700', color: Colors.text },
   /* 플랜 비교표 — 항목명 1회(좌) + 무료 값 + 프리미엄 값(강조 열 박스). */
