@@ -2030,9 +2030,10 @@ function DiaryEditorModal({ visible, dateStr, patientId, existing, onClose, onSa
                 activeOpacity={0.85}
               >
                 <Ionicons name="star" size={15} color={Journal.accent} />
-                <Text style={styles.toolbarUpsellText} numberOfLines={2}>
-                  {t('diary.attachHintUpsell')}
-                </Text>
+                <View style={styles.toolbarUpsellTextCol}>
+                  <Text style={styles.toolbarUpsellText}>{t('diary.attachHintUpsellInfo')}</Text>
+                  <Text style={styles.toolbarUpsellCta}>{t('diary.attachHintUpsellCta')}</Text>
+                </View>
                 <Ionicons name="chevron-forward" size={16} color={Journal.accent} />
               </TouchableOpacity>
             ) : (
@@ -3041,13 +3042,24 @@ const styles = StyleSheet.create({
     paddingHorizontal: 12,
     borderRadius: 10,
   },
-  toolbarUpsellText: {
+  toolbarUpsellTextCol: {
     flex: 1,
+  },
+  toolbarUpsellText: {
     fontFamily: SERIF,
     fontSize: 12.5,
     lineHeight: 17,
     color: Journal.ink,
     fontWeight: '700',
+  },
+  // '프리미엄 무제한' 줄 — 녹색 강조로 결제 유도 (별도 줄)
+  toolbarUpsellCta: {
+    fontFamily: SERIF,
+    fontSize: 12.5,
+    lineHeight: 17,
+    color: '#388E3C',
+    fontWeight: '800',
+    marginTop: 2,
   },
 
   // 도구막대 (키보드 위 고정)

@@ -847,6 +847,8 @@
     "moveDown": "Down",
     "attachHint": "Add up to 5 photos · 1 video (max 2 min) · 1 audio clip",
     "attachHintUpsell": "Free: 5 photos · 1 video · 1 audio a day per family. Go Premium for unlimited photos, video & audio!",
+    "attachHintUpsellInfo": "Free: 5 photos · 1 video · 1 audio a day per family.",
+    "attachHintUpsellCta": "Go Premium for unlimited photos, video & audio!",
     "quotaReachedTitle": "You've used today's free limit",
     "quotaPhotoMsg": "Free plan allows up to 5 photos per family each day. Upgrade to Premium for unlimited photos.",
     "quotaVideoMsg": "Free plan allows up to 2 videos per family each day. Upgrade to Premium for unlimited videos.",
