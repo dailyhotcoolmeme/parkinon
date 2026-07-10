@@ -205,8 +205,9 @@ export function SubscriptionManageScreen() {
 
         {!isPremium && (
           <>
-            {/* 플랜 비교 — 항목명 1회 + 무료/프리미엄 값 열(프리미엄 강조 박스). */}
-            <Text style={styles.sectionTitle}>{t('subscription.compareTitle')}</Text>
+            {/* 플랜 비교 — 흰 카드(제목 + 표), 항목명 1회 + 무료/프리미엄 값 열. */}
+            <View style={styles.compareCard}>
+            <Text style={styles.compareTitle}>{t('subscription.compareTitle')}</Text>
             <View style={styles.cmpTable}>
               {/* 헤더: 플랜명/가격 */}
               <View style={styles.cmpRow}>
@@ -255,6 +256,7 @@ export function SubscriptionManageScreen() {
                   </View>
                 );
               })}
+            </View>
             </View>
 
             {/* 플랜 선택 — 연간(추천)·월간 두 카드 */}
@@ -339,7 +341,7 @@ export function SubscriptionManageScreen() {
 
 const styles = StyleSheet.create({
   safe: { flex: 1, backgroundColor: Colors.background },
-  content: { padding: 20, gap: 16 },
+  content: { padding: 20, gap: 22 },
   statusCard: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -407,7 +409,18 @@ const styles = StyleSheet.create({
   },
   heroTitle: { fontSize: 22, fontWeight: '800', color: '#fff', textAlign: 'center' },
   heroSub: { fontSize: 15, color: '#EAF7EC', textAlign: 'center', marginTop: 8, lineHeight: 22 },
-  sectionTitle: { fontSize: 16, fontWeight: '700', color: Colors.text, marginTop: 4 },
+  sectionTitle: { fontSize: 16, fontWeight: '700', color: Colors.text, marginTop: 10 },
+  /* 플랜 비교 흰 카드 (제목 + 표를 담고, 좌우 패딩) */
+  compareCard: {
+    backgroundColor: Colors.white,
+    borderRadius: 16,
+    borderWidth: 1,
+    borderColor: Colors.border,
+    paddingHorizontal: 16,
+    paddingTop: 16,
+    paddingBottom: 12,
+  },
+  compareTitle: { fontSize: 16, fontWeight: '700', color: Colors.text },
   /* 플랜 비교표 — 항목명 1회(좌) + 무료 값 + 프리미엄 값(강조 열 박스). */
   cmpTable: { marginTop: 18 },
   cmpRow: { flexDirection: 'row', alignItems: 'stretch' },
