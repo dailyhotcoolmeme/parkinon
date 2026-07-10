@@ -13,7 +13,6 @@ import { TopBar } from '../../components/common/TopBar';
 import { Colors } from '../../constants/colors';
 import { useSubscription } from '../../context/SubscriptionContext';
 import { useDialog } from '../../context/DialogContext';
-import { useBottomSheetPadding } from '../../hooks/useBottomSheetPadding';
 import {
   getPremiumPackages,
   purchasePackage,
@@ -48,7 +47,6 @@ export function SubscriptionManageScreen() {
   const { t } = useTranslation();
   const { isPremium, refresh } = useSubscription();
   const dialog = useDialog();
-  const bottomPad = useBottomSheetPadding(20);
 
   const [packages, setPackages] = useState<any[]>([]);
   const [busy, setBusy] = useState(false);
@@ -136,7 +134,7 @@ export function SubscriptionManageScreen() {
   return (
     <SafeAreaView style={styles.safe} edges={['top']}>
       <TopBar title={t('subscription.headerTitle')} showBack />
-      <ScrollView contentContainerStyle={[styles.content, { paddingBottom: bottomPad + 24 }]}>
+      <ScrollView contentContainerStyle={styles.content}>
         {isPremium ? (
           /* 프리미엄 사용자: 현재 상태 카드 */
           <View style={[styles.statusCard, styles.statusCardPremium]}>
@@ -341,7 +339,7 @@ export function SubscriptionManageScreen() {
 
 const styles = StyleSheet.create({
   safe: { flex: 1, backgroundColor: Colors.background },
-  content: { padding: 20, gap: 22 },
+  content: { padding: 20, paddingBottom: 40, gap: 16 },
   statusCard: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -419,6 +417,7 @@ const styles = StyleSheet.create({
     paddingHorizontal: 16,
     paddingTop: 16,
     paddingBottom: 12,
+    marginTop: 6, // 히어로와 섹션 경계 여백(내부 간격은 안 건드림)
   },
   compareTitle: { fontSize: 16, fontWeight: '700', color: Colors.text },
   /* 플랜 비교표 — 항목명 1회(좌) + 무료 값 + 프리미엄 값(강조 열 박스). */
