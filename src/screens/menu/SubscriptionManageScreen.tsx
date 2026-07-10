@@ -431,7 +431,7 @@ const styles = StyleSheet.create({
   /* 플랜 비교표 — 항목명 1회(좌) + 무료 값 + 프리미엄 값(강조 열 박스). */
   cmpTable: {},
   cmpRow: { flexDirection: 'row', alignItems: 'stretch' },
-  cmpFeatCol: { flex: 1.35, justifyContent: 'center', paddingRight: 6 },
+  cmpFeatCol: { flex: 1.35, justifyContent: 'center', paddingLeft: 6, paddingRight: 6 },
   cmpValFree: { flex: 1, alignItems: 'center', justifyContent: 'center' },
   cmpValPrem: { flex: 1.45, alignItems: 'center', justifyContent: 'center' },
   cmpHeadCell: { height: 58, position: 'relative' },
