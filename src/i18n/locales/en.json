@@ -1271,7 +1271,7 @@
     "currentFree": "Free plan",
     "currentFreeSub": "5 photos, 2 videos, 1 audio a day. With ads.",
     "currentPremium": "You're on Premium",
-    "currentPremiumSub": "Unlimited media. No ads.",
+    "currentPremiumSub": "Unlimited media & custom sounds. No ads.",
     "heroTitle": "Try Premium free for 7 days",
     "heroSub": "Then unlock unlimited photos, video and audio — with no ads, for the whole family.",
     "benefitsTitle": "Premium benefits",
@@ -1492,7 +1492,7 @@
     "today": "Today",
     "yesterday": "Yesterday",
     "headerTitle": "Notifications",
-    "markAllRead": "Mark all read",
+    "markAllRead": "Read all",
     "viewOlder": "View older notifications",
     "noNotifTitle": "No notifications yet",
     "noNotifBody": "Notifications from the last {{days}} days will appear here."
