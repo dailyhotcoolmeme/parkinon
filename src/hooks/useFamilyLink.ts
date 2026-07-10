@@ -248,6 +248,17 @@ export function useFamilyLink(): UseFamilyLinkReturn {
         // + 그룹 환자 매핑 캐시 무효화(stale patientId 방지)
         invalidatePatientIdCache();
         await refreshUser();
+        // 새 가족 연결 → 같은 그룹의 다른 멤버에게 푸시 알림(서버). fire-and-forget:
+        // 실패해도 연동 성공엔 영향 없음. 호출자 JWT로 서버가 새 멤버를 식별.
+        buildHeaders()
+          .then((h) =>
+            fetchWithTimeout(`${SUPABASE_URL}/functions/v1/notify-family-joined`, {
+              method: 'POST',
+              headers: h,
+              body: JSON.stringify({}),
+            }),
+          )
+          .catch(() => {});
         return { success: true, message };
       }
 

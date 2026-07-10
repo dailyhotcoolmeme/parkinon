@@ -29,6 +29,9 @@ verify_jwt = true
 [functions.notify-measurement-completed]
 verify_jwt = true
 
+[functions.notify-family-joined]
+verify_jwt = true
+
 [functions.ocr-prescription]
 verify_jwt = true
 
