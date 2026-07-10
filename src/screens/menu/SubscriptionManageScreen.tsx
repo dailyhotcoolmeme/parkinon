@@ -43,9 +43,9 @@ const PLAN_ROWS = [
 
 const DAY_MS = 24 * 60 * 60 * 1000;
 
-// 히어로 배지 안 아이콘 = 앱 심볼(초록). 톱바와 동일한 Animated 회전(정적 PNG를 돌림 —
-// GIF 아님, 안드·iOS 모두 OTA로 동작).
-const HERO_SYMBOL = require('../../../assets/parkinon-symbol-en-green.png');
+// 히어로(초록 배경) 위의 흰색 앱 심볼. 흰 원 배지 없이 초록 배경에 바로. 톱바와 동일한
+// Animated 회전(정적 PNG 회전 — GIF 아님, 안드·iOS 모두 OTA 동작).
+const HERO_SYMBOL = require('../../../assets/parkinon-symbol-en.png');
 
 export function SubscriptionManageScreen() {
   const { t } = useTranslation();
@@ -190,9 +190,7 @@ export function SubscriptionManageScreen() {
         {!isPremium && (
           /* 무료 사용자: 업그레이드를 유도하는 히어로 카드 */
           <View style={styles.heroCard}>
-            <View style={styles.heroBadge}>
-              <Animated.Image source={HERO_SYMBOL} style={[styles.heroSymbol, { transform: [{ rotate: heroSpinDeg }] }]} resizeMode="contain" />
-            </View>
+            <Animated.Image source={HERO_SYMBOL} style={[styles.heroSymbol, { transform: [{ rotate: heroSpinDeg }] }]} resizeMode="contain" />
             <Text style={styles.heroTitle}>{t('subscription.heroTitle')}</Text>
             <Text style={styles.heroSub}>{t('subscription.heroSub')}</Text>
           </View>
@@ -255,6 +253,7 @@ export function SubscriptionManageScreen() {
                         styles.cmpValPrem,
                         styles.cmpCell,
                         styles.cmpPremCol,
+                        !last && styles.cmpDividerP,
                         last && styles.cmpPremBottom,
                       ]}
                     >
@@ -414,7 +413,7 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     marginBottom: 12,
   },
-  heroSymbol: { width: 32, height: 32 },
+  heroSymbol: { width: 48, height: 48, marginBottom: 12 },
   heroTitle: { fontSize: 22, fontWeight: '800', color: '#fff', textAlign: 'center' },
   heroSub: { fontSize: 15, color: '#EAF7EC', textAlign: 'center', marginTop: 8, lineHeight: 22 },
   sectionTitle: { fontSize: 16, fontWeight: '700', color: Colors.text, marginTop: 10 },
@@ -425,12 +424,12 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: Colors.border,
     paddingHorizontal: 16,
-    paddingTop: 16,
-    paddingBottom: 12,
+    paddingTop: 14,
+    paddingBottom: 14,
   },
   compareTitle: { fontSize: 16, fontWeight: '700', color: Colors.text },
   /* 플랜 비교표 — 항목명 1회(좌) + 무료 값 + 프리미엄 값(강조 열 박스). */
-  cmpTable: { marginTop: 8 },
+  cmpTable: {},
   cmpRow: { flexDirection: 'row', alignItems: 'stretch' },
   cmpFeatCol: { flex: 1.35, justifyContent: 'center', paddingRight: 6 },
   cmpValFree: { flex: 1, alignItems: 'center', justifyContent: 'center' },
@@ -447,6 +446,8 @@ const styles = StyleSheet.create({
   cmpCell: { minHeight: 48, justifyContent: 'center' },
   cmpPremCell: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 4 },
   cmpDivider: { borderBottomWidth: 1, borderBottomColor: '#EFEFEF' },
+  // 프리미엄 열(초록 박스) 내부 행 구분선 — 박스 배경 위에 보이는 옅은 초록선
+  cmpDividerP: { borderBottomWidth: 1, borderBottomColor: 'rgba(76,175,80,0.22)' },
   /* 프리미엄 강조 열(박스): 좌우 세로선 연속 + 상/하단만 모서리·가로선 */
   cmpPremCol: {
     backgroundColor: '#F4FBF5',
