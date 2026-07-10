@@ -5,7 +5,7 @@
 // 구매 성공 → RevenueCat webhook 이 patient_groups.subscription_tier 를 premium 으로 갱신 →
 //    refresh() 로 반영. (webhook 은 supabase functions/revenuecat-webhook)
 import React, { useState, useEffect } from 'react';
-import { View, Text, StyleSheet, ScrollView, TouchableOpacity, ActivityIndicator, Linking, Platform } from 'react-native';
+import { View, Text, StyleSheet, ScrollView, TouchableOpacity, ActivityIndicator, Linking, Platform, Image } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useTranslation } from 'react-i18next';
 import { Ionicons } from '@expo/vector-icons';
@@ -42,6 +42,10 @@ const PLAN_ROWS = [
 ];
 
 const DAY_MS = 24 * 60 * 60 * 1000;
+
+// 히어로 배지 안 아이콘 = 앱 심볼(초록, 텍스트 없음). RN Image라 iOS는 GIF도 애니 재생.
+// GIF 파일로 교체 시 애니 적용(안드는 expo-image 필요 → 재빌드).
+const HERO_SYMBOL = require('../../../assets/parkinon-symbol-en-green.png');
 
 export function SubscriptionManageScreen() {
   const { t } = useTranslation();
@@ -172,7 +176,7 @@ export function SubscriptionManageScreen() {
           /* 무료 사용자: 업그레이드를 유도하는 히어로 카드 */
           <View style={styles.heroCard}>
             <View style={styles.heroBadge}>
-              <Ionicons name="star" size={26} color={Colors.primary} />
+              <Image source={HERO_SYMBOL} style={styles.heroSymbol} resizeMode="contain" />
             </View>
             <Text style={styles.heroTitle}>{t('subscription.heroTitle')}</Text>
             <Text style={styles.heroSub}>{t('subscription.heroSub')}</Text>
@@ -215,15 +219,7 @@ export function SubscriptionManageScreen() {
                   <Text style={styles.cmpPlanPrice}>{t('subscription.comparePriceFree')}</Text>
                 </View>
                 <View style={[styles.cmpValPrem, styles.cmpHeadCell, styles.cmpPremCol, styles.cmpPremTop]}>
-                  <View style={styles.cmpBadgeWrap}>
-                    <View style={styles.cmpBadge}>
-                      <Text style={styles.cmpBadgeText}>{t('subscription.compareBadge')}</Text>
-                    </View>
-                  </View>
                   <Text style={[styles.cmpPlanName, styles.cmpPlanNameP]}>{t('subscription.comparePlanPremium')}</Text>
-                  <View style={styles.cmpTrialPill}>
-                    <Text style={styles.cmpTrialPillText}>{t('subscription.cmpTrialPill')}</Text>
-                  </View>
                   <Text style={[styles.cmpPlanPrice, styles.cmpPlanPriceP]}>{t('subscription.comparePricePremium')}</Text>
                 </View>
               </View>
@@ -403,6 +399,7 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     marginBottom: 12,
   },
+  heroSymbol: { width: 32, height: 32 },
   heroTitle: { fontSize: 22, fontWeight: '800', color: '#fff', textAlign: 'center' },
   heroSub: { fontSize: 15, color: '#EAF7EC', textAlign: 'center', marginTop: 8, lineHeight: 22 },
   sectionTitle: { fontSize: 16, fontWeight: '700', color: Colors.text, marginTop: 10 },
@@ -423,7 +420,7 @@ const styles = StyleSheet.create({
   cmpFeatCol: { flex: 1.35, justifyContent: 'center', paddingRight: 6 },
   cmpValFree: { flex: 1, alignItems: 'center', justifyContent: 'center' },
   cmpValPrem: { flex: 1.45, alignItems: 'center', justifyContent: 'center' },
-  cmpHeadCell: { height: 82, position: 'relative' },
+  cmpHeadCell: { height: 58, position: 'relative' },
   cmpTrialPill: {
     marginTop: 4,
     backgroundColor: Colors.primary,
