@@ -256,7 +256,6 @@ export function SubscriptionManageScreen() {
                 );
               })}
             </View>
-            <Text style={styles.planCompareNote}>{t('subscription.compareDailyNote')}</Text>
 
             {/* 플랜 선택 — 연간(추천)·월간 두 카드 */}
             <Text style={styles.sectionTitle}>{t('subscription.choosePlanTitle')}</Text>
