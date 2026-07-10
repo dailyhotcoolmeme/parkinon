@@ -15,6 +15,7 @@ import {
   Animated,
   BackHandler,
   Dimensions,
+  Linking,
 } from 'react-native';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useNavigation, useRoute } from '@react-navigation/native';
@@ -26,7 +27,6 @@ import * as ImageManipulator from 'expo-image-manipulator';
 import { Video as VideoCompressor } from 'react-native-compressor';
 import { ImageGalleryViewer } from '../../components/common/ImageGalleryViewer';
 import { R2Image } from '../../components/common/R2Image';
-import { PcCodeModal } from '../../components/records/PcCodeModal';
 import { useAuth } from '../../context/AuthContext';
 import { useDialog } from '../../context/DialogContext';
 import { useSubscription } from '../../context/SubscriptionContext';
@@ -943,61 +943,36 @@ function TodayRecordBox({ summary, dialog }: { summary: AutoSummary | null; dial
 
 function WebTrendLink({ dialog }: { dialog: ReturnType<typeof useDialog> }) {
   const { t } = useTranslation();
-  // "추세보기" → PC(parkinon.com)에서 입력할 6자리 코드를 모달로 표시.
-  // create-web-token의 url(코드 포함)을 외부 브라우저로 직접 열지 않는다(코드 노출 방지).
-  const [pcModalVisible, setPcModalVisible] = useState(false);
-  const [pcLoading, setPcLoading] = useState(false);
-  const [pcCode, setPcCode] = useState<string | null>(null);
-  const [pcExpiresAt, setPcExpiresAt] = useState<string | null>(null);
-  const [pcError, setPcError] = useState<string | null>(null);
+  // "추세보기" → 이 기기(모바일) 브라우저로 웹 추세뷰를 바로 연다(자동로그인 URL).
+  // 앱은 대부분 모바일이라 PC 코드 대신 현재 기기에서 바로 열림. (PC 입력용 코드는 기록보기의
+  // 'PC에서 보기'에 별도로 있음.)
+  const [loading, setLoading] = useState(false);
 
-  const issuePcCode = useCallback(async () => {
-    setPcLoading(true);
-    setPcError(null);
+  const handleOpen = async () => {
+    if (loading) return;
+    setLoading(true);
     try {
       const { data, error } = await supabase.functions.invoke('create-web-token');
-      if (error || !data?.code) throw new Error(error?.message || t('diary.pcTokenGenFail'));
-      setPcCode(data.code as string);
-      setPcExpiresAt((data.expires_at as string) ?? null);
+      if (error || !data?.url) throw new Error(error?.message || t('diary.pcTokenGenFail'));
+      await Linking.openURL(data.url as string);
     } catch (e: any) {
-      setPcCode(null);
-      setPcExpiresAt(null);
-      setPcError(e?.message || t('diary.pcTokenGenFailMsg'));
+      dialog.alert({ title: t('diary.errorTitle'), message: e?.message || t('diary.genericRetryMsg') });
     } finally {
-      setPcLoading(false);
+      setLoading(false);
     }
-  }, []);
-
-  const handlePcOpen = () => {
-    setPcCode(null);
-    setPcExpiresAt(null);
-    setPcError(null);
-    setPcModalVisible(true);
-    issuePcCode();
   };
 
   return (
-    <>
-      <TouchableOpacity
-        style={styles.trendLink}
-        onPress={handlePcOpen}
-        activeOpacity={0.7}
-        hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
-      >
-        <Text style={styles.trendLinkText}>{t('diary.trendViewLink')}</Text>
-        <Ionicons name="chevron-forward" size={14} color={Journal.accent} />
-      </TouchableOpacity>
-
-      <PcCodeModal
-        visible={pcModalVisible}
-        code={pcCode}
-        expiresAt={pcExpiresAt}
-        loading={pcLoading}
-        errorMsg={pcError}
-        onReissue={issuePcCode}
-        onClose={() => setPcModalVisible(false)}
-      />
-    </>
+    <TouchableOpacity
+      style={styles.trendLink}
+      onPress={handleOpen}
+      activeOpacity={0.7}
+      disabled={loading}
+      hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+    >
+      <Text style={styles.trendLinkText}>{t('diary.trendViewLink')}</Text>
+      <Ionicons name="chevron-forward" size={14} color={Journal.accent} />
+    </TouchableOpacity>
   );
 }
 
