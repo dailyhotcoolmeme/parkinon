@@ -521,7 +521,7 @@ export function ProfileEditScreen() {
             <Ionicons
               name={providerIcon(accountProvider)}
               size={20}
-              color={Colors.textSub}
+              color={Colors.textHint}
               style={{ marginRight: 8 }}
             />
             <Text style={styles.readonlyValue}>{providerLabel(accountProvider)}</Text>
@@ -955,20 +955,23 @@ const styles = StyleSheet.create({
     backgroundColor: Colors.white,
   },
 
-  // 읽기 전용 값 행(계정 정보) — 입력창과 달리 테두리 없이 회색 배경으로 "수정 불가"를 시각화.
+  // 읽기 전용 값 행(계정 정보) — '내 정보' 입력박스와 동일한 박스 형태(테두리·라운드·높이)에
+  //   회색 배경 + 흐린 글자로 "비활성(수정 불가)" 느낌을 준다.
   readonlyRow: {
-    minHeight: 56,
+    minHeight: 60,
     flexDirection: 'row',
     alignItems: 'center',
+    borderWidth: 1.5,
+    borderColor: '#E0E0E0',
     borderRadius: 12,
     paddingHorizontal: 16,
     paddingVertical: 12,
-    backgroundColor: Colors.light,
+    backgroundColor: '#F2F2F2',
   },
   readonlyValue: {
     flex: 1,
-    fontSize: 18,
-    color: Colors.text,
+    fontSize: 20,
+    color: Colors.textSub,
     fontWeight: '600',
   },
   readonlyNote: {
