@@ -118,11 +118,28 @@ export function RecordSoundScreen() {
       setRecordedUri(null);
       setRecordedDurationMs(0);
 
-      const recording = new Audio.Recording();
-      await recording.prepareToRecordAsync(
-        Audio.RecordingOptionsPresets.HIGH_QUALITY,
-      );
-      await recording.startAsync();
+      // 매번 새 Recording 객체로 prepare+start (실패한 객체는 재사용 불가).
+      const prepareAndStart = async (): Promise<Audio.Recording> => {
+        const rec = new Audio.Recording();
+        await rec.prepareToRecordAsync(Audio.RecordingOptionsPresets.HIGH_QUALITY);
+        await rec.startAsync();
+        return rec;
+      };
+
+      let recording: Audio.Recording;
+      try {
+        recording = await prepareAndStart();
+      } catch (firstErr) {
+        // iOS: 첫 마이크 권한 허용 직후엔 오디오 세션이 아직 준비되기 전이라 prepare/start 가
+        //   한 번 실패할 수 있다(그래서 "실패 떴는데 다시 누르면 됨"). 짧게 대기 후 오디오 모드를
+        //   다시 세팅하고 1회 재시도 → 첫 녹음의 헛된 실패 메시지 제거. 그래도 실패하면 아래 catch 로.
+        await new Promise((r) => setTimeout(r, 350));
+        await Audio.setAudioModeAsync({
+          allowsRecordingIOS: true,
+          playsInSilentModeIOS: true,
+        }).catch(() => {});
+        recording = await prepareAndStart();
+      }
       recordingRef.current = recording;
       recordStartRef.current = Date.now();
       setElapsedMs(0);

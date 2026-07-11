@@ -638,6 +638,8 @@ const styles = StyleSheet.create({
     fontSize: 17,
     fontWeight: '700',
     color: Colors.dark,
+    flexShrink: 1,
+    textAlign: 'center',
   },
 
   // 수정/삭제 한 줄
@@ -686,6 +688,8 @@ const styles = StyleSheet.create({
     fontSize: 17,
     fontWeight: '700',
     color: Colors.dark,
+    flexShrink: 1,
+    textAlign: 'center',
   },
   testHint: {
     fontSize: 14,
