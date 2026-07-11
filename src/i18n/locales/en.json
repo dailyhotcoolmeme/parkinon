@@ -1808,9 +1808,9 @@
     "defaultVoiceHint": "Phone's default notification sound",
     "alarmSound": "Notification sound",
     "pickTitle": "Choose a notification sound",
-    "pickSub": "Tap preview to hear it first",
+    "pickSub": "Tap Listen to hear it first",
     "stop": "Stop",
-    "preview": "Preview",
+    "preview": "Listen",
     "emptyLine1": "You haven't recorded any notification sounds yet.",
     "emptyLine2": "You can create one in Menu → Notification Sound Settings.",
     "goToSettings": "Go to Notification Sound Settings"

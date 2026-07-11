@@ -154,7 +154,12 @@ export function AlarmSoundPickerRow({ soundId, sounds, onSelect, backgroundColor
         <Ionicons name="volume-high" size={20} color={Colors.textSub} />
         <Text style={styles.triggerLabel}>{t('alarmSoundPicker.alarmSound')}</Text>
         <View style={styles.triggerValueWrap}>
-          <Text style={styles.triggerValue}>
+          <Text
+            style={styles.triggerValue}
+            numberOfLines={1}
+            adjustsFontSizeToFit
+            minimumFontScale={0.8}
+          >
             {currentLabel}
           </Text>
           <Ionicons name="chevron-forward" size={18} color={Colors.textSub} />
