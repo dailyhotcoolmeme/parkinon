@@ -35,6 +35,8 @@ export interface BodyStateInput {
 export interface UseBodyStateReturn {
   todayLogs: OnOffLogRow[];
   loading: boolean;
+  /** 오늘 로그를 최소 1회 조회 완료했는지. false면 todayLogs 가 아직 신뢰할 수 없음(콜드스타트 등). */
+  loadedOnce: boolean;
   error: string | null;
   saveBodyState: (data: BodyStateInput, triggeredBy: TriggeredBy) => Promise<boolean>;
   getBodyStateLogs: (date: string) => Promise<OnOffLogRow[]>;
@@ -48,6 +50,7 @@ export function useBodyState(): UseBodyStateReturn {
   const { user } = useAuth();
   const [todayLogs, setTodayLogs] = useState<OnOffLogRow[]>([]);
   const [loading, setLoading] = useState(false);
+  const [loadedOnce, setLoadedOnce] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
   // 환자 ID 결정
@@ -100,6 +103,7 @@ export function useBodyState(): UseBodyStateReturn {
       setError(err.message ?? i18n.t('bodyStateHook.fetchError'));
     } finally {
       setLoading(false);
+      setLoadedOnce(true);
     }
   }, [user, getPatientId]);
 
@@ -334,6 +338,7 @@ export function useBodyState(): UseBodyStateReturn {
   return {
     todayLogs,
     loading,
+    loadedOnce,
     error,
     saveBodyState,
     getBodyStateLogs,

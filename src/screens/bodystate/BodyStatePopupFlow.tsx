@@ -30,6 +30,12 @@ interface Props {
   onGoExercise?: () => void;
   showSleep?: boolean;
   showConstipation?: boolean;
+  /**
+   * showSleep/showConstipation 게이팅 값이 신뢰 가능한지(예: 오늘 로그 최소 1회 로드 완료).
+   * false면 단계 구성 스냅샷을 미루고 실시간 prop 을 쓴다 → 콜드스타트로 todayLogs 가 아직
+   * 비어 hasSleepToday=false 로 잘못 스냅샷돼 수면을 중복으로 묻는 문제 방지. 기본 true(하위호환).
+   */
+  gatingReady?: boolean;
   /** 'edit' 이면 각 단계에 기존 점수를 미리 선택한 상태로 연다(기록 수정용). */
   mode?: 'create' | 'edit';
   initialBody?: number | null;
@@ -82,6 +88,7 @@ export function BodyStatePopupFlow({
   onSave,
   showSleep = false,
   showConstipation = false,
+  gatingReady = true,
   mode = 'create',
   initialBody = null,
   initialMood = null,
@@ -135,16 +142,21 @@ export function BodyStatePopupFlow({
   //   부모(BodyStateScreen)의 showSleep/showConstipation 은 activeLogs·displaySlots 재조회 등으로
   //   팝업이 열려 있는 동안에도 바뀔 수 있어, 그대로 쓰면 단계 카운터(1/3 → 2/2)와 흐름이 도중에
   //   흔들린다. 열림 전환 시점에 한 번 캡처해 흐름 내내 고정한다.
+  //   단, 게이팅 값이 아직 신뢰 불가(gatingReady=false, 콜드스타트로 오늘 로그 미로드)면 스냅샷을
+  //   미룬다 — 그 사이엔 실시간 prop 을 쓰고(수면/변비 단계는 body·mood 뒤라 아직 필요 없음),
+  //   로드가 끝나(gatingReady=true) 정확한 값이 되면 그때 한 번 고정한다.
+  //   (미루지 않으면 hasSleepToday=false 로 잘못 고정돼 이미 기록한 수면을 또 묻는다.)
   const openedRef = useRef(false);
   const stepShowRef = useRef<{ sleep: boolean; constipation: boolean }>({ sleep: showSleep, constipation: showConstipation });
-  if (visible && !openedRef.current) {
+  if (visible && gatingReady && !openedRef.current) {
     openedRef.current = true;
     stepShowRef.current = { sleep: showSleep, constipation: showConstipation };
   } else if (!visible && openedRef.current) {
     openedRef.current = false;
   }
-  const stepSleep = stepShowRef.current.sleep;
-  const stepConstipation = stepShowRef.current.constipation;
+  // 스냅샷 전(대기 중)엔 실시간 prop, 스냅샷 후엔 고정값을 쓴다.
+  const stepSleep = openedRef.current ? stepShowRef.current.sleep : showSleep;
+  const stepConstipation = openedRef.current ? stepShowRef.current.constipation : showConstipation;
 
   const animateStepIn = () => {
     contentSlide.setValue(32);

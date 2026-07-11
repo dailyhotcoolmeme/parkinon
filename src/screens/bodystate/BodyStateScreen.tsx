@@ -270,7 +270,7 @@ function formatDurationKo(totalMin: number): string {
 export function BodyStateScreen() {
   const { t } = useTranslation();
   const { user, signOut } = useAuth();
-  const { todayLogs, saveBodyState, fetchVideoLogs, getBodyStateLogs, refresh } = useBodyState();
+  const { todayLogs, loadedOnce: bodyLogsLoadedOnce, saveBodyState, fetchVideoLogs, getBodyStateLogs, refresh } = useBodyState();
   const [showFlow, setShowFlow] = useState(false);
   // 탭 버튼 누를 때 항상 맨 위로
   const scrollRef = useRef<ScrollView>(null);
@@ -1532,6 +1532,10 @@ export function BodyStateScreen() {
         initialMood={editTarget?.moodScore ?? null}
         initialSleep={editTarget?.sleepScore ?? null}
         initialConstipation={editTarget?.constipation ?? null}
+        // 수면/변비 게이팅(hasSleepToday 등)이 신뢰 가능한 시점에만 단계 스냅샷을 뜨게 한다.
+        //   수정 모드는 editTarget 값으로 결정(로그 불필요)이라 항상 ready.
+        //   오늘 신규 입력은 오늘 로그 최소 1회 로드 후에만 ready(콜드스타트 알림 진입 시 중복 수면 방지).
+        gatingReady={editTarget ? true : (isToday ? bodyLogsLoadedOnce : !dateLogsLoading)}
         showSleep={
           editTarget
             ? editTarget.sleepScore !== undefined

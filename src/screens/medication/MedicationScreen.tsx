@@ -189,7 +189,7 @@ export function MedicationScreen() {
     loading: todayLoading,
     refresh,
   } = useMedication();
-  const { saveBodyState, todayLogs: bodyStateTodayLogs, refresh: refreshBodyState } = useBodyState();
+  const { saveBodyState, todayLogs: bodyStateTodayLogs, loadedOnce: bodyLogsLoadedOnce, refresh: refreshBodyState } = useBodyState();
   const insets = useSafeAreaInsets();
   const { unreadCount, refreshBadge } = useNotificationBadge();
   const dialog = useDialog();
@@ -1479,6 +1479,8 @@ export function MedicationScreen() {
         visible={showBodyStatePopup}
         onClose={() => { setShowBodyStatePopup(false); setSelectedMealTime(null); }}
         onSave={handleBodyStateSave}
+        // 오늘 몸상태 로그 최소 1회 로드 후에만 수면/변비 단계 스냅샷(콜드스타트 알림 진입 시 중복 수면 방지).
+        gatingReady={bodyLogsLoadedOnce}
         showSleep={
           isDoseSlotPatient
             // dose_slot 환자: 그날 수면 미기록(!hasSleepToday) 상태에서, 이 복용직후 기록의 약효추적
