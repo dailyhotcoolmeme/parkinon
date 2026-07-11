@@ -1243,7 +1243,7 @@
     "cannotHearMsg": "This reminder sound has no file to play.",
     "listenBtn": "Listen",
     "stopBtn": "Stop",
-    "testAlarmBtn": "Test as notification",
+    "testAlarmBtn": "Test alert",
     "silentModeHint": "Hear how it sounds as a real notification",
     "cannotTestTitle": "Can't test",
     "cannotTestMsg": "This reminder sound has no file to test.",

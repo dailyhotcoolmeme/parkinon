@@ -463,7 +463,7 @@ export function AlarmSoundSettingsScreen() {
                         {isPreparing ? (
                           <ActivityIndicator color={Colors.dark} />
                         ) : (
-                          <>
+                          <View style={styles.btnInner}>
                             <Ionicons
                               name={isPlaying ? 'stop' : 'play'}
                               size={20}
@@ -473,7 +473,7 @@ export function AlarmSoundSettingsScreen() {
                             <Text style={styles.playBtnText}>
                               {isPlaying ? t('alarmSound.stopBtn') : t('alarmSound.listenBtn')}
                             </Text>
-                          </>
+                          </View>
                         )}
                       </TouchableOpacity>
 
@@ -486,7 +486,7 @@ export function AlarmSoundSettingsScreen() {
                         {isTesting ? (
                           <ActivityIndicator color={Colors.textSub} />
                         ) : (
-                          <>
+                          <View style={styles.btnInner}>
                             <Ionicons
                               name="notifications"
                               size={20}
@@ -494,7 +494,7 @@ export function AlarmSoundSettingsScreen() {
                               style={styles.btnIcon}
                             />
                             <Text style={styles.testBtnText}>{t('alarmSound.testAlarmBtn')}</Text>
-                          </>
+                          </View>
                         )}
                       </TouchableOpacity>
                     </View>
@@ -617,6 +617,13 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     gap: 12,
     marginTop: 16,
+  },
+  // 아이콘+글자를 한 덩어리로 묶어 중앙 정렬 — 글자가 줄바꿈돼도 아이콘이 홀로 떨어지지 않게.
+  btnInner: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    flexShrink: 1,
   },
   btnIcon: {
     marginRight: 6,
