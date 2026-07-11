@@ -118,6 +118,42 @@ export function ProfileEditScreen() {
   const [saving, setSaving] = useState(false);
   const [patientId, setPatientId] = useState<string | null>(null);
 
+  // 계정 정보(읽기 전용) — supabase auth 에서 이메일·로그인 방식(provider) 조회. 수정 불가.
+  const [accountEmail, setAccountEmail] = useState<string | null>(null);
+  const [accountProvider, setAccountProvider] = useState<string | null>(null);
+  useEffect(() => {
+    let alive = true;
+    supabase.auth.getUser().then(({ data }) => {
+      if (!alive) return;
+      const au = data?.user;
+      setAccountEmail(au?.email ?? null);
+      const prov =
+        (au?.app_metadata as any)?.provider ??
+        (au?.identities && au.identities[0]?.provider) ??
+        null;
+      setAccountProvider(prov);
+    }).catch(() => {});
+    return () => { alive = false; };
+  }, []);
+
+  // provider 코드 → 표시 라벨(표준 명칭). 알 수 없으면 원문 그대로.
+  const providerLabel = (p: string | null): string => {
+    if (!p) return t('profileEdit.loginMethodUnknown');
+    const key = p.toLowerCase();
+    if (key === 'kakao') return t('profileEdit.loginKakao');
+    if (key === 'google') return t('profileEdit.loginGoogle');
+    if (key === 'apple') return t('profileEdit.loginApple');
+    return p;
+  };
+  // provider 아이콘(브랜드 마크 자산 없이 Ionicons 로 통일).
+  const providerIcon = (p: string | null): keyof typeof Ionicons.glyphMap => {
+    const key = (p || '').toLowerCase();
+    if (key === 'apple') return 'logo-apple';
+    if (key === 'google') return 'logo-google';
+    if (key === 'kakao') return 'chatbubble';
+    return 'person-circle-outline';
+  };
+
   // 초기 데이터 로딩 상태 — 폼이 기본값(1960/남자 등)으로 깜빡인 뒤 채워지는 것처럼 보이는 체감 지연을
   // 막기 위해 내 정보가 도착하기 전까지 스피너를 보여준다. (UX 개선 전용, 저장 로직과 무관)
   const [loading, setLoading] = useState(true);
@@ -472,6 +508,36 @@ export function ProfileEditScreen() {
         // iOS는 키보드 높이만큼 자동으로 하단 인셋을 잡아 입력칸이 가려지지 않게 함 (RN 0.70+)
         automaticallyAdjustKeyboardInsets={Platform.OS === 'ios'}
       >
+        {/* Section 0: 계정 정보 (읽기 전용 — 로그인 이메일·방식) */}
+        <View style={styles.card}>
+          <View style={styles.sectionHeader}>
+            <Ionicons name="shield-checkmark-outline" size={22} color={Colors.primary} />
+            <Text style={styles.sectionTitle}>{t('profileEdit.accountTitle')}</Text>
+          </View>
+
+          {/* 로그인 방식 */}
+          <Text style={styles.label}>{t('profileEdit.loginMethodLabel')}</Text>
+          <View style={styles.readonlyRow}>
+            <Ionicons
+              name={providerIcon(accountProvider)}
+              size={20}
+              color={Colors.textSub}
+              style={{ marginRight: 8 }}
+            />
+            <Text style={styles.readonlyValue}>{providerLabel(accountProvider)}</Text>
+          </View>
+
+          {/* 이메일 */}
+          <Text style={[styles.label, { marginTop: 20 }]}>{t('profileEdit.emailLabel')}</Text>
+          <View style={styles.readonlyRow}>
+            <Text style={styles.readonlyValue}>
+              {accountEmail || t('profileEdit.emailNone')}
+            </Text>
+          </View>
+
+          <Text style={styles.readonlyNote}>{t('profileEdit.accountReadonlyNote')}</Text>
+        </View>
+
         {/* Section 1: 내 정보 */}
         <View style={styles.card}>
           <View style={styles.sectionHeader}>
@@ -887,6 +953,28 @@ const styles = StyleSheet.create({
     fontSize: 22,
     color: Colors.text,
     backgroundColor: Colors.white,
+  },
+
+  // 읽기 전용 값 행(계정 정보) — 입력창과 달리 테두리 없이 회색 배경으로 "수정 불가"를 시각화.
+  readonlyRow: {
+    minHeight: 56,
+    flexDirection: 'row',
+    alignItems: 'center',
+    borderRadius: 12,
+    paddingHorizontal: 16,
+    paddingVertical: 12,
+    backgroundColor: Colors.light,
+  },
+  readonlyValue: {
+    flex: 1,
+    fontSize: 18,
+    color: Colors.text,
+    fontWeight: '600',
+  },
+  readonlyNote: {
+    fontSize: 14,
+    color: Colors.textSub,
+    marginTop: 12,
   },
 
   // Picker row (touchable)
