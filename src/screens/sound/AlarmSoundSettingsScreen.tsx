@@ -630,7 +630,7 @@ const styles = StyleSheet.create({
   },
   // 알림음 들어보기 (심플 — 설정 행 스타일 차용)
   playBtn: {
-    flex: 1,
+    flex: 2, // Listen 은 짧아 좁게, Test notification 에 여유(2:3 ≈ 40:60)
     minHeight: 54,
     borderRadius: 14,
     flexDirection: 'row',
@@ -683,7 +683,7 @@ const styles = StyleSheet.create({
 
   // 실제 알림 테스트 (심플 — 들어보기와 동일 높이·스타일)
   testBtn: {
-    flex: 1,
+    flex: 3, // Test notification 이 길어 더 넓게(2:3 ≈ 40:60)
     minHeight: 54,
     borderRadius: 14,
     flexDirection: 'row',
