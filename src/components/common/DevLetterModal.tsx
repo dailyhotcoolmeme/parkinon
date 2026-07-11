@@ -37,9 +37,16 @@ import { useTranslation } from 'react-i18next';
 import { isOverseasLocale } from '../../i18n/detectLocale';
 import { Colors } from '../../constants/colors';
 import { useSwipeDownDismiss } from '../../hooks/useSwipeDownDismiss';
+import { supabase } from '../../lib/supabase';
 
 // 기기 공용 1회성 플래그(로그아웃해도 유지 — USER_SCOPED_STORAGE_KEYS 에 넣지 않음).
 export const DEV_LETTER_DISMISSED_KEY = 'dev_letter_dismissed_v1';
+
+// 본문은 서버(dev_letter 테이블, parkinon.com/admin 에서 편집)에서 불러온다.
+// 아래 배열들은 서버 실패/빈 값일 때의 폴백(=마지막으로 알려진 원문)이다.
+// 서버 본문은 "빈 줄(문단 사이)" 기준으로 문단이 나뉜다.
+const splitParagraphs = (text: string): string[] =>
+  (text || '').split(/\n\s*\n/).map((s) => s.trim()).filter(Boolean);
 
 // 편지 본문(한글) — 원문 그대로(토씨/문단 구분 유지). 절대 임의 수정 금지.
 const LETTER_PARAGRAPHS: string[] = [
@@ -84,7 +91,29 @@ function DevLetterModalContent({ visible, onClose }: Props) {
   const insets = useSafeAreaInsets();
   // 삼성 3버튼 nav bar 환경에서 insets.bottom 이 0으로 잡히는 경우 fallback
   const bottomInset = insets.bottom > 0 ? insets.bottom : 24;
-  const paragraphs = isOverseasLocale() ? LETTER_PARAGRAPHS_EN : LETTER_PARAGRAPHS;
+  const overseas = isOverseasLocale();
+  // 서버 본문을 우선 사용하되, 로드 전/실패 시엔 폴백(하드코딩 원문)을 그대로 보여준다.
+  const [paragraphs, setParagraphs] = React.useState<string[]>(
+    overseas ? LETTER_PARAGRAPHS_EN : LETTER_PARAGRAPHS
+  );
+
+  React.useEffect(() => {
+    let alive = true;
+    // dev_letter 는 생성된 DB 타입에 아직 없어 any 캐스팅(런타임 조회엔 영향 없음).
+    (supabase as any)
+      .from('dev_letter')
+      .select('body_ko, body_en')
+      .eq('id', 1)
+      .single()
+      .then(({ data, error }: { data: any; error: any }) => {
+        if (!alive || error || !data) return;
+        const parsed = splitParagraphs(overseas ? (data as any).body_en : (data as any).body_ko);
+        if (parsed.length) setParagraphs(parsed);
+      });
+    return () => {
+      alive = false;
+    };
+  }, [overseas]);
 
   // 진입 애니메이션
   const fadeAnim = useRef(new Animated.Value(0)).current;
