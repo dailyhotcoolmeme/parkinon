@@ -794,7 +794,7 @@ export function PostDetailScreen() {
           <View style={styles.commentInputArea}>
             {replyingTo && (
               <View style={styles.replyingBanner}>
-                <Text style={styles.replyingText}>
+                <Text style={[styles.replyingText, { flex: 1 }]}>
                   {t('postDetail.replyingTo', { name: comments.find((c) => c.id === replyingTo)?.author })}
                 </Text>
                 <TouchableOpacity onPress={() => setReplyingTo(null)}>
@@ -935,11 +935,14 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     gap: 6,
+    flexShrink: 1,
+    minWidth: 0,
   },
   statLabel: {
     fontSize: 15,
     color: '#888888',
     fontWeight: '500',
+    flexShrink: 1,
   },
   statSep: {
     width: 1,

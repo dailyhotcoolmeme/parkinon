@@ -32,6 +32,7 @@ import {
   FlatList,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
+import { SlotTimeIcon } from '../common/SlotTimeIcon';
 import { Colors } from '../../constants/colors';
 import { supabase } from '../../lib/supabase';
 import { navigateTo } from '../../navigation/navigationRef';
@@ -49,7 +50,6 @@ import {
   slotSortValue,
   autoSlotLabel,
   labelContainsTime,
-  periodEmoji,
   LEGACY_SLOT_META,
 } from '../../constants/doseSlots';
 import { useSwipeDownDismiss } from '../../hooks/useSwipeDownDismiss';
@@ -192,10 +192,6 @@ function buildMainSentence(names: string[], offsets: number[]): {
   return { subject, particle, timing };
 }
 
-// ── 슬롯 이모지 — 시각대 기준 자동(시간대 단어와 동일 범위) ───────────────
-function slotEmoji(slot: DoseSlot): string {
-  return periodEmoji(slot.time);
-}
 
 // 시간대 단어(자동) + 시각(오전/오후 없이) — 예: '아침 8:00'. autoSlotLabel 이 그 형식.
 function slotTitle(slot: DoseSlot): string {
@@ -1102,7 +1098,7 @@ export function DoseSlotSetList({
             {/* ── 시각 제목 줄 (+ 우측 상단 수정 버튼) ── */}
             <View style={styles.slotHead}>
               <View style={[styles.slotEmoji, timeDim && styles.slotEmojiOff]}>
-                <Text style={styles.slotEmojiText}>{slotEmoji(slot)}</Text>
+                <SlotTimeIcon time={slot.time} size={30} />
               </View>
               <Text style={[styles.slotTime, timeDim && styles.slotTimeOff]}>
                 {slotTitle(slot)}

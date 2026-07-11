@@ -134,9 +134,9 @@ export function MedicalRecordDetailScreen() {
         apikey: SUPABASE_ANON_KEY,
         Authorization: `Bearer ${token}`,
       };
-      // 처방약 먼저 삭제
+      // 처방약 먼저 삭제 (FK 컬럼명은 medical_record_id — record_id 는 존재하지 않아 고아 레코드 유발했음)
       await fetch(
-        `${SUPABASE_URL}/rest/v1/medical_record_medications?record_id=eq.${recordId}`,
+        `${SUPABASE_URL}/rest/v1/medical_record_medications?medical_record_id=eq.${recordId}`,
         { method: 'DELETE', headers }
       );
       // 본 기록 삭제

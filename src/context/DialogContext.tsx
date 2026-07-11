@@ -255,23 +255,27 @@ function DialogHost({
   item: QueueItem | null;
   visible: boolean;
 }) {
-  if (!item) return null;
-
-  if (item.kind === 'toast') {
-    return <CenterToast message={item.message} visible={visible} />;
-  }
+  const dialogItem = item && item.kind === 'dialog' ? item : null;
+  const toastItem = item && item.kind === 'toast' ? item : null;
 
   return (
-    <AppDialog
-      visible={visible}
-      emoji={item.emoji}
-      title={item.title}
-      message={item.message}
-      buttons={item.buttons}
-      cancelable={item.cancelable}
-      animationType={item.animationType}
-      onDismiss={item.onDismiss}
-    />
+    <>
+      {toastItem && <CenterToast message={toastItem.message} visible={visible} />}
+      {/* ⚠️ AppDialog(Modal)는 항상 마운트 유지 — 예전엔 `if(!item) return null`로 다이얼로그가
+          닫히는 애니메이션 도중 언마운트됐는데, iOS는 이때 모달 뷰가 화면에 남아 그 아래 터치를
+          영구히 막는다(종 아이콘 등 "어쩔때 눌러도 무반응, 재시작해야 풀림"의 근본원인). 표시는
+          오직 visible 로만 제어해, 마운트/언마운트가 닫힘 애니와 겹치지 않게 한다. */}
+      <AppDialog
+        visible={visible && !!dialogItem}
+        emoji={dialogItem?.emoji}
+        title={dialogItem?.title}
+        message={dialogItem?.message}
+        buttons={dialogItem?.buttons ?? []}
+        cancelable={dialogItem?.cancelable ?? false}
+        animationType={dialogItem?.animationType ?? 'fade'}
+        onDismiss={dialogItem?.onDismiss ?? (() => {})}
+      />
+    </>
   );
 }
 

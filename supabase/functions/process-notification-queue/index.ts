@@ -12,8 +12,8 @@ const INTERVAL_LABELS: Record<number, string> = {
 }
 const INTERVAL_LABELS_EN: Record<number, string> = {
   0: 'right after taking',
-  30: '30 min later',
-  120: '2 hr later',
+  30: '30 minutes after',
+  120: '2 hours after',
 }
 
 // legacy 4슬롯 라벨 fallback. dose_slot.label 이 있으면 그 값을 우선 사용.
@@ -167,10 +167,10 @@ function getIntervalLabel(minutes: number): string {
 /** getIntervalLabel 영어판 */
 function getIntervalLabelEn(minutes: number): string {
   if (INTERVAL_LABELS_EN[minutes]) return INTERVAL_LABELS_EN[minutes]
-  if (minutes < 60) return `${minutes} min later`
+  if (minutes < 60) return `${minutes} minutes after`
   const h = Math.floor(minutes / 60)
   const rem = minutes % 60
-  return rem === 0 ? `${h} hr later` : `${h} hr ${rem} min later`
+  return rem === 0 ? `${h} hours after` : `${h} hours ${rem} minutes after`
 }
 
 // ─── iOS 커스텀 알림음(가족 목소리) ──────────────────────────────────────────
@@ -308,11 +308,11 @@ Deno.serve(async (_req: Request) => {
       const intervalLabelEn = getIntervalLabelEn(item.interval_minutes)
       bodyText = headEn
         ? (isImmediate
-            ? `${headEn} — log your body state right after taking your medication.`
-            : `${headEn} — log your body state ${intervalLabelEn} taking your medication.`)
+            ? `${headEn} — Record your body state right after taking your medication.`
+            : `${headEn} — Record your body state ${intervalLabelEn} taking your medication.`)
         : (isImmediate
-            ? 'Log your body state right after taking your medication.'
-            : `Log your body state ${intervalLabelEn} taking your medication.`)
+            ? 'Record your body state right after taking your medication.'
+            : `Record your body state ${intervalLabelEn} taking your medication.`)
     } else {
       const head = resolvePeriodHead(doseSlot, item.meal_time) // "저녁 6:00" 또는 ''
       // 간격이 0(복용 직후)이면 "복용약 드신 직후", 그 외(분/시간)는 "복용약의 {N분 후}".

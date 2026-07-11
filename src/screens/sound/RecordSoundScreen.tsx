@@ -9,6 +9,7 @@ import {
   ScrollView,
   Platform,
   Modal,
+  Linking,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
@@ -91,10 +92,14 @@ export function RecordSoundScreen() {
       // 마이크 권한 요청
       const perm = await Audio.requestPermissionsAsync();
       if (!perm.granted) {
-        dialog.alert({
+        // 이미 거부된 상태면 iOS는 재요청 팝업이 안 뜨므로 설정으로 바로 안내(안 그러면 무반응처럼 보임).
+        const ok = await dialog.confirm({
           title: t('recordSound.micPermTitle'),
           message: t('recordSound.micPermMsg'),
+          confirmText: t('recordSound.micPermOpenSettings'),
+          cancelText: t('common.cancel'),
         });
+        if (ok) Linking.openSettings().catch(() => {});
         return;
       }
 
@@ -497,13 +502,10 @@ export function RecordSoundScreen() {
       </KeyboardAvoidingView>
 
       {/* 녹음 팝업 — 준비('녹음 시작') → 녹음/중지 → 들어보기·저장까지 한 팝업에서 */}
-      <Modal
-        visible={recordOpen}
-        transparent
-        animationType="fade"
-        statusBarTranslucent
-        onRequestClose={closeRecorder}
-      >
+      {/* ⚠️ Modal이 아니라 전체화면 오버레이 View — 녹음 실패/마이크 권한 안내(dialog=Modal)가 이 위에
+          정상 표시되게 한다(Modal 중첩 방지). Modal이었을 땐 권한거부·녹음에러 안내가 iOS에서 안 떠
+          "녹음 버튼이 안 먹는" 것처럼 보였다(오너 보고). */}
+      {recordOpen && (
         <View style={styles.recOverlay}>
           <View style={styles.recCard}>
             {phase === 'recording' ? (
@@ -594,7 +596,7 @@ export function RecordSoundScreen() {
             )}
           </View>
         </View>
-      </Modal>
+      )}
 
       {/* 이름 입력 팝업 — 저장 시 가운데 모달로 입력(키보드 위로 뜸) */}
       <Modal
@@ -867,7 +869,9 @@ const styles = StyleSheet.create({
 
   // 녹음 팝업
   recOverlay: {
-    flex: 1,
+    ...StyleSheet.absoluteFillObject,
+    zIndex: 1000,
+    elevation: 1000,
     backgroundColor: 'rgba(0,0,0,0.5)',
     justifyContent: 'center',
     alignItems: 'center',

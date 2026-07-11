@@ -481,11 +481,12 @@ export function MenuScreen() {
           </TouchableOpacity>
         )}
 
+        {/* 광고 (해외+free 전용) — 구독 슬롯 바로 아래·기록 섹션 위. 페이지 진입 즉시 노출되도록. */}
+        <AdSlot placement="more" />
+
         {/* 섹션별 메뉴 */}
         {menuSections.map((section, sIdx) => (
           <View key={section.title}>
-            {/* 광고: 첫 번째 섹션과 두 번째 섹션 사이 (해외+free 전용) */}
-            {sIdx === 1 && <AdSlot placement="more" />}
             <View style={styles.sectionHeader}>
               <Text style={styles.sectionHeaderText}>{t(section.title).toUpperCase()}</Text>
             </View>

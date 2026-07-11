@@ -61,7 +61,12 @@ export function AdSlot({ placement }: { placement: AdPlacement }) {
         {/* NativeAdView(네이티브 뷰)는 자체 borderRadius/overflow가 안 먹으므로,
             일반 View(cardClip)로 감싸 부모가 둥근 모서리로 클립하게 한다(안드 핵심). */}
         <View style={styles.cardClip}>
+          {/* ⚠️ iOS: NativeAdView(네이티브 GADNativeAdView)는 RN의 padding 스타일을 무시해
+              내용이 박스 가장자리에 붙고 오른쪽 하단으로 치우친다(안드는 적용됨). → 패딩을
+              네이티브 뷰가 아니라 내부 일반 <View>(innerPad)에 줘서 양 플랫폼 동일하게 적용한다.
+              width:100% 로 네이티브 뷰가 폭을 꽉 채우게 강제. */}
           <NativeAdView nativeAd={nativeAd} style={styles.cardInner}>
+          <View style={styles.innerPad}>
           <View style={styles.row}>
             {!!nativeAd.icon?.url && (
               <NativeAsset assetType={NativeAssetType.ICON}>
@@ -88,6 +93,7 @@ export function AdSlot({ placement }: { placement: AdPlacement }) {
                 </View>
               </NativeAsset>
             )}
+          </View>
           </View>
           </NativeAdView>
         </View>
@@ -125,11 +131,13 @@ const styles = StyleSheet.create({
     borderColor: Colors.border,
     elevation: 2,
   },
-  // NativeAdView — 클립은 부모가 하므로 여기선 패딩만
+  // NativeAdView(네이티브 뷰) — iOS는 여기 padding 이 안 먹으므로 폭만 꽉 채우고 배경만.
   cardInner: {
-    padding: 12,
+    width: '100%',
     backgroundColor: Colors.white,
   },
+  // 실제 안쪽 여백은 일반 View 에 준다(iOS·안드 동일 적용).
+  innerPad: { width: '100%', padding: 12 },
   row: { flexDirection: 'row', alignItems: 'center', gap: 10 },
   icon: { width: 44, height: 44, borderRadius: 8, backgroundColor: '#EEE' },
   textCol: { flex: 1 },

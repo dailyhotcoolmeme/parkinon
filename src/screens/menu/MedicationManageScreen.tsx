@@ -20,6 +20,7 @@ import {
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useFocusEffect, useNavigation, useRoute, type RouteProp } from '@react-navigation/native';
 import { Ionicons } from '@expo/vector-icons';
+import { SlotTimeIcon } from '../../components/common/SlotTimeIcon';
 import * as ImagePicker from 'expo-image-picker';
 import { useTranslation } from 'react-i18next';
 import { Colors } from '../../constants/colors';
@@ -39,7 +40,6 @@ import {
   labelToLegacyKey,
   normalizeHhmm,
   slotTitle,
-  periodEmoji,
   type LegacyMealKey,
 } from '../../constants/doseSlots';
 import {
@@ -51,6 +51,7 @@ import {
   type DoseSlot,
 } from '../../hooks/useDoseSlots';
 import { DoseSlotSetList } from '../../components/settings/DoseSlotSetList';
+import { navigateTo } from '../../navigation/navigationRef';
 import { AdSlot } from '../../components/common/AdSlot';
 import { AlarmSoundOption } from '../../components/common/AlarmSoundPickerRow';
 import {
@@ -84,9 +85,6 @@ const TIME_SLOTS: { key: TimeSlot; label: string; emoji: string; defaultTime: st
   });
 
 // 슬롯 좌측 이미지(이모지) — 시각대 기준 자동(공용 periodEmoji, 시간대 단어와 동일 범위).
-function slotEmojiFor(slot: DoseSlot): string {
-  return periodEmoji(slot.time);
-}
 
 type MealSchedules = Partial<Record<TimeSlot, string>>;
 
@@ -2160,8 +2158,15 @@ export function MedicationManageScreen({ modeOverride, hideBack, hideTopBar, onG
   //  - slots 모드(복용 시간·알림): 약 등록은 "내 약"에서 → 이 함수는 "내 약" 메뉴로 이동시킴.
   const handleRegisterPress = async () => {
     if (!isMedsMode) {
-      // 슬롯 뷰에서 등록 요청(약 넣기 빈 상태 등) → "내 약" 메뉴로 이동.
-      navigation.navigate('MedicationManage', { mode: 'meds' });
+      // 슬롯 뷰에서 등록 요청(약 넣기 빈 상태 등) → "내 약"으로 이동.
+      // ⚠️ 해외판(OverseasMedTabScreen)처럼 이 화면이 임베디드된 경우 raw navigate('MedicationManage')는
+      //    현재 탭 네비게이터에 그 라우트가 없어 무반응이다. onGoRegisterMeds(로컬 탭 전환)를 우선 쓰고,
+      //    없을 때만 루트 기준 전역 네비게이션으로 항상 도달 가능하게 한다.
+      if (onGoRegisterMeds) {
+        onGoRegisterMeds();
+        return;
+      }
+      navigateTo('Main', { screen: 'MyInfo', params: { screen: 'MedicationManage', params: { mode: 'meds' } } });
       return;
     }
     // 내 약 메뉴: 처방전 OCR. (직접 입력 폼은 화면에 상시 노출돼 있음)
@@ -2696,7 +2701,9 @@ export function MedicationManageScreen({ modeOverride, hideBack, hideTopBar, onG
           </Text>
           <TouchableOpacity
             style={styles.linkFamilyBtn}
-            onPress={() => navigation.navigate('FamilyLink')}
+            // 해외판 임베디드에서 raw navigate('FamilyLink')는 현재 탭에 그 라우트가 없어 무반응 →
+            // 루트 기준 전역 네비게이션(MyInfo 탭의 FamilyLink)으로 항상 도달.
+            onPress={() => navigateTo('Main', { screen: 'MyInfo', params: { screen: 'FamilyLink' } })}
             activeOpacity={0.85}
           >
             <Ionicons name="person-add-outline" size={22} color={Colors.white} />
@@ -2763,7 +2770,7 @@ export function MedicationManageScreen({ modeOverride, hideBack, hideTopBar, onG
                       {/* 좌측 이미지 + 슬롯명·시간 + 수정/삭제(아이콘만) */}
                       <View style={styles.slotCardHead}>
                         <View style={styles.slotHeadEmoji}>
-                          <Text style={styles.slotHeadEmojiText}>{slotEmojiFor(slot)}</Text>
+                          <SlotTimeIcon time={slot.time} size={30} />
                         </View>
                         <Text style={styles.slotCardTitle}>
                           {slotTitle(slot.label, slot.legacyKey, slot.time)}
@@ -3307,13 +3314,11 @@ export function MedicationManageScreen({ modeOverride, hideBack, hideTopBar, onG
         </View>
       )}
 
-      {/* 시간·알림 수정 (DoseSlotSetList 재사용) — 단일 슬롯/전체 관리 편집(비-addOnly) */}
-      <Modal
-        visible={slotAlarmEditVisible && !slotAlarmAddOnly}
-        transparent
-        animationType="slide"
-        onRequestClose={closeSlotAlarmEdit}
-      >
+      {/* 시간·알림 수정 (DoseSlotSetList 재사용) — 단일 슬롯/전체 관리 편집(비-addOnly)
+          ⚠️ iOS Modal 중첩 방지: 이 시트가 Modal이면 그 안의 "알림음 선택"(AlarmSoundPickerRow=Modal)이
+             Modal-on-Modal이 되어 앱이 굳는다(오너 재현: choose alert sound 열고 멈춤).
+             Modal 대신 전체화면 오버레이 View로 띄워, 위에 뜨는 피커 Modal이 유일한 Modal이 되게 한다. */}
+      {slotAlarmEditVisible && !slotAlarmAddOnly && (
         <View style={dmStyles.editOverlay}>
           <View style={dmStyles.editSheet}>
             {/* 전체 관리 진입에서만 헤더 표시. 단일 슬롯 수정은 카드 제목 줄에 닫기를 둠(중복 제거). */}
@@ -3354,7 +3359,7 @@ export function MedicationManageScreen({ modeOverride, hideBack, hideTopBar, onG
             </ScrollView>
           </View>
         </View>
-      </Modal>
+      )}
 
       {/* OCR 결과 확인 바텀시트 */}
       <Modal
@@ -3607,7 +3612,8 @@ export function MedicationManageScreen({ modeOverride, hideBack, hideTopBar, onG
 
 // 시간·알림 수정(DoseSlotSetList) 모달 스타일
 const dmStyles = StyleSheet.create({
-  editOverlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.45)', justifyContent: 'flex-end' },
+  // Modal이 아니라 화면 트리에 직접 마운트되는 전체화면 오버레이 → absolute fill(형제 레이아웃 안 밀림).
+  editOverlay: { ...StyleSheet.absoluteFillObject, backgroundColor: 'rgba(0,0,0,0.45)', justifyContent: 'flex-end', zIndex: 1000, elevation: 1000 },
   // 추가 전용 진입 — 관리 모달 껍데기 없이 시간 시트(TimePickerSheet=Modal)만 띄우는
   // 빈 투명 호스트. 이제 Modal 안이 아니라 화면 트리에 직접 마운트되므로, 본문 ScrollView
   // 등 형제 레이아웃을 밀지 않도록 absolute fill + box-none(터치 통과)로 둔다.

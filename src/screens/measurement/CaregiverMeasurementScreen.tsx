@@ -152,6 +152,17 @@ export function CaregiverMeasurementScreen() {
     };
   }, [routePatientId, user?.patient_group_id]); // patientName 의도적 제외(루프 방지)
 
+  // 로딩이 비정상적으로 오래 걸리면(supabase-js PostgREST의 RN 새 아키텍처 hang 등)
+  // 무한 스피너에 갇히지 않게 15초 후 에러로 빠져나온다.
+  useEffect(() => {
+    if (!loading) return;
+    const to = setTimeout(() => {
+      setErrorMsg((prev) => prev ?? '불러오는 데 시간이 너무 오래 걸려요. 잠시 후 다시 시도해 주세요.');
+      setLoading(false);
+    }, 15000);
+    return () => clearTimeout(to);
+  }, [loading]);
+
   // ── 통계 로딩 ─────────────────────────────────────────────────────
   const loadStats = useCallback(async (uid: string) => {
     // 헬퍼: 한 type의 SectionStats 산출

@@ -15,6 +15,7 @@ import i18n from '../../i18n';
 import { useFocusEffect, useRoute, useNavigation, RouteProp } from '@react-navigation/native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { Ionicons } from '@expo/vector-icons';
+import { SlotTimeIcon } from '../../components/common/SlotTimeIcon';
 import { Colors } from '../../constants/colors';
 import { AdSlot } from '../../components/common/AdSlot';
 import { TopBar } from '../../components/common/TopBar';
@@ -22,7 +23,7 @@ import { MealTimeModal } from './MealTimeModal';
 import { BodyStatePopupFlow } from '../bodystate/BodyStatePopupFlow';
 import { CaregiverConfirmModal } from '../../components/common/CaregiverConfirmModal';
 import { NOTIF_ONBOARDING_SHOWN_KEY } from '../../components/common/NotificationOnboardingModal';
-import { DevLetterModal, DEV_LETTER_DISMISSED_KEY } from '../../components/common/DevLetterModal';
+import { DevLetterModal, shouldShowDevLetter } from '../../components/common/DevLetterModal';
 import { KAKAO_OPEN_CHAT_URL } from '../../constants/links';
 import { useMedication } from '../../hooks/useMedication';
 import { useBodyState } from '../../hooks/useBodyState';
@@ -49,7 +50,6 @@ import {
   LEGACY_KEY_TO_LABEL,
   formatSlotTime,
   slotTitle,
-  periodEmoji,
   slotSortValue,
   translateRawSlotLabel,
   type LegacyMealKey,
@@ -65,8 +65,8 @@ type MealTime = 'morning' | 'lunch' | 'dinner' | 'bedtime';
 interface MedicationStatus {
   id: string; // 카드 key: dose_slot id(이관) 또는 legacy meal_time 키(미이관)
   label: string;
-  /** 시간대 이모지 — 슬롯 시각 기준(공용 periodEmoji, 약효추적과 동일 6구간). */
-  emoji: string;
+  /** 슬롯 시각(HH:MM) — 시간대 아이콘(SlotTimeIcon)용. */
+  slotTime: string | null;
   time: string;
   /** 라벨이 이미 시각을 포함(비표준 추가 슬롯) → 예정 줄에서 시각 중복 표기 생략. */
   labelHasTime?: boolean;
@@ -315,11 +315,13 @@ export function MedicationScreen() {
       //   이미 이번 실행에서 띄웠으면(탭 재마운트) 또는 다시 보지 않기 상태면 → 바로 가족 안내.
       if (!devLetterShownThisSession) {
         devLetterShownThisSession = true;
-        let dismissed = false;
+        // '다시 보지 않기' 전까지 매 실행 노출. 단, admin '강제 팝업 띄우기'(popup_version↑) 시엔
+        //   이미 닫은 사람도 한 번 더 노출된다(shouldShowDevLetter 내부에서 버전 비교).
+        let show = false;
         try {
-          dismissed = (await AsyncStorage.getItem(DEV_LETTER_DISMISSED_KEY)) === '1';
+          show = await shouldShowDevLetter();
         } catch {}
-        if (!dismissed) {
+        if (show) {
           setShowDevLetter(true);
           return; // 가족 안내는 편지 닫힘 콜백(onClose)에서 호출
         }
@@ -1174,8 +1176,8 @@ export function MedicationScreen() {
     const log = key ? activeStatus[key] : null;
     // 라벨: 설정 화면(slotTitle)과 동일하게 이름+시각 인라인 → "아침 오전 6:00", "밤 11:00".
     const label = slotTitle(slot.label, slot.legacyKey, slot.time);
-    // 시간대 이모지(슬롯 시각 기준) — 설정/약관리 슬롯과 동일한 공용 매핑.
-    const emoji = periodEmoji(slot.time);
+    // 시간대 아이콘용 원본 시각(HH:MM).
+    const slotTime = slot.time;
     const labelHasTime = true; // 시각이 라벨에 포함되므로 시각을 별도로 표시하지 않음
     // 시각: 슬롯 time(HH:MM) → '오전 H:MM'
     const timeStr = formatSlotTime(slot.time);
@@ -1183,8 +1185,8 @@ export function MedicationScreen() {
     const cardId = (slot.id ?? slot.legacyKey ?? `${slot.time}-${idx}`) as any;
 
     return log
-      ? { id: cardId, label, emoji, time: timeStr, labelHasTime, taken: true, takenAt: formatTakenAt(log.taken_at), medLogId: log.id }
-      : { id: cardId, label, emoji, time: timeStr, labelHasTime, taken: false };
+      ? { id: cardId, label, slotTime, time: timeStr, labelHasTime, taken: true, takenAt: formatTakenAt(log.taken_at), medLogId: log.id }
+      : { id: cardId, label, slotTime, time: timeStr, labelHasTime, taken: false };
   });
 
   // 오늘 모든 활성 슬롯 복용 완료 여부 (4슬롯 가정 제거, N개 every)
@@ -1299,10 +1301,10 @@ export function MedicationScreen() {
                     style={styles.cardIcon}
                   />
                   <View style={styles.cardBody}>
-                    <Text style={styles.cardLabel}>
-                      <Text style={styles.cardLabelEmoji}>{item.emoji} </Text>
-                      {t('medication.cardMedLabel', { label: item.label })}
-                    </Text>
+                    <View style={styles.cardLabelRow}>
+                      <SlotTimeIcon time={item.slotTime} size={28} />
+                      <Text style={styles.cardLabel}>{t('medication.cardMedLabel', { label: item.label })}</Text>
+                    </View>
                     <Text style={styles.cardTime}>
                       {item.taken
                         ? t('medication.cardTaken', { time: item.takenAt })
@@ -1638,6 +1640,7 @@ const styles = StyleSheet.create({
   cardBody: { flex: 1 },
   cardLabel: { fontSize: 20, fontWeight: '600', color: Colors.text, marginBottom: 3 },
   cardLabelEmoji: { fontSize: 20 },
+  cardLabelRow: { flexDirection: 'row', alignItems: 'center', gap: 5 },
   cardTime: { fontSize: 17, color: Colors.textSub },
   /* 복용 기록 취소 버튼 — 테두리 없이 차분하게(연한 회색). 기능은 유지, 시각적으로만 눈에 덜 띄게 */
   cardCancelBtn: {
@@ -1956,7 +1959,9 @@ async function fetchNextNotifMessage(
 
 function NextNotifModal({ visible, info, onClose }: { visible: boolean; info: NextNotifInfo | null; onClose: () => void }) {
   const { t } = useTranslation();
-  if (!visible || !info) return null;
+  // ⚠️ visible 로는 언마운트하지 않는다(info 만 가드) — 닫힐 때 Modal 애니 도중 언마운트 시 iOS 에서
+  //    모달 뷰가 남아 다음 팝업/버튼 터치를 막는다. Modal 은 항상 마운트, visible 로만 토글.
+  if (!info) return null;
 
   return (
     <Modal visible={visible} transparent animationType="fade" statusBarTranslucent onRequestClose={onClose}>

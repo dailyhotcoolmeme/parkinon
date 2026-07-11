@@ -735,28 +735,30 @@ const styles = StyleSheet.create({
     borderBottomWidth: 1,
     borderBottomColor: '#F0F0F0',
   },
+  // 전역 필터칩 표준 = 영상목록 필터(오너 확정). 5개 등폭이라 padH만 작게.
   subTab: {
     flex: 1,
-    height: 34,
-    borderRadius: 17,
+    paddingVertical: 8,
+    paddingHorizontal: 8,
+    borderRadius: 20,
     borderWidth: 1.5,
-    borderColor: '#DDDDDD',
-    backgroundColor: Colors.white,
+    borderColor: Colors.border,
+    backgroundColor: Colors.background,
     alignItems: 'center',
     justifyContent: 'center',
   },
   subTabActive: {
     borderColor: Colors.primary,
-    backgroundColor: '#E8F5E9',
+    backgroundColor: Colors.primary,
   },
   subTabText: {
-    fontSize: 15,
-    fontWeight: '500',
-    color: '#666666',
+    fontSize: 16,
+    fontWeight: '600',
+    color: Colors.textSub,
   },
   subTabTextActive: {
-    fontWeight: '700',
-    color: '#2E7D32',
+    fontWeight: '600',
+    color: Colors.white,
   },
 
   /* ── BBS 리스트 행 ── */

@@ -40,6 +40,8 @@ import { useSwipeDownDismiss } from '../../hooks/useSwipeDownDismiss';
 import { supabase } from '../../lib/supabase';
 
 // 기기 공용 1회성 플래그(로그아웃해도 유지 — USER_SCOPED_STORAGE_KEYS 에 넣지 않음).
+// 값에는 "마지막으로 '다시 보지 않기' 한 시점의 popup_version"(숫자 문자열)을 저장한다.
+// (구버전은 '1' 을 저장했는데 popup_version 기본값이 1 이라 그대로 호환된다.)
 export const DEV_LETTER_DISMISSED_KEY = 'dev_letter_dismissed_v1';
 
 // 본문은 서버(dev_letter 테이블, parkinon.com/admin 에서 편집)에서 불러온다.
@@ -47,6 +49,37 @@ export const DEV_LETTER_DISMISSED_KEY = 'dev_letter_dismissed_v1';
 // 서버 본문은 "빈 줄(문단 사이)" 기준으로 문단이 나뉜다.
 const splitParagraphs = (text: string): string[] =>
   (text || '').split(/\n\s*\n/).map((s) => s.trim()).filter(Boolean);
+
+// 서버의 현재 강제-노출 버전을 읽는다. 실패 시 fallback 반환.
+async function fetchPopupVersion(fallback: number): Promise<number> {
+  try {
+    const { data, error } = await (supabase as any)
+      .from('dev_letter')
+      .select('popup_version')
+      .eq('id', 1)
+      .single();
+    if (error || !data || typeof data.popup_version !== 'number') return fallback;
+    return data.popup_version;
+  } catch {
+    return fallback;
+  }
+}
+
+// 개발자 일기 팝업을 이번에 띄울지 결정.
+//  - 한 번도 닫지 않았으면(저장값 없음) → 항상 노출(기존 동작 유지).
+//  - '다시 보지 않기' 한 적이 있어도, 그 버전 < 서버 popup_version 이면 다시 노출
+//    (= admin '강제 팝업 띄우기'). 이후 다시 '다시 보지 않기' 를 누르면 최신 버전이 저장돼 다시 숨겨진다.
+//  - 서버 조회 실패 시엔 강제하지 않는다(닫은 사람은 계속 숨김).
+export async function shouldShowDevLetter(): Promise<boolean> {
+  let stored: string | null = null;
+  try {
+    stored = await AsyncStorage.getItem(DEV_LETTER_DISMISSED_KEY);
+  } catch {}
+  if (stored === null) return true; // 한 번도 닫은 적 없음
+  const dismissedVersion = parseInt(stored, 10) || 1;
+  const serverVersion = await fetchPopupVersion(dismissedVersion);
+  return dismissedVersion < serverVersion;
+}
 
 // 편지 본문(한글) — 원문 그대로(토씨/문단 구분 유지). 절대 임의 수정 금지.
 const LETTER_PARAGRAPHS: string[] = [
@@ -96,19 +129,24 @@ function DevLetterModalContent({ visible, onClose }: Props) {
   const [paragraphs, setParagraphs] = React.useState<string[]>(
     overseas ? LETTER_PARAGRAPHS_EN : LETTER_PARAGRAPHS
   );
+  // 닫을 때 저장할 현재 서버 버전(강제 재노출 기준). 조회 실패 시 기존 저장값을 유지하도록 null.
+  const popupVersionRef = useRef<number | null>(null);
 
   React.useEffect(() => {
     let alive = true;
     // dev_letter 는 생성된 DB 타입에 아직 없어 any 캐스팅(런타임 조회엔 영향 없음).
     (supabase as any)
       .from('dev_letter')
-      .select('body_ko, body_en')
+      .select('body_ko, body_en, popup_version')
       .eq('id', 1)
       .single()
       .then(({ data, error }: { data: any; error: any }) => {
         if (!alive || error || !data) return;
         const parsed = splitParagraphs(overseas ? (data as any).body_en : (data as any).body_ko);
         if (parsed.length) setParagraphs(parsed);
+        if (typeof (data as any).popup_version === 'number') {
+          popupVersionRef.current = (data as any).popup_version;
+        }
       });
     return () => {
       alive = false;
@@ -122,7 +160,9 @@ function DevLetterModalContent({ visible, onClose }: Props) {
   // 스와이프 다운 닫기(저장 안 함) — 핸들 영역에만 부착해 본문 스크롤과 충돌 방지
   const finalize = (save: boolean) => {
     if (save) {
-      AsyncStorage.setItem(DEV_LETTER_DISMISSED_KEY, '1').catch(() => {});
+      // '다시 보지 않기': 현재 서버 버전을 저장한다. 조회 전이었다면 최소 1 을 저장(기존 동작 동일).
+      const v = popupVersionRef.current ?? 1;
+      AsyncStorage.setItem(DEV_LETTER_DISMISSED_KEY, String(v)).catch(() => {});
     }
     onClose();
   };

@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useRef } from 'react';
 import {
   View,
   Text,
@@ -261,6 +261,14 @@ export function ExerciseDurationScreen() {
   const [nextNotifInfo, setNextNotifInfo] = useState<ExNextNotifInfo | null>(null);
   const [savedExerciseName, setSavedExerciseName] = useState('');
   const [savedDuration, setSavedDuration] = useState(0);
+  // 저장 후 후속 동작(다음알림 모달 / 완료·오류 알림)을 저장 오버레이가 완전히 사라진 뒤
+  // 단독 present 하기 위해 보관한다. iOS는 닫히는 Modal 위에 새 Modal을 못 띄워(적층 교착)
+  // 오버레이와 같은 tick에 모달을 열면 표시되지 않아 화면이 멈춘다(BodyStateScreen과 동일 패턴).
+  const pendingAfterSaveRef = useRef<
+    | { kind: 'next'; info: ExNextNotifInfo | null }
+    | { kind: 'alert'; title?: string; message?: string; thenReset: boolean }
+    | null
+  >(null);
 
   const handleSave = async () => {
     if (!selected) {
@@ -284,23 +292,30 @@ export function ExerciseDurationScreen() {
       // 멈춘 것처럼 보이는 상황을 막기 위해 반드시 해제한다.
       setSaving(false);
     }
+    // 후속 동작은 여기서 바로 present하지 않고 ref에 담아둔다 → 저장 오버레이가 사라진 뒤
+    // onHidden에서 단독 present(iOS Modal 적층 교착 회피). 이게 없으면 iOS에서 다음알림
+    // 모달/완료알림이 안 떠 확인·화면전환이 막혀 ExerciseDuration에 그대로 멈춘다.
     if (success) {
       refreshBadge().catch(() => {});
       setSavedExerciseName(exerciseName);
       setSavedDuration(selected);
       if (info) {
-        setNextNotifInfo(info);
-        setShowNextNotifModal(true);
-        return;
+        pendingAfterSaveRef.current = { kind: 'next', info };
+      } else {
+        pendingAfterSaveRef.current = {
+          kind: 'alert',
+          title: t('exercise.savedTitle'),
+          message: t('exercise.savedMsg', { name: exerciseName, duration: formatDuration(selected) }),
+          thenReset: true,
+        };
       }
-      // 알림 없으면 바로 완료 알림
-      await dialog.alert({
-        title: t('exercise.savedTitle'),
-        message: t('exercise.savedMsg', { name: exerciseName, duration: formatDuration(selected) }),
-      });
-      navigation.reset({ index: 0, routes: [{ name: 'ExerciseMain' }] });
     } else {
-      dialog.alert({ title: t('common.error'), message: t('exercise.saveErrorMsg') });
+      pendingAfterSaveRef.current = {
+        kind: 'alert',
+        title: t('common.error'),
+        message: t('exercise.saveErrorMsg'),
+        thenReset: false,
+      };
     }
   };
 
@@ -357,6 +372,26 @@ export function ExerciseDurationScreen() {
         visible={saving}
         title={t('exercise.savingTitle')}
         minVisibleMs={500}
+        // 스피너 Modal이 완전히 사라진 뒤에만 후속 모달/알림을 단독 present(두 Modal 적층 불가 → 멈춤 0).
+        onHidden={() => {
+          const p = pendingAfterSaveRef.current;
+          pendingAfterSaveRef.current = null;
+          if (!p) return;
+          if (p.kind === 'next') {
+            if (p.info) {
+              setNextNotifInfo(p.info);
+              setShowNextNotifModal(true);
+            } else {
+              navigation.reset({ index: 0, routes: [{ name: 'ExerciseMain' }] });
+            }
+            return;
+          }
+          // kind === 'alert' — 완료(→ 확인 후 reset) 또는 오류(머무름)
+          const thenReset = p.thenReset;
+          dialog.alert({ title: p.title, message: p.message }).then(() => {
+            if (thenReset) navigation.reset({ index: 0, routes: [{ name: 'ExerciseMain' }] });
+          });
+        }}
       />
     </SafeAreaView>
   );

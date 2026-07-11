@@ -256,7 +256,7 @@ Deno.serve(async (req: Request) => {
       })
     }
 
-    const patientTitle = patientIsEn ? '💊 Medication not yet taken' : '💊 약을 아직 안 드셨어요'
+    const patientTitle = patientIsEn ? '💊 Missed dose' : '💊 약을 아직 안 드셨어요'
     const patientBody = patientIsEn
       ? missedBodyEn((slot as any).label, (slot as any).time)
       : missedBody((slot as any).label, (slot as any).time)
@@ -291,7 +291,7 @@ Deno.serve(async (req: Request) => {
           const prefs = (cu.caregiver_notif_prefs ?? {}) as Record<string, boolean>
           if (prefs.med_missed === false) continue
           const cuIsEn = (cu as any).language === 'en'
-          const cgTitle = cuIsEn ? '💊 Missed medication' : '💊 약을 아직 안 드셨어요'
+          const cgTitle = cuIsEn ? '💊 Missed dose' : '💊 약을 아직 안 드셨어요'
           const cgBody = cuIsEn
             ? caregiverMissedBodyEn(subjectEn, (slot as any).label, (slot as any).time)
             : caregiverMissedBody(subject, (slot as any).label, (slot as any).time)
@@ -356,7 +356,7 @@ Deno.serve(async (req: Request) => {
     if (logs?.length) continue
 
     const patientIsEn = (patient as any).language === 'en'
-    const patientTitle = patientIsEn ? '💊 Medication not yet taken' : '💊 약을 아직 안 드셨어요'
+    const patientTitle = patientIsEn ? '💊 Missed dose' : '💊 약을 아직 안 드셨어요'
     const patientBody = patientIsEn
       ? missedBodyEn(MEAL_LABELS[meal_time!], LEGACY_MEAL_DEFAULT_TIME[meal_time!])
       : missedBody(MEAL_LABELS[meal_time!], LEGACY_MEAL_DEFAULT_TIME[meal_time!])
@@ -391,7 +391,7 @@ Deno.serve(async (req: Request) => {
           const subject = patientName ? `${patientName}님` : '환자분'
           const subjectEn = patientName || 'The patient'
           const cuIsEn = (cu as any).language === 'en'
-          const cgTitle = cuIsEn ? '💊 Missed medication' : '💊 약을 아직 안 드셨어요'
+          const cgTitle = cuIsEn ? '💊 Missed dose' : '💊 약을 아직 안 드셨어요'
           // 구 경로: meal_time → 라벨 + 기본 시각으로 {시간대} {시각} 구성.
           const cgBody = cuIsEn
             ? caregiverMissedBodyEn(subjectEn, MEAL_LABELS[meal_time!], LEGACY_MEAL_DEFAULT_TIME[meal_time!])

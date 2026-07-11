@@ -266,13 +266,16 @@ export function FamilyCheckScreen() {
   // ── 질문 화면 ───────────────────────────────────────────────────────────────
   return (
     <SafeAreaView style={styles.container}>
-      {/* 상단 뒤로가기 */}
-      <View style={styles.header}>
-        <TouchableOpacity style={styles.backBtn} onPress={() => navigation.goBack()} activeOpacity={0.7}>
-          <Text style={styles.backIcon}>←</Text>
-          <Text style={styles.backText}>{t('common.back')}</Text>
-        </TouchableOpacity>
-      </View>
+      {/* 상단 뒤로가기 — 온보딩 첫 화면(.replace 진입)이라 돌아갈 스택이 없으면 무반응이므로
+          되돌아갈 곳이 있을 때만 노출(죽은 버튼 제거). 하단 "닫기"(로그아웃)로 이탈 가능. */}
+      {navigation.canGoBack() ? (
+        <View style={styles.header}>
+          <TouchableOpacity style={styles.backBtn} onPress={() => navigation.goBack()} activeOpacity={0.7}>
+            <Text style={styles.backIcon}>←</Text>
+            <Text style={styles.backText}>{t('common.back')}</Text>
+          </TouchableOpacity>
+        </View>
+      ) : null}
 
       <ScrollView
         contentContainerStyle={styles.contentScroll}

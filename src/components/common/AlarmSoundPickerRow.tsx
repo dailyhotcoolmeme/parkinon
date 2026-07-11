@@ -15,6 +15,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Colors } from '../../constants/colors';
 import { useSwipeDownDismiss } from '../../hooks/useSwipeDownDismiss';
 import { resolveMediaUrl } from '../../lib/r2Get';
+import { navigateTo } from '../../navigation/navigationRef';
 import { useTranslation } from 'react-i18next';
 
 export interface AlarmSoundOption {
@@ -105,6 +106,15 @@ export function AlarmSoundPickerRow({ soundId, sounds, onSelect, backgroundColor
     setOpen(false);
   };
 
+  // 녹음한 알림음이 없을 때 → 알림음 녹음/관리 화면으로 바로 이동(시트 닫고).
+  const goToSoundSettings = () => {
+    close();
+    navigateTo('Main', { screen: 'MyInfo', params: { screen: 'AlarmSoundSettings' } });
+  };
+
+  // 미리듣기할 수 있는(=녹음된) 알림음이 하나라도 있을 때만 "미리듣기" 안내를 노출.
+  const hasPreviewable = sounds.some((s) => !!s.previewUrl);
+
   // 시트에서 항목 탭 = 임시 선택만(즉시 적용 X). 적용은 '완료'에서.
   const handleSelect = (sid: string | null) => setPendingId(sid);
   // 완료: 임시 선택을 실제 적용. 닫기: 적용 안 하고 닫음.
@@ -176,7 +186,11 @@ export function AlarmSoundPickerRow({ soundId, sounds, onSelect, backgroundColor
             <View style={styles.handle} />
 
             <Text style={styles.sheetTitle}>{t('alarmSoundPicker.pickTitle')}</Text>
-            <Text style={styles.sheetSub}>{t('alarmSoundPicker.pickSub')}</Text>
+            {hasPreviewable ? (
+              <Text style={styles.sheetSub}>{t('alarmSoundPicker.pickSub')}</Text>
+            ) : (
+              <View style={{ height: 16 }} />
+            )}
 
             <ScrollView
               style={styles.list}
@@ -243,10 +257,14 @@ export function AlarmSoundPickerRow({ soundId, sounds, onSelect, backgroundColor
               })}
 
               {sounds.length === 0 && (
-                <Text style={styles.empty}>
-                  {t('alarmSoundPicker.emptyLine1')}{'\n'}
-                  {t('alarmSoundPicker.emptyLine2')}
-                </Text>
+                <View style={styles.emptyWrap}>
+                  <Text style={styles.empty}>{t('alarmSoundPicker.emptyLine1')}</Text>
+                  {/* 글로만 안내하지 말고 해당 메뉴로 바로 보낸다(작은 텍스트 링크 금지 → 버튼). */}
+                  <TouchableOpacity style={styles.emptyCtaBtn} activeOpacity={0.85} onPress={goToSoundSettings}>
+                    <Ionicons name="mic-outline" size={18} color={Colors.white} />
+                    <Text style={styles.emptyCtaText}>{t('alarmSoundPicker.goToSettings')}</Text>
+                  </TouchableOpacity>
+                </View>
               )}
             </ScrollView>
 
@@ -402,12 +420,30 @@ const styles = StyleSheet.create({
     color: Colors.white,
   },
 
+  emptyWrap: {
+    alignItems: 'center',
+    paddingVertical: 24,
+    gap: 16,
+  },
   empty: {
     fontSize: 17,
     color: Colors.textSub,
     lineHeight: 25,
     textAlign: 'center',
-    paddingVertical: 24,
+  },
+  emptyCtaBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    backgroundColor: Colors.primary,
+    borderRadius: 14,
+    paddingHorizontal: 18,
+    paddingVertical: 12,
+  },
+  emptyCtaText: {
+    fontSize: 16,
+    fontWeight: '700',
+    color: Colors.white,
   },
   // 닫기·완료 한 줄
   btnRow: {

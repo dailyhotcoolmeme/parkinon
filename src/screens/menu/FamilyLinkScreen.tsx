@@ -556,7 +556,9 @@ const styles = StyleSheet.create({
   emptyContainer: {
     alignItems: 'center',
     paddingTop: 48,
-    paddingHorizontal: 8,
+    // paddingHorizontal 제거 — 이게 있으면 안의 초대/코드입력 버튼(width:100%)이 아래 설명 박스
+    //   (famGuideBox, scrollContent 직속)보다 좌우 8px씩 좁아져 폭이 안 맞았다. scrollContent(padding 20)
+    //   기준으로 버튼과 설명 박스가 같은 폭이 되도록 여기선 가로 여백을 두지 않는다.
   },
   emptyIconWrap: {
     width: 120,

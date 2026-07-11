@@ -14,10 +14,8 @@ import {
   View,
   Text,
   StyleSheet,
-  Modal,
   Image,
   Vibration,
-  Platform,
   useWindowDimensions,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
@@ -110,15 +108,14 @@ export function BrandProgressOverlay({
       return;
     }
     if (prev && !effectiveVisible) {
-      if (Platform.OS === 'android') {
-        const t = setTimeout(() => {
-          if (!hiddenFiredRef.current) {
-            hiddenFiredRef.current = true;
-            onHiddenRef.current?.();
-          }
-        }, 350);
-        return () => clearTimeout(t);
-      }
+      // 이제 Modal이 아니라 View라 onDismiss가 없으므로 양 플랫폼 모두 폴백 타이머로 onHidden 1회 보장.
+      const t = setTimeout(() => {
+        if (!hiddenFiredRef.current) {
+          hiddenFiredRef.current = true;
+          onHiddenRef.current?.();
+        }
+      }, 200);
+      return () => clearTimeout(t);
     }
   }, [effectiveVisible]);
 
@@ -223,20 +220,13 @@ export function BrandProgressOverlay({
     transform: [{ scale: 0.6 + check.value * 0.4 }],
   }));
 
+  // ⚠️ 더 이상 <Modal> 이 아니다 — 로딩 오버레이가 Modal이면 iOS에서 dialog(AppDialog=Modal)와
+  //    적층 충돌해 "안 보이는 오버레이가 남아 스크롤이 막히는" 멈춤을 유발했다(오너 보고·잦음,
+  //    MedicationScreen 주석에도 문서화됨). 전체화면 절대배치 View로 바꾸면 dialog(Modal)는 이 위에
+  //    정상 표시되고, 스피너와 다이얼로그가 꼬여 잔류하는 일이 원천적으로 없다.
+  if (!effectiveVisible) return null;
   return (
-    <Modal
-      visible={effectiveVisible}
-      transparent
-      animationType="fade"
-      statusBarTranslucent
-      // iOS 전용: 모달이 완전히 dismiss된 뒤 호출 → 이 위에 다른 Modal을 올려도 적층되지 않음
-      onDismiss={() => {
-        if (!hiddenFiredRef.current) {
-          hiddenFiredRef.current = true;
-          onHiddenRef.current?.();
-        }
-      }}
-    >
+    <View style={styles.fullscreen} pointerEvents="auto">
       <View style={styles.backdrop}>
         <Animated.View style={[styles.card, cardStyle]}>
           {/* 심볼 펄스 / 완료 시 체크 서클 */}
@@ -305,11 +295,14 @@ export function BrandProgressOverlay({
           )}
         </Animated.View>
       </View>
-    </Modal>
+    </View>
   );
 }
 
 const styles = StyleSheet.create({
+  // 전체화면 절대배치 오버레이(구 Modal). 화면 위를 덮고 터치를 막되, 위에 뜨는 dialog(Modal)는
+  // 정상 표시되게 한다(Modal은 항상 일반 View보다 위 레이어).
+  fullscreen: { ...StyleSheet.absoluteFillObject, zIndex: 9999, elevation: 9999 },
   backdrop: {
     flex: 1,
     alignItems: 'center',

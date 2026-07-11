@@ -8,6 +8,7 @@ import {
   Animated,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
+import { SlotTimeIcon, slotIconMeta } from '../../components/common/SlotTimeIcon';
 import { useTranslation } from 'react-i18next';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Colors } from '../../constants/colors';
@@ -41,32 +42,13 @@ interface MealOption {
   time: string;                // 'HH:MM'
   /** 라벨이 이미 시각을 포함(비표준 추가 슬롯) → 아래 시각 줄을 따로 표시하지 않음(중복 방지). */
   labelHasTime: boolean;
-  icon: IoniconName;
   color: string;
   notifOn: boolean;
 }
 
-// dose_slot.legacyKey → 아이콘/색. 비표준 슬롯은 시간대 기반 기본값.
-function slotIcon(slot: DoseSlot): { icon: IoniconName; color: string } {
-  if (slot.legacyKey) {
-    const meta = LEGACY_SLOT_META[slot.legacyKey];
-    return { icon: meta.icon as IoniconName, color: meta.color };
-  }
-  // 비표준 슬롯: 시각으로 대략 아이콘 추정.
-  // 오너 확정 6구간(doseSlots.periodWord)과 일치 — 15시는 낮(해)이지 달이 아니다.
-  // (이전엔 h<21 까지 'moon-outline'이라 15시 같은 낮 시각도 달로 떴음)
-  const h = parseInt(slot.time.split(':')[0] ?? '0', 10);
-  if (h < 6) return { icon: 'moon-outline', color: '#5C6BC0' };          // 새벽 0–5
-  if (h < 11) return { icon: 'sunny-outline', color: '#FF9800' };        // 아침 6–10
-  if (h < 13) return { icon: 'sunny-outline', color: '#4CAF50' };        // 점심 11–12
-  if (h < 17) return { icon: 'partly-sunny-outline', color: '#FFB300' }; // 오후 13–16 (15시=해)
-  if (h < 21) return { icon: 'cloudy-night-outline', color: '#FB8C00' }; // 저녁 17–20
-  return { icon: 'moon-outline', color: '#5E35B1' };                     // 밤 21–23
-}
-
 function buildOptions(slots: DoseSlot[]): MealOption[] {
   return slots.map((slot) => {
-    const { icon, color } = slotIcon(slot);
+    const { color } = slotIconMeta(slot.time);
     // 라벨: 설정 화면(DoseSlotSetList)과 동일한 slotTitle(이름+시각) 사용 → 명칭 일치.
     //   표준 "아침 오전 6:00 약", 비표준 "밤 11:00 약". 시각이 이름에 포함되므로 별도 표시 안 함.
     const title = slotTitle(slot.label, slot.legacyKey, slot.time);
@@ -78,7 +60,6 @@ function buildOptions(slots: DoseSlot[]): MealOption[] {
       label: title,
       time: slot.time,
       labelHasTime: true,
-      icon,
       color,
       notifOn: slot.remindEnabled,
     };
@@ -153,7 +134,7 @@ export function MealTimeModal({ visible, onSelect, onClose, mealSchedules, notif
                   disabled={!selectable}
                 >
                   <View style={[styles.iconCircle, { backgroundColor: iconColor + '22' }]}>
-                    <Ionicons name={opt.icon} size={30} color={iconColor} />
+                    <SlotTimeIcon time={opt.time} size={34} color={selectable ? undefined : '#AAAAAA'} />
                   </View>
                   <View style={styles.optionText}>
                     {/* 기록 시트에서는 알림 ON/OFF로 슬롯을 흐리게(dim) 하지 않는다.

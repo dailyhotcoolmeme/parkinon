@@ -19,6 +19,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { Colors } from '../../constants/colors';
 import { AdSlot } from '../../components/common/AdSlot';
 import { TopBar } from '../../components/common/TopBar';
+import { SlotTimeIcon } from '../../components/common/SlotTimeIcon';
 import { BodyStatePopupFlow } from './BodyStatePopupFlow';
 import { CaregiverConfirmModal } from '../../components/common/CaregiverConfirmModal';
 import { DatePickerModal } from '../../components/common/DatePickerModal';
@@ -150,14 +151,15 @@ const PERIOD_COLOR: Record<string, string> = {
   '취침': '#7C4DFF',
 };
 
-const PERIOD_ICON: Record<string, string> = {
-  '새벽': '🌌',
-  '아침': '🌅',
-  '점심': '☀️',
-  '오후': '🌤️',
-  '저녁': '🌆',
-  '밤': '🌙',
-  '취침': '💤',
+// 시간대 키 → 대표 시각(HH). SlotTimeIcon 도형(해/달) 종류 결정용 — slotIconMeta 구간과 1:1.
+const PERIOD_TIME: Record<string, string> = {
+  '새벽': '03:00',  // 초승달
+  '아침': '08:00',  // 뜨는 해
+  '점심': '12:00',  // 꽉 찬 해
+  '오후': '15:00',  // 꽉 찬 해
+  '저녁': '19:00',  // 뜨는 초승달
+  '밤': '22:00',    // 초승달
+  '취침': '23:00',  // 초승달
 };
 
 // 배지 배경: 섹션 색상의 연한 버전
@@ -1676,23 +1678,25 @@ function RecordRow({
     }}>
       {/* 트리거 배지 + 시간(좌) / 수정·삭제 아이콘(우) */}
       <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 }}>
-        {/* 배지 + 시간 — 시간은 배지 바로 오른쪽에 붙임 */}
-        <View style={{ flexDirection: 'row', alignItems: 'center' }}>
+        {/* 배지 + 시간 — 시간은 배지 바로 오른쪽에 붙임. flex:1 로 남는 폭을 차지하되
+            영어 긴 트리거(예: "right after taking")면 배지가 줄고 텍스트는 …생략 → 우측 아이콘이 안 밀림. */}
+        <View style={{ flexDirection: 'row', alignItems: 'center', flex: 1, marginRight: 8 }}>
           <View style={{
             backgroundColor: badgeBg,
             borderRadius: 20,
             paddingHorizontal: 14,
             paddingVertical: 5,
+            flexShrink: 1,
           }}>
             <Text style={{ fontSize: 17, fontWeight: '700', color: badgeText }}>
               {record.trigger}
             </Text>
           </View>
-          <Text style={{ fontSize: 16, color: '#999', marginLeft: 10 }}>{record.time}</Text>
+          <Text style={{ fontSize: 16, color: '#999', marginLeft: 10, flexShrink: 0 }}>{record.time}</Text>
         </View>
         {/* 수정/삭제 아이콘 — 오른쪽 유지(알림 설정과 동일 아이콘) */}
         {canCancel && (
-          <View style={{ flexDirection: 'row', alignItems: 'center' }}>
+          <View style={{ flexDirection: 'row', alignItems: 'center', flexShrink: 0 }}>
             <TouchableOpacity
               style={styles.recordIconBtn}
               onPress={() => onEdit(record)}
@@ -1715,17 +1719,17 @@ function RecordRow({
 
       {/* 점수 한 줄 — 이모지 + 점수 | 구분 */}
       <View style={{ flexDirection: 'row', alignItems: 'center', flexWrap: 'wrap' }}>
-        <Text style={{ fontSize: 18, color: scoreColor(record.bodyScore) }}>
+        <Text style={[styles.scoreText, { color: scoreColor(record.bodyScore) }]}>
           {t('bodystate.scoreBody', { score: record.bodyScore })} {scoreEmoji(record.bodyScore)}
         </Text>
         {sep}
-        <Text style={{ fontSize: 18, color: scoreColor(record.moodScore) }}>
+        <Text style={[styles.scoreText, { color: scoreColor(record.moodScore) }]}>
           {t('bodystate.scoreMood', { score: record.moodScore })} {scoreEmoji(record.moodScore)}
         </Text>
         {record.sleepScore !== undefined && (
           <>
             {sep}
-            <Text style={{ fontSize: 18, color: scoreColor(record.sleepScore) }}>
+            <Text style={[styles.scoreText, { color: scoreColor(record.sleepScore) }]}>
               {t('bodystate.scoreSleep', { score: record.sleepScore })} {scoreEmoji(record.sleepScore)}
             </Text>
           </>
@@ -1733,7 +1737,7 @@ function RecordRow({
         {record.constipation !== undefined && (
           <>
             {sep}
-            <Text style={{ fontSize: 18, color: record.constipation ? '#B71C1C' : '#2E7D32' }}>
+            <Text style={[styles.scoreText, { color: record.constipation ? '#B71C1C' : '#2E7D32' }]}>
               {record.constipation ? t('bodystate.constipationHas') : t('bodystate.constipationNone')}
             </Text>
           </>
@@ -1763,7 +1767,7 @@ function MealSectionCard({
   const { t } = useTranslation();
   // 색·아이콘은 시간대 키(period) 기준 유지, 표시 텍스트만 displayTitle
   const color = PERIOD_COLOR[period] ?? '#888';
-  const icon = PERIOD_ICON[period] ?? '🕐';
+  const iconTime = PERIOD_TIME[period] ?? '12:00';
   const title = displayTitle ?? period;
 
   return (
@@ -1789,13 +1793,17 @@ function MealSectionCard({
         flexDirection: 'row',
         alignItems: 'flex-start',
       }}>
-        <Text style={{ fontSize: 20, width: 28, flexShrink: 0 }}>{icon}</Text>
+        {/* 행은 flex-start(줄바꿈 정렬용)이라 아이콘은 첫 줄 높이(약 30)에 맞춰 세로 중앙 정렬.
+            가로는 flex-start로 왼쪽 붙여 슬롯들끼리 아이콘 왼쪽선을 맞춘다. */}
+        <View style={{ width: 34, height: 30, flexShrink: 0, justifyContent: 'center', alignItems: 'flex-start', marginRight: 8 }}>
+          <SlotTimeIcon time={iconTime} size={28} color="#fff" />
+        </View>
         {/* marginLeft(개별 여백) 대신 gap 사용 — marginLeft는 줄바뀜으로 그 항목이 새 줄
             맨 앞으로 가도 그대로 붙어있어 둘째 줄이 한 칸 밀려 보이는 원인이었다(오너 재지적, 2026-07-05).
             gap은 같은 줄 안의 항목 사이에만 여백을 주고, 새 줄 맨 앞 항목엔 안 붙는다. */}
         <View style={{ flex: 1, flexDirection: 'row', alignItems: 'center', flexWrap: 'wrap', gap: 8 }}>
-          <Text style={{ fontSize: 20, fontWeight: '700', color: '#fff', flexShrink: 1 }}>{title}</Text>
-          <Text style={{ fontSize: 20, fontWeight: '700', color: '#fff' }}>
+          <Text style={styles.hdrTitle}>{title}</Text>
+          <Text style={styles.hdrEffect}>
             {t('bodystate.effectTracking')}
           </Text>
           <View style={{
@@ -1804,7 +1812,7 @@ function MealSectionCard({
             borderRadius: 14,
             backgroundColor: 'rgba(255,255,255,0.25)',
           }}>
-            <Text style={{ fontSize: 16, fontWeight: '700', color: '#fff' }}>
+            <Text style={styles.hdrCount}>
               {t('bodystate.countUnit', { n: records.length })}
             </Text>
           </View>
@@ -1828,6 +1836,12 @@ function MealSectionCard({
 
 const styles = StyleSheet.create({
   safeArea: { flex: 1, backgroundColor: Colors.background },
+
+  // 시간대 섹션 헤더 텍스트 — StyleSheet 경유라 해외(en) 0.88 축소가 자동 적용된다(인라인이면 미적용).
+  hdrTitle: { fontSize: 20, fontWeight: '700', color: '#fff', flexShrink: 1 },
+  hdrEffect: { fontSize: 20, fontWeight: '700', color: '#fff' },
+  hdrCount: { fontSize: 16, fontWeight: '700', color: '#fff' },
+  scoreText: { fontSize: 18 },
 
   dateHeader: {
     height: DATE_HEADER_H,
@@ -2331,7 +2345,9 @@ async function fetchNextNotifMessage(
 
 function NextNotifModal({ visible, info, onClose }: { visible: boolean; info: NextNotifInfo | null; onClose: () => void }) {
   const { t } = useTranslation();
-  if (!visible || !info) return null;
+  // ⚠️ visible 로는 언마운트하지 않는다(info 만 가드). 닫힐 때 Modal 을 애니 도중 언마운트하면
+  //    iOS 에서 모달 뷰가 남아 다음 팝업/버튼 터치를 막는다. Modal 은 항상 마운트, visible 로만 토글.
+  if (!info) return null;
 
   const minutesText = formatDurationKo(info.minutesLeft);
 

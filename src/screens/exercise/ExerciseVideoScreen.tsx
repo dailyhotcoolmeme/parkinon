@@ -181,13 +181,15 @@ const styles = StyleSheet.create({
     paddingVertical: 10,
     gap: 8,
   },
+  // 전역 필터칩 표준 = 영상목록 필터(오너 확정).
   tabBtn: {
     flex: 1,
-    paddingVertical: 14,
+    paddingVertical: 8,
+    paddingHorizontal: 8,
     borderRadius: 20,
     borderWidth: 1.5,
     borderColor: Colors.border,
-    backgroundColor: Colors.white,
+    backgroundColor: Colors.background,
     alignItems: 'center',
     justifyContent: 'center',
   },
@@ -196,8 +198,8 @@ const styles = StyleSheet.create({
     backgroundColor: Colors.primary,
   },
   tabLabel: {
-    fontSize: 18,
-    fontWeight: '700',
+    fontSize: 16,
+    fontWeight: '600',
     color: Colors.textSub,
   },
   tabLabelActive: { color: Colors.white },

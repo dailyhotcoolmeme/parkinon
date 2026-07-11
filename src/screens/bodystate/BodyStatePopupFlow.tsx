@@ -131,6 +131,21 @@ export function BodyStatePopupFlow({
     }
   }, [visible]);
 
+  // 팝업이 열리는 "그 순간"의 단계 구성(수면·변비 노출 여부)을 스냅샷으로 고정한다.
+  //   부모(BodyStateScreen)의 showSleep/showConstipation 은 activeLogs·displaySlots 재조회 등으로
+  //   팝업이 열려 있는 동안에도 바뀔 수 있어, 그대로 쓰면 단계 카운터(1/3 → 2/2)와 흐름이 도중에
+  //   흔들린다. 열림 전환 시점에 한 번 캡처해 흐름 내내 고정한다.
+  const openedRef = useRef(false);
+  const stepShowRef = useRef<{ sleep: boolean; constipation: boolean }>({ sleep: showSleep, constipation: showConstipation });
+  if (visible && !openedRef.current) {
+    openedRef.current = true;
+    stepShowRef.current = { sleep: showSleep, constipation: showConstipation };
+  } else if (!visible && openedRef.current) {
+    openedRef.current = false;
+  }
+  const stepSleep = stepShowRef.current.sleep;
+  const stepConstipation = stepShowRef.current.constipation;
+
   const animateStepIn = () => {
     contentSlide.setValue(32);
     contentOpacity.setValue(0);
@@ -152,11 +167,11 @@ export function BodyStatePopupFlow({
     if (currentStep === 'body') {
       setStep('mood'); setTimeout(animateStepIn, 0);
     } else if (currentStep === 'mood') {
-      if (showSleep) { setStep('sleep'); setTimeout(animateStepIn, 0); }
-      else if (showConstipation) { setStep('constipation'); setTimeout(animateStepIn, 0); }
+      if (stepSleep) { setStep('sleep'); setTimeout(animateStepIn, 0); }
+      else if (stepConstipation) { setStep('constipation'); setTimeout(animateStepIn, 0); }
       else tryFinalize(currentStep);
     } else if (currentStep === 'sleep') {
-      if (showConstipation) { setStep('constipation'); setTimeout(animateStepIn, 0); }
+      if (stepConstipation) { setStep('constipation'); setTimeout(animateStepIn, 0); }
       else tryFinalize(currentStep);
     } else if (currentStep === 'constipation') {
       tryFinalize(currentStep);
@@ -171,8 +186,8 @@ export function BodyStatePopupFlow({
   };
 
   const orderedSteps: Step[] = ['body', 'mood'];
-  if (showSleep) orderedSteps.push('sleep');
-  if (showConstipation) orderedSteps.push('constipation');
+  if (stepSleep) orderedSteps.push('sleep');
+  if (stepConstipation) orderedSteps.push('constipation');
   const currentIndex = orderedSteps.indexOf(step);
 
   const handleNextPress = () => {

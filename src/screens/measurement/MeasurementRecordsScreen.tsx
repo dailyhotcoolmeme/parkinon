@@ -752,24 +752,24 @@ const styles = StyleSheet.create({
     paddingBottom: 12,
     backgroundColor: Colors.background,
   },
+  // 전역 필터칩 표준 = 영상목록 필터(오너 확정). 활성색은 인라인 accent 유지.
   tabBtn: {
     flex: 1,
-    minHeight: 56,
     alignItems: 'center',
     justifyContent: 'center',
-    paddingVertical: 12,
+    paddingVertical: 8,
     paddingHorizontal: 12,
-    borderRadius: 14,
-    borderWidth: 2,
+    borderRadius: 20,
+    borderWidth: 1.5,
     borderColor: Colors.border,
-    backgroundColor: Colors.white,
+    backgroundColor: Colors.background,
   },
   tabBtnActive: {
     // 활성 탭은 인라인으로 accent 색상 적용
   },
   tabBtnText: {
-    fontSize: 18,
-    fontWeight: '700',
+    fontSize: 16,
+    fontWeight: '600',
     color: Colors.textSub,
   },
   tabBtnTextActive: {
@@ -945,21 +945,21 @@ const styles = StyleSheet.create({
     gap: 6,
     marginBottom: 12,
   },
+  // 전역 필터칩 표준 = 영상목록 필터(오너 확정).
   phaseBtn: {
     flex: 1,
-    minHeight: 48,
     alignItems: 'center',
     justifyContent: 'center',
-    paddingHorizontal: 4,
-    paddingVertical: 10,
-    borderRadius: 10,
+    paddingHorizontal: 8,
+    paddingVertical: 8,
+    borderRadius: 20,
     borderWidth: 1.5,
     borderColor: Colors.border,
-    backgroundColor: Colors.white,
+    backgroundColor: Colors.background,
   },
   phaseBtnText: {
     fontSize: 16,
-    fontWeight: '700',
+    fontWeight: '600',
     color: Colors.textSub,
   },
   phaseBtnTextActive: {

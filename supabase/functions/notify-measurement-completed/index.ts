@@ -232,7 +232,7 @@ Deno.serve(async (req) => {
     // 4) 보호자 push_token + caregiver_notif_prefs 일괄 조회
     const { data: caregiverUsers, error: cuErr } = await supabase
       .from('users')
-      .select('id, push_token, caregiver_notif_prefs, notification_enabled')
+      .select('id, push_token, caregiver_notif_prefs, notification_enabled, language')
       .in('id', caregiverIds);
 
     if (cuErr) {
@@ -246,9 +246,7 @@ Deno.serve(async (req) => {
       );
     }
 
-    // 5) 발송
-    const title = `🖐️ ${patientName}님이 컨디션 측정을 했어요`;
-    const bodyText = '오늘 측정 결과를 확인해보세요.';
+    // 5) 발송 — 수신 보호자 언어(ko/en)별 문구 분기(다른 알림 함수와 동일 패턴).
     const payload = {
       type: 'measurement_completed',
       measurement_type: measurementType,
@@ -279,6 +277,14 @@ Deno.serve(async (req) => {
         skipped += 1;
         continue;
       }
+
+      const isEn = (cu as any)?.language === 'en';
+      const title = isEn
+        ? `🖐️ ${patientName} did a condition measurement`
+        : `🖐️ ${patientName}님이 컨디션 측정을 했어요`;
+      const bodyText = isEn
+        ? "Check today's measurement results."
+        : '오늘 측정 결과를 확인해보세요.';
 
       await sendPush(token, title, bodyText, payload);
       await logNotification((cu as any).id, title, bodyText, payload);

@@ -138,7 +138,7 @@ async function processBucket(rows: ApptRow[] | null, kind: 'week' | 'day') {
 
     const isEn = (patient as any).language === 'en'
     const tz = (patient as any).timezone || 'Asia/Seoul'
-    const title = isEn ? '🏥 Visit reminder' : '🏥 진료 일정 알림'
+    const title = isEn ? '🏥 Appointment reminder' : '🏥 진료 일정 알림'
     const body = isEn
       ? (() => {
           const hosp = appt.hospital_name?.trim() || 'your appointment'

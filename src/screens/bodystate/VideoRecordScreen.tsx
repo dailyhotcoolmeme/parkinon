@@ -167,44 +167,58 @@ export function VideoRecordScreen() {
     if (!selectedVideo || !user) return;
     cancelledRef.current = false;
     setLoading(true);
-    setUploadStage('compressing');
+
+    // 환자·하루한도 체크는 업로드 오버레이(Modal) 표시 전에 먼저 수행한다.
+    // 오버레이가 떠 있는 상태에서 안내 다이얼로그를 열면 iOS Modal 적층 교착으로
+    // 다이얼로그가 안 떠 "저장 눌러도 무반응"처럼 보인다.
+    let patientId: string | null = null;
     try {
-      const patientId = await getPatientId();
-      if (!patientId) {
-        dialog.alert({ title: t('videoRecord.errorTitle'), message: t('videoRecord.noPatientLinkMsg') });
-        setUploadStage(null);
+      patientId = await getPatientId();
+    } catch {
+      patientId = null;
+    }
+    if (!patientId) {
+      setLoading(false);
+      dialog.alert({ title: t('videoRecord.errorTitle'), message: t('videoRecord.noPatientLinkMsg') });
+      return;
+    }
+
+    // 그룹 하루 영상 풀(일기 영상 포함 2개) 게이팅 — 국내·해외 동일. 해외 premium 만 무제한.
+    const overseasVR = isOverseasLocale();
+    if (!(overseasVR && isPremium)) {
+      let over = false;
+      try {
+        const usage = await countTodayGroupMedia(patientId, user.timezone);
+        over = usage.video >= FREE_DAILY_LIMITS.video;
+      } catch {
+        over = false; // 카운트 실패 시 저장은 진행(서버 정책이 최종 방어)
+      }
+      if (over) {
         setLoading(false);
+        if (overseasVR) {
+          // 해외: 구독 유도
+          dialog
+            .confirm({
+              title: t('videoRecord.quotaReachedTitle'),
+              message: t('videoRecord.quotaVideoMsg'),
+              confirmText: t('subscription.upgradeBtn'),
+              cancelText: t('common.cancel'),
+            })
+            .then((ok) => { if (ok) navigateTo('Main', { screen: 'MyInfo', params: { screen: 'SubscriptionManage' } }); });
+        } else {
+          // 국내: 결제 문구 없이 담백하게
+          dialog.alert({
+            title: t('videoRecord.quotaReachedTitlePlain'),
+            message: t('videoRecord.quotaVideoPlainMsg'),
+          });
+        }
         return;
       }
+    }
 
-      // 그룹 하루 영상 풀(일기 영상 포함 2개) 게이팅 — 국내·해외 동일. 해외 premium 만 무제한.
-      const overseasVR = isOverseasLocale();
-      if (!(overseasVR && isPremium)) {
-        const usage = await countTodayGroupMedia(patientId, user.timezone);
-        if (usage.video >= FREE_DAILY_LIMITS.video) {
-          if (overseasVR) {
-            // 해외: 구독 유도
-            dialog
-              .confirm({
-                title: t('videoRecord.quotaReachedTitle'),
-                message: t('videoRecord.quotaVideoMsg'),
-                confirmText: t('subscription.upgradeBtn'),
-                cancelText: t('common.cancel'),
-              })
-              .then((ok) => { if (ok) navigateTo('Main', { screen: 'MyInfo', params: { screen: 'SubscriptionManage' } }); });
-          } else {
-            // 국내: 결제 문구 없이 담백하게
-            dialog.alert({
-              title: t('videoRecord.quotaReachedTitlePlain'),
-              message: t('videoRecord.quotaVideoPlainMsg'),
-            });
-          }
-          setUploadStage(null);
-          setLoading(false);
-          return;
-        }
-      }
-
+    // 여기서부터 실제 업로드 — 이제 오버레이(Modal) 표시.
+    setUploadStage('compressing');
+    try {
       // 영상 압축 (720p H.264, ~1500kbps)
       let videoUri = selectedVideo.uri;
       try {
@@ -553,7 +567,10 @@ function UploadOverlay({
     : t('videoRecord.minSecDuration', { m: Math.floor(elapsed / 60), s: elapsed % 60 });
 
   return (
-    <Modal transparent visible animationType="fade">
+    // ⚠️ Modal이 아니라 전체화면 오버레이 View — 이 컴포넌트는 stage=null이면 언마운트되는데,
+    //    Modal이면 닫힘 애니 도중 언마운트돼 iOS에서 모달 뷰가 남아 터치를 막는다(간헐 무반응).
+    //    View는 언마운트가 깔끔하고, 위에 뜨는 에러 dialog(Modal)도 정상 표시된다.
+    <View style={ovStyles.overlayRoot}>
       <View style={ovStyles.backdrop}>
         <View style={ovStyles.card}>
           {isDone ? (
@@ -620,11 +637,12 @@ function UploadOverlay({
           )}
         </View>
       </View>
-    </Modal>
+    </View>
   );
 }
 
 const ovStyles = StyleSheet.create({
+  overlayRoot: { ...StyleSheet.absoluteFillObject, zIndex: 1000, elevation: 1000 },
   backdrop: {
     flex: 1,
     backgroundColor: 'rgba(17,17,17,0.32)',

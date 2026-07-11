@@ -101,6 +101,11 @@ export function MainNavigator() {
             <Text
               allowFontScaling={false}
               maxFontSizeMultiplier={1}
+              // 자르지 않고(말줄임 X) 한 줄에 맞게 폰트만 자동 축소 — "Medications" 같은 긴 라벨의
+              // 's'가 다음 줄로 넘어가던 것 방지. 전문은 그대로 유지.
+              numberOfLines={1}
+              adjustsFontSizeToFit
+              minimumFontScale={0.8}
               style={[styles.tabLabel, focused ? styles.tabLabelActive : styles.tabLabelInactive]}
             >
               {item.label}

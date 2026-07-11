@@ -503,7 +503,12 @@ export function MedicalRecordListScreen() {
               const place = apptPlaceText({ hospital_name: rec.hospital_name, doctor_name: rec.doctor_name ?? null });
               const notes = rec.consultation_notes?.trim();
               return (
-                <View key={rec.id} style={styles.recordCard}>
+                <TouchableOpacity
+                  key={rec.id}
+                  style={styles.recordCard}
+                  activeOpacity={0.7}
+                  onPress={() => navigation.navigate('MedicalRecordDetail', { recordId: rec.id } as any)}
+                >
                   {/* 1행: 날짜·시간·D배지(인라인, 왼쪽) — 수정/삭제 아이콘(우측 상단) */}
                   <View style={styles.apptTop}>
                     <View style={styles.apptDateRow}>
@@ -553,7 +558,7 @@ export function MedicalRecordListScreen() {
                   {notes ? (
                     <Text style={styles.recNotes}>{notes}</Text>
                   ) : null}
-                </View>
+                </TouchableOpacity>
               );
             })
           )}

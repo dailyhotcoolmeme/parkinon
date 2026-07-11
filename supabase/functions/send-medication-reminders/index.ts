@@ -490,7 +490,7 @@ async function sendCaregiverMissed(
     if (prefs.med_missed === false) continue
     const channelId = await resolveAlarmChannel(cu.id)
     const isEn = (cu as any).language === 'en'
-    const title = isEn ? '💊 Missed medication' : '💊 약을 아직 안 드셨어요'
+    const title = isEn ? '💊 Missed dose' : '💊 약을 아직 안 드셨어요'
     const body = isEn
       ? caregiverMissedBodyEn(subjectEn, target.periodLabelEn, formatClockTime(target.time))
       : caregiverMissedBody(subject, target.periodLabel, formatClockTime(target.time))
@@ -643,7 +643,7 @@ Deno.serve(async (_req: Request) => {
 
       const channelId = missedChannelFor(missedSounds.first, soundPrefs, target)
       const data = { type: 'missed_medication_first', mealTime: target.mealTime, doseSlotId: target.doseSlotId }
-      const title = isEn ? '💊 Missed medication' : '💊 약을 아직 안 드셨어요'
+      const title = isEn ? '💊 Missed dose' : '💊 약을 아직 안 드셨어요'
       const body = isEn
         ? missedBodyEn(target.periodLabelEn, formatClockTime(target.time))
         : missedBody(target.periodLabel, formatClockTime(target.time))
@@ -690,7 +690,7 @@ Deno.serve(async (_req: Request) => {
       // 환자에게 2차 알림 (환자가 2차 미복용 알림을 끈 경우 보내지 않음 — 보호자 알림은 아래에서 독립 처리)
       if (patient.push_token && prefs.missed_second !== false) {
         const data = { type: 'missed_medication_second', mealTime: target.mealTime, doseSlotId: target.doseSlotId }
-        const title = isEn ? '💊 Missed medication' : '💊 약을 아직 안 드셨어요'
+        const title = isEn ? '💊 Missed dose' : '💊 약을 아직 안 드셨어요'
         const body = isEn
           ? missedBodyEn(target.periodLabelEn, formatClockTime(target.time))
           : missedBody(target.periodLabel, formatClockTime(target.time))

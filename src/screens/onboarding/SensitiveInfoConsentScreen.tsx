@@ -15,6 +15,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { Colors } from '../../constants/colors';
 import type { OnboardingStackParamList } from '../../navigation/OnboardingNavigator';
 import { useDialog } from '../../context/DialogContext';
+import { useAuth } from '../../context/AuthContext';
 import { supabase } from '../../lib/supabase';
 import { useBottomSheetPadding } from '../../hooks/useBottomSheetPadding';
 import { useTranslation } from 'react-i18next';
@@ -35,6 +36,7 @@ function getPrivacyPolicyUrl(): string {
 
 export function SensitiveInfoConsentScreen() {
   const { t } = useTranslation();
+  const { signOut } = useAuth();
   const navigation = useNavigation<Nav>();
   const dialog = useDialog();
   const bottomPadding = useBottomSheetPadding(32);
@@ -239,6 +241,22 @@ export function SensitiveInfoConsentScreen() {
           </Text>
         </TouchableOpacity>
         <Text style={styles.noticeText}>{t('sensitiveConsent.noticeBottom')}</Text>
+        {/* 이탈 수단 — 동의 안 할 경우 로그아웃으로 나갈 수 있게(다른 온보딩 화면과 통일). */}
+        <TouchableOpacity
+          style={styles.closeBtn}
+          onPress={async () => {
+            const ok = await dialog.confirm({
+              title: t('sensitiveConsent.exitTitle'),
+              message: t('sensitiveConsent.exitMsg'),
+              confirmText: t('common.close'),
+              cancelText: t('common.cancel'),
+            });
+            if (ok) signOut();
+          }}
+          activeOpacity={0.7}
+        >
+          <Text style={styles.closeBtnText}>{t('common.close')}</Text>
+        </TouchableOpacity>
       </View>
     </SafeAreaView>
   );
@@ -491,5 +509,16 @@ const styles = StyleSheet.create({
     color: Colors.textHint,
     textAlign: 'center',
     lineHeight: 20,
+  },
+  closeBtn: {
+    minHeight: 48,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginTop: 8,
+  },
+  closeBtnText: {
+    fontSize: 16,
+    fontWeight: '600',
+    color: Colors.textSub,
   },
 });

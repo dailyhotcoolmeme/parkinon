@@ -36,7 +36,14 @@ function scaleStyleValue(style: unknown): unknown {
 
 type NamedStyles<T> = { [P in keyof T]: T[P] };
 
-if (isOverseasLocale() && !(StyleSheet as unknown as Record<string, boolean>)[PATCH_FLAG]) {
+// ⚠️ 무력화됨(2026-07-11): 해외 폰트 축소는 index.ts 의 Text/TextInput 래퍼에서
+//    style 을 flatten 해 fontSize 를 스케일하는 방식으로 일원화했다(인라인 style 까지 커버).
+//    여기서 StyleSheet.create 를 또 패치하면 StyleSheet 스타일이 이중(0.88×0.88)으로 축소되므로
+//    이 패치는 더 이상 적용하지 않는다. 아래 헬퍼/상수는 참고용으로 남겨두되 실행 경로에서 제외.
+void scaleStyleValue;
+void PATCH_FLAG;
+void StyleSheet;
+if (isOverseasLocale() && false) {
   const originalCreate = StyleSheet.create;
 
   StyleSheet.create = function scaledCreate<T extends NamedStyles<T>>(styles: T): T {

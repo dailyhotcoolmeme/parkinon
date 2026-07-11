@@ -904,7 +904,9 @@ const styles = StyleSheet.create({
     // 명시적 높이 없이 <ScrollView horizontal>을 쓰면(RecordsScreen의 일반 <View> 탭줄과
     // 달리) 컨텐츠 높이가 주변 flex 컨텍스트에 따라 화면 절반까지 늘어나 버리는 문제가
     // 있었다(오너 스크린샷으로 확인). 실제 필요한 높이로 명시 고정해 절대 안 늘어나게 한다.
-    height: 60,
+    // ⚠️ 높이는 칩(세로패딩8+글자+테두리≈40) + filterRow 세로패딩을 모두 담을 만큼 커야 한다.
+    //    이전 60은 (14×2 + 40 = 68) 을 못 담아 칩 아래(descender)가 잘렸다.
+    height: 68,
     flexGrow: 0,
     flexShrink: 0,
     backgroundColor: Colors.white,
@@ -916,7 +918,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     gap: 10,
     paddingHorizontal: 20,
-    paddingVertical: 14,
+    paddingVertical: 10,
   },
   filterPill: {
     paddingHorizontal: 18,

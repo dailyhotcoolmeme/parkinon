@@ -58,17 +58,25 @@ export function RoleSelectScreen() {
       ]);
       await AsyncStorage.setItem('onboarding_role', selectedRole);
 
-      // 세션이 있으면 DB에도 role 중간 저장
+      // 세션이 있으면 DB에도 role 중간 저장 (비필수 — 최종 저장은 온보딩 완료 단계에서 함).
+      // ⚠️ supabase-js PostgREST가 RN 새 아키텍처에서 응답 없이 hang하는 버그가 있어(FamilyInvite 등
+      //    이미 raw fetch로 우회 중). 여기서 await 하면 hang 시 "다음" 버튼이 무한 스피너로 멈춘다 →
+      //    raw fetch로, 게다가 await 하지 않고(fire-and-forget) 화면 전환을 절대 막지 않게 한다.
       const { data: sessionData } = await supabase.auth.getSession();
       const userId = sessionData?.session?.user?.id;
-      if (userId) {
-        const { error } = await supabase
-          .from('users')
-          .update({ role: selectedRole })
-          .eq('id', userId);
-        if (error) {
-          console.warn('[RoleSelect] role DB 저장 실패 (계속 진행):', error.message);
-        }
+      const accessToken = sessionData?.session?.access_token;
+      if (userId && accessToken) {
+        const SUPABASE_URL = process.env.EXPO_PUBLIC_SUPABASE_URL!;
+        const SUPABASE_ANON_KEY = process.env.EXPO_PUBLIC_SUPABASE_ANON_KEY!;
+        fetch(`${SUPABASE_URL}/rest/v1/users?id=eq.${userId}`, {
+          method: 'PATCH',
+          headers: {
+            apikey: SUPABASE_ANON_KEY,
+            Authorization: `Bearer ${accessToken}`,
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({ role: selectedRole }),
+        }).catch((e) => console.warn('[RoleSelect] role DB 저장 실패 (계속 진행):', e?.message));
       }
 
       if (selectedRole === 'patient') {
