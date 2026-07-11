@@ -434,16 +434,20 @@ const styles = StyleSheet.create({
   emptyCtaBtn: {
     flexDirection: 'row',
     alignItems: 'center',
+    justifyContent: 'center',
     gap: 6,
     backgroundColor: Colors.primary,
     borderRadius: 14,
     paddingHorizontal: 18,
     paddingVertical: 12,
+    maxWidth: '100%', // 시트 폭 초과 방지(긴 문구 시 넘침 대신 줄바꿈)
   },
   emptyCtaText: {
     fontSize: 16,
     fontWeight: '700',
     color: Colors.white,
+    flexShrink: 1,
+    textAlign: 'center',
   },
   // 닫기·완료 한 줄
   btnRow: {
