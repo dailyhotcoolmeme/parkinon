@@ -684,7 +684,7 @@
     "countUnitWeek": "/week",
     "countSuffix": "times",
     "formSubmit": "Add",
-    "registeredMedsTitle": "Your medications",
+    "registeredMedsTitle": "Registered medications",
     "noRegisteredMedsTitle": "No medications added",
     "noRegisteredMedsDesc": "Use \"Enter Medication Manually\" above to add the medications you take",
     "dosageMetaPrefix": "Dosage {{dosage}}",
