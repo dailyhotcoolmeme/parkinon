@@ -24,6 +24,7 @@ import Animated, {
   useAnimatedStyle,
   withRepeat,
   withTiming,
+  withSequence,
   withSpring,
   cancelAnimation,
   Easing,
@@ -171,10 +172,17 @@ export function BrandProgressOverlay({
         -1,
         false,
       );
+      // ⚠️ reverse 모드(withRepeat(..., -1, true))는 Reanimated 4/새아키텍처에서 끝(1)에 도달 후
+      //    되돌아오지 않고 멈추는 경우가 있다("녹색 바 왔다갔다 하다 멈춤" 오너 보고, iOS).
+      //    → 0→1→0 을 withSequence 로 명시해 확실히 왕복시킨다.
+      barPos.value = 0;
       barPos.value = withRepeat(
-        withTiming(1, { duration: 1200, easing: standardEasing }),
+        withSequence(
+          withTiming(1, { duration: 1200, easing: standardEasing }),
+          withTiming(0, { duration: 1200, easing: standardEasing }),
+        ),
         -1,
-        true,
+        false,
       );
       const timer = setTimeout(() => setElapsedHint(true), 10000);
       return () => {
