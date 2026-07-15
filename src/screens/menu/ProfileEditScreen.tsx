@@ -218,10 +218,27 @@ export function ProfileEditScreen() {
     if (wantExport) {
       try {
         const { text } = await buildHealthRecordsExport(user.id);
-        const fileUri = `${FileSystem.cacheDirectory}parkinon_records_${Date.now()}.csv`;
-        await FileSystem.writeAsStringAsync(fileUri, text, { encoding: FileSystem.EncodingType.UTF8 });
-        // iOS는 파일 URL 공유(시트에서 '파일에 저장' 등), Android는 텍스트 공유가 안정적.
-        await Share.share(Platform.OS === 'ios' ? { url: fileUri } : { message: text });
+        const now = new Date();
+        const stamp = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`;
+        const fileName = `파킨온_건강기록_${stamp}`;
+
+        if (Platform.OS === 'android') {
+          // 안드: 저장할 폴더를 고르면 그 위치에 .csv 파일로 저장(엑셀에서 바로 열림).
+          const perm = await FileSystem.StorageAccessFramework.requestDirectoryPermissionsAsync();
+          if (perm.granted) {
+            const uri = await FileSystem.StorageAccessFramework.createFileAsync(perm.directoryUri, fileName, 'text/csv');
+            await FileSystem.writeAsStringAsync(uri, text, { encoding: FileSystem.EncodingType.UTF8 });
+            await dialog.alert({ title: t('profileEdit.roleExportSavedTitle'), message: t('profileEdit.roleExportSavedMsg') });
+          } else {
+            // 폴더 선택을 취소하면 파일 저장이 안 되므로 공유로 대체.
+            await Share.share({ message: text });
+          }
+        } else {
+          // iOS: .csv 파일로 만들어 공유 시트로 넘김('파일에 저장' 선택 가능).
+          const fileUri = `${FileSystem.cacheDirectory}${fileName}.csv`;
+          await FileSystem.writeAsStringAsync(fileUri, text, { encoding: FileSystem.EncodingType.UTF8 });
+          await Share.share({ url: fileUri });
+        }
       } catch {
         // 내려받기 실패해도 삭제 흐름은 계속 진행(경고는 아래에서). 조용히 무시.
       }

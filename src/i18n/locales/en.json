@@ -955,7 +955,9 @@
     "roleWarn1Msg": "Switching from patient to caregiver means you'll no longer be able to see any of your recorded medications, body state, exercise, or diary.",
     "roleWarn2Title": "One more check",
     "roleWarn2Msg": "This can't be undone. Your health records (sensitive data) will be permanently deleted, and linked family will no longer see your records.",
-    "roleWarn2Confirm": "Yes, delete and switch"
+    "roleWarn2Confirm": "Yes, delete and switch",
+    "roleExportSavedTitle": "Saved",
+    "roleExportSavedMsg": "Your health records (.csv) were saved to the selected folder. You can open it in Excel."
   },
   "recordSound": {
     "defaultLabel": "My recording",
