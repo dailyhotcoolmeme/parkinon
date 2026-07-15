@@ -12,7 +12,9 @@ import {
   Keyboard,
   Platform,
   ActivityIndicator,
+  Share,
 } from 'react-native';
+import * as FileSystem from 'expo-file-system/legacy';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useNavigation } from '@react-navigation/native';
 import { useNotificationBadge } from '../../context/NotificationBadgeContext';
@@ -27,6 +29,7 @@ import { useDialog } from '../../context/DialogContext';
 import { useBottomSheetPadding } from '../../hooks/useBottomSheetPadding';
 import i18n from '../../i18n';
 import { useTranslation } from 'react-i18next';
+import { buildHealthRecordsExport } from '../../utils/exportHealthRecords';
 
 type Gender = 'male' | 'female';
 type Cohabiting = 'together' | 'apart';
@@ -157,6 +160,93 @@ export function ProfileEditScreen() {
     if (key === 'google') return 'logo-google';
     if (key === 'kakao') return 'chatbubble';
     return 'person-circle-outline';
+  };
+
+  // ── 역할(환자/보호자) 변경 ───────────────────────────────────────────────
+  // 온보딩 후 잠긴 역할을 바꾼다(실수로 잘못 가입한 경우 탈퇴 없이 구제).
+  //  · 보호자→환자: 안전(삭제 없음) — 단, 그룹에 이미 환자 있으면 서버가 차단.
+  //  · 환자→보호자: 건강기록이 "완전 삭제"됨 → 내려받기 제안 후 2단계 경고, 둘 다 OK해야 실행.
+  const [roleChanging, setRoleChanging] = useState(false);
+
+  const callChangeRole = async (newRole: 'patient' | 'caregiver', confirm: boolean) => {
+    const { data: { session } } = await supabase.auth.getSession();
+    if (!session?.access_token) throw new Error('세션 없음');
+    const res = await fetch(`${SUPABASE_URL}/functions/v1/change-role`, {
+      method: 'POST',
+      headers: { Authorization: `Bearer ${session.access_token}`, 'Content-Type': 'application/json' },
+      body: JSON.stringify({ new_role: newRole, confirm }),
+    });
+    return (await res.json()) as { ok?: boolean; code?: string; message?: string };
+  };
+
+  const finishRoleChange = async (r: { ok?: boolean; message?: string }) => {
+    if (!r?.ok) {
+      await dialog.alert({ title: t('common.notice'), message: r?.message || t('profileEdit.roleChangeFail') });
+      return;
+    }
+    await refreshUser();
+    await dialog.alert({ title: t('profileEdit.roleChangedTitle'), message: r.message || '' });
+  };
+
+  const handleChangeRole = async () => {
+    if (!user || roleChanging) return;
+    const toCaregiver = user.role === 'patient'; // 환자→보호자(파괴적) vs 보호자→환자(안전)
+
+    // ── 보호자 → 환자 : 단일 확인 ──
+    if (!toCaregiver) {
+      const ok = await dialog.confirm({
+        title: t('profileEdit.roleToPatientTitle'),
+        message: t('profileEdit.roleToPatientMsg'),
+        confirmText: t('profileEdit.roleChangeDo'),
+        cancelText: t('common.cancel'),
+      });
+      if (!ok) return;
+      setRoleChanging(true);
+      try { await finishRoleChange(await callChangeRole('patient', true)); }
+      catch { await dialog.alert({ title: t('common.error'), message: t('profileEdit.roleChangeFail') }); }
+      finally { setRoleChanging(false); }
+      return;
+    }
+
+    // ── 환자 → 보호자 : 내려받기 제안 → 1차 경고 → 2차 경고 ──
+    const wantExport = await dialog.confirm({
+      title: t('profileEdit.roleExportTitle'),
+      message: t('profileEdit.roleExportMsg'),
+      confirmText: t('profileEdit.roleExportDownload'),
+      cancelText: t('profileEdit.roleExportSkip'),
+    });
+    if (wantExport) {
+      try {
+        const { text } = await buildHealthRecordsExport(user.id);
+        const fileUri = `${FileSystem.cacheDirectory}parkinon_records_${Date.now()}.csv`;
+        await FileSystem.writeAsStringAsync(fileUri, text, { encoding: FileSystem.EncodingType.UTF8 });
+        // iOS는 파일 URL 공유(시트에서 '파일에 저장' 등), Android는 텍스트 공유가 안정적.
+        await Share.share(Platform.OS === 'ios' ? { url: fileUri } : { message: text });
+      } catch {
+        // 내려받기 실패해도 삭제 흐름은 계속 진행(경고는 아래에서). 조용히 무시.
+      }
+    }
+
+    const ok1 = await dialog.confirm({
+      title: t('profileEdit.roleWarn1Title'),
+      message: t('profileEdit.roleWarn1Msg'),
+      confirmText: t('common.continue'),
+      cancelText: t('common.cancel'),
+    });
+    if (!ok1) return;
+
+    const ok2 = await dialog.confirm({
+      title: t('profileEdit.roleWarn2Title'),
+      message: t('profileEdit.roleWarn2Msg'),
+      confirmText: t('profileEdit.roleWarn2Confirm'),
+      cancelText: t('common.cancel'),
+    });
+    if (!ok2) return;
+
+    setRoleChanging(true);
+    try { await finishRoleChange(await callChangeRole('caregiver', true)); }
+    catch { await dialog.alert({ title: t('common.error'), message: t('profileEdit.roleChangeFail') }); }
+    finally { setRoleChanging(false); }
   };
 
   // 초기 데이터 로딩 상태 — 폼이 기본값(1960/남자 등)으로 깜빡인 뒤 채워지는 것처럼 보이는 체감 지연을
@@ -541,6 +631,47 @@ export function ProfileEditScreen() {
           </View>
 
           <Text style={styles.readonlyNote}>{t('profileEdit.accountReadonlyNote')}</Text>
+        </View>
+
+        {/* Section 0.5: 역할(환자/보호자) 변경 */}
+        <View style={styles.card}>
+          <View style={styles.sectionHeader}>
+            <Ionicons name="swap-horizontal-outline" size={22} color={Colors.primary} />
+            <Text style={styles.sectionTitle}>{t('profileEdit.roleTitle')}</Text>
+          </View>
+
+          <Text style={styles.label}>{t('profileEdit.roleCurrentLabel')}</Text>
+          <View style={styles.readonlyRow}>
+            <Ionicons
+              name={isPatient ? 'person-outline' : 'people-outline'}
+              size={20}
+              color={Colors.textHint}
+              style={{ marginRight: 8 }}
+            />
+            <Text style={styles.readonlyValue}>
+              {isPatient ? t('profileEdit.rolePatient') : t('profileEdit.roleCaregiver')}
+            </Text>
+          </View>
+
+          <TouchableOpacity
+            style={styles.roleChangeBtn}
+            onPress={handleChangeRole}
+            disabled={roleChanging}
+            activeOpacity={0.7}
+          >
+            {roleChanging ? (
+              <ActivityIndicator color={Colors.primary} />
+            ) : (
+              <>
+                <Ionicons name="swap-horizontal" size={20} color={Colors.primary} style={{ marginRight: 6 }} />
+                <Text style={styles.roleChangeBtnText}>
+                  {isPatient ? t('profileEdit.roleChangeToCaregiver') : t('profileEdit.roleChangeToPatient')}
+                </Text>
+              </>
+            )}
+          </TouchableOpacity>
+
+          <Text style={styles.readonlyNote}>{t('profileEdit.roleNote')}</Text>
         </View>
 
         {/* Section 1: 내 정보 */}
@@ -983,6 +1114,23 @@ const styles = StyleSheet.create({
     fontSize: 14,
     color: Colors.textSub,
     marginTop: 12,
+  },
+  roleChangeBtn: {
+    marginTop: 14,
+    minHeight: 56,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderRadius: 12,
+    borderWidth: 1.5,
+    borderColor: Colors.primary,
+    backgroundColor: Colors.white,
+    paddingHorizontal: 16,
+  },
+  roleChangeBtnText: {
+    fontSize: 17,
+    fontWeight: '700',
+    color: Colors.primary,
   },
 
   // Picker row (touchable)

@@ -11,7 +11,9 @@
     "am": "오전",
     "pm": "오후",
     "delete": "삭제",
-    "a11yContact": "문의하기"
+    "a11yContact": "문의하기",
+    "continue": "계속",
+    "notice": "안내"
   },
   "devLetter": {
     "title": "파킨온 앱을 출시하며",
@@ -932,7 +934,28 @@
     "patientBirthYearLabel": "환자 출생연도",
     "patientGenderLabel": "환자 성별",
     "patientDiagnosisYearLabel": "진단 연도",
-    "saveBtn": "저장하기"
+    "saveBtn": "저장하기",
+    "roleTitle": "역할",
+    "roleCurrentLabel": "현재 역할",
+    "rolePatient": "환자",
+    "roleCaregiver": "보호자",
+    "roleChangeToCaregiver": "보호자로 변경",
+    "roleChangeToPatient": "환자로 변경",
+    "roleNote": "실수로 잘못 선택했을 때 바꿀 수 있어요. 환자에서 보호자로 바꾸면 그동안의 건강기록은 완전히 삭제됩니다.",
+    "roleChangeDo": "변경하기",
+    "roleChangeFail": "역할 변경에 실패했어요. 잠시 후 다시 시도해주세요.",
+    "roleChangedTitle": "변경 완료",
+    "roleToPatientTitle": "환자로 변경할까요?",
+    "roleToPatientMsg": "환자로 바꾸면 직접 약 복용·몸상태 등을 기록하게 됩니다.",
+    "roleExportTitle": "기록을 먼저 저장할까요?",
+    "roleExportMsg": "보호자로 바꾸면 그동안의 건강기록이 완전히 삭제돼요. 삭제 전에 내 기록을 파일로 저장해 둘 수 있어요.",
+    "roleExportDownload": "내려받기",
+    "roleExportSkip": "건너뛰기",
+    "roleWarn1Title": "정말 보호자로 바꾸시겠어요?",
+    "roleWarn1Msg": "환자에서 보호자로 바꾸면 지금까지 기록한 약 복용·몸상태·운동·일기 등 모든 건강기록을 더 이상 볼 수 없어요.",
+    "roleWarn2Title": "한 번 더 확인해요",
+    "roleWarn2Msg": "이 작업은 되돌릴 수 없어요. 건강기록(민감정보)이 영구히 삭제되고, 연결된 가족도 회원님의 기록을 볼 수 없게 됩니다.",
+    "roleWarn2Confirm": "네, 삭제하고 바꿀게요"
   },
   "recordSound": {
     "defaultLabel": "내 녹음",
