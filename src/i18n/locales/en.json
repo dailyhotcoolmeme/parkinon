@@ -786,7 +786,7 @@
     "openSettingsBtn": "Open Settings",
     "laterBtn": "Later",
     "caregiverGuideTitle": "Caregiver alerts",
-    "caregiverGuideMsg": "Turn the patient’s medication and\nstatus alerts on or off here.\n\nThey all start off,\nso enable just the ones you want."
+    "caregiverGuideMsg": "Receive alerts about the patient’s medication and status?\n\nTap OK to turn all alerts on.\nYou can turn off any you don’t want below."
   },
   "diary": {
     "headerTitle": "ParkinON Diary",

@@ -231,17 +231,9 @@ export function SettingsScreen() {
   const { unreadCount } = useNotificationBadge();
   const dialog = useDialog();
   const route = useRoute<RouteProp<MenuStackParamList, 'Settings'>>();
-
-  // 온보딩 직후 강제 진입(guideCaregiverNotif) 시 1회 안내 팝업 — 여기서 보호자 알림 켜기 안내.
+  // 온보딩 직후 강제 진입(guideCaregiverNotif) 안내 팝업 — 확인 시 전체 ON.
+  // (효과는 setNotificationEnabled/cascadeMasterToIndividual 정의 뒤에 배치 — TDZ 방지)
   const caregiverGuideShownRef = useRef(false);
-  useEffect(() => {
-    if (route.params?.guideCaregiverNotif && !caregiverGuideShownRef.current) {
-      caregiverGuideShownRef.current = true;
-      setTimeout(() => {
-        dialog.alert({ title: t('settings.caregiverGuideTitle'), message: t('settings.caregiverGuideMsg') });
-      }, 350);
-    }
-  }, [route.params?.guideCaregiverNotif]);
 
   // Settings context (shared with Records screens)
   const {
@@ -743,6 +735,27 @@ export function SettingsScreen() {
       }
     }
   }, [isCaregiver, caregiverNotifs, medTimePrefs, user]);
+
+  // 온보딩 직후 보호자가 강제 진입(guideCaregiverNotif)했을 때: 안내 팝업 → 확인 누르면 알림 전체 ON.
+  //   (보호자는 켜는 게 맞다는 오너 결정 2026-07-16. 원치 않는 알림은 아래 토글에서 끄면 됨.)
+  useEffect(() => {
+    if (!route.params?.guideCaregiverNotif || caregiverGuideShownRef.current) return;
+    if (!isCaregiver) return;
+    caregiverGuideShownRef.current = true;
+    (async () => {
+      await new Promise((r) => setTimeout(r, 350));
+      await dialog.alert({
+        title: t('settings.caregiverGuideTitle'),
+        message: t('settings.caregiverGuideMsg'),
+      });
+      try {
+        await setNotificationEnabled(true);       // master 게이트 ON
+        await cascadeMasterToIndividual(true);    // 개별 보호자 토글 전부 ON + DB 저장
+      } catch (e) {
+        console.warn('[SettingsScreen] 보호자 안내 확인 후 전체 ON 실패:', e);
+      }
+    })();
+  }, [route.params?.guideCaregiverNotif, isCaregiver, setNotificationEnabled, cascadeMasterToIndividual]);
 
   const handleRefreshPushToken = async () => {
     // 게스트(테스트로 둘러보기) 차단 — Supabase 세션 자체가 없음
