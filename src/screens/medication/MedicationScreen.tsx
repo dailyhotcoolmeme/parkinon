@@ -24,6 +24,7 @@ import { BodyStatePopupFlow } from '../bodystate/BodyStatePopupFlow';
 import { CaregiverConfirmModal } from '../../components/common/CaregiverConfirmModal';
 import { NOTIF_ONBOARDING_SHOWN_KEY } from '../../components/common/NotificationOnboardingModal';
 import { DevLetterModal, shouldShowDevLetter } from '../../components/common/DevLetterModal';
+import { logActivity } from '../../utils/activityLog';
 import { KAKAO_OPEN_CHAT_URL } from '../../constants/links';
 import { useMedication } from '../../hooks/useMedication';
 import { useBodyState } from '../../hooks/useBodyState';
@@ -711,6 +712,10 @@ export function MedicationScreen() {
     //   takeMedication 이 doseSlotId 를 legacyKey→slot.id 로 보충했을 수 있으므로 반환값을 신뢰.
     setLastMedLogId(result.medLogId);
     setLastDoseSlotId(result.doseSlotId);
+    logActivity('med_taken', {
+      meal_time: mealTime ?? null,
+      dose_slot_id: result.doseSlotId ?? null,
+    });
 
     // 해당 슬롯(이관/비표준 모두) — 사전기록 안내·라벨 폴백에 사용.
     const selSlot = doseSlotId

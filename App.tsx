@@ -18,6 +18,7 @@ import { RootNavigator } from './src/navigation/RootNavigator';
 import { ErrorBoundary, LAST_JS_ERROR_KEY } from './src/components/common/ErrorBoundary';
 import * as Notifications from 'expo-notifications';
 import { navigateTo } from './src/navigation/navigationRef';
+import { initActivityLog } from './src/utils/activityLog';
 import * as Updates from 'expo-updates';
 import { useFonts } from 'expo-font';
 import { supabase } from './src/lib/supabase';
@@ -68,6 +69,11 @@ function AppInner() {
   const handledContentKeys = useRef<Map<string, number>>(new Map());
   const backgroundEnteredAtRef = useRef<number | null>(null);
   const otaInFlightRef = useRef(false);
+
+  // 사용자 행동 로거 초기화(백그라운드 flush·포그라운드 기록 등록).
+  useEffect(() => {
+    initActivityLog();
+  }, []);
 
   // 앱 시작 시 직전 세션에서 ErrorBoundary 가 잡은 마지막 JS 오류가 있으면 console.warn 으로 노출.
   //   → 렌더 단계 throw 로 앱이 닫혔던 경우, 다음 실행에서 폰 로그로 원인을 확인할 수 있게 한다.

@@ -8,6 +8,7 @@
  */
 import { useState, useEffect, useCallback } from 'react';
 import { Platform, AppState } from 'react-native';
+import { logActivity, flush as flushActivity } from './../utils/activityLog';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import * as WebBrowser from 'expo-web-browser';
 import * as Linking from 'expo-linking';
@@ -714,6 +715,9 @@ export function useAuthProvider(): UseAuthReturn {
   // 로그아웃
   const signOut = useCallback(async () => {
     setLoading(true);
+    // 세션이 살아있는 동안 로그아웃 이벤트를 먼저 전송(이후 flush 는 세션 없어 실패).
+    logActivity('logout');
+    await flushActivity().catch(() => {});
 
     // 로그아웃 전 push_token 초기화 (다른 계정에 알림이 가는 것 방지)
     let signedOutUserId: string | undefined;

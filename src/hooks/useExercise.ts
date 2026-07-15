@@ -8,6 +8,7 @@
  */
 import { useState, useEffect, useCallback } from 'react';
 import { supabase } from '../lib/supabase';
+import { logActivity } from '../utils/activityLog';
 import { useAuth } from '../context/AuthContext';
 import { sendCaregiverPush } from '../utils/notifications';
 import { getLocalToday, getLocalDayRange } from '../utils/medUtils';
@@ -139,6 +140,8 @@ export function useExercise(): UseExerciseReturn {
         });
 
       if (insertError) throw insertError;
+
+      logActivity('exercise_saved', { exercise_type: exerciseType, duration_minutes: durationMinutes });
 
       await fetchTodayLogs();
 

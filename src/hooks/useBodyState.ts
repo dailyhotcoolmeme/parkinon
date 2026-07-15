@@ -12,6 +12,7 @@ import { supabase } from '../lib/supabase';
 import { useAuth } from '../context/AuthContext';
 import { sendCaregiverPush } from '../utils/notifications';
 import { getLocalToday, getLocalDayRange } from '../utils/medUtils';
+import { logActivity } from '../utils/activityLog';
 import type { Database } from '../types/database';
 import i18n from '../i18n';
 
@@ -146,6 +147,15 @@ export function useBodyState(): UseBodyStateReturn {
         .select();
 
       if (insertError) throw insertError;
+
+      logActivity('bodystate_saved', {
+        body_state: data.body_state ?? null,
+        mood: data.mood ?? null,
+        sleep_quality: data.sleep_quality ?? null,
+        constipation: data.constipation ?? null,
+        trigger_time_label: data.trigger_time_label ?? null,
+        triggered_by: triggeredBy,
+      });
 
       // 낙관적 반영 — insert().select() 로 받은 실제 행을 todayLogs 에 즉시 머지.
       //   재조회(void fetchTodayLogs)나 realtime 재조회 푸시(RTT)를 기다리지 않고

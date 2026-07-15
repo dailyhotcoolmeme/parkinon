@@ -6,6 +6,7 @@ import { OnboardingNavigator } from './OnboardingNavigator';
 import { MainNavigator } from './MainNavigator';
 import { LoadingScreen } from '../screens/LoadingScreen';
 import { navigationRef } from './navigationRef';
+import { setActivityScreen, logActivity } from '../utils/activityLog';
 import { NotificationHistoryScreen } from '../screens/notification/NotificationHistoryScreen';
 import { ConsentScreen as MeasurementConsentScreen } from '../screens/measurement/ConsentScreen';
 import { MeasurementMenuScreen } from '../screens/measurement/MeasurementMenuScreen';
@@ -54,6 +55,8 @@ const Stack = createStackNavigator<RootStackParamList>();
 
 export function RootNavigator() {
   const { user, loading } = useAuth();
+  // 화면 이동 로그 중복 방지용(같은 화면 재기록 방지)
+  const lastScreenRef = React.useRef<string | null>(null);
 
   // 알림 권한 강제 게이트 — 온보딩까지 마친 로그인 사용자에게만 동작.
   // 훅은 (조건부 호출 금지를 위해) 항상 호출하되, enabled 로 동작을 제어한다.
@@ -83,7 +86,25 @@ export function RootNavigator() {
   }
 
   return (
-    <NavigationContainer ref={navigationRef}>
+    <NavigationContainer
+      ref={navigationRef}
+      onReady={() => {
+        const r = navigationRef.getCurrentRoute()?.name ?? null;
+        setActivityScreen(r);
+        if (r) {
+          lastScreenRef.current = r;
+          logActivity('screen_view', { screen: r });
+        }
+      }}
+      onStateChange={() => {
+        const r = navigationRef.getCurrentRoute()?.name ?? null;
+        if (r && r !== lastScreenRef.current) {
+          lastScreenRef.current = r;
+          setActivityScreen(r);
+          logActivity('screen_view', { screen: r });
+        }
+      }}
+    >
       <Stack.Navigator screenOptions={{ headerShown: false }}>
         {!user ? (
           // 미로그인: Splash → OnboardingSlide → Login
