@@ -217,9 +217,9 @@ export function ProfileEditScreen() {
     if (wantExport) {
       try {
         const { text } = await buildHealthRecordsExport(user.id);
-        // 공유 시트로 본인에게 전송(카카오톡/메일/메모 등). 폴더 선택·저장권한이 필요없어 60대도 쉽게 보관.
-        // (앞의 BOM은 엑셀용이라 메시지 공유에선 불필요 → 제거)
-        await Share.share({ message: text.replace(/^﻿/, '') });
+        // 마크다운(제목+표) 텍스트를 공유 시트로 본인에게 전송(카카오톡/메일/메모 등).
+        // 폴더 선택·저장권한이 필요없어 60대도 쉽게 보관.
+        await Share.share({ message: text });
       } catch {
         // 내보내기 실패해도 삭제 흐름은 계속 진행(경고는 아래에서). 조용히 무시.
       }

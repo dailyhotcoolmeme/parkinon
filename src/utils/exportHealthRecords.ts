@@ -99,21 +99,21 @@ const SECTIONS: Section[] = [
   ] },
 ];
 
-/** CSV 한 칸 이스케이프 (콤마·따옴표·개행 포함 시 큰따옴표로 감쌈). */
-function csvCell(s: string): string {
-  if (/[",\n\r]/.test(s)) return '"' + s.replace(/"/g, '""') + '"';
-  return s;
+/** 마크다운 표 한 칸: 표를 깨는 파이프(|)·개행을 안전하게 치환. */
+function mdCell(s: string): string {
+  return s.replace(/\|/g, '/').replace(/\r?\n/g, ' ').trim();
 }
 
 /**
- * 사용자의 모든 건강기록을 사람이 읽기 쉬운 CSV 텍스트로 만든다.
+ * 사용자의 모든 건강기록을 사람이 읽기 쉬운 마크다운(제목 + 표)으로 만든다.
+ * 데이터가 많아도 섹션·표로 한눈에 들어오게 한다. (md 뷰어에선 표로 렌더, 메신저에선 정돈된 텍스트)
  * @param userId 대상 사용자(=환자 본인) id
- * @returns { text, hasData } 내보낼 텍스트(엑셀용 UTF-8 BOM 포함)와 실제 기록 존재 여부
+ * @returns { text, hasData } 내보낼 마크다운 텍스트와 실제 기록 존재 여부
  */
 export async function buildHealthRecordsExport(userId: string): Promise<{ text: string; hasData: boolean }> {
   const now = new Date();
   const stamp = `${now.getFullYear()}-${pad(now.getMonth() + 1)}-${pad(now.getDate())}`;
-  const parts: string[] = [`파킨온 건강기록 내보내기 (${stamp})`, ''];
+  const parts: string[] = [`# 파킨온 건강기록 (${stamp})`, ''];
   let hasData = false;
 
   for (const sec of SECTIONS) {
@@ -125,17 +125,19 @@ export async function buildHealthRecordsExport(userId: string): Promise<{ text: 
       rows = [];
     }
 
-    parts.push(`■ ${sec.title} (${rows.length}건)`);
-    if (rows.length > 0) {
+    parts.push(`## ${sec.title} (${rows.length}건)`);
+    if (rows.length === 0) {
+      parts.push('_기록 없음_');
+    } else {
       hasData = true;
-      parts.push(sec.cols.map((c) => csvCell(c.label)).join(','));
+      parts.push('| ' + sec.cols.map((c) => mdCell(c.label)).join(' | ') + ' |');
+      parts.push('| ' + sec.cols.map(() => '---').join(' | ') + ' |');
       for (const r of rows) {
-        parts.push(sec.cols.map((c) => csvCell(c.fmt(r[c.col], r))).join(','));
+        parts.push('| ' + sec.cols.map((c) => mdCell(c.fmt(r[c.col], r))).join(' | ') + ' |');
       }
     }
     parts.push('');
   }
 
-  // 엑셀이 UTF-8 한글을 깨지 않고 열도록 맨 앞에 BOM 추가.
-  return { text: '﻿' + parts.join('\n'), hasData };
+  return { text: parts.join('\n'), hasData };
 }
