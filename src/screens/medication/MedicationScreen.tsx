@@ -302,6 +302,34 @@ export function MedicationScreen() {
     }, 400);
   }, [user?.onboarding_done, user?.patient_group_id, dialog]);
 
+  // 개발자 편지를 닫은 뒤의 후속 흐름.
+  //   - 온보딩 후 "최초 1회": 알림 설정 화면으로 강제 이동(기본이 전부 OFF이므로 사용자가 직접 켜게).
+  //       · 환자   → 복용시간 설정·알림(MedicationManage slots) + 진입 안내 팝업
+  //       · 보호자 → 보호자 알림 설정(Settings) + 진입 안내 팝업
+  //   - 그 이후(이미 1회 보냈으면): 기존 가족 연동 안내로 이어간다.
+  const afterDevLetterClose = useCallback(async () => {
+    if (user?.onboarding_done && user?.id) {
+      try {
+        const key = `notif_setup_forced:${user.id}`;
+        const forced = await AsyncStorage.getItem(key);
+        if (!forced) {
+          await AsyncStorage.setItem(key, '1');
+          const isCaregiver = user.role === 'caregiver';
+          setTimeout(() => {
+            if (isCaregiver) {
+              navigateTo('Main', { screen: 'MyInfo', params: { screen: 'Settings', params: { guideCaregiverNotif: true } } });
+            } else {
+              navigateTo('Main', { screen: 'MyInfo', params: { screen: 'MedicationManage', params: { mode: 'slots', guideSetup: true } } });
+            }
+          }, 400);
+          return;
+        }
+      } catch {}
+    }
+    // 이미 최초 안내를 마쳤거나 온보딩 전이면 기존 가족 연동 안내.
+    maybeShowFamilyGuide();
+  }, [user?.onboarding_done, user?.id, user?.role, maybeShowFamilyGuide]);
+
   // 온보딩 완료 후 홈 최초 진입 시 가족 연동 안내.
   //   알림 권한은 이제 RootNavigator 의 NotificationGateScreen 게이트가 강제하므로
   //   (권한 허용 전에는 MainNavigator 자체가 마운트되지 않음) 여기서 알림 온보딩 시트를
@@ -324,12 +352,12 @@ export function MedicationScreen() {
         } catch {}
         if (show) {
           setShowDevLetter(true);
-          return; // 가족 안내는 편지 닫힘 콜백(onClose)에서 호출
+          return; // 후속(알림설정 강제/가족 안내)은 편지 닫힘 콜백(onClose)에서 호출
         }
       }
-      maybeShowFamilyGuide();
+      afterDevLetterClose();
     })();
-  }, [user?.onboarding_done, maybeShowFamilyGuide]);
+  }, [user?.onboarding_done, afterDevLetterClose]);
 
   // 알림 탭 진입 시 MealTimeModal 자동 오픈
   // App.tsx에서 navigation params { autoOpen: true, mealTime: '아침' } 전달
@@ -1384,8 +1412,8 @@ export function MedicationScreen() {
         visible={showDevLetter}
         onClose={() => {
           setShowDevLetter(false);
-          // 편지가 닫힌 뒤 기존 가족 연동 안내를 이어서 노출(순서 보장).
-          maybeShowFamilyGuide();
+          // 편지가 닫힌 뒤: 최초 1회 알림 설정 화면으로 강제, 이후엔 가족 연동 안내.
+          afterDevLetterClose();
         }}
       />
       <Modal

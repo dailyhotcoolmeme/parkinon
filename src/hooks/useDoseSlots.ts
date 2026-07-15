@@ -569,7 +569,11 @@ export async function ensurePatientDoseSlots(
       const key = LEGACY_SLOT_ORDER[idx];
       const label = LEGACY_KEY_TO_LABEL[key];
       const time = normalizeHhmm(sched[key]) || LEGACY_SLOT_META[key].defaultTime;
-      const remindEnabled = prefs ? prefs[key] !== false : true;
+      // 기본 OFF (오너 결정 2026-07-15): 신규 환자의 프리셋 슬롯은 알림을 꺼진 채로 만든다.
+      // → 약을 등록하지 않았는데 프리셋 시간에 유령 알림이 오는 문제 차단.
+      //   사용자는 온보딩 직후 강제 이동되는 '복용시간 설정·알림' 화면에서 직접 켠다.
+      //   (명시 prefs 가 오면 그대로 존중 — 이후 편집/이관 경로 보존)
+      const remindEnabled = prefs ? prefs[key] !== false : false;
 
       const existingId = byLabel.get(label);
       if (existingId) {
@@ -590,7 +594,8 @@ export async function ensurePatientDoseSlots(
             sort_order: idx,
             remind_enabled: remindEnabled,
             remind_sound_id: null,
-            track_enabled: key !== 'bedtime',
+            // 기본 OFF (오너 결정 2026-07-15): 약효추적도 꺼진 채로 시작 → 설정 화면에서 직접 켠다.
+            track_enabled: false,
             track_intervals: trackIntervals,
             track_sound_id: null,
             is_active: true,

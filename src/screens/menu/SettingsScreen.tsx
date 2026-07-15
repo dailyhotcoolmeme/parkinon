@@ -17,7 +17,7 @@ import {
   ViewStyle,
 } from 'react-native';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
-import { useFocusEffect, useNavigation } from '@react-navigation/native';
+import { useFocusEffect, useNavigation, useRoute, type RouteProp } from '@react-navigation/native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import * as Notifications from 'expo-notifications';
 import Constants from 'expo-constants';
@@ -229,6 +229,18 @@ export function SettingsScreen() {
   const isCaregiver = user?.role === 'caregiver';
   const { unreadCount } = useNotificationBadge();
   const dialog = useDialog();
+  const route = useRoute<RouteProp<MenuStackParamList, 'Settings'>>();
+
+  // 온보딩 직후 강제 진입(guideCaregiverNotif) 시 1회 안내 팝업 — 여기서 보호자 알림 켜기 안내.
+  const caregiverGuideShownRef = useRef(false);
+  useEffect(() => {
+    if (route.params?.guideCaregiverNotif && !caregiverGuideShownRef.current) {
+      caregiverGuideShownRef.current = true;
+      setTimeout(() => {
+        dialog.alert({ title: t('settings.caregiverGuideTitle'), message: t('settings.caregiverGuideMsg') });
+      }, 350);
+    }
+  }, [route.params?.guideCaregiverNotif]);
 
   // Settings context (shared with Records screens)
   const {

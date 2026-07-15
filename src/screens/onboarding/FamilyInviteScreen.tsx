@@ -175,7 +175,12 @@ export function FamilyInviteScreen() {
         gender: gender || undefined,
         diagnosis_year: diagYearStr ? parseInt(diagYearStr, 10) : undefined,
         onboarding_done: true,
-        notification_enabled: true,
+        // 기본 알림 OFF (오너 결정 2026-07-15):
+        //  · 보호자 = master 게이트(notification_enabled) 자체를 OFF → 연동돼도 켜기 전엔 알림 안 옴.
+        //    (온보딩 직후 강제 이동되는 보호자 알림 설정 화면에서 토글을 켜면 자동 ON 됨)
+        //  · 환자 = master 는 ON 유지하되 개별 슬롯(remind/track)이 OFF로 생성돼 유령 알림이 없음.
+        //    (OS 권한 허용은 이 값을 true 로 덮지 않음 — SettingsContext 참조)
+        notification_enabled: role === 'caregiver' ? false : true,
       };
       if (role === 'caregiver') {
         if (caregiverRelation) userUpdateData.caregiver_relation = caregiverRelation;

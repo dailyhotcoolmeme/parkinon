@@ -1057,6 +1057,18 @@ export function MedicationManageScreen({ modeOverride, hideBack, hideTopBar, onG
   const route = useRoute<RouteProp<MenuStackParamList, 'MedicationManage'>>();
   // 진입 mode: 'meds'(내 약) | 'slots'(복용 시간·알림). 기본 'slots'(기존 진입 호환).
   const mode: 'meds' | 'slots' = modeOverride ?? route.params?.mode ?? 'slots';
+
+  // 온보딩 직후 강제 진입(guideSetup) 시 1회 안내 팝업 — 여기서 약 등록·알림 켜기 안내.
+  const setupGuideShownRef = useRef(false);
+  useEffect(() => {
+    if (route.params?.guideSetup && !setupGuideShownRef.current) {
+      setupGuideShownRef.current = true;
+      setTimeout(() => {
+        dialog.alert({ title: t('medManage.setupGuideTitle'), message: t('medManage.setupGuideMsg') });
+      }, 350);
+    }
+  }, [route.params?.guideSetup]);
+
   const [medications, setMedications] = useState<Medication[]>([]);
   // 복용약 realtime — 채널 이름은 마운트당 고유 1회만 생성(인라인 Math.random() 금지).
   //  인라인으로 매 구독 effect 마다 새 난수를 쓰면 채널이 계속 다른 이름으로 재생성된다.

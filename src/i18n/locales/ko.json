@@ -715,7 +715,9 @@
     "sectionCaution": "주의사항",
     "sectionSideEffect": "부작용",
     "sectionDeposit": "보관법",
-    "medInfoNotFound": "약 정보를 찾지 못했어요"
+    "medInfoNotFound": "약 정보를 찾지 못했어요",
+    "setupGuideTitle": "약 등록 · 알림 설정",
+    "setupGuideMsg": "여기서 드시는 약을 등록하고, 복용 시간 알림을 켜시면 돼요. 알림은 처음엔 꺼져 있으니 원하시는 시간대만 켜주세요. 가족(보호자)이 함께 쓰고 있다면 보호자가 대신 설정해 드릴 수도 있어요."
   },
   "settings": {
     "notifMedTakenLabel": "환자 약 복용 기록 시",
@@ -782,7 +784,9 @@
     "blockedSheetTitle": "알림이 꺼져 있어요",
     "blockedSheetMsg": "약 복용 알림을 받으려면\n스마트폰 설정에서\n파킨온 알림을 켜주세요.",
     "openSettingsBtn": "설정 열기",
-    "laterBtn": "나중에"
+    "laterBtn": "나중에",
+    "caregiverGuideTitle": "보호자 알림 설정",
+    "caregiverGuideMsg": "환자분의 약 복용·상태 알림을 여기서 켜고 끌 수 있어요. 처음엔 모두 꺼져 있으니, 받고 싶은 알림만 켜주세요."
   },
   "diary": {
     "headerTitle": "파킨온 일기",

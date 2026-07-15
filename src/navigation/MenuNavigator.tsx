@@ -27,8 +27,8 @@ export type MenuStackParamList = {
     type: 'medication' | 'bodyState' | 'mood' | 'sleep' | 'constipation' | 'exercise';
     period?: string;
   };
-  Settings: undefined;
-  MedicationManage: { mode?: 'meds' | 'slots'; openSlot?: 'morning' | 'lunch' | 'dinner' | 'bedtime' } | undefined;
+  Settings: { guideCaregiverNotif?: boolean } | undefined;
+  MedicationManage: { mode?: 'meds' | 'slots'; openSlot?: 'morning' | 'lunch' | 'dinner' | 'bedtime'; guideSetup?: boolean } | undefined;
   FamilyLink: undefined;
   ProfileEdit: undefined;
   Terms: undefined;
