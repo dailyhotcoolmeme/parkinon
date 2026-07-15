@@ -99,21 +99,22 @@ const SECTIONS: Section[] = [
   ] },
 ];
 
-/** 마크다운 표 한 칸: 표를 깨는 파이프(|)·개행을 안전하게 치환. */
-function mdCell(s: string): string {
-  return s.replace(/\|/g, '/').replace(/\r?\n/g, ' ').trim();
+/** 한 셀 값 정리: 개행 → 공백, 앞뒤 공백 제거. */
+function cell(s: string): string {
+  return s.replace(/\r?\n/g, ' ').trim();
 }
 
 /**
- * 사용자의 모든 건강기록을 사람이 읽기 쉬운 마크다운(제목 + 표)으로 만든다.
- * 데이터가 많아도 섹션·표로 한눈에 들어오게 한다. (md 뷰어에선 표로 렌더, 메신저에선 정돈된 텍스트)
+ * 사용자의 모든 건강기록을 사람이 읽기 쉬운 텍스트로 만든다.
+ * 표 기호(마크다운) 없이 "한 줄=한 기록"으로 정리 → 카톡·메일에서 렌더링 없이도 한눈에 훑기 좋음.
+ * 각 줄: `· <첫값>  ·  <라벨> <값>  ·  …` (빈 값은 생략, 첫 값은 라벨 없이 앵커로).
  * @param userId 대상 사용자(=환자 본인) id
- * @returns { text, hasData } 내보낼 마크다운 텍스트와 실제 기록 존재 여부
+ * @returns { text, hasData } 내보낼 텍스트와 실제 기록 존재 여부
  */
 export async function buildHealthRecordsExport(userId: string): Promise<{ text: string; hasData: boolean }> {
   const now = new Date();
   const stamp = `${now.getFullYear()}-${pad(now.getMonth() + 1)}-${pad(now.getDate())}`;
-  const parts: string[] = [`# 파킨온 건강기록 (${stamp})`, ''];
+  const parts: string[] = [`파킨온 건강기록 (${stamp})`, ''];
   let hasData = false;
 
   for (const sec of SECTIONS) {
@@ -125,15 +126,19 @@ export async function buildHealthRecordsExport(userId: string): Promise<{ text: 
       rows = [];
     }
 
-    parts.push(`## ${sec.title} (${rows.length}건)`);
+    parts.push(`■ ${sec.title} (${rows.length}건)`);
     if (rows.length === 0) {
-      parts.push('_기록 없음_');
+      parts.push('  기록 없음');
     } else {
       hasData = true;
-      parts.push('| ' + sec.cols.map((c) => mdCell(c.label)).join(' | ') + ' |');
-      parts.push('| ' + sec.cols.map(() => '---').join(' | ') + ' |');
       for (const r of rows) {
-        parts.push('| ' + sec.cols.map((c) => mdCell(c.fmt(r[c.col], r))).join(' | ') + ' |');
+        const fields = sec.cols
+          .map((c) => ({ label: c.label, val: cell(c.fmt(r[c.col], r)) }))
+          .filter((f) => f.val !== '');
+        if (fields.length === 0) continue;
+        // 첫 값(주로 날짜/이름)은 앵커로 라벨 없이, 나머지는 "라벨 값".
+        const line = '· ' + fields.map((f, i) => (i === 0 ? f.val : `${f.label} ${f.val}`)).join('  ·  ');
+        parts.push(line);
       }
     }
     parts.push('');
