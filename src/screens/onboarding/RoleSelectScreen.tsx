@@ -17,6 +17,7 @@ import { PrimaryButton } from '../../components/common/PrimaryButton';
 import { useAuth } from '../../context/AuthContext';
 import { useDialog } from '../../context/DialogContext';
 import { supabase } from '../../lib/supabase';
+import { isKoreanLocale } from '../../i18n/detectLocale';
 
 type Nav = StackNavigationProp<OnboardingStackParamList, 'RoleSelect'>;
 type RoleKey = 'patient' | 'caregiver';
@@ -34,6 +35,9 @@ export function RoleSelectScreen() {
   const [selectedRole, setSelectedRole] = useState<RoleKey | null>(null);
   const [loading, setLoading] = useState(false);
   const bottomPadding = useBottomSheetPadding(24);
+  // 한글판은 출시 당시 레이아웃(카드가 공간을 채워 부제목 바로 밑에 붙음)을 그대로 유지한다.
+  // 해외(영어) 패치에서 텍스트가 길어 카드 flex:1 을 빼고 중앙정렬로 바꿨는데, 그건 영어에만 적용.
+  const isKorean = isKoreanLocale();
 
   const handleConfirm = async () => {
     if (!selectedRole) return;
@@ -109,13 +113,13 @@ export function RoleSelectScreen() {
         <Text style={styles.title}>{t('roleSelect.title')}</Text>
         <Text style={styles.subtitle}>{t('roleSelect.subtitle')}</Text>
 
-        <View style={styles.cardsArea}>
+        <View style={[styles.cardsArea, isKorean && styles.cardsAreaKo]}>
           {ROLES.map((role) => {
             const selected = selectedRole === role.key;
             return (
               <TouchableOpacity
                 key={role.key}
-                style={[styles.card, selected && styles.cardSelected]}
+                style={[styles.card, isKorean && styles.cardKo, selected && styles.cardSelected]}
                 onPress={() => setSelectedRole(role.key)}
                 activeOpacity={0.85}
               >
@@ -207,6 +211,14 @@ const styles = StyleSheet.create({
     gap: 16,
     paddingBottom: 24,
     justifyContent: 'center',
+  },
+  // 한글 전용: 출시 당시처럼 카드를 위쪽부터 배치(중앙정렬 해제).
+  cardsAreaKo: {
+    justifyContent: 'flex-start',
+  },
+  // 한글 전용: 카드가 공간을 균등하게 채우도록(부제목 바로 밑에 붙고 아래 여백 안 생김).
+  cardKo: {
+    flex: 1,
   },
   card: {
     flexDirection: 'row',

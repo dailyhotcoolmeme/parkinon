@@ -21,6 +21,7 @@ import { PrimaryButton } from '../../components/common/PrimaryButton';
 import { useAuth } from '../../context/AuthContext';
 import { useDialog } from '../../context/DialogContext';
 import { supabase } from '../../lib/supabase';
+import { isKoreanLocale } from '../../i18n/detectLocale';
 
 type Nav = StackNavigationProp<OnboardingStackParamList, 'FamilyCheck'>;
 
@@ -33,6 +34,9 @@ export function FamilyCheckScreen() {
   const { signOut } = useAuth();
   const dialog = useDialog();
   const bottomPadding = useBottomSheetPadding(24);
+  // 한글판: 뒤로가기 헤더가 없는 첫 화면일 때 제목이 노치에 붙지 않도록, 헤더가 차지하던 만큼의
+  // 빈 여백을 원위치시킨다(죽은 뒤로가기 버튼은 되살리지 않음). 영어는 손대지 않는다.
+  const isKorean = isKoreanLocale();
   const [viewMode, setViewMode] = useState<ViewMode>('question');
   const [selectedChoice, setSelectedChoice] = useState<ChoiceKey | null>(null);
   // 초대 코드는 항상 6자리 숫자 (generateInviteCode가 숫자 코드만 생성).
@@ -275,6 +279,9 @@ export function FamilyCheckScreen() {
             <Text style={styles.backText}>{t('common.back')}</Text>
           </TouchableOpacity>
         </View>
+      ) : isKorean ? (
+        // 뒤로가기 버튼은 없지만 헤더가 차지하던 높이만큼 여백을 둬 제목이 노치에 붙지 않게(한글 원복).
+        <View style={styles.headerSpacer} />
       ) : null}
 
       <ScrollView
@@ -339,6 +346,10 @@ const styles = StyleSheet.create({
     paddingHorizontal: 16,
     paddingTop: 8,
     paddingBottom: 4,
+  },
+  // 뒤로가기 헤더가 렌더되지 않는 첫 화면에서, 헤더가 차지하던 높이만큼 여백을 확보(제목 노치 붙음 방지).
+  headerSpacer: {
+    height: 56,
   },
   backBtn: {
     flexDirection: 'row',
