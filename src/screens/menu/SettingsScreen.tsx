@@ -62,17 +62,18 @@ interface CaregiverNotif {
 }
 
 const DEFAULT_CAREGIVER_NOTIFS: CaregiverNotif[] = [
-  { id: 'med_taken', label: i18n.t('settings.notifMedTakenLabel'), sub: i18n.t('settings.notifMedTakenSub'), enabled: true },
-  { id: 'med_missed', label: i18n.t('settings.notifMedMissedLabel'), sub: i18n.t('settings.notifMedMissedSub'), enabled: true },
+  // 기본 OFF (오너 결정 2026-07-15): 보호자 알림은 전부 꺼진 채로 시작(저장값 없을 때 표시 기본값도 off).
+  { id: 'med_taken', label: i18n.t('settings.notifMedTakenLabel'), sub: i18n.t('settings.notifMedTakenSub'), enabled: false },
+  { id: 'med_missed', label: i18n.t('settings.notifMedMissedLabel'), sub: i18n.t('settings.notifMedMissedSub'), enabled: false },
   // 라벨 앞 '환자 ' 접두 → pt() 가 연동 환자 이름으로 치환("{환자명}님 몸상태·기분 기록 시").
   // 미연동 시엔 "환자"로 표시(fallback). 몸상태~변비 항목(운동 포함)만 접두.
   // 몸상태·기분은 환자가 항상 한 번에 기록 → 보호자 알림도 1개 → 토글 통합.
   // id는 발송부(useBodyState) 호환 위해 body_state 유지. 저장 시 mood도 같은 값으로 동기화.
-  { id: 'body_state', label: i18n.t('settings.notifBodyStateLabel'), sub: i18n.t('settings.notifBodyStateSub'), enabled: true },
-  { id: 'exercise', label: i18n.t('settings.notifExerciseLabel'), enabled: true },
+  { id: 'body_state', label: i18n.t('settings.notifBodyStateLabel'), sub: i18n.t('settings.notifBodyStateSub'), enabled: false },
+  { id: 'exercise', label: i18n.t('settings.notifExerciseLabel'), enabled: false },
   // 컨디션 측정 기능 숨김 시 측정 완료 알림도 비노출.
   ...(MEASUREMENT_FEATURE_ENABLED
-    ? [{ id: 'measurement_completed', label: i18n.t('settings.notifMeasurementLabel'), sub: i18n.t('settings.notifMeasurementSub'), enabled: true }]
+    ? [{ id: 'measurement_completed', label: i18n.t('settings.notifMeasurementLabel'), sub: i18n.t('settings.notifMeasurementSub'), enabled: false }]
     : []),
   { id: 'sleep', label: i18n.t('settings.notifSleepLabel'), enabled: false },
   { id: 'constipation', label: i18n.t('settings.notifConstipationLabel'), enabled: false },

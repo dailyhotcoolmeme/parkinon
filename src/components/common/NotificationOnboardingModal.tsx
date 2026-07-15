@@ -80,12 +80,18 @@ function getCaregiverItems(): CaregiverItem[] {
 // SettingsScreen.tsx의 DEFAULT_CAREGIVER_NOTIFS와 동일한 스키마를 유지해야
 // confirm 시 caregiver_notif_prefs 전체가 망가지지 않는다.
 // (sleep/constipation은 기본 OFF, 나머지는 ON)
+// 기본 OFF (오너 결정 2026-07-15): 보호자 알림은 전부 꺼진 채로 시작한다.
+//   온보딩 직후 강제 이동되는 보호자 알림 설정 화면에서 사용자가 직접 켠다.
+//   (발송부가 참조하는 키 missed_first/missed_second/measurement_completed 도 명시 false 로 둬 확실히 차단)
 const DEFAULT_CAREGIVER_PREFS: Record<string, boolean> = {
-  med_taken: true,
-  med_missed: true,
-  body_state: true,
-  mood: true,
-  exercise: true,
+  med_taken: false,
+  med_missed: false,
+  missed_first: false,
+  missed_second: false,
+  body_state: false,
+  mood: false,
+  exercise: false,
+  measurement_completed: false,
   sleep: false,
   constipation: false,
 };
