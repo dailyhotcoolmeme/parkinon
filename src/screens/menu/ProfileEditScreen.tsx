@@ -249,6 +249,7 @@ export function ProfileEditScreen() {
       message: t('profileEdit.roleWarn1Msg'),
       confirmText: t('common.continue'),
       cancelText: t('common.cancel'),
+      destructive: true, // 파괴적(기록 삭제) 경고 → 확인 버튼 빨강
     });
     if (!ok1) return;
 
@@ -257,6 +258,7 @@ export function ProfileEditScreen() {
       message: t('profileEdit.roleWarn2Msg'),
       confirmText: t('profileEdit.roleWarn2Confirm'),
       cancelText: t('common.cancel'),
+      destructive: true, // 최종 삭제 확인 → 확인 버튼 빨강
     });
     if (!ok2) return;
 
