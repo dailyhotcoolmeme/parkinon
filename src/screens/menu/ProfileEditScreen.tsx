@@ -127,7 +127,12 @@ export function ProfileEditScreen() {
       if (!alive) return;
       const au = data?.user;
       setAccountEmail(au?.email ?? null);
+      // ⚠️ 카카오 로그인은 kakao-auth Edge Function이 "이메일 유저"로 생성한 뒤
+      //    magiclink로 세션을 발급한다 → app_metadata.provider / identities 는 'email'이 된다.
+      //    실제 로그인 수단은 createUser 시 user_metadata.provider('kakao')에 남기므로 이걸 최우선으로 본다.
+      //    (구글/애플 OAuth는 user_metadata.provider 가 없어 app_metadata.provider 로 자연 폴백됨)
       const prov =
+        (au?.user_metadata as any)?.provider ??
         (au?.app_metadata as any)?.provider ??
         (au?.identities && au.identities[0]?.provider) ??
         null;
