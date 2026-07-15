@@ -375,16 +375,20 @@ export function RecordSoundScreen() {
         return;
       }
 
-      // ── 신규 등록: INSERT (기존 흐름 그대로) ──
+      // ── 신규 등록: INSERT + 새 행 id 확보 ──
       const result = await uploadSound(recordedUri!, user.id, 'audio/m4a');
-      const { error } = await supabase.from('custom_sounds' as any).insert({
-        group_id: user.patient_group_id,
-        recorded_by: user.id,
-        label: finalLabel,
-        r2_key_src: result.key,
-        public_url: result.url,
-        duration_ms: recordedDurationMs,
-      });
+      const { data: inserted, error } = await supabase
+        .from('custom_sounds' as any)
+        .insert({
+          group_id: user.patient_group_id,
+          recorded_by: user.id,
+          label: finalLabel,
+          r2_key_src: result.key,
+          public_url: result.url,
+          duration_ms: recordedDurationMs,
+        })
+        .select('id, created_at')
+        .single();
 
       if (error) {
         throw new Error(error.message);
@@ -394,7 +398,16 @@ export function RecordSoundScreen() {
         title: t('recordSound.saveDoneTitle'),
         message: t('recordSound.saveDoneMsg'),
       });
-      navigation.goBack();
+      // 목록이 즉시 반영하도록 새 소리를 전달(복제 지연으로 재조회가 아직 새 행을 못 볼 수 있어 대비).
+      navigation.navigate('AlarmSoundSettings', {
+        newSound: {
+          id: (inserted as any)?.id,
+          label: finalLabel,
+          public_url: result.url,
+          duration_ms: recordedDurationMs,
+          created_at: (inserted as any)?.created_at,
+        },
+      });
     } catch (e: any) {
       dialog.alert({
         title: t('recordSound.saveFailTitle'),

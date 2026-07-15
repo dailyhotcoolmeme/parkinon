@@ -14,7 +14,8 @@ import { Audio } from 'expo-av';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Colors } from '../../constants/colors';
 import { useSwipeDownDismiss } from '../../hooks/useSwipeDownDismiss';
-import { resolveMediaUrl } from '../../lib/r2Get';
+import { resolvePlaybackUrl } from '../../lib/r2Get';
+import { useDialog } from '../../context/DialogContext';
 import { navigateTo } from '../../navigation/navigationRef';
 import { useTranslation } from 'react-i18next';
 
@@ -48,6 +49,7 @@ interface Props {
  */
 export function AlarmSoundPickerRow({ soundId, sounds, onSelect, backgroundColor }: Props) {
   const { t } = useTranslation();
+  const dialog = useDialog();
   const insets = useSafeAreaInsets();
   const [open, setOpen] = useState(false);
   // 임시 선택값 — 시트에서 고르면 여기에만 담고, '완료' 눌러야 실제 적용(onSelect).
@@ -78,9 +80,19 @@ export function AlarmSoundPickerRow({ soundId, sounds, onSelect, backgroundColor
       await Audio.setAudioModeAsync({
         allowsRecordingIOS: false,
         playsInSilentModeIOS: true,
+        // Android: 이어피스가 아닌 스피커로, 다른 소리 낮추며 재생(무음/이어피스 라우팅 방지).
+        playThroughEarpieceAndroid: false,
+        shouldDuckAndroid: true,
+        staysActiveInBackground: false,
       });
-      // presigned GET URL 로 변환(실패 시 원본 공개 URL 폴백)
-      const previewUri = await resolveMediaUrl(item.previewUrl);
+      // 재생 전용 서명 URL(죽은 공개 URL 폴백 안 함). 못 받으면 무음 대신 명확히 에러.
+      const previewUri = await resolvePlaybackUrl(item.previewUrl);
+      if (!previewUri) {
+        setLoadingId(null);
+        setPlayingId(null);
+        dialog.alert({ title: t('alarmSound.playFailTitle'), message: t('alarmSound.playFailMsg') });
+        return;
+      }
       const { sound } = await Audio.Sound.createAsync(
         { uri: previewUri },
         { shouldPlay: true },
@@ -98,6 +110,7 @@ export function AlarmSoundPickerRow({ soundId, sounds, onSelect, backgroundColor
     } catch {
       setLoadingId(null);
       setPlayingId(null);
+      dialog.alert({ title: t('alarmSound.playFailTitle'), message: t('alarmSound.playFailMsg') });
     }
   };
 

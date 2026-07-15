@@ -43,7 +43,11 @@ export type MenuStackParamList = {
   RecordSound: { editSoundId?: string; editLabel?: string } | undefined;
   // 알림음 설정 화면 — 저장된 녹음 미리듣기/설정/삭제 + 새 녹음 진입
   AlarmSoundSettings:
-    | { updatedSound?: { id: string; label?: string; public_url?: string | null; duration_ms?: number | null } }
+    | {
+        updatedSound?: { id: string; label?: string; public_url?: string | null; duration_ms?: number | null };
+        // 신규 녹음 등록 직후 목록 즉시 반영용(복제 지연 대비).
+        newSound?: { id: string; label: string; public_url: string | null; duration_ms: number | null; created_at?: string };
+      }
     | undefined;
   // 차단한 사용자 관리 화면 — 커뮤니티 차단 해제 UI
   BlockedUsers: undefined;

@@ -143,6 +143,37 @@ export async function resolveMediaUrl(keyOrUrl: string | null | undefined): Prom
 }
 
 /**
+ * 재생(오디오/영상 미리듣기) 전용 URL 리졸버.
+ *
+ * resolveMediaUrl 은 실패 시 "원본 공개 URL(현재 버킷 비공개라 401)" 로 폴백하는데,
+ * 재생에선 그 폴백이 "무음/무영상으로 조용히 실패" 를 유발한다(에러도 안 뜸).
+ * → 재생에선 죽은 폴백을 쓰지 않고, r2-get-url(서명 URL)만 신뢰한다.
+ *   콜드스타트 대비 재시도하고, 끝내 못 받으면 null 을 반환해 호출부가 명확히 에러를 띄우게 한다.
+ */
+export async function resolvePlaybackUrl(keyOrUrl: string | null | undefined): Promise<string | null> {
+  const key = extractR2Key(keyOrUrl);
+  if (!key) return keyOrUrl ? String(keyOrUrl) : null; // 비R2(번들 프리셋 등)면 원본 그대로
+
+  const cached = cache.get(key);
+  if (cached && Date.now() - cached.at < CACHE_TTL_MS) return cached.url;
+
+  // 콜드스타트/일시 지연 대비 최대 2회 시도(짧은 타임아웃으로 자르지 않고 발급을 기다린다).
+  for (let attempt = 0; attempt < 2; attempt++) {
+    let promise = inflight.get(key);
+    if (!promise) {
+      promise = fetchPresigned(key).finally(() => inflight.delete(key));
+      inflight.set(key, promise);
+    }
+    const url = await promise;
+    if (url) {
+      cache.set(key, { url, at: Date.now() });
+      return url;
+    }
+  }
+  return null;
+}
+
+/**
  * 리스트 로드 직후 영상(또는 사진) 워커 URL 을 미리 병렬로 발급해 캐시에 채워둔다.
  * - 각 항목은 resolveMediaUrl 을 그대로 타므로 기존 캐시/in-flight 합치기 로직이 중복 발급·레이스를 막는다.
  *   (이미 캐시에 있거나 발급 중이면 새 요청이 추가로 나가지 않는다.)

@@ -27,7 +27,7 @@ import { useDialog } from '../../context/DialogContext';
 import { useSubscription } from '../../context/SubscriptionContext';
 import { isOverseasLocale } from '../../i18n/detectLocale';
 import { supabase } from '../../lib/supabase';
-import { resolveMediaUrl } from '../../lib/r2Get';
+import { resolvePlaybackUrl } from '../../lib/r2Get';
 import i18n from '../../i18n';
 import { useTranslation } from 'react-i18next';
 
@@ -81,6 +81,9 @@ export function AlarmSoundSettingsScreen() {
   //  - 수정: 서버 라벨/URL 이 옛 값이면 새 값으로 덮어 표시. 서버가 새 값이 되면 보정 해제.
   const pendingDeleteIdsRef = useRef<Set<string>>(new Set());
   const pendingEditsRef = useRef<Record<string, Partial<CustomSound>>>({});
+  // 신규 녹음 등록 직후, 서버(read replica)가 아직 새 행을 못 볼 때 목록에 임시로 얹어두는 소리들.
+  // load()가 서버 목록에 그 id를 발견하면 여기서 제거(= 서버가 따라잡음).
+  const pendingNewRef = useRef<Record<string, CustomSound>>({});
 
   // 언마운트 시 재생 리소스 정리
   useEffect(() => {
@@ -138,7 +141,11 @@ export function AlarmSoundSettingsScreen() {
       }
       // 서버 목록에서 사라진 삭제대기 id 정리 (서버가 따라잡음)
       for (const id of Array.from(delIds)) if (!seen.has(id)) delIds.delete(id);
-      setSounds(merged);
+      // 신규 등록 낙관적 반영: 서버가 아직 못 본 새 소리를 맨 앞에 얹고, 서버가 따라잡은 건 해제.
+      const news = pendingNewRef.current;
+      for (const id of Object.keys(news)) if (seen.has(id)) delete news[id];
+      const stillNew = Object.values(news).filter((n) => !seen.has(n.id));
+      setSounds([...stillNew, ...merged]);
       // 기기에 현재 알림음 설정 전체(기본 + 항목별 목소리) 반영
       provisionForUser(user.id, user.patient_group_id ?? null).catch(() => {});
     } catch (e) {
@@ -164,6 +171,24 @@ export function AlarmSoundSettingsScreen() {
     setSounds((prev) => prev.map((s) => (s.id === u.id ? { ...s, ...patch } : s)));
     navigation.setParams({ updatedSound: undefined }); // 소비 후 제거 (재병합 방지)
   }, [route.params?.updatedSound, navigation]);
+
+  // 신규 녹음 등록 화면에서 돌아올 때 새 소리를 즉시 목록 맨 앞에 반영 (복제 지연 대비)
+  useEffect(() => {
+    const n = route.params?.newSound as
+      | { id: string; label: string; public_url: string | null; duration_ms: number | null; created_at?: string }
+      | undefined;
+    if (!n?.id) return;
+    const item = {
+      id: n.id,
+      label: n.label,
+      public_url: n.public_url,
+      duration_ms: n.duration_ms,
+      created_at: n.created_at ?? new Date().toISOString(),
+    } as CustomSound;
+    pendingNewRef.current[n.id] = item;
+    setSounds((prev) => (prev.some((s) => s.id === n.id) ? prev : [item, ...prev]));
+    navigation.setParams({ newSound: undefined }); // 소비 후 제거
+  }, [route.params?.newSound, navigation]);
 
   // 진입/복귀마다 갱신 + 떠날 때 재생 정리
   useFocusEffect(
@@ -195,9 +220,19 @@ export function AlarmSoundSettingsScreen() {
       await Audio.setAudioModeAsync({
         allowsRecordingIOS: false,
         playsInSilentModeIOS: true,
+        // Android: 이어피스가 아닌 스피커로, 다른 소리 낮추며 재생(무음/이어피스 라우팅 방지).
+        playThroughEarpieceAndroid: false,
+        shouldDuckAndroid: true,
+        staysActiveInBackground: false,
       });
-      // presigned GET URL 로 변환(실패 시 원본 공개 URL 폴백)
-      const previewUri = await resolveMediaUrl(item.public_url);
+      // 재생 전용 서명 URL(죽은 공개 URL 폴백 안 함). 못 받으면 무음 대신 명확히 에러.
+      const previewUri = await resolvePlaybackUrl(item.public_url);
+      if (!previewUri) {
+        setPreparingId(null);
+        setPlayingId(null);
+        dialog.alert({ title: t('alarmSound.playFailTitle'), message: t('alarmSound.playFailMsg') });
+        return;
+      }
       const { sound } = await Audio.Sound.createAsync(
         { uri: previewUri },
         { shouldPlay: true },
