@@ -319,7 +319,8 @@ export function MedicationScreen() {
             if (isCaregiver) {
               navigateTo('Main', { screen: 'MyInfo', params: { screen: 'Settings', params: { guideCaregiverNotif: true } } });
             } else {
-              navigateTo('Main', { screen: 'MyInfo', params: { screen: 'MedicationManage', params: { mode: 'slots', guideSetup: true } } });
+              // 환자: 새 간단 복약시간 온보딩(첫째 약→시간→둘째 약… 순차)으로.
+              navigateTo('Main', { screen: 'MyInfo', params: { screen: 'MedTimeOnboarding' } });
             }
           }, 400);
           return;

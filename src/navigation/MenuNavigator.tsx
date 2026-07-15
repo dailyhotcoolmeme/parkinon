@@ -19,6 +19,7 @@ import { RecordSoundScreen } from '../screens/sound/RecordSoundScreen';
 import { AlarmSoundSettingsScreen } from '../screens/sound/AlarmSoundSettingsScreen';
 import { BlockedUsersScreen } from '../screens/menu/BlockedUsersScreen';
 import { SubscriptionManageScreen } from '../screens/menu/SubscriptionManageScreen';
+import { MedTimeOnboardingScreen } from '../screens/onboarding/MedTimeOnboardingScreen';
 
 export type MenuStackParamList = {
   MenuHome: undefined;
@@ -28,6 +29,7 @@ export type MenuStackParamList = {
     period?: string;
   };
   Settings: { guideCaregiverNotif?: boolean } | undefined;
+  MedTimeOnboarding: undefined;
   MedicationManage: { mode?: 'meds' | 'slots'; openSlot?: 'morning' | 'lunch' | 'dinner' | 'bedtime'; guideSetup?: boolean } | undefined;
   FamilyLink: undefined;
   ProfileEdit: undefined;
@@ -64,6 +66,7 @@ export function MenuNavigator() {
       <Stack.Screen name="Records" component={RecordsScreen} />
       <Stack.Screen name="RecordDetail" component={RecordDetailScreen} />
       <Stack.Screen name="Settings" component={SettingsScreen} />
+      <Stack.Screen name="MedTimeOnboarding" component={MedTimeOnboardingScreen} />
       <Stack.Screen name="MedicationManage" component={MedicationManageScreen} />
       <Stack.Screen name="FamilyLink" component={FamilyLinkScreen} />
       <Stack.Screen name="ProfileEdit" component={ProfileEditScreen} />

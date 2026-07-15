@@ -13,7 +13,8 @@
     "delete": "삭제",
     "a11yContact": "문의하기",
     "continue": "계속",
-    "notice": "안내"
+    "notice": "안내",
+    "edit": "수정"
   },
   "devLetter": {
     "title": "파킨온 앱을 출시하며",
@@ -1843,5 +1844,28 @@
     "emptyLine1": "아직 녹음한 알림음이 없어요.",
     "emptyLine2": "메뉴 → 알림음 설정에서 만들 수 있어요.",
     "goToSettings": "알림음 녹음 설정으로 가기"
+  },
+  "medTimeOnboarding": {
+    "headerTitle": "복약 알림 설정",
+    "introTitle": "복약 시간 알림",
+    "introMsg": "약 드시는 시간을 정해두면\n그 시간에 알려드려요.\n\n몇 시에 드시는지만 정하시면 됩니다.\n가족(보호자)이 있으면 대신 설정하거나\n맡기셔도 돼요.",
+    "askQuestion": "{{n}}번째 약, 몇 시에 드세요?",
+    "editQuestion": "시간을 수정하세요",
+    "askHint": "드시는 시간을 정해주세요.",
+    "hour": "시",
+    "minute": "분",
+    "saveTime": "이 시간 저장",
+    "doneAdding": "다 등록했어요",
+    "summaryTitle": "이렇게 알림 드릴게요",
+    "summaryHint": "수정할 게 있으면 눌러서 바꾸세요.",
+    "addMore": "약 시간 더 추가",
+    "emptyTimes": "등록된 시간이 없어요.",
+    "finish": "완료",
+    "doneTitle": "설정 완료",
+    "doneMsg": "정하신 시간에 복약 알림을 보내드릴게요.",
+    "saveFail": "저장 중 문제가 생겼어요. 다시 시도해주세요.",
+    "handoff": "보호자에게 맡기기",
+    "handoffTitle": "보호자에게 맡기기",
+    "handoffMsg": "보호자분이 대신 설정해드릴 수 있어요.\n지금은 건너뛸게요."
   }
 }

@@ -13,7 +13,8 @@
     "delete": "Delete",
     "a11yContact": "Contact us",
     "continue": "Continue",
-    "notice": "Notice"
+    "notice": "Notice",
+    "edit": "Edit"
   },
   "devLetter": {
     "title": "On Launching ParkinON",
@@ -1843,5 +1844,28 @@
     "emptyLine1": "You haven't recorded any notification sounds yet.",
     "emptyLine2": "You can create one in Menu → Notification Sound Settings.",
     "goToSettings": "Go to Notification Sound Settings"
+  },
+  "medTimeOnboarding": {
+    "headerTitle": "Medication reminders",
+    "introTitle": "Dose-time reminders",
+    "introMsg": "Set the times you take your medication,\nand we'll remind you then.\n\nJust choose the times.\nIf you have a family caregiver, they can\nset this up for you.",
+    "askQuestion": "What time is medication #{{n}}?",
+    "editQuestion": "Edit the time",
+    "askHint": "Choose the time you take it.",
+    "hour": "Hour",
+    "minute": "Min",
+    "saveTime": "Save this time",
+    "doneAdding": "All done adding",
+    "summaryTitle": "Here's your reminder schedule",
+    "summaryHint": "Tap to edit anything you need to change.",
+    "addMore": "Add another time",
+    "emptyTimes": "No times added yet.",
+    "finish": "Done",
+    "doneTitle": "All set",
+    "doneMsg": "We'll remind you to take your medication at these times.",
+    "saveFail": "Something went wrong. Please try again.",
+    "handoff": "Let my caregiver set this up",
+    "handoffTitle": "Ask your caregiver",
+    "handoffMsg": "Your caregiver can set this up for you.\nWe'll skip it for now."
   }
 }
