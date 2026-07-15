@@ -717,7 +717,7 @@
     "sectionDeposit": "Storage",
     "medInfoNotFound": "Couldn't find drug info",
     "setupGuideTitle": "Add medications & alerts",
-    "setupGuideMsg": "Here you can add the medications you take and turn on dose-time reminders. Alerts start off, so turn on just the times you want. If a family member (caregiver) uses the app with you, they can set this up for you too."
+    "setupGuideMsg": "Add the medications you take,\nand turn on dose-time reminders here.\n\nReminders start off,\nso turn on just the times you want.\n\nIf a family member (caregiver) uses the app with you,\nthey can set this up for you too."
   },
   "settings": {
     "notifMedTakenLabel": "When the patient records medication",
@@ -786,7 +786,7 @@
     "openSettingsBtn": "Open Settings",
     "laterBtn": "Later",
     "caregiverGuideTitle": "Caregiver alerts",
-    "caregiverGuideMsg": "Turn the patient’s medication and status alerts on or off here. They all start off, so enable just the ones you want to receive."
+    "caregiverGuideMsg": "Turn the patient’s medication and\nstatus alerts on or off here.\n\nThey all start off,\nso enable just the ones you want."
   },
   "diary": {
     "headerTitle": "ParkinON Diary",
