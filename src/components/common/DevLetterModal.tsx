@@ -129,6 +129,9 @@ function DevLetterModalContent({ visible, onClose }: Props) {
   const [paragraphs, setParagraphs] = React.useState<string[]>(
     overseas ? LETTER_PARAGRAPHS_EN : LETTER_PARAGRAPHS
   );
+  // 마지막 서명 줄도 서버(dev_letter.signature_ko/en)에서 불러온다. 앱은 항상 서명 스타일(styles.signature)로 렌더.
+  // 로드 전/빈 값이면 i18n 폴백(마지막 알려진 값).
+  const [signature, setSignature] = React.useState<string>(t('devLetter.signature'));
   // 닫을 때 저장할 현재 서버 버전(강제 재노출 기준). 조회 실패 시 기존 저장값을 유지하도록 null.
   const popupVersionRef = useRef<number | null>(null);
 
@@ -137,13 +140,15 @@ function DevLetterModalContent({ visible, onClose }: Props) {
     // dev_letter 는 생성된 DB 타입에 아직 없어 any 캐스팅(런타임 조회엔 영향 없음).
     (supabase as any)
       .from('dev_letter')
-      .select('body_ko, body_en, popup_version')
+      .select('body_ko, body_en, signature_ko, signature_en, popup_version')
       .eq('id', 1)
       .single()
       .then(({ data, error }: { data: any; error: any }) => {
         if (!alive || error || !data) return;
         const parsed = splitParagraphs(overseas ? (data as any).body_en : (data as any).body_ko);
         if (parsed.length) setParagraphs(parsed);
+        const sig = overseas ? (data as any).signature_en : (data as any).signature_ko;
+        if (typeof sig === 'string' && sig.trim()) setSignature(sig.trim());
         if (typeof (data as any).popup_version === 'number') {
           popupVersionRef.current = (data as any).popup_version;
         }
@@ -233,7 +238,7 @@ function DevLetterModalContent({ visible, onClose }: Props) {
                 {p}
               </Text>
             ))}
-            <Text style={styles.signature}>{t('devLetter.signature')}</Text>
+            <Text style={styles.signature}>{signature}</Text>
           </View>
         </ScrollView>
 
