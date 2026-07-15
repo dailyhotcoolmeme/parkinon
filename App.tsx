@@ -17,7 +17,7 @@ import { DialogProvider } from './src/context/DialogContext';
 import { RootNavigator } from './src/navigation/RootNavigator';
 import { ErrorBoundary, LAST_JS_ERROR_KEY } from './src/components/common/ErrorBoundary';
 import * as Notifications from 'expo-notifications';
-import { navigateTo } from './src/navigation/navigationRef';
+import { navigateTo, navigationRef } from './src/navigation/navigationRef';
 import { initActivityLog } from './src/utils/activityLog';
 import * as Updates from 'expo-updates';
 import { useFonts } from 'expo-font';
@@ -239,6 +239,39 @@ function AppInner() {
         body: content.body,
         data,
       });
+
+      // ── 보호자 알림: 종류에 맞는 화면으로 이동만 (팝업/자동기록 없음). (오너 결정 2026-07-16) ──
+      //   약 드심/미복용 → 약복용, 몸상태(변비·수면 등)·동작측정 → 약효추적(몸상태 탭), 운동 → 운동.
+      //   보호자 알림은 자동기록이 없어 stale/자동선택 로직이 불필요하므로 여기서 바로 처리하고 종료한다.
+      const CAREGIVER_NAV: Record<string, () => void> = {
+        caregiver_medication: () => navigateTo('Main', { screen: 'Medication' }),
+        caregiver_missed_med: () => navigateTo('Main', { screen: 'Medication' }),
+        caregiver_body_state: () => navigateTo('Main', { screen: 'BodyStateTab', params: { screen: 'BodyState' } }),
+        caregiver_exercise: () => navigateTo('Main', { screen: 'Exercise' }),
+        measurement_completed: () => navigateTo('Main', { screen: 'BodyStateTab', params: { screen: 'BodyState' } }),
+      };
+      if (type && CAREGIVER_NAV[type]) {
+        log('caregiver_nav_enter', { type });
+        // dedupe: 같은 세션 재진입 + 콜드스타트 영구 dedupe
+        if (handledNotifIds.current.has(notifId)) { log('caregiver_nav_dedupe', { by: 'notifId' }); return; }
+        handledNotifIds.current.add(notifId);
+        if (await isProcessed(notifId)) { log('caregiver_nav_dedupe', { by: 'processed' }); return; }
+        // 읽음 처리(종 배지) — navigate 를 막지 않도록 fire-and-forget
+        void (async () => {
+          try {
+            await saveNotification(type, content.title ?? '', content.body ?? '', data, new Date().toISOString());
+            refreshBadge();
+          } catch {}
+        })();
+        // 콜드스타트면 네비게이터 준비될 때까지 대기(최대 ~5초)
+        if (isColdStart) {
+          for (let i = 0; i < 50 && !navigationRef.isReady(); i++) await new Promise((r) => setTimeout(r, 100));
+        }
+        try { CAREGIVER_NAV[type](); } catch (e: any) { log('caregiver_nav_error', { error: String(e?.message ?? e) }); }
+        markProcessed(notifId).catch(() => {});
+        log('caregiver_nav_done', { type });
+        return;
+      }
 
       // Freshness 체크: stale 알림 응답 차단 (어제 알림이 오늘 cold start에 잘못 트리거되는 케이스)
       // expo-notifications가 getLastNotificationResponseAsync에서 과거 응답을 캐시 반환하는 결함 방어.
