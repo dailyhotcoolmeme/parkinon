@@ -1127,7 +1127,7 @@ export function DoseSlotSetList({
             </View>
 
             {!expanded ? (
-              /* ── 접힌 카드: 두 알림 토글 + 추적 요약 + 수정 ── */
+              /* ── 접힌 카드: 두 알림 토글 + (켜지면) 알림음 + 추적 요약 + 수정 ── */
               <>
                 <View style={styles.row}>
                   <View style={styles.rowText}>
@@ -1142,6 +1142,17 @@ export function DoseSlotSetList({
                     thumbColor={Colors.white}
                   />
                 </View>
+                {/* 복용 알림음 — 켜져 있을 때만, 토글 바로 아래(수정 진입 없이 바로 선택). */}
+                {slot.remindEnabled && (
+                  <View style={styles.collapsedSoundRow}>
+                    <AlarmSoundPickerRow
+                      soundId={slot.remindSoundId}
+                      sounds={alarmSounds}
+                      onSelect={(sid) => onRemindSound(slot, sid)}
+                      backgroundColor="transparent"
+                    />
+                  </View>
+                )}
 
                 <View style={styles.divider} />
 
@@ -1163,6 +1174,17 @@ export function DoseSlotSetList({
                     thumbColor={Colors.white}
                   />
                 </View>
+                {/* 약효추적 알림음 — 켜져 있을 때만, 토글 바로 아래. */}
+                {slot.trackEnabled && (
+                  <View style={styles.collapsedSoundRow}>
+                    <AlarmSoundPickerRow
+                      soundId={slot.trackSoundId}
+                      sounds={alarmSounds}
+                      onSelect={(sid) => onTrackSound(slot, sid)}
+                      backgroundColor="transparent"
+                    />
+                  </View>
+                )}
 
               </>
             ) : (
@@ -1199,15 +1221,7 @@ export function DoseSlotSetList({
                           <Ionicons name="chevron-forward" size={18} color={Colors.textSub} />
                         </View>
                       </TouchableOpacity>
-
-                      {/* 알림 소리 — 박스 안에서 평평하게(투명 배경 + 윗 구분선) */}
-                      <View style={styles.innerDivider} />
-                      <AlarmSoundPickerRow
-                        soundId={slot.remindSoundId}
-                        sounds={alarmSounds}
-                        onSelect={(sid) => onRemindSound(slot, sid)}
-                        backgroundColor="transparent"
-                      />
+                      {/* 알림음 선택은 접힌 카드(토글 아래)로 이동 — 여기선 시간만 편집. */}
                     </>
                   )}
                 </View>
@@ -1412,14 +1426,7 @@ export function DoseSlotSetList({
                         </View>
                       )}
 
-                      {/* 알림 소리 — 박스 안에서 평평하게(투명 배경 + 윗 구분선) */}
-                      <View style={styles.innerDivider} />
-                      <AlarmSoundPickerRow
-                        soundId={slot.trackSoundId}
-                        sounds={alarmSounds}
-                        onSelect={(sid) => onTrackSound(slot, sid)}
-                        backgroundColor="transparent"
-                      />
+                      {/* 알림음 선택은 접힌 카드(토글 아래)로 이동 — 여기선 추적 시간만 편집. */}
                     </>
                   )}
                 </View>
@@ -1994,6 +2001,11 @@ const styles = StyleSheet.create({
     height: 1,
     backgroundColor: Colors.border,
     marginVertical: 14,
+  },
+  // 접힌 카드에서 토글 바로 아래 알림음 선택 행 — 소속 알림 밑에 살짝 들여쓰기.
+  collapsedSoundRow: {
+    paddingLeft: 6,
+    marginTop: 4,
   },
 
   // 토글 행
