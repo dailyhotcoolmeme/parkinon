@@ -25,9 +25,37 @@ import { downloadAsync, cacheDirectory, getContentUriAsync } from 'expo-file-sys
 import { supabase } from './supabase';
 import { resolveMediaUrl } from './r2Get';
 import * as AlarmSoundNative from '../../modules/alarm-sound';
+import { PRESET_ALARM_SOUNDS, PRESET_SOUND_PREFIX } from '../constants/presetAlarmSounds';
 import i18n from '../i18n';
 
 const CHANNEL_PREFIX = 'parkinon_alarm_';
+const PRESET_CHANNEL_PREFIX = 'parkinon_preset_';
+
+// 프리셋 fileId → 한글 표시명(안드 채널 이름으로 노출).
+const PRESET_NAME_BY_FILE: Record<string, string> = Object.fromEntries(
+  PRESET_ALARM_SOUNDS.map((p) => [p.fileId, p.nameKo]),
+);
+
+/**
+ * 프리셋 알림음 채널 보장(Android). 채널 sound = res/raw 리소스명(<fileId>, 확장자 제외).
+ * ⚠️ 번들(재빌드) 전에는 그 리소스가 없어 시스템 기본음으로 울리지만 채널은 생성되므로
+ *   서버가 이 채널로 보내도 알림 자체는 정상 표시된다(번들 후 프리셋 소리로 울림).
+ */
+async function ensurePresetChannel(fileId: string): Promise<string> {
+  const channelId = `${PRESET_CHANNEL_PREFIX}${fileId}`;
+  if (Platform.OS !== 'android') return channelId;
+  const existing = await notifee.getChannel(channelId);
+  if (!existing) {
+    await notifee.createChannel({
+      id: channelId,
+      name: i18n.t('alarmSound.channelName', { label: PRESET_NAME_BY_FILE[fileId] ?? fileId }),
+      sound: fileId, // res/raw 리소스명(확장자 제외)
+      importance: AndroidImportance.HIGH,
+      vibration: true,
+    });
+  }
+  return channelId;
+}
 
 /** 녹음 사운드용 알림 채널 ID (클라·서버 동일 규칙) */
 export function alarmChannelId(soundId: string): string {
@@ -110,13 +138,14 @@ export async function ensureRecordedChannel(
   return channelId;
 }
 
-/** keepChannelIds 에 없는 parkinon_alarm_* 채널 정리(더 이상 쓰지 않는 옛 채널 제거) */
+/** keepChannelIds 에 없는 parkinon_alarm_ / parkinon_preset_ 채널 정리(안 쓰는 옛 채널 제거) */
 export async function cleanupAlarmChannels(keepChannelIds: string[]): Promise<void> {
   if (Platform.OS !== 'android') return;
   const keep = new Set(keepChannelIds);
   const channels = await notifee.getChannels();
   for (const ch of channels) {
-    if (ch.id.startsWith(CHANNEL_PREFIX) && !keep.has(ch.id)) {
+    const ours = ch.id.startsWith(CHANNEL_PREFIX) || ch.id.startsWith(PRESET_CHANNEL_PREFIX);
+    if (ours && !keep.has(ch.id)) {
       await notifee.deleteChannel(ch.id).catch(() => {});
     }
   }
@@ -129,6 +158,14 @@ async function provisionSounds(soundIds: string[], sounds: SoundRow[]): Promise<
   if (Platform.OS !== 'android') return;
   const keep: string[] = [];
   for (const sid of new Set(soundIds)) {
+    // 프리셋: 번들 res/raw 참조 채널(다운로드 불필요).
+    if (sid.startsWith(PRESET_SOUND_PREFIX)) {
+      const fileId = sid.slice(PRESET_SOUND_PREFIX.length);
+      const ch = await ensurePresetChannel(fileId).catch(() => null);
+      if (ch) keep.push(ch);
+      continue;
+    }
+    // 녹음: custom_sounds 다운로드 → content URI 채널.
     const s = sounds.find((x) => x.id === sid);
     if (!s || !s.public_url) continue;
     const ch = await ensureRecordedChannel(

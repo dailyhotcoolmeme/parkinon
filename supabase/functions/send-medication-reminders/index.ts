@@ -338,13 +338,34 @@ function alarmSoundFileNameIOS(soundId: string): string {
   return `parkinon_${soundId}.caf`
 }
 
+/** 프리셋 채널(`parkinon_preset_<fileId>`) → fileId (아니면 null). */
+function presetFileIdFromChannel(channelId: string): string | null {
+  const m = channelId.match(/^parkinon_preset_(.+)$/)
+  return m ? m[1] : null
+}
+
+/**
+ * 저장된 알림음 id → Android channelId.
+ * - 'preset:<fileId>' → 번들 프리셋 채널 `parkinon_preset_<fileId>` (클라 presetChannelIdAndroid 와 동일)
+ * - 녹음 uuid → `parkinon_alarm_<uuid>`
+ * - null(시스템 기본음) → 'default'
+ */
+function channelForStoredSound(soundId: string | null | undefined): string {
+  if (!soundId) return 'default'
+  if (soundId.startsWith('preset:')) return `parkinon_preset_${soundId.slice('preset:'.length)}`
+  return `parkinon_alarm_${soundId}`
+}
+
 /**
  * Android 용으로 계산한 channelId 를 받아, 수신자 플랫폼에 맞는 Expo Push 의 sound 값을 돌려준다.
- * - iOS + 커스텀 soundId 있음 → `parkinon_<soundId>.caf`
+ * - iOS + 프리셋 채널 → `<fileId>.caf` (번들, 클라 presetSoundFileNameIOS 와 동일)
+ * - iOS + 녹음 soundId 있음 → `parkinon_<soundId>.caf`
  * - 그 외(iOS 기본음, Android) → 'default' (Android 는 channelId 로 커스텀음 처리)
  */
 function soundForPlatform(platform: string | null | undefined, channelId: string): string {
   if (platform === 'ios') {
+    const presetFile = presetFileIdFromChannel(channelId)
+    if (presetFile) return `${presetFile}.caf`
     const soundId = soundIdFromChannel(channelId)
     if (soundId) return alarmSoundFileNameIOS(soundId)
   }
@@ -526,10 +547,49 @@ function isMuted(prefs: Record<string, boolean>, target: DoseTarget): boolean {
 }
 
 function channelFor(soundPrefs: Record<string, string | null>, target: DoseTarget): string {
-  // 구 경로: med_time_sound_prefs[mealTime]. 신규 슬롯은 mealTime 없으면 default.
-  // (dose_slot.remind_sound_id 기반 채널은 4단계 클라 전환과 함께 도입 예정)
+  // 구 경로(legacy, doseSlotId 없음): med_time_sound_prefs[mealTime].
   const slotSoundId = target.mealTime ? soundPrefs[target.mealTime] : null
   return slotSoundId ? `parkinon_alarm_${slotSoundId}` : 'default'
+}
+
+/** dose_slot 별 복약/약효추적 알림음·방식. 환자당 1회 조회해 target 해석에 사용. */
+type SlotAlarm = { remind: string | null; remindMode: string; track: string | null; trackMode: string }
+async function getDoseSlotAlarms(patientId: string): Promise<Map<string, SlotAlarm>> {
+  const map = new Map<string, SlotAlarm>()
+  const { data } = await supabase
+    .from('dose_slots')
+    .select('id, remind_sound_id, remind_alarm_mode, track_sound_id, track_alarm_mode')
+    .eq('patient_id', patientId)
+    .eq('is_active', true)
+  for (const r of (data as any[]) ?? []) {
+    map.set(r.id, {
+      remind: r.remind_sound_id ?? null,
+      remindMode: r.remind_alarm_mode ?? 'basic',
+      track: r.track_sound_id ?? null,
+      trackMode: r.track_alarm_mode ?? 'basic',
+    })
+  }
+  return map
+}
+
+/**
+ * 정시 복약 알림의 채널·방식 결정.
+ * - dose_slot 타겟이면 dose_slots.remind_sound_id(녹음/프리셋/기본음)를 단일 진실로 사용.
+ * - legacy 타겟(doseSlotId 없음)이면 기존 med_time_sound_prefs(channelFor) 폴백.
+ */
+function remindChannelAndMode(
+  target: DoseTarget,
+  slotAlarms: Map<string, SlotAlarm>,
+  soundPrefs: Record<string, string | null>,
+): { channelId: string; alarmMode: string } {
+  if (target.doseSlotId && slotAlarms.has(target.doseSlotId)) {
+    const s = slotAlarms.get(target.doseSlotId)!
+    // 명시 선택(녹음/프리셋)이 있으면 그것을 사용. 없으면(null=미설정/시스템기본음)
+    //   기존 legacy 소리를 유지(구 사용자 회귀 방지). 방식(mode)은 슬롯 값을 그대로.
+    if (s.remind) return { channelId: channelForStoredSound(s.remind), alarmMode: s.remindMode }
+    return { channelId: channelFor(soundPrefs, target), alarmMode: s.remindMode }
+  }
+  return { channelId: channelFor(soundPrefs, target), alarmMode: 'basic' }
 }
 
 /**
@@ -590,13 +650,15 @@ Deno.serve(async (_req: Request) => {
     const soundPrefs = (patient.med_time_sound_prefs ?? {}) as Record<string, string | null>
     const isEn = (patient as any).language === 'en'
     const tz = (patient as any).timezone || 'Asia/Seoul'
+    // 슬롯별 알림음·방식(신규 단일 진실). 없으면 legacy soundPrefs 폴백.
+    const slotAlarms = await getDoseSlotAlarms(patientId)
 
     for (const target of targets) {
       if (isMuted(prefs, target)) continue
       if (await hasTakenMed(patientId, target, tz)) continue
 
-      const channelId = channelFor(soundPrefs, target)
-      const data = { type: 'medication_reminder', mealTime: target.mealTime, doseSlotId: target.doseSlotId }
+      const { channelId, alarmMode } = remindChannelAndMode(target, slotAlarms, soundPrefs)
+      const data = { type: 'medication_reminder', mealTime: target.mealTime, doseSlotId: target.doseSlotId, alarmMode }
       const title = isEn ? '💊 Medication time' : '💊 약 드실 시간이에요'
       const body = isEn
         ? reminderBodyEn(target.periodLabelEn, formatClockTime(target.time))
