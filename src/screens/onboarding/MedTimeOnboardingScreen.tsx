@@ -88,9 +88,9 @@ export function MedTimeOnboardingScreen() {
 
   // 페이지 전환 효과 — 다음 약으로 넘어갈 때 오른쪽에서 슬라이드 인(새 화면이 온 걸 확실히 인지).
   const slideX = useRef(new Animated.Value(0)).current;
-  const slideInFromRight = useCallback(() => {
-    slideX.setValue(SCREEN_W);
-    Animated.timing(slideX, { toValue: 0, duration: 280, useNativeDriver: true }).start();
+  const slideIn = useCallback((fromRight: boolean) => {
+    slideX.setValue(fromRight ? SCREEN_W : -SCREEN_W);
+    Animated.timing(slideX, { toValue: 0, duration: 260, useNativeDriver: true }).start();
   }, [slideX]);
 
   // 진입 시 1회 안내 팝업(온보딩 취지).
@@ -129,16 +129,26 @@ export function MedTimeOnboardingScreen() {
       setView('summary');
     } else {
       // 신규 추가: view='pick' 유지 + picker 시각 유지. 다음 약으로 넘어간 걸 슬라이드로 알림.
-      slideInFromRight();
+      slideIn(true);
     }
-  }, [ampm, hour, minute, editIndex, slideInFromRight]);
+  }, [ampm, hour, minute, editIndex, slideIn]);
 
   // 요약에서 "약 시간 더 추가" → 마지막 등록 시각을 시작점으로 이어서 묻기.
   const addMore = () => {
     if (times.length > 0) setPickerFrom(times[times.length - 1]);
     setEditIndex(null);
     setView('pick');
-    slideInFromRight();
+    slideIn(true);
+  };
+
+  // 뒤로(등록 중) → 직전에 등록한 약으로 돌아가 다시 편집. (요약/완료 화면으로 점프하지 않음)
+  const goBackOne = () => {
+    if (times.length === 0) return;
+    const last = times[times.length - 1];
+    setPickerFrom(last);
+    setTimes((prev) => prev.slice(0, -1));
+    setEditIndex(null);
+    slideIn(false); // 왼쪽에서 슬라이드 = 뒤로 가는 느낌
   };
 
   // 요약에서 특정 항목 수정 → 그 값으로 picker 세팅.
@@ -323,9 +333,16 @@ export function MedTimeOnboardingScreen() {
                 <Text style={styles.ghostBtnText}>{t('medTimeOnboarding.doneAdding')}</Text>
               </TouchableOpacity>
             )}
-            {/* 뒤로가기 — 등록한 게 있거나 수정 중이면 목록(요약)으로 돌아가기 */}
+            {/* 뒤로가기 — 편집 중이면 취소하고 목록으로, 등록 중이면 직전 약으로 돌아가 다시 편집 */}
             {(count >= 1 || editIndex != null) && (
-              <TouchableOpacity style={styles.backBtn} onPress={() => { setEditIndex(null); setView('summary'); }} activeOpacity={0.7}>
+              <TouchableOpacity
+                style={styles.backBtn}
+                onPress={() => {
+                  if (editIndex != null) { setEditIndex(null); setView('summary'); }
+                  else { goBackOne(); }
+                }}
+                activeOpacity={0.7}
+              >
                 <Text style={styles.backBtnText}>{t('medTimeOnboarding.back')}</Text>
               </TouchableOpacity>
             )}
