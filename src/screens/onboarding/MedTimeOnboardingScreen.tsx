@@ -17,6 +17,8 @@ import {
   TouchableOpacity,
   ScrollView,
   ActivityIndicator,
+  Animated,
+  Dimensions,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
@@ -31,6 +33,8 @@ import { autoSlotLabel } from '../../constants/doseSlots';
 import { navigateTo } from '../../navigation/navigationRef';
 
 type Ampm = 'am' | 'pm';
+
+const SCREEN_W = Dimensions.get('window').width;
 
 // 12시간 표기(ampm/hour/minute) → 'HH:MM'(24시간).
 function toHHMM(ampm: Ampm, hour: number, minute: number): string {
@@ -59,6 +63,13 @@ export function MedTimeOnboardingScreen() {
 
   const hasCaregiver = !!user?.patient_group_id;
   const count = times.length;
+
+  // 페이지 전환 효과 — 다음 약으로 넘어갈 때 오른쪽에서 슬라이드 인(새 화면이 온 걸 확실히 인지).
+  const slideX = useRef(new Animated.Value(0)).current;
+  const slideInFromRight = useCallback(() => {
+    slideX.setValue(SCREEN_W);
+    Animated.timing(slideX, { toValue: 0, duration: 280, useNativeDriver: true }).start();
+  }, [slideX]);
 
   // 진입 시 1회 안내 팝업(온보딩 취지).
   const introShownRef = useRef(false);
@@ -92,15 +103,20 @@ export function MedTimeOnboardingScreen() {
       return Array.from(new Set(next)).sort(); // 중복 제거 + 시간순
     });
     setEditIndex(null);
-    if (wasEdit) setView('summary');
-    // 신규 추가는 view='pick' 유지 + picker 시각 유지(안 건드림).
-  }, [ampm, hour, minute, editIndex]);
+    if (wasEdit) {
+      setView('summary');
+    } else {
+      // 신규 추가: view='pick' 유지 + picker 시각 유지. 다음 약으로 넘어간 걸 슬라이드로 알림.
+      slideInFromRight();
+    }
+  }, [ampm, hour, minute, editIndex, slideInFromRight]);
 
   // 요약에서 "약 시간 더 추가" → 마지막 등록 시각을 시작점으로 이어서 묻기.
   const addMore = () => {
     if (times.length > 0) setPickerFrom(times[times.length - 1]);
     setEditIndex(null);
     setView('pick');
+    slideInFromRight();
   };
 
   // 요약에서 특정 항목 수정 → 그 값으로 picker 세팅.
@@ -183,6 +199,7 @@ export function MedTimeOnboardingScreen() {
       <TopBar title={t('medTimeOnboarding.headerTitle')} />
 
       {view === 'pick' ? (
+        <Animated.View style={{ flex: 1, transform: [{ translateX: slideX }] }}>
         <ScrollView style={styles.scroll} contentContainerStyle={[styles.scrollContent, { paddingBottom: bottomPad }]} keyboardShouldPersistTaps="handled">
           <Text style={styles.question}>
             {editIndex != null
@@ -251,6 +268,7 @@ export function MedTimeOnboardingScreen() {
             )}
           </View>
         </ScrollView>
+        </Animated.View>
       ) : (
         // ── 요약/확인 ── (버튼은 sticky 금지 → 목록 아래에 함께 스크롤)
         <ScrollView style={styles.scroll} contentContainerStyle={[styles.scrollContent, { paddingBottom: bottomPad }]}>
