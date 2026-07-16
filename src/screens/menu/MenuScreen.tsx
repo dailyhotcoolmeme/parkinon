@@ -17,6 +17,7 @@ import { MenuStackParamList } from '../../navigation/MenuNavigator';
 import { TopBar } from '../../components/common/TopBar';
 import { BrandProgressOverlay } from '../../components/common/BrandProgressOverlay';
 import { useAuth } from '../../context/AuthContext';
+import { setWithdrawing } from '../../hooks/useAuth';
 import { useNotificationBadge } from '../../context/NotificationBadgeContext';
 import { supabase } from '../../lib/supabase';
 import { navigateTo } from '../../navigation/navigationRef';
@@ -372,6 +373,8 @@ export function MenuScreen() {
       destructive: true,
     });
     if (!ok) return;
+    // 탈퇴 흐름 표시 — 세션이 잠깐 남은 채 인증흐름이 재실행돼도 온보딩 프로필을 새로 만들지 않게(→ 로그인으로).
+    setWithdrawing(true);
     setDeleting(true);
     try {
       // 세션 토큰 확보
@@ -397,19 +400,17 @@ export function MenuScreen() {
         throw new Error('탈퇴 실패');
       }
 
-      // 무거운 정리 작업이 끝났으니 로딩 오버레이를 내리고 완료 안내
+      // 계정 삭제 성공 → "먼저" 로그아웃해 즉시 로그인 화면으로 보낸다(홈에 잔류/온보딩 오탈출 방지).
+      //   signOut 이 user=null 로 만들고 withdrawing 플래그도 해제한다.
       setDeleting(false);
-      // 탈퇴 완료 안내 후 로컬 세션 정리
-      await dialog.alert({
+      await signOut();
+      // 로그인 화면 위로 완료 안내(블로킹 X).
+      dialog.alert({
         title: t('menu.withdrawDoneTitle'),
         message: t('menu.withdrawDoneMsg'),
       });
-      // useAuth의 signOut을 사용해 user state를 즉시 null로 만들고
-      // 온보딩 임시 입력값(AsyncStorage) 등 사용자별 로컬 데이터를 정리한다.
-      // (supabase.auth.signOut()만 호출하면 user state가 비동기로 늦게 갱신되어
-      //  RootNavigator가 OnboardingGuest(로그인)가 아닌 온보딩 중간 화면으로 빠질 수 있음)
-      await signOut();
     } catch (e: any) {
+      setWithdrawing(false); // 실패 시 플래그 원복
       setDeleting(false);
       dialog.alert({ title: t('common.error'), message: t('menu.withdrawErrorMsg') });
     }

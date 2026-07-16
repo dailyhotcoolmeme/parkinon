@@ -241,6 +241,12 @@ async function dbFetch(path: string, token: string, options?: RequestInit): Prom
 }
 
 // ─── 훅 본체 ──────────────────────────────────────────────────────────────────
+// 탈퇴 진행 중 플래그. 탈퇴로 users 행이 삭제된 뒤 세션이 잠깐 남은 채 인증흐름이 재실행되면
+// 비-카카오(구글) 경로가 onboarding_done:false 프로필을 새로 INSERT 해 온보딩 화면으로 빠지는 문제 방지.
+// signOut 완료 시 자동 해제된다.
+let withdrawing = false;
+export function setWithdrawing(v: boolean) { withdrawing = v; }
+
 export function useAuthProvider(): UseAuthReturn {
   const [user, setUser] = useState<UserProfile | null>(null);
   const [loading, setLoading] = useState(true);
@@ -258,6 +264,13 @@ export function useAuthProvider(): UseAuthReturn {
     );
     try {
       if (__DEV__) console.log('[useAuth] loadUserProfile 시작:', userId);
+
+      // 탈퇴 진행 중이면 프로필을 만들거나 로드하지 않고 즉시 로그인 화면으로(온보딩 오탈출 방지).
+      if (withdrawing) {
+        setUser(null);
+        setLoading(false);
+        return;
+      }
 
       // 토큰 확보 (onAuthStateChange에서 전달 받는 게 우선)
       let token = accessToken;
@@ -759,6 +772,7 @@ export function useAuthProvider(): UseAuthReturn {
     }
     setUser(null);
     setLoading(false);
+    withdrawing = false; // 탈퇴 흐름 종료 → 다음 로그인은 정상 프로필 로드
   }, []);
 
   // 온보딩 완료를 메모리 user에 즉시 반영.
