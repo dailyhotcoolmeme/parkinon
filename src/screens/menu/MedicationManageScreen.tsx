@@ -2979,10 +2979,11 @@ export function MedicationManageScreen({ modeOverride, hideBack, hideTopBar, onG
                         {/* 세트2: 약효 추적 알림 + 그 알림소리(켜졌을 때) */}
                         <View style={styles.slotSetBox}>
                           <View style={styles.slotTrackHeadRow}>
-                            <View style={styles.slotTrackLabelWrap}>
-                              <Text style={[styles.slotTrackLabelText, !slot.trackEnabled && styles.slotToggleLabelOff]}>
-                                {t('medManage.effectTrack')}
-                              </Text>
+                            <Text style={[styles.slotTrackLabelText, !slot.trackEnabled && styles.slotToggleLabelOff]}>
+                              {t('medManage.effectTrack')}
+                            </Text>
+                            {/* 요약 토큰 컬럼: 라벨 바로 오른쪽에서 시작 → 넘치면 이 컬럼 왼쪽(=복용직후 위치)에 정렬해 줄바꿈 */}
+                            <View style={styles.slotTrackTokensCol}>
                               {slot.trackEnabled && slotTrackIntervalSummary(slot)
                                 ? slotTrackIntervalSummary(slot).split(' · ').map((tok, i, arr) => (
                                     <React.Fragment key={i}>
@@ -3938,15 +3939,16 @@ const styles = StyleSheet.create({
   slotToggleLabelOff: { color: '#A6AEBA', fontWeight: '600' },
   // 알림소리 행(AlarmSoundPickerRow) 자체 marginTop:8 을 상쇄해 구분선 바로 아래 붙임(토글 행과 등높이).
   slotSoundWrap: { marginTop: -8 },
-  // 약효추적 헤더 행: 라벨 + 요약 토큰을 같은 줄에서 시작, 넘치면 토큰 단위로 줄바꿈. 스위치는 우측.
+  // 약효추적 헤더 행: [라벨][요약토큰 컬럼(flex:1)][스위치]. flex-start 라 라벨과 첫 토큰(복용직후)이 같은 줄.
   slotTrackHeadRow: {
-    flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between',
-    minHeight: 52, paddingHorizontal: 14, paddingVertical: 6,
+    flexDirection: 'row', alignItems: 'flex-start', paddingHorizontal: 14, paddingVertical: 13,
   },
-  slotTrackLabelWrap: { flex: 1, flexDirection: 'row', flexWrap: 'wrap', alignItems: 'center', paddingRight: 8 },
-  slotTrackLabelText: { fontSize: 17, fontWeight: '700', color: Colors.text, lineHeight: 24, marginRight: 8 },
-  slotTrackToken: { color: Colors.dark, fontWeight: '700', fontSize: 15, lineHeight: 24 },
-  slotTrackTokenSep: { color: '#9CC3A2', fontWeight: '700', fontSize: 15, lineHeight: 24 },
+  slotTrackLabelText: { fontSize: 17, fontWeight: '700', color: Colors.text, lineHeight: 26, marginRight: 8 },
+  // 토큰 컬럼: 라벨 오른쪽에서 시작, 넘치면 이 컬럼 왼쪽(복용직후 라인)에 맞춰 줄바꿈.
+  slotTrackTokensCol: { flex: 1, flexDirection: 'row', flexWrap: 'wrap', alignItems: 'center' },
+  // 요약 글자 크기도 17로 통일(라벨·복용약·알림소리와 동일).
+  slotTrackToken: { color: Colors.dark, fontWeight: '700', fontSize: 17, lineHeight: 26 },
+  slotTrackTokenSep: { color: '#9CC3A2', fontWeight: '700', fontSize: 17, lineHeight: 26 },
   slotToggleSwitch: { transform: [{ scaleX: 1.15 }, { scaleY: 1.15 }] },
   viewAllBtn: {
     flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 7,
