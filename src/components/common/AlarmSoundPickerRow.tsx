@@ -77,6 +77,8 @@ export function AlarmSoundPickerRow({ soundId, sounds, onSelect, backgroundColor
 
   const handlePreview = async (item: AlarmSoundOption) => {
     if (!item.previewUrl && !item.previewAsset) return;
+    // 미리듣기를 누르면 그 소리를 자동 선택(임시선택) — 이후 '완료'로 적용.
+    handleSelect(item.id);
     try {
       const wasPlaying = playingId === item.id;
       await stopPreview();
