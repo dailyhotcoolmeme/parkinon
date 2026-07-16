@@ -1353,8 +1353,9 @@ export function MedicationManageScreen({ modeOverride, hideBack, hideTopBar, onG
         const rec = recommendForSlotMeds(((medRows as any[]) ?? []).map((m) => ({ name: m.name })));
         if (rec.offsets.length > 0) {
           // 레보도파 계열 → 엔진 정확값 + 출처 표기.
-          intervals = rec.offsets;
-          const bullets = rec.offsets.map((o) => `· ${offsetLine(o, en)}`).join('\n');
+          // ⚠️ 약효추적은 "복용 직후(0)"가 기준선(baseline)으로 필수 → 항상 앞에 포함.
+          intervals = Array.from(new Set([0, ...rec.offsets])).sort((a, b) => a - b);
+          const bullets = intervals.map((o) => `· ${offsetLine(o, en)}`).join('\n');
           message =
             t('medManage.etTrackLevodopaIntro', { names: rec.levodopaNames.join('·') }) +
             '\n\n' + bullets +

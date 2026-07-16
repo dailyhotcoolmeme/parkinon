@@ -146,10 +146,13 @@ export function MedSlotAssignModal({
                       onPress={() => toggle(s.id)}
                       activeOpacity={0.85}
                     >
+                      {/* 동그라미 체크박스 — 어르신이 이해하기 쉬운 형태(빈 원 ↔ 체크된 원) */}
+                      <View style={[styles.circle, on && styles.circleOn]}>
+                        {on && <Ionicons name="checkmark-sharp" size={20} color={Colors.white} />}
+                      </View>
                       <Text style={[styles.rowText, on && styles.rowTextOn]}>
                         {s.label || autoSlotLabel(s.time)}
                       </Text>
-                      {on && <Ionicons name="checkmark-sharp" size={26} color={Colors.primary} />}
                     </TouchableOpacity>
                   );
                 })}
@@ -185,17 +188,17 @@ const styles = StyleSheet.create({
     borderTopRightRadius: 20,
     paddingHorizontal: 24,
     paddingTop: 24,
-    maxHeight: '85%',
+    maxHeight: '92%',
   },
   progress: { fontSize: 15, fontWeight: '700', color: Colors.primary, marginBottom: 6 },
   title: { fontSize: 24, fontWeight: '800', color: Colors.text, marginBottom: 8, lineHeight: 32 },
   hint: { fontSize: 16, color: Colors.textSub, marginBottom: 20, lineHeight: 24 },
-  list: { maxHeight: 360 },
-  // 선택 표시는 테두리·배경으로만(체크 아이콘은 텍스트 위 겹침 없이 우측 배치).
+  // 5개(복용시간) 기준 스크롤 거의 없이 보이도록 넉넉히.
+  list: { maxHeight: 460 },
   row: {
     flexDirection: 'row',
     alignItems: 'center',
-    justifyContent: 'space-between',
+    gap: 14,
     minHeight: 64,
     borderRadius: 14,
     borderWidth: 2,
@@ -204,6 +207,18 @@ const styles = StyleSheet.create({
     paddingHorizontal: 20,
   },
   rowOn: { borderColor: Colors.primary, backgroundColor: Colors.light },
+  // 동그라미 체크박스 — 빈 원(미선택) ↔ 채워진 원+체크(선택).
+  circle: {
+    width: 28,
+    height: 28,
+    borderRadius: 14,
+    borderWidth: 2,
+    borderColor: Colors.border,
+    backgroundColor: Colors.white,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  circleOn: { borderColor: Colors.primary, backgroundColor: Colors.primary },
   rowText: { fontSize: 20, fontWeight: '700', color: Colors.textSub },
   rowTextOn: { color: Colors.dark },
   primaryBtn: {
