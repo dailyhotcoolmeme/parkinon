@@ -185,8 +185,20 @@ function soundIdFromChannel(channelId: string): string | null {
   const m = channelId.match(/^parkinon_alarm_(.+)$/)
   return m ? m[1] : null
 }
+function presetFileIdFromChannel(channelId: string): string | null {
+  const m = channelId.match(/^parkinon_preset_(.+)$/)
+  return m ? m[1] : null
+}
+/** 저장 소리 id('preset:<fileId>' 또는 녹음 uuid, null) → Android channelId */
+function channelForStoredSound(soundId: string | null | undefined): string {
+  if (!soundId) return 'default'
+  if (soundId.startsWith('preset:')) return `parkinon_preset_${soundId.slice('preset:'.length)}`
+  return `parkinon_alarm_${soundId}`
+}
 function soundForPlatform(platform: string | null | undefined, channelId: string): string {
   if (platform === 'ios') {
+    const presetFile = presetFileIdFromChannel(channelId)
+    if (presetFile) return `${presetFile}.caf`
     const soundId = soundIdFromChannel(channelId)
     if (soundId) return `parkinon_${soundId}.caf`
   }
@@ -227,7 +239,7 @@ Deno.serve(async (_req: Request) => {
   // 구 데이터(dose_slot_id NULL)는 join이 null로 와서 meal_time fallback 경로 사용.
   const { data: pending } = await supabase
     .from('effect_tracking_queue')
-    .select('*, dose_slot:dose_slots(label, time, track_sound_id, is_active, track_enabled)')
+    .select('*, dose_slot:dose_slots(label, time, track_sound_id, track_alarm_mode, is_active, track_enabled)')
     .lte('send_at', now.toISOString())
     .is('sent_at', null)
     .limit(100)
@@ -330,14 +342,16 @@ Deno.serve(async (_req: Request) => {
     //  1) 큐에 직접 지정된 sound_id(구 경로) 우선
     //  2) 없으면 신규 경로: dose_slot.track_sound_id
     //  3) 둘 다 없으면 시스템 기본음('default')
+    //  (sound_id 는 'preset:<fileId>'(프리셋) 또는 녹음 uuid — channelForStoredSound 가 분기)
     const soundId = item.sound_id ?? doseSlot?.track_sound_id ?? null
-    const channelId = soundId ? `parkinon_alarm_${soundId}` : 'default'
+    const channelId = channelForStoredSound(soundId)
+    const alarmMode = doseSlot?.track_alarm_mode ?? 'basic'
     const platform = platformByPatient.get(item.patient_id) ?? null
     const ok = await sendPush(
       item.push_token,
       titleText,
       bodyText,
-      { type: 'effect_tracking', minutes: item.interval_minutes, meal_time: item.meal_time ?? null, doseSlotId: item.dose_slot_id ?? null, med_log_id: item.med_log_id ?? null },
+      { type: 'effect_tracking', minutes: item.interval_minutes, meal_time: item.meal_time ?? null, doseSlotId: item.dose_slot_id ?? null, med_log_id: item.med_log_id ?? null, alarmMode },
       channelId,
       platform,
     )
