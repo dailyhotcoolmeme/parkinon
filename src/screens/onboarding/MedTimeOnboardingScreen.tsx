@@ -70,17 +70,20 @@ export function MedTimeOnboardingScreen() {
     }, 300);
   }, []);
 
-  const resetPicker = (defaultHour = 8, defaultAmpm: Ampm = 'am') => {
-    setAmpm(defaultAmpm);
-    setHour(defaultHour);
-    setMinute(0);
-    setEditIndex(null);
+  // picker 를 'HH:MM' 값으로 세팅.
+  const setPickerFrom = (hhmm: string) => {
+    const h24 = parseInt(hhmm.split(':')[0], 10);
+    const m = parseInt(hhmm.split(':')[1] ?? '0', 10);
+    setAmpm(h24 >= 12 ? 'pm' : 'am');
+    setHour((h24 % 12) === 0 ? 12 : h24 % 12);
+    setMinute(m);
   };
 
   const stepHour = (d: number) => setHour((h) => ((h - 1 + d + 12) % 12) + 1);
   const stepMinute = (d: number) => setMinute((m) => (m + d * 5 + 60) % 60);
 
-  // 시각 저장. 신규 추가면 → 바로 "다음 약" 물어보기(pick 유지). 수정이면 → 요약으로.
+  // 시각 저장. 신규 추가면 → picker 는 방금 시각 그대로 두고 "다음 약" 이어서 묻기(pick 유지).
+  //   수정이면 → 요약으로 복귀. (매번 8시로 리셋되던 불편 해소 — 다음 약은 직전 시각부터 조정)
   const confirmTime = useCallback(() => {
     const hhmm = toHHMM(ampm, hour, minute);
     const wasEdit = editIndex != null;
@@ -88,26 +91,21 @@ export function MedTimeOnboardingScreen() {
       const next = wasEdit ? prev.map((v, i) => (i === editIndex ? hhmm : v)) : [...prev, hhmm];
       return Array.from(new Set(next)).sort(); // 중복 제거 + 시간순
     });
-    resetPicker();
-    if (wasEdit) setView('summary'); // 수정은 요약에서 온 것 → 요약으로 복귀
-    // 신규 추가는 view='pick' 유지 → 다음 약 시각을 이어서 묻는다("다 등록했어요"로 요약 이동)
+    setEditIndex(null);
+    if (wasEdit) setView('summary');
+    // 신규 추가는 view='pick' 유지 + picker 시각 유지(안 건드림).
   }, [ampm, hour, minute, editIndex]);
 
-  // 요약에서 "약 더 추가" → 다음 시각 선택(신규)
+  // 요약에서 "약 시간 더 추가" → 마지막 등록 시각을 시작점으로 이어서 묻기.
   const addMore = () => {
-    resetPicker();
+    if (times.length > 0) setPickerFrom(times[times.length - 1]);
+    setEditIndex(null);
     setView('pick');
   };
 
-  // 요약에서 특정 항목 수정 → 그 값으로 picker 세팅
+  // 요약에서 특정 항목 수정 → 그 값으로 picker 세팅.
   const editItem = (index: number) => {
-    const hhmm = times[index];
-    const [hStr, mStr] = hhmm.split(':');
-    const h24 = parseInt(hStr, 10);
-    const m = parseInt(mStr, 10);
-    setAmpm(h24 >= 12 ? 'pm' : 'am');
-    setHour(((h24 % 12) === 0 ? 12 : h24 % 12));
-    setMinute(m);
+    setPickerFrom(times[index]);
     setEditIndex(index);
     setView('pick');
   };
@@ -160,7 +158,8 @@ export function MedTimeOnboardingScreen() {
         title: t('medTimeOnboarding.doneTitle'),
         message: t('medTimeOnboarding.doneMsg'),
       });
-      navigateTo('Main', { screen: 'Medication' });
+      // 완료 후 → 복용시간 설정·알림 화면(등록한 시간 확인·이후 알림음 등록 등). (오너 결정 2026-07-16)
+      navigateTo('Main', { screen: 'MyInfo', params: { screen: 'MedicationManage', params: { mode: 'slots' } } });
     } catch (e: any) {
       dialog.alert({ title: t('common.error'), message: t('medTimeOnboarding.saveFail') });
     } finally {
@@ -184,7 +183,7 @@ export function MedTimeOnboardingScreen() {
       <TopBar title={t('medTimeOnboarding.headerTitle')} />
 
       {view === 'pick' ? (
-        <View style={styles.body}>
+        <ScrollView style={styles.scroll} contentContainerStyle={[styles.scrollContent, { paddingBottom: bottomPad }]} keyboardShouldPersistTaps="handled">
           <Text style={styles.question}>
             {editIndex != null
               ? t('medTimeOnboarding.editQuestion')
@@ -240,7 +239,7 @@ export function MedTimeOnboardingScreen() {
           {/* 미리보기 라벨 */}
           <Text style={styles.preview}>{autoSlotLabel(toHHMM(ampm, hour, minute))}</Text>
 
-          <View style={[styles.bottomArea, { paddingBottom: bottomPad }]}>
+          <View style={styles.btnGroup}>
             <TouchableOpacity style={styles.primaryBtn} onPress={confirmTime} activeOpacity={0.85}>
               <Text style={styles.primaryBtnText}>{t('medTimeOnboarding.saveTime')}</Text>
             </TouchableOpacity>
@@ -251,14 +250,13 @@ export function MedTimeOnboardingScreen() {
               </TouchableOpacity>
             )}
           </View>
-        </View>
+        </ScrollView>
       ) : (
-        // ── 요약/확인 ──
-        <View style={styles.body}>
+        // ── 요약/확인 ── (버튼은 sticky 금지 → 목록 아래에 함께 스크롤)
+        <ScrollView style={styles.scroll} contentContainerStyle={[styles.scrollContent, { paddingBottom: bottomPad }]}>
           <Text style={styles.question}>{t('medTimeOnboarding.summaryTitle')}</Text>
           <Text style={styles.hint}>{t('medTimeOnboarding.summaryHint')}</Text>
 
-          <ScrollView style={{ flex: 1 }} contentContainerStyle={{ paddingVertical: 8 }}>
             {times.map((time, i) => (
               <View key={time} style={styles.summaryRow}>
                 <Text style={styles.summaryLabel}>{autoSlotLabel(time)}</Text>
@@ -274,13 +272,12 @@ export function MedTimeOnboardingScreen() {
             ))}
             {times.length === 0 && <Text style={styles.emptyText}>{t('medTimeOnboarding.emptyTimes')}</Text>}
 
-            <TouchableOpacity style={styles.addMoreBtn} onPress={addMore} activeOpacity={0.7}>
-              <Ionicons name="add-circle-outline" size={22} color={Colors.primary} />
-              <Text style={styles.addMoreText}>{t('medTimeOnboarding.addMore')}</Text>
-            </TouchableOpacity>
-          </ScrollView>
+          <TouchableOpacity style={styles.addMoreBtn} onPress={addMore} activeOpacity={0.7}>
+            <Ionicons name="add-circle-outline" size={22} color={Colors.primary} />
+            <Text style={styles.addMoreText}>{t('medTimeOnboarding.addMore')}</Text>
+          </TouchableOpacity>
 
-          <View style={[styles.bottomArea, { paddingBottom: bottomPad }]}>
+          <View style={styles.btnGroup}>
             <TouchableOpacity
               style={[styles.primaryBtn, (saving || times.length === 0) && styles.btnDisabled]}
               onPress={handleFinish}
@@ -299,7 +296,7 @@ export function MedTimeOnboardingScreen() {
               </TouchableOpacity>
             )}
           </View>
-        </View>
+        </ScrollView>
       )}
     </SafeAreaView>
   );
@@ -307,7 +304,9 @@ export function MedTimeOnboardingScreen() {
 
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: Colors.background },
-  body: { flex: 1, paddingHorizontal: 24, paddingTop: 12 },
+  scroll: { flex: 1 },
+  // 상단 여백 넉넉히 — 톱바에 제목이 붙어 기종에 따라 가려지지 않도록.
+  scrollContent: { paddingHorizontal: 24, paddingTop: 28 },
   question: { fontSize: 24, fontWeight: '800', color: Colors.text, marginBottom: 8, lineHeight: 34 },
   hint: { fontSize: 16, color: Colors.textSub, marginBottom: 24, lineHeight: 24 },
 
@@ -332,7 +331,8 @@ const styles = StyleSheet.create({
   colon: { fontSize: 34, fontWeight: '800', color: Colors.text, marginBottom: 14 },
   preview: { textAlign: 'center', fontSize: 22, fontWeight: '800', color: Colors.primary, marginTop: 22 },
 
-  bottomArea: { marginTop: 'auto', paddingTop: 16, gap: 12 },
+  // 버튼 묶음 — sticky 금지(오너 규칙). 콘텐츠 아래에 함께 스크롤.
+  btnGroup: { marginTop: 28, gap: 12 },
   primaryBtn: {
     minHeight: 60, borderRadius: 16, backgroundColor: Colors.primary,
     alignItems: 'center', justifyContent: 'center',
