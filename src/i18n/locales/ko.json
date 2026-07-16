@@ -956,7 +956,7 @@
     "residenceTitle": "거주",
     "together": "함께",
     "apart": "따로",
-    "patientInfoTitle": "담당 환자 정보",
+    "patientInfoTitle": "환자 정보",
     "patientInfoSub": "가족 연동된 환자의 정보를 수정해요",
     "noPatientBanner": "아직 연동된 환자가 없어요. 가족을 연동하면 환자분의 정보를 함께 관리할 수 있어요.",
     "linkFamilyBtn": "가족 연동하기",
