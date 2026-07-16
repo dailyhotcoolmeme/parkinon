@@ -733,7 +733,15 @@
     "etTrackLevodopaIntro": "'{{names}}'에 최적화된\n약효 추적 알림을 보내드릴게요.",
     "etTrackDefaultIntro": "약효 추적 알림을 보내드릴게요.",
     "etTrackSource": "출처: {{source}}",
-    "etTrackDoctorNote": "※ 이 약은 약효 추적 시간이 정확하지 않을 수 있어요.\n정확한 시점은 담당 의사와 상의해 주세요."
+    "etTrackDoctorNote": "※ 이 약은 약효 추적 시간이 정확하지 않을 수 있어요.\n정확한 시점은 담당 의사와 상의해 주세요.",
+    "alarmModeRow": "알림 방식",
+    "alarmModeTitle": "알림 방식 선택",
+    "alarmModeMsg": "알림이 어떻게 울릴지 고르세요.\n(아이폰은 무한반복이 안 돼 '알람처럼'도 최대 30초까지 울려요.)",
+    "alarmMode": {
+      "basic": "기본 (한 번)",
+      "sound30": "30초 동안",
+      "alarm": "알람처럼 (끌 때까지)"
+    }
   },
   "settings": {
     "notifMedTakenLabel": "환자 약 복용 기록 시",
@@ -1858,7 +1866,9 @@
     "preview": "들어보기",
     "emptyLine1": "아직 녹음한 알림음이 없어요.",
     "emptyLine2": "메뉴 → 알림음 설정에서 만들 수 있어요.",
-    "goToSettings": "알림음 녹음 설정으로 가기"
+    "goToSettings": "알림음 녹음 설정으로 가기",
+    "presetSection": "기본 제공 알림음",
+    "recordingSection": "직접 녹음한 알림음"
   },
   "medTimeOnboarding": {
     "headerTitle": "복약 알림 설정",

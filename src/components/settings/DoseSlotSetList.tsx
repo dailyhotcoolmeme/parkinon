@@ -929,9 +929,11 @@ export function DoseSlotSetList({
         sortOrder: newSort,
         remindEnabled: true,
         remindSoundId: null,
+        remindAlarmMode: 'basic',
         trackEnabled: true,
         trackIntervals: newTrackIntervals,
         trackSoundId: null,
+        trackAlarmMode: 'basic',
         legacyKey: null,
         isReal: false,
       };

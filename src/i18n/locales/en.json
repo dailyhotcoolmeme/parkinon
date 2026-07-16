@@ -733,7 +733,15 @@
     "etTrackLevodopaIntro": "We'll send effect-tracking reminders\noptimized for '{{names}}'.",
     "etTrackDefaultIntro": "We'll send effect-tracking reminders.",
     "etTrackSource": "Source: {{source}}",
-    "etTrackDoctorNote": "※ Effect-tracking times may not be accurate for this medication.\nPlease consult your doctor for the right timing."
+    "etTrackDoctorNote": "※ Effect-tracking times may not be accurate for this medication.\nPlease consult your doctor for the right timing.",
+    "alarmModeRow": "Alarm style",
+    "alarmModeTitle": "Choose alarm style",
+    "alarmModeMsg": "Choose how the alarm rings.\n(On iPhone, endless repeat isn't possible, so 'Like an alarm' rings up to 30 seconds.)",
+    "alarmMode": {
+      "basic": "Basic (once)",
+      "sound30": "For 30 seconds",
+      "alarm": "Like an alarm (until dismissed)"
+    }
   },
   "settings": {
     "notifMedTakenLabel": "When the patient records medication",
@@ -1858,7 +1866,9 @@
     "preview": "Listen",
     "emptyLine1": "You haven't recorded any notification sounds yet.",
     "emptyLine2": "You can create one in Menu → Notification Sound Settings.",
-    "goToSettings": "Go to Notification Sound Settings"
+    "goToSettings": "Go to Notification Sound Settings",
+    "presetSection": "Built-in alarm sounds",
+    "recordingSection": "Your recordings"
   },
   "medTimeOnboarding": {
     "headerTitle": "Medication reminders",

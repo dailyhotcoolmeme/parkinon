@@ -24,6 +24,10 @@ export interface AlarmSoundOption {
   label: string;
   /** 미리듣기용 원격 URL (없으면 들어보기 비활성) */
   previewUrl?: string | null;
+  /** 미리듣기용 로컬 번들 에셋(require 결과). 프리셋용 — 있으면 previewUrl 보다 우선. */
+  previewAsset?: number | null;
+  /** 목록 섹션 구분: 'preset'=기본 제공 알림음 / 'recording'=직접 녹음(기본) */
+  group?: 'preset' | 'recording';
 }
 
 interface Props {
@@ -72,7 +76,7 @@ export function AlarmSoundPickerRow({ soundId, sounds, onSelect, backgroundColor
   };
 
   const handlePreview = async (item: AlarmSoundOption) => {
-    if (!item.previewUrl) return;
+    if (!item.previewUrl && !item.previewAsset) return;
     try {
       const wasPlaying = playingId === item.id;
       await stopPreview();
@@ -87,18 +91,21 @@ export function AlarmSoundPickerRow({ soundId, sounds, onSelect, backgroundColor
         shouldDuckAndroid: true,
         staysActiveInBackground: false,
       });
-      // 재생 전용 서명 URL(죽은 공개 URL 폴백 안 함). 못 받으면 무음 대신 명확히 에러.
-      const previewUri = await resolvePlaybackUrl(item.previewUrl);
-      if (!previewUri) {
-        setLoadingId(null);
-        setPlayingId(null);
-        dialog.alert({ title: t('alarmSound.playFailTitle'), message: t('alarmSound.playFailMsg') });
-        return;
+      // 프리셋: 로컬 번들 에셋 직접 재생. 녹음: 재생 전용 서명 URL(죽은 공개 URL 폴백 안 함).
+      let created;
+      if (item.previewAsset) {
+        created = await Audio.Sound.createAsync(item.previewAsset as number, { shouldPlay: true });
+      } else {
+        const previewUri = await resolvePlaybackUrl(item.previewUrl!);
+        if (!previewUri) {
+          setLoadingId(null);
+          setPlayingId(null);
+          dialog.alert({ title: t('alarmSound.playFailTitle'), message: t('alarmSound.playFailMsg') });
+          return;
+        }
+        created = await Audio.Sound.createAsync({ uri: previewUri }, { shouldPlay: true });
       }
-      const { sound } = await Audio.Sound.createAsync(
-        { uri: previewUri },
-        { shouldPlay: true },
-      );
+      const { sound } = created;
       soundRef.current = sound;
       setLoadingId(null);
       setPlayingId(item.id);
@@ -127,8 +134,11 @@ export function AlarmSoundPickerRow({ soundId, sounds, onSelect, backgroundColor
     navigateTo('Main', { screen: 'MyInfo', params: { screen: 'AlarmSoundSettings' } });
   };
 
-  // 미리듣기할 수 있는(=녹음된) 알림음이 하나라도 있을 때만 "미리듣기" 안내를 노출.
-  const hasPreviewable = sounds.some((s) => !!s.previewUrl);
+  // 미리듣기할 수 있는 알림음이 하나라도 있을 때만 "미리듣기" 안내를 노출.
+  const hasPreviewable = sounds.some((s) => !!s.previewUrl || !!s.previewAsset);
+  // 섹션 분리: 프리셋(기본 제공) / 녹음(직접). group 미지정은 녹음으로 간주(기존 호환).
+  const presetItems = sounds.filter((s) => s.group === 'preset');
+  const recordingItems = sounds.filter((s) => s.group !== 'preset');
 
   // 시트에서 항목 탭 = 임시 선택만(즉시 적용 X). 적용은 '완료'에서.
   const handleSelect = (sid: string | null) => setPendingId(sid);
@@ -136,6 +146,44 @@ export function AlarmSoundPickerRow({ soundId, sounds, onSelect, backgroundColor
   const handleDone = () => {
     onSelect(pendingId);
     close();
+  };
+
+  // 옵션 1개 렌더(프리셋·녹음 공통) — 선택 상태·미리듣기 버튼 포함.
+  const renderOption = (s: AlarmSoundOption) => {
+    const selected = pendingId === s.id;
+    const isPlaying = playingId === s.id;
+    const isLoading = loadingId === s.id;
+    const canPreview = !!s.previewUrl || !!s.previewAsset;
+    return (
+      <TouchableOpacity
+        key={s.id}
+        style={[styles.option, selected && styles.optionSelected]}
+        activeOpacity={0.8}
+        onPress={() => handleSelect(s.id)}
+      >
+        <View style={styles.optionLeft}>
+          <Text style={styles.optionText}>{s.label}</Text>
+          {canPreview && (
+            <TouchableOpacity
+              style={[styles.previewBtn, isPlaying && styles.previewBtnActive]}
+              activeOpacity={0.7}
+              onPress={() => handlePreview(s)}
+              hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+            >
+              {isLoading ? (
+                <ActivityIndicator size="small" color={Colors.dark} />
+              ) : (
+                <Ionicons name={isPlaying ? 'stop' : 'play'} size={16} color={isPlaying ? Colors.white : Colors.dark} />
+              )}
+              <Text style={[styles.previewText, isPlaying && styles.previewTextActive]}>
+                {isPlaying ? t('alarmSoundPicker.stop') : t('alarmSoundPicker.preview')}
+              </Text>
+            </TouchableOpacity>
+          )}
+        </View>
+        {selected && <Ionicons name="checkmark-circle" size={28} color={Colors.primary} />}
+      </TouchableOpacity>
+    );
   };
 
   // 언마운트 시 재생 정리
@@ -232,51 +280,23 @@ export function AlarmSoundPickerRow({ soundId, sounds, onSelect, backgroundColor
                 )}
               </TouchableOpacity>
 
-              {sounds.map((s) => {
-                const selected = pendingId === s.id;
-                const isPlaying = playingId === s.id;
-                const isLoading = loadingId === s.id;
-                return (
-                  <TouchableOpacity
-                    key={s.id}
-                    style={[styles.option, selected && styles.optionSelected]}
-                    activeOpacity={0.8}
-                    onPress={() => handleSelect(s.id)}
-                  >
-                    <View style={styles.optionLeft}>
-                      <Text style={styles.optionText}>
-                        {s.label}
-                      </Text>
-                      {!!s.previewUrl && (
-                        <TouchableOpacity
-                          style={[styles.previewBtn, isPlaying && styles.previewBtnActive]}
-                          activeOpacity={0.7}
-                          onPress={() => handlePreview(s)}
-                          hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
-                        >
-                          {isLoading ? (
-                            <ActivityIndicator size="small" color={Colors.dark} />
-                          ) : (
-                            <Ionicons
-                              name={isPlaying ? 'stop' : 'play'}
-                              size={16}
-                              color={isPlaying ? Colors.white : Colors.dark}
-                            />
-                          )}
-                          <Text style={[styles.previewText, isPlaying && styles.previewTextActive]}>
-                            {isPlaying ? t('alarmSoundPicker.stop') : t('alarmSoundPicker.preview')}
-                          </Text>
-                        </TouchableOpacity>
-                      )}
-                    </View>
-                    {selected && (
-                      <Ionicons name="checkmark-circle" size={28} color={Colors.primary} />
-                    )}
-                  </TouchableOpacity>
-                );
-              })}
+              {/* 기본 제공 알림음(프리셋) */}
+              {presetItems.length > 0 && (
+                <>
+                  <Text style={styles.sectionHeader}>{t('alarmSoundPicker.presetSection')}</Text>
+                  {presetItems.map(renderOption)}
+                </>
+              )}
 
-              {sounds.length === 0 && (
+              {/* 직접 녹음한 알림음 */}
+              {recordingItems.length > 0 && (
+                <>
+                  <Text style={styles.sectionHeader}>{t('alarmSoundPicker.recordingSection')}</Text>
+                  {recordingItems.map(renderOption)}
+                </>
+              )}
+
+              {recordingItems.length === 0 && (
                 <View style={styles.emptyWrap}>
                   <Text style={styles.empty}>{t('alarmSoundPicker.emptyLine1')}</Text>
                   {/* 글로만 안내하지 말고 해당 메뉴로 바로 보낸다(작은 텍스트 링크 금지 → 버튼). */}
@@ -378,6 +398,15 @@ const styles = StyleSheet.create({
     paddingBottom: 4,
   },
 
+  // 섹션 제목(기본 제공 / 직접 녹음)
+  sectionHeader: {
+    fontSize: 15,
+    fontWeight: '800',
+    color: Colors.textSub,
+    marginTop: 6,
+    marginBottom: 10,
+    marginLeft: 2,
+  },
   // ── 옵션 카드 ──
   option: {
     flexDirection: 'row',

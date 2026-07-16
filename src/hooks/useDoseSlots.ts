@@ -13,6 +13,7 @@
  */
 import { useState, useEffect, useCallback, useRef } from 'react';
 import { supabase } from '../lib/supabase';
+import type { AlarmMode } from '../constants/presetAlarmSounds';
 import { usePatientId } from './usePatientId';
 import {
   LEGACY_SLOT_ORDER,
@@ -41,9 +42,13 @@ export interface DoseSlot {
   sortOrder: number;
   remindEnabled: boolean;
   remindSoundId: string | null;
+  /** 복약 알림 방식: basic|sound30|alarm (알림마다 개별) */
+  remindAlarmMode: AlarmMode;
   trackEnabled: boolean;
   trackIntervals: number[];
   trackSoundId: string | null;
+  /** 약효추적 알림 방식: basic|sound30|alarm */
+  trackAlarmMode: AlarmMode;
   legacyKey: LegacyMealKey | null;
   /** dose_slots 테이블 행에서 온 슬롯인지(true) legacy 폴백 가상 슬롯인지(false) */
   isReal: boolean;
@@ -72,9 +77,11 @@ function rowToDoseSlot(row: DoseSlotRow): DoseSlot {
     sortOrder: row.sort_order,
     remindEnabled: row.remind_enabled,
     remindSoundId: row.remind_sound_id,
+    remindAlarmMode: ((row as any).remind_alarm_mode ?? 'basic') as AlarmMode,
     trackEnabled: row.track_enabled,
     trackIntervals: row.track_intervals ?? [],
     trackSoundId: row.track_sound_id,
+    trackAlarmMode: ((row as any).track_alarm_mode ?? 'basic') as AlarmMode,
     legacyKey: labelToLegacyKey(row.label),
     isReal: true,
   };
@@ -469,9 +476,11 @@ function buildLegacySlots(
       sortOrder: idx,
       remindEnabled: prefs ? prefs[key] !== false : true,
       remindSoundId: null,
+      remindAlarmMode: 'basic',
       trackEnabled: key !== 'bedtime', // 기존: 취침약 자동 추적 제외
       trackIntervals: [],
       trackSoundId: null,
+      trackAlarmMode: 'basic',
       legacyKey: key,
       isReal: false,
     });

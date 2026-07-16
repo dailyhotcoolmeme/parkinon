@@ -53,6 +53,8 @@ import {
 import { DoseSlotSetList } from '../../components/settings/DoseSlotSetList';
 import { AlarmSoundPickerRow } from '../../components/common/AlarmSoundPickerRow';
 import { MedSlotAssignModal } from '../../components/common/MedSlotAssignModal';
+import { PRESET_ALARM_SOUNDS, type AlarmMode } from '../../constants/presetAlarmSounds';
+import { PRESET_PREVIEW_ASSETS } from '../../constants/presetPreviewAssets';
 import { recommendForSlotMeds } from '../../utils/recommendUtils';
 import { navigateTo } from '../../navigation/navigationRef';
 import { AdSlot } from '../../components/common/AdSlot';
@@ -1047,6 +1049,14 @@ interface MedicationManageScreenProps {
   onGoRegisterMeds?: () => void;
 }
 
+// 기본 제공 알림음(프리셋) → 피커 옵션. 미리듣기는 번들 mp3 로컬 재생(재빌드 전에도 동작).
+const PRESET_SOUND_OPTIONS: AlarmSoundOption[] = PRESET_ALARM_SOUNDS.map((p) => ({
+  id: p.id,
+  label: p.nameKo,
+  group: 'preset' as const,
+  previewAsset: PRESET_PREVIEW_ASSETS[p.fileId] ?? null,
+}));
+
 // 약효추적 오프셋(분) → 안내 문구. 0=복용 직후, 그 외 "복용 후 N시간 M분".
 function offsetLine(min: number, en: boolean): string {
   if (min <= 0) return en ? 'Right after taking' : '복용 직후';
@@ -1750,23 +1760,23 @@ export function MedicationManageScreen({ modeOverride, hideBack, hideTopBar, onG
     return () => { supabase.removeChannel(ch); };
   }, [targetPatientId]);
 
-  // 그룹 녹음(알림 소리) 로드 — DoseSlotSetList(시간·알림 수정)용.
+  // 알림음 목록 = 기본 제공 프리셋(공용·항상) + 그룹 녹음(있으면). 피커가 섹션으로 나눠 표시.
   useEffect(() => {
     const gid = user?.patient_group_id;
-    if (!gid) { setAlarmSounds([]); return; }
+    if (!gid) { setAlarmSounds(PRESET_SOUND_OPTIONS); return; }
     supabase
       .from('custom_sounds' as any)
       .select('id, label, public_url')
       .eq('group_id', gid)
       .order('created_at', { ascending: false })
       .then(({ data }: any) => {
-        setAlarmSounds(
-          ((data as any[]) ?? []).map((s) => ({
-            id: s.id,
-            label: s.label?.trim() || t('medManage.myRecording'),
-            previewUrl: s.public_url ?? null,
-          })),
-        );
+        const recordings: AlarmSoundOption[] = ((data as any[]) ?? []).map((s) => ({
+          id: s.id,
+          label: s.label?.trim() || t('medManage.myRecording'),
+          previewUrl: s.public_url ?? null,
+          group: 'recording' as const,
+        }));
+        setAlarmSounds([...PRESET_SOUND_OPTIONS, ...recordings]);
       });
   }, [user?.patient_group_id]);
 
@@ -2755,6 +2765,35 @@ export function MedicationManageScreen({ modeOverride, hideBack, hideTopBar, onG
     [updateSlotFlag],
   );
 
+  // 알림 방식(basic|sound30|alarm) 표시 라벨.
+  const alarmModeLabel = useCallback((m: AlarmMode) => t(`medManage.alarmMode.${m}`), [t]);
+
+  // "알림 방식" 행 탭 → 3택 선택 → dose_slots.remind_alarm_mode / track_alarm_mode 저장.
+  const pickAlarmMode = useCallback(
+    async (slot: DoseSlot, kind: 'remind' | 'track') => {
+      if (!slot.id) return;
+      const current = kind === 'remind' ? slot.remindAlarmMode : slot.trackAlarmMode;
+      const picked = await dialog.show({
+        title: t('medManage.alarmModeTitle'),
+        message: t('medManage.alarmModeMsg'),
+        buttons: [
+          { id: 'basic', text: t('medManage.alarmMode.basic') },
+          { id: 'sound30', text: t('medManage.alarmMode.sound30') },
+          { id: 'alarm', text: t('medManage.alarmMode.alarm') },
+          { id: '__cancel', text: t('common.cancel'), style: 'cancel' as const },
+        ],
+      });
+      if (!picked || picked === '__cancel' || picked === current) return;
+      const mode = picked as AlarmMode;
+      if (kind === 'remind') {
+        void updateSlotFlag(slot.id, { remind_alarm_mode: mode }, { remindAlarmMode: mode });
+      } else {
+        void updateSlotFlag(slot.id, { track_alarm_mode: mode }, { trackAlarmMode: mode });
+      }
+    },
+    [dialog, t, updateSlotFlag],
+  );
+
   // 약 id → Medication 빠른 조회(슬롯 카드 약 목록 표시용).
   const medById = useCallback((id: string) => medications.find((m) => m.id === id), [medications]);
 
@@ -2972,6 +3011,21 @@ export function MedicationManageScreen({ modeOverride, hideBack, hideTopBar, onG
                                   fontSize={17}
                                 />
                               </View>
+                              <View style={styles.slotSetDivider} />
+                              <TouchableOpacity
+                                style={styles.slotModeRow}
+                                onPress={() => pickAlarmMode(slot, 'remind')}
+                                activeOpacity={0.7}
+                              >
+                                <Ionicons name="alarm-outline" size={20} color={Colors.textSub} />
+                                <Text style={styles.slotModeLabel}>{t('medManage.alarmModeRow')}</Text>
+                                <View style={styles.slotModeValueWrap}>
+                                  <Text style={styles.slotModeValue} numberOfLines={1}>
+                                    {alarmModeLabel(slot.remindAlarmMode)}
+                                  </Text>
+                                  <Ionicons name="chevron-forward" size={18} color={Colors.textSub} />
+                                </View>
+                              </TouchableOpacity>
                             </>
                           )}
                         </View>
@@ -3016,6 +3070,21 @@ export function MedicationManageScreen({ modeOverride, hideBack, hideTopBar, onG
                                   fontSize={17}
                                 />
                               </View>
+                              <View style={styles.slotSetDivider} />
+                              <TouchableOpacity
+                                style={styles.slotModeRow}
+                                onPress={() => pickAlarmMode(slot, 'track')}
+                                activeOpacity={0.7}
+                              >
+                                <Ionicons name="alarm-outline" size={20} color={Colors.textSub} />
+                                <Text style={styles.slotModeLabel}>{t('medManage.alarmModeRow')}</Text>
+                                <View style={styles.slotModeValueWrap}>
+                                  <Text style={styles.slotModeValue} numberOfLines={1}>
+                                    {alarmModeLabel(slot.trackAlarmMode)}
+                                  </Text>
+                                  <Ionicons name="chevron-forward" size={18} color={Colors.textSub} />
+                                </View>
+                              </TouchableOpacity>
                             </>
                           )}
                         </View>
@@ -3951,6 +4020,13 @@ const styles = StyleSheet.create({
   slotTrackToken: { color: Colors.dark, fontWeight: '700', fontSize: 17, lineHeight: 26 },
   slotTrackTokenSep: { color: '#9CC3A2', fontWeight: '700', fontSize: 17, lineHeight: 26 },
   slotToggleSwitch: { transform: [{ scaleX: 1.15 }, { scaleY: 1.15 }] },
+  // "알림 방식" 행 — 알림 소리 행(AlarmSoundPickerRow triggerBtn)과 같은 높이·좌우 패딩(14)으로 정렬.
+  slotModeRow: {
+    flexDirection: 'row', alignItems: 'center', gap: 8, minHeight: 52, paddingHorizontal: 14,
+  },
+  slotModeLabel: { fontSize: 17, fontWeight: '700', color: Colors.text },
+  slotModeValueWrap: { flexDirection: 'row', alignItems: 'center', gap: 2, marginLeft: 'auto', flexShrink: 1 },
+  slotModeValue: { fontSize: 17, fontWeight: '700', color: Colors.dark, flexShrink: 1 },
   viewAllBtn: {
     flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 7,
     minHeight: 56, borderWidth: 1, borderColor: '#DCE0E6', backgroundColor: Colors.white,
