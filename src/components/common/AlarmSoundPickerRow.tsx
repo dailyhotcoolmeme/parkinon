@@ -39,6 +39,8 @@ interface Props {
    * 글씨/아이콘은 Colors.dark 라 연한 배경 위 대비 유지됨.
    */
   backgroundColor?: string;
+  /** 트리거 라벨·값 글자 크기 override(안 주면 기본 18). 주변 텍스트와 크기 맞출 때 사용. */
+  fontSize?: number;
 }
 
 /**
@@ -47,7 +49,7 @@ interface Props {
  * 각 목소리는 "들어보기"로 미리 재생할 수 있다.
  * 60대 타겟: 큰 글씨, 넉넉한 탭 영역, 아이콘+텍스트, 스와이프 다운 닫기.
  */
-export function AlarmSoundPickerRow({ soundId, sounds, onSelect, backgroundColor }: Props) {
+export function AlarmSoundPickerRow({ soundId, sounds, onSelect, backgroundColor, fontSize }: Props) {
   const { t } = useTranslation();
   const dialog = useDialog();
   const insets = useSafeAreaInsets();
@@ -165,10 +167,10 @@ export function AlarmSoundPickerRow({ soundId, sounds, onSelect, backgroundColor
         onPress={() => setOpen(true)}
       >
         <Ionicons name="volume-high" size={20} color={Colors.textSub} />
-        <Text style={styles.triggerLabel}>{t('alarmSoundPicker.alarmSound')}</Text>
+        <Text style={[styles.triggerLabel, fontSize ? { fontSize } : null]}>{t('alarmSoundPicker.alarmSound')}</Text>
         <View style={styles.triggerValueWrap}>
           <Text
-            style={styles.triggerValue}
+            style={[styles.triggerValue, fontSize ? { fontSize } : null]}
             numberOfLines={1}
             adjustsFontSizeToFit
             minimumFontScale={0.8}
