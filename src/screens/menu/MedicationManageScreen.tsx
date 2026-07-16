@@ -51,6 +51,8 @@ import {
   type DoseSlot,
 } from '../../hooks/useDoseSlots';
 import { DoseSlotSetList } from '../../components/settings/DoseSlotSetList';
+import { MedSlotAssignModal } from '../../components/common/MedSlotAssignModal';
+import { recommendForSlotMeds } from '../../utils/recommendUtils';
 import { navigateTo } from '../../navigation/navigationRef';
 import { AdSlot } from '../../components/common/AdSlot';
 import { AlarmSoundOption } from '../../components/common/AlarmSoundPickerRow';
@@ -1044,8 +1046,24 @@ interface MedicationManageScreenProps {
   onGoRegisterMeds?: () => void;
 }
 
+// 약효추적 오프셋(분) → 안내 문구. 0=복용 직후, 그 외 "복용 후 N시간 M분".
+function offsetLine(min: number, en: boolean): string {
+  if (min <= 0) return en ? 'Right after taking' : '복용 직후';
+  const h = Math.floor(min / 60);
+  const m = min % 60;
+  if (en) {
+    const parts: string[] = [];
+    if (h) parts.push(`${h} hr`);
+    if (m) parts.push(`${m} min`);
+    return `${parts.join(' ')} after`;
+  }
+  if (h && m) return `복용 후 ${h}시간 ${m}분`;
+  if (h) return `복용 후 ${h}시간`;
+  return `복용 후 ${m}분`;
+}
+
 export function MedicationManageScreen({ modeOverride, hideBack, hideTopBar, onGoRegisterMeds }: MedicationManageScreenProps = {}) {
-  const { t } = useTranslation();
+  const { t, i18n } = useTranslation();
   const { user } = useAuth();
   const { getPatientForCaregiver } = useFamilyLink();
   const { unreadCount } = useNotificationBadge();
@@ -1311,25 +1329,65 @@ export function MedicationManageScreen({ modeOverride, hideBack, hideTopBar, onG
     }, 400);
   }, [route.params?.guideEffectTracking, targetPatientId]);
 
-  // ── 약 등록 후 복귀(openEffectTrackingAfterMeds) → 약효추적 켜기 + 안내(레보도파/비레보도파) ──
+  // ── 약 등록 후 복귀(openEffectTrackingAfterMeds) →
+  //    ① 약효추적 안내 팝업(레보도파=엔진 정확값+출처 / 비레보도파=기본값+의사상담 안내)
+  //    → 확인 시 그 시각으로 track 반영 → ② 약별 복용 시간대 배정 모달(setAssignVisible). ──
+  const [assignVisible, setAssignVisible] = useState(false);
   const etAfterMedsShownRef = useRef(false);
   useEffect(() => {
     if (!route.params?.openEffectTrackingAfterMeds || etAfterMedsShownRef.current) return;
     etAfterMedsShownRef.current = true;
+    const en = (i18n.language || '').toLowerCase().startsWith('en');
     setTimeout(async () => {
       const pid = targetPatientId ?? user?.id ?? null;
-      if (pid) {
-        try {
-          await supabase
-            .from('dose_slots' as any)
-            .update({ track_enabled: true, track_intervals: [0, 30, 120] })
-            .eq('patient_id', pid)
-            .eq('is_active', true);
-        } catch {
-          /* 실패해도 조용히 — 슬롯에서 직접 켤 수 있음 */
+      if (!pid) return;
+      let intervals: number[] = [0, 30, 120];
+      let message = '';
+      try {
+        const { data: medRows } = await supabase
+          .from('medications')
+          .select('name')
+          .eq('patient_id', pid)
+          .eq('is_active', true);
+        // 약명 기반 판정(DoseSlotSetList 와 동일 패턴). 레보도파 계열이면 offsets 채워짐.
+        const rec = recommendForSlotMeds(((medRows as any[]) ?? []).map((m) => ({ name: m.name })));
+        if (rec.offsets.length > 0) {
+          // 레보도파 계열 → 엔진 정확값 + 출처 표기.
+          intervals = rec.offsets;
+          const bullets = rec.offsets.map((o) => `· ${offsetLine(o, en)}`).join('\n');
+          message =
+            t('medManage.etTrackLevodopaIntro', { names: rec.levodopaNames.join('·') }) +
+            '\n\n' + bullets +
+            '\n\n(' + t('medManage.etTrackSource', { source: rec.source }) + ')';
+        } else {
+          // 비레보도파/매칭 실패 → 표준 기본값. 출처 없이 의사 상담 소프트 안내.
+          intervals = [0, 30, 120];
+          const bullets = intervals.map((o) => `· ${offsetLine(o, en)}`).join('\n');
+          message =
+            t('medManage.etTrackDefaultIntro') +
+            '\n\n' + bullets +
+            '\n\n' + t('medManage.etTrackDoctorNote');
         }
+      } catch {
+        intervals = [0, 30, 120];
+        const bullets = intervals.map((o) => `· ${offsetLine(o, en)}`).join('\n');
+        message =
+          t('medManage.etTrackDefaultIntro') + '\n\n' + bullets + '\n\n' + t('medManage.etTrackDoctorNote');
       }
-      dialog.alert({ title: t('medManage.etAfterMedsTitle'), message: t('medManage.etAfterMedsMsg') });
+      // 확인을 누르면 그 시각으로 반영(단일 확인 버튼).
+      await dialog.alert({ title: t('medManage.etTrackTitle'), message });
+      try {
+        await supabase
+          .from('dose_slots' as any)
+          .update({ track_enabled: true, track_intervals: intervals })
+          .eq('patient_id', pid)
+          .eq('is_active', true);
+      } catch {
+        /* 실패해도 조용히 — 슬롯에서 직접 켤 수 있음 */
+      }
+      loadDoseSlotsRef.current?.();
+      // ② 약별 복용 시간대 배정 모달로 마무리.
+      setAssignVisible(true);
     }, 400);
   }, [route.params?.openEffectTrackingAfterMeds, targetPatientId]);
 
@@ -3686,6 +3744,20 @@ export function MedicationManageScreen({ modeOverride, hideBack, hideTopBar, onG
           )}
         </KeyboardAvoidingView>
       </Modal>
+
+      {/* 온보딩 마무리 — 약별 복용 시간대 배정(약효추적 안내 팝업 다음 단계) */}
+      <MedSlotAssignModal
+        visible={assignVisible}
+        patientId={targetPatientId ?? user?.id ?? null}
+        onDone={() => {
+          setAssignVisible(false);
+          loadDoseSlotsRef.current?.();
+          loadMedicationsRef.current?.();
+          setTimeout(() => {
+            dialog.alert({ title: t('medSlotAssign.doneTitle'), message: t('medSlotAssign.doneMsg') });
+          }, 250);
+        }}
+      />
     </MainWrap>
   );
 }
