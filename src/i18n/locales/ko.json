@@ -736,14 +736,15 @@
     "etTrackDoctorNote": "※ 이 약은 약효 추적 시간이 정확하지 않을 수 있어요.\n정확한 시점은 담당 의사와 상의해 주세요.",
     "alarmModeRow": "알림 방식",
     "alarmModeTitle": "알림 방식 선택",
-    "alarmModeMsg": "알림이 어떻게 울릴지 고르세요.\n(아이폰은 무한반복이 안 돼 '알람처럼'도 최대 30초까지 울려요.)",
+    "alarmModeMsg": "알림이 어떻게 울릴지 고르세요.",
     "alarmMode": {
       "basic": "기본 (한 번)",
       "sound30": "30초 동안",
       "alarm": "알람처럼 (끌 때까지)"
     },
     "alarmPreviewTitle": "전체화면 알람 미리보기",
-    "alarmPreviewMsg": "'알람처럼' 알림이 뜨는 화면을 지금 미리 볼까요?\n(끄기 버튼을 누르면 닫혀요.)"
+    "alarmPreviewMsg": "'알람처럼' 알림이 뜨는 화면을 지금 미리 볼까요?\n(끄기 버튼을 누르면 닫혀요.)",
+    "alarmModeIosNote": "아이폰은 무한반복이 안 돼 '알람처럼'도 최대 30초까지 울려요."
   },
   "settings": {
     "notifMedTakenLabel": "환자 약 복용 기록 시",
@@ -1859,8 +1860,8 @@
     "elapsedHint": "조금만 더 기다려 주세요"
   },
   "alarmSoundPicker": {
-    "defaultVoice": "기본 목소리",
-    "defaultVoiceHint": "휴대폰 기본 알림음",
+    "defaultVoice": "시스템 기본음",
+    "defaultVoiceHint": "휴대폰에 설정된 기본 알림음",
     "alarmSound": "알림 소리",
     "pickTitle": "알림 소리 고르기",
     "pickSub": "들어보기로 미리 확인할 수 있어요",

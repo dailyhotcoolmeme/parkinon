@@ -2778,7 +2778,10 @@ export function MedicationManageScreen({ modeOverride, hideBack, hideTopBar, onG
       const current = kind === 'remind' ? slot.remindAlarmMode : slot.trackAlarmMode;
       const picked = await dialog.show({
         title: t('medManage.alarmModeTitle'),
-        message: t('medManage.alarmModeMsg'),
+        // 무한반복 불가 주의문구는 아이폰 사용자에게만.
+        message:
+          t('medManage.alarmModeMsg') +
+          (Platform.OS === 'ios' ? `\n\n${t('medManage.alarmModeIosNote')}` : ''),
         buttons: [
           { id: 'basic', text: t('medManage.alarmMode.basic') },
           { id: 'sound30', text: t('medManage.alarmMode.sound30') },

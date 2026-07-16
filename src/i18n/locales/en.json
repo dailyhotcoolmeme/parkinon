@@ -736,14 +736,15 @@
     "etTrackDoctorNote": "※ Effect-tracking times may not be accurate for this medication.\nPlease consult your doctor for the right timing.",
     "alarmModeRow": "Alarm style",
     "alarmModeTitle": "Choose alarm style",
-    "alarmModeMsg": "Choose how the alarm rings.\n(On iPhone, endless repeat isn't possible, so 'Like an alarm' rings up to 30 seconds.)",
+    "alarmModeMsg": "Choose how the alarm rings.",
     "alarmMode": {
       "basic": "Basic (once)",
       "sound30": "For 30 seconds",
       "alarm": "Like an alarm (until dismissed)"
     },
     "alarmPreviewTitle": "Preview full-screen alarm",
-    "alarmPreviewMsg": "Preview how the 'like an alarm' screen looks now?\n(Tap the power button to close.)"
+    "alarmPreviewMsg": "Preview how the 'like an alarm' screen looks now?\n(Tap the power button to close.)",
+    "alarmModeIosNote": "On iPhone, endless repeat isn't possible, so 'Like an alarm' rings up to 30 seconds."
   },
   "settings": {
     "notifMedTakenLabel": "When the patient records medication",
@@ -1859,8 +1860,8 @@
     "elapsedHint": "Just a bit longer"
   },
   "alarmSoundPicker": {
-    "defaultVoice": "Default voice",
-    "defaultVoiceHint": "Phone's default notification sound",
+    "defaultVoice": "System default",
+    "defaultVoiceHint": "Your phone's default sound",
     "alarmSound": "Notification sound",
     "pickTitle": "Choose a notification sound",
     "pickSub": "Tap Listen to hear it first",
