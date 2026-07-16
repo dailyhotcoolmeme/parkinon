@@ -1762,8 +1762,11 @@ export function MedicationManageScreen({ modeOverride, hideBack, hideTopBar, onG
 
   // 알림음 목록 = 기본 제공 프리셋(공용·항상) + 그룹 녹음(있으면). 피커가 섹션으로 나눠 표시.
   useEffect(() => {
+    // 프리셋은 정적이라 즉시 세팅(재진입 시 custom_sounds 쿼리 지연/실패로 목록이 비어
+    // 저장된 프리셋을 못 찾고 '기본 목소리'로 표시되던 문제 방지). 녹음은 도착하면 덧붙임.
+    setAlarmSounds(PRESET_SOUND_OPTIONS);
     const gid = user?.patient_group_id;
-    if (!gid) { setAlarmSounds(PRESET_SOUND_OPTIONS); return; }
+    if (!gid) return;
     supabase
       .from('custom_sounds' as any)
       .select('id, label, public_url')
@@ -2783,14 +2786,17 @@ export function MedicationManageScreen({ modeOverride, hideBack, hideTopBar, onG
           { id: '__cancel', text: t('common.cancel'), style: 'cancel' as const },
         ],
       });
-      if (!picked || picked === '__cancel' || picked === current) return;
+      if (!picked || picked === '__cancel') return;
       const mode = picked as AlarmMode;
-      if (kind === 'remind') {
-        void updateSlotFlag(slot.id, { remind_alarm_mode: mode }, { remindAlarmMode: mode });
-      } else {
-        void updateSlotFlag(slot.id, { track_alarm_mode: mode }, { trackAlarmMode: mode });
+      // 값이 바뀐 경우에만 저장(불필요한 쓰기 방지).
+      if (mode !== current) {
+        if (kind === 'remind') {
+          void updateSlotFlag(slot.id, { remind_alarm_mode: mode }, { remindAlarmMode: mode });
+        } else {
+          void updateSlotFlag(slot.id, { track_alarm_mode: mode }, { trackAlarmMode: mode });
+        }
       }
-      // '알람처럼' 선택 시 전체화면 알람 화면 미리보기 제안(선택한 소리로 재생).
+      // '알람처럼'을 고르면(값 변경 여부와 무관하게) 전체화면 알람 미리보기 제안.
       if (mode === 'alarm') {
         const yes = await dialog.confirm({
           title: t('medManage.alarmPreviewTitle'),
