@@ -1873,6 +1873,8 @@
     "reqSentTitle": "Request sent",
     "reqSentMsg": "We asked {{name}} to set up your medication times.\nYour caregiver will take care of it.",
     "pickCaregiverTitle": "Who should we ask?",
-    "pickCaregiverMsg": "Choose a caregiver to request medication-time setup."
+    "pickCaregiverMsg": "Choose a caregiver to request medication-time setup.",
+    "reqNoPushTitle": "Please tell them directly",
+    "reqNoPushMsg": "{{name}} hasn't turned on app notifications yet, so we couldn't send the request.\nThey can still set your medication times in the app — please let them know directly."
   }
 }

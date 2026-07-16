@@ -1873,6 +1873,8 @@
     "reqSentTitle": "요청을 보냈어요",
     "reqSentMsg": "{{name}}님께 복약 시간 설정을 요청했어요.\n보호자님이 대신 설정해드릴 거예요.",
     "pickCaregiverTitle": "누구에게 부탁할까요?",
-    "pickCaregiverMsg": "복약 시간 설정을 요청할 보호자를 골라주세요."
+    "pickCaregiverMsg": "복약 시간 설정을 요청할 보호자를 골라주세요.",
+    "reqNoPushTitle": "직접 알려주세요",
+    "reqNoPushMsg": "{{name}}님이 아직 앱 알림을 켜지 않으셔서 요청 알림을 보내지 못했어요.\n보호자님이 앱에서 직접 복약 시간을 설정하실 수 있으니, 직접 말씀해 주세요."
   }
 }

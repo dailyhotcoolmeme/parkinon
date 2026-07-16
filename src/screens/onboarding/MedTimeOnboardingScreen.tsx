@@ -205,7 +205,7 @@ export function MedTimeOnboardingScreen() {
     }
   }, [user?.id, saving, times, dialog, t]);
 
-  // 선택된 보호자에게 "복약 시간 설정 요청" 푸시 전송 + 안심 안내 후 홈으로.
+  // 선택된 보호자에게 "복약 시간 설정 요청" 푸시 전송 + 안내 후 홈으로.
   const sendSetupRequest = async (cg: { id: string; name: string; pushToken: string | null }) => {
     const patientName = user?.name || '환자';
     if (cg.pushToken) {
@@ -215,11 +215,17 @@ export function MedTimeOnboardingScreen() {
         t('medTimeOnboarding.reqPushBody', { name: patientName }),
         { type: 'caregiver_med_setup_request', patient_id: user?.id },
       ).catch(() => {});
+      await dialog.alert({
+        title: t('medTimeOnboarding.reqSentTitle'),
+        message: t('medTimeOnboarding.reqSentMsg', { name: cg.name }),
+      });
+    } else {
+      // 보호자가 아직 앱 알림을 안 켜서 푸시 전달 불가 → 정직하게 안내(직접 알려주도록).
+      await dialog.alert({
+        title: t('medTimeOnboarding.reqNoPushTitle'),
+        message: t('medTimeOnboarding.reqNoPushMsg', { name: cg.name }),
+      });
     }
-    await dialog.alert({
-      title: t('medTimeOnboarding.reqSentTitle'),
-      message: t('medTimeOnboarding.reqSentMsg', { name: cg.name }),
-    });
     navigateTo('Main', { screen: 'Medication' });
   };
 
