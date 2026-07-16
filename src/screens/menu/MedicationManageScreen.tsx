@@ -1311,6 +1311,28 @@ export function MedicationManageScreen({ modeOverride, hideBack, hideTopBar, onG
     }, 400);
   }, [route.params?.guideEffectTracking, targetPatientId]);
 
+  // ── 약 등록 후 복귀(openEffectTrackingAfterMeds) → 약효추적 켜기 + 안내(레보도파/비레보도파) ──
+  const etAfterMedsShownRef = useRef(false);
+  useEffect(() => {
+    if (!route.params?.openEffectTrackingAfterMeds || etAfterMedsShownRef.current) return;
+    etAfterMedsShownRef.current = true;
+    setTimeout(async () => {
+      const pid = targetPatientId ?? user?.id ?? null;
+      if (pid) {
+        try {
+          await supabase
+            .from('dose_slots' as any)
+            .update({ track_enabled: true, track_intervals: [0, 30, 120] })
+            .eq('patient_id', pid)
+            .eq('is_active', true);
+        } catch {
+          /* 실패해도 조용히 — 슬롯에서 직접 켤 수 있음 */
+        }
+      }
+      dialog.alert({ title: t('medManage.etAfterMedsTitle'), message: t('medManage.etAfterMedsMsg') });
+    }, 400);
+  }, [route.params?.openEffectTrackingAfterMeds, targetPatientId]);
+
   // 직접 입력 폼 ("내 약 전체 보기" = 복용약 등록·관리 페이지의 상시 노출 폼).
   const [addName, setAddName] = useState('');
   const [addDosage, setAddDosage] = useState('');
@@ -3306,6 +3328,17 @@ export function MedicationManageScreen({ modeOverride, hideBack, hideTopBar, onG
             </>
           )}
 
+          {/* 온보딩 약효추적 흐름: 약 다 등록 → 다음(복용시간 설정으로 복귀해 약효추적 켜기). 이 흐름일 때만 노출 */}
+          {route.params?.onboardingEffectTracking && (
+            <TouchableOpacity
+              style={styles.onbNextBtn}
+              onPress={() => navigation.navigate('MedicationManage', { mode: 'slots', openEffectTrackingAfterMeds: true })}
+              activeOpacity={0.85}
+            >
+              <Text style={styles.onbNextBtnText}>{t('medManage.onbMedsDoneNext')}</Text>
+            </TouchableOpacity>
+          )}
+
           </>
           )}
         </ScrollView>
@@ -3692,6 +3725,16 @@ const dmStyles = StyleSheet.create({
 
 const styles = StyleSheet.create({
   safeArea: { flex: 1, backgroundColor: Colors.white },
+  // 온보딩 약효추적 흐름: 약 등록 화면 하단 "다 등록했어요 → 다음" 버튼(sticky 아님, 목록 아래 스크롤).
+  onbNextBtn: {
+    marginTop: 20,
+    minHeight: 60,
+    borderRadius: 16,
+    backgroundColor: Colors.primary,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  onbNextBtnText: { fontSize: 20, fontWeight: '800', color: Colors.white },
   scroll: { flex: 1, backgroundColor: Colors.background },
   scrollContent: { padding: 20, paddingBottom: 40 },
 

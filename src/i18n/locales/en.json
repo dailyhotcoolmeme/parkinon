@@ -725,7 +725,10 @@
     "etGuideDefault": "Set up without meds",
     "etGuideLater": "Later",
     "etDefaultDoneTitle": "Effect-tracking on",
-    "etDefaultDoneMsg": "We'll prompt you to record how you feel right after, 30 min, and 2 hours after taking your medication.\nYou can change the times in dose-time settings."
+    "etDefaultDoneMsg": "We'll prompt you to record how you feel right after, 30 min, and 2 hours after taking your medication.\nYou can change the times in dose-time settings.",
+    "onbMedsDoneNext": "All meds added → Next",
+    "etAfterMedsTitle": "Effect-tracking on",
+    "etAfterMedsMsg": "Now add the medications you take at each time (Add medication). For levodopa-class drugs, we'll suggest check-in times based on the drug.\n\nOther drugs are set to default times (right after, 30 min, 2 hours). These suggestions may not be accurate, so please consult your doctor for the right timing.\n\n(Effect-time source: US FDA & manufacturer drug information · check-in times are reference guidance)"
   },
   "settings": {
     "notifMedTakenLabel": "When the patient records medication",
