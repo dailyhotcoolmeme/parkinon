@@ -2818,6 +2818,15 @@ export function MedicationManageScreen({ modeOverride, hideBack, hideTopBar, onG
     [dialog, t, updateSlotFlag],
   );
 
+  // 슬롯이 로드/변경될 때마다, 그 슬롯이 쓰는 프리셋 채널을 즉시 보장(안드).
+  //   → 소리를 언제 골랐든(로그인 전/후 무관) 이 화면에 들어오면 채널이 생겨 프리셋 소리로 울림.
+  useEffect(() => {
+    doseSlotList.forEach((s) => {
+      void ensurePresetChannelForSoundId(s.remindSoundId);
+      void ensurePresetChannelForSoundId(s.trackSoundId);
+    });
+  }, [doseSlotList]);
+
   // 약 id → Medication 빠른 조회(슬롯 카드 약 목록 표시용).
   const medById = useCallback((id: string) => medications.find((m) => m.id === id), [medications]);
 
