@@ -263,7 +263,8 @@
           "userTrackingUsageDescription": "Your data is used to make ads shown to you more relevant. Ads help keep ParkinON free.",
           "delayAppMeasurementInit": true
         }
-      ]
+      ],
+      "./plugins/withPresetAlarmSounds"
     ],
     "runtimeVersion": {
       "policy": "appVersion"
