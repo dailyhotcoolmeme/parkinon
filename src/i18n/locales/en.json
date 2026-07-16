@@ -1866,6 +1866,13 @@
     "saveFail": "Something went wrong. Please try again.",
     "handoff": "Let my caregiver set this up",
     "handoffTitle": "Ask your caregiver",
-    "handoffMsg": "Your caregiver can set this up for you.\nWe'll skip it for now."
+    "handoffMsg": "Your caregiver can set this up for you.\nWe'll skip it for now.",
+    "back": "Back",
+    "reqPushTitle": "Medication time setup request",
+    "reqPushBody": "{{name}} asked you to set up their medication times. Tap to set them.",
+    "reqSentTitle": "Request sent",
+    "reqSentMsg": "We asked {{name}} to set up your medication times.\nYour caregiver will take care of it.",
+    "pickCaregiverTitle": "Who should we ask?",
+    "pickCaregiverMsg": "Choose a caregiver to request medication-time setup."
   }
 }

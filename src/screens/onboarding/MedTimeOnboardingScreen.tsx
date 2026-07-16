@@ -31,6 +31,7 @@ import { useBottomSheetPadding } from '../../hooks/useBottomSheetPadding';
 import { supabase } from '../../lib/supabase';
 import { autoSlotLabel } from '../../constants/doseSlots';
 import { navigateTo } from '../../navigation/navigationRef';
+import { sendCaregiverPush } from '../../utils/notifications';
 
 type Ampm = 'am' | 'pm';
 
@@ -61,8 +62,29 @@ export function MedTimeOnboardingScreen() {
   // 수정 중인 인덱스(null=신규 추가)
   const [editIndex, setEditIndex] = useState<number | null>(null);
 
-  const hasCaregiver = !!user?.patient_group_id;
   const count = times.length;
+
+  // 실제로 연동된 보호자 목록(그룹의 role='caregiver' 멤버). 있어야만 "보호자에게 맡기기" 노출.
+  const [caregivers, setCaregivers] = useState<{ id: string; name: string; pushToken: string | null }[]>([]);
+  useEffect(() => {
+    const gid = user?.patient_group_id;
+    if (!gid || !user?.id) { setCaregivers([]); return; }
+    let alive = true;
+    (async () => {
+      const { data: members } = await supabase
+        .from('patient_group_members')
+        .select('user_id')
+        .eq('group_id', gid)
+        .eq('role', 'caregiver');
+      const ids = ((members as any[]) ?? []).map((m) => m.user_id).filter((id: string) => id !== user.id);
+      if (!alive || ids.length === 0) { setCaregivers([]); return; }
+      const { data: cu } = await supabase.from('users').select('id, name, push_token').in('id', ids);
+      if (!alive) return;
+      setCaregivers(((cu as any[]) ?? []).map((u) => ({ id: u.id, name: u.name || '보호자', pushToken: u.push_token ?? null })));
+    })();
+    return () => { alive = false; };
+  }, [user?.patient_group_id, user?.id]);
+  const hasCaregiver = caregivers.length > 0;
 
   // 페이지 전환 효과 — 다음 약으로 넘어갈 때 오른쪽에서 슬라이드 인(새 화면이 온 걸 확실히 인지).
   const slideX = useRef(new Animated.Value(0)).current;
@@ -183,14 +205,43 @@ export function MedTimeOnboardingScreen() {
     }
   }, [user?.id, saving, times, dialog, t]);
 
-  // 보호자에게 맡기기 → 설정 건너뛰고 안내.
-  const handoffToCaregiver = useCallback(async () => {
+  // 선택된 보호자에게 "복약 시간 설정 요청" 푸시 전송 + 안심 안내 후 홈으로.
+  const sendSetupRequest = async (cg: { id: string; name: string; pushToken: string | null }) => {
+    const patientName = user?.name || '환자';
+    if (cg.pushToken) {
+      await sendCaregiverPush(
+        cg.pushToken,
+        t('medTimeOnboarding.reqPushTitle'),
+        t('medTimeOnboarding.reqPushBody', { name: patientName }),
+        { type: 'caregiver_med_setup_request', patient_id: user?.id },
+      ).catch(() => {});
+    }
     await dialog.alert({
-      title: t('medTimeOnboarding.handoffTitle'),
-      message: t('medTimeOnboarding.handoffMsg'),
+      title: t('medTimeOnboarding.reqSentTitle'),
+      message: t('medTimeOnboarding.reqSentMsg', { name: cg.name }),
     });
     navigateTo('Main', { screen: 'Medication' });
-  }, [dialog, t]);
+  };
+
+  // 보호자에게 맡기기 → (2명 이상이면 누구에게 요청할지 선택 후) 요청 전송.
+  const handoffToCaregiver = useCallback(async () => {
+    if (caregivers.length === 0) return;
+    if (caregivers.length === 1) {
+      await sendSetupRequest(caregivers[0]);
+      return;
+    }
+    const picked = await dialog.show({
+      title: t('medTimeOnboarding.pickCaregiverTitle'),
+      message: t('medTimeOnboarding.pickCaregiverMsg'),
+      buttons: [
+        ...caregivers.map((c) => ({ id: c.id, text: c.name })),
+        { id: '__cancel', text: t('common.cancel'), style: 'cancel' as const },
+      ],
+    });
+    if (!picked || picked === '__cancel') return;
+    const cg = caregivers.find((c) => c.id === picked);
+    if (cg) await sendSetupRequest(cg);
+  }, [caregivers, dialog, t, user?.id, user?.name]);
 
   const ordinal = count + 1; // 지금 묻는 게 몇 번째 약인지
 
@@ -264,6 +315,12 @@ export function MedTimeOnboardingScreen() {
             {count >= 1 && editIndex == null && (
               <TouchableOpacity style={styles.ghostBtn} onPress={() => setView('summary')} activeOpacity={0.7}>
                 <Text style={styles.ghostBtnText}>{t('medTimeOnboarding.doneAdding')}</Text>
+              </TouchableOpacity>
+            )}
+            {/* 뒤로가기 — 등록한 게 있거나 수정 중이면 목록(요약)으로 돌아가기 */}
+            {(count >= 1 || editIndex != null) && (
+              <TouchableOpacity style={styles.backBtn} onPress={() => { setEditIndex(null); setView('summary'); }} activeOpacity={0.7}>
+                <Text style={styles.backBtnText}>{t('medTimeOnboarding.back')}</Text>
               </TouchableOpacity>
             )}
           </View>
@@ -362,6 +419,8 @@ const styles = StyleSheet.create({
     backgroundColor: Colors.white, alignItems: 'center', justifyContent: 'center',
   },
   ghostBtnText: { fontSize: 17, fontWeight: '700', color: Colors.textSub },
+  backBtn: { minHeight: 48, alignItems: 'center', justifyContent: 'center' },
+  backBtnText: { fontSize: 16, fontWeight: '600', color: Colors.textSub },
 
   summaryRow: {
     flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between',

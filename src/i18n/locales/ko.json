@@ -1866,6 +1866,13 @@
     "saveFail": "저장 중 문제가 생겼어요. 다시 시도해주세요.",
     "handoff": "보호자에게 맡기기",
     "handoffTitle": "보호자에게 맡기기",
-    "handoffMsg": "보호자분이 대신 설정해드릴 수 있어요.\n지금은 건너뛸게요."
+    "handoffMsg": "보호자분이 대신 설정해드릴 수 있어요.\n지금은 건너뛸게요.",
+    "back": "뒤로",
+    "reqPushTitle": "복약 시간 설정 요청",
+    "reqPushBody": "{{name}}님이 복약 시간 설정을 부탁했어요. 눌러서 설정해주세요.",
+    "reqSentTitle": "요청을 보냈어요",
+    "reqSentMsg": "{{name}}님께 복약 시간 설정을 요청했어요.\n보호자님이 대신 설정해드릴 거예요.",
+    "pickCaregiverTitle": "누구에게 부탁할까요?",
+    "pickCaregiverMsg": "복약 시간 설정을 요청할 보호자를 골라주세요."
   }
 }

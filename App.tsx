@@ -249,6 +249,8 @@ function AppInner() {
         caregiver_body_state: () => navigateTo('Main', { screen: 'BodyStateTab', params: { screen: 'BodyState' } }),
         caregiver_exercise: () => navigateTo('Main', { screen: 'Exercise' }),
         measurement_completed: () => navigateTo('Main', { screen: 'BodyStateTab', params: { screen: 'BodyState' } }),
+        // 환자가 "복약 시간 설정 요청" → 보호자를 환자 복용시간 설정 화면으로.
+        caregiver_med_setup_request: () => navigateTo('Main', { screen: 'MyInfo', params: { screen: 'MedicationManage', params: { mode: 'slots' } } }),
       };
       if (type && CAREGIVER_NAV[type]) {
         log('caregiver_nav_enter', { type });
