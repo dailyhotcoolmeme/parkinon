@@ -2978,10 +2978,22 @@ export function MedicationManageScreen({ modeOverride, hideBack, hideTopBar, onG
 
                         {/* 세트2: 약효 추적 알림 + 그 알림소리(켜졌을 때) */}
                         <View style={styles.slotSetBox}>
-                          <View style={styles.slotToggleRow}>
-                            <Text style={[styles.slotToggleLabel, !slot.trackEnabled && styles.slotToggleLabelOff]}>
-                              {t('medManage.effectTrack')}
-                            </Text>
+                          <View style={styles.slotTrackHeadRow}>
+                            <View style={styles.slotTrackLabelWrap}>
+                              <Text style={[styles.slotTrackLabelText, !slot.trackEnabled && styles.slotToggleLabelOff]}>
+                                {t('medManage.effectTrack')}
+                              </Text>
+                              {slot.trackEnabled && slotTrackIntervalSummary(slot)
+                                ? slotTrackIntervalSummary(slot).split(' · ').map((tok, i, arr) => (
+                                    <React.Fragment key={i}>
+                                      <Text style={styles.slotTrackToken}>{tok}</Text>
+                                      {i < arr.length - 1 && (
+                                        <Text style={styles.slotTrackTokenSep}> · </Text>
+                                      )}
+                                    </React.Fragment>
+                                  ))
+                                : null}
+                            </View>
                             <Switch
                               value={slot.trackEnabled}
                               onValueChange={(v) => toggleSlotTrack(slot, v)}
@@ -2992,18 +3004,6 @@ export function MedicationManageScreen({ modeOverride, hideBack, hideTopBar, onG
                           </View>
                           {slot.trackEnabled && (
                             <>
-                              {slotTrackIntervalSummary(slot) ? (
-                                <View style={styles.slotTrackSummaryWrap}>
-                                  {slotTrackIntervalSummary(slot).split(' · ').map((tok, i, arr) => (
-                                    <React.Fragment key={i}>
-                                      <Text style={styles.slotTrackToken}>{tok}</Text>
-                                      {i < arr.length - 1 && (
-                                        <Text style={styles.slotTrackTokenSep}> · </Text>
-                                      )}
-                                    </React.Fragment>
-                                  ))}
-                                </View>
-                              ) : null}
                               <View style={styles.slotSetDivider} />
                               <View style={styles.slotSoundWrap}>
                                 <AlarmSoundPickerRow
@@ -3938,11 +3938,13 @@ const styles = StyleSheet.create({
   slotToggleLabelOff: { color: '#A6AEBA', fontWeight: '600' },
   // 알림소리 행(AlarmSoundPickerRow) 자체 marginTop:8 을 상쇄해 구분선 바로 아래 붙임(토글 행과 등높이).
   slotSoundWrap: { marginTop: -8 },
-  // 약효추적 요약 — 라벨 아래, 각 시점을 구분된 토큰으로(개별 줄바꿈·2번째 줄도 왼쪽 정렬).
-  slotTrackSummaryWrap: {
-    flexDirection: 'row', flexWrap: 'wrap', alignItems: 'center',
-    paddingHorizontal: 14, paddingBottom: 8,
+  // 약효추적 헤더 행: 라벨 + 요약 토큰을 같은 줄에서 시작, 넘치면 토큰 단위로 줄바꿈. 스위치는 우측.
+  slotTrackHeadRow: {
+    flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between',
+    minHeight: 52, paddingHorizontal: 14, paddingVertical: 6,
   },
+  slotTrackLabelWrap: { flex: 1, flexDirection: 'row', flexWrap: 'wrap', alignItems: 'center', paddingRight: 8 },
+  slotTrackLabelText: { fontSize: 17, fontWeight: '700', color: Colors.text, lineHeight: 24, marginRight: 8 },
   slotTrackToken: { color: Colors.dark, fontWeight: '700', fontSize: 15, lineHeight: 24 },
   slotTrackTokenSep: { color: '#9CC3A2', fontWeight: '700', fontSize: 15, lineHeight: 24 },
   slotToggleSwitch: { transform: [{ scaleX: 1.15 }, { scaleY: 1.15 }] },
