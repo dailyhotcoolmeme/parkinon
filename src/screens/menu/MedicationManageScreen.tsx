@@ -1274,6 +1274,43 @@ export function MedicationManageScreen({ modeOverride, hideBack, hideTopBar, onG
   // 대상 환자 해석 완료 여부 — 로딩 중(false)과 "미연동(true+null)" 구분. 깜빡임/오판 방지.
   const [targetLoadDone, setTargetLoadDone] = useState(false);
 
+  // ── 온보딩 약효추적 유도(guideEffectTracking) — 복약시간 등록 후 slots 도착 시 1회 팝업 ──
+  //   [약 등록하고 설정] → 약 등록(meds, onboarding 플래그) / [약 없이 기본] → 기본 시점으로 켜기 / [나중에]
+  const etGuideShownRef = useRef(false);
+  useEffect(() => {
+    if (!route.params?.guideEffectTracking || etGuideShownRef.current) return;
+    etGuideShownRef.current = true;
+    setTimeout(async () => {
+      const picked = await dialog.show({
+        title: t('medManage.etGuideTitle'),
+        message: t('medManage.etGuideMsg'),
+        buttons: [
+          { id: 'meds', text: t('medManage.etGuideRegisterMeds') },
+          { id: 'default', text: t('medManage.etGuideDefault') },
+          { id: 'later', text: t('medManage.etGuideLater'), style: 'cancel' },
+        ],
+      });
+      if (picked === 'meds') {
+        navigation.navigate('MedicationManage', { mode: 'meds', onboardingEffectTracking: true });
+      } else if (picked === 'default') {
+        const pid = targetPatientId ?? user?.id ?? null;
+        if (pid) {
+          try {
+            await supabase
+              .from('dose_slots' as any)
+              .update({ track_enabled: true, track_intervals: [0, 30, 120] })
+              .eq('patient_id', pid)
+              .eq('is_active', true);
+            dialog.alert({ title: t('medManage.etDefaultDoneTitle'), message: t('medManage.etDefaultDoneMsg') });
+          } catch {
+            /* 실패해도 조용히 — 사용자가 슬롯에서 직접 켤 수 있음 */
+          }
+        }
+      }
+      // 'later' → 아무것도 안 함
+    }, 400);
+  }, [route.params?.guideEffectTracking, targetPatientId]);
+
   // 직접 입력 폼 ("내 약 전체 보기" = 복용약 등록·관리 페이지의 상시 노출 폼).
   const [addName, setAddName] = useState('');
   const [addDosage, setAddDosage] = useState('');

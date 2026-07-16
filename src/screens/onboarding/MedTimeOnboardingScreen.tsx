@@ -206,8 +206,8 @@ export function MedTimeOnboardingScreen() {
         title: t('medTimeOnboarding.doneTitle'),
         message: t('medTimeOnboarding.doneMsg'),
       });
-      // 완료 후 → 복용시간 설정·알림 화면(등록한 시간 확인·이후 알림음 등록 등). (오너 결정 2026-07-16)
-      navigateTo('Main', { screen: 'MyInfo', params: { screen: 'MedicationManage', params: { mode: 'slots' } } });
+      // 완료 후 → 복용시간 설정·알림 화면. 도착 시 약효추적 설정 유도 팝업(guideEffectTracking).
+      navigateTo('Main', { screen: 'MyInfo', params: { screen: 'MedicationManage', params: { mode: 'slots', guideEffectTracking: true } } });
     } catch (e: any) {
       dialog.alert({ title: t('common.error'), message: t('medTimeOnboarding.saveFail') });
     } finally {

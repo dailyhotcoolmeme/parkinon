@@ -30,7 +30,15 @@ export type MenuStackParamList = {
   };
   Settings: { guideCaregiverNotif?: boolean } | undefined;
   MedTimeOnboarding: undefined;
-  MedicationManage: { mode?: 'meds' | 'slots'; openSlot?: 'morning' | 'lunch' | 'dinner' | 'bedtime'; guideSetup?: boolean } | undefined;
+  MedicationManage: {
+    mode?: 'meds' | 'slots';
+    openSlot?: 'morning' | 'lunch' | 'dinner' | 'bedtime';
+    guideSetup?: boolean;
+    // 온보딩 약효추적 흐름: slots 도착 시 유도 팝업 / meds 진입 시 "다 등록했어요→다음" 버튼 / 약등록 후 약효추적 열기.
+    guideEffectTracking?: boolean;
+    onboardingEffectTracking?: boolean;
+    openEffectTrackingAfterMeds?: boolean;
+  } | undefined;
   FamilyLink: undefined;
   ProfileEdit: undefined;
   Terms: undefined;

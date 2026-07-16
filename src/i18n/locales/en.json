@@ -718,7 +718,14 @@
     "sectionDeposit": "Storage",
     "medInfoNotFound": "Couldn't find drug info",
     "setupGuideTitle": "Add medications & alerts",
-    "setupGuideMsg": "Add the medications you take,\nand turn on dose-time reminders here.\n\nReminders start off,\nso turn on just the times you want.\n\nIf a family member (caregiver) uses the app with you,\nthey can set this up for you too."
+    "setupGuideMsg": "Add the medications you take,\nand turn on dose-time reminders here.\n\nReminders start off,\nso turn on just the times you want.\n\nIf a family member (caregiver) uses the app with you,\nthey can set this up for you too.",
+    "etGuideTitle": "Set up effect-tracking too?",
+    "etGuideMsg": "Recording how you feel after taking your medication helps you see how it's working.\n\nIf you know your medications, registering them first lets us suggest more accurate check-in times.",
+    "etGuideRegisterMeds": "Register meds & set up",
+    "etGuideDefault": "Set up without meds",
+    "etGuideLater": "Later",
+    "etDefaultDoneTitle": "Effect-tracking on",
+    "etDefaultDoneMsg": "We'll prompt you to record how you feel right after, 30 min, and 2 hours after taking your medication.\nYou can change the times in dose-time settings."
   },
   "settings": {
     "notifMedTakenLabel": "When the patient records medication",
