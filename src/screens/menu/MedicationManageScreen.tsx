@@ -2986,12 +2986,13 @@ export function MedicationManageScreen({ modeOverride, hideBack, hideTopBar, onG
                             <View style={styles.slotTrackTokensCol}>
                               {slot.trackEnabled && slotTrackIntervalSummary(slot)
                                 ? slotTrackIntervalSummary(slot).split(' · ').map((tok, i, arr) => (
-                                    <React.Fragment key={i}>
-                                      <Text style={styles.slotTrackToken}>{tok}</Text>
+                                    // 구분점은 토큰 '뒤'에 붙임(마지막 제외) → 줄바꿈 시 점은 이전 줄 끝에 남고 새 줄은 글자로 시작.
+                                    <Text key={i} style={styles.slotTrackToken}>
+                                      {tok}
                                       {i < arr.length - 1 && (
-                                        <Text style={styles.slotTrackTokenSep}> · </Text>
+                                        <Text style={styles.slotTrackTokenSep}>  ·  </Text>
                                       )}
-                                    </React.Fragment>
+                                    </Text>
                                   ))
                                 : null}
                             </View>
