@@ -51,6 +51,7 @@ import {
   type DoseSlot,
 } from '../../hooks/useDoseSlots';
 import { DoseSlotSetList } from '../../components/settings/DoseSlotSetList';
+import { AlarmSoundPickerRow } from '../../components/common/AlarmSoundPickerRow';
 import { MedSlotAssignModal } from '../../components/common/MedSlotAssignModal';
 import { recommendForSlotMeds } from '../../utils/recommendUtils';
 import { navigateTo } from '../../navigation/navigationRef';
@@ -2738,6 +2739,22 @@ export function MedicationManageScreen({ modeOverride, hideBack, hideTopBar, onG
     [updateSlotFlag, dialog, targetPatientId, user?.timezone],
   );
 
+  // 슬롯 알림음 지정 — 복용/약효추적 각각 remind_sound_id/track_sound_id 저장(updateSlotFlag 재사용).
+  const setSlotRemindSound = useCallback(
+    (slot: DoseSlot, sid: string | null) => {
+      if (!slot.id) return;
+      void updateSlotFlag(slot.id, { remind_sound_id: sid }, { remindSoundId: sid });
+    },
+    [updateSlotFlag],
+  );
+  const setSlotTrackSound = useCallback(
+    (slot: DoseSlot, sid: string | null) => {
+      if (!slot.id) return;
+      void updateSlotFlag(slot.id, { track_sound_id: sid }, { trackSoundId: sid });
+    },
+    [updateSlotFlag],
+  );
+
   // 약 id → Medication 빠른 조회(슬롯 카드 약 목록 표시용).
   const medById = useCallback((id: string) => medications.find((m) => m.id === id), [medications]);
 
@@ -2941,6 +2958,16 @@ export function MedicationManageScreen({ modeOverride, hideBack, hideTopBar, onG
                             style={styles.slotToggleSwitch}
                           />
                         </View>
+                        {/* 복용 알림음 — 켜져 있을 때만, 토글 바로 아래(수정 진입 없이 바로 선택). */}
+                        {slot.remindEnabled && (
+                          <View style={styles.slotSoundRow}>
+                            <AlarmSoundPickerRow
+                              soundId={slot.remindSoundId}
+                              sounds={alarmSounds}
+                              onSelect={(sid) => setSlotRemindSound(slot, sid)}
+                            />
+                          </View>
+                        )}
                         <View style={styles.slotToggleRow}>
                           <Text style={[styles.slotToggleLabel, !slot.trackEnabled && styles.slotToggleLabelOff]}>
                             {t('medManage.effectTrack')}
@@ -2958,6 +2985,16 @@ export function MedicationManageScreen({ modeOverride, hideBack, hideTopBar, onG
                             style={styles.slotToggleSwitch}
                           />
                         </View>
+                        {/* 약효추적 알림음 — 켜져 있을 때만, 토글 바로 아래. */}
+                        {slot.trackEnabled && (
+                          <View style={styles.slotSoundRow}>
+                            <AlarmSoundPickerRow
+                              soundId={slot.trackSoundId}
+                              sounds={alarmSounds}
+                              onSelect={(sid) => setSlotTrackSound(slot, sid)}
+                            />
+                          </View>
+                        )}
 
                       {/* 복용약: 제목 + 약 이름(가나다순·중간점) — 토글 그룹 안에 두어 정렬 일치 */}
                       <View style={styles.slotDrugRow}>
@@ -3873,6 +3910,8 @@ const styles = StyleSheet.create({
   // 약효추적 요약(복용직후 30분 후…) — 녹색
   slotTrackSummary: { color: Colors.dark, fontWeight: '700' },
   slotToggleSwitch: { transform: [{ scaleX: 1.15 }, { scaleY: 1.15 }] },
+  // 토글 바로 아래 알림음 선택 행(AlarmSoundPickerRow 자체 marginTop:8 있음) — 아래 여백만.
+  slotSoundRow: { marginBottom: 6 },
   viewAllBtn: {
     flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 7,
     minHeight: 56, borderWidth: 1, borderColor: '#DCE0E6', backgroundColor: Colors.white,

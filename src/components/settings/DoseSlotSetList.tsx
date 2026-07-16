@@ -54,7 +54,7 @@ import {
 } from '../../constants/doseSlots';
 import { useSwipeDownDismiss } from '../../hooks/useSwipeDownDismiss';
 import { useBottomSheetPadding } from '../../hooks/useBottomSheetPadding';
-import { AlarmSoundPickerRow, AlarmSoundOption } from '../common/AlarmSoundPickerRow';
+import { AlarmSoundOption } from '../common/AlarmSoundPickerRow';
 import { HangingText } from '../common/HangingText';
 import { useDialog } from '../../context/DialogContext';
 import { useAuth } from '../../context/AuthContext';
@@ -1142,17 +1142,6 @@ export function DoseSlotSetList({
                     thumbColor={Colors.white}
                   />
                 </View>
-                {/* 복용 알림음 — 켜져 있을 때만, 토글 바로 아래(수정 진입 없이 바로 선택). */}
-                {slot.remindEnabled && (
-                  <View style={styles.collapsedSoundRow}>
-                    <AlarmSoundPickerRow
-                      soundId={slot.remindSoundId}
-                      sounds={alarmSounds}
-                      onSelect={(sid) => onRemindSound(slot, sid)}
-                      backgroundColor="transparent"
-                    />
-                  </View>
-                )}
 
                 <View style={styles.divider} />
 
@@ -1174,17 +1163,6 @@ export function DoseSlotSetList({
                     thumbColor={Colors.white}
                   />
                 </View>
-                {/* 약효추적 알림음 — 켜져 있을 때만, 토글 바로 아래. */}
-                {slot.trackEnabled && (
-                  <View style={styles.collapsedSoundRow}>
-                    <AlarmSoundPickerRow
-                      soundId={slot.trackSoundId}
-                      sounds={alarmSounds}
-                      onSelect={(sid) => onTrackSound(slot, sid)}
-                      backgroundColor="transparent"
-                    />
-                  </View>
-                )}
 
               </>
             ) : (
@@ -2001,11 +1979,6 @@ const styles = StyleSheet.create({
     height: 1,
     backgroundColor: Colors.border,
     marginVertical: 14,
-  },
-  // 접힌 카드에서 토글 바로 아래 알림음 선택 행 — 소속 알림 밑에 살짝 들여쓰기.
-  collapsedSoundRow: {
-    paddingLeft: 6,
-    marginTop: 4,
   },
 
   // 토글 행
