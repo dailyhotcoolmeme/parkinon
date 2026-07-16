@@ -138,6 +138,18 @@ export async function ensureRecordedChannel(
   return channelId;
 }
 
+/**
+ * 방금 고른 소리(id)의 채널을 즉시 보장(Android).
+ * - 'preset:<fileId>' → 프리셋 채널 즉시 생성(번들 res/raw 참조, 다운로드 불필요).
+ * - 그 외(녹음 uuid / null)는 여기서 안 만들고 provisionForUser 흐름에 맡긴다.
+ * 소리 선택 직후 호출 → 앱 재시작 없이 그 소리로 알림이 울리게.
+ */
+export async function ensurePresetChannelForSoundId(soundId: string | null | undefined): Promise<void> {
+  if (Platform.OS !== 'android') return;
+  if (!soundId || !soundId.startsWith(PRESET_SOUND_PREFIX)) return;
+  await ensurePresetChannel(soundId.slice(PRESET_SOUND_PREFIX.length)).catch(() => {});
+}
+
 /** keepChannelIds 에 없는 parkinon_alarm_ / parkinon_preset_ 채널 정리(안 쓰는 옛 채널 제거) */
 export async function cleanupAlarmChannels(keepChannelIds: string[]): Promise<void> {
   if (Platform.OS !== 'android') return;

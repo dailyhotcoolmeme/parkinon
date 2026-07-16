@@ -54,6 +54,7 @@ import { DoseSlotSetList } from '../../components/settings/DoseSlotSetList';
 import { AlarmSoundPickerRow } from '../../components/common/AlarmSoundPickerRow';
 import { MedSlotAssignModal } from '../../components/common/MedSlotAssignModal';
 import { PRESET_ALARM_SOUNDS, presetFileIdOf, type AlarmMode } from '../../constants/presetAlarmSounds';
+import { ensurePresetChannelForSoundId } from '../../lib/alarmSound';
 import { PRESET_PREVIEW_ASSETS } from '../../constants/presetPreviewAssets';
 import { recommendForSlotMeds } from '../../utils/recommendUtils';
 import { navigateTo } from '../../navigation/navigationRef';
@@ -2757,6 +2758,8 @@ export function MedicationManageScreen({ modeOverride, hideBack, hideTopBar, onG
     (slot: DoseSlot, sid: string | null) => {
       if (!slot.id) return;
       void updateSlotFlag(slot.id, { remind_sound_id: sid }, { remindSoundId: sid });
+      // 고른 프리셋 채널을 즉시 생성 → 앱 재시작 없이 그 소리로 알림이 울리게.
+      void ensurePresetChannelForSoundId(sid);
     },
     [updateSlotFlag],
   );
@@ -2764,6 +2767,7 @@ export function MedicationManageScreen({ modeOverride, hideBack, hideTopBar, onG
     (slot: DoseSlot, sid: string | null) => {
       if (!slot.id) return;
       void updateSlotFlag(slot.id, { track_sound_id: sid }, { trackSoundId: sid });
+      void ensurePresetChannelForSoundId(sid);
     },
     [updateSlotFlag],
   );
