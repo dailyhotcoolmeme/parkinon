@@ -53,7 +53,7 @@ import {
 import { DoseSlotSetList } from '../../components/settings/DoseSlotSetList';
 import { AlarmSoundPickerRow } from '../../components/common/AlarmSoundPickerRow';
 import { MedSlotAssignModal } from '../../components/common/MedSlotAssignModal';
-import { PRESET_ALARM_SOUNDS, type AlarmMode } from '../../constants/presetAlarmSounds';
+import { PRESET_ALARM_SOUNDS, presetFileIdOf, type AlarmMode } from '../../constants/presetAlarmSounds';
 import { PRESET_PREVIEW_ASSETS } from '../../constants/presetPreviewAssets';
 import { recommendForSlotMeds } from '../../utils/recommendUtils';
 import { navigateTo } from '../../navigation/navigationRef';
@@ -2789,6 +2789,17 @@ export function MedicationManageScreen({ modeOverride, hideBack, hideTopBar, onG
         void updateSlotFlag(slot.id, { remind_alarm_mode: mode }, { remindAlarmMode: mode });
       } else {
         void updateSlotFlag(slot.id, { track_alarm_mode: mode }, { trackAlarmMode: mode });
+      }
+      // '알람처럼' 선택 시 전체화면 알람 화면 미리보기 제안(선택한 소리로 재생).
+      if (mode === 'alarm') {
+        const yes = await dialog.confirm({
+          title: t('medManage.alarmPreviewTitle'),
+          message: t('medManage.alarmPreviewMsg'),
+        });
+        if (yes) {
+          const fileId = presetFileIdOf(kind === 'remind' ? slot.remindSoundId : slot.trackSoundId);
+          navigateTo('Alarm', { fileId: fileId ?? undefined });
+        }
       }
     },
     [dialog, t, updateSlotFlag],

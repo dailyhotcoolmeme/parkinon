@@ -741,7 +741,9 @@
       "basic": "기본 (한 번)",
       "sound30": "30초 동안",
       "alarm": "알람처럼 (끌 때까지)"
-    }
+    },
+    "alarmPreviewTitle": "전체화면 알람 미리보기",
+    "alarmPreviewMsg": "'알람처럼' 알림이 뜨는 화면을 지금 미리 볼까요?\n(끄기 버튼을 누르면 닫혀요.)"
   },
   "settings": {
     "notifMedTakenLabel": "환자 약 복용 기록 시",

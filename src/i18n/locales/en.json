@@ -741,7 +741,9 @@
       "basic": "Basic (once)",
       "sound30": "For 30 seconds",
       "alarm": "Like an alarm (until dismissed)"
-    }
+    },
+    "alarmPreviewTitle": "Preview full-screen alarm",
+    "alarmPreviewMsg": "Preview how the 'like an alarm' screen looks now?\n(Tap the power button to close.)"
   },
   "settings": {
     "notifMedTakenLabel": "When the patient records medication",

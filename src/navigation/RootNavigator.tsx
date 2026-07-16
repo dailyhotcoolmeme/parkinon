@@ -16,6 +16,7 @@ import { MeasurementResultScreen } from '../screens/measurement/MeasurementResul
 import { CaregiverMeasurementScreen } from '../screens/measurement/CaregiverMeasurementScreen';
 import { MeasurementRecordsScreen } from '../screens/measurement/MeasurementRecordsScreen';
 import { DiaryScreen } from '../screens/diary/DiaryScreen';
+import { AlarmScreen } from '../screens/alarm/AlarmScreen';
 import { useNotificationGate } from '../hooks/useNotificationGate';
 import { NotificationGateScreen } from '../components/common/NotificationGateScreen';
 import type { MeasurementMedPhase } from '../types/database';
@@ -49,6 +50,8 @@ export type RootStackParamList = {
   MeasurementRecords: { patientId?: string; patientName?: string } | undefined;
   // 종합 데일리 저널(일기) — date 미지정 시 오늘(KST). 영상 기록에서 '일기 보기'로 진입 시 해당 날짜 전달.
   Diary: { date?: string } | undefined;
+  // 전체화면 알람("알람처럼" 방식) — full-screen intent(안드)로 진입. fileId=재생할 프리셋.
+  Alarm: { fileId?: string } | undefined;
 };
 
 const Stack = createStackNavigator<RootStackParamList>();
@@ -124,6 +127,12 @@ export function RootNavigator() {
             <Stack.Screen name="CaregiverMeasurement" component={CaregiverMeasurementScreen} />
             <Stack.Screen name="MeasurementRecords" component={MeasurementRecordsScreen} />
             <Stack.Screen name="Diary" component={DiaryScreen} />
+            {/* 전체화면 알람 — 제스처로 못 닫게(끄기 버튼으로만), 애니메이션 없이 즉시 표시 */}
+            <Stack.Screen
+              name="Alarm"
+              component={AlarmScreen}
+              options={{ gestureEnabled: false }}
+            />
           </>
         )}
       </Stack.Navigator>
