@@ -12,18 +12,19 @@
 import React, { useCallback, useEffect, useRef } from 'react';
 import { View, StyleSheet, Animated, Easing, TouchableOpacity, StatusBar, BackHandler } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
-import { useRoute, useNavigation, type RouteProp } from '@react-navigation/native';
+import { useRoute, type RouteProp } from '@react-navigation/native';
 import { Audio } from 'expo-av';
 import { Colors } from '../../constants/colors';
 import { PRESET_PREVIEW_ASSETS } from '../../constants/presetPreviewAssets';
+import { navigateTo } from '../../navigation/navigationRef';
 import type { RootStackParamList } from '../../navigation/RootNavigator';
 
 const SYMBOL = require('../../../assets/parkinon-symbol-en.png');
 
 export function AlarmScreen() {
   const route = useRoute<RouteProp<RootStackParamList, 'Alarm'>>();
-  const navigation = useNavigation<any>();
   const fileId = route.params?.fileId ?? null;
+  const kind = route.params?.kind ?? 'remind';
 
   // 회전 애니메이션(끊김 없이 반복).
   const spin = useRef(new Animated.Value(0)).current;
@@ -66,13 +67,17 @@ export function AlarmScreen() {
     };
   }, [fileId]);
 
+  // 끄기 → 알림 종류에 맞는 기록 화면으로 연결(복약=약 복용 기록 / 약효추적=몸상태 기록).
   const dismiss = useCallback(async () => {
     const s = soundRef.current;
     soundRef.current = null;
     if (s) await s.unloadAsync().catch(() => {});
-    if (navigation.canGoBack()) navigation.goBack();
-    else navigation.navigate('Main');
-  }, [navigation]);
+    if (kind === 'track') {
+      navigateTo('Main', { screen: 'BodyStateTab', params: { screen: 'BodyState' } });
+    } else {
+      navigateTo('Main', { screen: 'Medication' });
+    }
+  }, [kind]);
 
   // 안드 뒤로가기로도 끄기.
   useEffect(() => {

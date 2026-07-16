@@ -50,8 +50,9 @@ export type RootStackParamList = {
   MeasurementRecords: { patientId?: string; patientName?: string } | undefined;
   // 종합 데일리 저널(일기) — date 미지정 시 오늘(KST). 영상 기록에서 '일기 보기'로 진입 시 해당 날짜 전달.
   Diary: { date?: string } | undefined;
-  // 전체화면 알람("알람처럼" 방식) — full-screen intent(안드)로 진입. fileId=재생할 프리셋.
-  Alarm: { fileId?: string } | undefined;
+  // 전체화면 알람("알람처럼" 방식) — full-screen intent(안드)로 진입.
+  // fileId=재생할 프리셋, kind=끄기 시 이동할 기록 화면(복약/약효추적).
+  Alarm: { fileId?: string; kind?: 'remind' | 'track' } | undefined;
 };
 
 const Stack = createStackNavigator<RootStackParamList>();
