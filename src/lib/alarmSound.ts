@@ -46,7 +46,6 @@ async function ensurePresetChannel(fileId: string): Promise<string> {
   if (Platform.OS !== 'android') return channelId;
   const existing = await notifee.getChannel(channelId);
   if (!existing) {
-    console.log('[alarmSound] createChannel(preset)', channelId, 'sound=', fileId);
     await notifee.createChannel({
       id: channelId,
       name: i18n.t('alarmSound.channelName', { label: PRESET_NAME_BY_FILE[fileId] ?? fileId }),

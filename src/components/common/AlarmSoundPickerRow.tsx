@@ -76,8 +76,7 @@ export function AlarmSoundPickerRow({ soundId, sounds, onSelect, backgroundColor
   };
 
   const handlePreview = async (item: AlarmSoundOption) => {
-    console.log('[preview] tap', item.id, 'asset=', item.previewAsset, 'url=', item.previewUrl);
-    if (!item.previewUrl && !item.previewAsset) { console.log('[preview] no source → skip'); return; }
+    if (!item.previewUrl && !item.previewAsset) return;
     // 미리듣기를 누르면 그 소리를 자동 선택(임시선택) — 이후 '완료'로 적용.
     handleSelect(item.id);
     try {
@@ -97,9 +96,7 @@ export function AlarmSoundPickerRow({ soundId, sounds, onSelect, backgroundColor
       // 프리셋: 로컬 번들 에셋 직접 재생. 녹음: 재생 전용 서명 URL(죽은 공개 URL 폴백 안 함).
       let created;
       if (item.previewAsset) {
-        console.log('[preview] createAsync(local asset)', item.previewAsset);
         created = await Audio.Sound.createAsync(item.previewAsset as number, { shouldPlay: true, volume: 1.0 });
-        console.log('[preview] createAsync OK (local)');
       } else {
         const previewUri = await resolvePlaybackUrl(item.previewUrl!);
         if (!previewUri) {
