@@ -2946,55 +2946,64 @@ export function MedicationManageScreen({ modeOverride, hideBack, hideTopBar, onG
 
                       {/* 순서: 약 복용 알림 → 약효추적 → 약 */}
                       <View style={styles.slotToggleGroup}>
-                        <View style={styles.slotToggleRow}>
-                          <Text style={[styles.slotToggleLabel, !slot.remindEnabled && styles.slotToggleLabelOff]}>
-                            {t('medManage.medReminder')}
-                          </Text>
-                          <Switch
-                            value={slot.remindEnabled}
-                            onValueChange={(v) => toggleSlotRemind(slot, v)}
-                            trackColor={{ false: Colors.border, true: Colors.primary }}
-                            thumbColor={Colors.white}
-                            style={styles.slotToggleSwitch}
-                          />
-                        </View>
-                        {/* 복용 알림음 — 켜져 있을 때만, 토글 바로 아래(수정 진입 없이 바로 선택). */}
-                        {slot.remindEnabled && (
-                          <View style={styles.slotSoundRow}>
-                            <AlarmSoundPickerRow
-                              soundId={slot.remindSoundId}
-                              sounds={alarmSounds}
-                              onSelect={(sid) => setSlotRemindSound(slot, sid)}
+                        {/* 세트1: 약 복용 알림 + 그 알림소리(켜졌을 때) */}
+                        <View style={styles.slotSetBox}>
+                          <View style={styles.slotToggleRow}>
+                            <Text style={[styles.slotToggleLabel, !slot.remindEnabled && styles.slotToggleLabelOff]}>
+                              {t('medManage.medReminder')}
+                            </Text>
+                            <Switch
+                              value={slot.remindEnabled}
+                              onValueChange={(v) => toggleSlotRemind(slot, v)}
+                              trackColor={{ false: Colors.border, true: Colors.primary }}
+                              thumbColor={Colors.white}
+                              style={styles.slotToggleSwitch}
                             />
                           </View>
-                        )}
-                        <View style={styles.slotToggleRow}>
-                          <Text style={[styles.slotToggleLabel, !slot.trackEnabled && styles.slotToggleLabelOff]}>
-                            {t('medManage.effectTrack')}
-                            {slot.trackEnabled && slotTrackIntervalSummary(slot) ? (
-                              <Text style={styles.slotTrackSummary}>
-                                {`  ${slotTrackIntervalSummary(slot)}`}
-                              </Text>
-                            ) : null}
-                          </Text>
-                          <Switch
-                            value={slot.trackEnabled}
-                            onValueChange={(v) => toggleSlotTrack(slot, v)}
-                            trackColor={{ false: Colors.border, true: Colors.primary }}
-                            thumbColor={Colors.white}
-                            style={styles.slotToggleSwitch}
-                          />
+                          {slot.remindEnabled && (
+                            <>
+                              <View style={styles.slotSetDivider} />
+                              <AlarmSoundPickerRow
+                                soundId={slot.remindSoundId}
+                                sounds={alarmSounds}
+                                onSelect={(sid) => setSlotRemindSound(slot, sid)}
+                                backgroundColor="transparent"
+                              />
+                            </>
+                          )}
                         </View>
-                        {/* 약효추적 알림음 — 켜져 있을 때만, 토글 바로 아래. */}
-                        {slot.trackEnabled && (
-                          <View style={styles.slotSoundRow}>
-                            <AlarmSoundPickerRow
-                              soundId={slot.trackSoundId}
-                              sounds={alarmSounds}
-                              onSelect={(sid) => setSlotTrackSound(slot, sid)}
+
+                        {/* 세트2: 약효 추적 알림 + 그 알림소리(켜졌을 때) */}
+                        <View style={styles.slotSetBox}>
+                          <View style={styles.slotToggleRow}>
+                            <Text style={[styles.slotToggleLabel, !slot.trackEnabled && styles.slotToggleLabelOff]}>
+                              {t('medManage.effectTrack')}
+                              {slot.trackEnabled && slotTrackIntervalSummary(slot) ? (
+                                <Text style={styles.slotTrackSummary}>
+                                  {`  ${slotTrackIntervalSummary(slot)}`}
+                                </Text>
+                              ) : null}
+                            </Text>
+                            <Switch
+                              value={slot.trackEnabled}
+                              onValueChange={(v) => toggleSlotTrack(slot, v)}
+                              trackColor={{ false: Colors.border, true: Colors.primary }}
+                              thumbColor={Colors.white}
+                              style={styles.slotToggleSwitch}
                             />
                           </View>
-                        )}
+                          {slot.trackEnabled && (
+                            <>
+                              <View style={styles.slotSetDivider} />
+                              <AlarmSoundPickerRow
+                                soundId={slot.trackSoundId}
+                                sounds={alarmSounds}
+                                onSelect={(sid) => setSlotTrackSound(slot, sid)}
+                                backgroundColor="transparent"
+                              />
+                            </>
+                          )}
+                        </View>
 
                       {/* 복용약: 제목 + 약 이름(가나다순·중간점) — 토글 그룹 안에 두어 정렬 일치 */}
                       <View style={styles.slotDrugRow}>
@@ -3901,17 +3910,21 @@ const styles = StyleSheet.create({
   slotToggleGroup: {
     borderTopWidth: 1, borderTopColor: '#EEF1F4', paddingTop: 6, marginTop: 2, gap: 2,
   },
+  // 알림+알림소리를 한 박스로 묶은 "세트"(음영 겹침 대신 그룹핑). 소리 행은 박스 안에서 평평.
+  slotSetBox: {
+    borderWidth: 1, borderColor: '#E8ECEF', borderRadius: 12, backgroundColor: '#F7F9FB',
+    paddingBottom: 4, marginBottom: 10, overflow: 'hidden',
+  },
+  slotSetDivider: { height: 1, backgroundColor: '#E3E8EC' },
   slotToggleRow: {
     flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between',
-    minHeight: 48, paddingVertical: 4,
+    minHeight: 48, paddingVertical: 4, paddingHorizontal: 14,
   },
   slotToggleLabel: { flex: 1, fontSize: 17, fontWeight: '700', color: Colors.text, paddingRight: 10 },
   slotToggleLabelOff: { color: '#A6AEBA', fontWeight: '600' },
   // 약효추적 요약(복용직후 30분 후…) — 녹색
   slotTrackSummary: { color: Colors.dark, fontWeight: '700' },
   slotToggleSwitch: { transform: [{ scaleX: 1.15 }, { scaleY: 1.15 }] },
-  // 토글 바로 아래 알림음 선택 행(AlarmSoundPickerRow 자체 marginTop:8 있음) — 아래 여백만.
-  slotSoundRow: { marginBottom: 6 },
   viewAllBtn: {
     flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 7,
     minHeight: 56, borderWidth: 1, borderColor: '#DCE0E6', backgroundColor: Colors.white,
