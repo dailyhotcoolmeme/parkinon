@@ -2,8 +2,8 @@
  * MedTimeOnboardingScreen — 환자 온보딩 복약 알림 설정(간단 순차 방식)
  *
  * 오너 결정(2026-07-16): 복약 횟수가 사람마다 달라 고정 4슬롯(아침/점심/저녁/취침) 대신,
- *   "첫 번째 약 몇 시? → 두 번째 약 몇 시? → …" 로 개수 제한 없이 등록.
- *   - 2번째부터 "다 등록했어요" 노출. 마지막에 요약·수정 후 완료.
+ *   ① 먼저 "하루에 몇 번 드세요?"(dailyCount) → ② 그 개수만큼 "N번 중 1번째… 몇 시?" 순차 입력
+ *   → ③ 마지막(N번째) 저장하면 곧바로 확인(요약)으로. (개수를 아니까 "다 등록했어요" 선언 불필요)
  *   - 각 시간 = dose_slot 1개(라벨=autoSlotLabel 자동, 예 "아침 8:00"), 알림 자동 ON.
  *   - 약 이름은 안 물어봄(시간만). 보호자 연동 시 "보호자에게 맡기기" 가능.
  *
@@ -50,9 +50,11 @@ export function MedTimeOnboardingScreen() {
   const dialog = useDialog();
   const bottomPad = useBottomSheetPadding(24);
 
+  // 하루 복용 횟수(먼저 물어봄) — 이 개수만큼 순서대로 시간 입력받고, 마지막이면 자동으로 요약으로.
+  const [dailyCount, setDailyCount] = useState<number | null>(null);
   // 등록된 복약 시각(HH:MM) 목록. 시간순 정렬해 표시.
   const [times, setTimes] = useState<string[]>([]);
-  const [view, setView] = useState<'pick' | 'summary'>('pick');
+  const [view, setView] = useState<'count' | 'pick' | 'summary'>('count');
   const [saving, setSaving] = useState(false);
 
   // 현재 시간 선택 상태(기본 오전 8:00). 수정 시 해당 값으로 세팅.
@@ -115,23 +117,35 @@ export function MedTimeOnboardingScreen() {
   const stepHour = (d: number) => setHour((h) => ((h - 1 + d + 12) % 12) + 1);
   const stepMinute = (d: number) => setMinute((m) => (m + d * 5 + 60) % 60);
 
+  // 하루 복용 횟수 선택 → 그만큼 순서대로 시간 입력받으러 이동.
+  const chooseCount = (n: number) => {
+    setDailyCount(n);
+    setPickerFrom('08:00'); // 첫 약 기본 오전 8시
+    setEditIndex(null);
+    setView('pick');
+    slideIn(true);
+  };
+
   // 시각 저장. 신규 추가면 → picker 는 방금 시각 그대로 두고 "다음 약" 이어서 묻기(pick 유지).
-  //   수정이면 → 요약으로 복귀. (매번 8시로 리셋되던 불편 해소 — 다음 약은 직전 시각부터 조정)
+  //   단, 마지막(dailyCount 도달) 약을 등록하면 곧바로 확인(요약)으로. 수정이면 → 요약으로 복귀.
+  //   (매번 8시로 리셋되던 불편 해소 — 다음 약은 직전 시각부터 조정)
   const confirmTime = useCallback(() => {
     const hhmm = toHHMM(ampm, hour, minute);
     const wasEdit = editIndex != null;
-    setTimes((prev) => {
-      const next = wasEdit ? prev.map((v, i) => (i === editIndex ? hhmm : v)) : [...prev, hhmm];
-      return Array.from(new Set(next)).sort(); // 중복 제거 + 시간순
-    });
+    const base = wasEdit ? times.map((v, i) => (i === editIndex ? hhmm : v)) : [...times, hhmm];
+    const dedup = Array.from(new Set(base)).sort(); // 중복 제거 + 시간순
+    setTimes(dedup);
     setEditIndex(null);
     if (wasEdit) {
       setView('summary');
+    } else if (dailyCount != null && dedup.length >= dailyCount) {
+      // 마지막 약까지 등록됨 → 바로 확인 한번 시키고 넘어감(요약).
+      setView('summary');
     } else {
-      // 신규 추가: view='pick' 유지 + picker 시각 유지. 다음 약으로 넘어간 걸 슬라이드로 알림.
+      // 다음 약 이어서 묻기 — picker 시각 유지, 슬라이드로 화면 전환 알림.
       slideIn(true);
     }
-  }, [ampm, hour, minute, editIndex, slideIn]);
+  }, [ampm, hour, minute, editIndex, times, dailyCount, slideIn]);
 
   // 요약에서 "약 시간 더 추가" → 마지막 등록 시각을 시작점으로 이어서 묻기.
   const addMore = () => {
@@ -149,6 +163,14 @@ export function MedTimeOnboardingScreen() {
     setTimes((prev) => prev.slice(0, -1));
     setEditIndex(null);
     slideIn(false); // 왼쪽에서 슬라이드 = 뒤로 가는 느낌
+  };
+
+  // pick 화면 뒤로가기 통합 처리:
+  //   수정 중 → 취소하고 요약 / 첫 약(등록 0개) → 횟수 선택으로 / 그 외 → 직전 약으로.
+  const handleBack = () => {
+    if (editIndex != null) { setEditIndex(null); setView('summary'); return; }
+    if (times.length === 0) { setView('count'); slideIn(false); return; }
+    goBackOne();
   };
 
   // 요약에서 특정 항목 수정 → 그 값으로 picker 세팅.
@@ -265,13 +287,28 @@ export function MedTimeOnboardingScreen() {
     <SafeAreaView style={styles.container} edges={['top']}>
       <TopBar title={t('medTimeOnboarding.headerTitle')} />
 
-      {view === 'pick' ? (
+      {view === 'count' ? (
+        // ── 1단계: 하루 복용 횟수 물어보기 ──
+        <Animated.View style={{ flex: 1, transform: [{ translateX: slideX }] }}>
+        <ScrollView style={styles.scroll} contentContainerStyle={[styles.scrollContent, { paddingBottom: bottomPad }]}>
+          <Text style={styles.question}>{t('medTimeOnboarding.countTitle')}</Text>
+          <Text style={styles.hint}>{t('medTimeOnboarding.countHint')}</Text>
+          <View style={styles.countGrid}>
+            {[1, 2, 3, 4, 5, 6, 7, 8].map((n) => (
+              <TouchableOpacity key={n} style={styles.countBtn} onPress={() => chooseCount(n)} activeOpacity={0.85}>
+                <Text style={styles.countBtnText}>{t('medTimeOnboarding.countBtn', { n })}</Text>
+              </TouchableOpacity>
+            ))}
+          </View>
+        </ScrollView>
+        </Animated.View>
+      ) : view === 'pick' ? (
         <Animated.View style={{ flex: 1, transform: [{ translateX: slideX }] }}>
         <ScrollView style={styles.scroll} contentContainerStyle={[styles.scrollContent, { paddingBottom: bottomPad }]} keyboardShouldPersistTaps="handled">
           <Text style={styles.question}>
             {editIndex != null
               ? t('medTimeOnboarding.editQuestion')
-              : t('medTimeOnboarding.askQuestion', { n: ordinal })}
+              : t('medTimeOnboarding.askQuestion', { n: ordinal, total: dailyCount ?? ordinal })}
           </Text>
           <Text style={styles.hint}>{t('medTimeOnboarding.askHint')}</Text>
 
@@ -325,27 +362,16 @@ export function MedTimeOnboardingScreen() {
 
           <View style={styles.btnGroup}>
             <TouchableOpacity style={styles.primaryBtn} onPress={confirmTime} activeOpacity={0.85}>
-              <Text style={styles.primaryBtnText}>{t('medTimeOnboarding.saveTime')}</Text>
+              <Text style={styles.primaryBtnText}>
+                {dailyCount != null && editIndex == null && count + 1 >= dailyCount
+                  ? t('medTimeOnboarding.saveLast')
+                  : t('medTimeOnboarding.saveTime')}
+              </Text>
             </TouchableOpacity>
-            {/* 2번째 약부터 "다 등록했어요" */}
-            {count >= 1 && editIndex == null && (
-              <TouchableOpacity style={styles.ghostBtn} onPress={() => setView('summary')} activeOpacity={0.7}>
-                <Text style={styles.ghostBtnText}>{t('medTimeOnboarding.doneAdding')}</Text>
-              </TouchableOpacity>
-            )}
-            {/* 뒤로가기 — 편집 중이면 취소하고 목록으로, 등록 중이면 직전 약으로 돌아가 다시 편집 */}
-            {(count >= 1 || editIndex != null) && (
-              <TouchableOpacity
-                style={styles.backBtn}
-                onPress={() => {
-                  if (editIndex != null) { setEditIndex(null); setView('summary'); }
-                  else { goBackOne(); }
-                }}
-                activeOpacity={0.7}
-              >
-                <Text style={styles.backBtnText}>{t('medTimeOnboarding.back')}</Text>
-              </TouchableOpacity>
-            )}
+            {/* 뒤로가기 — 편집 중이면 요약으로, 첫 약이면 횟수 선택으로, 그 외 직전 약으로 */}
+            <TouchableOpacity style={styles.backBtn} onPress={handleBack} activeOpacity={0.7}>
+              <Text style={styles.backBtnText}>{t('medTimeOnboarding.back')}</Text>
+            </TouchableOpacity>
           </View>
         </ScrollView>
         </Animated.View>
@@ -407,6 +433,14 @@ const styles = StyleSheet.create({
   scrollContent: { paddingHorizontal: 24, paddingTop: 28 },
   question: { fontSize: 24, fontWeight: '800', color: Colors.text, marginBottom: 8, lineHeight: 34 },
   hint: { fontSize: 16, color: Colors.textSub, marginBottom: 24, lineHeight: 24 },
+
+  // 하루 복용 횟수 선택 — 큰 버튼 그리드(2열).
+  countGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: 12, marginTop: 8 },
+  countBtn: {
+    flexBasis: '47%', flexGrow: 1, minHeight: 68, borderRadius: 14, borderWidth: 2,
+    borderColor: Colors.border, backgroundColor: Colors.white, alignItems: 'center', justifyContent: 'center',
+  },
+  countBtnText: { fontSize: 24, fontWeight: '800', color: Colors.text },
 
   ampmRow: { flexDirection: 'row', gap: 12, marginBottom: 24 },
   ampmBtn: {
