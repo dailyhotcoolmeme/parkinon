@@ -124,10 +124,11 @@ export function TopBar({ title, showBack, showClose, showParkinon, rightIcon, ri
               {showDiary && (
                 <TouchableOpacity
                   onPress={onDiaryPress}
-                  hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+                  hitSlop={{ top: 8, bottom: 8, left: 4, right: 4 }}
                   style={styles.diaryWrap}
                 >
-                  <MaterialCommunityIcons name="notebook-edit-outline" size={26} color={Colors.primary} />
+                  <MaterialCommunityIcons name="notebook-edit-outline" size={24} color={Colors.primary} />
+                  <Text style={styles.diaryLabel}>{i18n.t('topBar.familyDiary')}</Text>
                 </TouchableOpacity>
               )}
               {showBell && (
@@ -179,7 +180,9 @@ const styles = StyleSheet.create({
   rightWider: { width: 132 },
   rightIcons: { flexDirection: 'row', alignItems: 'center', gap: 18 },
   kakaoWrap: { position: 'relative' },
-  diaryWrap: { position: 'relative' },
+  diaryWrap: { position: 'relative', alignItems: 'center', justifyContent: 'center' },
+  // 일기 아이콘 아래 "가족 일기" 라벨 — 아이콘만으론 뜻이 안 통해 추가(오너 요청).
+  diaryLabel: { fontSize: 11, fontWeight: '700', color: Colors.primary, marginTop: 1 },
   title: { flex: 1, fontSize: 20, fontWeight: '700', color: Colors.text, textAlign: 'center' },
   parkinonText: {
     fontSize: 20,

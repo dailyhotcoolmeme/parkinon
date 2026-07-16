@@ -1917,5 +1917,8 @@
     "finish": "Done",
     "doneTitle": "All set",
     "doneMsg": "We'll send medication and effect-tracking reminders at your chosen times."
+  },
+  "topBar": {
+    "familyDiary": "Family Diary"
   }
 }
