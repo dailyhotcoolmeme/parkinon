@@ -180,9 +180,9 @@ const styles = StyleSheet.create({
   rightWider: { width: 132 },
   rightIcons: { flexDirection: 'row', alignItems: 'center', gap: 18 },
   kakaoWrap: { position: 'relative' },
-  diaryWrap: { position: 'relative', alignItems: 'center', justifyContent: 'center' },
-  // 일기 아이콘 아래 "가족 일기" 라벨 — 아이콘만으론 뜻이 안 통해 추가(오너 요청).
-  diaryLabel: { fontSize: 11, fontWeight: '700', color: Colors.primary, marginTop: 1 },
+  diaryWrap: { position: 'relative', flexDirection: 'row', alignItems: 'center' },
+  // 일기 아이콘 오른쪽 "가족/일기" 2줄 라벨 — 아이콘만으론 뜻이 안 통해 추가(오너 요청).
+  diaryLabel: { fontSize: 11, fontWeight: '700', color: Colors.primary, lineHeight: 13, marginLeft: 3 },
   title: { flex: 1, fontSize: 20, fontWeight: '700', color: Colors.text, textAlign: 'center' },
   parkinonText: {
     fontSize: 20,
