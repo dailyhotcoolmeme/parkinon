@@ -671,7 +671,7 @@
     "medReminder": "약 복용 알림",
     "a11yAddRemoveMeds": "약 넣기·빼기",
     "medsListTitle": "복용약",
-    "noMedsInSlot": "아직 넣은 약이 없어요",
+    "noMedsInSlot": "복용약을 등록해주세요",
     "addSlotBtn": "복용 시간대 추가",
     "prescriptionRegisterTitle": "처방전으로 등록",
     "prescriptionRegisterSub": "처방전 사진을 찍거나 골라 자동으로 등록해요",

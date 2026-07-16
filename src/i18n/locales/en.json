@@ -671,7 +671,7 @@
     "medReminder": "Dose reminder",
     "a11yAddRemoveMeds": "Add/remove medications",
     "medsListTitle": "Medications",
-    "noMedsInSlot": "No medications added yet",
+    "noMedsInSlot": "Please add your medications",
     "addSlotBtn": "Add dose time",
     "prescriptionRegisterTitle": "Add via Prescription",
     "prescriptionRegisterSub": "Take or choose a prescription photo to add automatically",
