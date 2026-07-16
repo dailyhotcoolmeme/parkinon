@@ -2963,12 +2963,14 @@ export function MedicationManageScreen({ modeOverride, hideBack, hideTopBar, onG
                           {slot.remindEnabled && (
                             <>
                               <View style={styles.slotSetDivider} />
-                              <AlarmSoundPickerRow
-                                soundId={slot.remindSoundId}
-                                sounds={alarmSounds}
-                                onSelect={(sid) => setSlotRemindSound(slot, sid)}
-                                backgroundColor="transparent"
-                              />
+                              <View style={styles.slotSoundWrap}>
+                                <AlarmSoundPickerRow
+                                  soundId={slot.remindSoundId}
+                                  sounds={alarmSounds}
+                                  onSelect={(sid) => setSlotRemindSound(slot, sid)}
+                                  backgroundColor="transparent"
+                                />
+                              </View>
                             </>
                           )}
                         </View>
@@ -2978,11 +2980,6 @@ export function MedicationManageScreen({ modeOverride, hideBack, hideTopBar, onG
                           <View style={styles.slotToggleRow}>
                             <Text style={[styles.slotToggleLabel, !slot.trackEnabled && styles.slotToggleLabelOff]}>
                               {t('medManage.effectTrack')}
-                              {slot.trackEnabled && slotTrackIntervalSummary(slot) ? (
-                                <Text style={styles.slotTrackSummary}>
-                                  {`  ${slotTrackIntervalSummary(slot)}`}
-                                </Text>
-                              ) : null}
                             </Text>
                             <Switch
                               value={slot.trackEnabled}
@@ -2994,13 +2991,20 @@ export function MedicationManageScreen({ modeOverride, hideBack, hideTopBar, onG
                           </View>
                           {slot.trackEnabled && (
                             <>
+                              {slotTrackIntervalSummary(slot) ? (
+                                <Text style={styles.slotTrackSummaryLine}>
+                                  {slotTrackIntervalSummary(slot)}
+                                </Text>
+                              ) : null}
                               <View style={styles.slotSetDivider} />
-                              <AlarmSoundPickerRow
-                                soundId={slot.trackSoundId}
-                                sounds={alarmSounds}
-                                onSelect={(sid) => setSlotTrackSound(slot, sid)}
-                                backgroundColor="transparent"
-                              />
+                              <View style={styles.slotSoundWrap}>
+                                <AlarmSoundPickerRow
+                                  soundId={slot.trackSoundId}
+                                  sounds={alarmSounds}
+                                  onSelect={(sid) => setSlotTrackSound(slot, sid)}
+                                  backgroundColor="transparent"
+                                />
+                              </View>
                             </>
                           )}
                         </View>
@@ -3910,20 +3914,26 @@ const styles = StyleSheet.create({
   slotToggleGroup: {
     borderTopWidth: 1, borderTopColor: '#EEF1F4', paddingTop: 6, marginTop: 2, gap: 2,
   },
-  // 알림+알림소리를 한 박스로 묶은 "세트"(음영 겹침 대신 그룹핑). 소리 행은 박스 안에서 평평.
+  // 알림+알림소리를 한 박스로 묶은 "세트"(음영 겹침 대신 그룹핑). 살짝 녹색 배경.
   slotSetBox: {
-    borderWidth: 1, borderColor: '#E8ECEF', borderRadius: 12, backgroundColor: '#F7F9FB',
-    paddingBottom: 4, marginBottom: 10, overflow: 'hidden',
+    borderWidth: 1, borderColor: '#CFE6D4', borderRadius: 12, backgroundColor: '#EBF6ED',
+    marginBottom: 10, overflow: 'hidden',
   },
-  slotSetDivider: { height: 1, backgroundColor: '#E3E8EC' },
+  slotSetDivider: { height: 1, backgroundColor: '#D3E8D7' },
+  // 토글 행 = 소리 행과 같은 높이(52)로 통일. paddingVertical 없이 minHeight 로만.
   slotToggleRow: {
     flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between',
-    minHeight: 48, paddingVertical: 4, paddingHorizontal: 14,
+    minHeight: 52, paddingHorizontal: 14,
   },
   slotToggleLabel: { flex: 1, fontSize: 17, fontWeight: '700', color: Colors.text, paddingRight: 10 },
   slotToggleLabelOff: { color: '#A6AEBA', fontWeight: '600' },
-  // 약효추적 요약(복용직후 30분 후…) — 녹색
-  slotTrackSummary: { color: Colors.dark, fontWeight: '700' },
+  // 알림소리 행(AlarmSoundPickerRow) 자체 marginTop:8 을 상쇄해 구분선 바로 아래 붙임(토글 행과 등높이).
+  slotSoundWrap: { marginTop: -8 },
+  // 약효추적 요약 — 라벨 아래 독립 줄(공백 조인이라 토큰 단위로 깔끔히 줄바꿈, 2번째 줄도 왼쪽 정렬).
+  slotTrackSummaryLine: {
+    color: Colors.dark, fontWeight: '700', fontSize: 15, lineHeight: 22,
+    paddingHorizontal: 14, paddingBottom: 8,
+  },
   slotToggleSwitch: { transform: [{ scaleX: 1.15 }, { scaleY: 1.15 }] },
   viewAllBtn: {
     flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 7,
