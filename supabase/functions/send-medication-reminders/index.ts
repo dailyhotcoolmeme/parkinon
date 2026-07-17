@@ -602,7 +602,7 @@ function missedChannelFor(
   soundPrefs: Record<string, string | null>,
   target: DoseTarget,
 ): string {
-  if (missedSoundId) return `parkinon_alarm_${missedSoundId}`
+  if (missedSoundId) return channelForStoredSound(missedSoundId)
   return channelFor(soundPrefs, target)
 }
 
@@ -800,8 +800,8 @@ Deno.serve(async (_req: Request) => {
       if (pref.ampm === '오전' && h === 12) h = 0
       const target = `${String(h).padStart(2, '0')}:${String(pref.minute).padStart(2, '0')}`
       if (target !== patientCurrentTime) continue
-      // 이 운동 알림 항목에 지정된 목소리(soundId). 없으면("기본 목소리") 휴대폰 시스템 기본음('default').
-      const exerciseChannelId = pref.soundId ? `parkinon_alarm_${pref.soundId}` : 'default'
+      // 이 운동 알림 항목에 지정된 소리(soundId: 'preset:<id>' 프리셋 또는 녹음 uuid). 없으면 기본음.
+      const exerciseChannelId = channelForStoredSound(pref.soundId)
       const title = isEn ? '🏃 Exercise time!' : '🏃 운동할 시간이에요!'
       const body = isEn ? 'Log your exercise for today.' : '오늘 운동 기록을 남겨보세요.'
       await sendPush(

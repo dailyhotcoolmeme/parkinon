@@ -51,6 +51,16 @@ import { AlarmSoundPickerRow, AlarmSoundOption } from '../../components/common/A
 import { ensurePatientDoseSlots } from '../../hooks/useDoseSlots';
 import { MEASUREMENT_FEATURE_ENABLED } from '../../constants/featureFlags';
 import { MedicationManageScreen } from './MedicationManageScreen';
+import { PRESET_ALARM_SOUNDS } from '../../constants/presetAlarmSounds';
+import { PRESET_PREVIEW_ASSETS } from '../../constants/presetPreviewAssets';
+
+// 기본 제공 프리셋 알림음 → 피커 옵션(모든 알림음 선택 바텀시트에 포함).
+const SETTINGS_PRESET_SOUND_OPTIONS: AlarmSoundOption[] = PRESET_ALARM_SOUNDS.map((p) => ({
+  id: p.id,
+  label: p.nameKo,
+  group: 'preset' as const,
+  previewAsset: PRESET_PREVIEW_ASSETS[p.fileId] ?? null,
+}));
 import { useTranslation } from 'react-i18next';
 import i18n from '../../i18n';
 import { isOverseasLocale } from '../../i18n/detectLocale';
@@ -1295,22 +1305,23 @@ export function SettingsScreen() {
 
   // ─── Handlers ───────────────────────────────────────────────────────────────
 
-  // 그룹 녹음 목록 로드 (알림별 소리 선택용)
+  // 알림음 목록 = 기본 제공 프리셋(항상) + 그룹 녹음. 모든 알림음 선택 피커가 이 목록을 쓴다.
   useEffect(() => {
-    if (!user?.patient_group_id) { setAlarmSounds([]); return; }
+    setAlarmSounds(SETTINGS_PRESET_SOUND_OPTIONS); // 프리셋 즉시(쿼리 지연/실패에도 항상 노출)
+    if (!user?.patient_group_id) return;
     supabase
       .from('custom_sounds' as any)
       .select('id, label, public_url')
       .eq('group_id', user.patient_group_id)
       .order('created_at', { ascending: false })
       .then(({ data }: any) => {
-        setAlarmSounds(
-          ((data as any[]) ?? []).map((s) => ({
-            id: s.id,
-            label: s.label?.trim() || t('settings.myRecording'),
-            previewUrl: s.public_url ?? null,
-          })),
-        );
+        const rec: AlarmSoundOption[] = ((data as any[]) ?? []).map((s) => ({
+          id: s.id,
+          label: s.label?.trim() || t('settings.myRecording'),
+          previewUrl: s.public_url ?? null,
+          group: 'recording' as const,
+        }));
+        setAlarmSounds([...SETTINGS_PRESET_SOUND_OPTIONS, ...rec]);
       });
   }, [user?.patient_group_id]);
 
