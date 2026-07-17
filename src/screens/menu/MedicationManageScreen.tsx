@@ -2793,7 +2793,7 @@ export function MedicationManageScreen({ modeOverride, hideBack, hideTopBar, onG
           { id: 'basic', text: t('medManage.alarmMode.basic'), style: 'default' as const },
           { id: 'sound30', text: t('medManage.alarmMode.sound30'), style: 'soft' as const },
           { id: 'alarm', text: t('medManage.alarmMode.alarm'), style: 'primary' as const },
-          { id: '__cancel', text: t('common.cancel'), style: 'cancel' as const },
+          { id: '__cancel', text: t('common.close'), style: 'cancel' as const },
         ],
       });
       if (!picked || picked === '__cancel') return;
