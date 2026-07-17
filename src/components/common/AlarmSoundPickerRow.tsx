@@ -216,19 +216,15 @@ export function AlarmSoundPickerRow({ soundId, sounds, onSelect, backgroundColor
         activeOpacity={0.7}
         onPress={() => setOpen(true)}
       >
-        <Ionicons name="volume-high" size={20} color={Colors.textSub} />
+        <Ionicons name="volume-high" size={20} color={Colors.textSub} style={styles.triggerIcon} />
         <Text style={[styles.triggerLabel, fontSize ? { fontSize } : null]}>{t('alarmSoundPicker.alarmSound')}</Text>
-        <View style={styles.triggerValueWrap}>
-          <Text
-            style={[styles.triggerValue, fontSize ? { fontSize } : null]}
-            numberOfLines={1}
-            adjustsFontSizeToFit
-            minimumFontScale={0.8}
-          >
+        {/* 값 컬럼: 라벨 오른쪽에서 시작 → 길면 글자크기 유지한 채 줄바꿈, 둘째 줄은 값 시작 위치에 정렬(약효추적 방식) */}
+        <View style={styles.triggerValueCol}>
+          <Text style={[styles.triggerValue, fontSize ? { fontSize } : null]}>
             {currentLabel}
           </Text>
-          <Ionicons name="chevron-forward" size={18} color={Colors.textSub} />
         </View>
+        <Ionicons name="chevron-forward" size={18} color={Colors.textSub} style={styles.triggerChevron} />
       </TouchableOpacity>
 
       {/* ── 바텀시트 ── */}
@@ -330,31 +326,32 @@ const styles = StyleSheet.create({
   // ── 트리거 버튼 ──
   triggerBtn: {
     flexDirection: 'row',
-    alignItems: 'center',
+    alignItems: 'flex-start',
     gap: 8,
     minHeight: 52,
     paddingHorizontal: 14,
+    paddingVertical: 13,
     marginTop: 8,
     borderRadius: 14,
     backgroundColor: Colors.light,
   },
+  triggerIcon: { marginTop: 3 },
+  triggerChevron: { marginTop: 4 },
   triggerLabel: {
     fontSize: 18,
+    lineHeight: 26,
     fontWeight: '700',
     color: Colors.text,
   },
-  triggerValueWrap: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 2,
-    marginLeft: 'auto',
-    flexShrink: 1,
+  // 값 컬럼: 라벨 오른쪽 남은 폭 차지 → 줄바꿈 시 둘째 줄이 이 컬럼 왼쪽(값 시작 위치)에 정렬.
+  triggerValueCol: {
+    flex: 1,
   },
   triggerValue: {
     fontSize: 18,
+    lineHeight: 26,
     fontWeight: '700',
     color: Colors.dark,
-    flexShrink: 1,
   },
 
   // ── 바텀시트 ──

@@ -3065,14 +3065,15 @@ export function MedicationManageScreen({ modeOverride, hideBack, hideTopBar, onG
                                 onPress={() => pickAlarmMode(slot, 'remind')}
                                 activeOpacity={0.7}
                               >
-                                <Ionicons name="alarm-outline" size={20} color={Colors.textSub} />
+                                <Ionicons name="alarm-outline" size={20} color={Colors.textSub} style={styles.slotModeIcon} />
                                 <Text style={styles.slotModeLabel}>{t('medManage.alarmModeRow')}</Text>
-                                <View style={styles.slotModeValueWrap}>
-                                  <Text style={styles.slotModeValue} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.8}>
+                                {/* 값 컬럼: 글자크기 유지·줄바꿈, 둘째 줄은 값 시작 위치 정렬(약효추적 방식) */}
+                                <View style={styles.slotModeValueCol}>
+                                  <Text style={styles.slotModeValue}>
                                     {alarmModeLabel(slot.remindAlarmMode)}
                                   </Text>
-                                  <Ionicons name="chevron-forward" size={18} color={Colors.textSub} />
                                 </View>
+                                <Ionicons name="chevron-forward" size={18} color={Colors.textSub} style={styles.slotModeChevron} />
                               </TouchableOpacity>
                             </>
                           )}
@@ -3124,14 +3125,15 @@ export function MedicationManageScreen({ modeOverride, hideBack, hideTopBar, onG
                                 onPress={() => pickAlarmMode(slot, 'track')}
                                 activeOpacity={0.7}
                               >
-                                <Ionicons name="alarm-outline" size={20} color={Colors.textSub} />
+                                <Ionicons name="alarm-outline" size={20} color={Colors.textSub} style={styles.slotModeIcon} />
                                 <Text style={styles.slotModeLabel}>{t('medManage.alarmModeRow')}</Text>
-                                <View style={styles.slotModeValueWrap}>
-                                  <Text style={styles.slotModeValue} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.8}>
+                                {/* 값 컬럼: 글자크기 유지·줄바꿈, 둘째 줄은 값 시작 위치 정렬(약효추적 방식) */}
+                                <View style={styles.slotModeValueCol}>
+                                  <Text style={styles.slotModeValue}>
                                     {alarmModeLabel(slot.trackAlarmMode)}
                                   </Text>
-                                  <Ionicons name="chevron-forward" size={18} color={Colors.textSub} />
                                 </View>
+                                <Ionicons name="chevron-forward" size={18} color={Colors.textSub} style={styles.slotModeChevron} />
                               </TouchableOpacity>
                             </>
                           )}
@@ -4069,12 +4071,16 @@ const styles = StyleSheet.create({
   slotTrackTokenSep: { color: '#9CC3A2', fontWeight: '700', fontSize: 17, lineHeight: 26 },
   slotToggleSwitch: { transform: [{ scaleX: 1.15 }, { scaleY: 1.15 }] },
   // "알림 방식" 행 — 알림 소리 행(AlarmSoundPickerRow triggerBtn)과 같은 높이·좌우 패딩(14)으로 정렬.
+  // 값이 길면 글자크기 유지한 채 줄바꿈 → flex-start 정렬(약효추적 방식).
   slotModeRow: {
-    flexDirection: 'row', alignItems: 'center', gap: 8, minHeight: 52, paddingHorizontal: 14,
+    flexDirection: 'row', alignItems: 'flex-start', gap: 8, minHeight: 52, paddingHorizontal: 14, paddingVertical: 13,
   },
-  slotModeLabel: { fontSize: 17, fontWeight: '700', color: Colors.text },
-  slotModeValueWrap: { flexDirection: 'row', alignItems: 'center', gap: 2, marginLeft: 'auto', flexShrink: 1 },
-  slotModeValue: { fontSize: 17, fontWeight: '700', color: Colors.dark, flexShrink: 1 },
+  slotModeIcon: { marginTop: 3 },
+  slotModeChevron: { marginTop: 4 },
+  slotModeLabel: { fontSize: 17, lineHeight: 26, fontWeight: '700', color: Colors.text },
+  // 값 컬럼: 라벨 오른쪽 남은 폭 차지 → 줄바꿈 시 둘째 줄이 값 시작 위치에 정렬.
+  slotModeValueCol: { flex: 1 },
+  slotModeValue: { fontSize: 17, lineHeight: 26, fontWeight: '700', color: Colors.dark },
   viewAllBtn: {
     flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 7,
     minHeight: 56, borderWidth: 1, borderColor: '#DCE0E6', backgroundColor: Colors.white,
