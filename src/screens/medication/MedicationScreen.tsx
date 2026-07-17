@@ -930,21 +930,6 @@ export function MedicationScreen() {
       pendingNextRef.current = { kind: 'nextNotif', info: nextNotifInfoLocal };
     }
 
-    // [임시 진단] 복용직후 팝업 유실 원인 추적 — fire-and-forget(흐름 영향 없음). 원인 확인 후 제거.
-    try {
-      (supabase.from('med_flow_debug' as any) as any)
-        .insert({
-          patient_id: resolvedPatientId,
-          med_log_id: result.medLogId,
-          dose_slot_id: result.doseSlotId,
-          stage: 'proceedSave',
-          immediate_track: String(result.immediateTrack),
-          pending_kind: pendingNextRef.current?.kind ?? 'NULL',
-          track_intervals: JSON.stringify(trackIntervalsEff ?? null),
-          note: `isPreMed=${isPreMed} showImmediateSuggest=${showImmediateSuggest}`,
-        })
-        .then(() => {}, () => {});
-    } catch {}
     } finally {
       // in-flight 락 해제(성공/실패/조기반환 무관).
       proceedSaveInFlightRef.current = false;
@@ -959,12 +944,6 @@ export function MedicationScreen() {
   const handleSavingHidden = useCallback(() => {
     const pending = pendingNextRef.current;
     pendingNextRef.current = null;
-    // [임시 진단] onHidden 이 실제로 발화했는지 + 그때 pending 종류. 원인 확인 후 제거.
-    try {
-      (supabase.from('med_flow_debug' as any) as any)
-        .insert({ stage: 'savingHidden', pending_kind: pending?.kind ?? 'NULL', note: 'handleSavingHidden fired' })
-        .then(() => {}, () => {});
-    } catch {}
     if (!pending) return;
     switch (pending.kind) {
       case 'error':
