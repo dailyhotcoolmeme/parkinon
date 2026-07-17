@@ -2811,7 +2811,8 @@ export function MedicationManageScreen({ modeOverride, hideBack, hideTopBar, onG
         });
         if (yes) {
           const fileId = presetFileIdOf(kind === 'remind' ? slot.remindSoundId : slot.trackSoundId);
-          navigateTo('Alarm', { fileId: fileId ?? undefined, kind, doseSlotId: slot.id ?? undefined });
+          // preview:true — 미리보기라 '복용 완료'를 눌러도 실제 기록·보호자 알림 없음(테스트 중 가족 알림 방지).
+          navigateTo('Alarm', { fileId: fileId ?? undefined, kind, doseSlotId: slot.id ?? undefined, preview: true });
         }
       }
     },

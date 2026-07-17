@@ -52,7 +52,8 @@ export type RootStackParamList = {
   Diary: { date?: string } | undefined;
   // 전체화면 알람("알람처럼" 방식) — full-screen intent(안드)로 진입.
   // fileId=재생할 프리셋, kind=복약/약효추적, doseSlotId='복용 완료' 시 기록할 슬롯.
-  Alarm: { fileId?: string; kind?: 'remind' | 'track'; doseSlotId?: string } | undefined;
+  // preview=미리보기(실제 기록·알림 없이 화면만 — 테스트 중 가족 알림 방지).
+  Alarm: { fileId?: string; kind?: 'remind' | 'track'; doseSlotId?: string; preview?: boolean } | undefined;
 };
 
 const Stack = createStackNavigator<RootStackParamList>();

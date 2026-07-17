@@ -27,6 +27,7 @@ export function AlarmScreen() {
   const fileId = route.params?.fileId ?? null;
   const kind = route.params?.kind ?? 'remind';
   const doseSlotId = route.params?.doseSlotId ?? null;
+  const preview = route.params?.preview ?? false; // 미리보기면 실제 기록·알림 없음
 
   // 회전 애니메이션(끊김 없이 반복).
   const spin = useRef(new Animated.Value(0)).current;
@@ -79,11 +80,12 @@ export function AlarmScreen() {
   //   Medication 탭으로 autoTakeSlotId 전달 → proceedSave 로 med_logs+약효추적+보호자알림+몸상태팝업.
   const handleTaken = useCallback(async () => {
     await stopSound();
+    // 미리보기면 기록 안 함(autoTakeSlotId 미전달) → 실제 med_logs·보호자 알림·사전기록 팝업 없음.
     navigateTo('Main', {
       screen: 'Medication',
-      params: doseSlotId ? { autoTakeSlotId: doseSlotId } : undefined,
+      params: (!preview && doseSlotId) ? { autoTakeSlotId: doseSlotId } : undefined,
     });
-  }, [stopSound, doseSlotId]);
+  }, [stopSound, doseSlotId, preview]);
 
   // 약효추적 알람 → 몸상태 기록 화면으로.
   const handleRecordTrack = useCallback(async () => {
