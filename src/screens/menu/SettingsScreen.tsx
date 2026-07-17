@@ -1850,7 +1850,7 @@ export function SettingsScreen() {
                 <>
                   {/* 환자 화면과 100% 동일 — 환자가 보는 복용시간 설정·알림(MedicationManage slots)을 그대로 임베드.
                       hideTopBar로 제목만 숨김. targetPatientId가 보호자→연동 환자라 환자 슬롯을 대신 편집. 미복용/운동만 하단 유지. */}
-                  <View style={{ marginTop: 6 }}>
+                  <View>
                     <MedicationManageScreen modeOverride="slots" hideTopBar hideBack embedded />
                   </View>
 

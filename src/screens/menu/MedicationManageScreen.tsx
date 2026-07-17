@@ -2907,7 +2907,9 @@ export function MedicationManageScreen({ modeOverride, hideBack, hideTopBar, onG
     : { style: { flex: 1 }, behavior: Platform.OS === 'ios' ? 'padding' : 'height' };
   const InnerScroll: any = embedded ? View : ScrollView;
   const innerScrollProps: any = embedded
-    ? { style: styles.scrollContent }
+    // 임베드: 좌우 패딩 0(부모 Settings scrollContent padding:20이 담당 → 미복용/운동과 정렬),
+    //   위 패딩 16(보호자용 알림 첫 카드 cardMarginTop과 동일).
+    ? { style: { paddingHorizontal: 0, paddingTop: 16, paddingBottom: 8 } }
     : {
         style: styles.scroll,
         contentContainerStyle: styles.scrollContent,
@@ -3066,7 +3068,7 @@ export function MedicationManageScreen({ modeOverride, hideBack, hideTopBar, onG
                                 <Ionicons name="alarm-outline" size={20} color={Colors.textSub} />
                                 <Text style={styles.slotModeLabel}>{t('medManage.alarmModeRow')}</Text>
                                 <View style={styles.slotModeValueWrap}>
-                                  <Text style={styles.slotModeValue} numberOfLines={1}>
+                                  <Text style={styles.slotModeValue} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.8}>
                                     {alarmModeLabel(slot.remindAlarmMode)}
                                   </Text>
                                   <Ionicons name="chevron-forward" size={18} color={Colors.textSub} />
@@ -3125,7 +3127,7 @@ export function MedicationManageScreen({ modeOverride, hideBack, hideTopBar, onG
                                 <Ionicons name="alarm-outline" size={20} color={Colors.textSub} />
                                 <Text style={styles.slotModeLabel}>{t('medManage.alarmModeRow')}</Text>
                                 <View style={styles.slotModeValueWrap}>
-                                  <Text style={styles.slotModeValue} numberOfLines={1}>
+                                  <Text style={styles.slotModeValue} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.8}>
                                     {alarmModeLabel(slot.trackAlarmMode)}
                                   </Text>
                                   <Ionicons name="chevron-forward" size={18} color={Colors.textSub} />
