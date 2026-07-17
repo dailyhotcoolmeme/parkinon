@@ -214,6 +214,8 @@ export function MedicationScreen() {
   const [showMealTimeModal, setShowMealTimeModal] = useState(false);
   const [showBodyStatePopup, setShowBodyStatePopup] = useState(false);
   const [showBodyStateSuggest, setShowBodyStateSuggest] = useState(false);
+  // 알람 미리보기 시퀀스 진행 중 — '기록하기'가 실제 기록 화면으로 가지 않게 하는 가드.
+  const [previewMode, setPreviewMode] = useState(false);
   const [selectedMealTime, setSelectedMealTime] = useState<MealTime | null>(null);
   const [selectedDate, setSelectedDate] = useState(new Date());
   const [showDatePicker, setShowDatePicker] = useState(false);
@@ -734,6 +736,7 @@ export function MedicationScreen() {
     const pid = patientId ?? (user?.role === 'patient' ? (user?.id ?? null) : null);
     if (!pid) return; // 환자 해석 후 재실행
     previewNextConsumedRef.current = sid;
+    setPreviewMode(true);
     navigation.setParams({ previewNextNotifSlotId: undefined } as any);
     void (async () => {
       // 슬롯의 추적 설정으로 justTaken 구성(추적 켜져 있으면 '복용 30분 후' 등도 후보) — 기록은 안 함.
@@ -765,6 +768,7 @@ export function MedicationScreen() {
       return;
     }
     proceedSaveInFlightRef.current = true;
+    setPreviewMode(false); // 실제 기록 시작 → 미리보기 가드 해제(가드 잔류 방지)
     try {
     // 게이팅(B차): 활성 dose_slot 0개면 기록 막고 통합 등록(복용 관리) 유도.
     // 모든 기록 경로(메인 버튼/보호자 확인/알림 진입)가 결국 여기로 모이므로 단일 차단점.
@@ -1521,6 +1525,13 @@ export function MedicationScreen() {
             </Text>
             <TouchableOpacity
               onPress={async () => {
+                // 미리보기: 실제 몸상태 기록 화면으로 가지 않고 '나중에'와 동일 처리(기록 없음).
+                if (previewMode) {
+                  setPreviewMode(false);
+                  setShowBodyStateSuggest(false);
+                  resolveAndShowNextNotif();
+                  return;
+                }
                 const mealTimeForNav = selectedMealTime;
                 // 7단계: 즉시 몸상태 팝업도 방금 기록한 복용의 슬롯/복용 식별자를 함께 전달.
                 //   BodyStateScreen 이 triggerDoseSlotId / triggerMedLogId →

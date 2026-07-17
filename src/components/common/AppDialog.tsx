@@ -14,6 +14,7 @@ import { useSwipeDownDismiss } from '../../hooks/useSwipeDownDismiss';
 export type AppDialogButtonStyle =
   | 'default'
   | 'primary'
+  | 'soft'
   | 'cancel'
   | 'destructive'
   | 'destructiveSolid';
@@ -289,6 +290,8 @@ const btnContainerStyle = StyleSheet.create({
   cancel: { backgroundColor: Colors.white, borderWidth: 2, borderColor: Colors.border },
   // 기본: 연한 초록 톤(아웃라인 초록)
   default: { backgroundColor: Colors.white, borderWidth: 2, borderColor: Colors.primary },
+  // soft: primary(초록)와 default(흰) 중간 — 연한 초록 배경
+  soft: { backgroundColor: Colors.light },
 });
 
 const btnTextStyle = StyleSheet.create({
@@ -297,4 +300,5 @@ const btnTextStyle = StyleSheet.create({
   destructiveSolid: { color: Colors.white },
   cancel: { color: Colors.textSub },
   default: { color: Colors.primary },
+  soft: { color: Colors.dark },
 });

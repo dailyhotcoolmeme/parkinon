@@ -740,7 +740,7 @@
     "alarmMode": {
       "basic": "기본 (한 번)",
       "sound30": "30초 동안",
-      "alarm": "알람처럼 (끌 때까지)"
+      "alarm": "알람처럼 (끌 때까지 + 전체화면)"
     },
     "alarmPreviewTitle": "전체화면 알람 미리보기",
     "alarmPreviewMsg": "'알람처럼' 알림이 뜨는 화면을 지금 미리 볼까요?\n(끄기 버튼을 누르면 닫혀요.)",
@@ -1925,6 +1925,7 @@
   "alarmScreen": {
     "taken": "복용 완료",
     "recordBody": "기록하기",
-    "later": "나중에"
+    "later": "나중에",
+    "previewNote": "테스트 화면이에요.\n실제로 복용이 기록되거나\n보호자에게 알림이 가지 않아요."
   }
 }

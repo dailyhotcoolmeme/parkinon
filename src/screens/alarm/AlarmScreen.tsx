@@ -112,6 +112,8 @@ export function AlarmScreen() {
     <View style={styles.container}>
       <StatusBar hidden />
       <Animated.Image source={SYMBOL} style={[styles.icon, { transform: [{ rotate }] }]} resizeMode="contain" />
+      {/* 미리보기 안내 — 실제 기록·보호자 알림 없음 */}
+      {preview && <Text style={styles.previewNote}>{t('alarmScreen.previewNote')}</Text>}
       {/* 하단 버튼 — 브랜드/병명 텍스트는 없음(기능 라벨만) */}
       <View style={styles.btnGroup}>
         <TouchableOpacity
@@ -159,6 +161,15 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
   },
   primaryBtnText: { fontSize: 24, fontWeight: '800', color: Colors.dark },
+  previewNote: {
+    marginTop: 28,
+    paddingHorizontal: 36,
+    fontSize: 15,
+    lineHeight: 22,
+    fontWeight: '600',
+    color: 'rgba(255,255,255,0.92)',
+    textAlign: 'center',
+  },
   laterBtn: { marginTop: 14, minHeight: 48, alignItems: 'center', justifyContent: 'center', paddingHorizontal: 24 },
   laterBtnText: { fontSize: 18, fontWeight: '700', color: 'rgba(255,255,255,0.9)' },
 });

@@ -2787,9 +2787,9 @@ export function MedicationManageScreen({ modeOverride, hideBack, hideTopBar, onG
           t('medManage.alarmModeMsg') +
           (Platform.OS === 'ios' ? `\n\n${t('medManage.alarmModeIosNote')}` : ''),
         buttons: [
-          { id: 'basic', text: t('medManage.alarmMode.basic') },
-          { id: 'sound30', text: t('medManage.alarmMode.sound30') },
-          { id: 'alarm', text: t('medManage.alarmMode.alarm') },
+          { id: 'basic', text: t('medManage.alarmMode.basic'), style: 'default' as const },
+          { id: 'sound30', text: t('medManage.alarmMode.sound30'), style: 'soft' as const },
+          { id: 'alarm', text: t('medManage.alarmMode.alarm'), style: 'primary' as const },
           { id: '__cancel', text: t('common.cancel'), style: 'cancel' as const },
         ],
       });

@@ -740,7 +740,7 @@
     "alarmMode": {
       "basic": "Basic (once)",
       "sound30": "For 30 seconds",
-      "alarm": "Like an alarm (until dismissed)"
+      "alarm": "Like an alarm (until dismissed + full screen)"
     },
     "alarmPreviewTitle": "Preview full-screen alarm",
     "alarmPreviewMsg": "Preview how the 'like an alarm' screen looks now?\n(Tap the power button to close.)",
@@ -1925,6 +1925,7 @@
   "alarmScreen": {
     "taken": "Taken",
     "recordBody": "Record",
-    "later": "Later"
+    "later": "Later",
+    "previewNote": "This is a preview.\nNothing is recorded and\nno notification is sent to caregivers."
   }
 }
