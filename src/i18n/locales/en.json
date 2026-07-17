@@ -276,7 +276,7 @@
     "overseasMedTabLabel": "Reminders",
     "feedTabLabel": "Community",
     "myInfoTabLabel": "My Info",
-    "patientNotifLabel": "Patient notifications",
+    "patientNotifLabel": "Patient notifications (on behalf)",
     "patientNotifDesc": "Set the patient's medication, missed-dose, and exercise alerts"
   },
   "timeline": {

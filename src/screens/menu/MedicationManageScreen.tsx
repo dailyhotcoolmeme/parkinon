@@ -1048,6 +1048,9 @@ interface MedicationManageScreenProps {
   // 슬롯 편집 중 "약 등록하러 가기" CTA를 눌렀을 때의 동작. 지정 시 DoseSlotSetList로 그대로 전달됨
   // (해외판 OverseasMedTabScreen이 로컬 세그먼트 전환 콜백을 넘겨 다른 탭으로 안 벗어나게 함).
   onGoRegisterMeds?: () => void;
+  // 다른 화면(설정의 '환자 알림 설정')의 ScrollView 안에 인라인 임베드할 때 true.
+  //  → 자체 flex:1/ScrollView 를 걷어내고 콘텐츠 높이만 차지(부모 스크롤이 담당, 중첩 스크롤 방지).
+  embedded?: boolean;
 }
 
 // 기본 제공 알림음(프리셋) → 피커 옵션. 미리듣기는 번들 mp3 로컬 재생(재빌드 전에도 동작).
@@ -1074,7 +1077,7 @@ function offsetLine(min: number, en: boolean): string {
   return `복용 후 ${m}분`;
 }
 
-export function MedicationManageScreen({ modeOverride, hideBack, hideTopBar, onGoRegisterMeds }: MedicationManageScreenProps = {}) {
+export function MedicationManageScreen({ modeOverride, hideBack, hideTopBar, onGoRegisterMeds, embedded }: MedicationManageScreenProps = {}) {
   const { t, i18n } = useTranslation();
   const { user } = useAuth();
   const { getPatientForCaregiver } = useFamilyLink();
@@ -2896,9 +2899,23 @@ export function MedicationManageScreen({ modeOverride, hideBack, hideTopBar, onG
     );
   }
 
-  const MainWrap = hideTopBar ? View : SafeAreaView;
+  const MainWrap = (hideTopBar || embedded) ? View : SafeAreaView;
+  // 임베드면 자체 KAV/ScrollView 제거(부모 ScrollView가 스크롤 담당 → 중첩 스크롤 방지).
+  const OuterKAV: any = embedded ? View : KeyboardAvoidingView;
+  const outerKAVProps: any = embedded
+    ? {}
+    : { style: { flex: 1 }, behavior: Platform.OS === 'ios' ? 'padding' : 'height' };
+  const InnerScroll: any = embedded ? View : ScrollView;
+  const innerScrollProps: any = embedded
+    ? { style: styles.scrollContent }
+    : {
+        style: styles.scroll,
+        contentContainerStyle: styles.scrollContent,
+        showsVerticalScrollIndicator: false,
+        keyboardShouldPersistTaps: 'handled',
+      };
   return (
-    <MainWrap style={styles.safeArea} {...(hideTopBar ? {} : { edges: ['top'] })}>
+    <MainWrap style={embedded ? undefined : styles.safeArea} {...(hideTopBar || embedded ? {} : { edges: ['top'] })}>
       {!hideTopBar && (
         <TopBar
           title={isMedsMode ? t('menu.medsTabLabel') : t('menu.doseSlotsTabLabel')}
@@ -2931,13 +2948,8 @@ export function MedicationManageScreen({ modeOverride, hideBack, hideTopBar, onG
           </TouchableOpacity>
         </View>
       ) : (
-      <KeyboardAvoidingView style={{ flex: 1 }} behavior={Platform.OS === 'ios' ? 'padding' : 'height'}>
-        <ScrollView
-          style={styles.scroll}
-          contentContainerStyle={styles.scrollContent}
-          showsVerticalScrollIndicator={false}
-          keyboardShouldPersistTaps="handled"
-        >
+      <OuterKAV {...outerKAVProps}>
+        <InnerScroll {...innerScrollProps}>
           {/* ══════════════════════════════════════════════════════════════
               통합 복용 관리(슬롯 중심) — 와이어프레임 ①
               슬롯마다 ①시간 ②알림/약효추적 요약 ③그 슬롯에 먹는 약 + [약 넣기·빼기].
@@ -3564,8 +3576,8 @@ export function MedicationManageScreen({ modeOverride, hideBack, hideTopBar, onG
 
           </>
           )}
-        </ScrollView>
-      </KeyboardAvoidingView>
+        </InnerScroll>
+      </OuterKAV>
       )}
 
       {/* OCR 로딩 오버레이 */}

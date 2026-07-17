@@ -276,7 +276,7 @@
     "overseasMedTabLabel": "약 설정",
     "feedTabLabel": "정보·나눔",
     "myInfoTabLabel": "내정보",
-    "patientNotifLabel": "환자 알림 설정",
+    "patientNotifLabel": "환자 알림 설정 (환자 대신)",
     "patientNotifDesc": "환자의 복약·미복용·운동 알림을 대신 설정"
   },
   "timeline": {
