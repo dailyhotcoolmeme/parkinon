@@ -816,7 +816,8 @@
     "laterBtn": "Later",
     "caregiverGuideTitle": "Caregiver alerts",
     "caregiverGuideMsg": "Receive alerts about the patient’s medication and status?\n\nTap OK to turn all alerts on.\nYou can turn off any you don’t want below.",
-    "patientNotifManageTitle": "Patient notifications"
+    "patientNotifManageTitle": "Patient notifications (on behalf)",
+    "myRecordingFallback": "Recording"
   },
   "diary": {
     "headerTitle": "ParkinON Diary",

@@ -50,6 +50,17 @@ import { provisionForUser } from '../../lib/alarmSound';
 import { AlarmSoundPickerRow, AlarmSoundOption } from '../../components/common/AlarmSoundPickerRow';
 import { ensurePatientDoseSlots } from '../../hooks/useDoseSlots';
 import { MEASUREMENT_FEATURE_ENABLED } from '../../constants/featureFlags';
+import { DoseSlotSetList } from '../../components/settings/DoseSlotSetList';
+import { PRESET_ALARM_SOUNDS } from '../../constants/presetAlarmSounds';
+import { PRESET_PREVIEW_ASSETS } from '../../constants/presetPreviewAssets';
+
+// 기본 제공 프리셋 알림음 → 피커 옵션(환자 슬롯 편집 시 사용).
+const SETTINGS_PRESET_SOUND_OPTIONS: AlarmSoundOption[] = PRESET_ALARM_SOUNDS.map((p) => ({
+  id: p.id,
+  label: p.nameKo,
+  group: 'preset' as const,
+  previewAsset: PRESET_PREVIEW_ASSETS[p.fileId] ?? null,
+}));
 import { useTranslation } from 'react-i18next';
 import i18n from '../../i18n';
 import { isOverseasLocale } from '../../i18n/detectLocale';
@@ -287,6 +298,28 @@ export function SettingsScreen() {
   const showCaregiverEmptyLink = isCaregiver && patientLoadDone && patientId == null;
   // 'self'=보호자 본인 알림 화면(기본) / 'patient'=보호자가 환자 알림 대신 설정하는 별도 화면.
   const settingsMode: 'self' | 'patient' = route.params?.mode ?? 'self';
+
+  // 환자 슬롯 인라인 편집(DoseSlotSetList)용 알림음 목록 = 프리셋(항상) + 그룹 녹음.
+  const [patientAlarmSounds, setPatientAlarmSounds] = useState<AlarmSoundOption[]>(SETTINGS_PRESET_SOUND_OPTIONS);
+  useEffect(() => {
+    setPatientAlarmSounds(SETTINGS_PRESET_SOUND_OPTIONS);
+    const gid = user?.patient_group_id;
+    if (!gid) return;
+    supabase
+      .from('custom_sounds' as any)
+      .select('id, label, public_url')
+      .eq('group_id', gid)
+      .order('created_at', { ascending: false })
+      .then(({ data }: any) => {
+        const rec: AlarmSoundOption[] = ((data as any[]) ?? []).map((s) => ({
+          id: s.id,
+          label: s.label?.trim() || t('settings.myRecordingFallback'),
+          previewUrl: s.public_url ?? null,
+          group: 'recording' as const,
+        }));
+        setPatientAlarmSounds([...SETTINGS_PRESET_SOUND_OPTIONS, ...rec]);
+      });
+  }, [user?.patient_group_id]);
   const [patientMedTimePrefs, setPatientMedTimePrefs] = useState<Record<string, boolean>>({
     morning: true, lunch: true, dinner: true, bedtime: true,
     missed_first: true, missed_second: true,
@@ -1852,14 +1885,7 @@ export function SettingsScreen() {
             </Text>
           </View>
           <View style={[styles.card, styles.cardMarginTop]}>
-            <TouchableOpacity
-              activeOpacity={0.8}
-              style={styles.cardHeader}
-              onPress={() => {
-                if (!showPatientNotifs) loadPatientNotifPrefs();
-                setShowPatientNotifs(v => !v);
-              }}
-            >
+            <View style={styles.cardHeader}>
               <Ionicons
                 name="person-circle-outline"
                 size={24}
@@ -1870,40 +1896,22 @@ export function SettingsScreen() {
                 <Text style={styles.cardHeaderTitle}>{pt(t('settings.editPatientNotifTitle'))}</Text>
                 <Text style={styles.cardHeaderSub}>{pt(t('settings.editPatientNotifSub'))}</Text>
               </View>
-              <Ionicons
-                name={showPatientNotifs ? 'chevron-up' : 'chevron-down'}
-                size={22}
-                color={Colors.textSub}
-              />
-            </TouchableOpacity>
+            </View>
           </View>
 
-            {showPatientNotifs && (
+            {(
                 <>
-                  {/* ── 복용 시간 알림 (주황, 시각별 세트카드는 "복용시간 설정·알림" 메뉴로 이관됨) ──
-                      보호자도 그 메뉴에서 환자 슬롯을 대신 편집함(MedicationManage=targetPatientId·DoseSlotSetList=usePatientId 기준).
-                      여기서는 그 메뉴로 가는 진입점만 제공. */}
-                  <View style={{ marginTop: 10, borderRadius: 12, overflow: 'hidden', borderWidth: 1, borderColor: '#FFE0B2' }}>
-                    <View style={{ flexDirection: 'row', alignItems: 'center', backgroundColor: '#FFF3E0', paddingHorizontal: 16, paddingVertical: 12 }}>
-                      <Ionicons name="alarm-outline" size={20} color="#E65100" style={{ marginRight: 10 }} />
-                      <Text style={{ fontSize: 17, fontWeight: '700', color: '#E65100' }}>{t('settings.medTimeNotifTitle')}</Text>
+                  {/* ── 복용 시간 알림: 환자 슬롯을 바로 인라인 편집(DoseSlotSetList=usePatientId=연동환자 기준).
+                      DoseSlotSetList는 자체 스크롤이 없어 이 화면 스크롤에 그대로 얹힌다(별도 진입 없음). ── */}
+                  <View style={{ marginTop: 10 }}>
+                    <View style={{ flexDirection: 'row', alignItems: 'center', paddingHorizontal: 4, marginBottom: 8 }}>
+                      <Ionicons name="alarm-outline" size={20} color="#E65100" style={{ marginRight: 8 }} />
+                      <Text style={{ fontSize: 17, fontWeight: '800', color: '#E65100' }}>{t('settings.medTimeNotifTitle')}</Text>
                     </View>
-                    <View style={[styles.notifRow, styles.notifRowTop, { backgroundColor: Colors.white, minHeight: 64 }]}>
-                      <View style={styles.notifLeft}>
-                        <Text style={styles.notifSub}>
-                          {t('settings.medTimeNotifDesc', { name: linkedPatientName || t('settings.patientFallback') })}
-                        </Text>
-                      </View>
-                    </View>
-                    <TouchableOpacity
-                      activeOpacity={0.7}
-                      style={[styles.addRow, { backgroundColor: Colors.white }]}
-                      onPress={() => navigation.navigate('MedicationManage', { mode: 'slots' })}
-                    >
-                      <Ionicons name="settings-outline" size={22} color="#E65100" style={{ marginRight: 8 }} />
-                      <Text style={[styles.addLabel, { color: '#E65100' }]}>{t('settings.medTimeNotifSetupBtn')}</Text>
-                      <Ionicons name="chevron-forward" size={20} color="#E65100" style={{ marginLeft: 'auto' }} />
-                    </TouchableOpacity>
+                    <DoseSlotSetList
+                      alarmSounds={patientAlarmSounds}
+                      onGoRegisterMeds={() => navigation.navigate('MedicationManage', { mode: 'meds' })}
+                    />
                   </View>
 
                   {/* ── 약 미복용 알림 (환자 슬롯과 완전 동일: 색·보조문구·레이아웃) ── */}

@@ -816,7 +816,8 @@
     "laterBtn": "나중에",
     "caregiverGuideTitle": "보호자 알림 설정",
     "caregiverGuideMsg": "환자분의 약 복용·상태 알림을 받으시겠어요?\n\n확인을 누르면 알림이 모두 켜져요.\n원하지 않는 알림은 아래에서 끄시면 됩니다.",
-    "patientNotifManageTitle": "환자 알림 설정"
+    "patientNotifManageTitle": "환자 알림 설정 (환자 대신)",
+    "myRecordingFallback": "녹음 알림음"
   },
   "diary": {
     "headerTitle": "파킨온 일기",
