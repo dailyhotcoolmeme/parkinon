@@ -28,7 +28,8 @@ export type MenuStackParamList = {
     type: 'medication' | 'bodyState' | 'mood' | 'sleep' | 'constipation' | 'exercise';
     period?: string;
   };
-  Settings: { guideCaregiverNotif?: boolean } | undefined;
+  // mode: 'self'=보호자 본인 알림(기본) / 'patient'=보호자가 환자 알림 대신 설정.
+  Settings: { guideCaregiverNotif?: boolean; mode?: 'self' | 'patient' } | undefined;
   MedTimeOnboarding: undefined;
   MedicationManage: {
     mode?: 'meds' | 'slots';

@@ -275,7 +275,9 @@
     "withdrawSpinnerSubtitle": "Cleaning up your account",
     "overseasMedTabLabel": "Reminders",
     "feedTabLabel": "Community",
-    "myInfoTabLabel": "My Info"
+    "myInfoTabLabel": "My Info",
+    "patientNotifLabel": "Patient notifications",
+    "patientNotifDesc": "Set the patient's medication, missed-dose, and exercise alerts"
   },
   "timeline": {
     "toggleShow": "View past records",
@@ -813,7 +815,8 @@
     "openSettingsBtn": "Open Settings",
     "laterBtn": "Later",
     "caregiverGuideTitle": "Caregiver alerts",
-    "caregiverGuideMsg": "Receive alerts about the patient’s medication and status?\n\nTap OK to turn all alerts on.\nYou can turn off any you don’t want below."
+    "caregiverGuideMsg": "Receive alerts about the patient’s medication and status?\n\nTap OK to turn all alerts on.\nYou can turn off any you don’t want below.",
+    "patientNotifManageTitle": "Patient notifications"
   },
   "diary": {
     "headerTitle": "ParkinON Diary",

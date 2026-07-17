@@ -126,6 +126,13 @@ const MENU_SECTIONS: MenuSection[] = [
         desc: 'menu.settingsDesc',
       },
       {
+        // 보호자 전용(연동 환자 있을 때) — 환자 알림을 대신 설정하는 별도 화면. 비-보호자는 필터로 숨김.
+        key: 'PatientNotifSettings',
+        icon: 'people-outline',
+        label: 'menu.patientNotifLabel',
+        desc: 'menu.patientNotifDesc',
+      },
+      {
         key: 'AlarmSoundSettings',
         icon: 'mic-outline',
         label: 'menu.alarmSoundLabel',
@@ -256,6 +263,8 @@ export function MenuScreen() {
             ...section,
             items: section.items
               .filter((i) => i.key !== 'DoseSlots')
+              // 환자 알림 설정은 연동 그룹(=환자 연동)이 있는 보호자에게만.
+              .filter((i) => i.key !== 'PatientNotifSettings' || !!user?.patient_group_id)
               .map((i) =>
                 i.key === 'Settings'
                   ? {
@@ -266,7 +275,11 @@ export function MenuScreen() {
                   : i,
               ),
           }))
-        : MENU_SECTIONS;
+        : MENU_SECTIONS.map((section) => ({
+            ...section,
+            // 환자 알림 설정은 보호자 전용 → 환자 본인 메뉴에선 제거.
+            items: section.items.filter((i) => i.key !== 'PatientNotifSettings'),
+          }));
     // 해외 로케일 전용 메뉴 숨김:
     // - BlockedUsers: 정보/나눔(커뮤니티) 기능 전용, 해외엔 커뮤니티 탭 자체가 없음.
     // - MyMeds/DoseSlots: 바텀탭 "Reminders"(OverseasMedTabScreen)로 이전됨 —
@@ -324,6 +337,8 @@ export function MenuScreen() {
       navigation.navigate('VideoList');
     } else if (key === 'Settings') {
       navigation.navigate('Settings');
+    } else if (key === 'PatientNotifSettings') {
+      navigation.navigate('Settings', { mode: 'patient' });
     } else if (key === 'MyMeds') {
       navigation.navigate('MedicationManage', { mode: 'meds' });
     } else if (key === 'DoseSlots') {

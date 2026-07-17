@@ -285,6 +285,8 @@ export function SettingsScreen() {
   // patientId non-null 일 때만 환자용 항목 노출. 로딩 중에는 어느 쪽도 단정 안 함(깜빡임 방지).
   const hasLinkedPatient = isCaregiver && patientLoadDone && patientId != null;
   const showCaregiverEmptyLink = isCaregiver && patientLoadDone && patientId == null;
+  // 'self'=보호자 본인 알림 화면(기본) / 'patient'=보호자가 환자 알림 대신 설정하는 별도 화면.
+  const settingsMode: 'self' | 'patient' = route.params?.mode ?? 'self';
   const [patientMedTimePrefs, setPatientMedTimePrefs] = useState<Record<string, boolean>>({
     morning: true, lunch: true, dinner: true, bedtime: true,
     missed_first: true, missed_second: true,
@@ -1582,7 +1584,9 @@ export function SettingsScreen() {
   return (
     <SafeAreaView edges={['top']} style={styles.safe}>
       <TopBar
-        title={isCaregiver ? t('settings.caregiverTitle') : t('settings.patientOtherTitle')}
+        title={settingsMode === 'patient'
+          ? t('settings.patientNotifManageTitle')
+          : (isCaregiver ? t('settings.caregiverTitle') : t('settings.patientOtherTitle'))}
         showBack
         rightComponent={
           <TouchableOpacity
@@ -1769,8 +1773,8 @@ export function SettingsScreen() {
           </TouchableOpacity>
         </View>}
 
-        {/* ── Card 3: 보호자 알림 (보호자만) ── */}
-        {isCaregiver && (
+        {/* ── Card 3: 보호자 본인 알림 (보호자 + self 모드) ── */}
+        {isCaregiver && settingsMode === 'self' && (
           <View style={[styles.card, styles.cardMarginTop]}>
             <View style={styles.cardHeader}>
               <Ionicons
@@ -1837,8 +1841,8 @@ export function SettingsScreen() {
           </>
         )}
 
-        {/* ── 환자 알림 수정 (보호자만, 연동 환자 있을 때만) — 위에 구분선으로 섹션 구분, 카드는 환자와 동일 전체폭 ── */}
-        {hasLinkedPatient && (
+        {/* ── 환자 알림 수정 (보호자 + patient 모드, 연동 환자 있을 때만) — 별도 화면(환자 알림 설정) ── */}
+        {hasLinkedPatient && settingsMode === 'patient' && (
           <>
           <View style={styles.caregiverDivider} />
           <View style={styles.caregiverNote}>

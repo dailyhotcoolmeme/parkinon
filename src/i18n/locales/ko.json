@@ -275,7 +275,9 @@
     "withdrawSpinnerSubtitle": "계정을 정리하고 있어요",
     "overseasMedTabLabel": "약 설정",
     "feedTabLabel": "정보·나눔",
-    "myInfoTabLabel": "내정보"
+    "myInfoTabLabel": "내정보",
+    "patientNotifLabel": "환자 알림 설정",
+    "patientNotifDesc": "환자의 복약·미복용·운동 알림을 대신 설정"
   },
   "timeline": {
     "toggleShow": "과거 기록 보기",
@@ -813,7 +815,8 @@
     "openSettingsBtn": "설정 열기",
     "laterBtn": "나중에",
     "caregiverGuideTitle": "보호자 알림 설정",
-    "caregiverGuideMsg": "환자분의 약 복용·상태 알림을 받으시겠어요?\n\n확인을 누르면 알림이 모두 켜져요.\n원하지 않는 알림은 아래에서 끄시면 됩니다."
+    "caregiverGuideMsg": "환자분의 약 복용·상태 알림을 받으시겠어요?\n\n확인을 누르면 알림이 모두 켜져요.\n원하지 않는 알림은 아래에서 끄시면 됩니다.",
+    "patientNotifManageTitle": "환자 알림 설정"
   },
   "diary": {
     "headerTitle": "파킨온 일기",
