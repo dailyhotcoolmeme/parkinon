@@ -411,7 +411,7 @@ async function resolveAlarmChannel(userId: string): Promise<string> {
     .eq('user_id', userId)
     .maybeSingle()
   if (data?.sound_type === 'recorded' && data.custom_sound_id) {
-    return `parkinon_alarm_${data.custom_sound_id}`
+    return channelForStoredSound(data.custom_sound_id)
   }
   return 'default'
 }
