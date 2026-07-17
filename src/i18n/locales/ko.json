@@ -1628,7 +1628,8 @@
     "pushTitle": "💊 약을 드셨어요",
     "pushBody": "{{name}}님이 약을 드셨어요.",
     "saveError": "복용 기록 저장에 실패했어요.",
-    "cancelError": "복용 기록을 취소하지 못했어요."
+    "cancelError": "복용 기록을 취소하지 못했어요.",
+    "pushBodyWithSlot": "{{name}}님이 {{slot}} 약을 드셨어요."
   },
   "familyLinkHook": {
     "timeoutError": "요청 시간이 초과됐어요. 잠시 후 다시 시도해주세요. (timeout {{ms}}ms)",

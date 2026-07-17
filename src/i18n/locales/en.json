@@ -1628,7 +1628,8 @@
     "pushTitle": "💊 Medication taken",
     "pushBody": "{{name}} took their medication.",
     "saveError": "Failed to save the medication record.",
-    "cancelError": "Failed to cancel the medication record."
+    "cancelError": "Failed to cancel the medication record.",
+    "pushBodyWithSlot": "{{name}} took the {{slot}} medication."
   },
   "familyLinkHook": {
     "timeoutError": "The request timed out. Please try again shortly. (timeout {{ms}}ms)",

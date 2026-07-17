@@ -530,6 +530,11 @@ export function useMedication(): UseMedicationReturn {
               if (patientRow?.name) patientName = patientRow.name;
             }
 
+            // 몇 시 약을 드셨는지(슬롯 라벨, 예 "저녁 8:05")를 알림 본문에 포함.
+            const takenSlotLabel = resolvedSlot?.label?.trim() || null;
+            const body = takenSlotLabel
+              ? i18n.t('medicationHook.pushBodyWithSlot', { name: patientName, slot: takenSlotLabel })
+              : i18n.t('medicationHook.pushBody', { name: patientName });
             for (const cu of caregiverUsers ?? []) {
               if (!cu.push_token) continue;
               const prefs = (cu.caregiver_notif_prefs ?? {}) as Record<string, boolean>;
@@ -537,7 +542,7 @@ export function useMedication(): UseMedicationReturn {
               await sendCaregiverPush(
                 cu.push_token,
                 i18n.t('medicationHook.pushTitle'),
-                i18n.t('medicationHook.pushBody', { name: patientName }),
+                body,
                 { type: 'caregiver_medication' },
               );
             }

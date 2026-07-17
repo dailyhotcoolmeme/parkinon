@@ -715,10 +715,14 @@ export function MedicationScreen() {
   useEffect(() => {
     const sid = routeParams.autoTakeSlotId;
     if (!sid || autoTakeConsumedRef.current === sid) return;
+    // 환자 해석 전(보호자 patientId 미로드)이면 대기 — 이 상태로 기록하면 resolvedPatientId=null 이라
+    //   다음알림 계산을 건너뛰어 빈 폴백 팝업이 뜨고, 기록 대상도 어긋난다. patientId 로드 후 재실행.
+    const patientReady = !!patientId || user?.role === 'patient';
+    if (!patientReady) return;
     autoTakeConsumedRef.current = sid;
     navigation.setParams({ autoTakeSlotId: undefined } as any);
     void proceedSave({ mealTime: null, doseSlotId: sid });
-  }, [routeParams.autoTakeSlotId]);
+  }, [routeParams.autoTakeSlotId, patientId, user?.role]);
 
   const proceedSave = async (sel: { mealTime: MealTime | null; doseSlotId: string | null }) => {
     // ⚠️ 더블탭 방어(화면 단 in-flight 락): 이전 저장이 끝나기 전 두 번째 진입은 조용히 무시.
