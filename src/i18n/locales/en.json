@@ -277,7 +277,8 @@
     "feedTabLabel": "Community",
     "myInfoTabLabel": "My Info",
     "patientNotifLabel": "Patient notifications (on behalf)",
-    "patientNotifDesc": "Set the patient's medication, missed-dose, and exercise alerts"
+    "patientNotifDesc": "Set the patient's medication, missed-dose, and exercise alerts",
+    "alarmSoundCaregiverLabel": "Alarm sounds (for patient)"
   },
   "timeline": {
     "toggleShow": "View past records",
@@ -1332,7 +1333,8 @@
     "limitHint": "Custom notification sounds are available on Premium.",
     "unlinkedTitle": "Please link with the patient first",
     "unlinkedDesc": "Link with family to manage the patient's\nnotification sounds together",
-    "linkFamilyBtn": "Link family"
+    "linkFamilyBtn": "Link family",
+    "headerTitleCaregiver": "Alarm sounds (for patient)"
   },
   "ads": {
     "sponsored": "Ad",

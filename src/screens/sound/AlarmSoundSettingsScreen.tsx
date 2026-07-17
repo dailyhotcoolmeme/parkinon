@@ -59,6 +59,8 @@ export function AlarmSoundSettingsScreen() {
   // 키도 실제 존재하지 않는 'alarmSound.defaultLabel'이었음 — 실제 키(defaultRecordingLabel)로 수정.
   const defaultLabel = t('alarmSound.defaultRecordingLabel');
   const { user } = useAuth();
+  const isCaregiver = user?.role === 'caregiver';
+  const headerTitle = isCaregiver ? t('alarmSound.headerTitleCaregiver') : t('alarmSound.headerTitle');
   const dialog = useDialog();
   const { isPremium } = useSubscription();
   const route = useRoute<any>();
@@ -394,7 +396,7 @@ export function AlarmSoundSettingsScreen() {
   if (user && !user.patient_group_id) {
     return (
       <SafeAreaView style={styles.safeArea}>
-        <TopBar title={t('alarmSound.headerTitle')} showBack />
+        <TopBar title={headerTitle} showBack />
         <View style={styles.unlinkedWrap}>
           <Ionicons name="people-outline" size={56} color={Colors.textHint} />
           <Text style={styles.unlinkedTitle}>{t('alarmSound.unlinkedTitle')}</Text>
@@ -414,7 +416,7 @@ export function AlarmSoundSettingsScreen() {
 
   return (
     <SafeAreaView style={styles.safeArea}>
-      <TopBar title={t('alarmSound.headerTitle')} showBack />
+      <TopBar title={headerTitle} showBack />
 
       <ScrollView
         style={styles.scroll}

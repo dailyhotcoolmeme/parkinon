@@ -272,6 +272,8 @@ export function MenuScreen() {
                       label: 'menu.settingsCaregiverLabel',
                       desc: 'menu.settingsCaregiverDesc',
                     }
+                  : i.key === 'AlarmSoundSettings'
+                  ? { ...i, label: 'menu.alarmSoundCaregiverLabel' }
                   : i,
               ),
           }))
