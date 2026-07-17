@@ -2811,7 +2811,7 @@ export function MedicationManageScreen({ modeOverride, hideBack, hideTopBar, onG
         });
         if (yes) {
           const fileId = presetFileIdOf(kind === 'remind' ? slot.remindSoundId : slot.trackSoundId);
-          navigateTo('Alarm', { fileId: fileId ?? undefined, kind });
+          navigateTo('Alarm', { fileId: fileId ?? undefined, kind, doseSlotId: slot.id ?? undefined });
         }
       }
     },

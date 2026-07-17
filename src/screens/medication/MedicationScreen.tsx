@@ -144,6 +144,8 @@ type MedicationRouteParams = {
   autoOpen?: number | boolean;
   mealTime?: string | null;
   doseSlotId?: string | null;
+  // 전체화면 알람 '복용 완료' → 이 슬롯을 복용 완료 처리(기존 기록 로직 그대로).
+  autoTakeSlotId?: string | null;
 };
 
 // 온보딩에서 초대번호를 건너뛴 첫 진입 회원에게 가족 연동을 1회 안내했는지 여부.
@@ -706,6 +708,17 @@ export function MedicationScreen() {
     setNextNotifInfo(shown);
     setShowNextNotifModal(true);
   };
+
+  // 전체화면 알람 '복용 완료' 진입 → 그 슬롯을 복용 완료 처리(proceedSave 재사용:
+  //   게이트·takeMedication·약효추적·보호자알림·몸상태팝업·멱등 전부 동일). 1회 소비 후 파라미터 제거.
+  const autoTakeConsumedRef = useRef<string | null>(null);
+  useEffect(() => {
+    const sid = routeParams.autoTakeSlotId;
+    if (!sid || autoTakeConsumedRef.current === sid) return;
+    autoTakeConsumedRef.current = sid;
+    navigation.setParams({ autoTakeSlotId: undefined } as any);
+    void proceedSave({ mealTime: null, doseSlotId: sid });
+  }, [routeParams.autoTakeSlotId]);
 
   const proceedSave = async (sel: { mealTime: MealTime | null; doseSlotId: string | null }) => {
     // ⚠️ 더블탭 방어(화면 단 in-flight 락): 이전 저장이 끝나기 전 두 번째 진입은 조용히 무시.

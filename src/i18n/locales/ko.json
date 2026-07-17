@@ -1920,5 +1920,10 @@
   },
   "topBar": {
     "familyDiary": "가족\n일기"
+  },
+  "alarmScreen": {
+    "taken": "복용 완료",
+    "recordBody": "기록하기",
+    "later": "나중에"
   }
 }

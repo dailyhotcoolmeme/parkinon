@@ -1920,5 +1920,10 @@
   },
   "topBar": {
     "familyDiary": "Family\nDiary"
+  },
+  "alarmScreen": {
+    "taken": "Taken",
+    "recordBody": "Record",
+    "later": "Later"
   }
 }

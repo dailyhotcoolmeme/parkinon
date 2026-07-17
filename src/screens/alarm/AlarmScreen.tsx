@@ -10,9 +10,9 @@
  * ⚠️ 실제 트리거(full-screen intent)·서버 발송 연동은 네이티브/서버 단계에서 배선(재빌드).
  */
 import React, { useCallback, useEffect, useRef } from 'react';
-import { View, StyleSheet, Animated, Easing, TouchableOpacity, StatusBar, BackHandler } from 'react-native';
-import { Ionicons } from '@expo/vector-icons';
+import { View, Text, StyleSheet, Animated, Easing, TouchableOpacity, StatusBar, BackHandler } from 'react-native';
 import { useRoute, type RouteProp } from '@react-navigation/native';
+import { useTranslation } from 'react-i18next';
 import { Audio } from 'expo-av';
 import { Colors } from '../../constants/colors';
 import { PRESET_PREVIEW_ASSETS } from '../../constants/presetPreviewAssets';
@@ -22,9 +22,11 @@ import type { RootStackParamList } from '../../navigation/RootNavigator';
 const SYMBOL = require('../../../assets/parkinon-symbol-en.png');
 
 export function AlarmScreen() {
+  const { t } = useTranslation();
   const route = useRoute<RouteProp<RootStackParamList, 'Alarm'>>();
   const fileId = route.params?.fileId ?? null;
   const kind = route.params?.kind ?? 'remind';
+  const doseSlotId = route.params?.doseSlotId ?? null;
 
   // 회전 애니메이션(끊김 없이 반복).
   const spin = useRef(new Animated.Value(0)).current;
@@ -67,32 +69,60 @@ export function AlarmScreen() {
     };
   }, [fileId]);
 
-  // 끄기 → 알림 종류에 맞는 기록 화면으로 연결(복약=약 복용 기록 / 약효추적=몸상태 기록).
-  const dismiss = useCallback(async () => {
+  const stopSound = useCallback(async () => {
     const s = soundRef.current;
     soundRef.current = null;
     if (s) await s.unloadAsync().catch(() => {});
-    if (kind === 'track') {
-      navigateTo('Main', { screen: 'BodyStateTab', params: { screen: 'BodyState' } });
-    } else {
-      navigateTo('Main', { screen: 'Medication' });
-    }
-  }, [kind]);
+  }, []);
 
-  // 안드 뒤로가기로도 끄기.
+  // 복용 완료(복약 알람) → 그 슬롯 약을 복용 완료 처리(실제 누른 시각·기존 기록 로직 재사용·멱등).
+  //   Medication 탭으로 autoTakeSlotId 전달 → proceedSave 로 med_logs+약효추적+보호자알림+몸상태팝업.
+  const handleTaken = useCallback(async () => {
+    await stopSound();
+    navigateTo('Main', {
+      screen: 'Medication',
+      params: doseSlotId ? { autoTakeSlotId: doseSlotId } : undefined,
+    });
+  }, [stopSound, doseSlotId]);
+
+  // 약효추적 알람 → 몸상태 기록 화면으로.
+  const handleRecordTrack = useCallback(async () => {
+    await stopSound();
+    navigateTo('Main', { screen: 'BodyStateTab', params: { screen: 'BodyState' } });
+  }, [stopSound]);
+
+  // 나중에 → 기록 없이 닫기(해당 탭으로만 이동).
+  const handleLater = useCallback(async () => {
+    await stopSound();
+    if (kind === 'track') navigateTo('Main', { screen: 'BodyStateTab', params: { screen: 'BodyState' } });
+    else navigateTo('Main', { screen: 'Medication' });
+  }, [stopSound, kind]);
+
+  // 안드 뒤로가기 = 나중에(기록 없이 닫힘).
   useEffect(() => {
-    const sub = BackHandler.addEventListener('hardwareBackPress', () => { dismiss(); return true; });
+    const sub = BackHandler.addEventListener('hardwareBackPress', () => { handleLater(); return true; });
     return () => sub.remove();
-  }, [dismiss]);
+  }, [handleLater]);
 
   return (
     <View style={styles.container}>
       <StatusBar hidden />
       <Animated.Image source={SYMBOL} style={[styles.icon, { transform: [{ rotate }] }]} resizeMode="contain" />
-      {/* 끄기 — 텍스트(브랜드/병명) 없이 큰 아이콘 버튼만 */}
-      <TouchableOpacity style={styles.dismissBtn} onPress={dismiss} activeOpacity={0.85}>
-        <Ionicons name="power" size={44} color={Colors.primary} />
-      </TouchableOpacity>
+      {/* 하단 버튼 — 브랜드/병명 텍스트는 없음(기능 라벨만) */}
+      <View style={styles.btnGroup}>
+        <TouchableOpacity
+          style={styles.primaryBtn}
+          onPress={kind === 'track' ? handleRecordTrack : handleTaken}
+          activeOpacity={0.85}
+        >
+          <Text style={styles.primaryBtnText}>
+            {kind === 'track' ? t('alarmScreen.recordBody') : t('alarmScreen.taken')}
+          </Text>
+        </TouchableOpacity>
+        <TouchableOpacity style={styles.laterBtn} onPress={handleLater} activeOpacity={0.7}>
+          <Text style={styles.laterBtnText}>{t('alarmScreen.later')}</Text>
+        </TouchableOpacity>
+      </View>
     </View>
   );
 }
@@ -109,14 +139,22 @@ const styles = StyleSheet.create({
     height: 160,
     tintColor: Colors.white, // 녹색 위 대비 위해 흰색 실루엣
   },
-  dismissBtn: {
+  btnGroup: {
     position: 'absolute',
-    bottom: 72,
-    width: 88,
-    height: 88,
-    borderRadius: 44,
+    bottom: 64,
+    left: 32,
+    right: 32,
+    alignItems: 'center',
+  },
+  primaryBtn: {
+    width: '100%',
+    minHeight: 72,
+    borderRadius: 18,
     backgroundColor: Colors.white,
     alignItems: 'center',
     justifyContent: 'center',
   },
+  primaryBtnText: { fontSize: 24, fontWeight: '800', color: Colors.dark },
+  laterBtn: { marginTop: 14, minHeight: 48, alignItems: 'center', justifyContent: 'center', paddingHorizontal: 24 },
+  laterBtnText: { fontSize: 18, fontWeight: '700', color: 'rgba(255,255,255,0.9)' },
 });
