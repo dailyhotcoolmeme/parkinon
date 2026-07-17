@@ -181,7 +181,7 @@
     "android": {
       "googleServicesFile": "./google-services.json",
       "package": "com.ourmine.parkinon",
-      "versionCode": 3,
+      "versionCode": 4,
       "adaptiveIcon": {
         "foregroundImage": "./assets/adaptive-icon.png",
         "backgroundColor": "#4CB051"
@@ -264,7 +264,8 @@
           "delayAppMeasurementInit": true
         }
       ],
-      "./plugins/withPresetAlarmSounds"
+      "./plugins/withPresetAlarmSounds",
+      "./plugins/withAlarmFullScreen"
     ],
     "runtimeVersion": {
       "policy": "appVersion"

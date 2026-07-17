@@ -53,7 +53,20 @@ export type RootStackParamList = {
   // 전체화면 알람("알람처럼" 방식) — full-screen intent(안드)로 진입.
   // fileId=재생할 프리셋, kind=복약/약효추적, doseSlotId='복용 완료' 시 기록할 슬롯.
   // preview=미리보기(실제 기록·알림 없이 화면만 — 테스트 중 가족 알림 방지).
-  Alarm: { fileId?: string; kind?: 'remind' | 'track'; doseSlotId?: string; preview?: boolean } | undefined;
+  Alarm: {
+    fileId?: string;
+    kind?: 'remind' | 'track';
+    doseSlotId?: string;
+    preview?: boolean;
+    // 약효추적 알람용 문맥(kind==='track') — 몸상태 기록을 그 복용에 매칭(약효 패턴 반영).
+    minutes?: number;
+    medLogId?: string;
+    mealTime?: string;
+    // 이 알람을 띄운 notifee 알림 id(버튼 누를 때 소리 반복 중지·알림 제거용).
+    notifId?: string;
+    // 실제 알람이면 notifee loopSound 가 소리 재생 → AlarmScreen 은 preview 때만 자체 재생.
+    alarmMode?: 'sound30' | 'alarm';
+  } | undefined;
 };
 
 const Stack = createStackNavigator<RootStackParamList>();

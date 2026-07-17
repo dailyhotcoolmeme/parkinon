@@ -1933,5 +1933,12 @@
     "recordBody": "Record",
     "later": "Later",
     "previewNote": "This is a preview.\nNothing is recorded and\nno notification is sent to caregivers."
+  },
+  "localAlarm": {
+    "defaultChannelName": "Medication alarm",
+    "remindTitle": "Time for your medication",
+    "remindBody": "It's time for your {{label}} medication.",
+    "trackTitle": "Time to record how you feel",
+    "trackBody": "Please record how you're feeling now."
   }
 }

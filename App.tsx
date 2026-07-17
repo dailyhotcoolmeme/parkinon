@@ -797,6 +797,60 @@ function AppInner() {
     );
   }, [lastResponse, handleNotificationResponse]);
 
+  // ── 로컬 알람(알람처럼/30초) → AlarmScreen 라우팅 ───────────────────────────────
+  //   notifee full-screen intent(잠금화면 위)나 알림 탭으로 앱이 열리면, 그 알림 data(_pkAlarm)를
+  //   읽어 전체화면 알람 화면을 띄운다. (서버 Expo Push 흐름과 별개 — notifee 이벤트 채널.)
+  useEffect(() => {
+    // eslint-disable-next-line @typescript-eslint/no-var-requires
+    const notifeeMod = require('@notifee/react-native');
+    const notifee = notifeeMod.default;
+    const EventType = notifeeMod.EventType;
+
+    // 같은 알람이 콜드스타트(getInitialNotification)와 DELIVERED 로 이중 라우팅되는 것 방지.
+    let lastRoutedId: string | null = null;
+    let lastRoutedAt = 0;
+
+    const routeToAlarm = async (n: any, auto: boolean) => {
+      if (!n || n?.data?._pkAlarm !== '1') return;
+      // 30초 모드는 자동(DELIVERED) 전체화면 X — 탭했을 때만 화면 진입.
+      if (auto && n.data.alarmMode !== 'alarm') return;
+      const now = Date.now();
+      if (n.id && n.id === lastRoutedId && now - lastRoutedAt < 3000) return;
+      lastRoutedId = n.id ?? null;
+      lastRoutedAt = now;
+      for (let i = 0; i < 50 && !navigationRef.isReady(); i++) {
+        await new Promise((r) => setTimeout(r, 100));
+      }
+      const d = n.data || {};
+      navigateTo('Alarm', {
+        fileId: d.fileId || undefined,
+        kind: d.kind === 'track' ? 'track' : 'remind',
+        doseSlotId: d.doseSlotId || undefined,
+        minutes: d.minutes ? Number(d.minutes) : undefined,
+        medLogId: d.medLogId || undefined,
+        mealTime: d.mealTime || undefined,
+        notifId: n.id,
+        alarmMode: d.alarmMode === 'sound30' ? 'sound30' : 'alarm',
+        preview: false,
+      });
+    };
+
+    // 콜드스타트: 알람(full-screen intent/탭)으로 앱이 열렸는지.
+    notifee
+      .getInitialNotification()
+      .then((initial: any) => {
+        if (initial?.notification) routeToAlarm(initial.notification, true);
+      })
+      .catch(() => {});
+
+    // 포그라운드: 알람이 앱 사용 중 울림 → 전체화면(DELIVERED, alarm만) / 탭(PRESS, 공통).
+    const unsub = notifee.onForegroundEvent(({ type, detail }: any) => {
+      if (type === EventType.DELIVERED) routeToAlarm(detail?.notification, true);
+      else if (type === EventType.PRESS) routeToAlarm(detail?.notification, false);
+    });
+    return () => unsub();
+  }, []);
+
   useEffect(() => {
     // 포그라운드 알림 수신 → 저장 (read_at = null: 미읽음)
     const foregroundSubscription = Notifications.addNotificationReceivedListener((notification) => {

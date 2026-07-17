@@ -1933,5 +1933,12 @@
     "recordBody": "기록하기",
     "later": "나중에",
     "previewNote": "테스트 화면이에요.\n실제로 복용이 기록되거나\n보호자에게 알림이 가지 않아요."
+  },
+  "localAlarm": {
+    "defaultChannelName": "약 알람",
+    "remindTitle": "약 드실 시간이에요",
+    "remindBody": "{{label}} 약 드실 시간이에요.",
+    "trackTitle": "몸 상태 기록할 시간이에요",
+    "trackBody": "지금 몸 상태를 기록해 주세요."
   }
 }

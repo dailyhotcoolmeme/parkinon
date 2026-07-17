@@ -1,7 +1,32 @@
 import { registerRootComponent } from 'expo';
 import * as React from 'react';
+// eslint-disable-next-line @typescript-eslint/no-var-requires
+const notifee = require('@notifee/react-native').default;
 
 import App from './App';
+
+// ── 알람 포그라운드 서비스(소리 반복) ──────────────────────────────────────────
+// "알람처럼"/"30초" 로컬 알람은 asForegroundService+loopSound 로 울린다. 이 러너가 서비스를
+// 살아있게 유지 → 그동안 채널 소리가 반복 재생된다.
+//   - sound30: 30초 후 stopForegroundService() 로 자동 종료.
+//   - alarm  : 사용자가 AlarmScreen 버튼(→ stopActiveAlarm)으로 끌 때까지 유지.
+//              (SHORT_SERVICE 시스템 상한 ~3분 도달 시 시스템이 자동 종료.)
+notifee.registerForegroundService((notification: any) => {
+  return new Promise((resolve) => {
+    const mode = notification?.data?.alarmMode;
+    if (mode === 'sound30') {
+      setTimeout(() => {
+        notifee.stopForegroundService().catch(() => {});
+        resolve(undefined);
+      }, 30000);
+    }
+    // 'alarm' → resolve 하지 않음(끌 때까지). stopForegroundService 호출 시 러너가 정리됨.
+  });
+});
+
+// 백그라운드 이벤트 핸들러 — 등록만으로 백그라운드 알림 이벤트 크래시/경고 방지.
+// 실제 전체화면 라우팅은 앱이 열릴 때 App.tsx 의 getInitialNotification 에서 처리한다.
+notifee.onBackgroundEvent(async () => {});
 
 // ── 시스템 폰트 스케일 전역 차단 (60대 이상 타겟 — iOS 글자 크기 키운 사용자 화면 깨짐 방지) ──
 //

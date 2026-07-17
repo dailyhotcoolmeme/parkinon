@@ -11,12 +11,14 @@
  */
 import React, { useCallback, useEffect, useRef } from 'react';
 import { View, Text, StyleSheet, Animated, Easing, TouchableOpacity, StatusBar, BackHandler } from 'react-native';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useRoute, type RouteProp } from '@react-navigation/native';
 import { useTranslation } from 'react-i18next';
 import { Audio } from 'expo-av';
 import { Colors } from '../../constants/colors';
 import { PRESET_PREVIEW_ASSETS } from '../../constants/presetPreviewAssets';
 import { navigateTo } from '../../navigation/navigationRef';
+import { stopActiveAlarm } from '../../lib/localAlarm';
 import type { RootStackParamList } from '../../navigation/RootNavigator';
 
 const SYMBOL = require('../../../assets/parkinon-symbol-en.png');
@@ -28,6 +30,12 @@ export function AlarmScreen() {
   const kind = route.params?.kind ?? 'remind';
   const doseSlotId = route.params?.doseSlotId ?? null;
   const preview = route.params?.preview ?? false; // 미리보기면 실제 기록·알림 없음
+  // 약효추적 알람 문맥(kind==='track') — 몸상태 기록을 그 복용에 매칭.
+  const minutes = route.params?.minutes ?? null;
+  const medLogId = route.params?.medLogId ?? null;
+  const mealTime = route.params?.mealTime ?? null;
+  // 실제 알람을 띄운 notifee 알림 id(끌 때 소리 반복 중지용).
+  const notifId = route.params?.notifId ?? null;
 
   // 회전 애니메이션(끊김 없이 반복).
   const spin = useRef(new Animated.Value(0)).current;
@@ -40,9 +48,11 @@ export function AlarmScreen() {
   }, [spin]);
   const rotate = spin.interpolate({ inputRange: [0, 1], outputRange: ['0deg', '360deg'] });
 
-  // 알림음 반복 재생(끌 때까지). fileId 없으면 무음(시각만).
+  // 알림음 반복 재생 — 미리보기(preview)일 때만 자체 재생.
+  //   실제 알람은 notifee 포그라운드 서비스(loopSound)가 소리를 반복하므로 여기서 재생하면 이중.
   const soundRef = useRef<Audio.Sound | null>(null);
   useEffect(() => {
+    if (!preview) return; // 실제 알람: notifee 가 소리 담당
     let alive = true;
     (async () => {
       const asset = fileId ? PRESET_PREVIEW_ASSETS[fileId] : null;
@@ -68,13 +78,15 @@ export function AlarmScreen() {
       soundRef.current = null;
       if (s) s.unloadAsync().catch(() => {});
     };
-  }, [fileId]);
+  }, [fileId, preview]);
 
+  // 소리 중지 — 미리보기는 expo-av 언로드, 실제 알람은 notifee 포그라운드 서비스 중지+알림 제거.
   const stopSound = useCallback(async () => {
     const s = soundRef.current;
     soundRef.current = null;
     if (s) await s.unloadAsync().catch(() => {});
-  }, []);
+    if (!preview) await stopActiveAlarm(notifId);
+  }, [preview, notifId]);
 
   // 복용 완료(복약 알람) → 그 슬롯 약을 복용 완료 처리(실제 누른 시각·기존 기록 로직 재사용·멱등).
   //   Medication 탭으로 autoTakeSlotId 전달 → proceedSave 로 med_logs+약효추적+보호자알림+몸상태팝업.
@@ -90,10 +102,45 @@ export function AlarmScreen() {
   }, [stopSound, doseSlotId, preview]);
 
   // 약효추적 알람 → 몸상태 기록 화면으로.
+  //   실제: triggerMinutes(복용후 분)·doseSlotId·medLogId·mealTime 을 실어 기존 약효추적 알림 탭과
+  //         동일하게 처리(pendingBodyStateNotif + route params) → 약효 패턴(triggered_by='notification') 반영.
+  //   미리보기: 문맥 없이 몸상태 탭만(실제 기록 방지).
   const handleRecordTrack = useCallback(async () => {
     await stopSound();
-    navigateTo('Main', { screen: 'BodyStateTab', params: { screen: 'BodyState' } });
-  }, [stopSound]);
+    if (preview) {
+      navigateTo('Main', { screen: 'BodyStateTab', params: { screen: 'BodyState' } });
+      return;
+    }
+    const triggerTs = Date.now();
+    try {
+      await AsyncStorage.multiRemove(['pendingMedNotif', 'pendingExerciseNotif']);
+      await AsyncStorage.setItem(
+        'pendingBodyStateNotif',
+        JSON.stringify({
+          triggerMinutes: minutes,
+          triggerMealTime: mealTime,
+          triggerDoseSlotId: doseSlotId,
+          triggerMedLogId: medLogId,
+          ts: triggerTs,
+        }),
+      );
+    } catch {
+      /* pending 세팅 실패해도 route params 경로로 진행 */
+    }
+    navigateTo('Main', {
+      screen: 'BodyStateTab',
+      params: {
+        screen: 'BodyState',
+        params: {
+          triggerMinutes: minutes,
+          triggerMealTime: mealTime,
+          triggerDoseSlotId: doseSlotId,
+          triggerMedLogId: medLogId,
+          triggerTs,
+        },
+      },
+    });
+  }, [stopSound, preview, minutes, mealTime, doseSlotId, medLogId]);
 
   // 나중에 → 기록 없이 닫기(해당 탭으로만 이동).
   const handleLater = useCallback(async () => {

@@ -33,6 +33,7 @@ import { useAuth } from '../../context/AuthContext';
 import { DatePickerModal } from '../../components/common/DatePickerModal';
 import { navigateTo } from '../../navigation/navigationRef';
 import { supabase } from '../../lib/supabase';
+import { scheduleTrackAlarms, rescheduleRemindAlarms } from '../../lib/localAlarm';
 import { useNotificationBadge } from '../../context/NotificationBadgeContext';
 import { useDialog } from '../../context/DialogContext';
 import { HistoryTimeline } from '../../components/common/HistoryTimeline';
@@ -805,6 +806,20 @@ export function MedicationScreen() {
       ? displaySlots.find((s) => s.id === doseSlotId)
       : (mealTime ? displaySlots.find((s) => s.legacyKey === mealTime) : undefined);
 
+    // 약효추적 '알람처럼'/'30초' 슬롯 → 복용 순간 now+간격으로 로컬 전체화면 알람 예약(Android 전용).
+    //   기록이 그 복용에 매칭되도록 medLogId 함께 전달. basic/추적off/iOS 는 내부에서 no-op.
+    //   환자 본인 기기에서만(보호자 대신 기록 시엔 예약 안 함 — 보호자 폰에서 울리면 안 됨).
+    if (user?.role === 'patient' && selSlot?.trackEnabled && selSlot.trackAlarmMode !== 'basic') {
+      void scheduleTrackAlarms({
+        slotId: result.doseSlotId ?? selSlot.id ?? '',
+        medLogId: result.medLogId ?? null,
+        mealTime: mealTime,
+        intervals: selSlot.trackIntervals ?? [],
+        soundId: selSlot.trackSoundId,
+        alarmMode: selSlot.trackAlarmMode,
+      });
+    }
+
     // 약 기록 성공 → 종 아이콘 뱃지 즉시 갱신 (safety net)
     // useMedication 훅 내부에서 이미 읽음 처리하지만 Context 카운트 동기화를 위해 한 번 더 호출
     refreshBadge().catch(() => {});
@@ -1240,6 +1255,25 @@ export function MedicationScreen() {
   // dose_slots 환자면 N개 동적, 미이관 환자면 legacy 4슬롯 가상슬롯.
   // (resolveDisplaySlots 가 useMedication.slots 가 비면 meal_schedules 로 폴백)
   const displaySlots: DoseSlot[] = resolveDisplaySlots(doseSlots, userMealSchedules, notifPrefs);
+
+  // 정시 복용 '알람처럼'/'30초' 슬롯 → 로컬 전체화면 알람 재예약(Android 전용, iOS no-op).
+  //   시각·방식·소리·활성 변경 시에만 재예약(시그니처로 불필요한 재실행 방지). 앱이 약탭을 열/돌아올
+  //   때마다 최신 슬롯으로 재예약되어 서버 푸시 위에 전체화면 레이어가 유지된다.
+  const remindAlarmSignature = useMemo(
+    () =>
+      displaySlots
+        .map((s) => `${s.id}|${s.time}|${s.remindEnabled ? 1 : 0}|${s.remindAlarmMode}|${s.remindSoundId ?? ''}`)
+        .join(','),
+    [displaySlots],
+  );
+  useEffect(() => {
+    // 로컬 알람은 환자 본인 기기에서만 예약(보호자 기기가 환자 알람을 울리면 안 됨).
+    //   보호자가 환자 알림을 바꾸면 DB 반영 → 환자 기기가 다음 약탭 진입/앱 실행 시 재예약.
+    if (user?.role !== 'patient') return;
+    void rescheduleRemindAlarms(displaySlots);
+    // displaySlots 는 매 렌더 새 배열이라 시그니처로만 트리거.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [remindAlarmSignature, user?.role]);
 
   // ─── 슬롯 로딩 게이트(디폴트 시각 깜빡임 방지) ─────────────────────────────────
   // 콜드스타트(slotsCache 미스) 시 dose_slots 가 아직 도착하지 않았는데도

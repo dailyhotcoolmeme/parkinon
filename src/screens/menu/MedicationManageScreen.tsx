@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback, useRef } from 'react';
+import React, { useState, useEffect, useCallback, useRef, useMemo } from 'react';
 import {
   View,
   Text,
@@ -55,6 +55,7 @@ import { AlarmSoundPickerRow } from '../../components/common/AlarmSoundPickerRow
 import { MedSlotAssignModal } from '../../components/common/MedSlotAssignModal';
 import { PRESET_ALARM_SOUNDS, presetFileIdOf, type AlarmMode } from '../../constants/presetAlarmSounds';
 import { ensurePresetChannelForSoundId } from '../../lib/alarmSound';
+import { rescheduleRemindAlarms } from '../../lib/localAlarm';
 import { PRESET_PREVIEW_ASSETS } from '../../constants/presetPreviewAssets';
 import { recommendForSlotMeds } from '../../utils/recommendUtils';
 import { navigateTo } from '../../navigation/navigationRef';
@@ -1119,6 +1120,21 @@ export function MedicationManageScreen({ modeOverride, hideBack, hideTopBar, onG
   // medication_dose_slots 조인으로 medSlotMap(slotId → medId[])에 담는다.
   const [doseSlotList, setDoseSlotList] = useState<DoseSlot[]>([]);
   const [medSlotMap, setMedSlotMap] = useState<Record<string, string[]>>({}); // slotId → medId[]
+
+  // 정시 복용 '알람처럼'/'30초' 로컬 알람 재예약 — 환자 본인이 자기 슬롯 편집 시 즉시 반영.
+  //   보호자가 환자 알림을 편집할 땐 role!=='patient' 라 여기서 예약 안 함(환자 기기가 반영).
+  const remindAlarmSignature = useMemo(
+    () =>
+      doseSlotList
+        .map((s) => `${s.id}|${s.time}|${s.remindEnabled ? 1 : 0}|${s.remindAlarmMode}|${s.remindSoundId ?? ''}`)
+        .join(','),
+    [doseSlotList],
+  );
+  useEffect(() => {
+    if (user?.role !== 'patient') return;
+    void rescheduleRemindAlarms(doseSlotList);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [remindAlarmSignature, user?.role]);
   // 최신 loadDoseSlots 를 참조하는 ref — 콜백/모달 닫기에서 deps 안정적으로 재조회 호출용.
   // (loadDoseSlots 는 아래에서 선언되지만, ref 는 실제 호출 시점에 이미 채워져 있다.)
   const loadDoseSlotsRef = useRef<() => void>(() => {});
