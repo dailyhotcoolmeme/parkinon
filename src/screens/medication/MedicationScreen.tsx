@@ -743,13 +743,17 @@ export function MedicationScreen() {
         .eq('id', sid)
         .maybeSingle();
       const s: any = slot;
-      const justTaken =
-        s?.track_enabled && (s?.track_intervals?.length ?? 0) > 0
-          ? { takenAt: new Date(), trackIntervals: s.track_intervals as number[], slotLabel: s.label ?? null }
-          : null;
+      const trackOn = !!s?.track_enabled && (s?.track_intervals?.length ?? 0) > 0;
+      const justTaken = trackOn
+        ? { takenAt: new Date(), trackIntervals: s.track_intervals as number[], slotLabel: s.label ?? null }
+        : null;
       const info = await fetchNextNotifMessage(pid, justTaken).catch(() => null);
-      setNextNotifInfo(info ?? FALLBACK_NEXT_NOTIF);
-      setShowNextNotifModal(true);
+      setNextNotifInfo(info ?? FALLBACK_NEXT_NOTIF); // resolveAndShowNextNotif/닫기에서 이 값 사용
+      // 복용 직후 추적(track_intervals에 0 포함)이면 실제 흐름처럼 몸상태 권유 팝업을 먼저,
+      //   닫으면(onClose→resolveAndShowNextNotif) 다음알림 예고. 아니면 바로 다음알림.
+      const immediate = trackOn && (s.track_intervals as number[]).includes(0);
+      if (immediate) setShowBodyStateSuggest(true);
+      else setShowNextNotifModal(true);
     })();
   }, [routeParams.previewNextNotifSlotId, patientId, user?.role]);
 
