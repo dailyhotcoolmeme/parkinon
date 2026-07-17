@@ -146,6 +146,8 @@ type MedicationRouteParams = {
   doseSlotId?: string | null;
   // 전체화면 알람 '복용 완료' → 이 슬롯을 복용 완료 처리(기존 기록 로직 그대로).
   autoTakeSlotId?: string | null;
+  // 알람 미리보기 '복용 완료' → 실제 기록·알림 없이 '다음 알림 예고'만 표시(테스트용).
+  previewNextNotifSlotId?: string | null;
 };
 
 // 온보딩에서 초대번호를 건너뛴 첫 진입 회원에게 가족 연동을 1회 안내했는지 여부.
@@ -723,6 +725,33 @@ export function MedicationScreen() {
     navigation.setParams({ autoTakeSlotId: undefined } as any);
     void proceedSave({ mealTime: null, doseSlotId: sid });
   }, [routeParams.autoTakeSlotId, patientId, user?.role]);
+
+  // 알람 미리보기 '복용 완료' → 실제 기록·보호자알림 없이 '다음 알림 예고'만 계산해 표시.
+  const previewNextConsumedRef = useRef<string | null>(null);
+  useEffect(() => {
+    const sid = routeParams.previewNextNotifSlotId;
+    if (!sid || previewNextConsumedRef.current === sid) return;
+    const pid = patientId ?? (user?.role === 'patient' ? (user?.id ?? null) : null);
+    if (!pid) return; // 환자 해석 후 재실행
+    previewNextConsumedRef.current = sid;
+    navigation.setParams({ previewNextNotifSlotId: undefined } as any);
+    void (async () => {
+      // 슬롯의 추적 설정으로 justTaken 구성(추적 켜져 있으면 '복용 30분 후' 등도 후보) — 기록은 안 함.
+      const { data: slot } = await supabase
+        .from('dose_slots' as any)
+        .select('label, track_enabled, track_intervals')
+        .eq('id', sid)
+        .maybeSingle();
+      const s: any = slot;
+      const justTaken =
+        s?.track_enabled && (s?.track_intervals?.length ?? 0) > 0
+          ? { takenAt: new Date(), trackIntervals: s.track_intervals as number[], slotLabel: s.label ?? null }
+          : null;
+      const info = await fetchNextNotifMessage(pid, justTaken).catch(() => null);
+      setNextNotifInfo(info ?? FALLBACK_NEXT_NOTIF);
+      setShowNextNotifModal(true);
+    })();
+  }, [routeParams.previewNextNotifSlotId, patientId, user?.role]);
 
   const proceedSave = async (sel: { mealTime: MealTime | null; doseSlotId: string | null }) => {
     // ⚠️ 더블탭 방어(화면 단 in-flight 락): 이전 저장이 끝나기 전 두 번째 진입은 조용히 무시.

@@ -80,10 +80,12 @@ export function AlarmScreen() {
   //   Medication 탭으로 autoTakeSlotId 전달 → proceedSave 로 med_logs+약효추적+보호자알림+몸상태팝업.
   const handleTaken = useCallback(async () => {
     await stopSound();
-    // 미리보기면 기록 안 함(autoTakeSlotId 미전달) → 실제 med_logs·보호자 알림·사전기록 팝업 없음.
+    // 실제: autoTakeSlotId(기록+알림+다음알림). 미리보기: previewNextNotifSlotId(기록·알림 없이 다음알림만).
     navigateTo('Main', {
       screen: 'Medication',
-      params: (!preview && doseSlotId) ? { autoTakeSlotId: doseSlotId } : undefined,
+      params: doseSlotId
+        ? (preview ? { previewNextNotifSlotId: doseSlotId } : { autoTakeSlotId: doseSlotId })
+        : undefined,
     });
   }, [stopSound, doseSlotId, preview]);
 
