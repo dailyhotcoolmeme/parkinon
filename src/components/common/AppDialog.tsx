@@ -97,8 +97,8 @@ export function AppDialog({
     return () => sub.remove();
   }, [visible, cancelable, onDismiss]);
 
-  // 안전장치: 버튼 최대 3개
-  const safeButtons = buttons.slice(0, 3);
+  // 안전장치: 버튼 최대 4개(선택지 3 + 취소/닫기). 그 이상은 60대 가독성 위해 자름.
+  const safeButtons = buttons.slice(0, 4);
 
   // 연속된 row:true 버튼은 가로 한 줄로 묶는다. 나머지는 각자 세로 풀폭.
   // (row 플래그를 안 쓰는 기존 다이얼로그는 전부 길이 1 그룹 → 기존 세로 스택과 동일.)
