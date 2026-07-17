@@ -1,7 +1,10 @@
 # EAS Build archive ignore — keep upload small & clean (managed workflow regenerates native)
+# ⚠️ prebuild 네이티브 폴더는 반드시 앞에 '/'로 루트 앵커링. 앵커링 없는 android/·ios/ 는
+#    gitignore 문법상 트리 어디든 그 이름의 폴더를 매칭 → assets/alarm-presets/android(mp3)·
+#    assets/alarm-presets/ios(caf) 프리셋 에셋까지 업로드에서 제외되어 EAS 번들이 깨진다(경험).
 node_modules/
-ios/
-android/
+/ios/
+/android/
 .expo/
 dist/
 web-build/
