@@ -36,7 +36,7 @@ const DEFAULT_ALARM_CHANNEL = 'parkinon_alarm_default';
 // ⚠️ 임시 비활성(2026-07-18). Android 14 전체화면 권한 미허용(사이드로드 APK)이라 로컬 알람이
 //    전체화면 없이 스투ck 알림만 만들고 서버 알림과 이중으로 울렸다. 재빌드 때 전체화면 권한
 //    요청 + 탭 라우팅/이중알림 정리 후 true 로 재활성. false 인 동안엔 예약 안 하고 기존 것 정리만.
-const LOCAL_ALARM_ENABLED = false;
+const LOCAL_ALARM_ENABLED = true;
 
 function remindAlarmId(slotId: string): string {
   return `${ID_REMIND_PREFIX}${slotId}`;
@@ -104,8 +104,9 @@ function buildAlarmNotification(o: AlarmNotifOpts) {
       importance: AndroidImportance.HIGH,
       category: AndroidCategory.ALARM,
       visibility: AndroidVisibility.PUBLIC,
-      ongoing: true,
-      autoCancel: false,
+      // ⚠️ ongoing 금지 — 안 지워지는 스투ck 알림/배지 원인이었다. 스와이프로 지워지게 둔다.
+      ongoing: false,
+      autoCancel: true,
       // 잠금화면 위 전체화면(알람처럼만). 30초/기본은 fullScreenAction 없이 소리+헤드업.
       ...(isFull
         ? { fullScreenAction: { id: 'default', launchActivity: 'default' } }

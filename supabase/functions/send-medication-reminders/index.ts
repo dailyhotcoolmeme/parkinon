@@ -658,6 +658,9 @@ Deno.serve(async (_req: Request) => {
       if (await hasTakenMed(patientId, target, tz)) continue
 
       const { channelId, alarmMode } = remindChannelAndMode(target, slotAlarms, soundPrefs)
+      // '알람처럼' 슬롯은 환자 폰의 로컬 전체화면 알람이 정시 알림을 담당 → 서버 정시 알림 스킵(이중 방지).
+      //   (미복용 +10/+20분 서버 알림은 안전망으로 그대로 발송된다.)
+      if (alarmMode === 'alarm') continue
       const data = { type: 'medication_reminder', mealTime: target.mealTime, doseSlotId: target.doseSlotId, alarmMode }
       const title = isEn ? '💊 Medication time' : '💊 약 드실 시간이에요'
       const body = isEn

@@ -806,10 +806,6 @@ function AppInner() {
     const notifee = notifeeMod.default;
     const EventType = notifeeMod.EventType;
 
-    // 앱 시작 시 로컬 알람(임시 비활성) 잔여 정리 — 스투ck 알림/배지 즉시 제거.
-    // eslint-disable-next-line @typescript-eslint/no-var-requires
-    require('./src/lib/localAlarm').cancelAllLocalAlarms?.().catch?.(() => {});
-
     // 같은 알람이 콜드스타트(getInitialNotification)와 DELIVERED 로 이중 라우팅되는 것 방지.
     let lastRoutedId: string | null = null;
     let lastRoutedAt = 0;
@@ -847,12 +843,31 @@ function AppInner() {
       })
       .catch(() => {});
 
+    // 백그라운드에서 알람 탭 → index.ts onBackgroundEvent 가 저장한 pendingAlarmNotif 를 읽어 라우팅.
+    //   (앱이 background→foreground 로 올라올 때. AppState 'active' 마다 확인.)
+    const readPendingAlarm = async () => {
+      try {
+        const raw = await AsyncStorage.getItem('pendingAlarmNotif');
+        if (!raw) return;
+        await AsyncStorage.removeItem('pendingAlarmNotif');
+        const d = JSON.parse(raw);
+        routeToAlarm({ id: d.notifId, data: d }, false);
+      } catch {}
+    };
+    readPendingAlarm();
+    const appStateSub = AppState.addEventListener('change', (s) => {
+      if (s === 'active') readPendingAlarm();
+    });
+
     // 포그라운드: 알람이 앱 사용 중 울림 → 전체화면(DELIVERED, alarm만) / 탭(PRESS, 공통).
     const unsub = notifee.onForegroundEvent(({ type, detail }: any) => {
       if (type === EventType.DELIVERED) routeToAlarm(detail?.notification, true);
       else if (type === EventType.PRESS) routeToAlarm(detail?.notification, false);
     });
-    return () => unsub();
+    return () => {
+      unsub();
+      appStateSub.remove();
+    };
   }, []);
 
   useEffect(() => {

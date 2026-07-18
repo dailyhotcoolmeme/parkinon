@@ -24,9 +24,23 @@ notifee.registerForegroundService((notification: any) => {
   });
 });
 
-// 백그라운드 이벤트 핸들러 — 등록만으로 백그라운드 알림 이벤트 크래시/경고 방지.
-// 실제 전체화면 라우팅은 앱이 열릴 때 App.tsx 의 getInitialNotification 에서 처리한다.
-notifee.onBackgroundEvent(async () => {});
+// 백그라운드 이벤트 핸들러 — 앱이 백그라운드(실행 중이나 비포그라운드)일 때 알림을 탭하면
+// notifee 는 여기(onBackgroundEvent)로 PRESS 를 보낸다(onForegroundEvent/getInitialNotification 아님).
+// 로컬 알람(_pkAlarm) PRESS 면 AsyncStorage 에 저장 → 앱이 포그라운드로 올라올 때 App.tsx 가 읽어 AlarmScreen 라우팅.
+// eslint-disable-next-line @typescript-eslint/no-var-requires
+const AsyncStorage = require('@react-native-async-storage/async-storage').default;
+// eslint-disable-next-line @typescript-eslint/no-var-requires
+const { EventType } = require('@notifee/react-native');
+notifee.onBackgroundEvent(async ({ type, detail }: any) => {
+  if (type === EventType.PRESS && detail?.notification?.data?._pkAlarm === '1') {
+    try {
+      await AsyncStorage.setItem(
+        'pendingAlarmNotif',
+        JSON.stringify({ ...detail.notification.data, notifId: detail.notification.id, ts: Date.now() }),
+      );
+    } catch {}
+  }
+});
 
 // ── 시스템 폰트 스케일 전역 차단 (60대 이상 타겟 — iOS 글자 크기 키운 사용자 화면 깨짐 방지) ──
 //
