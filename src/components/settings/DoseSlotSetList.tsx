@@ -1487,6 +1487,7 @@ const MINUTES = Array.from({ length: 12 }, (_, i) => i * 5); // 0,5,…,55 (5분
 
 // ─── 스크롤 컬럼 선택기 (진료 일정 시간선택과 동일 방식 — 탭 선택, 휠 아님) ──────────
 const PICK_ITEM_H = 50;
+const PICK_COL_H = 250; // colsRow 높이(=뷰포트). 이 안에 다 들어오는 짧은 목록은 스크롤 불필요.
 function PickerCol<T extends string | number>({
   items, selected, onSelect,
 }: {
@@ -1496,20 +1497,24 @@ function PickerCol<T extends string | number>({
 }) {
   const ref = useRef<FlatList<{ value: T; label: string }>>(null);
   const selectedIndex = Math.max(0, items.findIndex((it) => it.value === selected));
+  // 항목이 뷰포트에 다 들어오면(예: 오전/오후 2개) 선택 항목을 맨 위로 스크롤하지 않는다.
+  //   안 그러면 '오후'(index 1) 선택 시 '오전'(index 0)이 위로 밀려 숨어 고를 수 없다.
+  const fitsAll = items.length * PICK_ITEM_H <= PICK_COL_H;
   useEffect(() => {
+    if (fitsAll) return;
     if (ref.current) ref.current.scrollToOffset({ offset: selectedIndex * PICK_ITEM_H, animated: false });
-  }, [selected, selectedIndex]);
+  }, [selected, selectedIndex, fitsAll]);
   return (
     <View style={{ flex: 1 }}>
       <FlatList
         ref={ref}
         data={items}
         keyExtractor={(it) => String(it.value)}
-        initialScrollIndex={selectedIndex}
+        initialScrollIndex={fitsAll ? 0 : selectedIndex}
         getItemLayout={(_, index) => ({ length: PICK_ITEM_H, offset: PICK_ITEM_H * index, index })}
         showsVerticalScrollIndicator={false}
         onScrollToIndexFailed={() => {}}
-        onLayout={() => { if (ref.current) ref.current.scrollToOffset({ offset: selectedIndex * PICK_ITEM_H, animated: false }); }}
+        onLayout={() => { if (!fitsAll && ref.current) ref.current.scrollToOffset({ offset: selectedIndex * PICK_ITEM_H, animated: false }); }}
         renderItem={({ item }) => {
           const isSel = item.value === selected;
           return (
