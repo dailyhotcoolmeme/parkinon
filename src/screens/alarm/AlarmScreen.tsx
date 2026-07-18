@@ -48,11 +48,10 @@ export function AlarmScreen() {
   }, [spin]);
   const rotate = spin.interpolate({ inputRange: [0, 1], outputRange: ['0deg', '360deg'] });
 
-  // 알림음 반복 재생 — 미리보기(preview)일 때만 자체 재생.
-  //   실제 알람은 notifee 포그라운드 서비스(loopSound)가 소리를 반복하므로 여기서 재생하면 이중.
+  // 알림음 반복 재생(끌 때까지) — 미리보기·실제 알람 모두.
+  //   실제 알람: 채널음이 1회 울린 뒤, 전체화면(이 화면)이 뜨면 여기서 끌 때까지 반복.
   const soundRef = useRef<Audio.Sound | null>(null);
   useEffect(() => {
-    if (!preview) return; // 실제 알람: notifee 가 소리 담당
     let alive = true;
     (async () => {
       const asset = fileId ? PRESET_PREVIEW_ASSETS[fileId] : null;
@@ -78,7 +77,7 @@ export function AlarmScreen() {
       soundRef.current = null;
       if (s) s.unloadAsync().catch(() => {});
     };
-  }, [fileId, preview]);
+  }, [fileId]);
 
   // 소리 중지 — 미리보기는 expo-av 언로드, 실제 알람은 notifee 포그라운드 서비스 중지+알림 제거.
   const stopSound = useCallback(async () => {

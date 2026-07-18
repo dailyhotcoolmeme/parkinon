@@ -20,7 +20,6 @@ import notifee, {
   AndroidImportance,
   AndroidCategory,
   AndroidVisibility,
-  AndroidForegroundServiceType,
   TriggerType,
   RepeatFrequency,
   AlarmType,
@@ -87,6 +86,10 @@ interface AlarmNotifOpts {
 /** notifee 알람 알림 객체(공통). */
 function buildAlarmNotification(o: AlarmNotifOpts) {
   const isFull = o.alarmMode === 'alarm';
+  // ⚠️ 포그라운드 서비스(asForegroundService/loopSound)는 쓰지 않는다. 잠금(백그라운드)에서
+  //    알람이 발동할 때 Android 12+ 가 백그라운드 FGS 시작을 막아 fullScreenAction(전체화면)까지
+  //    방해할 수 있다. 대신: 알림 채널음이 1회 울리고 → fullScreenAction 이 AlarmScreen 을 잠금화면
+  //    위로 띄우면 → AlarmScreen(expo-av)이 끌 때까지 소리를 반복한다.
   return {
     id: o.id,
     title: o.title,
@@ -96,18 +99,13 @@ function buildAlarmNotification(o: AlarmNotifOpts) {
       importance: AndroidImportance.HIGH,
       category: AndroidCategory.ALARM,
       visibility: AndroidVisibility.PUBLIC,
-      // 울리는 동안 소리 반복. FGS 로 앱이 죽어있어도 재생.
-      asForegroundService: true,
-      foregroundServiceTypes: [AndroidForegroundServiceType.FOREGROUND_SERVICE_TYPE_SHORT_SERVICE],
-      loopSound: true,
       ongoing: true,
       autoCancel: false,
-      // 잠금화면 위 전체화면(알람처럼만). 30초는 전체화면 아님.
+      // 잠금화면 위 전체화면(알람처럼만). 30초/기본은 fullScreenAction 없이 소리+헤드업.
       ...(isFull
         ? { fullScreenAction: { id: 'default', launchActivity: 'default' } }
         : {}),
       pressAction: { id: 'default', launchActivity: 'default' },
-      // 진동 패턴(대기 0.3s, 진동 0.5s 반복 느낌)
       vibrationPattern: [300, 500],
     },
     data: { ...o.data, _pkAlarm: '1', alarmMode: o.alarmMode, kind: o.kind, fileId: o.fileId ?? '' },
