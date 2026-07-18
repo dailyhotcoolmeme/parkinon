@@ -33,6 +33,11 @@ const ID_REMIND_PREFIX = 'pkalarm_remind_';
 const ID_TRACK_PREFIX = 'pkalarm_track_';
 const DEFAULT_ALARM_CHANNEL = 'parkinon_alarm_default';
 
+// ⚠️ 임시 비활성(2026-07-18). Android 14 전체화면 권한 미허용(사이드로드 APK)이라 로컬 알람이
+//    전체화면 없이 스투ck 알림만 만들고 서버 알림과 이중으로 울렸다. 재빌드 때 전체화면 권한
+//    요청 + 탭 라우팅/이중알림 정리 후 true 로 재활성. false 인 동안엔 예약 안 하고 기존 것 정리만.
+const LOCAL_ALARM_ENABLED = false;
+
 function remindAlarmId(slotId: string): string {
   return `${ID_REMIND_PREFIX}${slotId}`;
 }
@@ -155,17 +160,40 @@ async function scheduleRemindAlarmForSlot(slot: DoseSlot): Promise<void> {
 export async function rescheduleRemindAlarms(slots: DoseSlot[]): Promise<void> {
   if (Platform.OS !== 'android') return;
   try {
-    const existing = await notifee.getTriggerNotificationIds();
-    await Promise.all(
-      existing
-        .filter((id) => id.startsWith(ID_REMIND_PREFIX))
-        .map((id) => notifee.cancelTriggerNotification(id).catch(() => {})),
-    );
+    // 기존 로컬 알람(예약+표시중)을 모두 정리 — 스투ck 알림/배지 제거 포함.
+    await cancelAllLocalAlarms();
+    if (!LOCAL_ALARM_ENABLED) return; // 비활성 동안엔 정리만 하고 예약 안 함
     for (const slot of slots) {
       await scheduleRemindAlarmForSlot(slot);
     }
   } catch {
     /* 예약 실패해도 서버 푸시가 안전망 → 조용히 무시 */
+  }
+}
+
+/**
+ * 이 앱이 만든 로컬 알람을 모두 취소 — 예약(trigger) + 이미 표시 중인 알림(ongoing 배지 포함).
+ *   앱 시작 시·재예약 시 호출해 스투ck 알림/배지를 정리한다.
+ */
+export async function cancelAllLocalAlarms(): Promise<void> {
+  if (Platform.OS !== 'android') return;
+  try {
+    const triggers = await notifee.getTriggerNotificationIds();
+    await Promise.all(
+      triggers.filter(isLocalAlarmId).map((id) => notifee.cancelNotification(id).catch(() => {})),
+    );
+  } catch {
+    /* noop */
+  }
+  try {
+    const displayed = await notifee.getDisplayedNotifications();
+    await Promise.all(
+      displayed
+        .filter((n) => n.notification?.data?._pkAlarm === '1' || (n.id ? isLocalAlarmId(n.id) : false))
+        .map((n) => (n.id ? notifee.cancelNotification(n.id).catch(() => {}) : Promise.resolve())),
+    );
+  } catch {
+    /* noop */
   }
 }
 
@@ -183,6 +211,7 @@ export async function scheduleTrackAlarms(opts: {
   alarmMode: AlarmMode;
 }): Promise<void> {
   if (Platform.OS !== 'android' || opts.alarmMode === 'basic') return;
+  if (!LOCAL_ALARM_ENABLED) return; // 임시 비활성
   const channelId = await ensureAlarmChannel(opts.soundId);
   const fileId = presetFileIdOf(opts.soundId);
   const now = Date.now();

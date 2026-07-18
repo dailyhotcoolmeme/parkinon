@@ -806,6 +806,10 @@ function AppInner() {
     const notifee = notifeeMod.default;
     const EventType = notifeeMod.EventType;
 
+    // 앱 시작 시 로컬 알람(임시 비활성) 잔여 정리 — 스투ck 알림/배지 즉시 제거.
+    // eslint-disable-next-line @typescript-eslint/no-var-requires
+    require('./src/lib/localAlarm').cancelAllLocalAlarms?.().catch?.(() => {});
+
     // 같은 알람이 콜드스타트(getInitialNotification)와 DELIVERED 로 이중 라우팅되는 것 방지.
     let lastRoutedId: string | null = null;
     let lastRoutedAt = 0;
