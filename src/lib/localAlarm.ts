@@ -99,13 +99,13 @@ interface AlarmNotifOpts {
 }
 
 /**
- * notifee 로컬 알람 알림 객체 — 방식별로 다르게 구성.
- *   - 'alarm'  (알람처럼): 채널 소리 1회 + 잠금화면 위 전체화면(끌 때까지 화면 유지·반복 아님).
- *   - 'sound30'(30초 동안): 포그라운드서비스 + loopSound 로 소리 30초간 반복(index.ts 러너가 30초 뒤
- *                            자동 종료). 전체화면 없음(탭 시에만 약복용/몸상태 화면으로).
+ * notifee 전체화면 로컬 알람('알람처럼') 알림 객체.
+ *   포그라운드서비스 + loopSound 로 **끌 때까지 소리 반복** + 잠금화면 위 전체화면(AlarmScreen).
+ *   전체화면이 앱을 포그라운드로 올리므로 FGS 가 유지된다(30초 때처럼 백그라운드에서 ~10초 뒤
+ *   조기 종료되지 않음). 종료: AlarmScreen 끄기 버튼 → stopActiveAlarm(stopForegroundService).
+ *   shortService 시스템 상한(~3분)에서도 자동 종료 → 무한정 울리지 않음.
  */
 function buildAlarmNotification(o: AlarmNotifOpts) {
-  const isSound30 = o.alarmMode === 'sound30';
   return {
     id: o.id,
     title: o.title,
@@ -116,29 +116,22 @@ function buildAlarmNotification(o: AlarmNotifOpts) {
       importance: AndroidImportance.HIGH,
       category: AndroidCategory.ALARM,
       visibility: AndroidVisibility.PUBLIC,
-      // 30초: 지속(반복 재생), alarm: 단발 + 스와이프로 지워짐.
-      ongoing: isSound30,
-      autoCancel: !isSound30,
-      loopSound: isSound30, // 30초 동안 소리 반복(FGS 러너가 30초 뒤 stop)
-      // 30초는 포그라운드서비스로 물려 소리를 30초 반복. alarm 은 잠금화면 위 전체화면.
-      //   ⚠️ 안드14+: 화면 끈 백그라운드에서 시작한 FGS 는 '타입 미지정'이면 ~10초 뒤 시스템이
-      //   강제 종료한다(실측). foregroundServiceTypes 로 shortService 를 명시해야 30초를 끝까지 돈다
-      //   (매니페스트 shortService 선언 + FOREGROUND_SERVICE_SHORT_SERVICE 권한과 짝).
-      ...(isSound30
-        ? {
-            asForegroundService: true,
-            foregroundServiceTypes: [
-              AndroidForegroundServiceType.FOREGROUND_SERVICE_TYPE_SHORT_SERVICE,
-            ],
-          }
-        : { fullScreenAction: { id: 'default', launchActivity: 'default' } }),
+      ongoing: true, // 끌 때까지 유지(스와이프로 안 지워짐 — 끄기 버튼으로만)
+      autoCancel: false,
+      loopSound: true, // 끌 때까지 소리 반복
+      asForegroundService: true,
+      // 안드14+: FGS 는 타입 명시 필요. 전체화면이 앱을 포그라운드로 올려 서비스가 유지된다.
+      foregroundServiceTypes: [
+        AndroidForegroundServiceType.FOREGROUND_SERVICE_TYPE_SHORT_SERVICE,
+      ],
+      fullScreenAction: { id: 'default', launchActivity: 'default' }, // 잠금화면 위 전체화면
       pressAction: { id: 'default', launchActivity: 'default' },
     },
     data: { ...o.data, _pkAlarm: '1', alarmMode: o.alarmMode, kind: o.kind, fileId: o.fileId ?? '' },
   };
 }
 
-/** 정시 복용 로컬 알람 예약 — '알람처럼'/'30초 동안'만. basic·비활성·iOS 면 취소만. */
+/** 정시 복용 로컬 알람 예약 — '알람처럼'만. basic·비활성·iOS 면 취소만. */
 async function scheduleRemindAlarmForSlot(slot: DoseSlot): Promise<void> {
   if (Platform.OS !== 'android' || !slot.id) return;
   const id = remindAlarmId(slot.id);
@@ -189,14 +182,42 @@ let rescheduleChain: Promise<void> = Promise.resolve();
 async function doRescheduleRemindAlarms(slots: DoseSlot[]): Promise<void> {
   if (Platform.OS !== 'android') return;
   try {
-    // 기존 로컬 알람(예약+표시중)을 모두 정리 — 스투ck 알림/배지 제거 포함.
-    await cancelAllLocalAlarms();
+    // ⚠️ 기존 '정시(remind)' 로컬 알람만 정리하고 재예약한다. 약효추적(track) 알람은 건드리지 않는다!
+    //   [버그 방지] 복용완료 때 예약된 track 알람(예: 30분 뒤)이 있는데, 그 사이 앱을 열거나 약탭에
+    //   들어가 remind 재예약이 돌면 cancelAllLocalAlarms 가 track 알람까지 지워 약효추적이 안 울린다.
+    //   → remind 만 취소. track 은 일회성이라 발동 시 자동 소멸하므로 여기서 정리 불필요.
+    await cancelRemindAlarms();
     if (!LOCAL_ALARM_ENABLED) return; // 비활성 동안엔 정리만 하고 예약 안 함
     for (const slot of slots) {
       await scheduleRemindAlarmForSlot(slot);
     }
   } catch {
     /* 예약 실패해도 서버 푸시가 안전망 → 조용히 무시 */
+  }
+}
+
+/** 예약·표시 중인 '정시(remind)' 로컬 알람만 취소. track 알람은 절대 건드리지 않음(위 주석 참조). */
+async function cancelRemindAlarms(): Promise<void> {
+  if (Platform.OS !== 'android') return;
+  try {
+    const triggers = await notifee.getTriggerNotificationIds();
+    await Promise.all(
+      triggers
+        .filter((id) => id.startsWith(ID_REMIND_PREFIX))
+        .map((id) => notifee.cancelNotification(id).catch(() => {})),
+    );
+  } catch {
+    /* noop */
+  }
+  try {
+    const displayed = await notifee.getDisplayedNotifications();
+    await Promise.all(
+      displayed
+        .filter((n) => (n.id ? n.id.startsWith(ID_REMIND_PREFIX) : false))
+        .map((n) => (n.id ? notifee.cancelNotification(n.id).catch(() => {}) : Promise.resolve())),
+    );
+  } catch {
+    /* noop */
   }
 }
 

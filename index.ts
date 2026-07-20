@@ -6,23 +6,20 @@ const notifee = require('@notifee/react-native').default;
 import App from './App';
 
 // ── 알람 포그라운드 서비스(소리 반복) ──────────────────────────────────────────
-// "알람처럼"/"30초" 로컬 알람은 asForegroundService+loopSound 로 울린다. 이 러너가 서비스를
-// 살아있게 유지 → 그동안 채널 소리가 반복 재생된다.
-//   - sound30: 30초 후 stopForegroundService() 로 자동 종료.
-//   - alarm  : 사용자가 AlarmScreen 버튼(→ stopActiveAlarm)으로 끌 때까지 유지.
-//              (SHORT_SERVICE 시스템 상한 ~3분 도달 시 시스템이 자동 종료.)
+// "알람처럼" 로컬 알람은 asForegroundService+loopSound 로 울린다. 이 러너가 서비스를 살아있게
+// 유지 → 그동안 채널 소리가 반복 재생된다. 사용자가 AlarmScreen 끄기 버튼(→ stopActiveAlarm →
+// stopForegroundService)을 누르면 그 즉시 종료된다.
+//   ⚠️ 안전장치: 안 끄면 자동 종료한다. 안드14 shortService 시스템 상한(~3분) 직전에 스스로
+//   정리해 크래시/ANR 을 막는다. 'alarm'=2분(그동안 반복 후 소리만 멈춤·AlarmScreen 은 유지).
+//   (sound30 은 방식에서 제거됐지만, 옛 예약이 남아 발동할 경우 대비해 30초 분기 유지.)
 notifee.registerForegroundService((notification: any) => {
   return new Promise((resolve) => {
     const mode = notification?.data?.alarmMode;
-    if (mode === 'sound30') {
-      // 30초(20초 내외) 후 소리 종료 → 포그라운드서비스 정지(그 알림도 함께 제거됨).
-      //   무음 재게시(백업) 안 함 — 오너 결정. 안 드시면 나중에 서버 미복용 알림이 온다.
-      setTimeout(() => {
-        notifee.stopForegroundService().catch(() => {});
-        resolve(undefined);
-      }, 30000);
-    }
-    // 'alarm' → resolve 하지 않음(끌 때까지). stopForegroundService 호출 시 러너가 정리됨.
+    const autoStopMs = mode === 'sound30' ? 30000 : 120000;
+    setTimeout(() => {
+      notifee.stopForegroundService().catch(() => {});
+      resolve(undefined);
+    }, autoStopMs);
   });
 });
 
