@@ -24,22 +24,30 @@ notifee.registerForegroundService((notification: any) => {
   });
 });
 
-// 백그라운드 이벤트 핸들러 — 앱이 백그라운드(실행 중이나 비포그라운드)일 때 알림을 탭하면
-// notifee 는 여기(onBackgroundEvent)로 PRESS 를 보낸다(onForegroundEvent/getInitialNotification 아님).
-// 로컬 알람(_pkAlarm) PRESS 면 AsyncStorage 에 저장 → 앱이 포그라운드로 올라올 때 App.tsx 가 읽어 AlarmScreen 라우팅.
+// 백그라운드 이벤트 핸들러 — 앱이 백그라운드(실행 중이나 비포그라운드)일 때 알림 이벤트가 온다.
+//   ⚠️ 핵심: 화면 끈 상태에서 "알람처럼"이 자동 발동하면 사용자가 탭한 게 아니므로 이벤트 종류가
+//      PRESS 가 아니라 DELIVERED 다. 이전엔 PRESS 만 처리해 DELIVERED(자동발동)를 통째로 무시 →
+//      fullScreenAction 으로 화면은 뜨는데 AlarmScreen 라우팅이 안 돼 노치 아이콘만 나왔다.
+//   → 로컬 알람(_pkAlarm) 은 DELIVERED(자동) + PRESS(탭) 둘 다 AsyncStorage 에 저장하고,
+//     앱이 포그라운드로 올라올 때 App.tsx(AppState 'active')가 읽어 AlarmScreen 으로 라우팅한다.
 // eslint-disable-next-line @typescript-eslint/no-var-requires
 const AsyncStorage = require('@react-native-async-storage/async-storage').default;
 // eslint-disable-next-line @typescript-eslint/no-var-requires
 const { EventType } = require('@notifee/react-native');
 notifee.onBackgroundEvent(async ({ type, detail }: any) => {
-  if (type === EventType.PRESS && detail?.notification?.data?._pkAlarm === '1') {
-    try {
-      await AsyncStorage.setItem(
-        'pendingAlarmNotif',
-        JSON.stringify({ ...detail.notification.data, notifId: detail.notification.id, ts: Date.now() }),
-      );
-    } catch {}
-  }
+  const data = detail?.notification?.data;
+  if (data?._pkAlarm !== '1') return;
+  // DELIVERED(자동발동): '알람처럼'만 전체화면 라우팅 대상(30초/기본은 화면 안 띄움).
+  // PRESS(탭): 방식 무관하게 화면 진입(사용자가 눌렀으니).
+  const shouldRoute =
+    type === EventType.PRESS || (type === EventType.DELIVERED && data.alarmMode === 'alarm');
+  if (!shouldRoute) return;
+  try {
+    await AsyncStorage.setItem(
+      'pendingAlarmNotif',
+      JSON.stringify({ ...data, notifId: detail.notification.id, ts: Date.now() }),
+    );
+  } catch {}
 });
 
 // ── 시스템 폰트 스케일 전역 차단 (60대 이상 타겟 — iOS 글자 크기 키운 사용자 화면 깨짐 방지) ──

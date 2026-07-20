@@ -843,20 +843,40 @@ function AppInner() {
       })
       .catch(() => {});
 
-    // 백그라운드에서 알람 탭 → index.ts onBackgroundEvent 가 저장한 pendingAlarmNotif 를 읽어 라우팅.
-    //   (앱이 background→foreground 로 올라올 때. AppState 'active' 마다 확인.)
+    // 백그라운드에서 알람 발동/탭 → index.ts onBackgroundEvent 가 저장한 pendingAlarmNotif 를 읽어 라우팅.
+    //   ⚠️ 경쟁 방지: onBackgroundEvent(헤드리스)의 저장과 fullScreenAction 의 액티비티 실행이 거의
+    //      동시라, 앱이 먼저 읽으면 아직 저장 전일 수 있다 → 짧게 재시도(최대 ~3초)해서 놓치지 않게 한다.
     const readPendingAlarm = async () => {
+      for (let i = 0; i < 15; i++) {
+        try {
+          const raw = await AsyncStorage.getItem('pendingAlarmNotif');
+          if (raw) {
+            await AsyncStorage.removeItem('pendingAlarmNotif');
+            const d = JSON.parse(raw);
+            routeToAlarm({ id: d.notifId, data: d }, false);
+            return;
+          }
+        } catch {}
+        await new Promise((r) => setTimeout(r, 200));
+      }
+    };
+    // ⚠️ 앱이 이미 백그라운드에서 살아있던 상태(완전 종료 아님)로 알람이 울리면, mount-1회성
+    //   getInitialNotification() 은 재실행 안 되고 onForegroundEvent(DELIVERED)도 JS 브릿지가
+    //   막 resume되는 타이밍과 경쟁해 놓칠 수 있다(실측: 잠금화면 위로 액티비티는 뜨는데 AlarmScreen
+    //   라우팅이 안 됨). AppState 'active'마다 getInitialNotification() 을 다시 확인해 이 빈틈을 메운다.
+    const recheckInitialNotification = async () => {
       try {
-        const raw = await AsyncStorage.getItem('pendingAlarmNotif');
-        if (!raw) return;
-        await AsyncStorage.removeItem('pendingAlarmNotif');
-        const d = JSON.parse(raw);
-        routeToAlarm({ id: d.notifId, data: d }, false);
+        const initial = await notifee.getInitialNotification();
+        if (initial?.notification) routeToAlarm(initial.notification, true);
       } catch {}
     };
-    readPendingAlarm();
+    const onAppActive = () => {
+      readPendingAlarm();
+      recheckInitialNotification();
+    };
+    onAppActive();
     const appStateSub = AppState.addEventListener('change', (s) => {
-      if (s === 'active') readPendingAlarm();
+      if (s === 'active') onAppActive();
     });
 
     // 포그라운드: 알람이 앱 사용 중 울림 → 전체화면(DELIVERED, alarm만) / 탭(PRESS, 공통).
