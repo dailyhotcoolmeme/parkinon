@@ -1292,7 +1292,7 @@ export function MedicationManageScreen({ modeOverride, hideBack, hideTopBar, onG
       title:
         recordCount === null
           ? t('medManage.recordsMayExist')
-          : t('medManage.recordsCount', { n: recordCount }),
+          : t('medManage.recordsCount', { count: recordCount }),
       message: t('medManage.deleteWithRecordsQ'),
       buttons: [
         { id: 'withRecords', text: t('medManage.deleteWithRecords'), style: 'destructiveSolid', row: true },
