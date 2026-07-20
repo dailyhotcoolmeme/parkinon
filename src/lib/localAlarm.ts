@@ -21,6 +21,7 @@ import notifee, {
   AndroidImportance,
   AndroidCategory,
   AndroidVisibility,
+  AndroidForegroundServiceType,
   TriggerType,
   RepeatFrequency,
   AlarmType,
@@ -119,8 +120,16 @@ function buildAlarmNotification(o: AlarmNotifOpts) {
       autoCancel: !isSound30,
       loopSound: isSound30, // 30초 동안 소리 반복(FGS 러너가 30초 뒤 stop)
       // 30초는 포그라운드서비스로 물려 소리를 30초 반복. alarm 은 잠금화면 위 전체화면.
+      //   ⚠️ 안드14+: 화면 끈 백그라운드에서 시작한 FGS 는 '타입 미지정'이면 ~10초 뒤 시스템이
+      //   강제 종료한다(실측). foregroundServiceTypes 로 shortService 를 명시해야 30초를 끝까지 돈다
+      //   (매니페스트 shortService 선언 + FOREGROUND_SERVICE_SHORT_SERVICE 권한과 짝).
       ...(isSound30
-        ? { asForegroundService: true }
+        ? {
+            asForegroundService: true,
+            foregroundServiceTypes: [
+              AndroidForegroundServiceType.FOREGROUND_SERVICE_TYPE_SHORT_SERVICE,
+            ],
+          }
         : { fullScreenAction: { id: 'default', launchActivity: 'default' } }),
       pressAction: { id: 'default', launchActivity: 'default' },
     },
