@@ -8,6 +8,7 @@ import {
   Dimensions,
   Modal,
   Linking,
+  Image,
 } from 'react-native';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useTranslation } from 'react-i18next';
@@ -215,6 +216,9 @@ export function MedicationScreen() {
   const [showMealTimeModal, setShowMealTimeModal] = useState(false);
   const [showBodyStatePopup, setShowBodyStatePopup] = useState(false);
   const [showBodyStateSuggest, setShowBodyStateSuggest] = useState(false);
+  // 전체화면 알람 '복용완료' 진입 시, 기록~몸상태 팝업까지 맨 약복용화면이 새어 번쩍이지 않게
+  //   불투명 초록 덮개를 씌운다(알람→덮개→팝업만 보이도록). 팝업이 올라온 뒤 제거.
+  const [autoTakeCovering, setAutoTakeCovering] = useState(false);
   // 알람 미리보기 시퀀스 진행 중 — '기록하기'가 실제 기록 화면으로 가지 않게 하는 가드.
   const [previewMode, setPreviewMode] = useState(false);
   const [selectedMealTime, setSelectedMealTime] = useState<MealTime | null>(null);
@@ -726,8 +730,16 @@ export function MedicationScreen() {
     if (!patientReady) return;
     autoTakeConsumedRef.current = sid;
     navigation.setParams({ autoTakeSlotId: undefined } as any);
+    setAutoTakeCovering(true); // 맨 약복용화면 번쩍임 차단(팝업 올라오면 제거)
     void proceedSave({ mealTime: null, doseSlotId: sid });
   }, [routeParams.autoTakeSlotId, patientId, user?.role]);
+
+  // 덮개 안전장치 — 혹시 후속 팝업이 안 떠도(조기 반환 등) 최대 5초 뒤 강제 해제(초록 화면 잔류 방지).
+  useEffect(() => {
+    if (!autoTakeCovering) return;
+    const t = setTimeout(() => setAutoTakeCovering(false), 5000);
+    return () => clearTimeout(t);
+  }, [autoTakeCovering]);
 
   // 알람 미리보기 '복용 완료' → 실제 기록·보호자알림 없이 '다음 알림 예고'만 계산해 표시.
   const previewNextConsumedRef = useRef<string | null>(null);
@@ -944,20 +956,29 @@ export function MedicationScreen() {
   const handleSavingHidden = useCallback(() => {
     const pending = pendingNextRef.current;
     pendingNextRef.current = null;
-    if (!pending) return;
+    // autoTake(알람 복용완료) 덮개: 후속 팝업이 올라온 뒤(350ms) 제거해 맨 화면 노출 없이 전환.
+    const dropCoverAfterPopup = () => setTimeout(() => setAutoTakeCovering(false), 350);
+    if (!pending) {
+      setAutoTakeCovering(false);
+      return;
+    }
     switch (pending.kind) {
       case 'error':
         dialog.alert({ title: pending.title, message: pending.message });
+        setAutoTakeCovering(false); // 에러 다이얼로그는 즉시(그 뒤 맨 화면 노출은 정상)
         break;
       case 'preMed':
         setShowPreMedInfo(true);
+        dropCoverAfterPopup();
         break;
       case 'bodyStateSuggest':
         setShowBodyStateSuggest(true);
+        dropCoverAfterPopup();
         break;
       case 'nextNotif':
         setNextNotifInfo(pending.info);
         setShowNextNotifModal(true);
+        dropCoverAfterPopup();
         break;
     }
   }, [dialog]);
@@ -1687,12 +1708,36 @@ export function MedicationScreen() {
         minVisibleMs={500}
         onHidden={handleSavingHidden}
       />
+
+      {/* 전체화면 알람 '복용완료' 진입 시, 기록~몸상태 팝업까지 맨 약복용화면이 새어 번쩍이지 않게
+          씌우는 불투명 초록 덮개(알람 화면과 같은 초록). 저장 스피너(zIndex 9999)는 이 위에 뜨고,
+          팝업(Modal)도 이 위에 뜬다 → 덮개는 그 사이 맨 화면만 가린다. 팝업 올라온 뒤 제거된다. */}
+      {autoTakeCovering && (
+        <View style={styles.autoTakeCover} pointerEvents="auto">
+          <Image
+            source={require('../../../assets/parkinon-symbol-en.png')}
+            style={styles.autoTakeCoverSymbol}
+            resizeMode="contain"
+          />
+        </View>
+      )}
     </SafeAreaView>
   );
 }
 
 const styles = StyleSheet.create({
   safeArea: { flex: 1, backgroundColor: Colors.background },
+  // 알람 복용완료 전환용 불투명 초록 덮개(알람 화면과 같은 초록). 저장 스피너(zIndex 9999)·팝업(Modal)
+  //   은 이 위에 뜨므로, 덮개는 그 사이 '맨 약복용화면'이 새어 번쩍이는 것만 가린다.
+  autoTakeCover: {
+    ...StyleSheet.absoluteFillObject,
+    zIndex: 500,
+    elevation: 500,
+    backgroundColor: Colors.primary,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  autoTakeCoverSymbol: { width: 96, height: 96, opacity: 0.95 },
 
   dateHeader: {
     height: DATE_HEADER_H,
