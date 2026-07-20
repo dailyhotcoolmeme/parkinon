@@ -344,6 +344,10 @@ function presetFileIdFromChannel(channelId: string): string | null {
   return m ? m[1] : null
 }
 
+// '알람처럼' 슬롯의 서버 무음 백업 채널(클라 alarmSound.SILENT_BACKUP_CHANNEL 과 동일 id).
+//   소리는 로컬 알람이 담당 → 서버는 이 채널로 소리 없이 백업 알림만 띄운다.
+const SILENT_BACKUP_CHANNEL = 'parkinon_alarm_fs_silent'
+
 /**
  * 저장된 알림음 id → Android channelId.
  * - 'preset:<fileId>' → 번들 프리셋 채널 `parkinon_preset_<fileId>` (클라 presetChannelIdAndroid 와 동일)
@@ -657,9 +661,13 @@ Deno.serve(async (_req: Request) => {
       if (isMuted(prefs, target)) continue
       if (await hasTakenMed(patientId, target, tz)) continue
 
-      const { channelId, alarmMode } = remindChannelAndMode(target, slotAlarms, soundPrefs)
-      // ⚠️ 서버=기본(항상 울림). '알람처럼'도 서버 알림을 반드시 보낸다(안전망·정시·소리 보장).
-      //   로컬 전체화면은 보너스(무음)라, 로컬이 Doze/경쟁으로 실패해도 서버 알림은 온다.
+      const { channelId: soundChannel, alarmMode } = remindChannelAndMode(target, slotAlarms, soundPrefs)
+      // ⚠️ 아키텍처(오너 확정 2026-07-20): '알람처럼'은 로컬이 정각에 소리+전체화면을 즉시 낸다.
+      //   서버는 무음 백업(SILENT_BACKUP_CHANNEL)만 보내 소리 겹침을 막는다(로컬 실패 시 화면엔 보임).
+      //   ⚠️ 안드로이드 전용 — iOS 는 로컬 전체화면 알람이 없으므로 무음화하면 소리가 사라진다.
+      //   iOS 의 '알람처럼'/basic 은 모두 서버가 소리 채널로 보낸다.
+      const platform = (patient as any).push_platform ?? null
+      const channelId = alarmMode === 'alarm' && platform === 'android' ? SILENT_BACKUP_CHANNEL : soundChannel
       const data = { type: 'medication_reminder', mealTime: target.mealTime, doseSlotId: target.doseSlotId, alarmMode }
       const title = isEn ? '💊 Medication time' : '💊 약 드실 시간이에요'
       const body = isEn
@@ -672,7 +680,7 @@ Deno.serve(async (_req: Request) => {
         body,
         data,
         channelId,
-        (patient as any).push_platform ?? null,
+        platform,
       )
       await logNotification(patientId, 'medication_reminder', title, body, data)
       sent++

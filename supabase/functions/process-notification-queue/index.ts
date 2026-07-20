@@ -189,6 +189,9 @@ function presetFileIdFromChannel(channelId: string): string | null {
   const m = channelId.match(/^parkinon_preset_(.+)$/)
   return m ? m[1] : null
 }
+// '알람처럼' 슬롯의 서버 무음 백업 채널(클라 alarmSound.SILENT_BACKUP_CHANNEL 과 동일 id).
+const SILENT_BACKUP_CHANNEL = 'parkinon_alarm_fs_silent'
+
 /** 저장 소리 id('preset:<fileId>' 또는 녹음 uuid, null) → Android channelId */
 function channelForStoredSound(soundId: string | null | undefined): string {
   if (!soundId) return 'default'
@@ -344,11 +347,15 @@ Deno.serve(async (_req: Request) => {
     //  3) 둘 다 없으면 시스템 기본음('default')
     //  (sound_id 는 'preset:<fileId>'(프리셋) 또는 녹음 uuid — channelForStoredSound 가 분기)
     const soundId = item.sound_id ?? doseSlot?.track_sound_id ?? null
-    const channelId = channelForStoredSound(soundId)
     const alarmMode = doseSlot?.track_alarm_mode ?? 'basic'
-    // ⚠️ 서버=기본(항상 울림). '알람처럼' 트랙도 서버 푸시를 반드시 보낸다(안전망·소리 보장).
-    //   로컬 전체화면은 보너스(무음)라, 로컬이 실패해도 서버 알림은 온다.
     const platform = platformByPatient.get(item.patient_id) ?? null
+    // ⚠️ 아키텍처(오너 확정 2026-07-20): '알람처럼' 트랙은 로컬이 정각에 소리+전체화면을 즉시 낸다.
+    //   서버는 무음 백업(SILENT_BACKUP_CHANNEL)만 보내 소리 겹침을 막는다. basic 은 서버가 소리.
+    //   ⚠️ 안드로이드 전용 — iOS 는 로컬 알람이 없으므로 무음화하면 소리가 사라진다(서버가 소리).
+    const channelId =
+      alarmMode === 'alarm' && platform === 'android'
+        ? SILENT_BACKUP_CHANNEL
+        : channelForStoredSound(soundId)
     const ok = await sendPush(
       item.push_token,
       titleText,

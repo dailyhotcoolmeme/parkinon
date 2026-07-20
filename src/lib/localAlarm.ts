@@ -1,14 +1,14 @@
 /**
  * localAlarm — "알람처럼(전체화면·끌 때까지)" / "30초" 로컬 알람 예약(Android 전용).
  *
- * 아키텍처(오너 확정, 하이브리드): 서버 Expo Push 는 그대로 유지(보호자·미복용·약효추적·안전망).
- *   그 위에 '알람처럼'/'30초' 슬롯만 **환자 폰이 자기 복용시간에 맞춰 로컬로 notifee 알람을 예약**한다.
- *   → 알람시계 앱과 동일 원리. notifee 이미 설치되어 새 네이티브 모듈 불필요(재빌드만).
+ * 아키텍처(오너 확정 2026-07-20): '알람처럼'은 **로컬이 정각에 소리+전체화면을 즉시 함께** 낸다
+ *   (AlarmManager exact = 정확·지연 없음). 서버는 같은 슬롯을 **무음 백업**으로 보내(소리 겹침 방지),
+ *   로컬이 극단 절전 등으로 실패해도 무음 알림이 화면에 보여 놓침을 막는다.
+ *   → 서버 소리에 의존하면 크론 분단위+푸시 지연으로 화면보다 소리가 늦거나(공백 시) 누락됨.
  *
  * 동작:
- *   - alarm  : fullScreenAction(잠금화면 위 전체화면) + asForegroundService + loopSound(끌 때까지·SHORT_SERVICE ~3분 상한)
- *   - sound30: asForegroundService + loopSound, 30초 후 자동 종료(index.ts FGS 러너에서 stop)
- *   - basic  : 로컬 예약 없음(서버 푸시 그대로)
+ *   - alarm  : 소리 채널(프리셋/녹음/기본음)로 1회 울림 + fullScreenAction(잠금화면 위 전체화면)
+ *   - basic  : 로컬 예약 없음(서버 푸시가 소리)
  *
  * iOS 는 잠금화면 위 전체화면이 원천 불가 → 로컬 알람 예약 안 함(서버 푸시로 커버). Android 전용.
  *
@@ -53,8 +53,8 @@ export async function openFullScreenAlarmSettings(): Promise<void> {
     }
   }
 }
-import { presetFileIdOf, presetChannelIdAndroid, type AlarmMode } from '../constants/presetAlarmSounds';
-import { ensurePresetChannelForSoundId } from './alarmSound';
+import { presetFileIdOf, type AlarmMode } from '../constants/presetAlarmSounds';
+import { resolveLocalAlarmSoundChannel } from './alarmSound';
 import type { DoseSlot } from '../hooks/useDoseSlots';
 
 const ID_REMIND_PREFIX = 'pkalarm_remind_';
@@ -78,26 +78,6 @@ function isLocalAlarmId(id: string): boolean {
   return id.startsWith(ID_REMIND_PREFIX) || id.startsWith(ID_TRACK_PREFIX);
 }
 
-const SILENT_ALARM_CHANNEL = 'parkinon_alarm_fs_silent';
-
-/**
- * 전체화면 알람(로컬) 전용 '무음' 채널.
- *   ⚠️ 아키텍처(오너 확정): 서버=기본(항상 소리 나는 알림). 로컬은 전체화면만 담당하는 '보너스'라
- *   소리를 내면 서버 소리와 이중이 된다 → 채널 무음(sound 필드 미지정). 소리는 서버 푸시가 전담.
- */
-async function ensureSilentAlarmChannel(): Promise<string> {
-  await notifee.createChannel({
-    id: SILENT_ALARM_CHANNEL,
-    name: i18n.t('localAlarm.defaultChannelName'),
-    importance: AndroidImportance.HIGH,
-    visibility: AndroidVisibility.PUBLIC,
-    vibration: false,
-    bypassDnd: true,
-    // sound 미지정 = 무음. 소리는 서버 푸시가 담당.
-  });
-  return SILENT_ALARM_CHANNEL;
-}
-
 /** 오늘/내일 중 h:m 의 가장 가까운 미래 timestamp(ms). */
 function nextDailyTimestamp(h: number, m: number): number {
   const now = new Date();
@@ -117,18 +97,18 @@ interface AlarmNotifOpts {
   data: Record<string, string>;
 }
 
-/** notifee 전체화면 로컬 알람 알림 객체(무음 보너스). 소리·반복은 서버 푸시가 담당. */
+/** notifee 전체화면 로컬 알람 알림 객체. 채널 소리로 1회 울리고 전체화면 표시. */
 function buildAlarmNotification(o: AlarmNotifOpts) {
   return {
     id: o.id,
     title: o.title,
     body: o.body,
     android: {
-      channelId: o.channelId, // 무음 채널
+      channelId: o.channelId, // 소리 채널(프리셋/녹음/기본음) — 정각에 1회 울림
       importance: AndroidImportance.HIGH,
       category: AndroidCategory.ALARM,
       visibility: AndroidVisibility.PUBLIC,
-      // 무음·단발·스와이프로 지워짐(스투ck 방지). 소리/반복은 서버가 담당.
+      // 소리는 채널이 1회 재생(반복 아님 — 예전 '안 꺼짐' 방지). 스와이프로 지워짐(스투ck 방지).
       ongoing: false,
       autoCancel: true,
       // 잠금화면 위 전체화면. 탭/자동발동으로 AlarmScreen 라우팅.
@@ -153,8 +133,8 @@ async function scheduleRemindAlarmForSlot(slot: DoseSlot): Promise<void> {
   const m = Number(parts[1] ?? '0');
   if (Number.isNaN(h) || Number.isNaN(m)) return;
 
-  // 로컬은 무음 전체화면 보너스. 소리는 서버 푸시가 담당(이중음 방지·항상 소리 보장).
-  const channelId = await ensureSilentAlarmChannel();
+  // 로컬이 정각에 소리+전체화면을 즉시 함께 낸다(사용자가 고른 소리 채널). 서버는 무음 백업.
+  const channelId = await resolveLocalAlarmSoundChannel(slot.remindSoundId);
   const fileId = presetFileIdOf(slot.remindSoundId);
   const label = slot.label ?? '';
   const notif = buildAlarmNotification({
@@ -247,8 +227,8 @@ export async function scheduleTrackAlarms(opts: {
   // 로컬 전체화면은 '알람처럼'에만. basic/30초 트랙은 서버 푸시가 담당.
   if (Platform.OS !== 'android' || opts.alarmMode !== 'alarm') return;
   if (!LOCAL_ALARM_ENABLED) return; // 임시 비활성
-  // 로컬은 무음 전체화면 보너스. 소리는 서버 푸시가 담당(이중음 방지).
-  const channelId = await ensureSilentAlarmChannel();
+  // 로컬이 정각에 소리+전체화면을 즉시 함께 낸다(사용자가 고른 소리 채널). 서버는 무음 백업.
+  const channelId = await resolveLocalAlarmSoundChannel(opts.soundId);
   const fileId = presetFileIdOf(opts.soundId);
   const now = Date.now();
   for (const min of opts.intervals) {

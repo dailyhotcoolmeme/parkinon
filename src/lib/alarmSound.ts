@@ -150,12 +150,74 @@ export async function ensurePresetChannelForSoundId(soundId: string | null | und
   await ensurePresetChannel(soundId.slice(PRESET_SOUND_PREFIX.length)).catch(() => {});
 }
 
+const DEFAULT_SOUND_CHANNEL = 'parkinon_alarm_default_sound';
+/** 서버 무음 백업 채널(로컬 실패 시 소리 없이 보이기만) — 클라·서버 공유 id. */
+export const SILENT_BACKUP_CHANNEL = 'parkinon_alarm_fs_silent';
+/** cleanupAlarmChannels 가 접두사만 보고 지우면 안 되는 예약 채널들. */
+const RESERVED_ALARM_CHANNELS = new Set([DEFAULT_SOUND_CHANNEL, SILENT_BACKUP_CHANNEL]);
+
+/** 시스템 기본 알림음을 내는 채널(soundId 없거나 녹음 채널 미준비 시 폴백). */
+async function ensureDefaultSoundChannel(): Promise<string> {
+  if (Platform.OS !== 'android') return DEFAULT_SOUND_CHANNEL;
+  await notifee.createChannel({
+    id: DEFAULT_SOUND_CHANNEL,
+    name: i18n.t('alarmSound.channelName', { label: i18n.t('alarmSound.defaultRecordingLabel') }),
+    sound: 'default', // 시스템 기본 알림음
+    importance: AndroidImportance.HIGH,
+    vibration: true,
+  });
+  return DEFAULT_SOUND_CHANNEL;
+}
+
+/**
+ * 서버 무음 백업 채널 보장(Android) — 앱 시작 시 항상 생성.
+ *   '알람처럼' 슬롯은 로컬이 소리+전체화면을 내고, 서버는 이 무음 채널로 백업 알림만 보낸다
+ *   (소리 겹침 방지). 로컬이 극단 절전 등으로 실패하면 이 무음 알림이 화면에 보여 놓침을 막는다.
+ */
+export async function ensureSilentBackupChannel(): Promise<string> {
+  if (Platform.OS !== 'android') return SILENT_BACKUP_CHANNEL;
+  await notifee.createChannel({
+    id: SILENT_BACKUP_CHANNEL,
+    name: i18n.t('localAlarm.defaultChannelName'),
+    importance: AndroidImportance.HIGH,
+    vibration: false,
+    // sound 미지정 = 무음. 소리는 로컬 알람이 담당.
+  });
+  return SILENT_BACKUP_CHANNEL;
+}
+
+/**
+ * 로컬 전체화면 알람이 '소리를 내야 할' 채널 id 를 보장·반환(Android).
+ *   ⚠️ 아키텍처(오너 확정 2026-07-20): '알람처럼'은 로컬이 정각에 소리+전체화면을 즉시 함께 낸다.
+ *   서버는 무음 백업이라, 로컬 알람 알림에 실제 소리 채널을 물려 사용자가 고른 소리로 울리게 한다.
+ * - preset:<fileId> → 프리셋 채널(res/raw 소리).
+ * - 녹음 uuid → 프로비저닝된 parkinon_alarm_<uuid> 채널(있으면), 없으면 기본음 채널.
+ * - null/기타 → 기본음 채널.
+ */
+export async function resolveLocalAlarmSoundChannel(
+  soundId: string | null | undefined,
+): Promise<string> {
+  if (Platform.OS !== 'android') return DEFAULT_SOUND_CHANNEL;
+  if (soundId && soundId.startsWith(PRESET_SOUND_PREFIX)) {
+    const fileId = soundId.slice(PRESET_SOUND_PREFIX.length);
+    return ensurePresetChannel(fileId).catch(() => ensureDefaultSoundChannel());
+  }
+  if (soundId) {
+    const channelId = alarmChannelId(soundId);
+    const existing = await notifee.getChannel(channelId).catch(() => null);
+    if (existing) return channelId;
+  }
+  return ensureDefaultSoundChannel();
+}
+
 /** keepChannelIds 에 없는 parkinon_alarm_ / parkinon_preset_ 채널 정리(안 쓰는 옛 채널 제거) */
 export async function cleanupAlarmChannels(keepChannelIds: string[]): Promise<void> {
   if (Platform.OS !== 'android') return;
   const keep = new Set(keepChannelIds);
   const channels = await notifee.getChannels();
   for (const ch of channels) {
+    // 예약 채널(로컬 알람 기본음·서버 무음 백업)은 접두사가 겹쳐도 절대 지우지 않는다.
+    if (RESERVED_ALARM_CHANNELS.has(ch.id)) continue;
     const ours = ch.id.startsWith(CHANNEL_PREFIX) || ch.id.startsWith(PRESET_CHANNEL_PREFIX);
     if (ours && !keep.has(ch.id)) {
       await notifee.deleteChannel(ch.id).catch(() => {});

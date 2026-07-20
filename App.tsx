@@ -806,6 +806,11 @@ function AppInner() {
     const notifee = notifeeMod.default;
     const EventType = notifeeMod.EventType;
 
+    // 서버 무음 백업 채널을 앱 시작 시 항상 생성 — '알람처럼' 슬롯의 서버 백업 푸시가
+    //   소리 없이(로컬 소리와 겹치지 않게) 조용히 뜨도록. (localAlarm 소리는 별도 채널.)
+    // eslint-disable-next-line @typescript-eslint/no-var-requires
+    require('./src/lib/alarmSound').ensureSilentBackupChannel?.().catch(() => {});
+
     // 같은 알람이 콜드스타트(getInitialNotification)와 DELIVERED 로 이중 라우팅되는 것 방지.
     let lastRoutedId: string | null = null;
     let lastRoutedAt = 0;
