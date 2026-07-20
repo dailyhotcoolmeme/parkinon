@@ -35,6 +35,7 @@ import { DatePickerModal } from '../../components/common/DatePickerModal';
 import { navigateTo } from '../../navigation/navigationRef';
 import { supabase } from '../../lib/supabase';
 import { scheduleTrackAlarms, rescheduleRemindAlarms } from '../../lib/localAlarm';
+import type { AlarmMode } from '../../constants/presetAlarmSounds';
 import { useNotificationBadge } from '../../context/NotificationBadgeContext';
 import { useDialog } from '../../context/DialogContext';
 import { HistoryTimeline } from '../../components/common/HistoryTimeline';
@@ -818,18 +819,44 @@ export function MedicationScreen() {
       ? displaySlots.find((s) => s.id === doseSlotId)
       : (mealTime ? displaySlots.find((s) => s.legacyKey === mealTime) : undefined);
 
-    // 약효추적 '알람처럼'/'30초' 슬롯 → 복용 순간 now+간격으로 로컬 전체화면 알람 예약(Android 전용).
-    //   기록이 그 복용에 매칭되도록 medLogId 함께 전달. basic/추적off/iOS 는 내부에서 no-op.
-    //   환자 본인 기기에서만(보호자 대신 기록 시엔 예약 안 함 — 보호자 폰에서 울리면 안 됨).
-    if (user?.role === 'patient' && selSlot?.trackEnabled && selSlot.trackAlarmMode !== 'basic') {
-      void scheduleTrackAlarms({
-        slotId: result.doseSlotId ?? selSlot.id ?? '',
-        medLogId: result.medLogId ?? null,
-        mealTime: mealTime,
-        intervals: selSlot.trackIntervals ?? [],
-        soundId: selSlot.trackSoundId,
-        alarmMode: selSlot.trackAlarmMode,
-      });
+    // 약효추적 '알람처럼' 슬롯 → 복용 순간 now+간격으로 로컬 전체화면 알람 예약(Android 전용).
+    //   기록이 그 복용에 매칭되도록 medLogId 함께 전달. 환자 본인 기기에서만(보호자 대신 기록 시 X).
+    //   ⚠️ 콜드스타트(앱 꺼진 채 알람→복용완료)면 displaySlots 미로드라 selSlot 이 없을 수 있다.
+    //   그러면 약효추적 예약이 통째로 누락된다(안드 알람처럼은 서버도 미발송) → 슬롯 추적설정을 DB에서
+    //   직접 조회해 반드시 예약한다.
+    if (user?.role === 'patient') {
+      const sid = result.doseSlotId ?? selSlot?.id ?? doseSlotId ?? null;
+      let trackEnabled: boolean | null | undefined = selSlot?.trackEnabled;
+      let trackAlarmMode: string | null | undefined = selSlot?.trackAlarmMode;
+      let trackIntervals: number[] | null | undefined = selSlot?.trackIntervals;
+      let trackSoundId: string | null | undefined = selSlot?.trackSoundId;
+      if (!selSlot && sid) {
+        try {
+          const { data: fresh } = await supabase
+            .from('dose_slots' as any)
+            .select('track_enabled, track_alarm_mode, track_intervals, track_sound_id')
+            .eq('id', sid)
+            .maybeSingle();
+          if (fresh) {
+            trackEnabled = (fresh as any).track_enabled;
+            trackAlarmMode = (fresh as any).track_alarm_mode;
+            trackIntervals = (fresh as any).track_intervals;
+            trackSoundId = (fresh as any).track_sound_id;
+          }
+        } catch {
+          /* 조회 실패 시 아래 조건에서 걸러짐 */
+        }
+      }
+      if (sid && trackEnabled && trackAlarmMode && trackAlarmMode !== 'basic') {
+        void scheduleTrackAlarms({
+          slotId: sid,
+          medLogId: result.medLogId ?? null,
+          mealTime: mealTime,
+          intervals: trackIntervals ?? [],
+          soundId: trackSoundId ?? null,
+          alarmMode: trackAlarmMode as AlarmMode,
+        });
+      }
     }
 
     // 약 기록 성공 → 종 아이콘 뱃지 즉시 갱신 (safety net)
