@@ -143,8 +143,8 @@ async function scheduleRemindAlarmForSlot(slot: DoseSlot): Promise<void> {
   if (Platform.OS !== 'android' || !slot.id) return;
   const id = remindAlarmId(slot.id);
   const mode = slot.remindAlarmMode;
-  // 로컬은 '알람처럼'(전체화면)·'30초 동안'(FGS 반복)만. basic 은 서버 알림이 담당 → 로컬 예약 제거.
-  if (!slot.remindEnabled || (mode !== 'alarm' && mode !== 'sound30')) {
+  // 로컬 알람은 '알람처럼' 하나만. basic·(옛)sound30 은 서버 알림이 담당 → 로컬 예약 제거.
+  if (!slot.remindEnabled || mode !== 'alarm') {
     await notifee.cancelTriggerNotification(id).catch(() => {});
     return;
   }
@@ -244,8 +244,8 @@ export async function scheduleTrackAlarms(opts: {
   soundId: string | null;
   alarmMode: AlarmMode;
 }): Promise<void> {
-  // 로컬은 '알람처럼'(전체화면)·'30초 동안'(FGS 반복)만. basic 트랙은 서버 푸시가 담당.
-  if (Platform.OS !== 'android' || (opts.alarmMode !== 'alarm' && opts.alarmMode !== 'sound30')) return;
+  // 로컬 알람은 '알람처럼' 하나만. basic·(옛)sound30 트랙은 서버 푸시가 담당.
+  if (Platform.OS !== 'android' || opts.alarmMode !== 'alarm') return;
   if (!LOCAL_ALARM_ENABLED) return; // 임시 비활성
   // 로컬이 정각에 소리를 낸다(사용자가 고른 소리 채널). 서버는 안드에서 무음 백업.
   const channelId = await resolveLocalAlarmSoundChannel(opts.soundId);

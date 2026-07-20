@@ -58,6 +58,7 @@ import { PRESET_PREVIEW_ASSETS } from '../../constants/presetPreviewAssets';
 const SETTINGS_PRESET_SOUND_OPTIONS: AlarmSoundOption[] = PRESET_ALARM_SOUNDS.map((p) => ({
   id: p.id,
   label: p.nameKo,
+  durationSec: Math.round(p.durationMs / 1000),
   group: 'preset' as const,
   previewAsset: PRESET_PREVIEW_ASSETS[p.fileId] ?? null,
 }));

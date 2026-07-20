@@ -662,8 +662,8 @@ Deno.serve(async (_req: Request) => {
       //   울린다. 서버는 이 경우 **아예 발송하지 않는다**(중복 알림 방지 — 무음 백업도 안 보냄).
       //   iOS 는 로컬 알람이 없으므로 모든 방식을 서버가 소리로 보낸다. 안드 basic 도 서버가 소리.
       const platform = (patient as any).push_platform ?? null
-      const isLocalSoundMode = alarmMode === 'alarm' || alarmMode === 'sound30'
-      if (isLocalSoundMode && platform === 'android') continue // 로컬이 담당 → 서버 미발송
+      // 안드 '알람처럼'만 로컬 알람이 담당 → 서버 미발송(중복 방지). basic·(옛)sound30·iOS 는 서버가 소리.
+      if (alarmMode === 'alarm' && platform === 'android') continue
       const channelId = soundChannel
       const data = { type: 'medication_reminder', mealTime: target.mealTime, doseSlotId: target.doseSlotId, alarmMode }
       const title = isEn ? '💊 Medication time' : '💊 약 드실 시간이에요'

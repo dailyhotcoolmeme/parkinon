@@ -1058,6 +1058,7 @@ interface MedicationManageScreenProps {
 const PRESET_SOUND_OPTIONS: AlarmSoundOption[] = PRESET_ALARM_SOUNDS.map((p) => ({
   id: p.id,
   label: p.nameKo,
+  durationSec: Math.round(p.durationMs / 1000),
   group: 'preset' as const,
   previewAsset: PRESET_PREVIEW_ASSETS[p.fileId] ?? null,
 }));
@@ -2806,8 +2807,8 @@ export function MedicationManageScreen({ modeOverride, hideBack, hideTopBar, onG
           t('medManage.alarmModeMsg') +
           (Platform.OS === 'ios' ? `\n\n${t('medManage.alarmModeIosNote')}` : ''),
         buttons: [
+          // '20초내외'(sound30) 제거 — 서버 1회라 '기본'과 동일. 로컬은 '알람처럼' 하나만.
           { id: 'basic', text: t('medManage.alarmMode.basic'), style: 'default' as const },
-          { id: 'sound30', text: t('medManage.alarmMode.sound30'), style: 'soft' as const },
           { id: 'alarm', text: t('medManage.alarmMode.alarm'), style: 'primary' as const },
           { id: '__cancel', text: t('common.close'), style: 'cancel' as const },
         ],

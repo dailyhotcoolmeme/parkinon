@@ -349,9 +349,9 @@ Deno.serve(async (_req: Request) => {
     // ⚠️ 아키텍처(오너 확정 2026-07-20): 안드로이드의 '알람처럼'·'30초 동안' 트랙은 로컬 알람이 울린다.
     //   서버는 이 경우 **아예 발송하지 않는다**(중복 알림 방지). iOS·안드 basic 은 서버가 소리로 보낸다.
     //   이미 위에서 sent_at 을 선점했으므로 continue = 재시도 없이 스킵(발송완료 처리).
-    const isLocalSoundMode = alarmMode === 'alarm' || alarmMode === 'sound30'
-    if (isLocalSoundMode && platform === 'android') {
-      console.log('[process-queue] 안드 로컬 방식(알람처럼/30초) — 서버 미발송(로컬 담당·sent_at 유지):', item.id)
+    // 안드 '알람처럼'만 로컬 알람이 담당 → 서버 미발송. basic·(옛)sound30·iOS 는 서버가 소리.
+    if (alarmMode === 'alarm' && platform === 'android') {
+      console.log('[process-queue] 안드 알람처럼 — 서버 미발송(로컬 담당·sent_at 유지):', item.id)
       continue
     }
     const channelId = channelForStoredSound(soundId)

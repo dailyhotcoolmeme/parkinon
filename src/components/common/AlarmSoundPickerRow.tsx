@@ -22,6 +22,8 @@ import { useTranslation } from 'react-i18next';
 export interface AlarmSoundOption {
   id: string;
   label: string;
+  /** 알림음 길이(초) — 목록에 "N초"로 표시(프리셋). 없으면 표시 안 함. */
+  durationSec?: number;
   /** 미리듣기용 원격 URL (없으면 들어보기 비활성) */
   previewUrl?: string | null;
   /** 미리듣기용 로컬 번들 에셋(require 결과). 프리셋용 — 있으면 previewUrl 보다 우선. */
@@ -165,6 +167,9 @@ export function AlarmSoundPickerRow({ soundId, sounds, onSelect, backgroundColor
       >
         <View style={styles.optionLeft}>
           <Text style={styles.optionText}>{s.label}</Text>
+          {s.durationSec != null && (
+            <Text style={styles.optionDuration}>{s.durationSec}초</Text>
+          )}
           {canPreview && (
             <TouchableOpacity
               style={[styles.previewBtn, isPlaying && styles.previewBtnActive]}
@@ -441,6 +446,17 @@ const styles = StyleSheet.create({
     fontSize: 14,
     color: Colors.textSub,
     fontWeight: '500',
+  },
+  // 알림음 길이 배지("N초") — 이름 옆에 작게.
+  optionDuration: {
+    fontSize: 14,
+    fontWeight: '700',
+    color: Colors.dark,
+    backgroundColor: Colors.light,
+    paddingHorizontal: 9,
+    paddingVertical: 3,
+    borderRadius: 10,
+    overflow: 'hidden',
   },
 
   // ── 들어보기 버튼 ──
