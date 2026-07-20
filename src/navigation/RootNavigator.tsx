@@ -146,7 +146,9 @@ export function RootNavigator() {
             <Stack.Screen
               name="Alarm"
               component={AlarmScreen}
-              options={{ gestureEnabled: false }}
+              // 제스처로 못 닫게(끄기 버튼으로만) + 슬라이드 애니메이션 제거 → 이전 화면(약복용)이
+              // 스치는 시간을 줄여 전체화면으로 즉시 전환되게.
+              options={{ gestureEnabled: false, animation: 'none' }}
             />
           </>
         )}

@@ -1932,7 +1932,7 @@
     "taken": "Taken",
     "recordBody": "Record",
     "later": "Later",
-    "previewNote": "This is a preview.\nNothing is recorded and\nno notification is sent to caregivers."
+    "previewNote": "This is a preview."
   },
   "localAlarm": {
     "defaultChannelName": "Medication alarm",

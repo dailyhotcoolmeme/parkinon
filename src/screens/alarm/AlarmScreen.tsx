@@ -150,11 +150,21 @@ export function AlarmScreen() {
     else navigateTo('Main', { screen: 'Medication' });
   }, [stopSound, kind]);
 
-  // 안드 뒤로가기 = 나중에(기록 없이 닫힘).
+  // 미리보기 닫기 → 복용시간 설정·알림 화면으로 복귀해 이어서 설정.
+  const handleClosePreview = useCallback(async () => {
+    await stopSound();
+    navigateTo('Main', { screen: 'MyInfo', params: { screen: 'MedicationManage', params: { mode: 'slots' } } });
+  }, [stopSound]);
+
+  // 안드 뒤로가기 = 미리보기면 설정 복귀, 실제 알람이면 나중에(기록 없이 닫힘).
   useEffect(() => {
-    const sub = BackHandler.addEventListener('hardwareBackPress', () => { handleLater(); return true; });
+    const sub = BackHandler.addEventListener('hardwareBackPress', () => {
+      if (preview) handleClosePreview();
+      else handleLater();
+      return true;
+    });
     return () => sub.remove();
-  }, [handleLater]);
+  }, [preview, handleClosePreview, handleLater]);
 
   return (
     <View style={styles.container}>
@@ -164,18 +174,27 @@ export function AlarmScreen() {
       {preview && <Text style={styles.previewNote}>{t('alarmScreen.previewNote')}</Text>}
       {/* 하단 버튼 — 브랜드/병명 텍스트는 없음(기능 라벨만) */}
       <View style={styles.btnGroup}>
-        <TouchableOpacity
-          style={styles.primaryBtn}
-          onPress={kind === 'track' ? handleRecordTrack : handleTaken}
-          activeOpacity={0.85}
-        >
-          <Text style={styles.primaryBtnText}>
-            {kind === 'track' ? t('alarmScreen.recordBody') : t('alarmScreen.taken')}
-          </Text>
-        </TouchableOpacity>
-        <TouchableOpacity style={styles.laterBtn} onPress={handleLater} activeOpacity={0.7}>
-          <Text style={styles.laterBtnText}>{t('alarmScreen.later')}</Text>
-        </TouchableOpacity>
+        {preview ? (
+          // 미리보기: '닫기' 하나만 → 복용시간 설정 화면으로 복귀(복용완료/기록하기 불필요).
+          <TouchableOpacity style={styles.primaryBtn} onPress={handleClosePreview} activeOpacity={0.85}>
+            <Text style={styles.primaryBtnText}>{t('common.close')}</Text>
+          </TouchableOpacity>
+        ) : (
+          <>
+            <TouchableOpacity
+              style={styles.primaryBtn}
+              onPress={kind === 'track' ? handleRecordTrack : handleTaken}
+              activeOpacity={0.85}
+            >
+              <Text style={styles.primaryBtnText}>
+                {kind === 'track' ? t('alarmScreen.recordBody') : t('alarmScreen.taken')}
+              </Text>
+            </TouchableOpacity>
+            <TouchableOpacity style={styles.laterBtn} onPress={handleLater} activeOpacity={0.7}>
+              <Text style={styles.laterBtnText}>{t('alarmScreen.later')}</Text>
+            </TouchableOpacity>
+          </>
+        )}
       </View>
     </View>
   );
