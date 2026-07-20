@@ -188,8 +188,14 @@ async function scheduleRemindAlarmForSlot(slot: DoseSlot): Promise<void> {
  * 모든 정시 복용 알람 재예약(앱 실행·부팅·슬롯 변경 시 호출).
  *   기존 remind 로컬 알람 전부 취소 후, 대상 슬롯만 다시 예약 → 시간·소리·방식 변경 즉시 반영.
  *   (track 알람은 복용 시점 이벤트라 여기서 건드리지 않음.)
+ *
+ *   ⚠️ 직렬화: MedicationScreen·MedicationManageScreen 두 곳에서 동시·반복 호출되면 cancel/create 가
+ *   경쟁(race)해 방금 만든 알람을 다른 호출이 지워버려, 예약이 유실되고 알람이 안 울린다(실측: 15:50
+ *   알람이 오늘 안 뜨고 내일로 밀림). 프라미스 체인으로 한 번에 하나씩만 실행되게 한다.
  */
-export async function rescheduleRemindAlarms(slots: DoseSlot[]): Promise<void> {
+let rescheduleChain: Promise<void> = Promise.resolve();
+
+async function doRescheduleRemindAlarms(slots: DoseSlot[]): Promise<void> {
   if (Platform.OS !== 'android') return;
   try {
     // 기존 로컬 알람(예약+표시중)을 모두 정리 — 스투ck 알림/배지 제거 포함.
@@ -201,6 +207,11 @@ export async function rescheduleRemindAlarms(slots: DoseSlot[]): Promise<void> {
   } catch {
     /* 예약 실패해도 서버 푸시가 안전망 → 조용히 무시 */
   }
+}
+
+export function rescheduleRemindAlarms(slots: DoseSlot[]): Promise<void> {
+  rescheduleChain = rescheduleChain.then(() => doRescheduleRemindAlarms(slots)).catch(() => {});
+  return rescheduleChain;
 }
 
 /**
