@@ -1553,6 +1553,10 @@ export function MedicationScreen() {
                 const doseSlotIdForNav = lastDoseSlotId;
                 const medLogIdForNav = lastMedLogId;
                 setShowBodyStateSuggest(false);
+                // ⚠️ 중복방지 핵심: AsyncStorage(pending) 경로와 route params 경로가 '같은' triggerTs 를
+                //   공유해야 BodyStateScreen 이 둘 중 하나만 처리한다(H-1 dedup). 예전엔 pending 에 ts 를
+                //   안 넣어(null) dedup 이 깨져 팝업이 2번 떠 몸상태가 notification+manual 로 이중 저장됐다.
+                const suggestTriggerTs = Date.now();
                 // AsyncStorage write 완료 보장 후 navigate — race condition 방지
                 // (BodyStateScreen useFocusEffect가 read 시점에 값이 있어야 함)
                 try {
@@ -1561,6 +1565,7 @@ export function MedicationScreen() {
                     triggerMealTime: mealTimeForNav,
                     triggerDoseSlotId: doseSlotIdForNav,
                     triggerMedLogId: medLogIdForNav,
+                    ts: suggestTriggerTs,
                   }));
                 } catch {}
                 // 안전한 nested navigation: Main > BodyStateTab > BodyState
@@ -1574,7 +1579,7 @@ export function MedicationScreen() {
                       triggerMealTime: mealTimeForNav,
                       triggerDoseSlotId: doseSlotIdForNav,
                       triggerMedLogId: medLogIdForNav,
-                      triggerTs: Date.now(),
+                      triggerTs: suggestTriggerTs,
                     },
                   },
                 });
