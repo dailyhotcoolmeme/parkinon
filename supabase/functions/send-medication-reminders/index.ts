@@ -662,12 +662,13 @@ Deno.serve(async (_req: Request) => {
       if (await hasTakenMed(patientId, target, tz)) continue
 
       const { channelId: soundChannel, alarmMode } = remindChannelAndMode(target, slotAlarms, soundPrefs)
-      // ⚠️ 아키텍처(오너 확정 2026-07-20): '알람처럼'은 로컬이 정각에 소리+전체화면을 즉시 낸다.
+      // ⚠️ 아키텍처(오너 확정 2026-07-20): '알람처럼'·'30초 동안'은 로컬(안드)이 정각에 소리를 낸다.
       //   서버는 무음 백업(SILENT_BACKUP_CHANNEL)만 보내 소리 겹침을 막는다(로컬 실패 시 화면엔 보임).
-      //   ⚠️ 안드로이드 전용 — iOS 는 로컬 전체화면 알람이 없으므로 무음화하면 소리가 사라진다.
-      //   iOS 의 '알람처럼'/basic 은 모두 서버가 소리 채널로 보낸다.
+      //   ⚠️ 안드로이드 전용 — iOS 는 로컬 알람이 없으므로 무음화하면 소리가 사라진다.
+      //   iOS 의 알람처럼/30초/basic 은 모두 서버가 소리 채널로 보낸다.
       const platform = (patient as any).push_platform ?? null
-      const channelId = alarmMode === 'alarm' && platform === 'android' ? SILENT_BACKUP_CHANNEL : soundChannel
+      const isLocalSoundMode = alarmMode === 'alarm' || alarmMode === 'sound30'
+      const channelId = isLocalSoundMode && platform === 'android' ? SILENT_BACKUP_CHANNEL : soundChannel
       const data = { type: 'medication_reminder', mealTime: target.mealTime, doseSlotId: target.doseSlotId, alarmMode }
       const title = isEn ? '💊 Medication time' : '💊 약 드실 시간이에요'
       const body = isEn

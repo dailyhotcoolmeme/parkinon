@@ -349,11 +349,12 @@ Deno.serve(async (_req: Request) => {
     const soundId = item.sound_id ?? doseSlot?.track_sound_id ?? null
     const alarmMode = doseSlot?.track_alarm_mode ?? 'basic'
     const platform = platformByPatient.get(item.patient_id) ?? null
-    // ⚠️ 아키텍처(오너 확정 2026-07-20): '알람처럼' 트랙은 로컬이 정각에 소리+전체화면을 즉시 낸다.
+    // ⚠️ 아키텍처(오너 확정 2026-07-20): '알람처럼'·'30초 동안' 트랙은 로컬(안드)이 정각에 소리를 낸다.
     //   서버는 무음 백업(SILENT_BACKUP_CHANNEL)만 보내 소리 겹침을 막는다. basic 은 서버가 소리.
     //   ⚠️ 안드로이드 전용 — iOS 는 로컬 알람이 없으므로 무음화하면 소리가 사라진다(서버가 소리).
+    const isLocalSoundMode = alarmMode === 'alarm' || alarmMode === 'sound30'
     const channelId =
-      alarmMode === 'alarm' && platform === 'android'
+      isLocalSoundMode && platform === 'android'
         ? SILENT_BACKUP_CHANNEL
         : channelForStoredSound(soundId)
     const ok = await sendPush(

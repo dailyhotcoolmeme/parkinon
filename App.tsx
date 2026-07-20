@@ -827,6 +827,36 @@ function AppInner() {
         await new Promise((r) => setTimeout(r, 100));
       }
       const d = n.data || {};
+
+      // '30초 동안'은 전체화면(AlarmScreen)이 아니다 — 탭하면 30초 소리를 멈추고,
+      //   일반 알림처럼 약복용(정시)/몸상태(약효추적) 화면으로 보낸다.
+      if (d.alarmMode === 'sound30') {
+        try { await notifee.stopForegroundService(); } catch {}
+        try { if (n.id) await notifee.cancelNotification(n.id); } catch {}
+        if (d.kind === 'track') {
+          navigateTo('Main', {
+            screen: 'BodyStateTab',
+            params: {
+              screen: 'BodyState',
+              params: {
+                triggerMinutes: d.minutes ? Number(d.minutes) : undefined,
+                triggerMealTime: d.mealTime || undefined,
+                triggerDoseSlotId: d.doseSlotId || undefined,
+                triggerMedLogId: d.medLogId || undefined,
+                triggerTs: now,
+              },
+            },
+          });
+        } else {
+          // 정시: 약복용 탭에서 그 슬롯 '이 약 맞나요?' 확인 → 기록(autoOpen 흐름).
+          navigateTo('Main', {
+            screen: 'Medication',
+            params: { autoOpen: now, doseSlotId: d.doseSlotId || undefined, mealTime: d.mealTime || undefined },
+          });
+        }
+        return;
+      }
+
       navigateTo('Alarm', {
         fileId: d.fileId || undefined,
         kind: d.kind === 'track' ? 'track' : 'remind',
@@ -835,7 +865,7 @@ function AppInner() {
         medLogId: d.medLogId || undefined,
         mealTime: d.mealTime || undefined,
         notifId: n.id,
-        alarmMode: d.alarmMode === 'sound30' ? 'sound30' : 'alarm',
+        alarmMode: 'alarm',
         preview: false,
       });
     };

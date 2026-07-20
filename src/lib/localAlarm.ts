@@ -97,34 +97,44 @@ interface AlarmNotifOpts {
   data: Record<string, string>;
 }
 
-/** notifee 전체화면 로컬 알람 알림 객체. 채널 소리로 1회 울리고 전체화면 표시. */
+/**
+ * notifee 로컬 알람 알림 객체 — 방식별로 다르게 구성.
+ *   - 'alarm'  (알람처럼): 채널 소리 1회 + 잠금화면 위 전체화면(끌 때까지 화면 유지·반복 아님).
+ *   - 'sound30'(30초 동안): 포그라운드서비스 + loopSound 로 소리 30초간 반복(index.ts 러너가 30초 뒤
+ *                            자동 종료). 전체화면 없음(탭 시에만 약복용/몸상태 화면으로).
+ */
 function buildAlarmNotification(o: AlarmNotifOpts) {
+  const isSound30 = o.alarmMode === 'sound30';
   return {
     id: o.id,
     title: o.title,
     body: o.body,
     android: {
-      channelId: o.channelId, // 소리 채널(프리셋/녹음/기본음) — 정각에 1회 울림
+      channelId: o.channelId, // 소리 채널(프리셋/녹음/기본음)
       importance: AndroidImportance.HIGH,
       category: AndroidCategory.ALARM,
       visibility: AndroidVisibility.PUBLIC,
-      // 소리는 채널이 1회 재생(반복 아님 — 예전 '안 꺼짐' 방지). 스와이프로 지워짐(스투ck 방지).
-      ongoing: false,
-      autoCancel: true,
-      // 잠금화면 위 전체화면. 탭/자동발동으로 AlarmScreen 라우팅.
-      fullScreenAction: { id: 'default', launchActivity: 'default' },
+      // 30초: 지속(반복 재생), alarm: 단발 + 스와이프로 지워짐.
+      ongoing: isSound30,
+      autoCancel: !isSound30,
+      loopSound: isSound30, // 30초 동안 소리 반복(FGS 러너가 30초 뒤 stop)
+      // 30초는 포그라운드서비스로 물려 소리를 30초 반복. alarm 은 잠금화면 위 전체화면.
+      ...(isSound30
+        ? { asForegroundService: true }
+        : { fullScreenAction: { id: 'default', launchActivity: 'default' } }),
       pressAction: { id: 'default', launchActivity: 'default' },
     },
     data: { ...o.data, _pkAlarm: '1', alarmMode: o.alarmMode, kind: o.kind, fileId: o.fileId ?? '' },
   };
 }
 
-/** 정시 복용 '알람처럼' 슬롯의 전체화면 로컬 알람 예약(alarm 외·비활성·iOS 면 취소만). */
+/** 정시 복용 로컬 알람 예약 — '알람처럼'/'30초 동안'만. basic·비활성·iOS 면 취소만. */
 async function scheduleRemindAlarmForSlot(slot: DoseSlot): Promise<void> {
   if (Platform.OS !== 'android' || !slot.id) return;
   const id = remindAlarmId(slot.id);
-  // 로컬 전체화면은 '알람처럼'에만. basic/30초는 서버 알림이 담당 → 로컬 예약 제거.
-  if (!slot.remindEnabled || slot.remindAlarmMode !== 'alarm') {
+  const mode = slot.remindAlarmMode;
+  // 로컬은 '알람처럼'(전체화면)·'30초 동안'(FGS 반복)만. basic 은 서버 알림이 담당 → 로컬 예약 제거.
+  if (!slot.remindEnabled || (mode !== 'alarm' && mode !== 'sound30')) {
     await notifee.cancelTriggerNotification(id).catch(() => {});
     return;
   }
@@ -133,14 +143,14 @@ async function scheduleRemindAlarmForSlot(slot: DoseSlot): Promise<void> {
   const m = Number(parts[1] ?? '0');
   if (Number.isNaN(h) || Number.isNaN(m)) return;
 
-  // 로컬이 정각에 소리+전체화면을 즉시 함께 낸다(사용자가 고른 소리 채널). 서버는 무음 백업.
+  // 로컬이 정각에 소리를 낸다(사용자가 고른 소리 채널). 서버는 안드에서 무음 백업.
   const channelId = await resolveLocalAlarmSoundChannel(slot.remindSoundId);
   const fileId = presetFileIdOf(slot.remindSoundId);
   const label = slot.label ?? '';
   const notif = buildAlarmNotification({
     id,
     channelId,
-    alarmMode: 'alarm',
+    alarmMode: mode,
     kind: 'remind',
     title: i18n.t('localAlarm.remindTitle'),
     body: i18n.t('localAlarm.remindBody', { label }),
@@ -224,10 +234,10 @@ export async function scheduleTrackAlarms(opts: {
   soundId: string | null;
   alarmMode: AlarmMode;
 }): Promise<void> {
-  // 로컬 전체화면은 '알람처럼'에만. basic/30초 트랙은 서버 푸시가 담당.
-  if (Platform.OS !== 'android' || opts.alarmMode !== 'alarm') return;
+  // 로컬은 '알람처럼'(전체화면)·'30초 동안'(FGS 반복)만. basic 트랙은 서버 푸시가 담당.
+  if (Platform.OS !== 'android' || (opts.alarmMode !== 'alarm' && opts.alarmMode !== 'sound30')) return;
   if (!LOCAL_ALARM_ENABLED) return; // 임시 비활성
-  // 로컬이 정각에 소리+전체화면을 즉시 함께 낸다(사용자가 고른 소리 채널). 서버는 무음 백업.
+  // 로컬이 정각에 소리를 낸다(사용자가 고른 소리 채널). 서버는 안드에서 무음 백업.
   const channelId = await resolveLocalAlarmSoundChannel(opts.soundId);
   const fileId = presetFileIdOf(opts.soundId);
   const now = Date.now();
@@ -236,7 +246,7 @@ export async function scheduleTrackAlarms(opts: {
     const notif = buildAlarmNotification({
       id: trackAlarmId(opts.slotId, min),
       channelId,
-      alarmMode: 'alarm',
+      alarmMode: opts.alarmMode,
       kind: 'track',
       title: i18n.t('localAlarm.trackTitle'),
       body: i18n.t('localAlarm.trackBody'),
