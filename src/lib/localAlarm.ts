@@ -119,10 +119,9 @@ interface AlarmNotifOpts {
 /** notifee 알람 알림 객체(공통). */
 function buildAlarmNotification(o: AlarmNotifOpts) {
   const isFull = o.alarmMode === 'alarm';
-  // ⚠️ 포그라운드 서비스(asForegroundService/loopSound)는 쓰지 않는다. 잠금(백그라운드)에서
-  //    알람이 발동할 때 Android 12+ 가 백그라운드 FGS 시작을 막아 fullScreenAction(전체화면)까지
-  //    방해할 수 있다. 대신: 알림 채널음이 1회 울리고 → fullScreenAction 이 AlarmScreen 을 잠금화면
-  //    위로 띄우면 → AlarmScreen(expo-av)이 끌 때까지 소리를 반복한다.
+  //  소리 전략: 알림 채널 소리가 유일한 소리 source(AlarmScreen 은 무음). 깊은 절전(Doze)에서
+  //  전체화면이 즉시 안 떠도 채널 소리는 전달 시 울려 사용자를 깨운다.
+  //  '알람처럼'은 loopSound+ongoing 으로 끌 때까지 반복(AlarmScreen 버튼→cancelNotification 으로 중지).
   return {
     id: o.id,
     title: o.title,
@@ -132,10 +131,12 @@ function buildAlarmNotification(o: AlarmNotifOpts) {
       importance: AndroidImportance.HIGH,
       category: AndroidCategory.ALARM,
       visibility: AndroidVisibility.PUBLIC,
-      // ⚠️ ongoing 금지 — 안 지워지는 스투ck 알림/배지 원인이었다. 스와이프로 지워지게 둔다.
-      ongoing: false,
-      autoCancel: true,
-      // 잠금화면 위 전체화면(알람처럼만). 30초/기본은 fullScreenAction 없이 소리+헤드업.
+      // 알람처럼: 끌 때까지 반복(loopSound 는 ongoing 필요). 탭/버튼 라우팅으로 취소하므로 스투ck 안 됨.
+      // 30초: 반복 안 함(단발). 기본은 여기 안 옴.
+      loopSound: isFull,
+      ongoing: isFull,
+      autoCancel: !isFull,
+      // 잠금화면 위 전체화면(알람처럼만). 30초는 fullScreenAction 없이 소리+헤드업.
       ...(isFull
         ? { fullScreenAction: { id: 'default', launchActivity: 'default' } }
         : {}),
@@ -160,6 +161,8 @@ async function scheduleRemindAlarmForSlot(slot: DoseSlot): Promise<void> {
   const m = Number(parts[1] ?? '0');
   if (Number.isNaN(h) || Number.isNaN(m)) return;
 
+  // ⚠️ 채널 소리를 반드시 준다(무음 금지). 깊은 절전(Doze)에서 전체화면이 즉시 안 떠도, 알림 채널
+  //   소리는 전달 시 재생되어 사용자를 깨운다. AlarmScreen 은 무음(preview만 재생)이라 이중재생 없음.
   const channelId = await ensureAlarmChannel(slot.remindSoundId);
   const fileId = presetFileIdOf(slot.remindSoundId);
   const label = slot.label ?? '';
@@ -241,6 +244,7 @@ export async function scheduleTrackAlarms(opts: {
 }): Promise<void> {
   if (Platform.OS !== 'android' || opts.alarmMode === 'basic') return;
   if (!LOCAL_ALARM_ENABLED) return; // 임시 비활성
+  // 채널 소리 필수(절전에서도 소리로 깨우기). AlarmScreen 은 무음이라 이중재생 없음.
   const channelId = await ensureAlarmChannel(opts.soundId);
   const fileId = presetFileIdOf(opts.soundId);
   const now = Date.now();
