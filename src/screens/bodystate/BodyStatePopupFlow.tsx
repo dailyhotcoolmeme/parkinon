@@ -154,9 +154,13 @@ export function BodyStatePopupFlow({
   } else if (!visible && openedRef.current) {
     openedRef.current = false;
   }
-  // 스냅샷 전(대기 중)엔 실시간 prop, 스냅샷 후엔 고정값을 쓴다.
-  const stepSleep = openedRef.current ? stepShowRef.current.sleep : showSleep;
-  const stepConstipation = openedRef.current ? stepShowRef.current.constipation : showConstipation;
+  // 스냅샷 후엔 고정값. 스냅샷 전(게이팅 미확정=콜드스타트 로딩 전)엔 수면/변비를 노출하지 않는다.
+  //   [이유] 실시간 prop 을 쓰면, 알림 콜드스타트로 todayLogs 미로드라 hasSleepToday 가 잠깐
+  //   false → 수면 단계를 총계에 넣어 "1/3" 로 떴다가, 로드 후 (이미 오늘 수면 기록) 빼서 "1/2" 로
+  //   정정되며 카운터가 3→2 로 깜빡였다. 수면/변비는 body·mood 뒤 단계라 확정 전엔 빼도 흐름에 지장
+  //   없다(게이팅 확정 시 스냅샷으로 정확히 반영). → 확정 전 기본값 false 로 카운터를 안정화.
+  const stepSleep = openedRef.current ? stepShowRef.current.sleep : false;
+  const stepConstipation = openedRef.current ? stepShowRef.current.constipation : false;
 
   const animateStepIn = () => {
     contentSlide.setValue(32);
