@@ -346,6 +346,13 @@ Deno.serve(async (_req: Request) => {
     const soundId = item.sound_id ?? doseSlot?.track_sound_id ?? null
     const channelId = channelForStoredSound(soundId)
     const alarmMode = doseSlot?.track_alarm_mode ?? 'basic'
+    // '알람처럼' 트랙은 환자 폰의 로컬 전체화면 알람이 담당 → 서버 푸시 스킵(이중 방지).
+    //   이미 위에서 sent_at 을 선점(claim)했으므로 continue 하면 재시도 안 됨(스킵=발송완료 처리).
+    //   (send-medication-reminders 의 정시 remind 'alarm' 스킵과 대칭.)
+    if (alarmMode === 'alarm') {
+      console.log('[process-queue] track alarm 모드 — 로컬 전체화면이 담당, 서버 푸시 스킵:', item.id)
+      continue
+    }
     const platform = platformByPatient.get(item.patient_id) ?? null
     const ok = await sendPush(
       item.push_token,
