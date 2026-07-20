@@ -15,31 +15,10 @@ notifee.registerForegroundService((notification: any) => {
   return new Promise((resolve) => {
     const mode = notification?.data?.alarmMode;
     if (mode === 'sound30') {
-      setTimeout(async () => {
-        // 30초 후 소리 종료(포그라운드서비스 정지 → 그 알림은 제거됨).
-        try { await notifee.stopForegroundService(); } catch {}
-        // ⚠️ 하지만 복약 알림은 기록 전까지 '안 읽은 알림'으로 남아야 한다(소리 놓쳐도 트레이에 보이게).
-        //   FGS 정지로 알림이 사라지므로, 같은 내용을 무음 채널로 재게시(재알림 없음) + 앱 아이콘 뱃지.
-        //   탭하면 data(_pkAlarm)로 약복용(정시)/몸상태(약효추적) 화면으로 라우팅(App.tsx).
-        await new Promise((r) => setTimeout(r, 500)); // FGS 알림 제거가 반영된 뒤 재게시(레이스 방지)
-        try {
-          const a = notification?.android || {};
-          await notifee.displayNotification({
-            id: notification?.id,
-            title: notification?.title,
-            body: notification?.body,
-            android: {
-              channelId: 'parkinon_alarm_fs_silent', // 무음 백업 채널(앱 시작 시 항상 생성)
-              smallIcon: a.smallIcon,
-              category: a.category,
-              pressAction: { id: 'default', launchActivity: 'default' },
-              ongoing: false,
-              autoCancel: true,
-              badgeCount: 1,
-            },
-            data: notification?.data,
-          });
-        } catch {}
+      // 30초(20초 내외) 후 소리 종료 → 포그라운드서비스 정지(그 알림도 함께 제거됨).
+      //   무음 재게시(백업) 안 함 — 오너 결정. 안 드시면 나중에 서버 미복용 알림이 온다.
+      setTimeout(() => {
+        notifee.stopForegroundService().catch(() => {});
         resolve(undefined);
       }, 30000);
     }

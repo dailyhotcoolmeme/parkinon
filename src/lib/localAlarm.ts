@@ -112,6 +112,7 @@ function buildAlarmNotification(o: AlarmNotifOpts) {
     body: o.body,
     android: {
       channelId: o.channelId, // 소리 채널(프리셋/녹음/기본음)
+      smallIcon: 'notification_icon', // 서버 푸시와 동일한 약 아이콘(expo-notifications 생성 리소스)
       importance: AndroidImportance.HIGH,
       category: AndroidCategory.ALARM,
       visibility: AndroidVisibility.PUBLIC,

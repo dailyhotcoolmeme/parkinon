@@ -189,9 +189,6 @@ function presetFileIdFromChannel(channelId: string): string | null {
   const m = channelId.match(/^parkinon_preset_(.+)$/)
   return m ? m[1] : null
 }
-// '알람처럼' 슬롯의 서버 무음 백업 채널(클라 alarmSound.SILENT_BACKUP_CHANNEL 과 동일 id).
-const SILENT_BACKUP_CHANNEL = 'parkinon_alarm_fs_silent'
-
 /** 저장 소리 id('preset:<fileId>' 또는 녹음 uuid, null) → Android channelId */
 function channelForStoredSound(soundId: string | null | undefined): string {
   if (!soundId) return 'default'
@@ -349,14 +346,15 @@ Deno.serve(async (_req: Request) => {
     const soundId = item.sound_id ?? doseSlot?.track_sound_id ?? null
     const alarmMode = doseSlot?.track_alarm_mode ?? 'basic'
     const platform = platformByPatient.get(item.patient_id) ?? null
-    // ⚠️ 아키텍처(오너 확정 2026-07-20): '알람처럼'·'30초 동안' 트랙은 로컬(안드)이 정각에 소리를 낸다.
-    //   서버는 무음 백업(SILENT_BACKUP_CHANNEL)만 보내 소리 겹침을 막는다. basic 은 서버가 소리.
-    //   ⚠️ 안드로이드 전용 — iOS 는 로컬 알람이 없으므로 무음화하면 소리가 사라진다(서버가 소리).
+    // ⚠️ 아키텍처(오너 확정 2026-07-20): 안드로이드의 '알람처럼'·'30초 동안' 트랙은 로컬 알람이 울린다.
+    //   서버는 이 경우 **아예 발송하지 않는다**(중복 알림 방지). iOS·안드 basic 은 서버가 소리로 보낸다.
+    //   이미 위에서 sent_at 을 선점했으므로 continue = 재시도 없이 스킵(발송완료 처리).
     const isLocalSoundMode = alarmMode === 'alarm' || alarmMode === 'sound30'
-    const channelId =
-      isLocalSoundMode && platform === 'android'
-        ? SILENT_BACKUP_CHANNEL
-        : channelForStoredSound(soundId)
+    if (isLocalSoundMode && platform === 'android') {
+      console.log('[process-queue] 안드 로컬 방식(알람처럼/30초) — 서버 미발송(로컬 담당·sent_at 유지):', item.id)
+      continue
+    }
+    const channelId = channelForStoredSound(soundId)
     const ok = await sendPush(
       item.push_token,
       titleText,

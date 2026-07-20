@@ -742,7 +742,7 @@
     "alarmModeMsg": "Choose how the alarm rings.",
     "alarmMode": {
       "basic": "Basic (once)",
-      "sound30": "For 30 seconds",
+      "sound30": "About 20 seconds",
       "alarm": "Like an alarm (until dismissed + full screen)"
     },
     "alarmPreviewTitle": "Preview full-screen alarm",
