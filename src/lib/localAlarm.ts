@@ -78,23 +78,24 @@ function isLocalAlarmId(id: string): boolean {
   return id.startsWith(ID_REMIND_PREFIX) || id.startsWith(ID_TRACK_PREFIX);
 }
 
-/** 알람 소리 채널 보장 → 채널 id 반환. 프리셋이면 프리셋 채널(sound=res/raw), 없으면 기본 알람 채널. */
-async function ensureAlarmChannel(soundId: string | null | undefined): Promise<string> {
-  const fileId = presetFileIdOf(soundId);
-  if (fileId) {
-    await ensurePresetChannelForSoundId(`preset:${fileId}`).catch(() => {});
-    return presetChannelIdAndroid(fileId);
-  }
-  // 기본 알람 채널(시스템 기본 알람음, importance HIGH).
+const SILENT_ALARM_CHANNEL = 'parkinon_alarm_fs_silent';
+
+/**
+ * 전체화면 알람(로컬) 전용 '무음' 채널.
+ *   ⚠️ 아키텍처(오너 확정): 서버=기본(항상 소리 나는 알림). 로컬은 전체화면만 담당하는 '보너스'라
+ *   소리를 내면 서버 소리와 이중이 된다 → 채널 무음(sound 필드 미지정). 소리는 서버 푸시가 전담.
+ */
+async function ensureSilentAlarmChannel(): Promise<string> {
   await notifee.createChannel({
-    id: DEFAULT_ALARM_CHANNEL,
+    id: SILENT_ALARM_CHANNEL,
     name: i18n.t('localAlarm.defaultChannelName'),
     importance: AndroidImportance.HIGH,
     visibility: AndroidVisibility.PUBLIC,
-    vibration: true,
+    vibration: false,
     bypassDnd: true,
+    // sound 미지정 = 무음. 소리는 서버 푸시가 담당.
   });
-  return DEFAULT_ALARM_CHANNEL;
+  return SILENT_ALARM_CHANNEL;
 }
 
 /** 오늘/내일 중 h:m 의 가장 가까운 미래 timestamp(ms). */
@@ -116,43 +117,34 @@ interface AlarmNotifOpts {
   data: Record<string, string>;
 }
 
-/** notifee 알람 알림 객체(공통). */
+/** notifee 전체화면 로컬 알람 알림 객체(무음 보너스). 소리·반복은 서버 푸시가 담당. */
 function buildAlarmNotification(o: AlarmNotifOpts) {
-  const isFull = o.alarmMode === 'alarm';
-  //  소리 전략: 알림 채널 소리가 유일한 소리 source(AlarmScreen 은 무음). 깊은 절전(Doze)에서
-  //  전체화면이 즉시 안 떠도 채널 소리는 전달 시 울려 사용자를 깨운다.
-  //  '알람처럼'은 loopSound+ongoing 으로 끌 때까지 반복(AlarmScreen 버튼→cancelNotification 으로 중지).
   return {
     id: o.id,
     title: o.title,
     body: o.body,
     android: {
-      channelId: o.channelId,
+      channelId: o.channelId, // 무음 채널
       importance: AndroidImportance.HIGH,
       category: AndroidCategory.ALARM,
       visibility: AndroidVisibility.PUBLIC,
-      // 알람처럼: 끌 때까지 반복(loopSound 는 ongoing 필요). 탭/버튼 라우팅으로 취소하므로 스투ck 안 됨.
-      // 30초: 반복 안 함(단발). 기본은 여기 안 옴.
-      loopSound: isFull,
-      ongoing: isFull,
-      autoCancel: !isFull,
-      // 잠금화면 위 전체화면(알람처럼만). 30초는 fullScreenAction 없이 소리+헤드업.
-      ...(isFull
-        ? { fullScreenAction: { id: 'default', launchActivity: 'default' } }
-        : {}),
+      // 무음·단발·스와이프로 지워짐(스투ck 방지). 소리/반복은 서버가 담당.
+      ongoing: false,
+      autoCancel: true,
+      // 잠금화면 위 전체화면. 탭/자동발동으로 AlarmScreen 라우팅.
+      fullScreenAction: { id: 'default', launchActivity: 'default' },
       pressAction: { id: 'default', launchActivity: 'default' },
-      vibrationPattern: [300, 500],
     },
     data: { ...o.data, _pkAlarm: '1', alarmMode: o.alarmMode, kind: o.kind, fileId: o.fileId ?? '' },
   };
 }
 
-/** 정시 복용 '알람처럼'/'30초' 슬롯 하나 예약(basic·비활성·iOS 면 취소만). */
+/** 정시 복용 '알람처럼' 슬롯의 전체화면 로컬 알람 예약(alarm 외·비활성·iOS 면 취소만). */
 async function scheduleRemindAlarmForSlot(slot: DoseSlot): Promise<void> {
   if (Platform.OS !== 'android' || !slot.id) return;
   const id = remindAlarmId(slot.id);
-  // 대상 아님 → 기존 예약 제거.
-  if (!slot.remindEnabled || slot.remindAlarmMode === 'basic') {
+  // 로컬 전체화면은 '알람처럼'에만. basic/30초는 서버 알림이 담당 → 로컬 예약 제거.
+  if (!slot.remindEnabled || slot.remindAlarmMode !== 'alarm') {
     await notifee.cancelTriggerNotification(id).catch(() => {});
     return;
   }
@@ -161,15 +153,14 @@ async function scheduleRemindAlarmForSlot(slot: DoseSlot): Promise<void> {
   const m = Number(parts[1] ?? '0');
   if (Number.isNaN(h) || Number.isNaN(m)) return;
 
-  // ⚠️ 채널 소리를 반드시 준다(무음 금지). 깊은 절전(Doze)에서 전체화면이 즉시 안 떠도, 알림 채널
-  //   소리는 전달 시 재생되어 사용자를 깨운다. AlarmScreen 은 무음(preview만 재생)이라 이중재생 없음.
-  const channelId = await ensureAlarmChannel(slot.remindSoundId);
+  // 로컬은 무음 전체화면 보너스. 소리는 서버 푸시가 담당(이중음 방지·항상 소리 보장).
+  const channelId = await ensureSilentAlarmChannel();
   const fileId = presetFileIdOf(slot.remindSoundId);
   const label = slot.label ?? '';
   const notif = buildAlarmNotification({
     id,
     channelId,
-    alarmMode: slot.remindAlarmMode as Exclude<AlarmMode, 'basic'>,
+    alarmMode: 'alarm',
     kind: 'remind',
     title: i18n.t('localAlarm.remindTitle'),
     body: i18n.t('localAlarm.remindBody', { label }),
@@ -253,10 +244,11 @@ export async function scheduleTrackAlarms(opts: {
   soundId: string | null;
   alarmMode: AlarmMode;
 }): Promise<void> {
-  if (Platform.OS !== 'android' || opts.alarmMode === 'basic') return;
+  // 로컬 전체화면은 '알람처럼'에만. basic/30초 트랙은 서버 푸시가 담당.
+  if (Platform.OS !== 'android' || opts.alarmMode !== 'alarm') return;
   if (!LOCAL_ALARM_ENABLED) return; // 임시 비활성
-  // 채널 소리 필수(절전에서도 소리로 깨우기). AlarmScreen 은 무음이라 이중재생 없음.
-  const channelId = await ensureAlarmChannel(opts.soundId);
+  // 로컬은 무음 전체화면 보너스. 소리는 서버 푸시가 담당(이중음 방지).
+  const channelId = await ensureSilentAlarmChannel();
   const fileId = presetFileIdOf(opts.soundId);
   const now = Date.now();
   for (const min of opts.intervals) {
@@ -264,7 +256,7 @@ export async function scheduleTrackAlarms(opts: {
     const notif = buildAlarmNotification({
       id: trackAlarmId(opts.slotId, min),
       channelId,
-      alarmMode: opts.alarmMode as Exclude<AlarmMode, 'basic'>,
+      alarmMode: 'alarm',
       kind: 'track',
       title: i18n.t('localAlarm.trackTitle'),
       body: i18n.t('localAlarm.trackBody'),
