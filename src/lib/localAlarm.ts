@@ -16,6 +16,7 @@
  *   앱이 열릴 때(App.tsx getInitialNotification) AlarmScreen 으로 라우팅해 kind 별 흐름 처리.
  */
 import { Platform } from 'react-native';
+import * as IntentLauncher from 'expo-intent-launcher';
 import notifee, {
   AndroidImportance,
   AndroidCategory,
@@ -25,6 +26,33 @@ import notifee, {
   AlarmType,
 } from '@notifee/react-native';
 import i18n from '../i18n';
+
+const ANDROID_PACKAGE = 'com.ourmine.parkinon';
+
+/**
+ * Android 14(API 34)+ "전체 화면 알림" 권한 설정 화면을 연다.
+ *   이 권한이 없으면 fullScreenAction 이 전체화면 대신 헤드업 알림으로 폴백한다(잠금화면 위로 안 뜸).
+ *   사이드로드/일부 OEM(삼성 등)은 기본 거부라 사용자가 직접 켜야 한다.
+ */
+export async function openFullScreenAlarmSettings(): Promise<void> {
+  if (Platform.OS !== 'android') return;
+  try {
+    await IntentLauncher.startActivityAsync(
+      'android.settings.MANAGE_APP_USE_FULL_SCREEN_INTENT',
+      { data: `package:${ANDROID_PACKAGE}` },
+    );
+  } catch {
+    // 폴백: 앱 상세 설정(구형/미지원 기기)
+    try {
+      await IntentLauncher.startActivityAsync(
+        'android.settings.APPLICATION_DETAILS_SETTINGS',
+        { data: `package:${ANDROID_PACKAGE}` },
+      );
+    } catch {
+      /* noop */
+    }
+  }
+}
 import { presetFileIdOf, presetChannelIdAndroid, type AlarmMode } from '../constants/presetAlarmSounds';
 import { ensurePresetChannelForSoundId } from './alarmSound';
 import type { DoseSlot } from '../hooks/useDoseSlots';

@@ -1625,7 +1625,11 @@ function TimePickerSheet({
                       { value: '오후', label: t('common.pm') },
                     ]}
                     selected={state.ampm}
-                    onSelect={(v) => onChange({ ...state, ampm: v as '오전' | '오후' })}
+                    onSelect={(v) => {
+                      // 오후로 전환 시 이전 시각(오전 값)이 그대로 남아 불편 → 1시로 초기화.
+                      const nextHour = v === '오후' ? 1 : state.hour;
+                      onChange({ ...state, ampm: v as '오전' | '오후', hour: nextHour });
+                    }}
                   />
                 </View>
                 <View style={pickStyles.colDivider} />

@@ -318,7 +318,11 @@ export function MedTimeOnboardingScreen() {
               <TouchableOpacity
                 key={v}
                 style={[styles.ampmBtn, ampm === v && styles.ampmBtnOn]}
-                onPress={() => setAmpm(v)}
+                onPress={() => {
+                  setAmpm(v);
+                  // 오후로 전환 시 이전 시각(오전 값)이 그대로 남아 불편 → 1시로 초기화.
+                  if (v === 'pm') setHour(1);
+                }}
                 activeOpacity={0.85}
               >
                 <Text style={[styles.ampmText, ampm === v && styles.ampmTextOn]}>
