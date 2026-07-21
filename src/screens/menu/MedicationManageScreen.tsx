@@ -3099,22 +3099,25 @@ export function MedicationManageScreen({ modeOverride, hideBack, hideTopBar, onG
                         {/* 세트2: 약효 추적 알림 + 그 알림소리(켜졌을 때) */}
                         <View style={styles.slotSetBox}>
                           <View style={styles.slotTrackHeadRow}>
-                            <Text style={[styles.slotTrackLabelText, !slot.trackEnabled && styles.slotToggleLabelOff]}>
-                              {t('medManage.effectTrack')}
-                            </Text>
-                            {/* 요약 토큰 컬럼: 라벨 바로 오른쪽에서 시작 → 넘치면 이 컬럼 왼쪽(=복용직후 위치)에 정렬해 줄바꿈 */}
-                            <View style={styles.slotTrackTokensCol}>
-                              {slot.trackEnabled && slotTrackIntervalSummary(slot)
-                                ? slotTrackIntervalSummary(slot).split(' · ').map((tok, i, arr) => (
-                                    // 구분점은 토큰 '뒤'에 붙임(마지막 제외) → 줄바꿈 시 점은 이전 줄 끝에 남고 새 줄은 글자로 시작.
-                                    <Text key={i} style={styles.slotTrackToken}>
-                                      {tok}
-                                      {i < arr.length - 1 && (
-                                        <Text style={styles.slotTrackTokenSep}>  ·  </Text>
-                                      )}
-                                    </Text>
-                                  ))
-                                : null}
+                            {/* 라벨+토큰은 flex-start(첫 줄 정렬·줄바꿈 유지). 스위치는 바깥 행 alignItems:center 로 블록 세로 가운데. */}
+                            <View style={styles.slotTrackHeadContent}>
+                              <Text style={[styles.slotTrackLabelText, !slot.trackEnabled && styles.slotToggleLabelOff]}>
+                                {t('medManage.effectTrack')}
+                              </Text>
+                              {/* 요약 토큰 컬럼: 라벨 바로 오른쪽에서 시작 → 넘치면 이 컬럼 왼쪽(=복용직후 위치)에 정렬해 줄바꿈 */}
+                              <View style={styles.slotTrackTokensCol}>
+                                {slot.trackEnabled && slotTrackIntervalSummary(slot)
+                                  ? slotTrackIntervalSummary(slot).split(' · ').map((tok, i, arr) => (
+                                      // 구분점은 토큰 '뒤'에 붙임(마지막 제외) → 줄바꿈 시 점은 이전 줄 끝에 남고 새 줄은 글자로 시작.
+                                      <Text key={i} style={styles.slotTrackToken}>
+                                        {tok}
+                                        {i < arr.length - 1 && (
+                                          <Text style={styles.slotTrackTokenSep}>  ·  </Text>
+                                        )}
+                                      </Text>
+                                    ))
+                                  : null}
+                              </View>
                             </View>
                             <Switch
                               value={slot.trackEnabled}
@@ -4078,7 +4081,11 @@ const styles = StyleSheet.create({
   slotSoundWrap: { marginTop: -8 },
   // 약효추적 헤더 행: [라벨][요약토큰 컬럼(flex:1)][스위치]. flex-start 라 라벨과 첫 토큰(복용직후)이 같은 줄.
   slotTrackHeadRow: {
-    flexDirection: 'row', alignItems: 'flex-start', paddingHorizontal: 14, paddingVertical: 13,
+    // 바깥 행은 center → 스위치가 (라벨+토큰) 블록 세로 가운데. 라벨/토큰 자체는 아래 content 가 flex-start 로 첫 줄 정렬.
+    flexDirection: 'row', alignItems: 'center', paddingHorizontal: 14, paddingVertical: 13,
+  },
+  slotTrackHeadContent: {
+    flex: 1, flexDirection: 'row', alignItems: 'flex-start',
   },
   slotTrackLabelText: { fontSize: 17, fontWeight: '700', color: Colors.text, lineHeight: 26, marginRight: 8 },
   // 토큰 컬럼: 라벨 오른쪽에서 시작, 넘치면 이 컬럼 왼쪽(복용직후 라인)에 맞춰 줄바꿈.
