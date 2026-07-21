@@ -1321,6 +1321,9 @@ export function MedicationManageScreen({ modeOverride, hideBack, hideTopBar, onG
   const [isLoading, setIsLoading] = useState(false);
   const [selectedDrug, setSelectedDrug] = useState<Medication | null>(null);
   const [targetPatientId, setTargetPatientId] = useState<string | null>(null);
+  // 환자 기기 플랫폼 — '알람처럼'(전체화면 알람)은 안드로이드 전용 기능이라, 실제로 알림이
+  // 울리는 대상(환자 기기) 기준으로 옵션 노출 여부를 판단한다(편집자=보호자 기기와 무관).
+  const [targetPatientPlatform, setTargetPatientPlatform] = useState<'android' | 'ios' | null>(null);
   // 대상 환자 해석 완료 여부 — 로딩 중(false)과 "미연동(true+null)" 구분. 깜빡임/오판 방지.
   const [targetLoadDone, setTargetLoadDone] = useState(false);
 
@@ -1527,6 +1530,20 @@ export function MedicationManageScreen({ modeOverride, hideBack, hideTopBar, onG
 
   // 미연동 보호자: 보호자인데 환자 해석 끝났고 대상 환자 없음 → 환자 본인 경로는 절대 영향 없음
   const caregiverUnlinked = user?.role === 'caregiver' && targetLoadDone && targetPatientId == null;
+
+  // 환자 기기 플랫폼 조회('알람처럼' 옵션 노출 판단용). 본인(환자)이 직접 보는 경우도 포함.
+  useEffect(() => {
+    if (!targetPatientId) { setTargetPatientPlatform(null); return; }
+    supabase
+      .from('users')
+      .select('push_platform')
+      .eq('id', targetPatientId)
+      .maybeSingle()
+      .then(({ data }) => {
+        const p = (data as any)?.push_platform;
+        setTargetPatientPlatform(p === 'ios' || p === 'android' ? p : null);
+      });
+  }, [targetPatientId]);
 
   // ── DB 로드 ────────────────────────────────────────────────────────────
 
@@ -2800,16 +2817,22 @@ export function MedicationManageScreen({ modeOverride, hideBack, hideTopBar, onG
     async (slot: DoseSlot, kind: 'remind' | 'track') => {
       if (!slot.id) return;
       const current = kind === 'remind' ? slot.remindAlarmMode : slot.trackAlarmMode;
+      // '알람처럼'(전체화면 알람)은 안드로이드 전용 — 실제로 알림이 울리는 환자 기기 기준으로
+      // 판단(편집자=보호자 기기와 무관). 환자가 아이폰이면 골라도 '기본'과 동일하게 동작하므로
+      // 혼란 방지를 위해 선택지 자체를 숨기고 이유를 안내한다.
+      const patientIsIos = targetPatientPlatform === 'ios';
       const picked = await dialog.show({
         title: t('medManage.alarmModeTitle'),
-        // 무한반복 불가 주의문구는 아이폰 사용자에게만.
         message:
           t('medManage.alarmModeMsg') +
-          (Platform.OS === 'ios' ? `\n\n${t('medManage.alarmModeIosNote')}` : ''),
+          (patientIsIos ? `\n\n${t('medManage.alarmModePatientIosNote')}` : ''),
         buttons: [
-          // '20초내외'(sound30) 제거 — 서버 1회라 '기본'과 동일. 로컬은 '알람처럼' 하나만.
+          // '20초내외'(sound30) 제거 — 서버 1회라 '기본'과 동일.
           { id: 'basic', text: t('medManage.alarmMode.basic'), style: 'default' as const },
-          { id: 'alarm', text: t('medManage.alarmMode.alarm'), style: 'primary' as const },
+          // 환자 기기가 아이폰으로 확인되면 '알람처럼' 자체를 숨김(안드로이드 전용 기능).
+          ...(patientIsIos
+            ? []
+            : [{ id: 'alarm', text: t('medManage.alarmMode.alarm'), style: 'primary' as const }]),
           { id: '__cancel', text: t('common.close'), style: 'cancel' as const },
         ],
       });
@@ -2836,7 +2859,7 @@ export function MedicationManageScreen({ modeOverride, hideBack, hideTopBar, onG
         }
       }
     },
-    [dialog, t, updateSlotFlag],
+    [dialog, t, updateSlotFlag, targetPatientPlatform],
   );
 
   // 슬롯이 로드/변경될 때마다, 그 슬롯이 쓰는 프리셋 채널을 즉시 보장(안드).

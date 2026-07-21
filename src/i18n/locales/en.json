@@ -747,7 +747,7 @@
     },
     "alarmPreviewTitle": "Preview full-screen alarm",
     "alarmPreviewMsg": "Preview how the 'like an alarm' screen looks now?\nThis is just a test screen — nothing will be recorded.",
-    "alarmModeIosNote": "On iPhone, endless repeat isn't possible, so 'Like an alarm' rings up to 30 seconds."
+    "alarmModePatientIosNote": "⚠️ 'Like an alarm' only works on Android devices. On iPhone it won't run — it rings the same as 'Basic'."
   },
   "settings": {
     "notifMedTakenLabel": "When the patient records medication",
