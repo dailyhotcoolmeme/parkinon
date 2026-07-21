@@ -1683,24 +1683,22 @@ export function SettingsScreen() {
 
         {/* 복용 시각별 세트카드(슬롯 시각·복용 알림·약효추적)는 "복용 시간·알림" 메뉴로 이관됨. */}
 
-        {/* ── 가족 일기 알림 (본인 설정만 · 보호자의 '환자 대신' 모드에선 숨김) ── */}
-        {settingsMode === 'self' && (
-          <View style={[styles.card, styles.cardMarginTop]}>
-            {/* 헤더 하나뿐인 카드라 하단 모서리도 둥글게(cardHeaderSolo). */}
-            <View style={[styles.cardHeader, styles.cardHeaderSolo]}>
-              <Ionicons name="book-outline" size={24} color={Colors.primary} style={styles.cardHeaderIcon} />
-              <View style={styles.cardHeaderText}>
-                <Text style={styles.cardHeaderTitle}>{t('settings.diaryNotifTitle')}</Text>
-                <Text style={styles.cardHeaderSub}>{t('settings.diaryNotifSub')}</Text>
-              </View>
-              <OptimisticSwitch
-                style={styles.notifSwitch}
-                value={diaryNotifEnabled}
-                onValueChange={toggleDiaryNotif}
-              />
+        {/* ── 가족 일기 알림 ── */}
+        <View style={[styles.card, styles.cardMarginTop]}>
+          {/* 헤더 하나뿐인 카드라 하단 모서리도 둥글게(cardHeaderSolo). */}
+          <View style={[styles.cardHeader, styles.cardHeaderSolo]}>
+            <Ionicons name="book-outline" size={24} color={Colors.primary} style={styles.cardHeaderIcon} />
+            <View style={styles.cardHeaderText}>
+              <Text style={styles.cardHeaderTitle}>{t('settings.diaryNotifTitle')}</Text>
+              <Text style={styles.cardHeaderSub}>{t('settings.diaryNotifSub')}</Text>
             </View>
+            <OptimisticSwitch
+              style={styles.notifSwitch}
+              value={diaryNotifEnabled}
+              onValueChange={toggleDiaryNotif}
+            />
           </View>
-        )}
+        </View>
 
         {/* ── 약 미복용 알림 (환자만 · 시각별 아님 · 환자 전역) ── */}
         {!isCaregiver && hasAnyDoseSetup && (
