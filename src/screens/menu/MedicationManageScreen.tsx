@@ -4073,7 +4073,7 @@ const styles = StyleSheet.create({
     flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between',
     minHeight: 52, paddingHorizontal: 14,
   },
-  slotToggleLabel: { flex: 1, fontSize: 17, fontWeight: '700', color: Colors.text, paddingRight: 10 },
+  slotToggleLabel: { flex: 1, fontSize: 17, fontWeight: '700', color: Colors.text, lineHeight: 26, paddingRight: 10 },
   slotToggleLabelOff: { color: '#A6AEBA', fontWeight: '600' },
   // 알림소리 행(AlarmSoundPickerRow) 자체 marginTop:8 을 상쇄해 구분선 바로 아래 붙임(토글 행과 등높이).
   slotSoundWrap: { marginTop: -8 },
