@@ -26,6 +26,7 @@ import * as ImagePicker from 'expo-image-picker';
 import * as ImageManipulator from 'expo-image-manipulator';
 import { Video as VideoCompressor } from 'react-native-compressor';
 import { ImageGalleryViewer } from '../../components/common/ImageGalleryViewer';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 import { R2Image } from '../../components/common/R2Image';
 import { useAuth } from '../../context/AuthContext';
 import { useDialog } from '../../context/DialogContext';
@@ -660,6 +661,24 @@ export function DiaryScreen() {
   const canGoNext = dateStr < todayStr;
 
   const myEntry = entries.find((e) => e.author_id === user?.id) ?? null;
+
+  // 가족 일기 최초 진입 1회 소개 팝업 — 환자·보호자 모두 작성 가능·서로 응원·격려. 사용자별 1회.
+  useEffect(() => {
+    if (!user?.id) return;
+    const key = `diary_intro_shown_${user.id}`;
+    (async () => {
+      try {
+        if (await AsyncStorage.getItem(key)) return;
+        await AsyncStorage.setItem(key, '1');
+        dialog.alert({
+          title: t('diary.introTitle'),
+          message: t('diary.introMsg'),
+          confirmText: t('diary.introBtn'),
+        });
+      } catch {}
+    })();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [user?.id]);
 
   // 🔒 비공개(워커) 경유 유지: 일기 항목 로드 직후 영상(video_url)들의 워커 presigned URL 을
   //    병렬로 미리 발급해 캐시에 채워둔다. 인라인 썸네일·전체화면이 캐시 히트로 즉시 뜸.
