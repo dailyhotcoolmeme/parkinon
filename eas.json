@@ -7,7 +7,7 @@
       "ios": {
         "appleTeamId": "K72Z59MZU3",
         "ascAppId": "6773573590",
-        "ascApiKeyPath": "/Users/ourmine/Downloads/AuthKey_9URM5MR2DL.p8",
+        "ascApiKeyPath": "/Users/ourmine/dev/parkinon-app/AuthKey_9URM5MR2DL.p8",
         "ascApiKeyId": "9URM5MR2DL",
         "ascApiKeyIssuerId": "e65cf392-198b-437d-a5a4-d6d697692559",
         "bundleIdentifier": "com.ourmine.parkinon",
