@@ -3053,15 +3053,21 @@ export function MedicationManageScreen({ modeOverride, hideBack, hideTopBar, onG
                         {/* 세트1: 약 복용 알림 + 그 알림소리(켜졌을 때) */}
                         <View style={styles.slotSetBox}>
                           <View style={styles.slotToggleRow}>
-                            <Text style={[styles.slotToggleLabel, !slot.remindEnabled && styles.slotToggleLabelOff]}>
-                              {t('medManage.medReminder')}
-                            </Text>
-                            <Switch
-                              value={slot.remindEnabled}
-                              onValueChange={(v) => toggleSlotRemind(slot, v)}
-                              trackColor={{ false: Colors.border, true: Colors.primary }}
-                              thumbColor={Colors.white}
-                            />
+                            {/* 라벨/스위치를 각각 같은 높이(52) 박스에 넣고 박스 안에서 개별로 가운데 정렬 —
+                                폰트 lineHeight·Switch 렌더 특성에 기대지 않는 확정적 정렬. */}
+                            <View style={styles.slotToggleLabelBox}>
+                              <Text style={[styles.slotToggleLabel, !slot.remindEnabled && styles.slotToggleLabelOff]}>
+                                {t('medManage.medReminder')}
+                              </Text>
+                            </View>
+                            <View style={styles.slotToggleSwitchBox}>
+                              <Switch
+                                value={slot.remindEnabled}
+                                onValueChange={(v) => toggleSlotRemind(slot, v)}
+                                trackColor={{ false: Colors.border, true: Colors.primary }}
+                                thumbColor={Colors.white}
+                              />
+                            </View>
                           </View>
                           {slot.remindEnabled && (
                             <>
@@ -4073,7 +4079,11 @@ const styles = StyleSheet.create({
     flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between',
     minHeight: 52, paddingHorizontal: 14,
   },
-  slotToggleLabel: { flex: 1, fontSize: 17, fontWeight: '700', color: Colors.text, lineHeight: 26, paddingRight: 10 },
+  // 라벨/스위치를 같은 높이(52) 박스에 넣고 각자 justifyContent:center 로 가운데 정렬.
+  // 폰트 lineHeight·Switch 렌더 특성에 기대지 않는 확정적 방식(둘 다 52 높이 박스 정중앙).
+  slotToggleLabelBox: { flex: 1, height: 52, justifyContent: 'center', paddingRight: 10 },
+  slotToggleSwitchBox: { height: 52, justifyContent: 'center', alignItems: 'center' },
+  slotToggleLabel: { fontSize: 17, fontWeight: '700', color: Colors.text },
   slotToggleLabelOff: { color: '#A6AEBA', fontWeight: '600' },
   // 알림소리 행(AlarmSoundPickerRow) 자체 marginTop:8 을 상쇄해 구분선 바로 아래 붙임(토글 행과 등높이).
   slotSoundWrap: { marginTop: -8 },
