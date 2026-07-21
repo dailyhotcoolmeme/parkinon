@@ -813,6 +813,20 @@ export function DiaryScreen() {
             </View>
           ))}
 
+          {/* 이미 (다른 가족의) 글이 있고 내 글은 아직 없을 때 — 톱바 대신 내용 아래 잘 보이는 작성 버튼. */}
+          {entries.length > 0 && !myEntry && !caregiverUnlinked && (
+            <View style={styles.belowWriteWrap}>
+              <TouchableOpacity
+                onPress={() => setShowEditor(true)}
+                style={styles.emptyWriteBtn}
+                activeOpacity={0.85}
+              >
+                <Ionicons name="create-outline" size={22} color="#fff" />
+                <Text style={styles.emptyWriteBtnText}>{t('diary.writeBtn')}</Text>
+              </TouchableOpacity>
+            </View>
+          )}
+
           <View style={{ height: 28 }} />
         </ScrollView>
       )}
@@ -2604,6 +2618,7 @@ const styles = StyleSheet.create({
 
   // ── 한마디 비어있음 ──
   emptyEntryWrap: { alignItems: 'center', justifyContent: 'center', paddingVertical: 32 },
+  belowWriteWrap: { alignItems: 'center', marginTop: 24 },
   emptyEntryText: { fontFamily: SERIF, fontSize: 17, lineHeight: 26, color: Journal.inkSoft, textAlign: 'center', marginBottom: 16 },
   emptyWriteBtn: {
     flexDirection: 'row',
