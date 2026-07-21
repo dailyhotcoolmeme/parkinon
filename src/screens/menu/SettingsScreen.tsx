@@ -242,6 +242,32 @@ export function SettingsScreen() {
   const isCaregiver = user?.role === 'caregiver';
   const { unreadCount } = useNotificationBadge();
   const dialog = useDialog();
+
+  // 가족 일기 알림 수신 토글 (환자·보호자 공통 · users.diary_notif_enabled · 기본 ON)
+  const [diaryNotifEnabled, setDiaryNotifEnabled] = useState(true);
+  useEffect(() => {
+    if (!user?.id) return;
+    let alive = true;
+    (async () => {
+      const { data } = await supabase
+        .from('users')
+        .select('diary_notif_enabled')
+        .eq('id', user.id)
+        .maybeSingle();
+      if (alive && data) setDiaryNotifEnabled((data as any).diary_notif_enabled !== false);
+    })();
+    return () => { alive = false; };
+  }, [user?.id]);
+  const toggleDiaryNotif = async () => {
+    if (!user?.id) return;
+    const next = !diaryNotifEnabled;
+    setDiaryNotifEnabled(next);
+    try {
+      await supabase.from('users').update({ diary_notif_enabled: next } as any).eq('id', user.id);
+    } catch {
+      setDiaryNotifEnabled(!next); // 실패 시 롤백
+    }
+  };
   const route = useRoute<RouteProp<MenuStackParamList, 'Settings'>>();
   // 온보딩 직후 강제 진입(guideCaregiverNotif) 안내 팝업 — 확인 시 전체 ON.
   // (효과는 setNotificationEnabled/cascadeMasterToIndividual 정의 뒤에 배치 — TDZ 방지)
@@ -1656,6 +1682,22 @@ export function SettingsScreen() {
         )}
 
         {/* 복용 시각별 세트카드(슬롯 시각·복용 알림·약효추적)는 "복용 시간·알림" 메뉴로 이관됨. */}
+
+        {/* ── 가족 일기 알림 (환자·보호자 공통) ── */}
+        <View style={[styles.card, styles.cardMarginTop]}>
+          <View style={styles.cardHeader}>
+            <Ionicons name="book-outline" size={24} color={Colors.primary} style={styles.cardHeaderIcon} />
+            <View style={styles.cardHeaderText}>
+              <Text style={styles.cardHeaderTitle}>{t('settings.diaryNotifTitle')}</Text>
+              <Text style={styles.cardHeaderSub}>{t('settings.diaryNotifSub')}</Text>
+            </View>
+            <OptimisticSwitch
+              style={styles.notifSwitch}
+              value={diaryNotifEnabled}
+              onValueChange={toggleDiaryNotif}
+            />
+          </View>
+        </View>
 
         {/* ── 약 미복용 알림 (환자만 · 시각별 아님 · 환자 전역) ── */}
         {!isCaregiver && hasAnyDoseSetup && (

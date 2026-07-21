@@ -439,6 +439,16 @@ export function useDiary(dateStr: string): UseDiaryReturn {
         );
       if (error) throw new Error(error.message);
 
+      // 가족 일기 알림 — '새로 작성'(기존 행 없음)일 때만 그룹의 다른 가족에게 푸시(오너 결정: 수정은 X).
+      //   cross-user 라 서버(edge function) 경유. 실패해도 저장 흐름은 막지 않음(베스트에포트).
+      if (!prevRow) {
+        supabase.functions
+          .invoke('notify-diary-entry', {
+            body: { patient_id: patientId, entry_date: dateStr, author_id: user.id },
+          })
+          .catch(() => {});
+      }
+
       // 저장(diary_entries.video_media_id 갱신) 후에 이전 영상을 정리한다.
       // 순서상 일기 행이 먼저 새 값을 가리키므로 FK(SET NULL) 충돌 없이 안전하다.
       // 이전 영상이 있고 + 더 이상 참조되지 않으면(제거 또는 교체) 삭제. 베스트에포트.

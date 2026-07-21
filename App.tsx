@@ -251,6 +251,8 @@ function AppInner() {
         measurement_completed: () => navigateTo('Main', { screen: 'BodyStateTab', params: { screen: 'BodyState' } }),
         // 환자가 "복약 시간 설정 요청" → 보호자를 환자 복용시간 설정 화면으로.
         caregiver_med_setup_request: () => navigateTo('Main', { screen: 'MyInfo', params: { screen: 'MedicationManage', params: { mode: 'slots' } } }),
+        // 가족 일기 알림 → 그 날짜 일기 화면으로(환자·보호자 공통). data.date 로 진입.
+        family_diary: () => navigateTo('Diary', data?.date ? { date: data.date } : undefined),
       };
       if (type && CAREGIVER_NAV[type]) {
         log('caregiver_nav_enter', { type });
