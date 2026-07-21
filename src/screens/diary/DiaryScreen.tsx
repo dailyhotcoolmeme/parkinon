@@ -648,8 +648,15 @@ export function DiaryScreen() {
   const [dateStr, setDateStr] = useState<string>(initialDate);
   const [showDatePicker, setShowDatePicker] = useState(false);
   const [showEditor, setShowEditor] = useState(false);
+  // 지금 에디터가 어느 글을 다루는지. null=새 글 작성, 값 있으면 그 글 수정.
+  const [editingEntry, setEditingEntry] = useState<DiaryEntry | null>(null);
 
-  const { autoSummary, entries, loading, patientId, saveMyEntry, deleteMyEntry } = useDiary(dateStr);
+  const { autoSummary, entries, loading, patientId, saveEntry, deleteEntry } = useDiary(dateStr);
+
+  const openNewEntry = () => {
+    setEditingEntry(null);
+    setShowEditor(true);
+  };
 
   // 미연동 보호자: 보호자인데 환자 해석이 끝났고(=loading false) 연동 환자 없음.
   // useDiary.loading 은 환자 해석(pidLoading)을 포함하므로 깜빡임 없이 판정된다.
@@ -659,8 +666,6 @@ export function DiaryScreen() {
   // 미래 날짜로는 이동 금지
   const isToday = dateStr === todayStr;
   const canGoNext = dateStr < todayStr;
-
-  const myEntry = entries.find((e) => e.author_id === user?.id) ?? null;
 
   // 가족 일기 최초 진입 1회 소개 팝업 — 환자·보호자 모두 작성 가능·서로 응원·격려. 사용자별 1회.
   useEffect(() => {
@@ -692,9 +697,8 @@ export function DiaryScreen() {
     ? `${MONTH_NAMES_EN[dt.getMonth()]} ${dt.getDate()}, ${WEEKDAYS_FULL[dt.getDay()]}`
     : `${dt.getMonth() + 1}월 ${dt.getDate()}일 ${WEEKDAYS_FULL[dt.getDay()]}`;
 
-  // 내 글 인라인 삭제 — 톱바에 있던 삭제 기능을 엔트리 줄로 옮긴 것.
-  // 기존 삭제 확인 다이얼로그·deleteMyEntry를 그대로 재사용한다.
-  const handleInlineDelete = async () => {
+  // 글 인라인 삭제 — 엔트리 줄의 삭제 아이콘에서 그 글 id로 호출.
+  const handleInlineDelete = async (id: string) => {
     const ok = await dialog.confirm({
       title: t('diary.deletePostTitle'),
       message: t('diary.deletePostMsg'),
@@ -704,7 +708,7 @@ export function DiaryScreen() {
     });
     if (!ok) return;
     try {
-      await deleteMyEntry();
+      await deleteEntry(id);
     } catch (e: any) {
       dialog.alert({ title: t('diary.deleteFailTitle'), message: e?.message ?? t('diary.genericRetryMsg') });
     }
@@ -717,12 +721,11 @@ export function DiaryScreen() {
         bg={Journal.page}
         onLeftPress={() => navigation.goBack()}
         rightComponent={
-          // 내 글이 있으면 수정/삭제는 해당 엔트리 줄(인라인)로 옮겼다.
-          // 아직 내 글이 없을 때만 "작성" 진입점을 톱바에 둔다.
-          // 미연동 보호자는 환자가 없어 작성 자체가 불가하므로 진입점을 숨긴다.
-          (myEntry || caregiverUnlinked) ? undefined : (
+          // 수정/삭제는 각 글의 엔트리 줄(인라인)에서. 톱바는 항상 "새 글쓰기" 진입점
+          // (하루에 여러 건 작성 가능). 미연동 보호자는 환자가 없어 작성 자체가 불가.
+          caregiverUnlinked ? undefined : (
             <TouchableOpacity
-              onPress={() => setShowEditor(true)}
+              onPress={openNewEntry}
               hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
               style={styles.headerActionBtn}
             >
@@ -810,7 +813,7 @@ export function DiaryScreen() {
             <View style={styles.emptyEntryWrap}>
               <Text style={styles.emptyEntryText}>{t('diary.noEntryYet')}</Text>
               <TouchableOpacity
-                onPress={() => setShowEditor(true)}
+                onPress={openNewEntry}
                 style={styles.emptyWriteBtn}
                 activeOpacity={0.85}
               >
@@ -826,17 +829,20 @@ export function DiaryScreen() {
               <EntryBlock
                 entry={entry}
                 isMine={entry.author_id === user?.id}
-                onEdit={() => setShowEditor(true)}
-                onDelete={handleInlineDelete}
+                onEdit={() => {
+                  setEditingEntry(entry);
+                  setShowEditor(true);
+                }}
+                onDelete={() => handleInlineDelete(entry.id)}
               />
             </View>
           ))}
 
-          {/* 이미 (다른 가족의) 글이 있고 내 글은 아직 없을 때 — 톱바 대신 내용 아래 잘 보이는 작성 버튼. */}
-          {entries.length > 0 && !myEntry && !caregiverUnlinked && (
+          {/* 글이 이미 있어도 하루에 여러 건 쓸 수 있어 — 내용 아래에도 잘 보이는 작성 버튼. */}
+          {entries.length > 0 && !caregiverUnlinked && (
             <View style={styles.belowWriteWrap}>
               <TouchableOpacity
-                onPress={() => setShowEditor(true)}
+                onPress={openNewEntry}
                 style={styles.emptyWriteBtn}
                 activeOpacity={0.85}
               >
@@ -868,17 +874,22 @@ export function DiaryScreen() {
           visible={showEditor}
           dateStr={dateStr}
           patientId={patientId}
-          existing={myEntry}
+          existing={editingEntry}
           parentInsetTop={insets.top}
           parentInsetBottom={insets.bottom}
-          onClose={() => setShowEditor(false)}
-          onSaved={async (input) => {
-            await saveMyEntry(input);
+          onClose={() => {
             setShowEditor(false);
+            setEditingEntry(null);
+          }}
+          onSaved={async (input) => {
+            await saveEntry(input, editingEntry?.id ?? null);
+            setShowEditor(false);
+            setEditingEntry(null);
           }}
           onDeleted={async () => {
-            await deleteMyEntry();
+            if (editingEntry) await deleteEntry(editingEntry.id);
             setShowEditor(false);
+            setEditingEntry(null);
           }}
         />
       )}
@@ -1315,8 +1326,9 @@ function DiaryEditorModal({ visible, dateStr, patientId, existing, onClose, onSa
   const insets = useSafeAreaInsets();
 
   // ── 그룹 하루 미디어 풀 게이팅 (국내·해외 동일 기준) ──
-  // 사진5·영상2·음성1을 그룹당 하루 공유 풀로 제한(국내·해외 free 동일). 남들이 오늘 쓴 양
-  // (내 글 제외)을 불러와 내 작성기 잔여 한도를 계산. 해외 premium 만 무제한.
+  // 사진5·영상2·음성1을 그룹당 하루 공유 풀로 제한(국내·해외 free 동일). 하루에 여러 건
+  // 작성 가능하므로 "지금 편집 중인 이 글"만 빼고(자기 자신과 중복 방지) 오늘 쓴 전체
+  // (내 다른 글 포함)를 불러와 내 작성기 잔여 한도를 계산. 해외 premium 만 무제한.
   // 한도 도달 안내: 해외=구독 유도(업셀), 국내=결제 문구 없는 담백한 안내.
   const overseas = isOverseasLocale();
   const unlimited = overseas && isPremium; // 해외 프리미엄만 무제한
@@ -1324,7 +1336,7 @@ function DiaryEditorModal({ visible, dateStr, patientId, existing, onClose, onSa
   useEffect(() => {
     if (!visible || unlimited || !patientId) { setGroupOthers(EMPTY_USAGE); return; }
     let cancelled = false;
-    countTodayGroupMedia(patientId, user?.timezone, user?.id)
+    countTodayGroupMedia(patientId, user?.timezone, existing?.id ?? undefined)
       .then((u) => { if (!cancelled) setGroupOthers(u); })
       .catch(() => { if (!cancelled) setGroupOthers(EMPTY_USAGE); });
     return () => { cancelled = true; };

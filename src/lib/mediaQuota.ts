@@ -31,14 +31,16 @@ export const EMPTY_USAGE: DailyMediaUsage = { photo: 0, video: 0, voice: 0 };
 
 /**
  * 그룹(환자)의 오늘(tz 기준 entry_date/logged_at) 미디어 사용량을 타입별로 집계.
- * @param excludeAuthorId 주어지면 그 작성자의 일기 글은 제외(자기 작성기에서 편집 중인 글을
- *   중복으로 세지 않기 위함 — 남들이 쓴 양만 집계해 내 작성기 잔여 한도를 계산).
+ * @param excludeEntryId 주어지면 그 글(diary_entries.id) 하나만 제외(지금 편집 중인 그 글의
+ *   기존 미디어를 자기 자신과 중복으로 세지 않기 위함). 하루에 여러 건 작성 가능하므로
+ *   작성자 전체가 아니라 "지금 편집 중인 그 글"만 정확히 빼야 한다 — 작성자 전체를 빼면
+ *   오늘 이미 쓴 다른 글의 미디어가 카운트에서 빠져 한도를 우회하게 된다.
  *   몸상태 영상(media_logs)은 독립 행이라 exclude 대상 아님.
  */
 export async function countTodayGroupMedia(
   patientId: string,
   tz?: string,
-  excludeAuthorId?: string,
+  excludeEntryId?: string,
 ): Promise<DailyMediaUsage> {
   const zone = tz || getDeviceTimeZone();
   const todayStr = getLocalToday(zone);
@@ -46,10 +48,10 @@ export async function countTodayGroupMedia(
   // 1) 일기(오늘) — photo_urls/video_media_id/audio_url
   let diaryQuery = supabase
     .from('diary_entries')
-    .select('photo_urls, video_media_id, audio_url, author_id')
+    .select('id, photo_urls, video_media_id, audio_url')
     .eq('patient_id', patientId)
     .eq('entry_date', todayStr);
-  if (excludeAuthorId) diaryQuery = diaryQuery.neq('author_id', excludeAuthorId);
+  if (excludeEntryId) diaryQuery = diaryQuery.neq('id', excludeEntryId);
   const { data: diaryRows } = await diaryQuery;
 
   let photo = 0;

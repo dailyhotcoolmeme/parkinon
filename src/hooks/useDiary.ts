@@ -199,8 +199,9 @@ interface UseDiaryReturn {
   entries: DiaryEntry[];
   loading: boolean;
   patientId: string | null;
-  saveMyEntry: (input: SaveMyEntryInput) => Promise<void>;
-  deleteMyEntry: () => Promise<void>;
+  // existingId 없으면 새 글 insert, 있으면 그 글만 수정(author_id 일치 확인).
+  saveEntry: (input: SaveMyEntryInput, existingId?: string | null) => Promise<void>;
+  deleteEntry: (id: string) => Promise<void>;
   refresh: () => Promise<void>;
 }
 
@@ -395,8 +396,9 @@ export function useDiary(dateStr: string): UseDiaryReturn {
     fetchAll();
   }, [fetchAll, pidLoading]);
 
-  const saveMyEntry = useCallback(
-    async (input: SaveMyEntryInput) => {
+  // existingId 없으면 새 글 insert(하루 여러 건 허용), 있으면 그 글만 update.
+  const saveEntry = useCallback(
+    async (input: SaveMyEntryInput, existingId?: string | null) => {
       if (!patientId || !user) throw new Error(i18n.t('diaryHook.saveInfoMissingError'));
       const nowIso = new Date().toISOString();
       // 최종 첨부 구성에 맞춰 순서 토큰을 정합화(삭제된 토큰 제거·신규 토큰 append).
@@ -407,26 +409,24 @@ export function useDiary(dateStr: string): UseDiaryReturn {
         hasAudio: !!input.audioUrl,
       });
 
-      // 저장 전 기존 행의 video_media_id를 조회해 둔다.
-      // 사용자가 영상을 ✕로 제거(새 video_media_id=null)했거나 다른 영상으로
-      // 교체(새 id≠이전 id)한 경우, 더 이상 참조되지 않는 이전 영상의
-      // media_logs 행 + R2 파일을 정리하기 위함이다.
-      const { data: prevRow } = await supabase
-        .from('diary_entries' as any)
-        .select('video_media_id')
-        .eq('patient_id', patientId)
-        .eq('entry_date', dateStr)
-        .eq('author_id', user.id)
-        .maybeSingle();
-      const prevVideoMediaId = (prevRow as { video_media_id: string | null } | null)?.video_media_id ?? null;
+      let prevVideoMediaId: string | null = null;
 
-      const { error } = await supabase
-        .from('diary_entries' as any)
-        .upsert(
-          {
-            patient_id: patientId,
-            author_id: user.id,
-            entry_date: dateStr,
+      if (existingId) {
+        // 수정: 저장 전 이 글의 기존 video_media_id를 조회해 둔다.
+        // 사용자가 영상을 ✕로 제거(새 video_media_id=null)했거나 다른 영상으로
+        // 교체(새 id≠이전 id)한 경우, 더 이상 참조되지 않는 이전 영상의
+        // media_logs 행 + R2 파일을 정리하기 위함이다.
+        const { data: prevRow } = await supabase
+          .from('diary_entries' as any)
+          .select('video_media_id')
+          .eq('id', existingId)
+          .eq('author_id', user.id)
+          .maybeSingle();
+        prevVideoMediaId = (prevRow as { video_media_id: string | null } | null)?.video_media_id ?? null;
+
+        const { error } = await supabase
+          .from('diary_entries' as any)
+          .update({
             text: input.text || null,
             audio_url: input.audioUrl,
             audio_r2_key: input.audioR2Key,
@@ -434,14 +434,28 @@ export function useDiary(dateStr: string): UseDiaryReturn {
             video_media_id: input.videoMediaId,
             media_order: mediaOrder,
             updated_at: nowIso,
-          },
-          { onConflict: 'patient_id,entry_date,author_id' },
-        );
-      if (error) throw new Error(error.message);
+          })
+          .eq('id', existingId)
+          .eq('author_id', user.id);
+        if (error) throw new Error(error.message);
+      } else {
+        // 새 글: 하루에 여러 건 허용 — 항상 insert.
+        const { error } = await supabase.from('diary_entries' as any).insert({
+          patient_id: patientId,
+          author_id: user.id,
+          entry_date: dateStr,
+          text: input.text || null,
+          audio_url: input.audioUrl,
+          audio_r2_key: input.audioR2Key,
+          photo_urls: input.photoUrls,
+          video_media_id: input.videoMediaId,
+          media_order: mediaOrder,
+          updated_at: nowIso,
+        });
+        if (error) throw new Error(error.message);
 
-      // 가족 일기 알림 — '새로 작성'(기존 행 없음)일 때만 그룹의 다른 가족에게 푸시(오너 결정: 수정은 X).
-      //   cross-user 라 서버(edge function) 경유. 실패해도 저장 흐름은 막지 않음(베스트에포트).
-      if (!prevRow) {
+        // 가족 일기 알림 — '새로 작성'일 때만 그룹의 다른 가족에게 푸시(오너 결정: 수정은 X).
+        //   cross-user 라 서버(edge function) 경유. 실패해도 저장 흐름은 막지 않음(베스트에포트).
         supabase.functions
           .invoke('notify-diary-entry', {
             body: { patient_id: patientId, entry_date: dateStr, author_id: user.id },
@@ -461,41 +475,42 @@ export function useDiary(dateStr: string): UseDiaryReturn {
     [patientId, user, dateStr, fetchAll],
   );
 
-  // 내가 쓴 그날의 글 삭제 (RLS: author 본인만 삭제 허용)
-  const deleteMyEntry = useCallback(async () => {
-    if (!patientId || !user) throw new Error(i18n.t('diaryHook.deleteInfoMissingError'));
+  // 글 하나 삭제 (RLS: author 본인만 삭제 허용, id로 특정)
+  const deleteEntry = useCallback(
+    async (id: string) => {
+      if (!user) throw new Error(i18n.t('diaryHook.deleteInfoMissingError'));
 
-    // 글에 첨부된 영상(video_media_id)을 미리 조회 → 글 삭제 후 함께 정리.
-    const { data: row } = await supabase
-      .from('diary_entries' as any)
-      .select('video_media_id')
-      .eq('patient_id', patientId)
-      .eq('entry_date', dateStr)
-      .eq('author_id', user.id)
-      .maybeSingle();
-    const videoMediaId = (row as { video_media_id: string | null } | null)?.video_media_id ?? null;
+      // 글에 첨부된 영상(video_media_id)을 미리 조회 → 글 삭제 후 함께 정리.
+      const { data: row } = await supabase
+        .from('diary_entries' as any)
+        .select('video_media_id')
+        .eq('id', id)
+        .eq('author_id', user.id)
+        .maybeSingle();
+      const videoMediaId = (row as { video_media_id: string | null } | null)?.video_media_id ?? null;
 
-    const { error } = await supabase
-      .from('diary_entries' as any)
-      .delete()
-      .eq('patient_id', patientId)
-      .eq('entry_date', dateStr)
-      .eq('author_id', user.id);
-    if (error) throw new Error(error.message);
+      const { error } = await supabase
+        .from('diary_entries' as any)
+        .delete()
+        .eq('id', id)
+        .eq('author_id', user.id);
+      if (error) throw new Error(error.message);
 
-    // 글 삭제 성공 후 그 글의 영상 media_logs 행 + R2 파일 정리(베스트에포트).
-    await deleteDiaryVideoMedia(videoMediaId);
+      // 글 삭제 성공 후 그 글의 영상 media_logs 행 + R2 파일 정리(베스트에포트).
+      await deleteDiaryVideoMedia(videoMediaId);
 
-    await fetchAll();
-  }, [patientId, user, dateStr, fetchAll]);
+      await fetchAll();
+    },
+    [user, fetchAll],
+  );
 
   return {
     autoSummary,
     entries,
     loading: loading || pidLoading,
     patientId,
-    saveMyEntry,
-    deleteMyEntry,
+    saveEntry,
+    deleteEntry,
     refresh: fetchAll,
   };
 }
