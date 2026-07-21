@@ -3061,7 +3061,6 @@ export function MedicationManageScreen({ modeOverride, hideBack, hideTopBar, onG
                               onValueChange={(v) => toggleSlotRemind(slot, v)}
                               trackColor={{ false: Colors.border, true: Colors.primary }}
                               thumbColor={Colors.white}
-                              style={styles.slotToggleSwitch}
                             />
                           </View>
                           {slot.remindEnabled && (
@@ -3124,7 +3123,6 @@ export function MedicationManageScreen({ modeOverride, hideBack, hideTopBar, onG
                               onValueChange={(v) => toggleSlotTrack(slot, v)}
                               trackColor={{ false: Colors.border, true: Colors.primary }}
                               thumbColor={Colors.white}
-                              style={styles.slotToggleSwitch}
                             />
                           </View>
                           {slot.trackEnabled && (
@@ -4093,7 +4091,6 @@ const styles = StyleSheet.create({
   // 요약 글자 크기도 17로 통일(라벨·복용약·알림소리와 동일).
   slotTrackToken: { color: Colors.dark, fontWeight: '700', fontSize: 17, lineHeight: 26 },
   slotTrackTokenSep: { color: '#9CC3A2', fontWeight: '700', fontSize: 17, lineHeight: 26 },
-  slotToggleSwitch: { transform: [{ scaleX: 1.15 }, { scaleY: 1.15 }] },
   // "알림 방식" 행 — 알림 소리 행(AlarmSoundPickerRow triggerBtn)과 같은 높이·좌우 패딩(14)으로 정렬.
   // 값이 길면 글자크기 유지한 채 줄바꿈 → flex-start 정렬(약효추적 방식).
   slotModeRow: {
