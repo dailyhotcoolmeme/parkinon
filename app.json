@@ -16,7 +16,7 @@
     "ios": {
       "supportsTablet": false,
       "bundleIdentifier": "com.ourmine.parkinon",
-      "buildNumber": "4",
+      "buildNumber": "5",
       "usesAppleSignIn": true,
       "infoPlist": {
         "ITSAppUsesNonExemptEncryption": false,
@@ -260,7 +260,6 @@
         {
           "androidAppId": "ca-app-pub-2792582436871752~4028284031",
           "iosAppId": "ca-app-pub-2792582436871752~9641708372",
-          "userTrackingUsageDescription": "Your data is used to make ads shown to you more relevant. Ads help keep ParkinON free.",
           "delayAppMeasurementInit": true
         }
       ],
