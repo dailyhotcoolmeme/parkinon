@@ -18,7 +18,7 @@ import {
   Linking,
 } from 'react-native';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
-import { useNavigation, useRoute } from '@react-navigation/native';
+import { useNavigation, useRoute, useFocusEffect } from '@react-navigation/native';
 import { navigateTo } from '../../navigation/navigationRef';
 import { Ionicons } from '@expo/vector-icons';
 import { Audio, Video as AVVideo, ResizeMode } from 'expo-av';
@@ -651,7 +651,26 @@ export function DiaryScreen() {
   // 지금 에디터가 어느 글을 다루는지. null=새 글 작성, 값 있으면 그 글 수정.
   const [editingEntry, setEditingEntry] = useState<DiaryEntry | null>(null);
 
-  const { autoSummary, entries, loading, patientId, saveEntry, deleteEntry } = useDiary(dateStr);
+  const { autoSummary, entries, loading, patientId, saveEntry, deleteEntry, refresh } = useDiary(dateStr);
+
+  // 알림 탭 등으로 이 화면이 스택에 이미 떠 있는 상태에서 재진입하면(React Navigation이
+  // navigate() 시 기존 인스턴스를 재사용) dateStr(useState 초기값)이 안 바뀌어 새 날짜/새 글이
+  // 안 보였다(나갔다 들어가야만 보임). route.params.date 변경을 감지해 동기화한다.
+  useEffect(() => {
+    if (route.params?.date && route.params.date !== dateStr) {
+      setDateStr(route.params.date);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [route.params?.date]);
+
+  // 같은 날짜로 재진입해도(예: 오늘자 알림) 화면 포커스마다 최신 데이터를 다시 불러온다 —
+  // 위 동기화만으론 dateStr이 안 바뀌는 경우(오늘 알림) 새 글이 안 보이는 문제가 남는다.
+  useFocusEffect(
+    useCallback(() => {
+      refresh();
+      // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [dateStr]),
+  );
 
   const openNewEntry = () => {
     setEditingEntry(null);
