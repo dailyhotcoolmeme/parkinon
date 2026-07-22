@@ -208,6 +208,17 @@ export function LoginScreen() {
         nonce: hashedNonce,
       });
 
+      // Apple은 이 앱+Apple ID 조합에서 "최초 1회"만 fullName을 내려준다(재로그인 땐 안 옴) —
+      // 여기서 못 잡으면 영영 못 받는다. signInWithIdToken 은 메타데이터를 안 받으므로,
+      // useAuth.loadUserProfile 이 신규 유저 행을 만들 때 참조할 수 있게 AsyncStorage에
+      // 먼저 심어둔다(가입 화면에서 또 이름을 물어보면 애플 심사 거부 사유 — 이미 받은 정보 재요구 금지).
+      const given = credential.fullName?.givenName?.trim();
+      const family = credential.fullName?.familyName?.trim();
+      const appleName = [given, family].filter(Boolean).join(' ').trim();
+      if (appleName) {
+        await AsyncStorage.setItem('pending_apple_name', appleName).catch(() => {});
+      }
+
       const { error } = await supabase.auth.signInWithIdToken({
         provider: 'apple',
         token: credential.identityToken!,

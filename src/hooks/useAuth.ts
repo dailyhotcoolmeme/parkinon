@@ -339,7 +339,12 @@ export function useAuthProvider(): UseAuthReturn {
         }
 
         // 구글 등 비-카카오 경로 — Edge Function/트리거가 없으므로 클라 INSERT로 행 생성
-        const name = userMeta?.full_name || userMeta?.name || i18n.t('authHook.defaultUserName');
+        // Apple 로그인은 signInWithIdToken 이 메타데이터를 안 받아 user_metadata.full_name 이
+        // 항상 비어있다 — LoginScreen 이 최초 1회 받은 이름을 AsyncStorage에 심어두면 여기서 우선 사용.
+        // (안 하면 온보딩에서 이름을 또 물어봐 애플 심사 거절 사유: "이미 제공된 정보 재요구 금지")
+        const pendingAppleName = await AsyncStorage.getItem('pending_apple_name').catch(() => null);
+        if (pendingAppleName) AsyncStorage.removeItem('pending_apple_name').catch(() => {});
+        const name = pendingAppleName || userMeta?.full_name || userMeta?.name || i18n.t('authHook.defaultUserName');
         const newUser = {
           id: userId, name,
           role: 'patient' as const,
