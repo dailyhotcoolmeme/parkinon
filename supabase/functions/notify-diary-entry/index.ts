@@ -33,15 +33,64 @@ interface ReqBody {
   author_id?: string;
 }
 
-async function sendPush(to: string, title: string, body: string, data: Record<string, unknown>): Promise<void> {
+/** Android channelId(`parkinon_alarm_<soundId>`) → 그 soundId 만 추출(없으면 null). */
+function soundIdFromChannel(channelId: string): string | null {
+  if (channelId === 'default') return null;
+  const m = channelId.match(/^parkinon_alarm_(.+)$/);
+  return m ? m[1] : null;
+}
+
+/** soundId → iOS 알림음 파일명(클라 alarmSoundFileNameIOS 와 동일 규칙). */
+function alarmSoundFileNameIOS(soundId: string): string {
+  return `parkinon_${soundId}.caf`;
+}
+
+/** 프리셋 채널(`parkinon_preset_<fileId>`) → fileId (아니면 null). */
+function presetFileIdFromChannel(channelId: string): string | null {
+  const m = channelId.match(/^parkinon_preset_(.+)$/);
+  return m ? m[1] : null;
+}
+
+/**
+ * 저장된 알림음 id → Android channelId (send-medication-reminders 와 동일 규칙).
+ * - 'preset:<fileId>' → 번들 프리셋 채널 `parkinon_preset_<fileId>`
+ * - 녹음 uuid → `parkinon_alarm_<uuid>`
+ * - null(시스템 기본음) → 'default'
+ */
+function channelForStoredSound(soundId: string | null | undefined): string {
+  if (!soundId) return 'default';
+  if (soundId.startsWith('preset:')) return `parkinon_preset_${soundId.slice('preset:'.length)}`;
+  return `parkinon_alarm_${soundId}`;
+}
+
+/** Android 용 channelId 를 받아, 수신자 플랫폼에 맞는 Expo Push 의 sound 값을 돌려준다. */
+function soundForPlatform(platform: string | null | undefined, channelId: string): string {
+  if (platform === 'ios') {
+    const presetFile = presetFileIdFromChannel(channelId);
+    if (presetFile) return `${presetFile}.caf`;
+    const soundId = soundIdFromChannel(channelId);
+    if (soundId) return alarmSoundFileNameIOS(soundId);
+  }
+  return 'default';
+}
+
+async function sendPush(
+  to: string,
+  title: string,
+  body: string,
+  data: Record<string, unknown>,
+  channelId = 'default',
+  platform: string | null = null,
+): Promise<void> {
   try {
+    const sound = soundForPlatform(platform, channelId);
     const res = await fetch('https://exp.host/--/api/v2/push/send', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json', Accept: 'application/json', 'Accept-Encoding': 'gzip, deflate' },
-      body: JSON.stringify({ to, sound: 'default', title, body, data, priority: 'high', channelId: 'default' }),
+      body: JSON.stringify({ to, sound, title, body, data, priority: 'high', channelId }),
     });
     const result = await res.json();
-    console.log('[notify-diary-entry] sendPush', JSON.stringify({ to: to.slice(0, 30), title, status: res.status, result }));
+    console.log('[notify-diary-entry] sendPush', JSON.stringify({ to: to.slice(0, 30), title, channelId, sound, status: res.status, result }));
   } catch (e) {
     console.error('[notify-diary-entry] sendPush error:', e);
   }
@@ -107,7 +156,7 @@ Deno.serve(async (req) => {
 
     const { data: recipients } = await supabase
       .from('users')
-      .select('id, push_token, notification_enabled, diary_notif_enabled, language')
+      .select('id, push_token, push_platform, notification_enabled, diary_notif_enabled, diary_notif_sound_id, language')
       .in('id', recipientIds);
 
     let sent = 0;
@@ -123,8 +172,10 @@ Deno.serve(async (req) => {
       const title = isEn ? `📔 ${authorName} wrote in the family diary` : `📔 ${authorName}님이 가족 일기를 남겼어요`;
       const bodyText = isEn ? 'Tap to view the family diary.' : '가족 일기를 확인해보세요.';
       const payload = { type: 'family_diary', date: entryDate, patient_id: patientId };
+      const channelId = channelForStoredSound((u as any)?.diary_notif_sound_id ?? null);
+      const platform = (u as any)?.push_platform ?? null;
 
-      await sendPush(token, title, bodyText, payload);
+      await sendPush(token, title, bodyText, payload, channelId, platform);
       await logNotification((u as any).id, title, bodyText, payload);
       sent += 1;
     }

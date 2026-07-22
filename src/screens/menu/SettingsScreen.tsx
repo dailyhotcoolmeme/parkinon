@@ -245,16 +245,21 @@ export function SettingsScreen() {
 
   // 가족 일기 알림 수신 토글 (환자·보호자 공통 · users.diary_notif_enabled · 기본 ON)
   const [diaryNotifEnabled, setDiaryNotifEnabled] = useState(true);
+  // 가족 일기 알림 소리(users.diary_notif_sound_id · null=시스템 기본음)
+  const [diaryNotifSoundId, setDiaryNotifSoundId] = useState<string | null>(null);
   useEffect(() => {
     if (!user?.id) return;
     let alive = true;
     (async () => {
       const { data } = await supabase
         .from('users')
-        .select('diary_notif_enabled')
+        .select('diary_notif_enabled, diary_notif_sound_id')
         .eq('id', user.id)
         .maybeSingle();
-      if (alive && data) setDiaryNotifEnabled((data as any).diary_notif_enabled !== false);
+      if (alive && data) {
+        setDiaryNotifEnabled((data as any).diary_notif_enabled !== false);
+        setDiaryNotifSoundId((data as any).diary_notif_sound_id ?? null);
+      }
     })();
     return () => { alive = false; };
   }, [user?.id]);
@@ -267,6 +272,18 @@ export function SettingsScreen() {
     } catch {
       setDiaryNotifEnabled(!next); // 실패 시 롤백
     }
+  };
+  const setDiaryNotifSound = (soundId: string | null) => {
+    if (!user?.id) return;
+    setDiaryNotifSoundId(soundId);
+    supabase
+      .from('users')
+      .update({ diary_notif_sound_id: soundId } as any)
+      .eq('id', user.id)
+      .then(({ error }) => {
+        if (error) console.error('[SettingsScreen] 가족 일기 알림음 저장 실패:', error);
+      });
+    provisionForUser(user.id, user.patient_group_id ?? null).catch(() => {});
   };
   const route = useRoute<RouteProp<MenuStackParamList, 'Settings'>>();
   // 온보딩 직후 강제 진입(guideCaregiverNotif) 안내 팝업 — 확인 시 전체 ON.
@@ -1685,8 +1702,8 @@ export function SettingsScreen() {
 
         {/* ── 가족 일기 알림 ── */}
         <View style={[styles.card, styles.cardMarginTop]}>
-          {/* 헤더 하나뿐인 카드라 하단 모서리도 둥글게(cardHeaderSolo). */}
-          <View style={[styles.cardHeader, styles.cardHeaderSolo]}>
+          {/* 소리 선택 행이 붙으면 하단 라운드는 그 행이 맡으므로, 켜졌을 때만 헤더 단독 라운드(cardHeaderSolo) 해제. */}
+          <View style={[styles.cardHeader, !diaryNotifEnabled && styles.cardHeaderSolo]}>
             <Ionicons name="book-outline" size={24} color={Colors.primary} style={styles.cardHeaderIcon} />
             <View style={styles.cardHeaderText}>
               <Text style={styles.cardHeaderTitle}>{t('settings.diaryNotifTitle')}</Text>
@@ -1698,6 +1715,16 @@ export function SettingsScreen() {
               onValueChange={toggleDiaryNotif}
             />
           </View>
+          {diaryNotifEnabled && (
+            <View style={styles.missedSoundIndent}>
+              <AlarmSoundPickerRow
+                soundId={diaryNotifSoundId}
+                sounds={alarmSounds}
+                onSelect={setDiaryNotifSound}
+                backgroundColor={Colors.white}
+              />
+            </View>
+          )}
         </View>
 
         {/* ── 약 미복용 알림 (환자만 · 시각별 아님 · 환자 전역) ── */}

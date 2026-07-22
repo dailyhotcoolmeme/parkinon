@@ -314,7 +314,7 @@ export async function provisionForUser(
         .maybeSingle(),
       supabase
         .from('users')
-        .select('med_notif_prefs, exercise_notif_prefs, med_time_sound_prefs')
+        .select('med_notif_prefs, exercise_notif_prefs, med_time_sound_prefs, diary_notif_sound_id')
         .eq('id', userId)
         .maybeSingle(),
       supabase
@@ -354,6 +354,9 @@ export async function provisionForUser(
     const missed = (missedRes.data as any) ?? {};
     if (missed.first_sound_id) ids.push(missed.first_sound_id);
     if (missed.second_sound_id) ids.push(missed.second_sound_id);
+
+    // 4b) 가족 일기 알림 목소리
+    if (u.diary_notif_sound_id) ids.push(u.diary_notif_sound_id);
 
     // 5) dose_slots 복용시간 알림(remind)·약효추적(track) 목소리
     for (const row of ((slotsRes.data as any[]) ?? []) as Array<{
