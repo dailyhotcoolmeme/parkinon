@@ -243,48 +243,6 @@ export function SettingsScreen() {
   const { unreadCount } = useNotificationBadge();
   const dialog = useDialog();
 
-  // 가족 일기 알림 수신 토글 (환자·보호자 공통 · users.diary_notif_enabled · 기본 ON)
-  const [diaryNotifEnabled, setDiaryNotifEnabled] = useState(true);
-  // 가족 일기 알림 소리(users.diary_notif_sound_id · null=시스템 기본음)
-  const [diaryNotifSoundId, setDiaryNotifSoundId] = useState<string | null>(null);
-  useEffect(() => {
-    if (!user?.id) return;
-    let alive = true;
-    (async () => {
-      const { data } = await supabase
-        .from('users')
-        .select('diary_notif_enabled, diary_notif_sound_id')
-        .eq('id', user.id)
-        .maybeSingle();
-      if (alive && data) {
-        setDiaryNotifEnabled((data as any).diary_notif_enabled !== false);
-        setDiaryNotifSoundId((data as any).diary_notif_sound_id ?? null);
-      }
-    })();
-    return () => { alive = false; };
-  }, [user?.id]);
-  const toggleDiaryNotif = async () => {
-    if (!user?.id) return;
-    const next = !diaryNotifEnabled;
-    setDiaryNotifEnabled(next);
-    try {
-      await supabase.from('users').update({ diary_notif_enabled: next } as any).eq('id', user.id);
-    } catch {
-      setDiaryNotifEnabled(!next); // 실패 시 롤백
-    }
-  };
-  const setDiaryNotifSound = (soundId: string | null) => {
-    if (!user?.id) return;
-    setDiaryNotifSoundId(soundId);
-    supabase
-      .from('users')
-      .update({ diary_notif_sound_id: soundId } as any)
-      .eq('id', user.id)
-      .then(({ error }) => {
-        if (error) console.error('[SettingsScreen] 가족 일기 알림음 저장 실패:', error);
-      });
-    provisionForUser(user.id, user.patient_group_id ?? null).catch(() => {});
-  };
   const route = useRoute<RouteProp<MenuStackParamList, 'Settings'>>();
   // 온보딩 직후 강제 진입(guideCaregiverNotif) 안내 팝업 — 확인 시 전체 ON.
   // (효과는 setNotificationEnabled/cascadeMasterToIndividual 정의 뒤에 배치 — TDZ 방지)
@@ -342,6 +300,73 @@ export function SettingsScreen() {
   const showCaregiverEmptyLink = isCaregiver && patientLoadDone && patientId == null;
   // 'self'=보호자 본인 알림 화면(기본) / 'patient'=보호자가 환자 알림 대신 설정하는 별도 화면.
   const settingsMode: 'self' | 'patient' = route.params?.mode ?? 'self';
+
+  // 가족 일기 알림 수신 토글+소리 (환자·보호자 공통 · users.diary_notif_enabled/diary_notif_sound_id · 기본 ON).
+  // '환자 대신'(settingsMode==='patient')일 땐 patientId 행이 대상 — users RLS(본인 행만 UPDATE
+  // 허용)라 보호자가 patient 행을 직접 못 건드려 RPC(get/update_patient_diary_notif_*)로 우회한다.
+  // 이걸 안 하면 '환자 대신' 화면도 실제론 항상 보호자 자신의 값만 보이고/바뀌는 버그가 생긴다
+  // (오너 리포트: 보호자가 본인 소리 바꿨는데 환자 소리도 같이 바뀜 — 사실 patient 행은 안 건드려지고
+  // 매번 보호자 자신의 행만 두 화면에 똑같이 보이던 것).
+  const diaryTargetId = settingsMode === 'patient' ? patientId : (user?.id ?? null);
+  const [diaryNotifEnabled, setDiaryNotifEnabled] = useState(true);
+  const [diaryNotifSoundId, setDiaryNotifSoundId] = useState<string | null>(null);
+  useEffect(() => {
+    if (!diaryTargetId) return;
+    if (settingsMode === 'patient' && !hasLinkedPatient) return; // patientId 확정 전 조회 방지
+    let alive = true;
+    (async () => {
+      if (settingsMode === 'patient') {
+        const { data } = await (supabase.rpc as any)('get_patient_diary_notif_prefs', { p_patient_id: diaryTargetId });
+        const row = Array.isArray(data) ? data[0] : data;
+        if (alive && row) {
+          setDiaryNotifEnabled(row.diary_notif_enabled !== false);
+          setDiaryNotifSoundId(row.diary_notif_sound_id ?? null);
+        }
+      } else {
+        const { data } = await supabase
+          .from('users')
+          .select('diary_notif_enabled, diary_notif_sound_id')
+          .eq('id', diaryTargetId)
+          .maybeSingle();
+        if (alive && data) {
+          setDiaryNotifEnabled((data as any).diary_notif_enabled !== false);
+          setDiaryNotifSoundId((data as any).diary_notif_sound_id ?? null);
+        }
+      }
+    })();
+    return () => { alive = false; };
+  }, [diaryTargetId, settingsMode, hasLinkedPatient]);
+  const toggleDiaryNotif = async () => {
+    if (!diaryTargetId) return;
+    const next = !diaryNotifEnabled;
+    setDiaryNotifEnabled(next);
+    try {
+      if (settingsMode === 'patient') {
+        const { error } = await (supabase.rpc as any)('update_patient_diary_notif_enabled', { p_patient_id: diaryTargetId, p_enabled: next });
+        if (error) throw error;
+      } else {
+        const { error } = await supabase.from('users').update({ diary_notif_enabled: next } as any).eq('id', diaryTargetId);
+        if (error) throw error;
+      }
+    } catch {
+      setDiaryNotifEnabled(!next); // 실패 시 롤백
+    }
+  };
+  const setDiaryNotifSound = (soundId: string | null) => {
+    if (!diaryTargetId) return;
+    setDiaryNotifSoundId(soundId);
+    const p = settingsMode === 'patient'
+      ? (supabase.rpc as any)('update_patient_diary_notif_sound', { p_patient_id: diaryTargetId, p_sound_id: soundId })
+      : supabase.from('users').update({ diary_notif_sound_id: soundId } as any).eq('id', diaryTargetId);
+    p.then(({ error }: any) => {
+      if (error) console.error('[SettingsScreen] 가족 일기 알림음 저장 실패:', error);
+    });
+    // 채널 프로비저닝은 '본인' 모드에서만 의미 있음(로컬 채널 = 이 기기용).
+    // '환자 대신'일 땐 환자 본인 기기에서 그쪽 앱이 자기 값으로 알아서 프로비저닝한다.
+    if (settingsMode !== 'patient' && user?.id) {
+      provisionForUser(user.id, user.patient_group_id ?? null).catch(() => {});
+    }
+  };
 
   const [patientMedTimePrefs, setPatientMedTimePrefs] = useState<Record<string, boolean>>({
     morning: true, lunch: true, dinner: true, bedtime: true,
