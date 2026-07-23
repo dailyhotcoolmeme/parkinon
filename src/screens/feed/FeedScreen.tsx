@@ -36,7 +36,7 @@ const PAGE_SIZE = 20;
 // mapPost 가 쓰는 필드: id, is_news, post_type, author_id, created_at,
 //   view_count, title, content, comment_count, like_count + author/post_media 조인.
 const POST_SELECT =
-  'id, is_news, post_type, author_id, created_at, view_count, title, content, comment_count, like_count, author:public_user_profiles(name, role), post_media(r2_url, sort_order, media_type)';
+  'id, is_news, post_type, author_id, created_at, view_count, title, content, comment_count, like_count, is_notice, author_name_override, author:public_user_profiles(name, role), post_media(r2_url, sort_order, media_type)';
 
 export interface PostItem {
   id: string;
@@ -55,6 +55,7 @@ export interface PostItem {
   commentCount: number;
   likeCount: number;
   isBookmarked?: boolean;
+  isNotice?: boolean;
 }
 
 const POST_TYPE_ICON: Record<string, IoniconName> = {
@@ -175,10 +176,12 @@ export function FeedScreen() {
     category: p.post_type ? getPostTypeLabel(p.post_type) : i18n.t('feed.typeEtc'),
     categoryId: p.post_type ?? undefined,
     categoryIcon: POST_TYPE_ICON[p.post_type] ?? 'chatbubble-outline',
-    author: p.author?.name ?? i18n.t('feed.authorUnknown'),
+    // 공지는 관리자가 지정한 임의 작성자명(author_name_override) 우선 — 실제 계정과 무관.
+    author: p.author_name_override || p.author?.name || i18n.t('feed.authorUnknown'),
     authorId: p.author_id ?? undefined,
-    // 작성자 역할 라벨 (DiaryScreen 과 동일 규칙: caregiver→보호자, 그 외→환자)
-    authorRole: p.author?.role
+    // 작성자 역할 라벨(DiaryScreen 과 동일 규칙: caregiver→보호자, 그 외→환자).
+    // 공지(작성자명 오버라이드)는 실제 계정 역할이 아니므로 라벨 생략.
+    authorRole: (!p.author_name_override && p.author?.role)
       ? (p.author.role === 'caregiver' ? i18n.t('feed.authorRoleCaregiver') : i18n.t('feed.authorRolePatient'))
       : undefined,
     date: formatDate(p.created_at),
@@ -191,6 +194,7 @@ export function FeedScreen() {
     commentCount: p.comment_count ?? 0,
     likeCount: p.like_count ?? 0,
     isBookmarked: bookmarkedIdsRef.current.has(p.id),  // ref 사용 (state X)
+    isNotice: p.is_notice ?? false,
   }), []); // ← 의존성 빈 배열 (안정적인 참조 유지)
 
   const fetchBookmarks = useCallback(async () => {
@@ -286,12 +290,13 @@ export function FeedScreen() {
         commentCount: 0, likeCount: 0,
       });
 
-      // 정보 탭: info 게시글 + 뉴스 통합
+      // 정보 탭: info 게시글 + 뉴스 통합 (공지는 '전체' 탭 상단 고정에서만 노출 — 중복 방지)
       if (currentCategory === 'info') {
         let query = supabase
           .from('posts')
           .select(POST_SELECT)
           .eq('post_type', 'info')
+          .eq('is_notice' as any, false)
           .order('created_at', { ascending: false })
           .range(from, to);
         if (currentSearch.trim()) query = query.ilike('title', `%${currentSearch.trim()}%`);
@@ -336,6 +341,7 @@ export function FeedScreen() {
       let query = supabase
         .from('posts')
         .select(POST_SELECT)
+        .eq('is_notice' as any, false)
         .order('created_at', { ascending: false })
         .range(from, to);
       if (currentCategory !== 'all') query = query.eq('post_type', currentCategory);
@@ -350,13 +356,25 @@ export function FeedScreen() {
             .order('published_at', { ascending: false })
             .limit(5)
         : Promise.resolve({ data: null });
-      const [{ data: postsData, error: postsError }, { data: newsData }] = await Promise.all([
+      // 공지: '전체' 탭·무검색·첫 페이지에서만 조회해 맨 위에 고정 노출(중복 방지로 다른 조건에선 미노출).
+      const wantNotices = wantNews;
+      const noticesPromise = wantNotices
+        ? supabase
+            .from('posts')
+            .select(POST_SELECT)
+            .eq('is_notice' as any, true)
+            .eq('hidden', false)
+            .order('created_at', { ascending: false })
+        : Promise.resolve({ data: null });
+      const [{ data: postsData, error: postsError }, { data: newsData }, { data: noticesData }] = await Promise.all([
         query,
         newsPromise,
+        noticesPromise,
       ]);
       if (postsError) throw postsError;
       mappedPosts = (postsData ?? []).map(mapPost);
       if (wantNews) newsFeedItems = (newsData ?? []).map(mapNews);
+      const mappedNotices: PostItem[] = wantNotices ? (noticesData ?? []).map(mapPost) : [];
 
       if (reset) {
         if (newsFeedItems.length > 0) {
@@ -366,9 +384,9 @@ export function FeedScreen() {
             if (pi < mappedPosts.length) interleaved.push(mappedPosts[pi++]);
             if (ni < newsFeedItems.length) interleaved.push(newsFeedItems[ni++]);
           }
-          setPosts(interleaved);
+          setPosts([...mappedNotices, ...interleaved]);
         } else {
-          setPosts(mappedPosts);
+          setPosts([...mappedNotices, ...mappedPosts]);
         }
       } else {
         setPosts(prev => [...prev, ...mappedPosts]);
@@ -467,7 +485,7 @@ export function FeedScreen() {
   const renderItem = ({ item }: { item: PostItem }) => {
     return (
       <TouchableOpacity
-        style={styles.row}
+        style={[styles.row, item.isNotice && styles.rowNotice]}
         onPress={() => {
           markAsRead(item.id);
           navigation.navigate('PostDetail', { post: item });
@@ -476,6 +494,12 @@ export function FeedScreen() {
       >
         {/* 중앙 콘텐츠 */}
         <View style={styles.rowContent}>
+          {item.isNotice && (
+            <View style={styles.noticeBadge}>
+              <Ionicons name="pin" size={12} color={Colors.white} />
+              <Text style={styles.noticeBadgeText}>{t('feed.noticeBadge')}</Text>
+            </View>
+          )}
           <View style={styles.rowMain}>
             <Text style={styles.rowTitle} numberOfLines={2}>{item.title}</Text>
             {item.thumbnail ? (
@@ -770,6 +794,25 @@ const styles = StyleSheet.create({
     backgroundColor: Colors.white,
     borderBottomWidth: 1,
     borderBottomColor: '#F0F0F0',
+  },
+  rowNotice: {
+    backgroundColor: '#FFF8E1',
+  },
+  noticeBadge: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    alignSelf: 'flex-start',
+    backgroundColor: Colors.primary,
+    borderRadius: 6,
+    paddingHorizontal: 8,
+    paddingVertical: 3,
+    gap: 3,
+    marginBottom: 6,
+  },
+  noticeBadgeText: {
+    fontSize: 12,
+    fontWeight: '700',
+    color: Colors.white,
   },
   bullet: {
     fontSize: 16,

@@ -465,6 +465,7 @@
     "typeCheer": "Cheer",
     "typeEtc": "Other",
     "authorUnknown": "Unknown",
+    "noticeBadge": "Notice",
     "authorRoleCaregiver": "Caregiver",
     "authorRolePatient": "Patient",
     "newsSourceDefault": "ParkinON News",
