@@ -229,6 +229,27 @@ async function fetchTodayLastMedLog(
   }
 }
 
+// 약효추적 알림 진입이 원래 응답 시점(복용시각+interval)에서 너무 늦었는지 판정.
+//   manual 경로(handleOpenBodyState)가 쓰는 ±20분 유예를 그대로 재사용한다.
+//   알림 진입은 기존에 이 검사를 건너뛰어("지금 이 시점을 기록하라"는 명시적 지시로 취급)
+//   울린 지 몇 시간 지난 알림을 몰아서 눌러도 그대로 기록되던 문제 → 늦으면 입력 자체를 막는다
+//   (오너 결정 2026-07-24: 늦은 시점 데이터는 신뢰할 수 없으니 통계 제외가 아니라 입력 차단).
+async function isNotifTrackingTooLate(
+  medLogId: string | null,
+  triggerMinutes: number | null
+): Promise<boolean> {
+  if (!medLogId || triggerMinutes == null) return false;
+  try {
+    const { data } = await supabase.from('med_logs').select('taken_at').eq('id', medLogId).maybeSingle();
+    const takenAt = (data as any)?.taken_at;
+    if (!takenAt) return false;
+    const intended = new Date(takenAt).getTime() + triggerMinutes * 60000;
+    return Date.now() - intended > 20 * 60 * 1000;
+  } catch {
+    return false;
+  }
+}
+
 // 인터벌(분) → trigger_time_label 변환 (전역)
 function intervalMinutesToLabel(min: number): string {
   if (min === 0) return 'after_medication';
@@ -440,33 +461,39 @@ export function BodyStateScreen() {
         // 약 복용 모델 7단계: 푸시가 실어 보낸 슬롯/복용 식별자(없으면 null·미이관/구 데이터)
         const paramDoseSlotId = (route.params as any)?.triggerDoseSlotId ?? null;
         const paramMedLogId = (route.params as any)?.triggerMedLogId ?? null;
-        setPendingTriggeredBy('notification');
-        setPendingTriggerLabel(label);
         // 재진입 가드: 이미 플로우가 열려 있으면(약효추적 시트가 떠 있는 상태에서 또 탭) 무시.
         //   (기존 `!showFlow` 는 stale 캡처라 두 번째 탭에서 잘못 통과 → 중복 오픈/크래시.
         //    openFlowOrPend 내부에서도 flowOpenRef 로 한 번 더 가드한다.)
         if (!flowOpenRef.current) {
-          if (paramMealTime) {
-            openFlowOrPend(label, null, paramMealTime, paramDoseSlotId, paramMedLogId, true);
-          } else if (patientId) {
-            fetchTodayLastMedLog(patientId)
-              .then((parsed) => {
-                if (!parsed) { openFlowOrPend(label, null, null, paramDoseSlotId, paramMedLogId, true); return; }
-                const medTime = parsed.taken_at ? new Date(parsed.taken_at) : null;
-                // 알림이 식별자를 안 실었을 때만 마지막 복용 기록에서 보강.
-                openFlowOrPend(
-                  label,
-                  medTime,
-                  parsed.meal_time,
-                  paramDoseSlotId ?? parsed.dose_slot_id ?? null,
-                  paramMedLogId ?? parsed.id ?? null,
-                  true,
-                );
-              })
-              .catch(() => openFlowOrPend(label, null, null, paramDoseSlotId, paramMedLogId, true));
-          } else {
-            openFlowOrPend(label, null, null, paramDoseSlotId, paramMedLogId, true);
-          }
+          isNotifTrackingTooLate(paramMedLogId, triggerMinutes).then((tooLate) => {
+            if (tooLate) {
+              dialog.alert({ title: t('bodystate.cannotRecordTitle'), message: t('bodystate.trackingTooLateMsg') });
+              return;
+            }
+            setPendingTriggeredBy('notification');
+            setPendingTriggerLabel(label);
+            if (paramMealTime) {
+              openFlowOrPend(label, null, paramMealTime, paramDoseSlotId, paramMedLogId, true);
+            } else if (patientId) {
+              fetchTodayLastMedLog(patientId)
+                .then((parsed) => {
+                  if (!parsed) { openFlowOrPend(label, null, null, paramDoseSlotId, paramMedLogId, true); return; }
+                  const medTime = parsed.taken_at ? new Date(parsed.taken_at) : null;
+                  // 알림이 식별자를 안 실었을 때만 마지막 복용 기록에서 보강.
+                  openFlowOrPend(
+                    label,
+                    medTime,
+                    parsed.meal_time,
+                    paramDoseSlotId ?? parsed.dose_slot_id ?? null,
+                    paramMedLogId ?? parsed.id ?? null,
+                    true,
+                  );
+                })
+                .catch(() => openFlowOrPend(label, null, null, paramDoseSlotId, paramMedLogId, true));
+            } else {
+              openFlowOrPend(label, null, null, paramDoseSlotId, paramMedLogId, true);
+            }
+          });
         }
 
         // 처리 직후 route.params 비움 — 다음 포커스 진입 시 stale 재발화 방지
@@ -506,6 +533,10 @@ export function BodyStateScreen() {
           const psDoseSlotId = triggerDoseSlotId ?? null;
           const psMedLogId = triggerMedLogId ?? null;
           const label = minutesToLabel(triggerMinutes);
+          if (await isNotifTrackingTooLate(psMedLogId, triggerMinutes)) {
+            dialog.alert({ title: t('bodystate.cannotRecordTitle'), message: t('bodystate.trackingTooLateMsg') });
+            return;
+          }
           setPendingTriggeredBy('notification');
           setPendingTriggerLabel(label);
           if (triggerMealTime) {
