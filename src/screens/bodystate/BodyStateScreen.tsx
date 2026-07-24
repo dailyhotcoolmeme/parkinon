@@ -230,7 +230,7 @@ async function fetchTodayLastMedLog(
 }
 
 // 약효추적 알림 진입이 원래 응답 시점(복용시각+interval)에서 너무 늦었는지 판정.
-//   manual 경로(handleOpenBodyState)가 쓰는 ±20분 유예를 그대로 재사용한다.
+//   manual 경로(handleOpenBodyState)가 쓰는 ±30분 유예를 그대로 재사용한다.
 //   알림 진입은 기존에 이 검사를 건너뛰어("지금 이 시점을 기록하라"는 명시적 지시로 취급)
 //   울린 지 몇 시간 지난 알림을 몰아서 눌러도 그대로 기록되던 문제 → 늦으면 입력 자체를 막는다
 //   (오너 결정 2026-07-24: 늦은 시점 데이터는 신뢰할 수 없으니 통계 제외가 아니라 입력 차단).
@@ -244,7 +244,7 @@ async function isNotifTrackingTooLate(
     const takenAt = (data as any)?.taken_at;
     if (!takenAt) return false;
     const intended = new Date(takenAt).getTime() + triggerMinutes * 60000;
-    return Date.now() - intended > 20 * 60 * 1000;
+    return Date.now() - intended > 30 * 60 * 1000;
   } catch {
     return false;
   }
@@ -960,9 +960,9 @@ export function BodyStateScreen() {
 
   // 버튼 탭 진입: 6개 케이스 처리 (사양 기반)
   // 1) 오늘 약 복용 기록 없음 → 차단
-  // 2) ±20분 매칭 → 확인 팝업
+  // 2) ±30분 매칭 → 확인 팝업
   // 3) 동률 → 이전(작은) 인터벌 우선
-  // 4/6) ±20분 벗어남 → 차단 + 다음 알림 안내
+  // 4/6) ±30분 벗어남 → 차단 + 다음 알림 안내
   // 5) 같은 (meal_time × interval) 기록 존재 → 덮어쓰기 확인
   const handleOpenBodyState = async () => {
     if (!patientId) return;
@@ -1006,7 +1006,7 @@ export function BodyStateScreen() {
     const now = new Date();
     const elapsedMin = (now.getTime() - takenAt.getTime()) / 60000;
 
-    // 3. 가장 가까운 인터벌 매칭 (±20분, 동률 시 작은 인터벌 우선)
+    // 3. 가장 가까운 인터벌 매칭 (±30분, 동률 시 작은 인터벌 우선)
     //    intervals를 오름차순으로 순회하며 더 작은 diff일 때만 갱신
     //    (동률은 갱신 안 함 → 먼저 들어온 작은 값이 유지됨)
     let closestInterval: number | null = null;
@@ -1019,13 +1019,13 @@ export function BodyStateScreen() {
       }
     }
 
-    // 케이스 4 & 6: ±20분 벗어남
-    if (closestInterval === null || closestDiff > 20) {
+    // 케이스 4 & 6: ±30분 벗어남
+    if (closestInterval === null || closestDiff > 30) {
       // 다음 도래할 인터벌 시각 계산
       let nextAt: Date | null = null;
       for (const iv of intervals) {
         const t = new Date(takenAt.getTime() + iv * 60000);
-        if (t.getTime() - now.getTime() > 20 * 60 * 1000 * -1 && t.getTime() > now.getTime()) {
+        if (t.getTime() - now.getTime() > 30 * 60 * 1000 * -1 && t.getTime() > now.getTime()) {
           // 미래 시점만
           nextAt = t;
           break;
@@ -1078,7 +1078,7 @@ export function BodyStateScreen() {
     }
 
     // 케이스 2: 정상 매칭 → 확인 Alert 없이 즉시 진입
-    // (사용자가 ±20분 이내 약효추적 시간대에 들어와있으면 별도 확인 불필요)
+    // (사용자가 ±30분 이내 약효추적 시간대에 들어와있으면 별도 확인 불필요)
     overrideLogIdRef.current = null;
     setPendingTriggerLabel(labelKey);
     setPendingMealTime(mealTime ?? null);

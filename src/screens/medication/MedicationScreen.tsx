@@ -731,9 +731,27 @@ export function MedicationScreen() {
     if (!patientReady) return;
     autoTakeConsumedRef.current = sid;
     navigation.setParams({ autoTakeSlotId: undefined } as any);
+
+    // 시간대 오기록 차단(±30분) — '알람처럼' 전체화면 알람을 늦게 눌러도 원터치라
+    //   handleMealTimeSelect/confirmAndRecordSlot 을 거치지 않고 바로 저장되던 경로.
+    const autoTakeSlot = doseSlots.find((s) => s.id === sid);
+    if (autoTakeSlot?.time) {
+      const slotMin = slotSortValue(autoTakeSlot.time);
+      const nowMin = new Date().getHours() * 60 + new Date().getMinutes();
+      if (Number.isFinite(slotMin) && Math.abs(nowMin - slotMin) > 30) {
+        const title = slotTitle(autoTakeSlot.label, autoTakeSlot.legacyKey, autoTakeSlot.time);
+        dialog.alert({
+          emoji: '⏰',
+          title: t('medication.wrongTimeTitle'),
+          message: t('medication.wrongTimeMsg', { label: title, time: formatMealTime(autoTakeSlot.time) }),
+        });
+        return;
+      }
+    }
+
     setAutoTakeCovering(true); // 맨 약복용화면 번쩍임 차단(팝업 올라오면 제거)
     void proceedSave({ mealTime: null, doseSlotId: sid });
-  }, [routeParams.autoTakeSlotId, patientId, user?.role]);
+  }, [routeParams.autoTakeSlotId, patientId, user?.role, doseSlots]);
 
   // 덮개 안전장치 — 혹시 후속 팝업이 안 떠도(조기 반환 등) 최대 5초 뒤 강제 해제(초록 화면 잔류 방지).
   useEffect(() => {
@@ -1034,6 +1052,23 @@ export function MedicationScreen() {
       '';
     const labelPrefix = label ? t('medication.labelPrefix', { label }) : '';
 
+    // 시간대 오기록 차단(±30분) — 알림을 늦게 열어 엉뚱한 시간대로 확인/선택해도 그대로 저장되던 문제.
+    //   (오너 결정 2026-07-24: 예외 없이 차단. 늦게 기록되면 그 시각을 기준으로 잡히는
+    //    약효추적 알림 시점도 함께 어긋나 신뢰성이 무너짐 — 늦은 실제 복용을 인정하는 대신
+    //    아예 잘못된 시간대로 저장되는 걸 막는다.)
+    if (selSlot?.time) {
+      const slotMin = slotSortValue(selSlot.time);
+      const nowMin = new Date().getHours() * 60 + new Date().getMinutes();
+      if (Number.isFinite(slotMin) && Math.abs(nowMin - slotMin) > 30) {
+        dialog.alert({
+          emoji: '⏰',
+          title: t('medication.wrongTimeTitle'),
+          message: t('medication.wrongTimeMsg', { label, time: formatMealTime(selSlot.time) }),
+        });
+        return;
+      }
+    }
+
     // 이미 기록이 있으면 덮어쓰기 확인
     const existingLog = findLogBySel(sel);
     if (existingLog) {
@@ -1089,6 +1124,22 @@ export function MedicationScreen() {
             message: takenAtStr
               ? t('medication.alreadyTakenMsgAt', { title, time: takenAtStr })
               : t('medication.alreadyTakenMsg', { title }),
+          });
+          return;
+        }
+      }
+
+      // 시간대 오기록 차단(±30분) — "드셨나요?" 확인창을 띄우기 전에 미리 막아,
+      //   물어놓고 나중에 거부하는 어색한 2단계를 없앤다. handleMealTimeSelect 의
+      //   동일 검사가 수동 시간대 선택 경로까지 포함해 최종 방어선으로 남는다.
+      if (selSlot.time) {
+        const slotMin = slotSortValue(selSlot.time);
+        const nowMin = new Date().getHours() * 60 + new Date().getMinutes();
+        if (Number.isFinite(slotMin) && Math.abs(nowMin - slotMin) > 30) {
+          dialog.alert({
+            emoji: '⏰',
+            title: t('medication.wrongTimeTitle'),
+            message: t('medication.wrongTimeMsg', { label: title, time: formatMealTime(selSlot.time) }),
           });
           return;
         }
