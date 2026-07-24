@@ -332,7 +332,7 @@
     "noIntervalMsg": "No effect-tracking times are set.\n\nPlease set your reminder times first in Settings.",
     "outOfRangeMsg": "This is outside the effect-tracking time window.\n\nPlease record again after your next dose.",
     "outOfRangeNextMsg": "This is outside the effect-tracking time window.\n\n{{duration}} left until the next reminder.\nYou can record from then.",
-    "trackingTooLateMsg": "Too much time has passed to record this now.\n\nEffect tracking only means something when it's recorded at the right moment. Recording it much later won't reflect how you actually felt, so it can't be used as accurate data.\n\nPlease record again after your next dose.",
+    "trackingTooLateMsg": "The recording window has passed (more than 20 minutes past the scheduled time).\n\nEffect tracking only means something when it's recorded at the right moment. Recording it much later won't reflect how you actually felt, so it can't be used as accurate data.\n\nPlease record again after your next dose.",
     "alreadyRecordedTitle": "Already recorded",
     "alreadyRecordedMsg": "{{target}} is already recorded.\nOverwrite it?",
     "targetWithMeal": "{{meal}}, {{interval}}",

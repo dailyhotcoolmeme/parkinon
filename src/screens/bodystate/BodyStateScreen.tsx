@@ -467,7 +467,7 @@ export function BodyStateScreen() {
         if (!flowOpenRef.current) {
           isNotifTrackingTooLate(paramMedLogId, triggerMinutes).then((tooLate) => {
             if (tooLate) {
-              dialog.alert({ title: t('bodystate.cannotRecordTitle'), message: t('bodystate.trackingTooLateMsg') });
+              dialog.alert({ emoji: '⏰', title: t('bodystate.cannotRecordTitle'), message: t('bodystate.trackingTooLateMsg') });
               return;
             }
             setPendingTriggeredBy('notification');
@@ -534,7 +534,7 @@ export function BodyStateScreen() {
           const psMedLogId = triggerMedLogId ?? null;
           const label = minutesToLabel(triggerMinutes);
           if (await isNotifTrackingTooLate(psMedLogId, triggerMinutes)) {
-            dialog.alert({ title: t('bodystate.cannotRecordTitle'), message: t('bodystate.trackingTooLateMsg') });
+            dialog.alert({ emoji: '⏰', title: t('bodystate.cannotRecordTitle'), message: t('bodystate.trackingTooLateMsg') });
             return;
           }
           setPendingTriggeredBy('notification');
