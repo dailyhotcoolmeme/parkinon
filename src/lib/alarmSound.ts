@@ -25,15 +25,15 @@ import { downloadAsync, cacheDirectory, getContentUriAsync } from 'expo-file-sys
 import { supabase } from './supabase';
 import { resolveMediaUrl } from './r2Get';
 import * as AlarmSoundNative from '../../modules/alarm-sound';
-import { PRESET_ALARM_SOUNDS, PRESET_SOUND_PREFIX } from '../constants/presetAlarmSounds';
+import { PRESET_ALARM_SOUNDS, PRESET_SOUND_PREFIX, presetSoundDisplayName } from '../constants/presetAlarmSounds';
 import i18n from '../i18n';
 
 const CHANNEL_PREFIX = 'parkinon_alarm_';
 const PRESET_CHANNEL_PREFIX = 'parkinon_preset_';
 
-// 프리셋 fileId → 한글 표시명(안드 채널 이름으로 노출).
+// 프리셋 fileId → 로케일별 표시명(안드 채널 이름으로 노출).
 const PRESET_NAME_BY_FILE: Record<string, string> = Object.fromEntries(
-  PRESET_ALARM_SOUNDS.map((p) => [p.fileId, p.nameKo]),
+  PRESET_ALARM_SOUNDS.map((p) => [p.fileId, presetSoundDisplayName(p)]),
 );
 
 /**

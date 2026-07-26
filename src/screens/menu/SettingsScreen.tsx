@@ -51,13 +51,13 @@ import { AlarmSoundPickerRow, AlarmSoundOption } from '../../components/common/A
 import { ensurePatientDoseSlots } from '../../hooks/useDoseSlots';
 import { MEASUREMENT_FEATURE_ENABLED } from '../../constants/featureFlags';
 import { MedicationManageScreen } from './MedicationManageScreen';
-import { PRESET_ALARM_SOUNDS } from '../../constants/presetAlarmSounds';
+import { PRESET_ALARM_SOUNDS, presetSoundDisplayName } from '../../constants/presetAlarmSounds';
 import { PRESET_PREVIEW_ASSETS } from '../../constants/presetPreviewAssets';
 
 // 기본 제공 프리셋 알림음 → 피커 옵션(모든 알림음 선택 바텀시트에 포함).
 const SETTINGS_PRESET_SOUND_OPTIONS: AlarmSoundOption[] = PRESET_ALARM_SOUNDS.map((p) => ({
   id: p.id,
-  label: p.nameKo,
+  label: presetSoundDisplayName(p),
   durationSec: Math.round(p.durationMs / 1000),
   group: 'preset' as const,
   previewAsset: PRESET_PREVIEW_ASSETS[p.fileId] ?? null,

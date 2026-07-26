@@ -53,7 +53,7 @@ import {
 import { DoseSlotSetList } from '../../components/settings/DoseSlotSetList';
 import { AlarmSoundPickerRow } from '../../components/common/AlarmSoundPickerRow';
 import { MedSlotAssignModal } from '../../components/common/MedSlotAssignModal';
-import { PRESET_ALARM_SOUNDS, presetFileIdOf, type AlarmMode } from '../../constants/presetAlarmSounds';
+import { PRESET_ALARM_SOUNDS, presetFileIdOf, presetSoundDisplayName, type AlarmMode } from '../../constants/presetAlarmSounds';
 import { ensurePresetChannelForSoundId } from '../../lib/alarmSound';
 import { rescheduleRemindAlarms } from '../../lib/localAlarm';
 import { PRESET_PREVIEW_ASSETS } from '../../constants/presetPreviewAssets';
@@ -1057,7 +1057,7 @@ interface MedicationManageScreenProps {
 // 기본 제공 알림음(프리셋) → 피커 옵션. 미리듣기는 번들 mp3 로컬 재생(재빌드 전에도 동작).
 const PRESET_SOUND_OPTIONS: AlarmSoundOption[] = PRESET_ALARM_SOUNDS.map((p) => ({
   id: p.id,
-  label: p.nameKo,
+  label: presetSoundDisplayName(p),
   durationSec: Math.round(p.durationMs / 1000),
   group: 'preset' as const,
   previewAsset: PRESET_PREVIEW_ASSETS[p.fileId] ?? null,
