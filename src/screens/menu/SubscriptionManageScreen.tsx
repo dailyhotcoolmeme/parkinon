@@ -15,6 +15,7 @@ import { useSubscription } from '../../context/SubscriptionContext';
 import { useDialog } from '../../context/DialogContext';
 import {
   getPremiumPackages,
+  getPremiumPackagesDebug,
   purchasePackage,
   restorePurchases,
   isRevenueCatAvailable,
@@ -70,6 +71,8 @@ export function SubscriptionManageScreen() {
   const [packages, setPackages] = useState<any[]>([]);
   const [busy, setBusy] = useState(false);
   const [trial, setTrial] = useState<TrialInfo | null>(null);
+  // ⚠️ 임시 진단용 — "coming soon" 원인 파악되면 이 state·debug 함수·아래 alert 분기 제거할 것.
+  const [debugInfo, setDebugInfo] = useState<{ moduleLoaded: boolean; errorMessage: string | null } | null>(null);
 
   useEffect(() => {
     if (isPremium) return;
@@ -77,6 +80,9 @@ export function SubscriptionManageScreen() {
     getPremiumPackages()
       .then((pkgs) => { if (!cancelled) setPackages(pkgs); })
       .catch(() => { if (!cancelled) setPackages([]); });
+    getPremiumPackagesDebug()
+      .then((d) => { if (!cancelled) setDebugInfo({ moduleLoaded: d.moduleLoaded, errorMessage: d.errorMessage }); })
+      .catch((e) => { if (!cancelled) setDebugInfo({ moduleLoaded: true, errorMessage: String(e) }); });
     return () => { cancelled = true; };
   }, [isPremium]);
 
@@ -109,7 +115,11 @@ export function SubscriptionManageScreen() {
   const doPurchase = async () => {
     const pkg = packages.find((p) => p.packageType === 'MONTHLY') ?? packages[0];
     if (!purchasable || !pkg) {
-      dialog.alert({ title: t('subscription.comingSoonTitle'), message: t('subscription.comingSoonMsg') });
+      // ⚠️ 임시 진단용 — 원인 파악되면 debugInfo 표시 제거하고 원래 메시지만 남길 것.
+      const debugMsg = debugInfo
+        ? `\n\n[진단] moduleLoaded=${debugInfo.moduleLoaded} / packages=${packages.length} / error=${debugInfo.errorMessage ?? '없음'}`
+        : '\n\n[진단] 아직 로딩 중';
+      dialog.alert({ title: t('subscription.comingSoonTitle'), message: t('subscription.comingSoonMsg') + debugMsg });
       return;
     }
     setBusy(true);

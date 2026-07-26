@@ -91,6 +91,27 @@ export async function getPremiumPackages(): Promise<any[]> {
   }
 }
 
+// ⚠️ 임시 진단용 — "coming soon" 원인이 안 보여서 화면에 직접 노출하기 위한 함수.
+//   원인 확인되면 제거할 것.
+export async function getPremiumPackagesDebug(): Promise<{
+  packages: any[];
+  moduleLoaded: boolean;
+  offeringsRaw: any;
+  errorMessage: string | null;
+}> {
+  if (!Purchases) {
+    return { packages: [], moduleLoaded: false, offeringsRaw: null, errorMessage: 'Purchases 네이티브 모듈 로드 실패(require 실패)' };
+  }
+  try {
+    const offerings = await Purchases.getOfferings();
+    const packages = offerings?.current?.availablePackages ?? [];
+    return { packages, moduleLoaded: true, offeringsRaw: offerings, errorMessage: null };
+  } catch (e: any) {
+    const msg = e?.message ?? e?.code ?? JSON.stringify(e) ?? String(e);
+    return { packages: [], moduleLoaded: true, offeringsRaw: null, errorMessage: msg };
+  }
+}
+
 /** 패키지 구매. 성공 시 premium entitlement 활성 여부 반환. 사용자가 취소하면 false. */
 export async function purchasePackage(pkg: any): Promise<{ ok: boolean; cancelled: boolean }> {
   if (!Purchases || !pkg) return { ok: false, cancelled: false };
