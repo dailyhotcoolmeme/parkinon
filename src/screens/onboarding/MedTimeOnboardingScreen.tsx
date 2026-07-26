@@ -82,7 +82,7 @@ export function MedTimeOnboardingScreen() {
       if (!alive || ids.length === 0) { setCaregivers([]); return; }
       const { data: cu } = await supabase.from('users').select('id, name, push_token').in('id', ids);
       if (!alive) return;
-      setCaregivers(((cu as any[]) ?? []).map((u) => ({ id: u.id, name: u.name || '보호자', pushToken: u.push_token ?? null })));
+      setCaregivers(((cu as any[]) ?? []).map((u) => ({ id: u.id, name: u.name || t('medTimeOnboarding.caregiverFallbackName'), pushToken: u.push_token ?? null })));
     })();
     return () => { alive = false; };
   }, [user?.patient_group_id, user?.id]);
@@ -239,7 +239,7 @@ export function MedTimeOnboardingScreen() {
 
   // 선택된 보호자에게 "복약 시간 설정 요청" 푸시 전송 + 안내 후 홈으로.
   const sendSetupRequest = async (cg: { id: string; name: string; pushToken: string | null }) => {
-    const patientName = user?.name || '환자';
+    const patientName = user?.name || t('medication.caregiverDefaultName');
     if (cg.pushToken) {
       await sendCaregiverPush(
         cg.pushToken,
