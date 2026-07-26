@@ -16,6 +16,7 @@ import { useDialog } from '../../context/DialogContext';
 import {
   getPremiumPackages,
   getPremiumPackagesDebug,
+  getConfigureDebugInfo,
   purchasePackage,
   restorePurchases,
   isRevenueCatAvailable,
@@ -116,8 +117,10 @@ export function SubscriptionManageScreen() {
     const pkg = packages.find((p) => p.packageType === 'MONTHLY') ?? packages[0];
     if (!purchasable || !pkg) {
       // ⚠️ 임시 진단용 — 원인 파악되면 debugInfo 표시 제거하고 원래 메시지만 남길 것.
+      const cfg = getConfigureDebugInfo();
       const debugMsg = debugInfo
         ? `\n\n[진단] moduleLoaded=${debugInfo.moduleLoaded} / packages=${packages.length} / error=${debugInfo.errorMessage ?? '없음'}`
+          + `\n[configure] attempted=${cfg.attempted} / configured=${cfg.configured} / userId=${cfg.userId ?? '없음'} / error=${cfg.error ?? '없음'}`
         : '\n\n[진단] 아직 로딩 중';
       dialog.alert({ title: t('subscription.comingSoonTitle'), message: t('subscription.comingSoonMsg') + debugMsg });
       return;

@@ -17,22 +17,33 @@ try {
 
 let configured = false;
 let configuredUserId: string | null = null;
+// ⚠️ 임시 진단용 — configure() 실패 원인을 화면에서 볼 수 있게 보관. 원인 확인되면 제거할 것.
+let lastConfigureError: string | null = null;
+let lastConfigureAttempted = false;
 
 /** RevenueCat SDK를 구매자(Supabase user.id)와 연결해 초기화. 재빌드 전엔 조용히 실패. */
 export async function initRevenueCat(userId: string | null): Promise<void> {
   if (!Purchases || !userId) return;
   if (configured && configuredUserId === userId) return;
+  lastConfigureAttempted = true;
   try {
     if (!configured) {
       Purchases.configure({ apiKey: getRevenueCatKey(), appUserID: userId });
       configured = true;
+      lastConfigureError = null;
     } else if (configuredUserId !== userId) {
       await Purchases.logIn(userId); // 계정 전환
     }
     configuredUserId = userId;
-  } catch (e) {
+  } catch (e: any) {
+    lastConfigureError = e?.message ?? e?.code ?? JSON.stringify(e) ?? String(e);
     if (__DEV__) console.warn('[revenueCat] init 실패(재빌드 전이면 정상):', e);
   }
+}
+
+// ⚠️ 임시 진단용.
+export function getConfigureDebugInfo(): { attempted: boolean; configured: boolean; userId: string | null; error: string | null } {
+  return { attempted: lastConfigureAttempted, configured, userId: configuredUserId, error: lastConfigureError };
 }
 
 /** 현재 premium entitlement 활성 여부(RevenueCat 기준, 구매 직후 즉시 확인용). */
