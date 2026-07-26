@@ -69,7 +69,6 @@ export function SubscriptionManageScreen() {
 
   const [packages, setPackages] = useState<any[]>([]);
   const [busy, setBusy] = useState(false);
-  const [selectedPlan, setSelectedPlan] = useState<'ANNUAL' | 'MONTHLY'>('ANNUAL');
   const [trial, setTrial] = useState<TrialInfo | null>(null);
 
   useEffect(() => {
@@ -107,8 +106,8 @@ export function SubscriptionManageScreen() {
 
   const purchasable = isRevenueCatAvailable() && packages.length > 0;
 
-  const doPurchase = async (type: 'ANNUAL' | 'MONTHLY') => {
-    const pkg = packages.find((p) => p.packageType === type) ?? packages[0];
+  const doPurchase = async () => {
+    const pkg = packages.find((p) => p.packageType === 'MONTHLY') ?? packages[0];
     if (!purchasable || !pkg) {
       dialog.alert({ title: t('subscription.comingSoonTitle'), message: t('subscription.comingSoonMsg') });
       return;
@@ -265,64 +264,21 @@ export function SubscriptionManageScreen() {
             </View>
             </View>
 
-            {/* 플랜 선택 — 연간(추천)·월간 두 카드 */}
+            {/* 플랜 — 월간 하나뿐(오너 결정: 연간/평생 없음) */}
             <Text style={styles.sectionTitle}>{t('subscription.choosePlanTitle')}</Text>
 
-            {/* 연간 (추천) */}
-            <TouchableOpacity
-              style={[styles.planCard, selectedPlan === 'ANNUAL' && styles.planCardSelected]}
-              onPress={() => setSelectedPlan('ANNUAL')}
-              activeOpacity={0.85}
-              disabled={busy}
-            >
-              <View style={styles.bestBadge}>
-                <Text style={styles.bestBadgeText}>{t('subscription.planBestValue')}</Text>
-              </View>
-              <View style={styles.planRadioCol}>
-                <Ionicons
-                  name={selectedPlan === 'ANNUAL' ? 'radio-button-on' : 'radio-button-off'}
-                  size={24}
-                  color={selectedPlan === 'ANNUAL' ? Colors.primary : '#C4C4C4'}
-                />
-              </View>
-              <View style={styles.planInfo}>
-                <Text style={styles.planTitle}>{t('subscription.planAnnualTitle')}</Text>
-                <View style={styles.planPriceRow}>
-                  <Text style={styles.planPriceOriginal}>{t('subscription.planAnnualOriginal')}</Text>
-                  <Text style={styles.planPrice}>{t('subscription.planAnnualPrice')}</Text>
-                </View>
-                <Text style={styles.planTrialNote}>{t('subscription.planTrialNote')}</Text>
-              </View>
-              <View style={styles.saveTag}>
-                <Text style={styles.saveTagText}>{t('subscription.planAnnualSave')}</Text>
-              </View>
-            </TouchableOpacity>
-
-            {/* 월간 */}
-            <TouchableOpacity
-              style={[styles.planCard, selectedPlan === 'MONTHLY' && styles.planCardSelected]}
-              onPress={() => setSelectedPlan('MONTHLY')}
-              activeOpacity={0.85}
-              disabled={busy}
-            >
-              <View style={styles.planRadioCol}>
-                <Ionicons
-                  name={selectedPlan === 'MONTHLY' ? 'radio-button-on' : 'radio-button-off'}
-                  size={24}
-                  color={selectedPlan === 'MONTHLY' ? Colors.primary : '#C4C4C4'}
-                />
-              </View>
+            <View style={styles.planCard}>
               <View style={styles.planInfo}>
                 <Text style={styles.planTitle}>{t('subscription.planMonthlyTitle')}</Text>
                 <Text style={styles.planPrice}>{t('subscription.planMonthlyPrice')}</Text>
                 <Text style={styles.planTrialNote}>{t('subscription.planTrialNote')}</Text>
               </View>
-            </TouchableOpacity>
+            </View>
 
-            {/* 결제 CTA — 선택한 플랜으로 */}
+            {/* 결제 CTA */}
             <TouchableOpacity
               style={[styles.upgradeBtn, busy && styles.btnDisabled]}
-              onPress={() => doPurchase(selectedPlan)}
+              onPress={() => doPurchase()}
               disabled={busy}
               activeOpacity={0.85}
             >
@@ -505,35 +461,10 @@ const styles = StyleSheet.create({
     borderWidth: 1.5,
     borderColor: Colors.border,
   },
-  planCardSelected: { borderColor: Colors.primary, backgroundColor: '#F4FBF5' },
-  bestBadge: {
-    position: 'absolute',
-    top: -10,
-    left: 16,
-    backgroundColor: Colors.primary,
-    borderRadius: 8,
-    paddingHorizontal: 8,
-    paddingVertical: 2,
-  },
-  bestBadgeText: { fontSize: 11, fontWeight: '800', color: '#fff' },
-  planRadioCol: { width: 26, alignItems: 'center' },
   planInfo: { flex: 1 },
   planTitle: { fontSize: 17, fontWeight: '700', color: Colors.text },
-  planPriceRow: { flexDirection: 'row', alignItems: 'baseline', gap: 8, marginTop: 2 },
-  planPriceOriginal: {
-    fontSize: 15,
-    color: Colors.textSub,
-    textDecorationLine: 'line-through',
-  },
   planPrice: { fontSize: 18, fontWeight: '800', color: Colors.text, marginTop: 2 },
   planTrialNote: { fontSize: 13, fontWeight: '700', color: Colors.primary, marginTop: 4 },
-  saveTag: {
-    backgroundColor: '#E8F6EA',
-    borderRadius: 8,
-    paddingHorizontal: 8,
-    paddingVertical: 4,
-  },
-  saveTagText: { fontSize: 12, fontWeight: '800', color: Colors.primary },
   upgradeBtn: {
     minHeight: 56,
     borderRadius: 14,
