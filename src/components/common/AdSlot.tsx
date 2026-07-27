@@ -13,7 +13,7 @@ import { isOverseasLocale } from '../../i18n/detectLocale';
 import { getAdUnitId, FORCE_TEST_ADS, type AdPlacement } from '../../constants/adUnitIds';
 import { navigateTo } from '../../navigation/navigationRef';
 import { Colors } from '../../constants/colors';
-import { whenAdsReady } from '../../lib/ads';
+import { whenAdsReady, canRequestAds } from '../../lib/ads';
 
 // 네이티브 모듈 lazy 로드(패키지 JS는 있으나 실제 광고 요청은 네이티브 필요).
 let GMA: any = null;
@@ -36,12 +36,15 @@ export function AdSlot({ placement }: { placement: AdPlacement }) {
     let ad: any = null;
     let cancelled = false;
     // SDK 초기화 완료를 기다린 뒤 광고 요청(init 레이스 방지).
+    // ⚠️ 동의(UMP) 결과를 반드시 확인한다 — EEA/UK 는 동의 없이 광고를 요청하면
+    //    정책 위반이다. 동의가 없으면 광고 없이 조용히 넘어간다.
     whenAdsReady()
-      .then(() =>
-        GMA.NativeAd.createForAdRequest(getAdUnitId(placement), {
+      .then(() => {
+        if (!canRequestAds()) throw new Error('ads not allowed (no consent)');
+        return GMA.NativeAd.createForAdRequest(getAdUnitId(placement), {
           requestNonPersonalizedAdsOnly: true, // 비개인화 고정
-        }),
-      )
+        });
+      })
       .then((a: any) => {
         if (cancelled) { a?.destroy?.(); return; }
         ad = a;

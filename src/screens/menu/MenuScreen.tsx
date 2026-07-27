@@ -28,6 +28,7 @@ import { useScrollTopOnTabPress } from '../../hooks/useScrollTopOnTabPress';
 import { isOverseasLocale } from '../../i18n/detectLocale';
 import { useSubscription } from '../../context/SubscriptionContext';
 import { AdSlot } from '../../components/common/AdSlot';
+import { isPrivacyOptionsRequired, showAdsPrivacyOptions } from '../../lib/ads';
 
 type NavigationProp = StackNavigationProp<MenuStackParamList, 'MenuHome'>;
 type IoniconName = React.ComponentProps<typeof Ionicons>['name'];
@@ -175,6 +176,16 @@ export function MenuScreen() {
   // 수익화(구독)는 해외판 전용 → 국내 메뉴엔 배너 노출 안 함.
   const showSubscriptionBanner = isOverseasLocale();
 
+  // 광고 동의(UMP) 재설정 진입점.
+  // EEA/UK 등에서는 "동의 선택을 언제든 바꿀 수 있는 경로"를 제공하는 것이 구글 요구사항이다.
+  // 필요 여부는 앱 시작 시 동의 수집 결과로 정해지므로, 화면에 들어올 때마다 다시 읽는다.
+  const [showAdPrivacy, setShowAdPrivacy] = React.useState(false);
+  useFocusEffect(
+    React.useCallback(() => {
+      setShowAdPrivacy(isPrivacyOptionsRequired());
+    }, []),
+  );
+
   // 탭 버튼 누를 때 항상 맨 위로
   const scrollRef = React.useRef<ScrollView>(null);
   useScrollTopOnTabPress(scrollRef);
@@ -287,12 +298,31 @@ export function MenuScreen() {
     // - MyMeds/DoseSlots: 바텀탭 "Reminders"(OverseasMedTabScreen)로 이전됨 —
     //   여기 남겨두면 같은 기능이 두 군데(More 메뉴 + Reminders 탭)에 중복 노출된다.
     const OVERSEAS_HIDDEN_KEYS = ['BlockedUsers', 'MyMeds', 'DoseSlots'];
+    // 광고 동의 재설정은 구글이 요구하는 지역에서만 노출(그 외엔 항목 자체가 없다).
+    const base2 = showAdPrivacy
+      ? base.map((section) =>
+          section.title === 'menu.sectionEtc'
+            ? {
+                ...section,
+                items: [
+                  ...section.items,
+                  {
+                    key: 'AdPrivacy',
+                    icon: 'options-outline' as const,
+                    label: 'menu.adPrivacyLabel',
+                    desc: 'menu.adPrivacyDesc',
+                  },
+                ],
+              }
+            : section,
+        )
+      : base;
     const withBlockedUsersGate = isOverseasLocale()
-      ? base.map((section) => ({
+      ? base2.map((section) => ({
           ...section,
           items: section.items.filter((i) => !OVERSEAS_HIDDEN_KEYS.includes(i.key)),
         }))
-      : base;
+      : base2;
     // 컨디션 측정 기능 숨김 시 측정 관련 메뉴 항목(환자/보호자) 모두 비노출.
     if (!MEASUREMENT_FEATURE_ENABLED) return withBlockedUsersGate;
     const isPatient = user?.role === 'patient';
@@ -323,14 +353,19 @@ export function MenuScreen() {
       ];
       return { ...section, items: nextItems };
     });
-  }, [user?.role, hasPatientMeasurement, patientName, t]);
+    // showAdPrivacy 는 앱 시작 시 동의 수집이 끝난 뒤에야 true 가 되므로 의존성에 포함해야
+    // 메뉴가 다시 만들어진다(빠뜨리면 항목이 영영 안 뜬다).
+  }, [user?.role, hasPatientMeasurement, patientName, t, showAdPrivacy]);
 
   const handleMenuPress = async (key: string) => {
     // 약관·개인정보처리방침은 게스트도 열람 가능. 그 외 서버 데이터가 필요한 항목은 게스트 차단.
     const guestAllowed = key === 'Terms' || key === 'Privacy' || key === 'Settings';
     if (!guestAllowed && (await ensureNotGuest(user, dialog, { signOut }))) return;
 
-    if (key === 'Records') {
+    if (key === 'AdPrivacy') {
+      await showAdsPrivacyOptions();
+      setShowAdPrivacy(isPrivacyOptionsRequired());
+    } else if (key === 'Records') {
       navigation.navigate('Records');
     } else if (key === 'Diary') {
       // 일기 화면은 RootNavigator 스택에 있음

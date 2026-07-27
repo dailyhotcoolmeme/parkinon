@@ -280,7 +280,9 @@
     "myInfoTabLabel": "My Info",
     "patientNotifLabel": "Patient notifications (on behalf)",
     "patientNotifDesc": "Set the patient's medication, missed-dose, and exercise alerts",
-    "alarmSoundCaregiverLabel": "Alarm sounds (for patient)"
+    "alarmSoundCaregiverLabel": "Alarm sounds (for patient)",
+    "adPrivacyLabel": "Ad privacy options",
+    "adPrivacyDesc": "Review or change your ad consent choices"
   },
   "timeline": {
     "toggleShow": "View past records",
