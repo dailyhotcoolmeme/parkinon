@@ -348,9 +348,15 @@ export function FamilyLinkScreen() {
               // patient_group_members.role 또는 users.role 중 하나가 'patient'이면 환자로 표시
               const memberUserRole = member.user?.role;
               const isPatient = member.role === 'patient' || memberUserRole === 'patient';
+              // 역할(환자/보호자)은 필수값이라 항상 표시하고, 관계는 있을 때만 덧붙인다.
+              // 예전엔 관계가 있으면 역할 대신 관계를 보여줘서, 같은 보호자인데 한 명은
+              // 'Caregiver', 다른 한 명은 'Sibling' 으로 보였다(오너 지적 2026-07-27).
               const role = isPatient
                 ? t('familyLink.rolePatient')
-                : (RELATION_LABEL[rawRelation] ?? (rawRelation || t('familyLink.roleCaregiverFallback')));
+                : t('familyLink.roleCaregiverFallback');
+              const relation = isPatient
+                ? null
+                : (RELATION_LABEL[rawRelation] ?? (rawRelation || null));
 
               // residence_type은 보호자가 설정하는 값이다.
               // - 내가 보호자인 경우: 내 residence_type(user.residence_type)을 사용
@@ -373,7 +379,7 @@ export function FamilyLinkScreen() {
                   <View style={styles.memberInfo}>
                     <Text style={styles.memberName}>{name}</Text>
                     <Text style={styles.memberSub}>
-                      {residence ? `${role} · ${residence}` : role}
+                      {[role, relation, residence].filter(Boolean).join(' · ')}
                     </Text>
                   </View>
                   <TouchableOpacity
