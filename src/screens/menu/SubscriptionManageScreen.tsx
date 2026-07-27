@@ -114,6 +114,18 @@ export function SubscriptionManageScreen() {
 
   const purchasable = isRevenueCatAvailable() && packages.length > 0;
 
+  // ⚠️ 가격은 스토어가 주는 값을 쓴다. 코드에 박아두면 나라마다 실제 청구액과 달라진다
+  //   (실측 2026-07-27: 화면 $4.99, 영국 실제 £4.49 / 호주 A$7.99 / 아일랜드 €5.49).
+  //   스토어 값을 못 가져오면 기존 문구로 폴백.
+  const monthlyPkg = packages.find((p) => p.packageType === 'MONTHLY') ?? packages[0];
+  const storePrice: string | null = monthlyPkg?.product?.priceString ?? null;
+  const monthlyPriceText = storePrice
+    ? t('subscription.planMonthlyPriceFmt', { price: storePrice })
+    : t('subscription.planMonthlyPrice');
+  const comparePriceText = storePrice
+    ? t('subscription.comparePricePremiumFmt', { price: storePrice })
+    : t('subscription.comparePricePremium');
+
   const doPurchase = async () => {
     const pkg = packages.find((p) => p.packageType === 'MONTHLY') ?? packages[0];
     if (!purchasable || !pkg) {
@@ -259,7 +271,7 @@ export function SubscriptionManageScreen() {
                 </View>
                 <View style={[styles.cmpValPrem, styles.cmpHeadCell, styles.cmpPremCol, styles.cmpPremTop]}>
                   <Text style={[styles.cmpPlanName, styles.cmpPlanNameP]}>{t('subscription.comparePlanPremium')}</Text>
-                  <Text style={[styles.cmpPlanPrice, styles.cmpPlanPriceP]}>{t('subscription.comparePricePremium')}</Text>
+                  <Text style={[styles.cmpPlanPrice, styles.cmpPlanPriceP]}>{comparePriceText}</Text>
                 </View>
               </View>
 
@@ -297,7 +309,7 @@ export function SubscriptionManageScreen() {
             <View style={styles.planCard}>
               <View style={styles.planInfo}>
                 <Text style={styles.planTitle}>{t('subscription.planMonthlyTitle')}</Text>
-                <Text style={styles.planPrice}>{t('subscription.planMonthlyPrice')}</Text>
+                <Text style={styles.planPrice}>{monthlyPriceText}</Text>
                 <Text style={styles.planTrialNote}>{t('subscription.planTrialNote')}</Text>
               </View>
             </View>

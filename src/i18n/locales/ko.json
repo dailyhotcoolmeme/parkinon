@@ -1451,7 +1451,9 @@
     "bannerFreeTitle": "무료 플랜",
     "bannerFreeCta": "프리미엄으로 업그레이드",
     "bannerPremiumTitle": "프리미엄 이용 중",
-    "bannerPremiumCta": "구독 관리"
+    "bannerPremiumCta": "구독 관리",
+    "planMonthlyPriceFmt": "{{price}} / 월",
+    "comparePricePremiumFmt": "{{price}}~"
   },
   "videoRecord": {
     "quotaReachedTitle": "오늘 무료 한도를 다 썼어요",

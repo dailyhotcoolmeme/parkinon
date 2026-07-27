@@ -1451,7 +1451,9 @@
     "bannerFreeTitle": "Free plan",
     "bannerFreeCta": "Upgrade to Premium",
     "bannerPremiumTitle": "You're on Premium",
-    "bannerPremiumCta": "Manage subscription"
+    "bannerPremiumCta": "Manage subscription",
+    "planMonthlyPriceFmt": "{{price}} / month",
+    "comparePricePremiumFmt": "from {{price}}"
   },
   "videoRecord": {
     "quotaReachedTitle": "You've used today's free limit",
