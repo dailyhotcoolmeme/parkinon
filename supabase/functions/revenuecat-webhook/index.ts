@@ -278,7 +278,26 @@ async function handleEvent(body: any): Promise<string> {
   const keepAccess = type === 'BILLING_ISSUE' || KEEP_ACCESS_CANCEL_REASONS.has(cancelReason)
 
   if (type === 'CANCELLATION' && !keepAccess) {
-    // 환불·개발자 해지 등 → 유지하지 않는다. 만료 판단은 EXPIRATION 에 맡긴다.
+    // 환불(CUSTOMER_SUPPORT)·개발자 해지(DEVELOPER_INITIATED) 등 접근을 유지하지 않는 사유.
+    // ⚠️ EXPIRATION 에만 맡기면 안 된다 — 그 이벤트가 안 오거나 가드에 걸려 버려지면
+    //   환불받은 사용자가 남은 기간 내내 프리미엄을 쓴다. 실제 권한을 확인해 끊는다.
+    const live = await fetchPremiumState(appUserId)
+    if (live && !live.active) {
+      await supabase
+        .from('patient_groups')
+        .update({
+          subscription_tier: 'free',
+          subscription_expires_at: null,
+          revenuecat_synced_at: nowIso,
+        })
+        .eq('id', groupId)
+      try {
+        await supabase.rpc('reset_group_custom_sounds', { p_group_id: groupId })
+      } catch (e) {
+        console.error('[revenuecat-webhook] reset_group_custom_sounds 실패:', e)
+      }
+      return `cancellation (${cancelReason || 'unknown'}): revoked`
+    }
     return `cancellation (${cancelReason || 'unknown'}): no access grant`
   }
 
@@ -298,6 +317,30 @@ async function handleEvent(body: any): Promise<string> {
   }
 
   if (type === 'EXPIRATION') {
+    // ⚠️ 아래 보수적 가드(늦게 온 이벤트·갱신 중)보다 먼저, 실제 권한을 확인한다.
+    //   환불+회수(revoke)는 기간이 한참 남은 구독을 즉시 끊는데, 그때 오는 EXPIRATION 은
+    //   "만료시각 = 지금" 이라 저장된 만료일(미래)보다 과거로 보인다. 가드만 믿으면
+    //   'stale expiration ignored' 로 버려지고, 환불받은 사용자가 남은 기간 내내
+    //   프리미엄을 쓴다(실측 2026-07-27: 회수 직후 EXPIRATION 이 무시됨).
+    //   RevenueCat 은 회수를 정확히 반영하므로, 권한이 없다고 하면 즉시 강등한다.
+    const live = await fetchPremiumState(appUserId)
+    if (live && !live.active) {
+      await supabase
+        .from('patient_groups')
+        .update({
+          subscription_tier: 'free',
+          subscription_expires_at: null,
+          revenuecat_synced_at: nowIso,
+        })
+        .eq('id', groupId)
+      try {
+        await supabase.rpc('reset_group_custom_sounds', { p_group_id: groupId })
+      } catch (e) {
+        console.error('[revenuecat-webhook] reset_group_custom_sounds 실패:', e)
+      }
+      return 'revoked (entitlement inactive)'
+    }
+
     // 이 만료 이벤트가 "이미 갱신된 더 나중 기간"보다 과거면 지난 기간 것 → 강등하지 않는다.
     if (storedMs && eventMs && eventMs < storedMs) {
       return 'stale expiration ignored'
