@@ -1901,7 +1901,8 @@
     "emptyLine2": "메뉴 → 알림음 설정에서 만들 수 있어요.",
     "goToSettings": "알림음 녹음 설정으로 가기",
     "presetSection": "기본 제공 알림음",
-    "recordingSection": "직접 녹음한 알림음"
+    "recordingSection": "직접 녹음한 알림음",
+    "durationSec": "{{sec}}초"
   },
   "medTimeOnboarding": {
     "headerTitle": "복약 알림 설정",

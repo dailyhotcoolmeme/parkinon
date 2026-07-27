@@ -168,7 +168,9 @@ export function AlarmSoundPickerRow({ soundId, sounds, onSelect, backgroundColor
         <View style={styles.optionLeft}>
           <Text style={styles.optionText}>{s.label}</Text>
           {s.durationSec != null && (
-            <Text style={styles.optionDuration}>{s.durationSec}초</Text>
+            <Text style={styles.optionDuration}>
+              {t('alarmSoundPicker.durationSec', { sec: s.durationSec })}
+            </Text>
           )}
           {canPreview && (
             <TouchableOpacity

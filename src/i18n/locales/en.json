@@ -1901,7 +1901,8 @@
     "emptyLine2": "You can create one in Menu → Notification Sound Settings.",
     "goToSettings": "Go to Notification Sound Settings",
     "presetSection": "Built-in alarm sounds",
-    "recordingSection": "Your recordings"
+    "recordingSection": "Your recordings",
+    "durationSec": "{{sec}}s"
   },
   "medTimeOnboarding": {
     "headerTitle": "Medication reminders",
