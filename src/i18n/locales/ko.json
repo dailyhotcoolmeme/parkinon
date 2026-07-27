@@ -1715,7 +1715,8 @@
     "medicationChannelName": "약 복용 알림",
     "effectTrackTitle": "😊 몸 상태는 어때요?",
     "effectTrackBodyImmediate": "복용약 드신 직후 몸 상태를 기록해보세요.",
-    "effectTrackBody": "복용약의 {{when}} 몸 상태를 기록해보세요."
+    "effectTrackBody": "복용약의 {{when}} 몸 상태를 기록해보세요.",
+    "measureNowAction": "바로 측정하기"
   },
   "notifActionFeedback": {
     "timeChangeTitle": "시간을 바꿨어요",

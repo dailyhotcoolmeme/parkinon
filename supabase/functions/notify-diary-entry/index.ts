@@ -118,7 +118,7 @@ Deno.serve(async (req) => {
     const authorId = body?.author_id;
 
     if (!patientId || !entryDate || !authorId) {
-      return json({ error: 'patient_id, entry_date, author_id 필드가 필요합니다.' }, 400);
+      return json({ error: 'patient_id, entry_date and author_id are required' }, 400);
     }
 
     // 인증: 호출자 = 작성자 본인만 트리거 가능(위조 방지)
@@ -138,7 +138,11 @@ Deno.serve(async (req) => {
     if (!groupId) return json({ sent: 0, reason: 'no_group_linked' });
 
     const { data: authorRow } = await supabase.from('users').select('name').eq('id', authorId).maybeSingle();
-    const authorName = (authorRow as any)?.name ?? '가족';
+    // 이름이 없을 때의 폴백은 언어별로 따로 둔다.
+    // 한 값만 쓰면 영어 알림에 '가족' 이 그대로 들어간다(실측 2026-07-27).
+    const authorNameRaw = (authorRow as any)?.name?.trim() || null;
+    const authorName = authorNameRaw ?? '가족';
+    const authorNameEn = authorNameRaw ?? 'A family member';
 
     // 그룹 보호자 목록
     const { data: members } = await supabase
@@ -169,7 +173,7 @@ Deno.serve(async (req) => {
       if ((u as any)?.diary_notif_enabled === false) { skipped += 1; continue; }
 
       const isEn = (u as any)?.language === 'en';
-      const title = isEn ? `📔 ${authorName} wrote in the family diary` : `📔 ${authorName}님이 가족 일기를 남겼어요`;
+      const title = isEn ? `📔 ${authorNameEn} wrote in the family diary` : `📔 ${authorName}님이 가족 일기를 남겼어요`;
       const bodyText = isEn ? 'Tap to view the family diary.' : '가족 일기를 확인해보세요.';
       const payload = { type: 'family_diary', date: entryDate, patient_id: patientId };
       const channelId = channelForStoredSound((u as any)?.diary_notif_sound_id ?? null);
@@ -183,6 +187,6 @@ Deno.serve(async (req) => {
     return json({ sent, skipped, recipients: recipients?.length ?? 0 });
   } catch (err: any) {
     console.error('[notify-diary-entry] fatal error:', err);
-    return json({ error: err?.message ?? '발송 실패' }, 500);
+    return json({ error: err?.message ?? 'send failed' }, 500);
   }
 });

@@ -98,7 +98,7 @@ Deno.serve(async (req) => {
     const newRole = body?.new_role
     const confirm = body?.confirm === true
     if (newRole !== 'patient' && newRole !== 'caregiver') {
-      return new Response(JSON.stringify({ ok: false, code: 'error', message: '잘못된 역할이에요.' }),
+      return new Response(JSON.stringify({ ok: false, code: 'error', message: 'invalid role' }),
         { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } })
     }
 
@@ -141,11 +141,11 @@ Deno.serve(async (req) => {
     })
     if (error) {
       console.error('[change-role] RPC 오류:', error)
-      return new Response(JSON.stringify({ ok: false, code: 'error', message: '역할 변경 중 오류가 발생했어요.' }),
+      return new Response(JSON.stringify({ ok: false, code: 'error', message: 'role change failed' }),
         { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } })
     }
 
-    const result = (data && typeof data === 'object') ? data : { ok: false, code: 'error', message: '알 수 없는 오류' }
+    const result = (data && typeof data === 'object') ? data : { ok: false, code: 'error', message: 'unknown error' }
     if (r2Stats) (result as any).r2 = { requested: r2Stats.requested, deleted: r2Stats.deleted, failed: r2Stats.failed }
 
     return new Response(JSON.stringify(result), {
@@ -153,7 +153,7 @@ Deno.serve(async (req) => {
     })
   } catch (e) {
     console.error('[change-role] 오류:', e)
-    return new Response(JSON.stringify({ ok: false, code: 'error', message: '역할 변경 중 오류가 발생했어요.' }), {
+    return new Response(JSON.stringify({ ok: false, code: 'error', message: 'role change failed' }), {
       status: 500,
       headers: { ...corsHeaders, 'Content-Type': 'application/json' },
     })

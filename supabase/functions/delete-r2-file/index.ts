@@ -19,7 +19,7 @@ Deno.serve(async (req) => {
 
     if (!R2_ENDPOINT || !R2_ACCESS_KEY_ID || !R2_SECRET_ACCESS_KEY) {
       return new Response(
-        JSON.stringify({ error: 'R2 환경변수가 설정되지 않았습니다.' }),
+        JSON.stringify({ error: 'R2 environment variables are not configured' }),
         { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } },
       );
     }
@@ -28,7 +28,7 @@ Deno.serve(async (req) => {
     const authHeader = req.headers.get('Authorization');
     if (!authHeader) {
       return new Response(
-        JSON.stringify({ error: '인증 토큰이 없습니다.' }),
+        JSON.stringify({ error: 'missing auth token' }),
         { status: 401, headers: { ...corsHeaders, 'Content-Type': 'application/json' } },
       );
     }
@@ -42,7 +42,7 @@ Deno.serve(async (req) => {
     const { data: { user }, error: authError } = await supabase.auth.getUser();
     if (authError || !user) {
       return new Response(
-        JSON.stringify({ error: '인증에 실패했습니다.' }),
+        JSON.stringify({ error: 'authentication failed' }),
         { status: 401, headers: { ...corsHeaders, 'Content-Type': 'application/json' } },
       );
     }
@@ -53,7 +53,7 @@ Deno.serve(async (req) => {
 
     if (!r2_key || !media_log_id) {
       return new Response(
-        JSON.stringify({ error: 'r2_key 또는 media_log_id가 없습니다.' }),
+        JSON.stringify({ error: 'r2_key or media_log_id is missing' }),
         { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } },
       );
     }
@@ -73,7 +73,7 @@ Deno.serve(async (req) => {
 
     if (logError || !mediaLog) {
       return new Response(
-        JSON.stringify({ error: '미디어 로그를 찾을 수 없습니다.' }),
+        JSON.stringify({ error: 'media log not found' }),
         { status: 404, headers: { ...corsHeaders, 'Content-Type': 'application/json' } },
       );
     }
@@ -81,7 +81,7 @@ Deno.serve(async (req) => {
     // 안전을 위해 요청 body 의 r2_key 와 DB 의 r2_key 일치 확인 (불일치 시 거부)
     if (mediaLog.r2_key !== r2_key) {
       return new Response(
-        JSON.stringify({ error: 'r2_key 가 일치하지 않습니다.' }),
+        JSON.stringify({ error: 'r2_key does not match' }),
         { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } },
       );
     }

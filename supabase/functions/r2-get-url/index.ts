@@ -112,7 +112,7 @@ Deno.serve(async (req) => {
   try {
     const authHeader = req.headers.get('Authorization');
     if (!authHeader) {
-      return json({ error: '인증이 필요합니다.' }, 401);
+      return json({ error: 'authentication required' }, 401);
     }
 
     const supabaseUrl = Deno.env.get('SUPABASE_URL')!;
@@ -123,7 +123,7 @@ Deno.serve(async (req) => {
 
     const { data: { user }, error: authError } = await supabase.auth.getUser();
     if (authError || !user) {
-      return json({ error: '인증이 필요합니다.' }, 401);
+      return json({ error: 'authentication required' }, 401);
     }
 
     const R2_ENDPOINT = Deno.env.get('R2_ENDPOINT');
@@ -132,24 +132,24 @@ Deno.serve(async (req) => {
     const R2_BUCKET_NAME = Deno.env.get('R2_BUCKET_NAME') ?? 'parkinon-media';
 
     if (!R2_ENDPOINT || !R2_ACCESS_KEY_ID || !R2_SECRET_ACCESS_KEY) {
-      return json({ error: 'R2 환경변수가 설정되지 않았습니다.' }, 500);
+      return json({ error: 'R2 environment variables are not configured' }, 500);
     }
 
     const body = await req.json().catch(() => ({}));
     const raw = (body?.key ?? body?.url) as unknown;
     if (!raw || typeof raw !== 'string') {
-      return json({ error: 'key 또는 url 이 필요합니다.' }, 400);
+      return json({ error: 'key or url is required' }, 400);
     }
 
     const key = extractKey(raw);
     if (!key) {
-      return json({ error: 'key 형식이 올바르지 않습니다.' }, 400);
+      return json({ error: 'invalid key format' }, 400);
     }
 
     // ── 보안: DB 조회 이전에 key 화이트리스트 검증(필터 인젝션 차단) ──
     // 콤마/괄호/% 등 PostgREST 필터 메타문자가 섞인 key 는 즉시 거부한다.
     if (!SAFE_KEY_PATTERN.test(key)) {
-      return json({ error: 'key 형식이 올바르지 않습니다.' }, 400);
+      return json({ error: 'invalid key format' }, 400);
     }
 
     // ── 인가 1: 커뮤니티 피드 사진은 로그인 사용자 누구나 허용 ──
@@ -191,7 +191,7 @@ Deno.serve(async (req) => {
       } else {
         const m = key.match(MEDIA_KEY_PATTERN);
         if (!m) {
-          return json({ error: 'key 형식이 올바르지 않습니다.' }, 400);
+          return json({ error: 'invalid key format' }, 400);
         }
         ownerId = m[2];
       }

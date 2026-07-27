@@ -106,7 +106,7 @@ Deno.serve(async (req: Request) => {
   }
 
   if (req.method !== 'POST') {
-    return new Response(JSON.stringify({ error: 'POST 요청만 허용됩니다.' }), {
+    return new Response(JSON.stringify({ error: 'only POST is allowed' }), {
       status: 405,
       headers: { ...corsHeaders, 'Content-Type': 'application/json' },
     });
@@ -115,7 +115,7 @@ Deno.serve(async (req: Request) => {
   try {
     const claudeApiKey = Deno.env.get('CLAUDE_API_KEY');
     if (!claudeApiKey) {
-      return new Response(JSON.stringify({ error: 'CLAUDE_API_KEY가 설정되지 않았습니다.' }), {
+      return new Response(JSON.stringify({ error: 'CLAUDE_API_KEY is not configured' }), {
         status: 500,
         headers: { ...corsHeaders, 'Content-Type': 'application/json' },
       });
@@ -124,7 +124,7 @@ Deno.serve(async (req: Request) => {
     // 인증: 호출자 JWT 검증 (gateway 외에 함수 내부에서도 확인) + 사용자별 rate limit.
     const authHeader = req.headers.get('Authorization');
     if (!authHeader) {
-      return new Response(JSON.stringify({ error: '인증이 필요합니다.' }), {
+      return new Response(JSON.stringify({ error: 'authentication required' }), {
         status: 401,
         headers: { ...corsHeaders, 'Content-Type': 'application/json' },
       });
@@ -136,13 +136,13 @@ Deno.serve(async (req: Request) => {
     );
     const { data: { user }, error: authError } = await authClient.auth.getUser();
     if (authError || !user) {
-      return new Response(JSON.stringify({ error: '인증이 필요합니다.' }), {
+      return new Response(JSON.stringify({ error: 'authentication required' }), {
         status: 401,
         headers: { ...corsHeaders, 'Content-Type': 'application/json' },
       });
     }
     if (!checkRateLimit(user.id)) {
-      return new Response(JSON.stringify({ error: '요청이 너무 잦습니다. 잠시 후 다시 시도해주세요.' }), {
+      return new Response(JSON.stringify({ error: 'too many requests, please retry shortly' }), {
         status: 429,
         headers: { ...corsHeaders, 'Content-Type': 'application/json' },
       });

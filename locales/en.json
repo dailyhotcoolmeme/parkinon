@@ -1,3 +1,6 @@
 {
-  "CFBundleDisplayName": "ParkinON"
+  "CFBundleDisplayName": "ParkinON",
+  "NSMicrophoneUsageDescription": "ParkinON uses the microphone to record diary voice notes and family voice alarm sounds.",
+  "NSCameraUsageDescription": "ParkinON uses the camera to scan prescriptions and record videos.",
+  "NSPhotoLibraryUsageDescription": "ParkinON needs photo access so you can attach photos and videos."
 }

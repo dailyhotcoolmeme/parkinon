@@ -173,15 +173,15 @@ Deno.serve(async (req) => {
         partial,
       },
       message: partial
-        ? '탈퇴가 완료되었습니다. 일부 파일은 정리가 지연될 수 있습니다.'
-        : '탈퇴가 완료되었습니다.',
+        ? 'account deleted; some files may be cleaned up later'
+        : 'account deleted',
     }), {
       headers: { ...corsHeaders, 'Content-Type': 'application/json' },
     })
   } catch (e) {
     console.error('[delete-account] 오류:', e)
     // 보안: 내부 에러 문자열을 클라이언트에 노출하지 않음(상세는 로그에만).
-    return new Response(JSON.stringify({ error: '계정 삭제 중 오류가 발생했습니다.' }), {
+    return new Response(JSON.stringify({ error: 'account deletion failed' }), {
       status: 500,
       headers: { ...corsHeaders, 'Content-Type': 'application/json' },
     })

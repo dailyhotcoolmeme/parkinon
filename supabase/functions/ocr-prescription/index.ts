@@ -162,7 +162,7 @@ serve(async (req: Request) => {
 
   if (req.method !== 'POST') {
     return new Response(
-      JSON.stringify({ error: 'POST 요청만 허용됩니다.' }),
+      JSON.stringify({ error: 'only POST is allowed' }),
       { status: 405, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
     );
   }
@@ -174,7 +174,7 @@ serve(async (req: Request) => {
     const authHeader = req.headers.get('Authorization');
     if (!authHeader) {
       return new Response(
-        JSON.stringify({ error: '인증이 필요합니다.' }),
+        JSON.stringify({ error: 'authentication required' }),
         { status: 401, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       );
     }
@@ -186,7 +186,7 @@ serve(async (req: Request) => {
     const { data: { user }, error: authError } = await supabase.auth.getUser();
     if (authError || !user) {
       return new Response(
-        JSON.stringify({ error: '인증이 필요합니다.' }),
+        JSON.stringify({ error: 'authentication required' }),
         { status: 401, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       );
     }
@@ -194,7 +194,7 @@ serve(async (req: Request) => {
     // 사용자별 rate limit
     if (!checkRateLimit(user.id)) {
       return new Response(
-        JSON.stringify({ error: '요청이 너무 잦습니다. 잠시 후 다시 시도해주세요.' }),
+        JSON.stringify({ error: 'too many requests, please retry shortly' }),
         { status: 429, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       );
     }

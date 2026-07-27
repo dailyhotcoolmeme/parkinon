@@ -3,6 +3,7 @@ import { AppState, AppStateStatus, StatusBar } from 'react-native';
 // i18n 뼈대 초기화(side-effect import). 최상위에서 한 번 실행되어 i18next를 준비.
 // 순수 JS라 OTA 가능. 국내(기기 한국어)는 lng=ko라 동작 변화 없음.
 import './src/i18n';
+import i18n from './src/i18n';
 // 해외 로케일 폰트 축소 패치(side-effect import). i18n 초기화 직후, 모든 화면 모듈이
 // import되어 StyleSheet.create가 호출되기 전에 실행되어야 함.
 import './src/i18n/localeFontScale';
@@ -30,7 +31,8 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 
 // Android 알림 채널 — MAX 중요도 (Doze 모드에서도 즉시 표시)
 Notifications.setNotificationChannelAsync('default', {
-  name: '파킨온 알림',
+  // ⚠️ 채널 이름은 안드로이드 시스템 설정(앱 → 알림)에 그대로 노출된다. 앱 언어를 따라야 한다.
+  name: i18n.t('notifications.defaultChannelName'),
   importance: Notifications.AndroidImportance.MAX,
   vibrationPattern: [0, 250, 250, 250],
   lightColor: '#4CAF50',
@@ -49,7 +51,7 @@ Notifications.setNotificationChannelAsync('default', {
 Notifications.setNotificationCategoryAsync('effect_tracking', [
   {
     identifier: 'measure_now',
-    buttonTitle: '바로 측정하기',
+    buttonTitle: i18n.t('notifications.measureNowAction'),
     options: {
       opensAppToForeground: true,
     },

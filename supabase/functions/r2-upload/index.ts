@@ -45,7 +45,7 @@ Deno.serve(async (req) => {
     const authHeader = req.headers.get('Authorization');
     if (!authHeader) {
       return new Response(
-        JSON.stringify({ error: '인증이 필요합니다.' }),
+        JSON.stringify({ error: 'authentication required' }),
         { status: 401, headers: { ...corsHeaders, 'Content-Type': 'application/json' } },
       );
     }
@@ -59,7 +59,7 @@ Deno.serve(async (req) => {
     const { data: { user }, error: authError } = await supabase.auth.getUser();
     if (authError || !user) {
       return new Response(
-        JSON.stringify({ error: '인증이 필요합니다.' }),
+        JSON.stringify({ error: 'authentication required' }),
         { status: 401, headers: { ...corsHeaders, 'Content-Type': 'application/json' } },
       );
     }
@@ -72,7 +72,7 @@ Deno.serve(async (req) => {
 
     if (!R2_ENDPOINT || !R2_ACCESS_KEY_ID || !R2_SECRET_ACCESS_KEY) {
       return new Response(
-        JSON.stringify({ error: 'R2 환경변수가 설정되지 않았습니다.' }),
+        JSON.stringify({ error: 'R2 environment variables are not configured' }),
         { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } },
       );
     }
@@ -82,7 +82,7 @@ Deno.serve(async (req) => {
 
     if (!key || !contentType || typeof key !== 'string' || typeof contentType !== 'string') {
       return new Response(
-        JSON.stringify({ error: 'key 또는 contentType이 없습니다.' }),
+        JSON.stringify({ error: 'key or contentType is missing' }),
         { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } },
       );
     }
@@ -96,7 +96,7 @@ Deno.serve(async (req) => {
       ownerId = soundMatch[1];
       if (!ALLOWED_AUDIO_TYPES.has(contentType)) {
         return new Response(
-          JSON.stringify({ error: '허용되지 않는 오디오 contentType 입니다.' }),
+          JSON.stringify({ error: 'audio contentType not allowed' }),
           { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } },
         );
       }
@@ -107,7 +107,7 @@ Deno.serve(async (req) => {
       const month = Number(communityMatch[3]);
       if (month < 1 || month > 12) {
         return new Response(
-          JSON.stringify({ error: 'key YYYY-MM 값이 올바르지 않습니다.' }),
+          JSON.stringify({ error: 'invalid YYYY-MM segment in key' }),
           { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } },
         );
       }
@@ -121,7 +121,7 @@ Deno.serve(async (req) => {
       const m = key.match(KEY_PATTERN);
       if (!m) {
         return new Response(
-          JSON.stringify({ error: 'key 형식이 올바르지 않습니다.' }),
+          JSON.stringify({ error: 'invalid key format' }),
           { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } },
         );
       }
@@ -130,7 +130,7 @@ Deno.serve(async (req) => {
       const month = Number(m[4]);
       if (month < 1 || month > 12) {
         return new Response(
-          JSON.stringify({ error: 'key YYYY-MM 값이 올바르지 않습니다.' }),
+          JSON.stringify({ error: 'invalid YYYY-MM segment in key' }),
           { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } },
         );
       }

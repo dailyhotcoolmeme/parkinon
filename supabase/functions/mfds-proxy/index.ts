@@ -63,7 +63,7 @@ Deno.serve(async (req: Request) => {
   }
 
   if (req.method !== 'POST') {
-    return new Response(JSON.stringify({ error: 'POST 요청만 허용됩니다.' }), {
+    return new Response(JSON.stringify({ error: 'only POST is allowed' }), {
       status: 405,
       headers: { ...corsHeaders, 'Content-Type': 'application/json' },
     });
@@ -72,7 +72,7 @@ Deno.serve(async (req: Request) => {
   try {
     const mfdsKey = Deno.env.get('MFDS_KEY');
     if (!mfdsKey) {
-      return new Response(JSON.stringify({ error: 'MFDS_KEY가 설정되지 않았습니다.' }), {
+      return new Response(JSON.stringify({ error: 'MFDS_KEY is not configured' }), {
         status: 500,
         headers: { ...corsHeaders, 'Content-Type': 'application/json' },
       });
@@ -81,7 +81,7 @@ Deno.serve(async (req: Request) => {
     // 인증 필수: anon 키만으로는 통과 불가(실제 로그인 사용자만 허용).
     const authHeader = req.headers.get('Authorization');
     if (!authHeader) {
-      return new Response(JSON.stringify({ error: '인증이 필요합니다.' }), {
+      return new Response(JSON.stringify({ error: 'authentication required' }), {
         status: 401,
         headers: { ...corsHeaders, 'Content-Type': 'application/json' },
       });
@@ -95,7 +95,7 @@ Deno.serve(async (req: Request) => {
 
     const { data: { user }, error: authError } = await supabase.auth.getUser();
     if (authError || !user) {
-      return new Response(JSON.stringify({ error: '인증이 필요합니다.' }), {
+      return new Response(JSON.stringify({ error: 'authentication required' }), {
         status: 401,
         headers: { ...corsHeaders, 'Content-Type': 'application/json' },
       });
@@ -103,7 +103,7 @@ Deno.serve(async (req: Request) => {
 
     // user_id 단위 rate limit
     if (!rateLimit(user.id)) {
-      return new Response(JSON.stringify({ error: '요청이 너무 많습니다. 잠시 후 다시 시도해주세요.' }), {
+      return new Response(JSON.stringify({ error: 'too many requests, please retry shortly' }), {
         status: 429,
         headers: { ...corsHeaders, 'Content-Type': 'application/json' },
       });
@@ -111,7 +111,7 @@ Deno.serve(async (req: Request) => {
 
     const body = (await req.json()) as ReqBody;
     if (!body.endpoint || !body.query) {
-      return new Response(JSON.stringify({ error: 'endpoint와 query가 필요합니다.' }), {
+      return new Response(JSON.stringify({ error: 'endpoint and query are required' }), {
         status: 400,
         headers: { ...corsHeaders, 'Content-Type': 'application/json' },
       });

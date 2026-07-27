@@ -20,7 +20,7 @@ Deno.serve(async (req) => {
     const authHeader = req.headers.get('Authorization');
     if (!authHeader) {
       return new Response(
-        JSON.stringify({ error: '인증이 필요합니다.' }),
+        JSON.stringify({ error: 'authentication required' }),
         { status: 401, headers: { ...corsHeaders, 'Content-Type': 'application/json' } },
       );
     }
@@ -36,7 +36,7 @@ Deno.serve(async (req) => {
     const { data: { user }, error: authError } = await authClient.auth.getUser();
     if (authError || !user) {
       return new Response(
-        JSON.stringify({ error: '인증이 필요합니다.' }),
+        JSON.stringify({ error: 'authentication required' }),
         { status: 401, headers: { ...corsHeaders, 'Content-Type': 'application/json' } },
       );
     }
@@ -45,13 +45,13 @@ Deno.serve(async (req) => {
 
     if (!to || !title) {
       return new Response(
-        JSON.stringify({ error: 'to, title 필드가 필요합니다.' }),
+        JSON.stringify({ error: 'to and title fields are required' }),
         { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } },
       );
     }
     if (typeof to !== 'string') {
       return new Response(
-        JSON.stringify({ error: 'to 는 문자열이어야 합니다.' }),
+        JSON.stringify({ error: 'to must be a string' }),
         { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } },
       );
     }
@@ -77,14 +77,14 @@ Deno.serve(async (req) => {
     if (callerErr) {
       console.error('send-push caller lookup error:', callerErr);
       return new Response(
-        JSON.stringify({ error: '권한 검증 실패' }),
+        JSON.stringify({ error: 'permission check failed' }),
         { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } },
       );
     }
     if (ownerErr) {
       console.error('send-push owner lookup error:', ownerErr);
       return new Response(
-        JSON.stringify({ error: '권한 검증 실패' }),
+        JSON.stringify({ error: 'permission check failed' }),
         { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } },
       );
     }

@@ -34,7 +34,7 @@ Deno.serve(async (req) => {
   const oneMinAgo = new Date(Date.now() - 60_000).toISOString();
   const { count } = await admin.from("web_login_tokens").select("token", { count: "exact", head: true })
     .eq("user_id", userId).gte("created_at", oneMinAgo);
-  if ((count ?? 0) >= RATE_LIMIT_PER_MINUTE) return new Response(JSON.stringify({ error: "잠시 후 다시 시도해주세요 (한도 초과)" }), { status: 429, headers: { 'Content-Type': 'application/json' } });
+  if ((count ?? 0) >= RATE_LIMIT_PER_MINUTE) return new Response(JSON.stringify({ error: "rate limit exceeded, please retry shortly" }), { status: 429, headers: { 'Content-Type': 'application/json' } });
 
   const expiresAt = new Date(Date.now() + TTL_MINUTES * 60_000).toISOString();
   const nowIso = new Date().toISOString();

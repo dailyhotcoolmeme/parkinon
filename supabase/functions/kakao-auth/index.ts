@@ -11,14 +11,14 @@ serve(async (req) => {
 
   try {
     const { kakaoAccessToken } = await req.json();
-    if (!kakaoAccessToken) throw new Error('kakaoAccessToken 누락');
+    if (!kakaoAccessToken) throw new Error('kakaoAccessToken missing');
 
     // 0) 토큰 audience 검증 — 토큰이 '우리 앱'에서 발급된 것인지 확인.
     //    /v2/user/me 는 토큰이 '유효한 카카오 토큰'인지만 보고 발급 앱은 확인하지 않으므로,
     //    다른 앱에서 발급된 토큰으로 피해자 kakao_id 를 매칭해 세션을 받는 계정탈취가 가능했음.
     //    access_token_info 의 app_id 가 우리 앱(KAKAO_APP_ID)과 일치할 때만 진행.
     const expectedAppId = Deno.env.get('KAKAO_APP_ID');
-    if (!expectedAppId) throw new Error('KAKAO_APP_ID 미설정');
+    if (!expectedAppId) throw new Error('KAKAO_APP_ID not configured');
     const tokenInfoRes = await fetch('https://kapi.kakao.com/v1/user/access_token_info', {
       headers: { Authorization: `Bearer ${kakaoAccessToken}` },
     });
@@ -28,7 +28,7 @@ serve(async (req) => {
     }
     const tokenInfo = await tokenInfoRes.json();
     if (String(tokenInfo.app_id) !== String(expectedAppId)) {
-      throw new Error('허용되지 않은 카카오 앱 토큰입니다.');
+      throw new Error('kakao token is not for this app');
     }
 
     // 1) 카카오 토큰 검증 + 프로필 조회
@@ -42,7 +42,7 @@ serve(async (req) => {
     const kakaoUser = await kakaoRes.json();
     const kakaoId = String(kakaoUser.id);
     const kakaoEmail = kakaoUser.kakao_account?.email ?? null;
-    const nickname = kakaoUser.kakao_account?.profile?.nickname ?? '사용자';
+    const nickname = kakaoUser.kakao_account?.profile?.nickname ?? 'User';
     const profileImageUrl = kakaoUser.kakao_account?.profile?.profile_image_url ?? null;
 
     const supabaseAdmin = createClient(

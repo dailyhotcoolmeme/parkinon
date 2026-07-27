@@ -60,10 +60,10 @@ Deno.serve(async (req) => {
 
     let callerId: string | null = null;
     if (!isService) {
-      if (!authHeader) return json({ error: '인증이 필요합니다.' }, 401);
+      if (!authHeader) return json({ error: 'authentication required' }, 401);
       const uc = createClient(supabaseUrl, anonKey, { global: { headers: { Authorization: authHeader } } });
       const { data: { user }, error } = await uc.auth.getUser();
-      if (error || !user) return json({ error: '인증이 필요합니다.' }, 401);
+      if (error || !user) return json({ error: 'authentication required' }, 401);
       callerId = user.id;
     }
 
@@ -74,19 +74,19 @@ Deno.serve(async (req) => {
     if (soundId) {
       const { data: row, error } = await admin
         .from('custom_sounds').select('id, r2_key_src').eq('id', soundId).maybeSingle();
-      if (error || !row) return json({ error: '사운드를 찾을 수 없습니다.' }, 404);
+      if (error || !row) return json({ error: 'sound not found' }, 404);
       r2KeySrc = (row as any).r2_key_src;
     }
-    if (!r2KeySrc || typeof r2KeySrc !== 'string') return json({ error: 'r2KeySrc(또는 soundId) 필요' }, 400);
+    if (!r2KeySrc || typeof r2KeySrc !== 'string') return json({ error: 'r2KeySrc (or soundId) is required' }, 400);
     const mt = r2KeySrc.match(SOUND_KEY_PATTERN);
-    if (!mt) return json({ error: 'r2_key_src 형식 오류' }, 400);
+    if (!mt) return json({ error: 'invalid r2_key_src format' }, 400);
     const ownerId = mt[1];
     if (!userId) userId = ownerId;
 
     if (!isService && callerId && callerId !== ownerId) {
       const uc = createClient(supabaseUrl, anonKey, { global: { headers: { Authorization: authHeader } } });
       const { data: same } = await uc.rpc('is_same_patient_group', { target_user_id: ownerId });
-      if (same !== true) return json({ error: '권한이 없습니다.' }, 403);
+      if (same !== true) return json({ error: 'not authorized' }, 403);
     }
 
     // R2 다운로드(파이프라인 검증) — 엔진 정해지면 이 다음에 변환 삽입

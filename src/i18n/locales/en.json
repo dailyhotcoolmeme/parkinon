@@ -1715,7 +1715,8 @@
     "medicationChannelName": "Medication reminders",
     "effectTrackTitle": "😊 How do you feel?",
     "effectTrackBodyImmediate": "Record your body state right after taking your medication.",
-    "effectTrackBody": "Record your body state ({{when}})."
+    "effectTrackBody": "Record your body state ({{when}}).",
+    "measureNowAction": "Measure now"
   },
   "notifActionFeedback": {
     "timeChangeTitle": "Time updated",

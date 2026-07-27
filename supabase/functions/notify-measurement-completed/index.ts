@@ -106,7 +106,7 @@ Deno.serve(async (req) => {
 
     if (!measurementId || typeof measurementId !== 'string') {
       return new Response(
-        JSON.stringify({ error: 'measurement_id 필드가 필요합니다.' }),
+        JSON.stringify({ error: 'measurement_id field is required' }),
         {
           status: 400,
           headers: { ...corsHeaders, 'Content-Type': 'application/json' },
@@ -136,7 +136,7 @@ Deno.serve(async (req) => {
     if (mErr) {
       console.error('[notify-measurement-completed] measurement 조회 오류:', mErr);
       return new Response(
-        JSON.stringify({ error: 'measurement 조회 실패', detail: mErr.message }),
+        JSON.stringify({ error: 'failed to load measurement', detail: mErr.message }),
         {
           status: 500,
           headers: { ...corsHeaders, 'Content-Type': 'application/json' },
@@ -175,7 +175,7 @@ Deno.serve(async (req) => {
     if (pErr) {
       console.error('[notify-measurement-completed] patient 조회 오류:', pErr);
       return new Response(
-        JSON.stringify({ error: 'patient 조회 실패', detail: pErr.message }),
+        JSON.stringify({ error: 'failed to load patient', detail: pErr.message }),
         {
           status: 500,
           headers: { ...corsHeaders, 'Content-Type': 'application/json' },
@@ -207,7 +207,7 @@ Deno.serve(async (req) => {
     if (gmErr) {
       console.error('[notify-measurement-completed] group_members 조회 오류:', gmErr);
       return new Response(
-        JSON.stringify({ error: 'group_members 조회 실패', detail: gmErr.message }),
+        JSON.stringify({ error: 'failed to load group members', detail: gmErr.message }),
         {
           status: 500,
           headers: { ...corsHeaders, 'Content-Type': 'application/json' },
@@ -238,7 +238,7 @@ Deno.serve(async (req) => {
     if (cuErr) {
       console.error('[notify-measurement-completed] caregiver users 조회 오류:', cuErr);
       return new Response(
-        JSON.stringify({ error: 'caregiver users 조회 실패', detail: cuErr.message }),
+        JSON.stringify({ error: 'failed to load caregiver users', detail: cuErr.message }),
         {
           status: 500,
           headers: { ...corsHeaders, 'Content-Type': 'application/json' },
@@ -301,7 +301,7 @@ Deno.serve(async (req) => {
   } catch (err: any) {
     console.error('[notify-measurement-completed] fatal error:', err);
     return new Response(
-      JSON.stringify({ error: err?.message ?? '발송 실패' }),
+      JSON.stringify({ error: err?.message ?? 'send failed' }),
       {
         status: 500,
         headers: { ...corsHeaders, 'Content-Type': 'application/json' },
