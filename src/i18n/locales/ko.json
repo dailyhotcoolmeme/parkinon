@@ -1661,7 +1661,16 @@
     "joinCatchFail": "연동 중 오류가 발생했어요.",
     "memberDeleteFailError": "멤버십 삭제 실패 (HTTP {{status}}): {{err}}",
     "disconnectFail": "가족 연결 해제에 실패했어요.",
-    "removeFailError": "가족 연결 해제 실패 (HTTP {{status}}): {{err}}"
+    "removeFailError": "가족 연결 해제 실패 (HTTP {{status}}): {{err}}",
+    "joinResult": {
+      "joined": "가족 연동이 완료됐어요.",
+      "alreadyMember": "이미 연동된 가족이에요.",
+      "invalidCode": "유효하지 않은 코드예요. 다시 확인해주세요.",
+      "twoPatients": "환자 두 분은 한 가족으로 묶을 수 없어요. 환자 한 분을 중심으로 보호자들이 함께 연결돼요.",
+      "needConfirmSwitch": "지금 다른 가족과 연결돼 있어요. 새 가족으로 바꾸면 기존 연결이 끊겨요. 바꾸시겠어요?",
+      "rateLimited": "시도가 너무 많아요. 잠시 후 다시 시도해주세요.",
+      "error": "연동 중 문제가 생겼어요. 잠시 후 다시 시도해주세요."
+    }
   },
   "authHook": {
     "loginFailTitle": "로그인 실패",

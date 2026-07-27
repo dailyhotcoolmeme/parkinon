@@ -1661,7 +1661,16 @@
     "joinCatchFail": "An error occurred while linking.",
     "memberDeleteFailError": "Failed to remove membership (HTTP {{status}}): {{err}}",
     "disconnectFail": "Failed to unlink the family.",
-    "removeFailError": "Failed to unlink the family (HTTP {{status}}): {{err}}"
+    "removeFailError": "Failed to unlink the family (HTTP {{status}}): {{err}}",
+    "joinResult": {
+      "joined": "Your family is now linked.",
+      "alreadyMember": "This family is already linked.",
+      "invalidCode": "That code isn't valid. Please check it and try again.",
+      "twoPatients": "Two patients cannot be in one family. One patient is the center, and caregivers link to them.",
+      "needConfirmSwitch": "You're linked to another family right now. Switching will end that link. Continue?",
+      "rateLimited": "Too many attempts. Please try again in a little while.",
+      "error": "Something went wrong while linking. Please try again in a little while."
+    }
   },
   "authHook": {
     "loginFailTitle": "Sign-in failed",

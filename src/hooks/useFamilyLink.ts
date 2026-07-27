@@ -53,6 +53,22 @@ export interface UseFamilyLinkReturn {
   removeFamilyMember: (targetUserId: string) => Promise<boolean>;
 }
 
+/**
+ * join_family_by_code 의 결과 코드 → 앱 번역 키.
+ * 서버 RPC 는 한국어 문구를 그대로 돌려주므로, 화면에는 이 표로 고른 번역만 쓴다.
+ * 새 결과 코드를 서버에 추가하면 여기에도 반드시 같이 넣을 것(없으면 일반 실패 문구로 떨어진다).
+ */
+const JOIN_RESULT_KEYS: Record<string, string> = {
+  joined: 'familyLinkHook.joinResult.joined',
+  merged_caregivers: 'familyLinkHook.joinResult.joined',
+  already_member: 'familyLinkHook.joinResult.alreadyMember',
+  invalid_code: 'familyLinkHook.joinResult.invalidCode',
+  two_patients: 'familyLinkHook.joinResult.twoPatients',
+  need_confirm_switch: 'familyLinkHook.joinResult.needConfirmSwitch',
+  rate_limited: 'familyLinkHook.joinResult.rateLimited',
+  error: 'familyLinkHook.joinResult.error',
+};
+
 // 6자리 숫자 코드 생성 (숫자 전용). brute-force 방어는 서버측 만료 강제 + 시도 제한으로 처리.
 function generateCode(): string {
   let code = '';
@@ -241,7 +257,9 @@ export function useFamilyLink(): UseFamilyLinkReturn {
       // RPC는 jsonb 단일 반환 → { ok, code, message }
       const result: { ok?: boolean; code?: string; message?: string } = await res.json();
       const reason = result?.code ?? 'error';
-      const message = result?.message ?? i18n.t('familyLinkHook.joinGenericFail');
+      // ⚠️ 서버 message 를 그대로 쓰지 않는다 — RPC 문구는 한국어 고정이라 영어 UI 에
+      //   한글 팝업이 뜬다(오너 실측 2026-07-27). 결과 코드로 앱 번역을 고른다.
+      const message = i18n.t(JOIN_RESULT_KEYS[reason] ?? 'familyLinkHook.joinGenericFail');
 
       if (result?.ok) {
         // 멤버십/그룹이 서버에서 바뀌었으므로 로컬 user 갱신 (patient_group_id 동기화)
@@ -501,7 +519,8 @@ export function useFamilyLink(): UseFamilyLinkReturn {
       if (!result?.ok) {
         // 이미 해제됨 등 서버 사유는 성공에 준해 화면을 새로고침만 하도록 두지 않고,
         // 명확히 실패로 처리해 호출처가 안내하도록 한다.
-        setError(result?.message ?? i18n.t('familyLinkHook.disconnectFail'));
+        // 서버 문구는 한국어 고정이라 쓰지 않는다(영어 UI 에 한글이 섞인다).
+        setError(i18n.t('familyLinkHook.disconnectFail'));
         return false;
       }
 
