@@ -1271,7 +1271,6 @@
     "nameless": "No name",
     "residenceTogether": "Living together",
     "residenceSeparate": "Living apart",
-    "residenceUnknown": "No living info",
     "disconnectTitle": "Unlink",
     "disconnectMsg": "Unlink from {{name}}?",
     "defaultFamilyName": "family member",

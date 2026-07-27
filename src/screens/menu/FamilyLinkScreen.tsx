@@ -360,17 +360,20 @@ export function FamilyLinkScreen() {
               const residenceType = isCurrentUserCaregiver
                 ? (user?.residence_type ?? member.user?.residence_type)
                 : (member.user?.residence_type ?? user?.residence_type);
+              // 거주 여부가 저장되지 않은 계정(역할 변경 등으로 비워짐)에는 아무것도 붙이지 않는다.
+              // 예전엔 '거주 정보 없음'을 표시했는데, 영어로는 뜻이 통하지 않았고
+              // "따로 거주"로 오해되기도 했다(오너 지적 2026-07-27). 모르면 안 쓰는 게 낫다.
               const residence = residenceType === 'together'
                 ? t('familyLink.residenceTogether')
                 : residenceType === 'separate'
                   ? t('familyLink.residenceSeparate')
-                  : t('familyLink.residenceUnknown');
+                  : null;
               return (
                 <View key={member.user_id} style={styles.familyCard}>
                   <View style={styles.memberInfo}>
                     <Text style={styles.memberName}>{name}</Text>
                     <Text style={styles.memberSub}>
-                      {role} · {residence}
+                      {residence ? `${role} · ${residence}` : role}
                     </Text>
                   </View>
                   <TouchableOpacity

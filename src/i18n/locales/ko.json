@@ -1271,7 +1271,6 @@
     "nameless": "이름 없음",
     "residenceTogether": "함께 거주",
     "residenceSeparate": "따로 거주",
-    "residenceUnknown": "거주 정보 없음",
     "disconnectTitle": "연결 해제",
     "disconnectMsg": "{{name}}님과의 연결을 해제하시겠어요?",
     "defaultFamilyName": "가족",
