@@ -46,7 +46,7 @@ const AD_UNIT_IOS: Record<AdPlacement, string> = {
  * ⚠️ 내부 테스트 APK 배포 중에는 true(실제 광고 오클릭=계정 정지 방지).
  * ⚠️ Phase 7 실제 스토어 출시 전에 반드시 false 로 바꿀 것.
  */
-export const FORCE_TEST_ADS = true;
+export const FORCE_TEST_ADS = false;
 
 /** 구글 공식 테스트 네이티브 광고단위 ID (개발용 — 실 ID 대신 __DEV__/FORCE_TEST_ADS 에서 사용) */
 export const TEST_NATIVE_AD_UNIT_ID = Platform.select({
