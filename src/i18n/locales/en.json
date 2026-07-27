@@ -1008,7 +1008,10 @@
     "roleWarn2Msg": "This can't be undone. Your health records (sensitive data) will be permanently deleted, and linked family will no longer see your records.",
     "roleWarn2Confirm": "Yes, delete and switch",
     "roleExportSavedTitle": "Saved",
-    "roleExportSavedMsg": "Your health records (.csv) were saved to the selected folder. You can open it in Excel."
+    "roleExportSavedMsg": "Your health records (.csv) were saved to the selected folder. You can open it in Excel.",
+    "roleChangeSameRoleMsg": "You're already in that role.",
+    "roleChangeTwoPatientsMsg": "This family already has a patient, so you cannot switch to patient. Only one patient per family.",
+    "roleChangeNeedConfirmMsg": "Confirmation is required."
   },
   "recordSound": {
     "defaultLabel": "My recording",
@@ -1647,7 +1650,8 @@
     "pushBody": "{{name}} took their medication.",
     "saveError": "Failed to save the medication record.",
     "cancelError": "Failed to cancel the medication record.",
-    "pushBodyWithSlot": "{{name}} took the {{slot}} medication."
+    "pushBodyWithSlot": "{{name}} took the {{slot}} medication.",
+    "fetchStatusError": "Couldn't load today's doses."
   },
   "familyLinkHook": {
     "timeoutError": "The request timed out. Please try again shortly. (timeout {{ms}}ms)",

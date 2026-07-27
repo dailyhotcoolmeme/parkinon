@@ -80,7 +80,7 @@ export function useExercise(): UseExerciseReturn {
       setTodayLogs(data ?? []);
     } catch (err: any) {
       console.error('[useExercise] fetchTodayLogs 오류:', err);
-      setError(err.message ?? i18n.t('exerciseHook.fetchError'));
+      setError(i18n.t('exerciseHook.fetchError'));
     } finally {
       setLoading(false);
     }
@@ -210,7 +210,7 @@ export function useExercise(): UseExerciseReturn {
       return true;
     } catch (err: any) {
       console.error('[useExercise] saveExercise 오류:', err);
-      setError(err.message ?? i18n.t('exerciseHook.saveError'));
+      setError(i18n.t('exerciseHook.saveError'));
       return false;
     } finally {
       setLoading(false);
@@ -259,7 +259,7 @@ export function useExercise(): UseExerciseReturn {
       return { logs: data ?? [], error: null };
     } catch (err: any) {
       console.error('[useExercise] getExerciseLogs 오류:', err);
-      const msg = err.message ?? i18n.t('exerciseHook.fetchError');
+      const msg = i18n.t('exerciseHook.fetchError');
       return { logs: [], error: msg };
     }
   }, [user, getPatientId]);

@@ -338,7 +338,7 @@ export function useRecordsData(period: Period): UseRecordsDataReturn {
       });
     } catch (err: any) {
       console.error('[useRecordsData] 조회 오류:', err);
-      setError(err.message ?? i18n.t('recordsHook.fetchError'));
+      setError(i18n.t('recordsHook.fetchError'));
     } finally {
       setLoading(false);
     }

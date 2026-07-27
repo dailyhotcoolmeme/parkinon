@@ -1642,8 +1642,14 @@ export function SettingsScreen() {
   };
 
   // ─── Helpers ────────────────────────────────────────────────────────────────
-  const formatExerciseNotif = (n: ExerciseNotif) =>
-    `${n.ampm} ${n.hour}:${String(n.minute).padStart(2, '0')}`;
+  // ⚠️ ampm 은 DB 에 '오전'/'오후'로 저장되는 내부 값이다. 그대로 찍으면 영어 화면에
+  //   한글이 뜬다(실측 2026-07-27: 운동 알림 목록 4곳). 표기는 로케일에 맞춰 만든다.
+  const formatExerciseNotif = (n: ExerciseNotif) => {
+    const mm = String(n.minute).padStart(2, '0');
+    return isOverseasLocale()
+      ? `${n.hour}:${mm} ${n.ampm === '오전' ? 'AM' : 'PM'}`
+      : `${n.ampm} ${n.hour}:${mm}`;
+  };
 
   const optionButtonWidth = (SCREEN_WIDTH - 72) / 2;
   const hourButtonWidth = (SCREEN_WIDTH - 88) / 4;

@@ -1008,7 +1008,10 @@
     "roleWarn2Msg": "이 작업은 되돌릴 수 없어요. 건강기록(민감정보)이 영구히 삭제되고, 연결된 가족도 회원님의 기록을 볼 수 없게 됩니다.",
     "roleWarn2Confirm": "네, 삭제하고 바꿀게요",
     "roleExportSavedTitle": "저장 완료",
-    "roleExportSavedMsg": "선택한 폴더에 건강기록 파일(.csv)을 저장했어요. 엑셀에서 열 수 있어요."
+    "roleExportSavedMsg": "선택한 폴더에 건강기록 파일(.csv)을 저장했어요. 엑셀에서 열 수 있어요.",
+    "roleChangeSameRoleMsg": "이미 해당 역할이에요.",
+    "roleChangeTwoPatientsMsg": "이 가족엔 이미 환자가 있어 환자로 바꿀 수 없어요. 환자는 한 분만 가능해요.",
+    "roleChangeNeedConfirmMsg": "확인이 필요해요."
   },
   "recordSound": {
     "defaultLabel": "내 녹음",
@@ -1647,7 +1650,8 @@
     "pushBody": "{{name}}님이 약을 드셨어요.",
     "saveError": "복용 기록 저장에 실패했어요.",
     "cancelError": "복용 기록을 취소하지 못했어요.",
-    "pushBodyWithSlot": "{{name}}님이 {{slot}} 약을 드셨어요."
+    "pushBodyWithSlot": "{{name}}님이 {{slot}} 약을 드셨어요.",
+    "fetchStatusError": "복용 현황을 불러오지 못했어요."
   },
   "familyLinkHook": {
     "timeoutError": "요청 시간이 초과됐어요. 잠시 후 다시 시도해주세요. (timeout {{ms}}ms)",

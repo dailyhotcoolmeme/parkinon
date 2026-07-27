@@ -239,7 +239,7 @@ export function useMedication(): UseMedicationReturn {
       setBySlotId(slotMap);
     } catch (err: any) {
       console.error('[useMedication] fetchTodayStatus 오류:', err);
-      setError(err.message ?? '복용 현황을 불러오지 못했어요.');
+      setError(i18n.t('medicationHook.fetchStatusError'));
     } finally {
       setLoading(false);
     }
@@ -608,7 +608,7 @@ export function useMedication(): UseMedicationReturn {
       return { success: true, medLogId: medLogId ?? null, doseSlotId: doseSlotId ?? null, immediateTrack, trackEnabled, trackIntervals };
     } catch (err: any) {
       console.error('[useMedication] takeMedication 오류:', err);
-      setError(err.message ?? i18n.t('medicationHook.saveError'));
+      setError(i18n.t('medicationHook.saveError'));
       return { success: false, medLogId: null, doseSlotId: null, immediateTrack: null, trackEnabled: null, trackIntervals: null };
     } finally {
       setLoading(false);
@@ -644,7 +644,7 @@ export function useMedication(): UseMedicationReturn {
       return true;
     } catch (err: any) {
       console.error('[useMedication] cancelMedication 오류:', err);
-      setError(err.message ?? i18n.t('medicationHook.cancelError'));
+      setError(i18n.t('medicationHook.cancelError'));
       return false;
     }
   }, [user, fetchTodayStatus]);

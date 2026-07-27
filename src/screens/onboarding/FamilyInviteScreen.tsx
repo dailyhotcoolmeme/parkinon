@@ -262,9 +262,10 @@ export function FamilyInviteScreen() {
           } else if (rpcResult?.code === 'two_patients') {
             // 환자 2명 → 명확히 안내하고 그룹 합류 없이 단독 가입 완료(데이터 안전 우선).
             finalGroupId = null;
+            // ⚠️ 서버 message 는 한국어 고정이라 쓰지 않는다(영어 화면에 한글이 뜬다).
             await dialog.alert({
               title: t('familyInvite.twoPatientsTitle'),
-              message: rpcResult.message ?? t('familyInvite.twoPatientsMsg'),
+              message: t('familyInvite.twoPatientsMsg'),
             });
           } else {
             // already_member 등 → finalGroupId 유지(이미 같은 그룹일 수 있음). 안내만 생략.

@@ -101,7 +101,7 @@ export function useBodyState(): UseBodyStateReturn {
       setTodayLogs(data ?? []);
     } catch (err: any) {
       console.error('[useBodyState] fetchTodayLogs 오류:', err);
-      setError(err.message ?? i18n.t('bodyStateHook.fetchError'));
+      setError(i18n.t('bodyStateHook.fetchError'));
     } finally {
       setLoading(false);
       setLoadedOnce(true);
@@ -249,7 +249,7 @@ export function useBodyState(): UseBodyStateReturn {
       return true;
     } catch (err: any) {
       console.error('[useBodyState] saveBodyState 오류:', err);
-      setError(err.message ?? i18n.t('bodyStateHook.saveError'));
+      setError(i18n.t('bodyStateHook.saveError'));
       return false;
     } finally {
       setLoading(false);

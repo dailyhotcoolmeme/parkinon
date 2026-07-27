@@ -621,7 +621,7 @@ export function useRecordDetailData(type: ItemKey, period: Period): UseRecordDet
       }
     } catch (err: any) {
       console.error('[useRecordDetailData] 조회 오류:', err);
-      setError(err.message ?? i18n.t('recordDetailHook.fetchError'));
+      setError(i18n.t('recordDetailHook.fetchError'));
     } finally {
       setLoading(false);
     }

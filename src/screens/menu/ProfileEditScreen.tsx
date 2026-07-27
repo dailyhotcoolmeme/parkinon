@@ -37,6 +37,17 @@ const BIRTH_YEARS = Array.from({ length: 60 }, (_, i) => 1930 + i);
 const DIAGNOSIS_YEARS = Array.from({ length: 40 }, (_, i) => 1985 + i);
 const RELATIONS = ['배우자', '자녀', '형제/자매', '기타'];
 
+/**
+ * 역할 변경 실패 코드(change_role_purge RPC / change-role 함수) → 앱 번역 키.
+ * 서버 message 는 한국어 고정이라 화면에는 이 표로 고른 번역만 쓴다.
+ */
+const ROLE_CHANGE_FAIL_KEYS: Record<string, string> = {
+  same_role: 'profileEdit.roleChangeSameRoleMsg',
+  two_patients: 'profileEdit.roleChangeTwoPatientsMsg',
+  need_confirm: 'profileEdit.roleChangeNeedConfirmMsg',
+  error: 'profileEdit.roleChangeFail',
+};
+
 const SUPABASE_URL = process.env.EXPO_PUBLIC_SUPABASE_URL!;
 const SUPABASE_ANON_KEY = process.env.EXPO_PUBLIC_SUPABASE_ANON_KEY!;
 
@@ -178,15 +189,22 @@ export function ProfileEditScreen() {
     return (await res.json()) as { ok?: boolean; code?: string; message?: string };
   };
 
-  const finishRoleChange = async (r: { ok?: boolean; message?: string }, newRole: 'patient' | 'caregiver') => {
+  const finishRoleChange = async (
+    r: { ok?: boolean; code?: string; message?: string },
+    newRole: 'patient' | 'caregiver',
+  ) => {
     if (!r?.ok) {
-      await dialog.alert({ title: t('common.notice'), message: r?.message || t('profileEdit.roleChangeFail') });
+      // ⚠️ 실패 문구도 서버 message 를 쓰면 안 된다. 서버는 한국어만 만들기 때문에
+      //   영어 화면에 한글 팝업이 뜬다(오너 제보 2026-07-27: '이 가족엔 이미 환자가 있어…').
+      //   결과 코드로 앱 번역을 고른다. 서버에 코드가 추가되면 여기에도 같이 넣을 것.
+      await dialog.alert({
+        title: t('common.notice'),
+        message: t(ROLE_CHANGE_FAIL_KEYS[r?.code ?? ''] ?? 'profileEdit.roleChangeFail'),
+      });
       return;
     }
     await refreshUser();
-    // ⚠️ 서버 메시지(r.message)를 그대로 띄우면 안 된다. 서버는 한국어 문구만 만들기 때문에
-    //   앱이 영어여도 한글이 나온다(오너 제보 2026-07-27: 'Done / 역할이 보호자로 변경됐어요').
-    //   성공 문구는 앱이 자기 언어로 만든다. 서버 메시지는 실패 시 원인 표시에만 쓴다.
+    // 성공 문구도 마찬가지로 앱이 자기 언어로 만든다.
     await dialog.alert({
       title: t('profileEdit.roleChangedTitle'),
       message: newRole === 'patient'

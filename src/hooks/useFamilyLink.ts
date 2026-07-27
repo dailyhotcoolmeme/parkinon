@@ -209,7 +209,7 @@ export function useFamilyLink(): UseFamilyLinkReturn {
       return code;
     } catch (err: any) {
       console.error('[useFamilyLink] generateInviteCode 오류:', err);
-      setError(err.message ?? i18n.t('familyLinkHook.inviteCodeGenFail'));
+      setError(i18n.t('familyLinkHook.inviteCodeGenFail'));
       return null;
     } finally {
       setLoading(false);
@@ -289,7 +289,7 @@ export function useFamilyLink(): UseFamilyLinkReturn {
       return { success: false, message };
     } catch (err: any) {
       console.error('[useFamilyLink] join_family_by_code 오류:', err);
-      const message = err.message ?? i18n.t('familyLinkHook.joinCatchFail');
+      const message = i18n.t('familyLinkHook.joinCatchFail');
       setError(message);
       return { success: false, message };
     } finally {
@@ -477,7 +477,7 @@ export function useFamilyLink(): UseFamilyLinkReturn {
       return true;
     } catch (err: any) {
       console.error('[useFamilyLink] leaveGroup 오류:', err);
-      setError(err.message ?? i18n.t('familyLinkHook.disconnectFail'));
+      setError(i18n.t('familyLinkHook.disconnectFail'));
       return false;
     } finally {
       setLoading(false);
@@ -530,7 +530,7 @@ export function useFamilyLink(): UseFamilyLinkReturn {
       return true;
     } catch (err: any) {
       console.error('[useFamilyLink] removeFamilyMember 오류:', err);
-      setError(err.message ?? i18n.t('familyLinkHook.disconnectFail'));
+      setError(i18n.t('familyLinkHook.disconnectFail'));
       return false;
     } finally {
       setLoading(false);
