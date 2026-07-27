@@ -8,6 +8,7 @@ import React, {
   createContext,
   useContext,
   useCallback,
+  useRef,
   useEffect,
   useMemo,
   useState,
@@ -62,7 +63,7 @@ function resolveIsPremium(tier: string | null, expiresAt: string | null): boolea
 }
 
 export function SubscriptionProvider({ children }: { children: React.ReactNode }) {
-  const { user, refreshUser } = useAuth();
+  const { user, refreshUser, loading: authLoading } = useAuth();
   const groupId = user?.patient_group_id ?? null;
 
   // 구매자(Supabase user)와 RevenueCat 연결 — 재빌드 전엔 내부에서 조용히 no-op.
@@ -74,8 +75,19 @@ export function SubscriptionProvider({ children }: { children: React.ReactNode }
   const [expiresAt, setExpiresAt] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
 
+  // 판단 보류 중에 현재 티어를 읽기 위한 참조(콜백 의존성에 tier 를 넣지 않기 위함).
+  const tierRef = useRef<SubscriptionTier>('free');
+  useEffect(() => {
+    tierRef.current = tier;
+  }, [tier]);
+
   /** 서버 1회 조회 + 상태 반영. premium 여부를 반환한다(폴링에서 판정에 사용). */
   const fetchOnce = useCallback(async (): Promise<boolean> => {
+    // ⚠️ 인증 정보가 아직 로딩 중이면 아무 판단도 하지 않는다.
+    //   로그인 직후엔 user 가 잠깐 null 이라 groupId 도 null 인데, 그걸 "구독 없음"으로
+    //   확정하면 결제한 사용자에게 결제창이 번쩍 떴다가 사라진다
+    //   (오너 실측 2026-07-27: 로그아웃→로그인 반복 시 프리미엄이 free 로 보임).
+    if (authLoading) return tierRef.current === 'premium';
     if (!groupId) {
       setTier('free');
       setExpiresAt(null);
@@ -95,12 +107,13 @@ export function SubscriptionProvider({ children }: { children: React.ReactNode }
       setExpiresAt(exp);
       return premium;
     } catch (e) {
-      if (__DEV__) console.warn('[useSubscription] 조회 실패, free로 처리:', e);
-      setTier('free');
-      setExpiresAt(null);
-      return false;
+      // ⚠️ 조회 실패(네트워크 등)로 free 로 내리지 않는다. 일시적 오류 때문에 결제한
+      //   사용자에게 결제창이 뜨는 것보다 직전 상태를 유지하는 편이 안전하다.
+      //   실제 만료는 서버가 tier 를 내려야 반영된다.
+      if (__DEV__) console.warn('[useSubscription] 조회 실패, 직전 상태 유지:', e);
+      return tierRef.current === 'premium';
     }
-  }, [groupId]);
+  }, [groupId, authLoading]);
 
   const refresh = useCallback(async () => {
     setLoading(true);
@@ -137,8 +150,6 @@ export function SubscriptionProvider({ children }: { children: React.ReactNode }
     refresh();
   }, [refresh]);
 
-  // 앱이 백그라운드에서 돌아올 때 재조회 — 구독 상태는 서버(webhook)가 바꾸므로
-  // 앱 안에서만 보고 있으면 영영 갱신되지 않는다(오너 제보 2026-07-27: 화면 이동해도 free 그대로).
   /**
    * 구매/복원 직후 서버에 즉시 확정 요청.
    * 웹훅을 기다리는 폴링과 달리 (1) 결과가 바로 오고 (2) 웹훅이 안 오는 경우도 해결된다.
@@ -169,6 +180,8 @@ export function SubscriptionProvider({ children }: { children: React.ReactNode }
     }
   }, [fetchOnce, refreshUser]);
 
+  // 앱이 백그라운드에서 돌아올 때 재조회 — 구독 상태는 서버(webhook)가 바꾸므로
+  // 앱 안에서만 보고 있으면 영영 갱신되지 않는다(오너 제보 2026-07-27: 화면 이동해도 free 그대로).
   useEffect(() => {
     const sub = AppState.addEventListener('change', (s) => {
       if (s === 'active') void fetchOnce();
