@@ -95,7 +95,12 @@ export function RecordsScreen() {
     try {
       const { data, error: fnError } = await supabase.functions.invoke('create-web-token');
       if (fnError || !data?.url) throw new Error(fnError?.message || t('records.linkGenFailMsg'));
-      await Linking.openURL(data.url as string);
+      // 웹의 로딩 화면은 토큰 교환(계정 확인) 전이라 언어를 모른다 → 앱이 URL 로 알려준다.
+      // 없으면 이전 방문 값/브라우저 언어를 써서 영어 사용자에게 한국어 로딩이 보인다.
+      const webUrl = String(data.url);
+      const lang = (i18n.language || '').toLowerCase().startsWith('ko') ? 'ko' : 'en';
+      const urlWithLang = webUrl + (webUrl.includes('?') ? '&' : '?') + `lang=${lang}`;
+      await Linking.openURL(urlWithLang);
     } catch (e: any) {
       dialog.alert({ title: t('records.errorTitle'), message: e?.message || t('records.genericRetryMsg') });
     } finally {
