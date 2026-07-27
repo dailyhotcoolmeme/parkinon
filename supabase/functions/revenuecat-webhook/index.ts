@@ -187,6 +187,29 @@ Deno.serve(async (req: Request) => {
     return new Response('activated', { status: 200 })
   }
 
+  // ── 결제 실패(유예기간) · 해지 예약 ────────────────────────────────────────
+  // 둘 다 "아직 접근을 유지해야 하는" 상태다.
+  //  · BILLING_ISSUE / CANCELLATION(BILLING_ERROR): 카드 실패. 구글이 유예기간만큼
+  //    만료일을 연장하므로 그 값을 반영해야 한다. 예전엔 두 이벤트를 모두 무시해서
+  //    DB 만료일이 옛 기간에 머물렀고, 유예기간 중인 고객이 무료로 떨어졌다
+  //    (실측 2026-07-27: Google=IN_GRACE_PERIOD 인데 앱은 결제창 노출).
+  //  · CANCELLATION(UNSUBSCRIBE): 자동갱신만 끈 것. 기간 끝까지 유지가 맞다.
+  // 어느 경우도 강등하지 않는다. 실제 접근 종료는 EXPIRATION 이 판단한다.
+  if (type === 'BILLING_ISSUE' || type === 'CANCELLATION') {
+    if (eventMs && eventMs > storedMs) {
+      await supabase
+        .from('patient_groups')
+        .update({
+          subscription_tier: 'premium',
+          subscription_expires_at: new Date(eventMs).toISOString(),
+          revenuecat_synced_at: nowIso,
+        })
+        .eq('id', groupId)
+      return new Response('access kept, expiry refreshed', { status: 200 })
+    }
+    return new Response('access kept, no expiry change', { status: 200 })
+  }
+
   if (type === 'EXPIRATION') {
     // 이 만료 이벤트가 "이미 갱신된 더 나중 기간"보다 과거면 지난 기간 것 → 강등하지 않는다.
     if (storedMs && eventMs && eventMs < storedMs) {
