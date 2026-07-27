@@ -180,7 +180,7 @@ export function ProfileEditScreen() {
 
   const callChangeRole = async (newRole: 'patient' | 'caregiver', confirm: boolean) => {
     const { data: { session } } = await supabase.auth.getSession();
-    if (!session?.access_token) throw new Error('세션 없음');
+    if (!session?.access_token) throw new Error('no session');
     const res = await fetch(`${SUPABASE_URL}/functions/v1/change-role`, {
       method: 'POST',
       headers: { Authorization: `Bearer ${session.access_token}`, 'Content-Type': 'application/json' },

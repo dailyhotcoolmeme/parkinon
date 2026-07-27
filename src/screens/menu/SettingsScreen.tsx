@@ -180,7 +180,7 @@ async function patchPatientUser(patientId: string, accessToken: string, body: Re
   });
   if (!res.ok) {
     const txt = await res.text();
-    throw new Error(`환자 알림 설정 저장 실패 (HTTP ${res.status}): ${txt}`);
+    throw new Error(`patient notif settings save failed (HTTP ${res.status}): ${txt}`);
   }
   return res;
 }
@@ -510,7 +510,7 @@ export function SettingsScreen() {
     try {
       // fetch API 직접 사용 (supabase-js New Architecture hang 우회)
       const { data: { session } } = await supabase.auth.getSession();
-      if (!session?.access_token) throw new Error('세션이 만료되었어요');
+      if (!session?.access_token) throw new Error(i18n.t('common.sessionExpired'));
       await patchUser(user!.id, session.access_token, { med_time_notif_prefs: next });
       // 결과 안내: 약 미복용 알림은 즉시형. (missed_first/second 토글만 호출됨)
       await dialog.alert(
@@ -688,7 +688,7 @@ export function SettingsScreen() {
     try {
       // fetch API 직접 사용 (supabase-js New Architecture hang 우회)
       const { data: { session } } = await supabase.auth.getSession();
-      if (!session?.access_token) throw new Error('세션이 만료되었어요');
+      if (!session?.access_token) throw new Error(i18n.t('common.sessionExpired'));
       await patchPatientUser(patientId, session.access_token, { med_time_notif_prefs: next, notification_enabled: anyOn });
     } catch (e) {
       console.error('[SettingsScreen] togglePatientMedTimeSlot 저장 실패:', e);
@@ -756,7 +756,7 @@ export function SettingsScreen() {
     // DB에 신뢰성 있게 저장 (supabase 클라이언트가 토큰 자동 갱신 → 401 silent fail 방지)
     try {
       const { data: { session } } = await supabase.auth.getSession();
-      if (!session?.user) throw new Error('세션 없음');
+      if (!session?.user) throw new Error('no session');
       const { error } = await supabase
         .from('users')
         .update({ caregiver_notif_prefs: prefs, notification_enabled: masterAnyOn })
@@ -1207,7 +1207,7 @@ export function SettingsScreen() {
   const persistPatientPrefs = async (body: Record<string, unknown>, prevSnapshot: () => void) => {
     try {
       const { data: { session } } = await supabase.auth.getSession();
-      if (!session?.access_token) throw new Error('세션이 만료되었어요');
+      if (!session?.access_token) throw new Error(i18n.t('common.sessionExpired'));
       await patchPatientUser(patientId!, session.access_token, body);
     } catch (e) {
       console.error('[SettingsScreen] 환자 알림 설정 저장 실패:', e);
@@ -1330,7 +1330,7 @@ export function SettingsScreen() {
     setPatientExerciseNotifs(next);
     try {
       const { data: { session } } = await supabase.auth.getSession();
-      if (!session?.access_token) throw new Error('세션이 만료되었어요');
+      if (!session?.access_token) throw new Error(i18n.t('common.sessionExpired'));
       await patchPatientUser(patientId, session.access_token, { exercise_notif_prefs: next });
       provisionForUser(patientId, user?.patient_group_id ?? null).catch(() => {});
     } catch (e) {
@@ -1347,7 +1347,7 @@ export function SettingsScreen() {
     setPatientMissedMedSounds(p => ({ ...p, [phase]: soundId }));
     try {
       const { data: { session } } = await supabase.auth.getSession();
-      if (!session?.access_token) throw new Error('세션이 만료되었어요');
+      if (!session?.access_token) throw new Error(i18n.t('common.sessionExpired'));
       const res = await fetch(`${SUPABASE_URL}/rest/v1/rpc/update_patient_missed_med_sound`, {
         method: 'POST',
         headers: {

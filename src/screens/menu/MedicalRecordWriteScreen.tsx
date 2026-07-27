@@ -228,7 +228,7 @@ async function callClaudeOCR(base64Image: string, mediaType: string): Promise<{ 
       mode: 'medical_record',
     }),
   });
-  if (!response.ok) throw new Error(`OCR 오류: ${response.status}`);
+  if (!response.ok) throw new Error(`OCR error: ${response.status}`);
   const data = await response.json();
   return { medications: (data.medications ?? []) as OcrMed[] };
 }

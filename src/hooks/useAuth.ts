@@ -655,7 +655,7 @@ export function useAuthProvider(): UseAuthReturn {
       if (!data?.action_link) {
         // 보안: action_link(매직링크 토큰 포함)는 로그에 남기지 않음
         console.error('[useAuth] action_link 없음 (응답 비정상)');
-        throw new Error('action_link 없음');
+        throw new Error('action_link missing');
       }
 
       // 3) action_link에서 token_hash 파싱 → verifyOtp로 세션 생성
@@ -664,7 +664,7 @@ export function useAuthProvider(): UseAuthReturn {
       if (!tokenHash) {
         // 보안: action_link 값(토큰 포함)은 로그에 남기지 않음
         console.error('[useAuth] action_link에서 token 파싱 실패');
-        throw new Error('token 파싱 실패');
+        throw new Error('token parse failed');
       }
 
       const { data: verifyData, error: verifyError } = await supabase.auth.verifyOtp({

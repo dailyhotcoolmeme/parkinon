@@ -208,7 +208,7 @@ export function FamilyInviteScreen() {
       });
       if (!updateRes.ok) {
         const errText = await updateRes.text();
-        throw new Error(`users 업데이트 실패: ${updateRes.status} ${errText}`);
+        throw new Error(`users update failed: ${updateRes.status} ${errText}`);
       }
 
       // 환자 본인 온보딩 완료 시: patient_groups 생성 + 자신을 멤버로 추가 (초대코드 저장)

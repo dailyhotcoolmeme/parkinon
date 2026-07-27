@@ -14,7 +14,8 @@
     "a11yContact": "문의하기",
     "continue": "계속",
     "notice": "안내",
-    "edit": "수정"
+    "edit": "수정",
+    "sessionExpired": "로그인이 만료됐어요. 다시 로그인해주세요."
   },
   "devLetter": {
     "title": "파킨온 앱을 출시하며",
@@ -575,7 +576,8 @@
     "categoryChat": "자유",
     "categoryQuestion": "질문",
     "categoryInfo": "정보",
-    "categoryCheer": "응원"
+    "categoryCheer": "응원",
+    "photoUploadErrorMsg": "사진 업로드에 실패했어요. 잠시 후 다시 시도해주세요."
   },
   "loading": {
     "appPreparing": "파킨온을 준비하고 있어요",
@@ -1351,7 +1353,8 @@
     "unlinkedTitle": "환자를 먼저 연동해주세요",
     "unlinkedDesc": "가족을 연동하면 환자분의\n알림음을 함께 관리할 수 있어요",
     "linkFamilyBtn": "가족 연동하기",
-    "headerTitleCaregiver": "알림음 관리 (환자 알림용)"
+    "headerTitleCaregiver": "알림음 관리 (환자 알림용)",
+    "testFailMsg": "테스트에 실패했어요. 잠시 후 다시 시도해주세요."
   },
   "ads": {
     "sponsored": "광고",

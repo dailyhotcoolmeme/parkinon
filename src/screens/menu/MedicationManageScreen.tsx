@@ -214,7 +214,7 @@ async function callClaudeOCR(
     }),
   });
 
-  if (!response.ok) throw new Error(`OCR 오류: ${response.status}`);
+  if (!response.ok) throw new Error(`OCR error: ${response.status}`);
   const data = await response.json();
   const normalized = {
     medications: (data.medications ?? []).map((m: any) => {

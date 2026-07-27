@@ -14,7 +14,8 @@
     "a11yContact": "Contact us",
     "continue": "Continue",
     "notice": "Notice",
-    "edit": "Edit"
+    "edit": "Edit",
+    "sessionExpired": "Your session expired. Please sign in again."
   },
   "devLetter": {
     "title": "On Launching ParkinON",
@@ -575,7 +576,8 @@
     "categoryChat": "Chat",
     "categoryQuestion": "Q&A",
     "categoryInfo": "Info",
-    "categoryCheer": "Cheer"
+    "categoryCheer": "Cheer",
+    "photoUploadErrorMsg": "Couldn't upload the photo. Please try again in a moment."
   },
   "loading": {
     "appPreparing": "Getting ParkinON ready",
@@ -1351,7 +1353,8 @@
     "unlinkedTitle": "Please link with the patient first",
     "unlinkedDesc": "Link with family to manage the patient's\nnotification sounds together",
     "linkFamilyBtn": "Link family",
-    "headerTitleCaregiver": "Alarm sounds (for patient)"
+    "headerTitleCaregiver": "Alarm sounds (for patient)",
+    "testFailMsg": "The test didn't work. Please try again in a moment."
   },
   "ads": {
     "sponsored": "Ad",

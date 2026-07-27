@@ -431,7 +431,7 @@ export function MenuScreen() {
     try {
       // 세션 토큰 확보
       const { data: { session } } = await supabase.auth.getSession();
-      if (!session?.access_token) throw new Error('세션 없음');
+      if (!session?.access_token) throw new Error('no session');
 
       // delete-account Edge Function 호출
       // (supabase-js PostgREST hang 버그 우회 + auth.admin.deleteUser 권한 필요)
@@ -449,7 +449,7 @@ export function MenuScreen() {
       if (!res.ok) {
         const body = await res.text();
         console.error('[handleWithdraw] edge function 오류:', res.status, body);
-        throw new Error('탈퇴 실패');
+        throw new Error('account deletion failed');
       }
 
       // 계정 삭제 성공 → "먼저" 로그아웃해 즉시 로그인 화면으로 보낸다(홈에 잔류/온보딩 오탈출 방지).
