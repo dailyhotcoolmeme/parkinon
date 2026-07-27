@@ -22,6 +22,7 @@ import { useNavigation, useRoute, useFocusEffect } from '@react-navigation/nativ
 import { navigateTo } from '../../navigation/navigationRef';
 import { Ionicons } from '@expo/vector-icons';
 import { Audio, Video as AVVideo, ResizeMode } from 'expo-av';
+import { VOICE_RECORDING_OPTIONS } from '../../constants/recordingOptions';
 import * as ImagePicker from 'expo-image-picker';
 import * as ImageManipulator from 'expo-image-manipulator';
 import { Video as VideoCompressor } from 'react-native-compressor';
@@ -1511,7 +1512,7 @@ function DiaryEditorModal({ visible, dateStr, patientId, existing, onClose, onSa
 
   // 갤러리 선택 / 카메라 촬영 결과를 동일하게 처리 (5장 제한·newPhotoUris 추가)
   // 다중 선택(갤러리)도 지원 — 결과의 여러 장을 남은 장수만큼 한 번에 추가한다.
-  const addPhotoFromResult = (result: ImagePicker.ImagePickerResult) => {
+  const addPhotoFromResult = async (result: ImagePicker.ImagePickerResult) => {
     if (result.canceled || result.assets.length === 0) return;
     const total = photoUrls.length + newPhotoUris.length;
     const remaining = photoCapNum - total;
@@ -1519,7 +1520,23 @@ function DiaryEditorModal({ visible, dateStr, patientId, existing, onClose, onSa
       showQuotaReached('photo');
       return;
     }
-    const picked = result.assets.slice(0, remaining).map((a) => a.uri);
+    // ⚠️ 압축은 "저장 누른 뒤"가 아니라 여기(고른 직후)에서 한다. 저장 때 하면 장수만큼
+    //   압축이 직렬로 쌓여 저장이 오래 걸린다(오너 제보 2026-07-27). 커뮤니티 글쓰기 화면과 동일한 정책.
+    const rawUris = result.assets.slice(0, remaining).map((a) => a.uri);
+    const picked = await Promise.all(
+      rawUris.map(async (uri) => {
+        try {
+          const c = await ImageManipulator.manipulateAsync(
+            uri,
+            [{ resize: { width: 1280 } }],
+            { compress: 0.7, format: ImageManipulator.SaveFormat.JPEG },
+          );
+          return c.uri;
+        } catch {
+          return uri; // 압축 실패 시 원본 사용(저장 단계에서 그대로 올라감)
+        }
+      }),
+    );
     setNewPhotoUris((prev) => [...prev, ...picked]);
     // 선택 장수가 남은 자리를 초과한 경우 안내
     if (result.assets.length > remaining) {
@@ -1547,7 +1564,7 @@ function DiaryEditorModal({ visible, dateStr, patientId, existing, onClose, onSa
       allowsMultipleSelection: true,
       selectionLimit: remaining, // 남은 장수까지만 선택 가능
     });
-    addPhotoFromResult(result);
+    await addPhotoFromResult(result);
   };
 
   // "촬영" — 카메라로 사진 촬영 후 갤러리와 동일한 처리 경로로 흘려보냄
@@ -1567,7 +1584,7 @@ function DiaryEditorModal({ visible, dateStr, patientId, existing, onClose, onSa
       mediaTypes: ImagePicker.MediaTypeOptions.Images,
       quality: 0.7,
     });
-    addPhotoFromResult(result);
+    await addPhotoFromResult(result);
   };
 
   const handleRemovePhoto = (index: number, isExisting: boolean) => {
@@ -1664,7 +1681,8 @@ function DiaryEditorModal({ visible, dateStr, patientId, existing, onClose, onSa
       }
       await Audio.setAudioModeAsync({ allowsRecordingIOS: true, playsInSilentModeIOS: true });
       const rec = new Audio.Recording();
-      await rec.prepareToRecordAsync(Audio.RecordingOptionsPresets.HIGH_QUALITY);
+      // 음성용 저용량 설정(모노 64kbps). 기존 HIGH_QUALITY 는 스테레오 128kbps 로 과했다.
+      await rec.prepareToRecordAsync(VOICE_RECORDING_OPTIONS);
       await rec.startAsync();
       recordingRef.current = rec;
       setRecordSeconds(0);
@@ -1764,16 +1782,24 @@ function DiaryEditorModal({ visible, dateStr, patientId, existing, onClose, onSa
     try {
       // 1) 신규 사진 업로드
       setSaveStage(i18n.t('loading.savingPhoto'));
-      const uploadedPhotos: string[] = [...photoUrls];
-      for (const uri of newPhotoUris) {
-        const compressed = await ImageManipulator.manipulateAsync(
-          uri,
-          [{ resize: { width: 1280 } }],
-          { compress: 0.7, format: ImageManipulator.SaveFormat.JPEG },
-        );
-        const res = await uploadPhoto(compressed.uri, patientId);
-        uploadedPhotos.push(res.url);
-      }
+      // 압축은 고를 때 이미 끝나 있다(addPhotoFromResult) → 여기선 업로드만.
+      // ⚠️ 사진마다 presigned URL 발급(Edge Function) + PUT 왕복이 있어 직렬로 돌리면
+      //   장수에 비례해 저장이 느려진다. 동시 3장씩 올려 왕복을 겹친다(순서는 그대로 보존).
+      const PHOTO_UPLOAD_CONCURRENCY = 3;
+      const uploaded: string[] = new Array(newPhotoUris.length);
+      let nextIdx = 0;
+      const worker = async () => {
+        for (;;) {
+          const i = nextIdx++;
+          if (i >= newPhotoUris.length) return;
+          const res = await uploadPhoto(newPhotoUris[i], patientId);
+          uploaded[i] = res.url;
+        }
+      };
+      await Promise.all(
+        Array.from({ length: Math.min(PHOTO_UPLOAD_CONCURRENCY, newPhotoUris.length) }, worker),
+      );
+      const uploadedPhotos: string[] = [...photoUrls, ...uploaded];
 
       // 2) 신규 음성 업로드
       let finalAudioUrl = audioUrl;

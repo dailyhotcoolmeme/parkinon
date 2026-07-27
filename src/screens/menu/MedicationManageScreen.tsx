@@ -1157,8 +1157,32 @@ export function MedicationManageScreen({ modeOverride, hideBack, hideTopBar, onG
   const [slotAlarmAddOnly, setSlotAlarmAddOnly] = useState(false);
   // 시간·알림 모달 내부 ScrollView ref — 포커스 슬롯으로 스크롤 위임용.
   const slotAlarmScrollRef = useRef<ScrollView>(null);
+
+  // ── 편집/추가한 슬롯으로 본 화면 복귀 스크롤 ────────────────────────────────
+  // (오너 요청 2026-07-27: 알림을 추가하거나 시간을 수정하고 목록으로 돌아오면 그 슬롯이 보여야 한다.
+  //  전엔 항상 맨 위로 돌아와 어디가 바뀌었는지 확인하려면 직접 찾아 내려야 했다.)
+  // 카드 y 는 onLayout 으로 수집(best-effort). 새로 추가한 슬롯은 목록 재조회 후에야 카드가
+  // 생기므로, pending 에 넣어두고 그 카드가 레이아웃될 때 소비한다.
+  const mainScrollRef = useRef<ScrollView>(null);
+  const slotCardY = useRef<Map<string, number>>(new Map());
+  const pendingSlotScrollRef = useRef<string | null>(null);
+  // 이번에 추가/수정한 슬롯 id — 모달을 닫을 때 이 슬롯으로 스크롤한다.
+  const touchedSlotRef = useRef<string | null>(null);
+
+  const scrollToSlotCard = useCallback((slotId: string) => {
+    pendingSlotScrollRef.current = slotId;
+    const y = slotCardY.current.get(slotId);
+    if (y == null) return; // 아직 카드 없음 → onLayout 에서 소비
+    setTimeout(() => {
+      if (pendingSlotScrollRef.current !== slotId) return;
+      pendingSlotScrollRef.current = null;
+      (mainScrollRef.current as any)?.scrollTo?.({ y: Math.max(0, y - 12), animated: true });
+    }, 180);
+  }, []);
+
   // 특정 슬롯으로 포커스(펼침+스크롤)해서 모달 열기(슬롯 카드 "수정" 진입).
   const openSlotAlarmEdit = useCallback((slotId: string | null) => {
+    touchedSlotRef.current = slotId;
     setSlotAlarmFocusId(slotId);
     setSlotAlarmFocusNonce((n) => n + 1);
     setSlotAlarmAddNonce(0); // 수정 진입은 추가 시트 자동 열기 안 함
@@ -1185,7 +1209,11 @@ export function MedicationManageScreen({ modeOverride, hideBack, hideTopBar, onG
     //  realtime UPDATE 전달에만 의존해 늦거나 누락되면 화면을 떠났다 와야 반영됐다.
     //  명시 재조회로 추가/삭제와 동일하게 닫는 즉시 최신값을 반영한다. realtime 은 보강책으로 유지.)
     loadDoseSlotsRef.current();
-  }, []);
+    // 방금 추가/수정한 슬롯이 화면에 보이도록 그 카드로 스크롤(없으면 아무 일도 안 함).
+    const touched = touchedSlotRef.current;
+    touchedSlotRef.current = null;
+    if (touched) scrollToSlotCard(touched);
+  }, [scrollToSlotCard]);
   // "복용 시간대 추가" 시간 선택 시트 처리 완료 콜백.
   //  - newSlotId 있음(저장 성공) → 모달을 닫지 않고 그 새 슬롯의 수정 시트(soloSlotId 단일 편집)로 전환.
   //    addOnly 호스트(시간 시트) 인스턴스가 언마운트되고 soloSlotId 편집 인스턴스가 마운트되며,
@@ -1193,6 +1221,7 @@ export function MedicationManageScreen({ modeOverride, hideBack, hideTopBar, onG
   //  - newSlotId 없음(취소/닫기 또는 id 확보 실패) → 기존처럼 모달 닫고 본 화면(슬롯 목록)으로 복귀.
   const handleSlotAlarmAddDone = useCallback((newSlotId?: string) => {
     if (newSlotId) {
+      touchedSlotRef.current = newSlotId; // 닫을 때 이 새 슬롯으로 스크롤
       setSlotAlarmAddOnly(false);
       setSlotAlarmAddNonce(0);
       setSlotAlarmFocusId(newSlotId);
@@ -2851,6 +2880,8 @@ export function MedicationManageScreen({ modeOverride, hideBack, hideTopBar, onG
         const yes = await dialog.confirm({
           title: t('medManage.alarmPreviewTitle'),
           message: t('medManage.alarmPreviewMsg'),
+          // 미리보기를 '취소'하는 게 아니라 그냥 안 보고 넘어가는 것 → '닫기'(오너 지정 2026-07-27).
+          cancelText: t('common.close'),
         });
         if (yes) {
           const fileId = presetFileIdOf(kind === 'remind' ? slot.remindSoundId : slot.trackSoundId);
@@ -2951,6 +2982,7 @@ export function MedicationManageScreen({ modeOverride, hideBack, hideTopBar, onG
     //   위 패딩 16(보호자용 알림 첫 카드 cardMarginTop과 동일).
     ? { style: { paddingHorizontal: 0, paddingTop: 16, paddingBottom: 8 } }
     : {
+        ref: mainScrollRef, // 추가/수정한 슬롯으로 복귀 스크롤용
         style: styles.scroll,
         contentContainerStyle: styles.scrollContent,
         showsVerticalScrollIndicator: false,
@@ -3040,7 +3072,19 @@ export function MedicationManageScreen({ modeOverride, hideBack, hideTopBar, onG
                     .map((id) => medById(id))
                     .filter((m): m is Medication => !!m);
                   return (
-                    <View key={sid} style={styles.slotCard}>
+                    <View
+                      key={sid}
+                      style={styles.slotCard}
+                      // 추가/수정 후 이 슬롯으로 돌아오기 위한 위치 수집(+대기 중이면 즉시 스크롤).
+                      onLayout={(e) => {
+                        const y = e.nativeEvent.layout.y;
+                        slotCardY.current.set(sid, y);
+                        if (pendingSlotScrollRef.current === sid) {
+                          pendingSlotScrollRef.current = null;
+                          (mainScrollRef.current as any)?.scrollTo?.({ y: Math.max(0, y - 12), animated: true });
+                        }
+                      }}
+                    >
                       {/* 좌측 이미지 + 슬롯명·시간 + 수정/삭제(아이콘만) */}
                       <View style={styles.slotCardHead}>
                         <View style={styles.slotHeadEmoji}>

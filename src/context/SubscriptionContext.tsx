@@ -12,6 +12,7 @@ import React, {
   useMemo,
   useState,
 } from 'react';
+import { AppState } from 'react-native';
 import { supabase } from '../lib/supabase';
 import { useAuth } from './AuthContext';
 import { initRevenueCat } from '../lib/revenueCat';
@@ -25,15 +26,32 @@ interface SubscriptionState {
   loading: boolean;
   /** 그룹 구독 상태 재조회 (결제 직후·화면 포커스 시 호출). */
   refresh: () => Promise<void>;
+  /**
+   * 결제 직후 전용 — premium 이 잡힐 때까지 재조회를 반복한다.
+   * 구매 성공 시점엔 RevenueCat webhook 이 아직 patient_groups 를 안 바꿨을 수 있어,
+   * 한 번만 조회하면 free 를 읽고 그대로 굳는다(오너 제보 2026-07-27: 구독했는데 free로 보임).
+   * @returns premium 으로 확인되면 true, 시간 내 반영 안 되면 false
+   */
+  refreshUntilPremium: (timeoutMs?: number) => Promise<boolean>;
 }
 
 const SubscriptionContext = createContext<SubscriptionState | undefined>(undefined);
+
+/**
+ * 갱신 유예(renewal grace).
+ * 구독 갱신은 "이전 기간 만료 → 새 기간 시작"이 순차로 일어나 그 사이에 수십 초의 공백이 있다.
+ * 그 순간을 그대로 free 로 보이면, 정상 결제 중인 사용자에게 결제창이 떴다가 사라진다
+ * (오너 실측 2026-07-27: 체험 종료 직후 20초간 결제창 노출).
+ * → 만료 직후 이 시간까지는 프리미엄으로 간주해 갱신 반영을 기다린다.
+ * 실제 해지된 구독도 최대 이 시간만큼 프리미엄이 유지되지만, 결제 사고보다 훨씬 가벼운 대가다.
+ */
+const RENEWAL_GRACE_MS = 3 * 60 * 1000; // 3분 — 실측 갱신 공백 20초에 충분한 여유
 
 /** subscription_tier='premium' 이고 만료 안 됨(만료 컬럼 null이거나 미래)일 때만 프리미엄. */
 function resolveIsPremium(tier: string | null, expiresAt: string | null): boolean {
   if (tier !== 'premium') return false;
   if (!expiresAt) return true; // 만료일 미설정 = 무기한(webhook가 만료 시 tier를 free로 내림)
-  return new Date(expiresAt).getTime() > Date.now();
+  return new Date(expiresAt).getTime() + RENEWAL_GRACE_MS > Date.now();
 }
 
 export function SubscriptionProvider({ children }: { children: React.ReactNode }) {
@@ -49,13 +67,13 @@ export function SubscriptionProvider({ children }: { children: React.ReactNode }
   const [expiresAt, setExpiresAt] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
 
-  const refresh = useCallback(async () => {
+  /** 서버 1회 조회 + 상태 반영. premium 여부를 반환한다(폴링에서 판정에 사용). */
+  const fetchOnce = useCallback(async (): Promise<boolean> => {
     if (!groupId) {
       setTier('free');
       setExpiresAt(null);
-      return;
+      return false;
     }
-    setLoading(true);
     try {
       const { data, error } = await supabase
         .from('patient_groups')
@@ -65,20 +83,61 @@ export function SubscriptionProvider({ children }: { children: React.ReactNode }
       if (error) throw error;
       const rawTier = data?.subscription_tier ?? 'free';
       const exp = data?.subscription_expires_at ?? null;
-      setTier(resolveIsPremium(rawTier, exp) ? 'premium' : 'free');
+      const premium = resolveIsPremium(rawTier, exp);
+      setTier(premium ? 'premium' : 'free');
       setExpiresAt(exp);
+      return premium;
     } catch (e) {
       if (__DEV__) console.warn('[useSubscription] 조회 실패, free로 처리:', e);
       setTier('free');
       setExpiresAt(null);
+      return false;
+    }
+  }, [groupId]);
+
+  const refresh = useCallback(async () => {
+    setLoading(true);
+    try {
+      await fetchOnce();
     } finally {
       setLoading(false);
     }
-  }, [groupId]);
+  }, [fetchOnce]);
+
+  /**
+   * 결제 직후: webhook(RevenueCat → patient_groups) 반영을 기다리며 재조회를 반복.
+   * 구매 성공 시점엔 아직 free 로 읽히는 게 정상이라, 한 번만 조회하면 화면이 free 로 굳는다.
+   */
+  const refreshUntilPremium = useCallback(async (timeoutMs = 20000): Promise<boolean> => {
+    setLoading(true);
+    try {
+      const deadline = Date.now() + timeoutMs;
+      let delay = 1000;
+      // 첫 조회는 즉시(이미 반영돼 있을 수 있음), 이후 점증 간격으로 재시도.
+      if (await fetchOnce()) return true;
+      while (Date.now() < deadline) {
+        await new Promise((r) => setTimeout(r, delay));
+        if (await fetchOnce()) return true;
+        delay = Math.min(delay + 1000, 4000);
+      }
+      return false;
+    } finally {
+      setLoading(false);
+    }
+  }, [fetchOnce]);
 
   useEffect(() => {
     refresh();
   }, [refresh]);
+
+  // 앱이 백그라운드에서 돌아올 때 재조회 — 구독 상태는 서버(webhook)가 바꾸므로
+  // 앱 안에서만 보고 있으면 영영 갱신되지 않는다(오너 제보 2026-07-27: 화면 이동해도 free 그대로).
+  useEffect(() => {
+    const sub = AppState.addEventListener('change', (s) => {
+      if (s === 'active') void fetchOnce();
+    });
+    return () => sub.remove();
+  }, [fetchOnce]);
 
   const value = useMemo<SubscriptionState>(
     () => ({
@@ -87,8 +146,9 @@ export function SubscriptionProvider({ children }: { children: React.ReactNode }
       expiresAt,
       loading,
       refresh,
+      refreshUntilPremium,
     }),
-    [tier, expiresAt, loading, refresh]
+    [tier, expiresAt, loading, refresh, refreshUntilPremium]
   );
 
   return <SubscriptionContext.Provider value={value}>{children}</SubscriptionContext.Provider>;

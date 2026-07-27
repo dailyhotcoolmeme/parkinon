@@ -4,7 +4,8 @@
 //    구독상품 미등록)엔 패키지가 비어 있어 자동으로 "준비 중" 안내로 폴백한다.
 // 구매 성공 → RevenueCat webhook 이 patient_groups.subscription_tier 를 premium 으로 갱신 →
 //    refresh() 로 반영. (webhook 은 supabase functions/revenuecat-webhook)
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, useCallback } from 'react';
+import { useFocusEffect } from '@react-navigation/native';
 import { View, Text, StyleSheet, ScrollView, TouchableOpacity, ActivityIndicator, Linking, Platform, Image, Animated, Easing } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useTranslation } from 'react-i18next';
@@ -15,8 +16,6 @@ import { useSubscription } from '../../context/SubscriptionContext';
 import { useDialog } from '../../context/DialogContext';
 import {
   getPremiumPackages,
-  getPremiumPackagesDebug,
-  getConfigureDebugInfo,
   purchasePackage,
   restorePurchases,
   isRevenueCatAvailable,
@@ -51,7 +50,14 @@ const HERO_SYMBOL = require('../../../assets/parkinon-symbol-en.png');
 
 export function SubscriptionManageScreen() {
   const { t } = useTranslation();
-  const { isPremium, refresh } = useSubscription();
+  const { isPremium, refresh, refreshUntilPremium } = useSubscription();
+  // 화면에 들어올 때마다 재조회 — 구독 상태는 서버 webhook 이 바꾸므로 앱 안에서만 있으면
+  // 갱신 계기가 없다(오너 제보 2026-07-27: 구매 후 다른 화면 갔다 와도 free 그대로).
+  useFocusEffect(
+    useCallback(() => {
+      void refresh();
+    }, [refresh]),
+  );
   const dialog = useDialog();
 
   // 히어로 심볼 회전 (톱바 브랜드 스핀과 동일: 6초 회전 → 3.5초 정지 루프. useNativeDriver, OTA·양 플랫폼).
@@ -72,8 +78,6 @@ export function SubscriptionManageScreen() {
   const [packages, setPackages] = useState<any[]>([]);
   const [busy, setBusy] = useState(false);
   const [trial, setTrial] = useState<TrialInfo | null>(null);
-  // ⚠️ 임시 진단용 — "coming soon" 원인 파악되면 이 state·debug 함수·아래 alert 분기 제거할 것.
-  const [debugInfo, setDebugInfo] = useState<{ moduleLoaded: boolean; errorMessage: string | null } | null>(null);
 
   useEffect(() => {
     if (isPremium) return;
@@ -81,9 +85,6 @@ export function SubscriptionManageScreen() {
     getPremiumPackages()
       .then((pkgs) => { if (!cancelled) setPackages(pkgs); })
       .catch(() => { if (!cancelled) setPackages([]); });
-    getPremiumPackagesDebug()
-      .then((d) => { if (!cancelled) setDebugInfo({ moduleLoaded: d.moduleLoaded, errorMessage: d.errorMessage }); })
-      .catch((e) => { if (!cancelled) setDebugInfo({ moduleLoaded: true, errorMessage: String(e) }); });
     return () => { cancelled = true; };
   }, [isPremium]);
 
@@ -116,23 +117,21 @@ export function SubscriptionManageScreen() {
   const doPurchase = async () => {
     const pkg = packages.find((p) => p.packageType === 'MONTHLY') ?? packages[0];
     if (!purchasable || !pkg) {
-      // ⚠️ 임시 진단용 — 원인 파악되면 debugInfo 표시 제거하고 원래 메시지만 남길 것.
-      const cfg = getConfigureDebugInfo();
-      const debugMsg = debugInfo
-        ? `\n\n[진단] moduleLoaded=${debugInfo.moduleLoaded} / packages=${packages.length} / error=${debugInfo.errorMessage ?? '없음'}`
-          + `\n[configure] attempted=${cfg.attempted} / configured=${cfg.configured} / userId=${cfg.userId ?? '없음'} / error=${cfg.error ?? '없음'}`
-        : '\n\n[진단] 아직 로딩 중';
-      dialog.alert({ title: t('subscription.comingSoonTitle'), message: t('subscription.comingSoonMsg') + debugMsg });
+      dialog.alert({ title: t('subscription.comingSoonTitle'), message: t('subscription.comingSoonMsg') });
       return;
     }
     setBusy(true);
     const { ok, cancelled } = await purchasePackage(pkg);
-    setBusy(false);
-    if (cancelled) return;
+    if (cancelled) { setBusy(false); return; }
     if (ok) {
-      await refresh(); // 서버 webhook 반영엔 몇 초 걸릴 수 있음
+      // ⚠️ 한 번만 조회하면 안 된다. 구매 성공 시점엔 RevenueCat webhook 이 아직
+      //   patient_groups 를 안 바꿨을 수 있어 free 를 읽고 화면이 그대로 굳는다.
+      //   premium 이 잡힐 때까지 재조회(최대 20초). 로딩 표시는 그동안 유지.
+      await refreshUntilPremium();
+      setBusy(false);
       dialog.alert({ title: t('subscription.purchaseDoneTitle'), message: t('subscription.purchaseDoneMsg') });
     } else {
+      setBusy(false);
       dialog.alert({ title: t('subscription.purchaseFailTitle'), message: t('subscription.purchaseFailMsg') });
     }
   };
@@ -187,7 +186,8 @@ export function SubscriptionManageScreen() {
             <View style={styles.trialHeaderRow}>
               <Text style={styles.trialTitle}>{t('subscription.trialProgressTitle')}</Text>
               <Text style={styles.trialDaysLeft}>
-                {t('subscription.trialDaysLeft', { days: trialProgress.daysLeft })}
+                {/* i18next 복수형은 변수명이 count 여야 동작한다(1 day left / N days left). */}
+                {t('subscription.trialDaysLeft', { count: trialProgress.daysLeft })}
               </Text>
             </View>
             <View style={styles.trialBarTrack}>

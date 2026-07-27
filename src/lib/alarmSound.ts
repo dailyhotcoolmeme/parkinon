@@ -139,15 +139,42 @@ export async function ensureRecordedChannel(
 }
 
 /**
+ * 녹음 사운드 id 하나로 채널을 즉석 생성(Android). custom_sounds 에서 URL·라벨을 직접 조회한다.
+ *   provisionForUser 가 아직 안 돌았어도 이 함수만으로 채널이 생기게 하기 위한 것.
+ * @returns 생성/기존 채널 id, 조회 실패 시 null
+ */
+async function ensureRecordedChannelById(soundId: string): Promise<string | null> {
+  if (Platform.OS !== 'android') return null;
+  const { data, error } = await supabase
+    .from('custom_sounds' as any)
+    .select('id, public_url, label')
+    .eq('id', soundId)
+    .maybeSingle();
+  const row = data as SoundRow | null;
+  if (error || !row?.public_url) return null;
+  return ensureRecordedChannel(
+    row.id,
+    row.public_url,
+    row.label?.trim() || i18n.t('alarmSound.defaultRecordingLabel'),
+  );
+}
+
+/**
  * 방금 고른 소리(id)의 채널을 즉시 보장(Android).
  * - 'preset:<fileId>' → 프리셋 채널 즉시 생성(번들 res/raw 참조, 다운로드 불필요).
- * - 그 외(녹음 uuid / null)는 여기서 안 만들고 provisionForUser 흐름에 맡긴다.
+ * - 녹음 uuid → custom_sounds 조회 후 채널 즉시 생성.
+ *   (예전엔 녹음은 provisionForUser 에 맡겼는데, 소리를 고른 직후 알람 재예약이 먼저 돌면
+ *    채널이 아직 없어 기본음 채널로 예약돼 버리는 버그가 있었다 — 오너 제보 2026-07-27.)
  * 소리 선택 직후 호출 → 앱 재시작 없이 그 소리로 알림이 울리게.
  */
 export async function ensurePresetChannelForSoundId(soundId: string | null | undefined): Promise<void> {
   if (Platform.OS !== 'android') return;
-  if (!soundId || !soundId.startsWith(PRESET_SOUND_PREFIX)) return;
-  await ensurePresetChannel(soundId.slice(PRESET_SOUND_PREFIX.length)).catch(() => {});
+  if (!soundId) return;
+  if (soundId.startsWith(PRESET_SOUND_PREFIX)) {
+    await ensurePresetChannel(soundId.slice(PRESET_SOUND_PREFIX.length)).catch(() => {});
+    return;
+  }
+  await ensureRecordedChannelById(soundId).catch(() => null);
 }
 
 const DEFAULT_SOUND_CHANNEL = 'parkinon_alarm_default_sound';
@@ -206,6 +233,11 @@ export async function resolveLocalAlarmSoundChannel(
     const channelId = alarmChannelId(soundId);
     const existing = await notifee.getChannel(channelId).catch(() => null);
     if (existing) return channelId;
+    // ⚠️ 채널이 없다고 바로 기본음으로 떨어뜨리면 안 된다. 프리셋과 동일하게 즉석 생성한다.
+    //   (소리 선택 → 알람 재예약이 provisionForUser 보다 먼저 돌면 채널이 아직 없어서
+    //    녹음 목소리를 골랐는데 시스템 기본음으로 울리는 버그 — 오너 제보 2026-07-27.)
+    const created = await ensureRecordedChannelById(soundId).catch(() => null);
+    if (created) return created;
   }
   return ensureDefaultSoundChannel();
 }

@@ -10,7 +10,7 @@
  * ⚠️ 실제 트리거(full-screen intent)·서버 발송 연동은 네이티브/서버 단계에서 배선(재빌드).
  */
 import React, { useCallback, useEffect, useRef } from 'react';
-import { View, Text, StyleSheet, Animated, Easing, TouchableOpacity, StatusBar, BackHandler } from 'react-native';
+import { View, Text, StyleSheet, Animated, Easing, TouchableOpacity, StatusBar, BackHandler, Platform } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useRoute, type RouteProp } from '@react-navigation/native';
 import { useTranslation } from 'react-i18next';
@@ -157,6 +157,17 @@ export function AlarmScreen() {
   }, [stopSound]);
 
   // 안드 뒤로가기 = 미리보기면 설정 복귀, 실제 알람이면 나중에(기록 없이 닫힘).
+  // ⚠️ 이 화면은 상태바를 숨긴다(<StatusBar hidden />). 화면을 나갈 때 명시적으로 되돌리지 않으면
+  //   앱 전체에서 노치 영역의 시계·와이파이·배터리가 계속 안 보인다(오너 제보 2026-07-27).
+  //   RN <StatusBar> 의 언마운트 복원에만 맡기지 말고 여기서 직접 원상복구한다(App.tsx 기본값과 동일).
+  useEffect(() => {
+    return () => {
+      StatusBar.setHidden(false);
+      StatusBar.setBarStyle('dark-content');
+      if (Platform.OS === 'android') StatusBar.setBackgroundColor('#FFFFFF');
+    };
+  }, []);
+
   useEffect(() => {
     const sub = BackHandler.addEventListener('hardwareBackPress', () => {
       if (preview) handleClosePreview();

@@ -15,6 +15,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { useNavigation, useRoute } from '@react-navigation/native';
 import { Audio } from 'expo-av';
+import { VOICE_RECORDING_OPTIONS } from '../../constants/recordingOptions';
 import { Colors } from '../../constants/colors';
 import { TopBar } from '../../components/common/TopBar';
 import { BrandProgressOverlay } from '../../components/common/BrandProgressOverlay';
@@ -121,7 +122,8 @@ export function RecordSoundScreen() {
       // 매번 새 Recording 객체로 prepare+start (실패한 객체는 재사용 불가).
       const prepareAndStart = async (): Promise<Audio.Recording> => {
         const rec = new Audio.Recording();
-        await rec.prepareToRecordAsync(Audio.RecordingOptionsPresets.HIGH_QUALITY);
+        // 음성용 저용량 설정(모노 64kbps). 기존 HIGH_QUALITY 는 스테레오 128kbps 로 과했다.
+        await rec.prepareToRecordAsync(VOICE_RECORDING_OPTIONS);
         await rec.startAsync();
         return rec;
       };

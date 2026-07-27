@@ -461,6 +461,17 @@ function VideoPlayerModal({ url, onClose, insetTop, insetBottom }: VideoPlayerMo
     };
   }, [url]);
 
+  // ⚠️ 전체화면 플레이어는 상태바를 검정+밝은아이콘으로 바꾼다. 닫을 때 되돌리지 않으면
+  //   흰 배경 화면에서 흰 아이콘이 되어 시계·와이파이·배터리가 안 보인다(오너 제보 2026-07-27).
+  //   RN <StatusBar> 언마운트 복원에만 맡기지 말고 명시적으로 App.tsx 기본값으로 되돌린다.
+  useEffect(() => {
+    if (!url) return;
+    return () => {
+      StatusBar.setBarStyle('dark-content');
+      if (Platform.OS === 'android') StatusBar.setBackgroundColor('#FFFFFF');
+    };
+  }, [url]);
+
   const handleClose = () => {
     // expo-av: 닫기 시 명시적으로 일시정지·언로드(백그라운드 재생/리소스 누수 방지).
     (async () => {

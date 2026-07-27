@@ -163,6 +163,74 @@ Deno.serve(async (req) => {
       }
     }
 
+    // ── 무료 한도 서버 강제 (2026-07-27) ─────────────────────────────────────
+    // 지금까지 한도는 화면 코드에서만 판정했다. 변조 클라이언트나 직접 API 호출로
+    // 무제한 업로드가 가능했고 R2 비용에 직결된다.
+    // ⚠️ "이미 저장된 행"만 세면 막을 수 없다 — 저장하지 않고 발급만 반복하면 카운트가 0으로
+    //   유지되기 때문. 그래서 발급 자체를 media_upload_grants 에 기록하고 그걸 센다.
+    const kind: 'photo' | 'video' | 'voice' | 'community' =
+      isCommunity ? 'community'
+      : soundMatch ? 'voice'
+      : key.startsWith('parkinon/videos/') ? 'video'
+      : 'photo';
+
+    // 한도 집계 단위 = 가족 그룹(구독이 그룹 단위이므로).
+    // videos/photos 는 경로의 환자 id 기준, sounds/community 는 업로더 기준으로 그룹을 찾는다.
+    const admin = createClient(supabaseUrl, Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!);
+    const quotaOwnerId = (soundMatch || isCommunity) ? user.id : ownerId;
+    const { data: ownerRow } = await admin
+      .from('users')
+      .select('patient_group_id, timezone')
+      .eq('id', quotaOwnerId)
+      .maybeSingle();
+    const groupId = ownerRow?.patient_group_id ?? null;
+
+    if (groupId) {
+      const { data: groupRow } = await admin
+        .from('patient_groups')
+        .select('subscription_tier, subscription_expires_at')
+        .eq('id', groupId)
+        .maybeSingle();
+      // ⚠️ 앱(SubscriptionContext.RENEWAL_GRACE_MS)과 반드시 같은 유예를 적용해야 한다.
+      //   갱신 공백 구간에 앱은 프리미엄으로 보고 무제한 첨부를 허용하는데 서버만 free 로 판정하면,
+      //   사용자는 6장째에서 원인 모를 저장 실패를 본다(실측 2026-07-27: 만료 2분 뒤 429).
+      const RENEWAL_GRACE_MS = 3 * 60 * 1000; // 앱·웹훅과 동일 값 유지
+      const exp = groupRow?.subscription_expires_at
+        ? new Date(groupRow.subscription_expires_at).getTime()
+        : null;
+      const isPremium = groupRow?.subscription_tier === 'premium'
+        && (exp === null || exp + RENEWAL_GRACE_MS > Date.now());
+
+      const tz = ownerRow?.timezone || 'Asia/Seoul';
+
+      // ⚠️ 설계 원칙 (2026-07-27, 두 번의 사고 뒤 확정)
+      //   서버는 앱의 UX 규칙(5장/2개/1개, 삭제 시 슬롯 복구, 편집 중 글 제외)을 흉내 내지 않는다.
+      //   그 규칙은 "현재 부착 수", "지금 편집 중인 글 제외" 같은 클라이언트만 아는 맥락에 의존하고,
+      //   서버가 이를 재현하려다 정상 사용자를 두 번 막았다:
+      //     · 갱신 유예 불일치 → 사진 6장째 원인 모를 실패
+      //     · 발급 누적으로 카운트 → 영상 지우고 재업로드 불가
+      //     · (미발생) 편집 중인 글 제외 안 됨 → 사진 5장짜리 글 수정 시 저장 불가
+      //   서버의 역할은 "정확한 한도 집행"이 아니라 "무한 남용 차단"이다.
+      //   정확한 한도는 앱이 집행하고, 서버는 정상 사용으로는 절대 닿지 않는 상한만 둔다.
+      //   → 변조 클라이언트도 '무제한'이 아니라 '상한까지'로 묶인다(비용 방어 목적 달성).
+      const ABUSE_CAP = isPremium
+        ? { photo: 600, video: 120, voice: 120, community: 200 }
+        : { photo: 40, video: 20, voice: 15, community: 60 };
+      const { data: issued } = await admin.rpc('count_upload_grants_today', {
+        p_group_id: groupId, p_kind: kind, p_tz: tz,
+      });
+      if ((issued ?? 0) >= ABUSE_CAP[kind]) {
+        return new Response(
+          JSON.stringify({ error: '오늘 업로드 한도를 모두 사용했습니다.', code: 'QUOTA_EXCEEDED' }),
+          { status: 429, headers: { ...corsHeaders, 'Content-Type': 'application/json' } },
+        );
+      }
+      // 발급 기록(집계 대상). 실패해도 업로드는 진행 — 기록 실패로 기능을 막지 않는다.
+      await admin.from('media_upload_grants').insert({
+        user_id: user.id, group_id: groupId, kind, object_key: key,
+      });
+    }
+
     const R2 = new S3Client({
       region: 'auto',
       endpoint: R2_ENDPOINT,

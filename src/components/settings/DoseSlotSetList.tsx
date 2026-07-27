@@ -436,6 +436,28 @@ export function DoseSlotSetList({
     }
   }, [focusSlotId, focusNonce, onFocusScrollTo]);
 
+  /**
+   * 시간 시트에서 추가/수정을 저장한 뒤, 그 슬롯을 펼치고 그 위치로 스크롤한다.
+   *   (오너 요청 2026-07-27: 알림을 추가하거나 시간을 고치고 목록으로 돌아오면
+   *    방금 건드린 슬롯이 화면에 나와야 한다 — 예전엔 목록 맨 위로 돌아와 어디가 바뀌었는지 안 보였다.)
+   * 외부 focusSlotId 경로와 같은 장치(pendingScrollIdRef + onLayout 소비)를 재사용한다.
+   * 새 슬롯은 refresh 로 진짜 행이 온 뒤 렌더되므로, 그때 onLayout 에서 스크롤이 소비된다.
+   */
+  const focusSlotAfterSave = useCallback((slotId: string) => {
+    setExpandedId(slotId);
+    pendingScrollIdRef.current = slotId;
+    // 이미 레이아웃이 잡혀 있으면(수정 경로) 펼침 애니메이션 뒤 바로 스크롤.
+    const y = slotLayoutY.current.get(slotId);
+    if (y != null && onFocusScrollTo) {
+      setTimeout(() => {
+        if (pendingScrollIdRef.current === slotId) {
+          onFocusScrollTo(y);
+          pendingScrollIdRef.current = null;
+        }
+      }, 120);
+    }
+  }, [onFocusScrollTo]);
+
   // dose_slots 1건 update (낙관적). DB 컬럼 patch 와 그에 대응하는 로컬 DoseSlot 패치를 받는다.
   //  1) overrides 에 즉시 반영 → UI 바로 바뀜
   //  2) 백그라운드로 dose_slots update. 같은 슬롯+필드는 시퀀스로 마지막 쓰기만 유효(LWW).
@@ -871,6 +893,8 @@ export function DoseSlotSetList({
           { time: newTime, label: newLabel },
         );
       }
+      // 수정한 슬롯을 펼치고 그 위치로 스크롤(솔로 편집뷰는 그 슬롯만 렌더하므로 영향 없음).
+      if (!soloSlotId) focusSlotAfterSave(id);
       // 결과 안내: remind 켜진 슬롯이면 즉시형(시각 지났는지), 꺼진 슬롯이면 "꺼져 있어요".
       const remindOn = target?.remindEnabled ?? true;
       dialog.alert(
@@ -991,7 +1015,10 @@ export function DoseSlotSetList({
             console.error('[DoseSlotSetList] 새 슬롯 약 자동연결 실패:', linkErr);
           }
         }
+        // addOnly 는 부모가 모달을 수정 시트로 전환하므로 건드리지 않는다.
+        // 전체 관리 화면에서 추가한 경우엔 방금 만든 슬롯을 펼치고 그 위치로 스크롤.
         if (addOnly) onAddDone?.(newSlotId ?? undefined);
+        else if (newSlotId) focusSlotAfterSave(newSlotId);
       } catch (e) {
         console.error('[DoseSlotSetList] dose_slots insert 실패:', e);
         // 실패 시 낙관적 슬롯 롤백 + 모달 닫기(미저장 처리).
@@ -1001,7 +1028,7 @@ export function DoseSlotSetList({
         insertingRef.current = false;
       }
     }
-  }, [timeSheet, slots, patchSlot, refresh, dialog, addOnly, onAddDone, medications, refreshSlotMeds, userTz]);
+  }, [timeSheet, slots, patchSlot, refresh, dialog, addOnly, onAddDone, medications, refreshSlotMeds, userTz, soloSlotId, focusSlotAfterSave]);
 
   // ── 소프트 경고 판정: 이 슬롯의 추적 시각 중 (슬롯시각+분) > 다음 active 슬롯 시각? ──
   // 정렬된 active 슬롯에서 "이 슬롯 바로 다음" 시각을 찾음. 마지막 복용이면 경고 없음.

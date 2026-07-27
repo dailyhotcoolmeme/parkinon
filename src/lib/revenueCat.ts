@@ -17,33 +17,21 @@ try {
 
 let configured = false;
 let configuredUserId: string | null = null;
-// ⚠️ 임시 진단용 — configure() 실패 원인을 화면에서 볼 수 있게 보관. 원인 확인되면 제거할 것.
-let lastConfigureError: string | null = null;
-let lastConfigureAttempted = false;
-
 /** RevenueCat SDK를 구매자(Supabase user.id)와 연결해 초기화. 재빌드 전엔 조용히 실패. */
 export async function initRevenueCat(userId: string | null): Promise<void> {
   if (!Purchases || !userId) return;
   if (configured && configuredUserId === userId) return;
-  lastConfigureAttempted = true;
   try {
     if (!configured) {
       Purchases.configure({ apiKey: getRevenueCatKey(), appUserID: userId });
       configured = true;
-      lastConfigureError = null;
     } else if (configuredUserId !== userId) {
       await Purchases.logIn(userId); // 계정 전환
     }
     configuredUserId = userId;
   } catch (e: any) {
-    lastConfigureError = e?.message ?? e?.code ?? JSON.stringify(e) ?? String(e);
     if (__DEV__) console.warn('[revenueCat] init 실패(재빌드 전이면 정상):', e);
   }
-}
-
-// ⚠️ 임시 진단용.
-export function getConfigureDebugInfo(): { attempted: boolean; configured: boolean; userId: string | null; error: string | null } {
-  return { attempted: lastConfigureAttempted, configured, userId: configuredUserId, error: lastConfigureError };
 }
 
 /** 현재 premium entitlement 활성 여부(RevenueCat 기준, 구매 직후 즉시 확인용). */
@@ -99,27 +87,6 @@ export async function getPremiumPackages(): Promise<any[]> {
   } catch (e) {
     if (__DEV__) console.warn('[revenueCat] offerings 조회 실패:', e);
     return [];
-  }
-}
-
-// ⚠️ 임시 진단용 — "coming soon" 원인이 안 보여서 화면에 직접 노출하기 위한 함수.
-//   원인 확인되면 제거할 것.
-export async function getPremiumPackagesDebug(): Promise<{
-  packages: any[];
-  moduleLoaded: boolean;
-  offeringsRaw: any;
-  errorMessage: string | null;
-}> {
-  if (!Purchases) {
-    return { packages: [], moduleLoaded: false, offeringsRaw: null, errorMessage: 'Purchases 네이티브 모듈 로드 실패(require 실패)' };
-  }
-  try {
-    const offerings = await Purchases.getOfferings();
-    const packages = offerings?.current?.availablePackages ?? [];
-    return { packages, moduleLoaded: true, offeringsRaw: offerings, errorMessage: null };
-  } catch (e: any) {
-    const msg = e?.message ?? e?.code ?? JSON.stringify(e) ?? String(e);
-    return { packages: [], moduleLoaded: true, offeringsRaw: null, errorMessage: msg };
   }
 }
 
