@@ -62,7 +62,9 @@ async function gatherConsent(): Promise<void> {
     adsAllowed = !!info?.canRequestAds;
     privacyOptionsRequired = info?.privacyOptionsRequirementStatus === 'REQUIRED';
     // 광고가 안 나갈 때 원인을 기기 로그에서 바로 확인하기 위한 한 줄(수익 직결이라 남긴다).
-    console.log(
+    // ⚠️ warn 을 쓴다 — 프로덕션 번들은 babel(transform-remove-console)이 console.log 를
+    //    제거하므로 log 로 남기면 기기에서 아무것도 안 보인다(실측 2026-07-27).
+    console.warn(
       '[ads] consent',
       JSON.stringify({
         status: info?.status,
