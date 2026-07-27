@@ -44,6 +44,8 @@ async function gatherConsent(): Promise<void> {
     adsAllowed = false; // 재빌드 전 등 모듈 없음 → 광고 요청하지 않음
     return;
   }
+  // 어떤 번들이 돌고 있는지 기기 로그로 구분하기 위한 표식(문제 추적용).
+  console.warn('[ads] consent gather start');
   try {
     await AdsConsent.requestInfoUpdate();
 
@@ -74,9 +76,17 @@ async function gatherConsent(): Promise<void> {
       }),
     );
   } catch (e) {
-    // 동의 상태 자체를 못 읽음 → 동의가 필요한 지역일 수 있으므로 광고를 요청하지 않는다.
-    adsAllowed = false;
-    if (__DEV__) console.warn('[ads] 동의 상태 조회 실패:', e);
+    // 동의 상태를 못 읽었다. 여기서 무조건 막으면 동의가 필요 없는 지역(미국 등)까지
+    // 광고가 0이 된다. GDPR 적용 지역인지 따로 물어 그 지역만 보류한다.
+    // (실측 2026-07-27: AdMob 에 동의 메시지가 없으면 이 경로로 빠진다)
+    let gdpr = true; // 판단 불가 시엔 보수적으로 적용 지역으로 본다
+    try {
+      gdpr = !!(await AdsConsent.getGdprApplies());
+    } catch {
+      /* 이것마저 실패 → gdpr=true 유지(보류) */
+    }
+    adsAllowed = !gdpr;
+    console.warn('[ads] consent unavailable', JSON.stringify({ gdprApplies: gdpr, adsAllowed }), String(e));
   }
 }
 
