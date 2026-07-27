@@ -1,12 +1,21 @@
 import { supabase } from '../lib/supabase';
+import i18n from '../i18n';
 
 // ────────────────────────────────────────────────────────────────────────────
-// 내 건강기록 내보내기 (사람이 읽기 쉬운 한글 CSV — 엑셀에서 바로 열림)
+// 내 건강기록 내보내기 (사람이 읽기 쉬운 텍스트)
 //
 // 역할을 환자 → 보호자로 바꾸면 기록이 완전 삭제되므로, 삭제 전에 본인이 자신의
 // 기록을 파일로 보관할 수 있게 한다. 내부 식별자(id/UUID)·이미지 URL 등은 빼고,
-// 날짜·시간대·운동종류 등은 한글로 변환해 표(CSV)로 만든다.
+// 날짜·시간대·운동종류 등은 사람이 읽는 말로 바꿔 정리한다.
+//
+// ⚠️ 문구는 반드시 앱 언어를 따라야 한다. 예전엔 제목·항목명·시간대·운동종류가 전부
+//   한국어로 고정돼 있어, 영어 사용자는 자기 기록을 읽을 수 없는 파일로 받았다
+//   (실측 2026-07-27). 이건 기록이 삭제되기 직전의 마지막 백업이라 되돌릴 수 없다.
 // ────────────────────────────────────────────────────────────────────────────
+
+/** 내보내기 문구는 호출 시점의 앱 언어로 만든다(모듈 로드 시점이 아니라). */
+const tx = (key: string, opts?: Record<string, unknown>): string =>
+  String(i18n.t(`healthExport.${key}`, opts as any));
 
 type Fmt = (v: any, row?: any) => string;
 
@@ -20,82 +29,92 @@ const dt: Fmt = (v) => {
   return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())} ${pad(d.getHours())}:${pad(d.getMinutes())}`;
 };
 const asIs: Fmt = (v) => (v === null || v === undefined ? '' : String(v));
-const bool: Fmt = (v) => (v ? '예' : '아니오');
+const bool: Fmt = (v) => (v ? tx('yes') : tx('no'));
 
-const MEAL: Record<string, string> = { breakfast: '아침', lunch: '점심', dinner: '저녁', bedtime: '취침', bed: '취침' };
-const meal: Fmt = (v) => MEAL[String(v)] ?? asIs(v);
-const mealArr: Fmt = (v) => (Array.isArray(v) ? v.map((x) => MEAL[String(x)] ?? String(x)).join(' / ') : asIs(v));
-
-const EXERCISE: Record<string, string> = {
-  walking: '걷기', strength: '근력', balance: '균형', stretching: '스트레칭',
-  cycling: '자전거', swimming: '수영', dance: '댄스', boxing: '복싱', yoga: '요가', jogging: '조깅',
+// DB 값 → 표시어. 'bed' 는 구버전 'bedtime' 값이라 같은 문구로 맞춘다.
+const MEAL_KEY: Record<string, string> = {
+  breakfast: 'breakfast', lunch: 'lunch', dinner: 'dinner', bedtime: 'bedtime', bed: 'bedtime',
 };
-const exercise: Fmt = (v) => EXERCISE[String(v)] ?? asIs(v);
+const mealWord = (v: any): string => {
+  const k = MEAL_KEY[String(v)];
+  return k ? tx(`meal.${k}`) : asIs(v);
+};
+const meal: Fmt = (v) => mealWord(v);
+const mealArr: Fmt = (v) => (Array.isArray(v) ? v.map(mealWord).join(' / ') : asIs(v));
+
+const EXERCISE_KEYS = new Set([
+  'walking', 'strength', 'balance', 'stretching',
+  'cycling', 'swimming', 'dance', 'boxing', 'yoga', 'jogging',
+]);
+const exercise: Fmt = (v) => (EXERCISE_KEYS.has(String(v)) ? tx(`exercise.${v}`) : asIs(v));
 const arr: Fmt = (v) => (Array.isArray(v) ? v.join(' / ') : asIs(v));
 const count: Fmt = (v, row) => (v ? `${v}${row?.count_unit ?? ''}` : '');
-const photoCount: Fmt = (v) => (Array.isArray(v) && v.length > 0 ? `사진 ${v.length}장` : '');
-const hasAudio: Fmt = (v) => (v ? '음성 있음' : '');
+const photoCount: Fmt = (v) =>
+  Array.isArray(v) && v.length > 0 ? tx('photos', { count: v.length }) : '';
+const hasAudio: Fmt = (v) => (v ? tx('audio') : '');
 
 // ── 섹션(테이블 → 제목 + 내보낼 컬럼) ─────────────────────────────────────────
-type ColDef = { col: string; label: string; fmt: Fmt };
-type Section = { table: string; title: string; key: 'patient_id' | 'user_id'; cols: ColDef[] };
+// title/label 은 번역 "키"만 담는다. 실제 문구는 내보내는 시점에 앱 언어로 만든다
+// (모듈 로드 시점에 굳히면 언어를 바꿔도 옛 언어로 남는다).
+type ColDef = { col: string; labelKey: string; fmt: Fmt };
+type Section = { table: string; titleKey: string; key: 'patient_id' | 'user_id'; cols: ColDef[] };
 
 const SECTIONS: Section[] = [
-  { table: 'medications', title: '약 목록', key: 'patient_id', cols: [
-    { col: 'name', label: '약 이름', fmt: asIs },
-    { col: 'dosage', label: '용량', fmt: asIs },
-    { col: 'daily_count', label: '하루 복용', fmt: count },
-    { col: 'meal_times', label: '복용 시간대', fmt: mealArr },
-    { col: 'scheduled_times', label: '복용 시각', fmt: arr },
-    { col: 'is_active', label: '복용 중', fmt: bool },
-    { col: 'created_at', label: '등록일', fmt: dt },
+  { table: 'medications', titleKey: 'medications', key: 'patient_id', cols: [
+    { col: 'name', labelKey: 'name', fmt: asIs },
+    { col: 'dosage', labelKey: 'dosage', fmt: asIs },
+    { col: 'daily_count', labelKey: 'dailyCount', fmt: count },
+    { col: 'meal_times', labelKey: 'mealTimes', fmt: mealArr },
+    { col: 'scheduled_times', labelKey: 'scheduledTimes', fmt: arr },
+    { col: 'is_active', labelKey: 'isActive', fmt: bool },
+    { col: 'created_at', labelKey: 'createdAt', fmt: dt },
   ] },
-  { table: 'med_logs', title: '약 복용 기록', key: 'patient_id', cols: [
-    { col: 'taken_at', label: '복용 시각', fmt: dt },
-    { col: 'meal_time', label: '시간대', fmt: meal },
-    { col: 'note', label: '메모', fmt: asIs },
+  { table: 'med_logs', titleKey: 'medLogs', key: 'patient_id', cols: [
+    { col: 'taken_at', labelKey: 'takenAt', fmt: dt },
+    { col: 'meal_time', labelKey: 'mealTime', fmt: meal },
+    { col: 'note', labelKey: 'note', fmt: asIs },
   ] },
-  { table: 'on_off_logs', title: '몸상태·기분 기록', key: 'patient_id', cols: [
-    { col: 'logged_at', label: '기록 시각', fmt: dt },
-    { col: 'body_state', label: '몸상태', fmt: asIs },
-    { col: 'mood', label: '기분', fmt: asIs },
-    { col: 'sleep_quality', label: '수면', fmt: asIs },
-    { col: 'constipation', label: '변비', fmt: asIs },
-    { col: 'trigger_time_label', label: '시점', fmt: asIs },
-    { col: 'medication_meal_time', label: '약 시간대', fmt: meal },
+  { table: 'on_off_logs', titleKey: 'onOffLogs', key: 'patient_id', cols: [
+    { col: 'logged_at', labelKey: 'loggedAt', fmt: dt },
+    { col: 'body_state', labelKey: 'bodyState', fmt: asIs },
+    { col: 'mood', labelKey: 'mood', fmt: asIs },
+    { col: 'sleep_quality', labelKey: 'sleep', fmt: asIs },
+    { col: 'constipation', labelKey: 'constipation', fmt: asIs },
+    { col: 'trigger_time_label', labelKey: 'triggerPoint', fmt: asIs },
+    { col: 'medication_meal_time', labelKey: 'medMealTime', fmt: meal },
   ] },
-  { table: 'symptom_notes', title: '증상 메모', key: 'patient_id', cols: [
-    { col: 'logged_at', label: '기록 시각', fmt: dt },
-    { col: 'note', label: '내용', fmt: asIs },
+  { table: 'symptom_notes', titleKey: 'symptomNotes', key: 'patient_id', cols: [
+    { col: 'logged_at', labelKey: 'loggedAt', fmt: dt },
+    { col: 'note', labelKey: 'content', fmt: asIs },
   ] },
-  { table: 'exercise_logs', title: '운동 기록', key: 'patient_id', cols: [
-    { col: 'logged_at', label: '기록 시각', fmt: dt },
-    { col: 'exercise_type', label: '운동 종류', fmt: exercise },
-    { col: 'duration_minutes', label: '시간(분)', fmt: asIs },
+  { table: 'exercise_logs', titleKey: 'exerciseLogs', key: 'patient_id', cols: [
+    { col: 'logged_at', labelKey: 'loggedAt', fmt: dt },
+    { col: 'exercise_type', labelKey: 'exerciseType', fmt: exercise },
+    { col: 'duration_minutes', labelKey: 'durationMin', fmt: asIs },
   ] },
-  { table: 'diary_entries', title: '일기', key: 'patient_id', cols: [
-    { col: 'entry_date', label: '날짜', fmt: asIs },
-    { col: 'text', label: '내용', fmt: asIs },
-    { col: 'photo_urls', label: '사진', fmt: photoCount },
-    { col: 'audio_r2_key', label: '음성', fmt: hasAudio },
+  { table: 'diary_entries', titleKey: 'diary', key: 'patient_id', cols: [
+    { col: 'entry_date', labelKey: 'date', fmt: asIs },
+    { col: 'text', labelKey: 'content', fmt: asIs },
+    { col: 'photo_urls', labelKey: 'photos', fmt: photoCount },
+    { col: 'audio_r2_key', labelKey: 'audio', fmt: hasAudio },
   ] },
-  { table: 'medical_appointments', title: '진료 일정', key: 'patient_id', cols: [
-    { col: 'appointment_date', label: '진료일', fmt: asIs },
-    { col: 'hospital_name', label: '병원', fmt: asIs },
-    { col: 'doctor_name', label: '의사', fmt: asIs },
+  { table: 'medical_appointments', titleKey: 'appointments', key: 'patient_id', cols: [
+    { col: 'appointment_date', labelKey: 'appointmentDate', fmt: asIs },
+    { col: 'hospital_name', labelKey: 'hospital', fmt: asIs },
+    { col: 'doctor_name', labelKey: 'doctor', fmt: asIs },
   ] },
-  { table: 'medical_records', title: '진료 기록', key: 'patient_id', cols: [
-    { col: 'visit_date', label: '방문일', fmt: asIs },
-    { col: 'hospital_name', label: '병원', fmt: asIs },
-    { col: 'doctor_name', label: '의사', fmt: asIs },
-    { col: 'consultation_notes', label: '진료 메모', fmt: asIs },
+  { table: 'medical_records', titleKey: 'medicalRecords', key: 'patient_id', cols: [
+    { col: 'visit_date', labelKey: 'visitDate', fmt: asIs },
+    { col: 'hospital_name', labelKey: 'hospital', fmt: asIs },
+    { col: 'doctor_name', labelKey: 'doctor', fmt: asIs },
+    { col: 'consultation_notes', labelKey: 'consultationNotes', fmt: asIs },
   ] },
-  { table: 'measurements', title: '동작 측정', key: 'user_id', cols: [
-    { col: 'started_at', label: '시작', fmt: dt },
-    { col: 'ended_at', label: '종료', fmt: dt },
-    { col: 'type', label: '종류', fmt: asIs },
-    { col: 'med_phase', label: '약효 단계', fmt: asIs },
-    { col: 'context', label: '상황', fmt: asIs },
+  { table: 'measurements', titleKey: 'measurements', key: 'user_id', cols: [
+    { col: 'started_at', labelKey: 'startedAt', fmt: dt },
+    { col: 'ended_at', labelKey: 'endedAt', fmt: dt },
+    { col: 'type', labelKey: 'type', fmt: asIs },
+    { col: 'med_phase', labelKey: 'medPhase', fmt: asIs },
+    { col: 'context', labelKey: 'context', fmt: asIs },
   ] },
 ];
 
@@ -114,7 +133,7 @@ function cell(s: string): string {
 export async function buildHealthRecordsExport(userId: string): Promise<{ text: string; hasData: boolean }> {
   const now = new Date();
   const stamp = `${now.getFullYear()}-${pad(now.getMonth() + 1)}-${pad(now.getDate())}`;
-  const parts: string[] = [`파킨온 건강기록 (${stamp})`, ''];
+  const parts: string[] = [tx('title', { date: stamp }), ''];
   let hasData = false;
 
   for (const sec of SECTIONS) {
@@ -126,14 +145,14 @@ export async function buildHealthRecordsExport(userId: string): Promise<{ text: 
       rows = [];
     }
 
-    parts.push(`■ ${sec.title} (${rows.length}건)`);
+    parts.push(tx('sectionHeader', { title: tx(`section.${sec.titleKey}`), count: rows.length }));
     if (rows.length === 0) {
-      parts.push('  기록 없음');
+      parts.push(tx('noRecords'));
     } else {
       hasData = true;
       for (const r of rows) {
         const fields = sec.cols
-          .map((c) => ({ label: c.label, val: cell(c.fmt(r[c.col], r)) }))
+          .map((c) => ({ label: tx(`col.${c.labelKey}`), val: cell(c.fmt(r[c.col], r)) }))
           .filter((f) => f.val !== '');
         if (fields.length === 0) continue;
         // 첫 값(주로 날짜/이름)은 앵커로 라벨 없이, 나머지는 "라벨 값".
