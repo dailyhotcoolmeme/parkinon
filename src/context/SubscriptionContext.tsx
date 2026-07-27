@@ -33,6 +33,13 @@ interface SubscriptionState {
    * @returns premium 으로 확인되면 true, 시간 내 반영 안 되면 false
    */
   refreshUntilPremium: (timeoutMs?: number) => Promise<boolean>;
+  /**
+   * 구매/복원 직후 전용 — 서버에 "스토어 기준 내 권한"을 즉시 확정시킨다.
+   * webhook 을 기다리지 않으므로 대기가 몇 초로 끝나고, webhook 이 아예 안 오는 경우
+   * (이미 그 계정이 권한을 가진 상태에서의 복원 등)에도 반영된다.
+   * @returns 프리미엄으로 확정되면 true
+   */
+  syncFromStore: () => Promise<boolean>;
 }
 
 const SubscriptionContext = createContext<SubscriptionState | undefined>(undefined);
@@ -55,7 +62,7 @@ function resolveIsPremium(tier: string | null, expiresAt: string | null): boolea
 }
 
 export function SubscriptionProvider({ children }: { children: React.ReactNode }) {
-  const { user } = useAuth();
+  const { user, refreshUser } = useAuth();
   const groupId = user?.patient_group_id ?? null;
 
   // 구매자(Supabase user)와 RevenueCat 연결 — 재빌드 전엔 내부에서 조용히 no-op.
@@ -132,6 +139,36 @@ export function SubscriptionProvider({ children }: { children: React.ReactNode }
 
   // 앱이 백그라운드에서 돌아올 때 재조회 — 구독 상태는 서버(webhook)가 바꾸므로
   // 앱 안에서만 보고 있으면 영영 갱신되지 않는다(오너 제보 2026-07-27: 화면 이동해도 free 그대로).
+  /**
+   * 구매/복원 직후 서버에 즉시 확정 요청.
+   * 웹훅을 기다리는 폴링과 달리 (1) 결과가 바로 오고 (2) 웹훅이 안 오는 경우도 해결된다.
+   * ⚠️ 응답의 만료일을 그대로 쓰지 않고 상태에 반영하는 이유: 그룹이 새로 만들어진 경우
+   *   user.patient_group_id 가 아직 옛 값(null)이라 재조회를 해도 free 로 읽힌다.
+   *   → 응답으로 화면을 먼저 확정하고, refreshUser() 로 groupId 를 따라잡게 한다.
+   */
+  const syncFromStore = useCallback(async (): Promise<boolean> => {
+    setLoading(true);
+    try {
+      const { data, error } = await supabase.functions.invoke('sync-subscription', { body: {} });
+      if (error) throw error;
+      if (data?.premium) {
+        setTier('premium');
+        setExpiresAt(data.expiresAt ?? null);
+        // 그룹이 새로 생겼을 수 있으니 사용자 정보를 따라잡는다(다른 화면의 그룹 기능용).
+        await refreshUser().catch(() => {});
+        return true;
+      }
+      // 스토어에 권한이 없다 → 서버 값 그대로 반영.
+      return await fetchOnce();
+    } catch (e) {
+      if (__DEV__) console.warn('[useSubscription] sync 실패, 서버 값으로 대체:', e);
+      // 동기화 실패(네트워크 등) 시엔 웹훅이 반영했을 수 있으니 짧게 재조회.
+      return await fetchOnce();
+    } finally {
+      setLoading(false);
+    }
+  }, [fetchOnce, refreshUser]);
+
   useEffect(() => {
     const sub = AppState.addEventListener('change', (s) => {
       if (s === 'active') void fetchOnce();
@@ -147,8 +184,9 @@ export function SubscriptionProvider({ children }: { children: React.ReactNode }
       loading,
       refresh,
       refreshUntilPremium,
+      syncFromStore,
     }),
-    [tier, expiresAt, loading, refresh, refreshUntilPremium]
+    [tier, expiresAt, loading, refresh, refreshUntilPremium, syncFromStore]
   );
 
   return <SubscriptionContext.Provider value={value}>{children}</SubscriptionContext.Provider>;

@@ -178,13 +178,21 @@ export function ProfileEditScreen() {
     return (await res.json()) as { ok?: boolean; code?: string; message?: string };
   };
 
-  const finishRoleChange = async (r: { ok?: boolean; message?: string }) => {
+  const finishRoleChange = async (r: { ok?: boolean; message?: string }, newRole: 'patient' | 'caregiver') => {
     if (!r?.ok) {
       await dialog.alert({ title: t('common.notice'), message: r?.message || t('profileEdit.roleChangeFail') });
       return;
     }
     await refreshUser();
-    await dialog.alert({ title: t('profileEdit.roleChangedTitle'), message: r.message || '' });
+    // ⚠️ 서버 메시지(r.message)를 그대로 띄우면 안 된다. 서버는 한국어 문구만 만들기 때문에
+    //   앱이 영어여도 한글이 나온다(오너 제보 2026-07-27: 'Done / 역할이 보호자로 변경됐어요').
+    //   성공 문구는 앱이 자기 언어로 만든다. 서버 메시지는 실패 시 원인 표시에만 쓴다.
+    await dialog.alert({
+      title: t('profileEdit.roleChangedTitle'),
+      message: newRole === 'patient'
+        ? t('profileEdit.roleChangedToPatient')
+        : t('profileEdit.roleChangedToCaregiver'),
+    });
   };
 
   const handleChangeRole = async () => {
@@ -201,7 +209,7 @@ export function ProfileEditScreen() {
       });
       if (!ok) return;
       setRoleChanging(true);
-      try { await finishRoleChange(await callChangeRole('patient', true)); }
+      try { await finishRoleChange(await callChangeRole('patient', true), 'patient'); }
       catch { await dialog.alert({ title: t('common.error'), message: t('profileEdit.roleChangeFail') }); }
       finally { setRoleChanging(false); }
       return;
@@ -244,7 +252,7 @@ export function ProfileEditScreen() {
     if (!ok2) return;
 
     setRoleChanging(true);
-    try { await finishRoleChange(await callChangeRole('caregiver', true)); }
+    try { await finishRoleChange(await callChangeRole('caregiver', true), 'caregiver'); }
     catch { await dialog.alert({ title: t('common.error'), message: t('profileEdit.roleChangeFail') }); }
     finally { setRoleChanging(false); }
   };

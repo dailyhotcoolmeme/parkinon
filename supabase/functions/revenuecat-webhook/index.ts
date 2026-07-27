@@ -71,6 +71,27 @@ async function groupIdOf(appUserId: string): Promise<string | null> {
   return data?.patient_group_id ?? null
 }
 
+/**
+ * 그룹이 없으면 만들어서 붙인다.
+ * 구독은 그룹 단위로 저장되는데, 그룹은 (1) 환자 온보딩 완료 (2) 가족 연동에서 초대코드 생성
+ * 두 경로에서만 만들어진다. 그래서 "보호자로 가입하고 아직 연동 안 한 사용자"나
+ * "역할만 바꾼 사용자"는 그룹이 없고, 결제해도 권한을 붙일 곳이 없어 조용히 사라진다
+ * (실측 2026-07-27: 결제는 되는데 앱은 계속 free. 웹훅은 200 으로 응답해 실패로도 안 잡힘).
+ * → 결제 시점에 그룹을 만들어 결제 유실을 막는다. 나중에 초대코드로 합류하면
+ *   join_family_by_code → _fl_move_self_into_group 이 이 그룹을 지우고 옮겨준다.
+ */
+async function ensureGroupFor(appUserId: string): Promise<string | null> {
+  // ⚠️ 여기서 직접 insert 하지 않는다 — invite_code 는 NOT NULL + UNIQUE 라 코드 생성과
+  //   충돌 재시도가 필요하다. 예전엔 insert({}) 로 시도해 항상 실패했고, 그 실패가 조용히
+  //   무시돼 결제가 유실됐다(실측 2026-07-27). DB 함수에 원자적으로 맡긴다.
+  const { data, error } = await supabase.rpc('ensure_group_for_user', { p_user_id: appUserId })
+  if (error) {
+    console.error('[revenuecat-webhook] 그룹 확보 실패:', error)
+    return null
+  }
+  return (data as string | null) ?? null
+}
+
 Deno.serve(async (req: Request) => {
   if (req.method !== 'POST') return new Response('method not allowed', { status: 405 })
 
@@ -87,8 +108,33 @@ Deno.serve(async (req: Request) => {
     return new Response('bad request', { status: 400 })
   }
 
+  // ⚠️ 들어온 이벤트와 처리 결과를 반드시 남긴다.
+  //   기록이 없으면 "결제는 됐는데 앱은 free" 같은 사고에서 어떤 이벤트가 왔는지조차
+  //   확인할 수 없어 원인 규명이 불가능하다(실측 2026-07-27: 웹훅은 200 인데 DB 는 그대로).
+  let result = 'unhandled'
+  try {
+    result = await handleEvent(body)
+  } catch (e) {
+    result = `error: ${e instanceof Error ? e.message : String(e)}`
+    console.error('[revenuecat-webhook]', e)
+  }
+  try {
+    await supabase.from('revenuecat_events').insert({
+      event_type: body?.event?.type ?? null,
+      app_user_id: body?.event?.app_user_id ?? null,
+      result,
+      payload: body,
+    })
+  } catch (e) {
+    console.error('[revenuecat-webhook] 이벤트 로그 실패:', e)
+  }
+  return new Response(result, { status: 200 })
+})
+
+/** 이벤트 처리. 반환값은 처리 결과 설명(응답 본문 겸 로그). */
+async function handleEvent(body: any): Promise<string> {
   const event = body?.event
-  if (!event) return new Response('no event', { status: 200 })
+  if (!event) return 'no event'
 
   const type: string = event.type ?? ''
   const appUserId: string = event.app_user_id ?? ''
@@ -97,7 +143,7 @@ Deno.serve(async (req: Request) => {
 
   // premium entitlement 과 무관한 이벤트는 무시.
   if (entitlementIds.length && !entitlementIds.includes(PREMIUM_ENTITLEMENT)) {
-    return new Response('ignored (other entitlement)', { status: 200 })
+    return 'ignored (other entitlement)'
   }
 
   // ── TRANSFER: 구독이 다른 App User ID 로 이전됨 ─────────────────────────────
@@ -124,7 +170,9 @@ Deno.serve(async (req: Request) => {
     // 넘겨받은 쪽: 현재 권한을 조회해 그대로 반영. 조회 실패 시 아무것도 하지 않는다
     // (곧 오는 RENEWAL 이 바로잡는다 — 잘못된 값을 쓰는 것보다 낫다).
     for (const uid of toIds) {
-      const gid = await groupIdOf(uid)
+      // 넘겨받는 쪽에 그룹이 없으면 만들어서 붙인다. 없다고 건너뛰면 구독이 갈 곳을 잃는다
+      // (실측 2026-07-27: RevenueCat 은 이전됐는데 DB 는 그룹이 없어 프리미엄이 안 붙음).
+      const gid = await ensureGroupFor(uid)
       if (!gid) continue
       const state = await fetchPremiumState(uid)
       if (!state || !state.active) continue
@@ -138,19 +186,18 @@ Deno.serve(async (req: Request) => {
         })
         .eq('id', gid)
     }
-    return new Response(`transfer handled (from=${fromIds.length}, to=${toIds.length})`, { status: 200 })
+    return `transfer handled (from=${fromIds.length}, to=${toIds.length})`
   }
 
-  if (!appUserId) return new Response('no app_user_id', { status: 200 })
+  if (!appUserId) return 'no app_user_id'
 
   // 구매자 → 그룹 찾기.
-  const { data: userRow } = await supabase
-    .from('users')
-    .select('patient_group_id')
-    .eq('id', appUserId)
-    .maybeSingle()
-  const groupId = userRow?.patient_group_id
-  if (!groupId) return new Response('no group for user', { status: 200 })
+  // 활성화 이벤트인데 그룹이 없으면 만들어서 붙인다(결제 유실 방지).
+  // 그 외 이벤트(만료·해지 등)는 붙일 대상이 없으면 할 일도 없으므로 그냥 종료.
+  const groupId = ACTIVATE_TYPES.has(type)
+    ? await ensureGroupFor(appUserId)
+    : await groupIdOf(appUserId)
+  if (!groupId) return 'no group for user'
 
   const nowIso = new Date().toISOString()
 
@@ -172,19 +219,40 @@ Deno.serve(async (req: Request) => {
   if (ACTIVATE_TYPES.has(type)) {
     // 이미 더 나중 기간이 반영돼 있으면(늦게 도착한 옛 활성 이벤트) 무시.
     if (storedMs && eventMs && eventMs < storedMs) {
-      return new Response('stale activation ignored', { status: 200 })
+      return 'stale activation ignored'
     }
     const expiresIso = expirationMs ? new Date(expirationMs).toISOString() : null
+    // 스토어 구독 식별자. 기기·계정 이전(TRANSFER) 후에도 같은 값이 유지되므로,
+    // "이 구독이 지금 어느 그룹에 붙어 있는지"를 이걸로 추적한다.
+    const txnId: string | null = event.original_transaction_id ?? event.transaction_id ?? null
+
     await supabase
       .from('patient_groups')
       .update({
         subscription_tier: 'premium',
         subscription_expires_at: expiresIso,
         subscription_payer_user_id: appUserId,
+        subscription_original_txn_id: txnId,
         revenuecat_synced_at: nowIso,
       })
       .eq('id', groupId)
-    return new Response('activated', { status: 200 })
+
+    // ⚠️ 같은 구독이 다른 그룹에 남아 있으면 내린다.
+    //   계정을 옮겨 복원하면 새 그룹은 premium 이 되는데 옛 그룹이 그대로 남아,
+    //   구독 하나로 두 그룹이 프리미엄을 쓰는 상태가 됐다(실측 2026-07-27).
+    //   TRANSFER 이벤트 유무와 무관하게 활성화 시점에 정리하므로 경로에 상관없이 막힌다.
+    if (txnId) {
+      await supabase
+        .from('patient_groups')
+        .update({
+          subscription_tier: 'free',
+          subscription_expires_at: null,
+          revenuecat_synced_at: nowIso,
+        })
+        .eq('subscription_original_txn_id', txnId)
+        .neq('id', groupId)
+    }
+    return 'activated'
   }
 
   // ── 결제 실패(유예기간) · 해지 예약 ────────────────────────────────────────
@@ -195,6 +263,25 @@ Deno.serve(async (req: Request) => {
   //    (실측 2026-07-27: Google=IN_GRACE_PERIOD 인데 앱은 결제창 노출).
   //  · CANCELLATION(UNSUBSCRIBE): 자동갱신만 끈 것. 기간 끝까지 유지가 맞다.
   // 어느 경우도 강등하지 않는다. 실제 접근 종료는 EXPIRATION 이 판단한다.
+  //
+  // ⚠️ 단, CANCELLATION 을 사유 구분 없이 "유지"로 처리하면 안 된다.
+  //   환불(CUSTOMER_SUPPORT)·개발자 해지(DEVELOPER_INITIATED)도 같은 타입으로 오는데,
+  //   이때 만료일을 세우면 이미 환불된 구독이 다시 premium 으로 살아난다
+  //   (실측 2026-07-27: free 로 내린 직후 웹훅이 premium 으로 되돌림 — 오너 발견).
+  //   접근을 유지해야 하는 사유만 화이트리스트로 둔다.
+  const KEEP_ACCESS_CANCEL_REASONS = new Set([
+    'UNSUBSCRIBE',      // 사용자가 자동갱신만 끔 → 남은 기간 유지
+    'BILLING_ERROR',    // 결제 실패 → 유예기간 동안 유지
+    'PRICE_INCREASE',   // 가격 인상 미동의 → 현 기간 끝까지 유지
+  ])
+  const cancelReason: string = event.cancel_reason ?? ''
+  const keepAccess = type === 'BILLING_ISSUE' || KEEP_ACCESS_CANCEL_REASONS.has(cancelReason)
+
+  if (type === 'CANCELLATION' && !keepAccess) {
+    // 환불·개발자 해지 등 → 유지하지 않는다. 만료 판단은 EXPIRATION 에 맡긴다.
+    return `cancellation (${cancelReason || 'unknown'}): no access grant`
+  }
+
   if (type === 'BILLING_ISSUE' || type === 'CANCELLATION') {
     if (eventMs && eventMs > storedMs) {
       await supabase
@@ -205,19 +292,19 @@ Deno.serve(async (req: Request) => {
           revenuecat_synced_at: nowIso,
         })
         .eq('id', groupId)
-      return new Response('access kept, expiry refreshed', { status: 200 })
+      return 'access kept, expiry refreshed'
     }
-    return new Response('access kept, no expiry change', { status: 200 })
+    return 'access kept, no expiry change'
   }
 
   if (type === 'EXPIRATION') {
     // 이 만료 이벤트가 "이미 갱신된 더 나중 기간"보다 과거면 지난 기간 것 → 강등하지 않는다.
     if (storedMs && eventMs && eventMs < storedMs) {
-      return new Response('stale expiration ignored', { status: 200 })
+      return 'stale expiration ignored'
     }
     // 저장된 만료일이 아직 미래면(= 유효한 구독이 살아 있음) 역시 강등하지 않는다.
     if (storedMs > Date.now()) {
-      return new Response('still active, expiration ignored', { status: 200 })
+      return 'still active, expiration ignored'
     }
     // ⚠️ 갱신 진행 중일 수 있는 구간은 강등하지 않는다.
     //   갱신은 "이전 기간 EXPIRATION → 새 기간 RENEWAL" 순서로 오고 그 사이에 공백이 있다.
@@ -225,7 +312,7 @@ Deno.serve(async (req: Request) => {
     //   (오너 실측 2026-07-27: 체험 종료 직후 20초). RENEWAL 이 곧 도착해 premium 을 재확정하고,
     //   진짜 해지된 구독은 만료일이 지난 채로 남아 앱이 자체 유예(RENEWAL_GRACE) 후 free 로 본다.
     if (eventMs && Date.now() - eventMs < RENEWAL_GRACE_MS) {
-      return new Response('renewal in flight, expiration deferred', { status: 200 })
+      return 'renewal in flight, expiration deferred'
     }
     await supabase
       .from('patient_groups')
@@ -244,9 +331,9 @@ Deno.serve(async (req: Request) => {
     } catch (e) {
       console.error('[revenuecat-webhook] reset_group_custom_sounds 실패:', e)
     }
-    return new Response('expired', { status: 200 })
+    return 'expired'
   }
 
   // CANCELLATION(기간 끝까지 유지)·BILLING_ISSUE(유예)·TEST 등은 상태 변경 없음.
-  return new Response('no-op', { status: 200 })
-})
+  return 'no-op'
+}

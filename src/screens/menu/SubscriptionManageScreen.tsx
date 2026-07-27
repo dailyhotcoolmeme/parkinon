@@ -50,7 +50,7 @@ const HERO_SYMBOL = require('../../../assets/parkinon-symbol-en.png');
 
 export function SubscriptionManageScreen() {
   const { t } = useTranslation();
-  const { isPremium, refresh, refreshUntilPremium } = useSubscription();
+  const { isPremium, refresh, refreshUntilPremium, syncFromStore } = useSubscription();
   // 화면에 들어올 때마다 재조회 — 구독 상태는 서버 webhook 이 바꾸므로 앱 안에서만 있으면
   // 갱신 계기가 없다(오너 제보 2026-07-27: 구매 후 다른 화면 갔다 와도 free 그대로).
   useFocusEffect(
@@ -124,10 +124,10 @@ export function SubscriptionManageScreen() {
     const { ok, cancelled } = await purchasePackage(pkg);
     if (cancelled) { setBusy(false); return; }
     if (ok) {
-      // ⚠️ 한 번만 조회하면 안 된다. 구매 성공 시점엔 RevenueCat webhook 이 아직
-      //   patient_groups 를 안 바꿨을 수 있어 free 를 읽고 화면이 그대로 굳는다.
-      //   premium 이 잡힐 때까지 재조회(최대 20초). 로딩 표시는 그동안 유지.
-      await refreshUntilPremium();
+      // ⚠️ 한 번만 조회하면 안 된다. 구매 성공 시점엔 서버가 아직 patient_groups 를
+      //   안 바꿨을 수 있어 free 를 읽고 화면이 그대로 굳는다.
+      //   서버에 즉시 확정을 요청하고(수 초), 그래도 안 잡히면 webhook 반영을 잠깐 기다린다.
+      if (!(await syncFromStore())) await refreshUntilPremium(10000);
       setBusy(false);
       dialog.alert({ title: t('subscription.purchaseDoneTitle'), message: t('subscription.purchaseDoneMsg') });
     } else {
@@ -150,12 +150,26 @@ export function SubscriptionManageScreen() {
       dialog.alert({ title: t('subscription.comingSoonTitle'), message: t('subscription.comingSoonMsg') });
       return;
     }
+    // 누르는 즉시 실행되면 실수로 눌렀을 때 되돌릴 수 없다(오너 지적 2026-07-27).
+    // 결제가 새로 발생하지 않는다는 점을 함께 안내하고 확인을 받는다.
+    const proceed = await dialog.confirm({
+      title: t('subscription.restoreConfirmTitle'),
+      message: t('subscription.restoreConfirmMsg'),
+      confirmText: t('subscription.restoreConfirmOk'),
+      cancelText: t('common.cancel'),
+    });
+    if (!proceed) return;
+
     setBusy(true);
     const ok = await restorePurchases();
+    // ⚠️ "복원됨" 팝업은 RevenueCat 기준이고 화면은 DB 기준이라, 서버를 맞추지 않으면
+    //   둘이 서로 다른 말을 한다(오너 제보 2026-07-27: 복원 성공인데 화면은 free).
+    //   복원은 특히 webhook 이 아예 안 오는 경우가 있다 — 그 계정이 이미 권한을 갖고 있으면
+    //   RevenueCat 입장에선 바뀐 게 없어 보낼 이벤트가 없다. 그래서 서버에 직접 확정시킨다.
+    const premium = ok ? await syncFromStore() : await (async () => { await refresh(); return false; })();
     setBusy(false);
-    await refresh();
     dialog.alert(
-      ok
+      premium
         ? { title: t('subscription.restoreDoneTitle'), message: t('subscription.restoreDoneMsg') }
         : { title: t('subscription.restoreNoneTitle'), message: t('subscription.restoreNoneMsg') },
     );
@@ -521,6 +535,10 @@ const styles = StyleSheet.create({
   // 결제 처리 중 전체화면 차단 오버레이 (TopBar 포함 전 영역).
   processingOverlay: {
     ...StyleSheet.absoluteFillObject,
+    // 안드로이드는 elevation 이 큰 형제 뷰가 위로 올라온다. TopBar(뒤로가기)까지 확실히
+    // 덮으려면 zIndex + elevation 을 함께 올려야 한다(오너 확인 2026-07-27: 상단바 미차단).
+    zIndex: 100,
+    elevation: 24,
     backgroundColor: 'rgba(0,0,0,0.45)',
     alignItems: 'center',
     justifyContent: 'center',
