@@ -310,6 +310,20 @@ export function SubscriptionManageScreen() {
           </>
         )}
       </ScrollView>
+
+      {/* 결제 처리 중 전체화면 차단.
+          구매 성공 후 webhook 반영까지 최대 20초를 기다리는데, 버튼 안 스피너만 돌면
+          화면이 멀쩡해 보여 다른 곳을 누르거나 뒤로 나갈 수 있다(오너 지적 2026-07-27).
+          그 사이 이탈하면 프리미엄 전환을 못 보고 나가게 되므로 화면 전체를 막는다.
+          TopBar 까지 덮도록 SafeAreaView 최상위에 절대배치한다. */}
+      {busy && (
+        <View style={styles.processingOverlay}>
+          <View style={styles.processingCard}>
+            <ActivityIndicator size="large" color={Colors.primary} />
+            <Text style={styles.processingText}>{t('subscription.processingMsg')}</Text>
+          </View>
+        </View>
+      )}
     </SafeAreaView>
   );
 }
@@ -503,4 +517,29 @@ const styles = StyleSheet.create({
   },
   manageBtnText: { fontSize: 16, fontWeight: '700', color: Colors.text },
   manageHint: { fontSize: 13, color: Colors.textSub, textAlign: 'center', lineHeight: 19, marginTop: -4 },
+
+  // 결제 처리 중 전체화면 차단 오버레이 (TopBar 포함 전 영역).
+  processingOverlay: {
+    ...StyleSheet.absoluteFillObject,
+    backgroundColor: 'rgba(0,0,0,0.45)',
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingHorizontal: 32,
+  },
+  processingCard: {
+    backgroundColor: Colors.white,
+    borderRadius: 20,
+    paddingVertical: 32,
+    paddingHorizontal: 28,
+    alignItems: 'center',
+    gap: 18,
+    minWidth: 240,
+  },
+  processingText: {
+    fontSize: 18,
+    fontWeight: '600',
+    color: Colors.text,
+    textAlign: 'center',
+    lineHeight: 26,
+  },
 });
