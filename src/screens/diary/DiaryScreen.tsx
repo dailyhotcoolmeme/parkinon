@@ -1198,6 +1198,7 @@ function FullscreenVideoModal({
   onClose,
   insetTop,
   insetBottom,
+  inline = false,
 }: {
   url: string;
   onClose: () => void;
@@ -1205,6 +1206,10 @@ function FullscreenVideoModal({
   // 윈도우라 내부 useSafeAreaInsets() 의 bottom 이 0/부정확 → 부모에서 받아 쓴다.
   insetTop: number;
   insetBottom: number;
+  // 이미 <Modal> 안(=일기 작성기)에서 열릴 때 true. iOS 모달-위-모달 프리즈를 피하려고
+  // <Modal> 대신 절대배치 오버레이로 렌더한다. 리스트 안에서 열리는 경우(기본 false)는
+  // 부모가 화면 전체가 아니라 오버레이가 화면을 못 덮으므로 기존 <Modal> 을 유지한다.
+  inline?: boolean;
 }) {
   const { t } = useTranslation();
   // 모달 밖에서 받은 inset 신뢰. 안드에서 0 으로 떨어지면 내비바 높이 추정으로 보강.
@@ -1246,6 +1251,41 @@ function FullscreenVideoModal({
     onClose();
   };
 
+  // RN <Modal> 은 안드에서 별도 윈도우라 내부 inset 이 0/부정확.
+  // → 부모(모달 밖)에서 받은 insetTop/insetBottom 을 직접 쓴다.
+  // navigationBarTranslucent={false} 로 모달 윈도우가 내비바를 침범하지 않게 해
+  // 영상·네이티브 컨트롤(스크러버)이 안드 3버튼 내비바에 가리지 않게 한다.
+  const body = (
+    <View style={[styles.videoModalBg, { paddingBottom: bottomPad }]}>
+      <View style={[styles.videoModalHeader, { paddingTop: insetTop }]}>
+        <TouchableOpacity style={styles.videoCloseBtn} onPress={handleClose} activeOpacity={0.8}>
+          <Ionicons name="close" size={26} color="#fff" />
+          <Text style={styles.videoCloseText}>{t('diary.videoCloseBtn')}</Text>
+        </TouchableOpacity>
+      </View>
+      {/* finalUrl 해결 전 스피너, 해결되면 AVVideo 마운트.
+          shouldPlay 로 자동재생 보장, useNativeControls 가 재생바·시킹 제공.
+          useNativeControls 특성상 우측 하단 "전체화면" 버튼이 노출되나 재생 우선으로 감수. */}
+      {finalUrl ? (
+        <AVVideo
+          ref={videoRef}
+          source={{ uri: finalUrl }}
+          useNativeControls
+          shouldPlay
+          resizeMode={ResizeMode.CONTAIN}
+          style={styles.fullscreenVideo}
+        />
+      ) : (
+        <View style={[styles.fullscreenVideo, styles.videoLoadingBox]}>
+          <ActivityIndicator size="large" color="#fff" />
+        </View>
+      )}
+    </View>
+  );
+
+  // inline=true → 이미 <Modal> 안이라 오버레이로 렌더(iOS 모달 중첩 프리즈 회피).
+  if (inline) return <View style={styles.sheetOverlay}>{body}</View>;
+
   return (
     <Modal
       visible
@@ -1255,35 +1295,7 @@ function FullscreenVideoModal({
       navigationBarTranslucent={false}
       onRequestClose={handleClose}
     >
-      {/* RN <Modal> 은 안드에서 별도 윈도우라 내부 inset 이 0/부정확.
-          → 부모(모달 밖)에서 받은 insetTop/insetBottom 을 직접 쓴다.
-          navigationBarTranslucent={false} 로 모달 윈도우가 내비바를 침범하지 않게 해
-          영상·네이티브 컨트롤(스크러버)이 안드 3버튼 내비바에 가리지 않게 한다. */}
-      <View style={[styles.videoModalBg, { paddingBottom: bottomPad }]}>
-        <View style={[styles.videoModalHeader, { paddingTop: insetTop }]}>
-          <TouchableOpacity style={styles.videoCloseBtn} onPress={handleClose} activeOpacity={0.8}>
-            <Ionicons name="close" size={26} color="#fff" />
-            <Text style={styles.videoCloseText}>{t('diary.videoCloseBtn')}</Text>
-          </TouchableOpacity>
-        </View>
-        {/* finalUrl 해결 전 스피너, 해결되면 AVVideo 마운트.
-            shouldPlay 로 자동재생 보장, useNativeControls 가 재생바·시킹 제공.
-            useNativeControls 특성상 우측 하단 "전체화면" 버튼이 노출되나 재생 우선으로 감수. */}
-        {finalUrl ? (
-          <AVVideo
-            ref={videoRef}
-            source={{ uri: finalUrl }}
-            useNativeControls
-            shouldPlay
-            resizeMode={ResizeMode.CONTAIN}
-            style={styles.fullscreenVideo}
-          />
-        ) : (
-          <View style={[styles.fullscreenVideo, styles.videoLoadingBox]}>
-            <ActivityIndicator size="large" color="#fff" />
-          </View>
-        )}
-      </View>
+      {body}
     </Modal>
   );
 }
@@ -2147,13 +2159,15 @@ function DiaryEditorModal({ visible, dateStr, patientId, existing, onClose, onSa
           </View>
         </KeyboardAvoidingView>
 
-        {/* 첨부 영상 미리보기 (풀스크린) — 로컬 신규 uri 우선, 없으면 기존 url */}
+        {/* 첨부 영상 미리보기 (풀스크린) — 로컬 신규 uri 우선, 없으면 기존 url
+            inline: 이 에디터가 이미 <Modal> 이라 중첩 금지(iOS 프리즈) */}
         {showVideoPreview && (newVideoUri || existingVideoUrl) && (
           <FullscreenVideoModal
             url={(newVideoUri ?? existingVideoUrl) as string}
             onClose={() => setShowVideoPreview(false)}
             insetTop={parentInsetTop}
             insetBottom={parentInsetBottom}
+            inline
           />
         )}
 
@@ -2163,6 +2177,7 @@ function DiaryEditorModal({ visible, dateStr, patientId, existing, onClose, onSa
             urls={editorPhotoKeys}
             initialFullscreenIndex={photoViewerIndex}
             onClose={() => setPhotoViewerIndex(null)}
+            inline
           />
         )}
 
@@ -2258,8 +2273,15 @@ function RecordSheet({
   const mm = String(Math.floor(seconds / 60)).padStart(2, '0');
   const ss = String(seconds % 60).padStart(2, '0');
 
+  // ⚠️ RN <Modal> 을 쓰지 않는다. 이 시트는 <Modal> 인 DiaryEditorModal 안에서 열리는데,
+  //    iOS 는 Modal 을 별도 UIViewController 로 띄워서 모달 위에 모달을 겹치면 바깥 모달의
+  //    표시 애니메이션과 충돌해 시트가 안 올라오고 터치가 먹통이 된다(=앱이 멈춘 것처럼 보임).
+  //    안드는 별도 윈도우라 증상이 없어 iOS 에서만 재현됐다(오너 제보 2026-07-28).
+  //    → 부모 트리 안의 절대배치 오버레이로 렌더한다(savingOverlay 와 동일 방식).
+  if (!visible) return null;
+
   return (
-    <Modal visible={visible} transparent animationType="fade" statusBarTranslucent onRequestClose={onClose}>
+    <View style={styles.sheetOverlay} pointerEvents="box-none">
       <TouchableOpacity style={styles.recSheetBackdrop} activeOpacity={1} onPress={onClose} />
       <View style={styles.recSheetContainer} pointerEvents="box-none">
         <Animated.View
@@ -2301,7 +2323,7 @@ function RecordSheet({
           )}
         </Animated.View>
       </View>
-    </Modal>
+    </View>
   );
 }
 
@@ -2347,8 +2369,11 @@ function AttachSheet({
     return () => sub.remove();
   }, [visible, onClose]);
 
+  // ⚠️ RecordSheet 와 동일 — <Modal> 중첩 금지(iOS 모달-위-모달 프리즈). 오버레이로 렌더.
+  if (!visible) return null;
+
   return (
-    <Modal visible={visible} transparent animationType="fade" statusBarTranslucent onRequestClose={onClose}>
+    <View style={styles.sheetOverlay} pointerEvents="box-none">
       <TouchableOpacity style={styles.recSheetBackdrop} activeOpacity={1} onPress={onClose} />
       <View style={styles.recSheetContainer} pointerEvents="box-none">
         <Animated.View
@@ -2372,7 +2397,7 @@ function AttachSheet({
           </TouchableOpacity>
         </Animated.View>
       </View>
-    </Modal>
+    </View>
   );
 }
 
@@ -3303,6 +3328,13 @@ const styles = StyleSheet.create({
   savingRow: { flexDirection: 'row', alignItems: 'center', gap: 10 },
 
   // ── 음성 녹음 안내 바텀시트 (안내 → 녹음중 → 정지) ──
+  // 바텀시트 오버레이 — RN <Modal> 중첩 대신 부모 트리 안에서 전체를 덮는다.
+  // (iOS 모달-위-모달 프리즈 회피. zIndex/elevation 으로 형제 요소 위에 올린다.)
+  sheetOverlay: {
+    ...StyleSheet.absoluteFillObject,
+    zIndex: 50,
+    elevation: 50,
+  },
   recSheetBackdrop: {
     ...StyleSheet.absoluteFillObject,
     backgroundColor: 'rgba(0,0,0,0.5)',

@@ -198,6 +198,9 @@ function VideoPreview({ uri, isPlaying, onPreviewPress, durationSeconds }: Video
   }, [isPlaying]);
 
   // 재생 중 폴링
+  // ⚠️ 남은 시간은 "정지 중에 보이던 길이"를 절대 넘지 않게 상한을 건다.
+  //    실제 길이가 22.6초면 Math.round(22.6)=23 이 되어, 저장값 22 를 보고 있던 사용자에게
+  //    재생 시작 순간 0:22 → 0:23 으로 1초 늘었다가 줄어드는 것처럼 보였다(오너 제보 2026-07-28).
   useEffect(() => {
     if (!isPlaying) return;
     const interval = setInterval(() => {
@@ -205,12 +208,13 @@ function VideoPreview({ uri, isPlaying, onPreviewPress, durationSeconds }: Video
         const pos = player.currentTime ?? 0;
         const dur = player.duration ?? 0;
         if (dur > 0) {
-          setRemainingSec(Math.max(0, Math.round(dur - pos)));
+          const cap = storedSec ?? metaSec ?? Math.round(dur);
+          setRemainingSec(Math.max(0, Math.min(cap, Math.round(dur - pos))));
         }
       } catch (_) {}
     }, 500);
     return () => clearInterval(interval);
-  }, [isPlaying]);
+  }, [isPlaying, storedSec, metaSec]);
 
   function formatRemaining(sec: number): string {
     const m = Math.floor(sec / 60);
