@@ -428,6 +428,10 @@ export function MenuScreen() {
     // 탈퇴 흐름 표시 — 세션이 잠깐 남은 채 인증흐름이 재실행돼도 온보딩 프로필을 새로 만들지 않게(→ 로그인으로).
     setWithdrawing(true);
     setDeleting(true);
+    // ⚠️ 서버 삭제(=되돌릴 수 없는 지점)까지만 try 로 감싼다.
+    //    이후 정리(로그아웃)까지 같은 try 에 두면, 계정은 이미 지워졌는데 로그아웃에서
+    //    예외가 났을 때 "실패했으니 다시 시도하라"는 안내가 떠서 사용자를 오도한다
+    //    (다시 눌러도 세션이 죽어 401 → 또 실패). 삭제 성공 여부와 정리 실패를 분리한다.
     try {
       // 세션 토큰 확보
       const { data: { session } } = await supabase.auth.getSession();
@@ -451,21 +455,28 @@ export function MenuScreen() {
         console.error('[handleWithdraw] edge function 오류:', res.status, body);
         throw new Error('account deletion failed');
       }
-
-      // 계정 삭제 성공 → "먼저" 로그아웃해 즉시 로그인 화면으로 보낸다(홈에 잔류/온보딩 오탈출 방지).
-      //   signOut 이 user=null 로 만들고 withdrawing 플래그도 해제한다.
-      setDeleting(false);
-      await signOut();
-      // 로그인 화면 위로 완료 안내(블로킹 X).
-      dialog.alert({
-        title: t('menu.withdrawDoneTitle'),
-        message: t('menu.withdrawDoneMsg'),
-      });
     } catch (e: any) {
+      // 여기까지의 실패 = 계정이 아직 살아있음 → 재시도 안내가 맞다.
       setWithdrawing(false); // 실패 시 플래그 원복
       setDeleting(false);
       dialog.alert({ title: t('common.error'), message: t('menu.withdrawErrorMsg') });
+      return;
     }
+
+    // 여기부터는 서버에서 계정이 지워진 뒤다 — 무슨 일이 있어도 "완료"로 끝낸다.
+    // 로그아웃해 즉시 로그인 화면으로 보낸다(홈에 잔류/온보딩 오탈출 방지).
+    //   signOut 이 user=null 로 만들고 withdrawing 플래그도 해제한다.
+    setDeleting(false);
+    try {
+      await signOut();
+    } catch (e) {
+      console.error('[handleWithdraw] 삭제 성공 후 로그아웃 실패:', e);
+    }
+    // 로그인 화면 위로 완료 안내(블로킹 X).
+    dialog.alert({
+      title: t('menu.withdrawDoneTitle'),
+      message: t('menu.withdrawDoneMsg'),
+    });
   };
 
   return (
