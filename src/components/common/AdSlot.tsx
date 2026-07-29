@@ -10,6 +10,8 @@ import { View, Text, Image, StyleSheet, TouchableOpacity } from 'react-native';
 import { useTranslation } from 'react-i18next';
 import { useSubscription } from '../../context/SubscriptionContext';
 import { isOverseasLocale } from '../../i18n/detectLocale';
+// 광고 SDK 가 준 문구는 우리가 번역할 수 없다 — 검수 대상에서 뺀다.
+import { I18N_IGNORE } from '../../i18n/textHook';
 import { getAdUnitId, FORCE_TEST_ADS, type AdPlacement } from '../../constants/adUnitIds';
 import { navigateTo } from '../../navigation/navigationRef';
 import { Colors } from '../../constants/colors';
@@ -80,19 +82,19 @@ export function AdSlot({ placement }: { placement: AdPlacement }) {
               <View style={styles.headlineRow}>
                 <Text style={styles.adBadge}>{t('ads.sponsored')}</Text>
                 <NativeAsset assetType={NativeAssetType.HEADLINE}>
-                  <Text style={styles.headline} numberOfLines={1}>{nativeAd.headline}</Text>
+                  <Text style={styles.headline} numberOfLines={1} {...I18N_IGNORE}>{nativeAd.headline}</Text>
                 </NativeAsset>
               </View>
               {!!nativeAd.body && (
                 <NativeAsset assetType={NativeAssetType.BODY}>
-                  <Text style={styles.body} numberOfLines={2}>{nativeAd.body}</Text>
+                  <Text style={styles.body} numberOfLines={2} {...I18N_IGNORE}>{nativeAd.body}</Text>
                 </NativeAsset>
               )}
             </View>
             {!!nativeAd.callToAction && (
               <NativeAsset assetType={NativeAssetType.CALL_TO_ACTION}>
                 <View style={styles.cta}>
-                  <Text style={styles.ctaText} numberOfLines={1}>{nativeAd.callToAction}</Text>
+                  <Text style={styles.ctaText} numberOfLines={1} {...I18N_IGNORE}>{nativeAd.callToAction}</Text>
                 </View>
               </NativeAsset>
             )}

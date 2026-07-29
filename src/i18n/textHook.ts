@@ -21,6 +21,13 @@ import type { LayoutChangeEvent, NativeSyntheticEvent, TextLayoutEventData } fro
 const devRuntime = require('react/jsx-dev-runtime') as Record<string, unknown>;
 const prodRuntime = require('react/jsx-runtime') as Record<string, unknown>;
 
+/**
+ * 이 표시가 달린 <Text> 는 검수 대상에서 뺀다.
+ * 광고 SDK 가 준 문자열처럼 **우리가 번역할 수 없는 외부 문구**만 해당한다.
+ * 우리 문구에 붙이면 검수를 우회하는 것이므로 붙이지 않는다(붙은 자리는 grep 로 다 보인다).
+ */
+export const I18N_IGNORE = { testID: 'i18n-ignore' } as const;
+
 export type OverflowInfo = {
   text: string;
   lineWidth: number;
@@ -109,7 +116,7 @@ function install(): void {
     const orig = original as (...a: unknown[]) => unknown;
     mod[name] = function hooked(...args: unknown[]) {
       try {
-        if (args[0] === Text) {
+        if (args[0] === Text && (args[1] as { testID?: string } | null)?.testID !== I18N_IGNORE.testID) {
           const props = (args[1] ?? {}) as Record<string, unknown>;
           if (textListeners.length) {
             const parts: string[] = [];

@@ -10,68 +10,31 @@
  *   AsyncStorage['__QA_WALK__'] = '1'
  *   → scripts/qa-run.mjs 가 대신 해준다.
  *
+ * 케이스 목록은 여기에 없다:
+ *   qa/cases.json (scripts/qa-cases-gen.mjs 가 코드에서 생성)을 그대로 따른다.
+ *   내가 손으로 적은 목록은 내가 아는 만큼만 커진다 — 그래서 소스를 분리했다.
+ *
  * 한계(정직하게):
- *   이 순회는 "화면 진입"까지만 커버한다. 버튼을 눌러야 뜨는 팝업·오류·완료 문구는
- *   안 뜬다. 그건 리포트의 '미노출 키' 목록으로 남고, 시나리오로 따로 처리한다.
- *   즉 이 파일이 커버리지 100% 를 주장하지 않는다 — 남은 몫을 명단으로 넘긴다.
+ *   여기서 도는 것은 entry.how === 'navigate' 인 화면 케이스뿐이다.
+ *   팝업·알림·데이터 상태 케이스는 돌지 않으며, 리포트에 '미실행'으로 남는다.
+ *   이 파일이 커버리지를 주장하지 않는다 — 안 한 것이 명단에 남게 하는 게 목적이다.
  */
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { navigationRef } from '../navigation/navigationRef';
 import { qaMark } from './qaProbe';
+import casesFile from '../../qa/cases.json';
 
-type Step = { route: string; params?: object; note?: string };
+type NavEntry = { how: string; route?: string; params?: object; note?: string };
+type QaCase = {
+  id: string;
+  kind: string;
+  title: string;
+  entry: NavEntry;
+  excluded: { reason: string; approved: string } | null;
+};
 
-/**
- * 순회 대상. 오너 결정으로 제외한 것:
- *   Measurement 계열·ReactionGame·TapGame — 측정 기능(재오픈 시점에 처리)
- *   ExerciseVideo 계열                    — 운동 영상은 국내 전용
- *   Feed·Post 계열                        — 해외 빌드에서 탭 자체가 마운트되지 않음
- */
-const STEPS: Step[] = [
-  // 탭 자체
-  { route: 'Main', params: { screen: 'Medication' }, note: '약 복용 탭' },
-  { route: 'Main', params: { screen: 'BodyStateTab', params: { screen: 'BodyState' } }, note: '몸 상태 탭' },
-  { route: 'Main', params: { screen: 'Exercise', params: { screen: 'ExerciseMain' } }, note: '운동 탭' },
-  { route: 'Main', params: { screen: 'OverseasMedTab' }, note: '해외 약/알림 탭' },
-  { route: 'Main', params: { screen: 'MyInfo', params: { screen: 'MenuHome' } }, note: '메뉴' },
-
-  // 몸 상태 스택
-  { route: 'Main', params: { screen: 'BodyStateTab', params: { screen: 'VideoRecord' } } },
-  { route: 'Main', params: { screen: 'BodyStateTab', params: { screen: 'VideoList' } } },
-
-  // 운동 스택
-  { route: 'Main', params: { screen: 'Exercise', params: { screen: 'ExerciseRecord' } } },
-  { route: 'Main', params: { screen: 'Exercise', params: { screen: 'ExerciseDuration', params: { exerciseType: 'walk' } } } },
-
-  // 메뉴 스택
-  { route: 'Main', params: { screen: 'MyInfo', params: { screen: 'Records' } } },
-  { route: 'Main', params: { screen: 'MyInfo', params: { screen: 'RecordDetail', params: { type: 'medication' } } }, note: '약 복용' },
-  { route: 'Main', params: { screen: 'MyInfo', params: { screen: 'RecordDetail', params: { type: 'bodyState' } } }, note: '몸 상태' },
-  { route: 'Main', params: { screen: 'MyInfo', params: { screen: 'RecordDetail', params: { type: 'mood' } } }, note: '기분' },
-  { route: 'Main', params: { screen: 'MyInfo', params: { screen: 'RecordDetail', params: { type: 'sleep' } } }, note: '수면' },
-  { route: 'Main', params: { screen: 'MyInfo', params: { screen: 'RecordDetail', params: { type: 'constipation' } } }, note: '변비' },
-  { route: 'Main', params: { screen: 'MyInfo', params: { screen: 'RecordDetail', params: { type: 'exercise' } } }, note: '운동' },
-  { route: 'Main', params: { screen: 'MyInfo', params: { screen: 'Settings' } } },
-  { route: 'Main', params: { screen: 'MyInfo', params: { screen: 'AlarmSoundSettings' } } },
-  { route: 'Main', params: { screen: 'MyInfo', params: { screen: 'RecordSound' } } },
-  { route: 'Main', params: { screen: 'MyInfo', params: { screen: 'NotificationHistory' } } },
-  { route: 'Main', params: { screen: 'MyInfo', params: { screen: 'MedicationManage', params: { mode: 'meds' } } } }, // 약 목록
-  { route: 'Main', params: { screen: 'MyInfo', params: { screen: 'MedicationManage', params: { mode: 'slots' } } } }, // 복용 시간대
-  { route: 'Main', params: { screen: 'MyInfo', params: { screen: 'MedTimeOnboarding' } } },
-  { route: 'Main', params: { screen: 'MyInfo', params: { screen: 'FamilyLink' } } },
-  { route: 'Main', params: { screen: 'MyInfo', params: { screen: 'ProfileEdit' } } },
-  { route: 'Main', params: { screen: 'MyInfo', params: { screen: 'BlockedUsers' } } },
-  { route: 'Main', params: { screen: 'MyInfo', params: { screen: 'MedicalRecordList' } } },
-  { route: 'Main', params: { screen: 'MyInfo', params: { screen: 'MedicalRecordWrite' } } },
-  { route: 'Main', params: { screen: 'MyInfo', params: { screen: 'AppointmentWrite' } } },
-  { route: 'Main', params: { screen: 'MyInfo', params: { screen: 'SubscriptionManage' } } },
-  { route: 'Main', params: { screen: 'MyInfo', params: { screen: 'Terms' } } },
-  { route: 'Main', params: { screen: 'MyInfo', params: { screen: 'Privacy' } } },
-
-  // 루트 스택
-  { route: 'Diary' },
-  { route: 'NotificationHistory' },
-];
+// 생성된 케이스 목록(qa/cases.json). 새 화면이 생기면 여기 자동으로 늘어난다.
+const CASES: QaCase[] = (casesFile as { cases: QaCase[] }).cases;
 
 const DWELL_MS = 1800; // 데이터 로딩·애니메이션이 끝나고 실제 문구가 그려질 시간
 
@@ -79,7 +42,7 @@ const wait = (ms: number) => new Promise((r) => setTimeout(r, ms));
 
 async function navReady(): Promise<void> {
   for (let i = 0; i < 120; i += 1) {
-    if (navigationRef.isReady() && navigationRef.getCurrentRoute()?.name === 'Main') return;
+    if (navigationRef.isReady() && navigationRef.getCurrentRoute()?.name) return;
     await wait(500);
   }
 }
@@ -96,20 +59,17 @@ export async function maybeRunQaWalk(): Promise<void> {
 
   await navReady();
   qaMark('WALK_START');
-  for (const step of STEPS) {
+  const steps = CASES.filter((c) => !c.excluded && c.kind === 'screen' && c.entry.how === 'navigate');
+  for (const step of steps) {
     try {
-      (navigationRef.navigate as (n: string, p?: object) => void)(step.route, step.params);
+      (navigationRef.navigate as (n: string, p?: object) => void)(step.entry.route!, step.entry.params);
     } catch {
-      qaMark(`SKIP ${step.route}`);
+      qaMark(`SKIP ${step.id}`);
       continue;
     }
     await wait(DWELL_MS);
-    // 도착 라우트를 함께 남긴다. 중첩 네비게이터로 이동이 실패하면 이전 화면에
-    // 머무는데, 표식만 보면 성공한 것처럼 보이기 때문이다.
-    const landed = navigationRef.isReady() ? navigationRef.getCurrentRoute()?.name : '?';
-    qaMark(`ROUTE ${landed}${step.note ? ' / ' + step.note : ''}`);
+    qaMark(step.id);
   }
   qaMark('WALK_END');
-  // 한 번 돌면 플래그를 내린다 — 다음 실행에서 의도치 않게 또 돌지 않도록.
   try { await AsyncStorage.removeItem('__QA_WALK__'); } catch { /* 무시 */ }
 }

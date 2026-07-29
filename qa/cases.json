@@ -1,0 +1,6499 @@
+{
+  "generatedFrom": "scripts/qa-cases-gen.mjs",
+  "roles": [
+    {
+      "id": "patient",
+      "label": "환자"
+    },
+    {
+      "id": "caregiver-together",
+      "label": "보호자(함께 거주)"
+    },
+    {
+      "id": "caregiver-apart",
+      "label": "보호자(따로 거주)"
+    }
+  ],
+  "counts": {
+    "total": 313,
+    "active": 270,
+    "excluded": 43,
+    "byKind": {
+      "screen": 57,
+      "dialog": 239,
+      "notification": 14,
+      "data-state": 3
+    }
+  },
+  "cases": [
+    {
+      "id": "screen:Alarm",
+      "kind": "screen",
+      "title": "Alarm 화면 진입",
+      "roles": [
+        "patient",
+        "caregiver-together",
+        "caregiver-apart"
+      ],
+      "entry": {
+        "how": "isolated",
+        "route": "Alarm",
+        "note": "전체화면 — 이 화면만 따로 띄운다"
+      },
+      "excluded": null
+    },
+    {
+      "id": "screen:AlarmSoundSettings",
+      "kind": "screen",
+      "title": "AlarmSoundSettings 화면 진입",
+      "roles": [
+        "patient",
+        "caregiver-together",
+        "caregiver-apart"
+      ],
+      "entry": {
+        "how": "navigate",
+        "route": "Main",
+        "params": {
+          "screen": "MyInfo",
+          "params": {
+            "screen": "AlarmSoundSettings"
+          }
+        }
+      },
+      "excluded": null
+    },
+    {
+      "id": "screen:AppointmentWrite",
+      "kind": "screen",
+      "title": "AppointmentWrite 화면 진입",
+      "roles": [
+        "patient",
+        "caregiver-together",
+        "caregiver-apart"
+      ],
+      "entry": {
+        "how": "navigate",
+        "route": "Main",
+        "params": {
+          "screen": "MyInfo",
+          "params": {
+            "screen": "AppointmentWrite"
+          }
+        }
+      },
+      "excluded": null
+    },
+    {
+      "id": "screen:BlockedUsers",
+      "kind": "screen",
+      "title": "BlockedUsers 화면 진입",
+      "roles": [
+        "patient",
+        "caregiver-together",
+        "caregiver-apart"
+      ],
+      "entry": {
+        "how": "navigate",
+        "route": "Main",
+        "params": {
+          "screen": "MyInfo",
+          "params": {
+            "screen": "BlockedUsers"
+          }
+        }
+      },
+      "excluded": null
+    },
+    {
+      "id": "screen:BodyState",
+      "kind": "screen",
+      "title": "BodyState 화면 진입",
+      "roles": [
+        "patient",
+        "caregiver-together",
+        "caregiver-apart"
+      ],
+      "entry": {
+        "how": "navigate",
+        "route": "Main",
+        "params": {
+          "screen": "BodyStateTab",
+          "params": {
+            "screen": "BodyState"
+          }
+        }
+      },
+      "excluded": null
+    },
+    {
+      "id": "screen:BodyStateTab",
+      "kind": "screen",
+      "title": "BodyStateTab 화면 진입",
+      "roles": [
+        "patient",
+        "caregiver-together",
+        "caregiver-apart"
+      ],
+      "entry": {
+        "how": "navigate",
+        "route": "Main",
+        "params": {
+          "screen": "BodyStateTab"
+        }
+      },
+      "excluded": {
+        "reason": "탭 컨테이너 — BodyState 로 커버",
+        "approved": "2026-07-30"
+      }
+    },
+    {
+      "id": "screen:CaregiverInfo",
+      "kind": "screen",
+      "title": "CaregiverInfo 화면 진입",
+      "roles": [
+        "patient",
+        "caregiver-together",
+        "caregiver-apart"
+      ],
+      "entry": {
+        "how": "manual",
+        "note": "로그인/온보딩 흐름 — 신규 계정으로 처음부터 진행해야 나온다"
+      },
+      "excluded": null
+    },
+    {
+      "id": "screen:CaregiverMeasurement",
+      "kind": "screen",
+      "title": "CaregiverMeasurement 화면 진입",
+      "roles": [
+        "patient",
+        "caregiver-together",
+        "caregiver-apart"
+      ],
+      "entry": {
+        "how": "navigate",
+        "route": "CaregiverMeasurement"
+      },
+      "excluded": {
+        "reason": "측정 기능 — 재오픈 시점에 처리",
+        "approved": "2026-07-29"
+      }
+    },
+    {
+      "id": "screen:Diary",
+      "kind": "screen",
+      "title": "Diary 화면 진입",
+      "roles": [
+        "patient",
+        "caregiver-together",
+        "caregiver-apart"
+      ],
+      "entry": {
+        "how": "navigate",
+        "route": "Diary"
+      },
+      "excluded": null
+    },
+    {
+      "id": "screen:Exercise",
+      "kind": "screen",
+      "title": "Exercise 화면 진입",
+      "roles": [
+        "patient",
+        "caregiver-together",
+        "caregiver-apart"
+      ],
+      "entry": {
+        "how": "navigate",
+        "route": "Main",
+        "params": {
+          "screen": "Exercise"
+        }
+      },
+      "excluded": {
+        "reason": "탭 컨테이너 — ExerciseMain 으로 커버",
+        "approved": "2026-07-30"
+      }
+    },
+    {
+      "id": "screen:ExerciseDuration",
+      "kind": "screen",
+      "title": "ExerciseDuration 화면 진입",
+      "roles": [
+        "patient",
+        "caregiver-together",
+        "caregiver-apart"
+      ],
+      "entry": {
+        "how": "navigate",
+        "route": "Main",
+        "params": {
+          "screen": "Exercise",
+          "params": {
+            "screen": "ExerciseDuration",
+            "params": {
+              "exerciseType": "walk"
+            }
+          }
+        }
+      },
+      "excluded": null
+    },
+    {
+      "id": "screen:ExerciseMain",
+      "kind": "screen",
+      "title": "ExerciseMain 화면 진입",
+      "roles": [
+        "patient",
+        "caregiver-together",
+        "caregiver-apart"
+      ],
+      "entry": {
+        "how": "navigate",
+        "route": "Main",
+        "params": {
+          "screen": "Exercise",
+          "params": {
+            "screen": "ExerciseMain"
+          }
+        }
+      },
+      "excluded": null
+    },
+    {
+      "id": "screen:ExerciseRecord",
+      "kind": "screen",
+      "title": "ExerciseRecord 화면 진입",
+      "roles": [
+        "patient",
+        "caregiver-together",
+        "caregiver-apart"
+      ],
+      "entry": {
+        "how": "navigate",
+        "route": "Main",
+        "params": {
+          "screen": "Exercise",
+          "params": {
+            "screen": "ExerciseRecord"
+          }
+        }
+      },
+      "excluded": null
+    },
+    {
+      "id": "screen:ExerciseVideo",
+      "kind": "screen",
+      "title": "ExerciseVideo 화면 진입",
+      "roles": [
+        "patient",
+        "caregiver-together",
+        "caregiver-apart"
+      ],
+      "entry": {
+        "how": "navigate",
+        "route": "Main",
+        "params": {
+          "screen": "Exercise",
+          "params": {
+            "screen": "ExerciseVideo"
+          }
+        }
+      },
+      "excluded": {
+        "reason": "운동 영상은 국내 전용",
+        "approved": "2026-07-29"
+      }
+    },
+    {
+      "id": "screen:ExerciseVideoPlayer",
+      "kind": "screen",
+      "title": "ExerciseVideoPlayer 화면 진입",
+      "roles": [
+        "patient",
+        "caregiver-together",
+        "caregiver-apart"
+      ],
+      "entry": {
+        "how": "fixture-missing",
+        "note": "필수 params 가 있는데 값이 없다 — PARAM_FIXTURES.ExerciseVideoPlayer 를 채워야 실행된다"
+      },
+      "excluded": {
+        "reason": "운동 영상은 국내 전용",
+        "approved": "2026-07-29"
+      }
+    },
+    {
+      "id": "screen:FamilyCheck",
+      "kind": "screen",
+      "title": "FamilyCheck 화면 진입",
+      "roles": [
+        "patient",
+        "caregiver-together",
+        "caregiver-apart"
+      ],
+      "entry": {
+        "how": "manual",
+        "note": "로그인/온보딩 흐름 — 신규 계정으로 처음부터 진행해야 나온다"
+      },
+      "excluded": null
+    },
+    {
+      "id": "screen:FamilyInvite",
+      "kind": "screen",
+      "title": "FamilyInvite 화면 진입",
+      "roles": [
+        "patient",
+        "caregiver-together",
+        "caregiver-apart"
+      ],
+      "entry": {
+        "how": "manual",
+        "note": "로그인/온보딩 흐름 — 신규 계정으로 처음부터 진행해야 나온다"
+      },
+      "excluded": null
+    },
+    {
+      "id": "screen:FamilyLink",
+      "kind": "screen",
+      "title": "FamilyLink 화면 진입",
+      "roles": [
+        "patient",
+        "caregiver-together",
+        "caregiver-apart"
+      ],
+      "entry": {
+        "how": "navigate",
+        "route": "Main",
+        "params": {
+          "screen": "MyInfo",
+          "params": {
+            "screen": "FamilyLink"
+          }
+        }
+      },
+      "excluded": null
+    },
+    {
+      "id": "screen:Feed",
+      "kind": "screen",
+      "title": "Feed 화면 진입",
+      "roles": [
+        "patient",
+        "caregiver-together",
+        "caregiver-apart"
+      ],
+      "entry": {
+        "how": "navigate",
+        "route": "Main",
+        "params": {
+          "screen": "Feed"
+        }
+      },
+      "excluded": {
+        "reason": "커뮤니티는 국내 전용",
+        "approved": "2026-07-29"
+      }
+    },
+    {
+      "id": "screen:FeedMain",
+      "kind": "screen",
+      "title": "FeedMain 화면 진입",
+      "roles": [
+        "patient",
+        "caregiver-together",
+        "caregiver-apart"
+      ],
+      "entry": {
+        "how": "navigate",
+        "route": "Main",
+        "params": {
+          "screen": "Feed",
+          "params": {
+            "screen": "FeedMain"
+          }
+        }
+      },
+      "excluded": {
+        "reason": "커뮤니티는 국내 전용(해외 빌드에 탭 없음)",
+        "approved": "2026-07-29"
+      }
+    },
+    {
+      "id": "screen:Login",
+      "kind": "screen",
+      "title": "Login 화면 진입",
+      "roles": [
+        "patient",
+        "caregiver-together",
+        "caregiver-apart"
+      ],
+      "entry": {
+        "how": "manual",
+        "note": "로그인/온보딩 흐름 — 신규 계정으로 처음부터 진행해야 나온다"
+      },
+      "excluded": null
+    },
+    {
+      "id": "screen:Main",
+      "kind": "screen",
+      "title": "Main 화면 진입",
+      "roles": [
+        "patient",
+        "caregiver-together",
+        "caregiver-apart"
+      ],
+      "entry": {
+        "how": "navigate",
+        "route": "Main"
+      },
+      "excluded": {
+        "reason": "탭 컨테이너 — 개별 탭으로 커버",
+        "approved": "2026-07-30"
+      }
+    },
+    {
+      "id": "screen:MeasurementConsent",
+      "kind": "screen",
+      "title": "MeasurementConsent 화면 진입",
+      "roles": [
+        "patient",
+        "caregiver-together",
+        "caregiver-apart"
+      ],
+      "entry": {
+        "how": "navigate",
+        "route": "MeasurementConsent"
+      },
+      "excluded": {
+        "reason": "측정 기능 — 재오픈 시점에 처리",
+        "approved": "2026-07-29"
+      }
+    },
+    {
+      "id": "screen:MeasurementMenu",
+      "kind": "screen",
+      "title": "MeasurementMenu 화면 진입",
+      "roles": [
+        "patient",
+        "caregiver-together",
+        "caregiver-apart"
+      ],
+      "entry": {
+        "how": "navigate",
+        "route": "MeasurementMenu"
+      },
+      "excluded": {
+        "reason": "측정 기능 — 재오픈 시점에 처리",
+        "approved": "2026-07-29"
+      }
+    },
+    {
+      "id": "screen:MeasurementRecords",
+      "kind": "screen",
+      "title": "MeasurementRecords 화면 진입",
+      "roles": [
+        "patient",
+        "caregiver-together",
+        "caregiver-apart"
+      ],
+      "entry": {
+        "how": "navigate",
+        "route": "MeasurementRecords"
+      },
+      "excluded": {
+        "reason": "측정 기능 — 재오픈 시점에 처리",
+        "approved": "2026-07-29"
+      }
+    },
+    {
+      "id": "screen:MeasurementResult",
+      "kind": "screen",
+      "title": "MeasurementResult 화면 진입",
+      "roles": [
+        "patient",
+        "caregiver-together",
+        "caregiver-apart"
+      ],
+      "entry": {
+        "how": "navigate",
+        "route": "MeasurementResult"
+      },
+      "excluded": {
+        "reason": "측정 기능 — 재오픈 시점에 처리",
+        "approved": "2026-07-29"
+      }
+    },
+    {
+      "id": "screen:MedTimeOnboarding",
+      "kind": "screen",
+      "title": "MedTimeOnboarding 화면 진입",
+      "roles": [
+        "patient",
+        "caregiver-together",
+        "caregiver-apart"
+      ],
+      "entry": {
+        "how": "manual",
+        "note": "로그인/온보딩 흐름 — 신규 계정으로 처음부터 진행해야 나온다"
+      },
+      "excluded": null
+    },
+    {
+      "id": "screen:MedicalRecordDetail",
+      "kind": "screen",
+      "title": "MedicalRecordDetail 화면 진입",
+      "roles": [
+        "patient",
+        "caregiver-together",
+        "caregiver-apart"
+      ],
+      "entry": {
+        "how": "fixture-missing",
+        "note": "필수 params 가 있는데 값이 없다 — PARAM_FIXTURES.MedicalRecordDetail 를 채워야 실행된다"
+      },
+      "excluded": null
+    },
+    {
+      "id": "screen:MedicalRecordList",
+      "kind": "screen",
+      "title": "MedicalRecordList 화면 진입",
+      "roles": [
+        "patient",
+        "caregiver-together",
+        "caregiver-apart"
+      ],
+      "entry": {
+        "how": "navigate",
+        "route": "Main",
+        "params": {
+          "screen": "MyInfo",
+          "params": {
+            "screen": "MedicalRecordList"
+          }
+        }
+      },
+      "excluded": null
+    },
+    {
+      "id": "screen:MedicalRecordWrite",
+      "kind": "screen",
+      "title": "MedicalRecordWrite 화면 진입",
+      "roles": [
+        "patient",
+        "caregiver-together",
+        "caregiver-apart"
+      ],
+      "entry": {
+        "how": "navigate",
+        "route": "Main",
+        "params": {
+          "screen": "MyInfo",
+          "params": {
+            "screen": "MedicalRecordWrite"
+          }
+        }
+      },
+      "excluded": null
+    },
+    {
+      "id": "screen:Medication",
+      "kind": "screen",
+      "title": "Medication 화면 진입",
+      "roles": [
+        "patient",
+        "caregiver-together",
+        "caregiver-apart"
+      ],
+      "entry": {
+        "how": "navigate",
+        "route": "Main",
+        "params": {
+          "screen": "Medication"
+        }
+      },
+      "excluded": null
+    },
+    {
+      "id": "screen:MedicationManage",
+      "kind": "screen",
+      "title": "MedicationManage 화면 진입",
+      "roles": [
+        "patient",
+        "caregiver-together",
+        "caregiver-apart"
+      ],
+      "entry": {
+        "how": "navigate",
+        "route": "Main",
+        "params": {
+          "screen": "MyInfo",
+          "params": {
+            "screen": "MedicationManage"
+          }
+        }
+      },
+      "excluded": null
+    },
+    {
+      "id": "screen:MenuHome",
+      "kind": "screen",
+      "title": "MenuHome 화면 진입",
+      "roles": [
+        "patient",
+        "caregiver-together",
+        "caregiver-apart"
+      ],
+      "entry": {
+        "how": "navigate",
+        "route": "Main",
+        "params": {
+          "screen": "MyInfo",
+          "params": {
+            "screen": "MenuHome"
+          }
+        }
+      },
+      "excluded": null
+    },
+    {
+      "id": "screen:MyInfo",
+      "kind": "screen",
+      "title": "MyInfo 화면 진입",
+      "roles": [
+        "patient",
+        "caregiver-together",
+        "caregiver-apart"
+      ],
+      "entry": {
+        "how": "navigate",
+        "route": "Main",
+        "params": {
+          "screen": "MyInfo"
+        }
+      },
+      "excluded": {
+        "reason": "탭 컨테이너 — MenuHome 으로 커버",
+        "approved": "2026-07-30"
+      }
+    },
+    {
+      "id": "screen:NotificationHistory",
+      "kind": "screen",
+      "title": "NotificationHistory 화면 진입",
+      "roles": [
+        "patient",
+        "caregiver-together",
+        "caregiver-apart"
+      ],
+      "entry": {
+        "how": "navigate",
+        "route": "Main",
+        "params": {
+          "screen": "MyInfo",
+          "params": {
+            "screen": "NotificationHistory"
+          }
+        }
+      },
+      "excluded": null
+    },
+    {
+      "id": "screen:OnboardingAuth",
+      "kind": "screen",
+      "title": "OnboardingAuth 화면 진입",
+      "roles": [
+        "patient",
+        "caregiver-together",
+        "caregiver-apart"
+      ],
+      "entry": {
+        "how": "navigate",
+        "route": "OnboardingAuth"
+      },
+      "excluded": {
+        "reason": "스택 컨테이너 — 개별 화면으로 커버",
+        "approved": "2026-07-30"
+      }
+    },
+    {
+      "id": "screen:OnboardingGuest",
+      "kind": "screen",
+      "title": "OnboardingGuest 화면 진입",
+      "roles": [
+        "patient",
+        "caregiver-together",
+        "caregiver-apart"
+      ],
+      "entry": {
+        "how": "navigate",
+        "route": "OnboardingGuest"
+      },
+      "excluded": {
+        "reason": "스택 컨테이너 — 개별 화면으로 커버",
+        "approved": "2026-07-30"
+      }
+    },
+    {
+      "id": "screen:OnboardingSlide",
+      "kind": "screen",
+      "title": "OnboardingSlide 화면 진입",
+      "roles": [
+        "patient",
+        "caregiver-together",
+        "caregiver-apart"
+      ],
+      "entry": {
+        "how": "manual",
+        "note": "로그인/온보딩 흐름 — 신규 계정으로 처음부터 진행해야 나온다"
+      },
+      "excluded": null
+    },
+    {
+      "id": "screen:OverseasMedTab",
+      "kind": "screen",
+      "title": "OverseasMedTab 화면 진입",
+      "roles": [
+        "patient",
+        "caregiver-together",
+        "caregiver-apart"
+      ],
+      "entry": {
+        "how": "navigate",
+        "route": "OverseasMedTab"
+      },
+      "excluded": null
+    },
+    {
+      "id": "screen:PatientInfo",
+      "kind": "screen",
+      "title": "PatientInfo 화면 진입",
+      "roles": [
+        "patient",
+        "caregiver-together",
+        "caregiver-apart"
+      ],
+      "entry": {
+        "how": "manual",
+        "note": "로그인/온보딩 흐름 — 신규 계정으로 처음부터 진행해야 나온다"
+      },
+      "excluded": null
+    },
+    {
+      "id": "screen:PostDetail",
+      "kind": "screen",
+      "title": "PostDetail 화면 진입",
+      "roles": [
+        "patient",
+        "caregiver-together",
+        "caregiver-apart"
+      ],
+      "entry": {
+        "how": "fixture-missing",
+        "note": "필수 params 가 있는데 값이 없다 — PARAM_FIXTURES.PostDetail 를 채워야 실행된다"
+      },
+      "excluded": {
+        "reason": "커뮤니티는 국내 전용",
+        "approved": "2026-07-29"
+      }
+    },
+    {
+      "id": "screen:PostWrite",
+      "kind": "screen",
+      "title": "PostWrite 화면 진입",
+      "roles": [
+        "patient",
+        "caregiver-together",
+        "caregiver-apart"
+      ],
+      "entry": {
+        "how": "navigate",
+        "route": "Main",
+        "params": {
+          "screen": "Feed",
+          "params": {
+            "screen": "PostWrite"
+          }
+        }
+      },
+      "excluded": {
+        "reason": "커뮤니티는 국내 전용",
+        "approved": "2026-07-29"
+      }
+    },
+    {
+      "id": "screen:Privacy",
+      "kind": "screen",
+      "title": "Privacy 화면 진입",
+      "roles": [
+        "patient",
+        "caregiver-together",
+        "caregiver-apart"
+      ],
+      "entry": {
+        "how": "navigate",
+        "route": "Main",
+        "params": {
+          "screen": "MyInfo",
+          "params": {
+            "screen": "Privacy"
+          }
+        }
+      },
+      "excluded": null
+    },
+    {
+      "id": "screen:ProfileEdit",
+      "kind": "screen",
+      "title": "ProfileEdit 화면 진입",
+      "roles": [
+        "patient",
+        "caregiver-together",
+        "caregiver-apart"
+      ],
+      "entry": {
+        "how": "navigate",
+        "route": "Main",
+        "params": {
+          "screen": "MyInfo",
+          "params": {
+            "screen": "ProfileEdit"
+          }
+        }
+      },
+      "excluded": null
+    },
+    {
+      "id": "screen:ReactionGame",
+      "kind": "screen",
+      "title": "ReactionGame 화면 진입",
+      "roles": [
+        "patient",
+        "caregiver-together",
+        "caregiver-apart"
+      ],
+      "entry": {
+        "how": "fixture-missing",
+        "note": "필수 params 가 있는데 값이 없다 — PARAM_FIXTURES.ReactionGame 를 채워야 실행된다"
+      },
+      "excluded": {
+        "reason": "측정 기능 — 재오픈 시점에 처리",
+        "approved": "2026-07-29"
+      }
+    },
+    {
+      "id": "screen:RecordDetail",
+      "kind": "screen",
+      "title": "RecordDetail 화면 진입",
+      "roles": [
+        "patient",
+        "caregiver-together",
+        "caregiver-apart"
+      ],
+      "entry": {
+        "how": "navigate",
+        "route": "Main",
+        "params": {
+          "screen": "MyInfo",
+          "params": {
+            "screen": "RecordDetail",
+            "params": {
+              "type": "medication"
+            }
+          }
+        }
+      },
+      "excluded": null
+    },
+    {
+      "id": "screen:RecordSound",
+      "kind": "screen",
+      "title": "RecordSound 화면 진입",
+      "roles": [
+        "patient",
+        "caregiver-together",
+        "caregiver-apart"
+      ],
+      "entry": {
+        "how": "navigate",
+        "route": "Main",
+        "params": {
+          "screen": "MyInfo",
+          "params": {
+            "screen": "RecordSound"
+          }
+        }
+      },
+      "excluded": null
+    },
+    {
+      "id": "screen:Records",
+      "kind": "screen",
+      "title": "Records 화면 진입",
+      "roles": [
+        "patient",
+        "caregiver-together",
+        "caregiver-apart"
+      ],
+      "entry": {
+        "how": "navigate",
+        "route": "Main",
+        "params": {
+          "screen": "MyInfo",
+          "params": {
+            "screen": "Records"
+          }
+        }
+      },
+      "excluded": null
+    },
+    {
+      "id": "screen:RoleSelect",
+      "kind": "screen",
+      "title": "RoleSelect 화면 진입",
+      "roles": [
+        "patient",
+        "caregiver-together",
+        "caregiver-apart"
+      ],
+      "entry": {
+        "how": "manual",
+        "note": "로그인/온보딩 흐름 — 신규 계정으로 처음부터 진행해야 나온다"
+      },
+      "excluded": null
+    },
+    {
+      "id": "screen:SensitiveInfoConsent",
+      "kind": "screen",
+      "title": "SensitiveInfoConsent 화면 진입",
+      "roles": [
+        "patient",
+        "caregiver-together",
+        "caregiver-apart"
+      ],
+      "entry": {
+        "how": "manual",
+        "note": "로그인/온보딩 흐름 — 신규 계정으로 처음부터 진행해야 나온다"
+      },
+      "excluded": null
+    },
+    {
+      "id": "screen:Settings",
+      "kind": "screen",
+      "title": "Settings 화면 진입",
+      "roles": [
+        "patient",
+        "caregiver-together",
+        "caregiver-apart"
+      ],
+      "entry": {
+        "how": "navigate",
+        "route": "Main",
+        "params": {
+          "screen": "MyInfo",
+          "params": {
+            "screen": "Settings"
+          }
+        }
+      },
+      "excluded": null
+    },
+    {
+      "id": "screen:Splash",
+      "kind": "screen",
+      "title": "Splash 화면 진입",
+      "roles": [
+        "patient",
+        "caregiver-together",
+        "caregiver-apart"
+      ],
+      "entry": {
+        "how": "navigate",
+        "route": "Splash"
+      },
+      "excluded": {
+        "reason": "문구 없음(로고만)",
+        "approved": "2026-07-30"
+      }
+    },
+    {
+      "id": "screen:SubscriptionManage",
+      "kind": "screen",
+      "title": "SubscriptionManage 화면 진입",
+      "roles": [
+        "patient",
+        "caregiver-together",
+        "caregiver-apart"
+      ],
+      "entry": {
+        "how": "navigate",
+        "route": "Main",
+        "params": {
+          "screen": "MyInfo",
+          "params": {
+            "screen": "SubscriptionManage"
+          }
+        }
+      },
+      "excluded": null
+    },
+    {
+      "id": "screen:TapGame",
+      "kind": "screen",
+      "title": "TapGame 화면 진입",
+      "roles": [
+        "patient",
+        "caregiver-together",
+        "caregiver-apart"
+      ],
+      "entry": {
+        "how": "fixture-missing",
+        "note": "필수 params 가 있는데 값이 없다 — PARAM_FIXTURES.TapGame 를 채워야 실행된다"
+      },
+      "excluded": {
+        "reason": "측정 기능 — 재오픈 시점에 처리",
+        "approved": "2026-07-29"
+      }
+    },
+    {
+      "id": "screen:Terms",
+      "kind": "screen",
+      "title": "Terms 화면 진입",
+      "roles": [
+        "patient",
+        "caregiver-together",
+        "caregiver-apart"
+      ],
+      "entry": {
+        "how": "navigate",
+        "route": "Main",
+        "params": {
+          "screen": "MyInfo",
+          "params": {
+            "screen": "Terms"
+          }
+        }
+      },
+      "excluded": null
+    },
+    {
+      "id": "screen:VideoList",
+      "kind": "screen",
+      "title": "VideoList 화면 진입",
+      "roles": [
+        "patient",
+        "caregiver-together",
+        "caregiver-apart"
+      ],
+      "entry": {
+        "how": "navigate",
+        "route": "Main",
+        "params": {
+          "screen": "BodyStateTab",
+          "params": {
+            "screen": "VideoList"
+          }
+        }
+      },
+      "excluded": null
+    },
+    {
+      "id": "screen:VideoRecord",
+      "kind": "screen",
+      "title": "VideoRecord 화면 진입",
+      "roles": [
+        "patient",
+        "caregiver-together",
+        "caregiver-apart"
+      ],
+      "entry": {
+        "how": "navigate",
+        "route": "Main",
+        "params": {
+          "screen": "BodyStateTab",
+          "params": {
+            "screen": "VideoRecord"
+          }
+        }
+      },
+      "excluded": null
+    },
+    {
+      "id": "dialog:src/components/common/AlarmSoundPickerRow.tsx:107",
+      "kind": "dialog",
+      "title": "AlarmSoundPickerRow.tsx alert 팝업",
+      "roles": [
+        "patient",
+        "caregiver-together",
+        "caregiver-apart"
+      ],
+      "entry": {
+        "how": "action",
+        "file": "src/components/common/AlarmSoundPickerRow.tsx",
+        "line": 107,
+        "note": "해당 조건을 만들어 팝업을 띄운다"
+      },
+      "keys": [
+        "alarmSound.playFailTitle",
+        "alarmSound.playFailMsg"
+      ],
+      "excluded": null
+    },
+    {
+      "id": "dialog:src/components/common/AlarmSoundPickerRow.tsx:126",
+      "kind": "dialog",
+      "title": "AlarmSoundPickerRow.tsx alert 팝업",
+      "roles": [
+        "patient",
+        "caregiver-together",
+        "caregiver-apart"
+      ],
+      "entry": {
+        "how": "action",
+        "file": "src/components/common/AlarmSoundPickerRow.tsx",
+        "line": 126,
+        "note": "해당 조건을 만들어 팝업을 띄운다"
+      },
+      "keys": [
+        "alarmSound.playFailTitle",
+        "alarmSound.playFailMsg"
+      ],
+      "excluded": null
+    },
+    {
+      "id": "dialog:src/components/feed/ReportSheet.tsx:73",
+      "kind": "dialog",
+      "title": "ReportSheet.tsx alert 팝업",
+      "roles": [
+        "patient",
+        "caregiver-together",
+        "caregiver-apart"
+      ],
+      "entry": {
+        "how": "action",
+        "file": "src/components/feed/ReportSheet.tsx",
+        "line": 73,
+        "note": "해당 조건을 만들어 팝업을 띄운다"
+      },
+      "keys": [
+        "reportSheet.loginRequiredTitle",
+        "reportSheet.loginRequiredMsg"
+      ],
+      "excluded": null
+    },
+    {
+      "id": "dialog:src/components/feed/ReportSheet.tsx:87",
+      "kind": "dialog",
+      "title": "ReportSheet.tsx alert 팝업",
+      "roles": [
+        "patient",
+        "caregiver-together",
+        "caregiver-apart"
+      ],
+      "entry": {
+        "how": "action",
+        "file": "src/components/feed/ReportSheet.tsx",
+        "line": 87,
+        "note": "해당 조건을 만들어 팝업을 띄운다"
+      },
+      "keys": [
+        "reportSheet.submittedTitle",
+        "reportSheet.submittedMsg"
+      ],
+      "excluded": null
+    },
+    {
+      "id": "dialog:src/components/feed/ReportSheet.tsx:93",
+      "kind": "dialog",
+      "title": "ReportSheet.tsx alert 팝업",
+      "roles": [
+        "patient",
+        "caregiver-together",
+        "caregiver-apart"
+      ],
+      "entry": {
+        "how": "action",
+        "file": "src/components/feed/ReportSheet.tsx",
+        "line": 93,
+        "note": "해당 조건을 만들어 팝업을 띄운다"
+      },
+      "keys": [
+        "reportSheet.errorTitle",
+        "reportSheet.errorMsg"
+      ],
+      "excluded": null
+    },
+    {
+      "id": "dialog:src/components/settings/DoseSlotSetList.tsx:725",
+      "kind": "dialog",
+      "title": "DoseSlotSetList.tsx alert 팝업",
+      "roles": [
+        "patient",
+        "caregiver-together",
+        "caregiver-apart"
+      ],
+      "entry": {
+        "how": "action",
+        "file": "src/components/settings/DoseSlotSetList.tsx",
+        "line": 725,
+        "note": "해당 조건을 만들어 팝업을 띄운다"
+      },
+      "keys": [
+        "doseSlotSetList.deleteFailTitle",
+        "doseSlotSetList.deleteFailMsg"
+      ],
+      "excluded": null
+    },
+    {
+      "id": "dialog:src/components/settings/DoseSlotSetList.tsx:745",
+      "kind": "dialog",
+      "title": "DoseSlotSetList.tsx alert 팝업",
+      "roles": [
+        "patient",
+        "caregiver-together",
+        "caregiver-apart"
+      ],
+      "entry": {
+        "how": "action",
+        "file": "src/components/settings/DoseSlotSetList.tsx",
+        "line": 745,
+        "note": "해당 조건을 만들어 팝업을 띄운다"
+      },
+      "keys": [
+        "doseSlotSetList.deleteFailTitle",
+        "doseSlotSetList.deleteFailMsg"
+      ],
+      "excluded": null
+    },
+    {
+      "id": "dialog:src/components/settings/DoseSlotSetList.tsx:777",
+      "kind": "dialog",
+      "title": "DoseSlotSetList.tsx confirm 팝업",
+      "roles": [
+        "patient",
+        "caregiver-together",
+        "caregiver-apart"
+      ],
+      "entry": {
+        "how": "action",
+        "file": "src/components/settings/DoseSlotSetList.tsx",
+        "line": 777,
+        "note": "해당 조건을 만들어 팝업을 띄운다"
+      },
+      "keys": [
+        "doseSlotSetList.deleteConfirmTitle",
+        "doseSlotSetList.deleteConfirmMsg"
+      ],
+      "excluded": null
+    },
+    {
+      "id": "dialog:src/components/settings/DoseSlotSetList.tsx:895",
+      "kind": "dialog",
+      "title": "DoseSlotSetList.tsx alert 팝업",
+      "roles": [
+        "patient",
+        "caregiver-together",
+        "caregiver-apart"
+      ],
+      "entry": {
+        "how": "action",
+        "file": "src/components/settings/DoseSlotSetList.tsx",
+        "line": 895,
+        "note": "해당 조건을 만들어 팝업을 띄운다"
+      },
+      "keys": [
+        "doseSlotSetList.oneMomentTitle",
+        "doseSlotSetList.preparingMsg"
+      ],
+      "excluded": null
+    },
+    {
+      "id": "dialog:src/hooks/useAuth.ts:702",
+      "kind": "dialog",
+      "title": "useAuth.ts alert 팝업",
+      "roles": [
+        "patient",
+        "caregiver-together",
+        "caregiver-apart"
+      ],
+      "entry": {
+        "how": "action",
+        "file": "src/hooks/useAuth.ts",
+        "line": 702,
+        "note": "해당 조건을 만들어 팝업을 띄운다"
+      },
+      "keys": [
+        "authHook.loginErrorTitle",
+        "authHook.genericErrorMsg"
+      ],
+      "excluded": null
+    },
+    {
+      "id": "dialog:src/hooks/useSetupGate.ts:63",
+      "kind": "dialog",
+      "title": "useSetupGate.ts confirm 팝업",
+      "roles": [
+        "patient",
+        "caregiver-together",
+        "caregiver-apart"
+      ],
+      "entry": {
+        "how": "action",
+        "file": "src/hooks/useSetupGate.ts",
+        "line": 63,
+        "note": "해당 조건을 만들어 팝업을 띄운다"
+      },
+      "keys": [
+        "setupGate.title",
+        "setupGate.message",
+        "setupGate.confirmText",
+        "setupGate.cancelText"
+      ],
+      "excluded": null
+    },
+    {
+      "id": "dialog:src/screens/bodystate/BodyStatePopupFlow.tsx:313",
+      "kind": "dialog",
+      "title": "BodyStatePopupFlow.tsx confirm 팝업",
+      "roles": [
+        "patient",
+        "caregiver-together",
+        "caregiver-apart"
+      ],
+      "entry": {
+        "how": "action",
+        "file": "src/screens/bodystate/BodyStatePopupFlow.tsx",
+        "line": 313,
+        "note": "해당 조건을 만들어 팝업을 띄운다"
+      },
+      "keys": [
+        "bodystate.popup.closeConfirmTitle",
+        "bodystate.popup.closeConfirmMsg",
+        "bodystate.popup.close",
+        "common.cancel"
+      ],
+      "excluded": null
+    },
+    {
+      "id": "dialog:src/screens/bodystate/BodyStateScreen.tsx:439",
+      "kind": "dialog",
+      "title": "BodyStateScreen.tsx alert 팝업",
+      "roles": [
+        "patient",
+        "caregiver-together",
+        "caregiver-apart"
+      ],
+      "entry": {
+        "how": "action",
+        "file": "src/screens/bodystate/BodyStateScreen.tsx",
+        "line": 439,
+        "note": "해당 조건을 만들어 팝업을 띄운다"
+      },
+      "keys": [
+        "bodystate.cannotRecordTitle",
+        "bodystate.trackingTooLateMsg"
+      ],
+      "excluded": null
+    },
+    {
+      "id": "dialog:src/screens/bodystate/BodyStateScreen.tsx:506",
+      "kind": "dialog",
+      "title": "BodyStateScreen.tsx alert 팝업",
+      "roles": [
+        "patient",
+        "caregiver-together",
+        "caregiver-apart"
+      ],
+      "entry": {
+        "how": "action",
+        "file": "src/screens/bodystate/BodyStateScreen.tsx",
+        "line": 506,
+        "note": "해당 조건을 만들어 팝업을 띄운다"
+      },
+      "keys": [
+        "bodystate.cannotRecordTitle",
+        "bodystate.trackingTooLateMsg"
+      ],
+      "excluded": null
+    },
+    {
+      "id": "dialog:src/screens/bodystate/BodyStateScreen.tsx:948",
+      "kind": "dialog",
+      "title": "BodyStateScreen.tsx alert 팝업",
+      "roles": [
+        "patient",
+        "caregiver-together",
+        "caregiver-apart"
+      ],
+      "entry": {
+        "how": "action",
+        "file": "src/screens/bodystate/BodyStateScreen.tsx",
+        "line": 948,
+        "note": "해당 조건을 만들어 팝업을 띄운다"
+      },
+      "keys": [
+        "bodystate.cannotRecordTitle",
+        "bodystate.noMedLogMsg"
+      ],
+      "excluded": null
+    },
+    {
+      "id": "dialog:src/screens/bodystate/BodyStateScreen.tsx:963",
+      "kind": "dialog",
+      "title": "BodyStateScreen.tsx alert 팝업",
+      "roles": [
+        "patient",
+        "caregiver-together",
+        "caregiver-apart"
+      ],
+      "entry": {
+        "how": "action",
+        "file": "src/screens/bodystate/BodyStateScreen.tsx",
+        "line": 963,
+        "note": "해당 조건을 만들어 팝업을 띄운다"
+      },
+      "keys": [
+        "bodystate.cannotRecordTitle",
+        "bodystate.noIntervalMsg"
+      ],
+      "excluded": null
+    },
+    {
+      "id": "dialog:src/screens/bodystate/BodyStateScreen.tsx:1004",
+      "kind": "dialog",
+      "title": "BodyStateScreen.tsx alert 팝업",
+      "roles": [
+        "patient",
+        "caregiver-together",
+        "caregiver-apart"
+      ],
+      "entry": {
+        "how": "action",
+        "file": "src/screens/bodystate/BodyStateScreen.tsx",
+        "line": 1004,
+        "note": "해당 조건을 만들어 팝업을 띄운다"
+      },
+      "keys": [
+        "bodystate.cannotRecordTitle",
+        "bodystate.outOfRangeMsg"
+      ],
+      "excluded": null
+    },
+    {
+      "id": "dialog:src/screens/bodystate/BodyStateScreen.tsx:1010",
+      "kind": "dialog",
+      "title": "BodyStateScreen.tsx alert 팝업",
+      "roles": [
+        "patient",
+        "caregiver-together",
+        "caregiver-apart"
+      ],
+      "entry": {
+        "how": "action",
+        "file": "src/screens/bodystate/BodyStateScreen.tsx",
+        "line": 1010,
+        "note": "해당 조건을 만들어 팝업을 띄운다"
+      },
+      "keys": [
+        "bodystate.cannotRecordTitle",
+        "bodystate.outOfRangeNextMsg"
+      ],
+      "excluded": null
+    },
+    {
+      "id": "dialog:src/screens/bodystate/BodyStateScreen.tsx:1035",
+      "kind": "dialog",
+      "title": "BodyStateScreen.tsx confirm 팝업",
+      "roles": [
+        "patient",
+        "caregiver-together",
+        "caregiver-apart"
+      ],
+      "entry": {
+        "how": "action",
+        "file": "src/screens/bodystate/BodyStateScreen.tsx",
+        "line": 1035,
+        "note": "해당 조건을 만들어 팝업을 띄운다"
+      },
+      "keys": [
+        "bodystate.alreadyRecordedTitle",
+        "bodystate.alreadyRecordedMsg"
+      ],
+      "excluded": null
+    },
+    {
+      "id": "dialog:src/screens/bodystate/BodyStateScreen.tsx:1104",
+      "kind": "dialog",
+      "title": "BodyStateScreen.tsx confirm 팝업",
+      "roles": [
+        "patient",
+        "caregiver-together",
+        "caregiver-apart"
+      ],
+      "entry": {
+        "how": "action",
+        "file": "src/screens/bodystate/BodyStateScreen.tsx",
+        "line": 1104,
+        "note": "해당 조건을 만들어 팝업을 띄운다"
+      },
+      "keys": [
+        "bodystate.cancelRecordTitle",
+        "bodystate.cancelRecordMsg",
+        "bodystate.cancelRecordConfirm",
+        "common.close"
+      ],
+      "excluded": null
+    },
+    {
+      "id": "dialog:src/screens/bodystate/BodyStateScreen.tsx:1120",
+      "kind": "dialog",
+      "title": "BodyStateScreen.tsx alert 팝업",
+      "roles": [
+        "patient",
+        "caregiver-together",
+        "caregiver-apart"
+      ],
+      "entry": {
+        "how": "action",
+        "file": "src/screens/bodystate/BodyStateScreen.tsx",
+        "line": 1120,
+        "note": "해당 조건을 만들어 팝업을 띄운다"
+      },
+      "keys": [
+        "bodystate.cancelFailTitle",
+        "bodystate.cancelFailMsg"
+      ],
+      "excluded": null
+    },
+    {
+      "id": "dialog:src/screens/bodystate/BodyStateScreen.tsx:1159",
+      "kind": "dialog",
+      "title": "BodyStateScreen.tsx alert 팝업",
+      "roles": [
+        "patient",
+        "caregiver-together",
+        "caregiver-apart"
+      ],
+      "entry": {
+        "how": "action",
+        "file": "src/screens/bodystate/BodyStateScreen.tsx",
+        "line": 1159,
+        "note": "해당 조건을 만들어 팝업을 띄운다"
+      },
+      "keys": [
+        "bodystate.editFailTitle",
+        "bodystate.editFailMsg"
+      ],
+      "excluded": null
+    },
+    {
+      "id": "dialog:src/screens/bodystate/VideoListScreen.tsx:741",
+      "kind": "dialog",
+      "title": "VideoListScreen.tsx confirm 팝업",
+      "roles": [
+        "patient",
+        "caregiver-together",
+        "caregiver-apart"
+      ],
+      "entry": {
+        "how": "action",
+        "file": "src/screens/bodystate/VideoListScreen.tsx",
+        "line": 741,
+        "note": "해당 조건을 만들어 팝업을 띄운다"
+      },
+      "keys": [
+        "videoList.deleteVideoTitle",
+        "videoList.deleteVideoMsg",
+        "videoList.delete",
+        "videoList.cancel"
+      ],
+      "excluded": null
+    },
+    {
+      "id": "dialog:src/screens/bodystate/VideoListScreen.tsx:770",
+      "kind": "dialog",
+      "title": "VideoListScreen.tsx alert 팝업",
+      "roles": [
+        "patient",
+        "caregiver-together",
+        "caregiver-apart"
+      ],
+      "entry": {
+        "how": "action",
+        "file": "src/screens/bodystate/VideoListScreen.tsx",
+        "line": 770,
+        "note": "해당 조건을 만들어 팝업을 띄운다"
+      },
+      "keys": [
+        "videoList.deleteFailTitle",
+        "videoList.deleteFailMsg"
+      ],
+      "excluded": null
+    },
+    {
+      "id": "dialog:src/screens/bodystate/VideoRecordScreen.tsx:70",
+      "kind": "dialog",
+      "title": "VideoRecordScreen.tsx alert 팝업",
+      "roles": [
+        "patient",
+        "caregiver-together",
+        "caregiver-apart"
+      ],
+      "entry": {
+        "how": "action",
+        "file": "src/screens/bodystate/VideoRecordScreen.tsx",
+        "line": 70,
+        "note": "해당 조건을 만들어 팝업을 띄운다"
+      },
+      "keys": [
+        "videoRecord.permRequiredTitle",
+        "videoRecord.galleryPermMsg"
+      ],
+      "excluded": null
+    },
+    {
+      "id": "dialog:src/screens/bodystate/VideoRecordScreen.tsx:86",
+      "kind": "dialog",
+      "title": "VideoRecordScreen.tsx alert 팝업",
+      "roles": [
+        "patient",
+        "caregiver-together",
+        "caregiver-apart"
+      ],
+      "entry": {
+        "how": "action",
+        "file": "src/screens/bodystate/VideoRecordScreen.tsx",
+        "line": 86,
+        "note": "해당 조건을 만들어 팝업을 띄운다"
+      },
+      "keys": [
+        "videoRecord.videoTooLongTitle",
+        "videoRecord.videoTooLongSelectMsg"
+      ],
+      "excluded": null
+    },
+    {
+      "id": "dialog:src/screens/bodystate/VideoRecordScreen.tsx:103",
+      "kind": "dialog",
+      "title": "VideoRecordScreen.tsx alert 팝업",
+      "roles": [
+        "patient",
+        "caregiver-together",
+        "caregiver-apart"
+      ],
+      "entry": {
+        "how": "action",
+        "file": "src/screens/bodystate/VideoRecordScreen.tsx",
+        "line": 103,
+        "note": "해당 조건을 만들어 팝업을 띄운다"
+      },
+      "keys": [
+        "videoRecord.errorTitle",
+        "videoRecord.loadVideoFailMsg"
+      ],
+      "excluded": null
+    },
+    {
+      "id": "dialog:src/screens/bodystate/VideoRecordScreen.tsx:111",
+      "kind": "dialog",
+      "title": "VideoRecordScreen.tsx alert 팝업",
+      "roles": [
+        "patient",
+        "caregiver-together",
+        "caregiver-apart"
+      ],
+      "entry": {
+        "how": "action",
+        "file": "src/screens/bodystate/VideoRecordScreen.tsx",
+        "line": 111,
+        "note": "해당 조건을 만들어 팝업을 띄운다"
+      },
+      "keys": [
+        "videoRecord.permRequiredTitle",
+        "videoRecord.cameraPermMsg"
+      ],
+      "excluded": null
+    },
+    {
+      "id": "dialog:src/screens/bodystate/VideoRecordScreen.tsx:126",
+      "kind": "dialog",
+      "title": "VideoRecordScreen.tsx alert 팝업",
+      "roles": [
+        "patient",
+        "caregiver-together",
+        "caregiver-apart"
+      ],
+      "entry": {
+        "how": "action",
+        "file": "src/screens/bodystate/VideoRecordScreen.tsx",
+        "line": 126,
+        "note": "해당 조건을 만들어 팝업을 띄운다"
+      },
+      "keys": [
+        "videoRecord.videoTooLongTitle",
+        "videoRecord.videoTooLongSelectMsgShort"
+      ],
+      "excluded": null
+    },
+    {
+      "id": "dialog:src/screens/bodystate/VideoRecordScreen.tsx:143",
+      "kind": "dialog",
+      "title": "VideoRecordScreen.tsx alert 팝업",
+      "roles": [
+        "patient",
+        "caregiver-together",
+        "caregiver-apart"
+      ],
+      "entry": {
+        "how": "action",
+        "file": "src/screens/bodystate/VideoRecordScreen.tsx",
+        "line": 143,
+        "note": "해당 조건을 만들어 팝업을 띄운다"
+      },
+      "keys": [
+        "videoRecord.errorTitle",
+        "videoRecord.cameraOpenFailMsg"
+      ],
+      "excluded": null
+    },
+    {
+      "id": "dialog:src/screens/bodystate/VideoRecordScreen.tsx:182",
+      "kind": "dialog",
+      "title": "VideoRecordScreen.tsx alert 팝업",
+      "roles": [
+        "patient",
+        "caregiver-together",
+        "caregiver-apart"
+      ],
+      "entry": {
+        "how": "action",
+        "file": "src/screens/bodystate/VideoRecordScreen.tsx",
+        "line": 182,
+        "note": "해당 조건을 만들어 팝업을 띄운다"
+      },
+      "keys": [
+        "videoRecord.errorTitle",
+        "videoRecord.noPatientLinkMsg"
+      ],
+      "excluded": null
+    },
+    {
+      "id": "dialog:src/screens/bodystate/VideoRecordScreen.tsx:210",
+      "kind": "dialog",
+      "title": "VideoRecordScreen.tsx alert 팝업",
+      "roles": [
+        "patient",
+        "caregiver-together",
+        "caregiver-apart"
+      ],
+      "entry": {
+        "how": "action",
+        "file": "src/screens/bodystate/VideoRecordScreen.tsx",
+        "line": 210,
+        "note": "해당 조건을 만들어 팝업을 띄운다"
+      },
+      "keys": [
+        "videoRecord.quotaReachedTitlePlain",
+        "videoRecord.quotaVideoPlainMsg"
+      ],
+      "excluded": null
+    },
+    {
+      "id": "dialog:src/screens/bodystate/VideoRecordScreen.tsx:276",
+      "kind": "dialog",
+      "title": "VideoRecordScreen.tsx alert 팝업",
+      "roles": [
+        "patient",
+        "caregiver-together",
+        "caregiver-apart"
+      ],
+      "entry": {
+        "how": "action",
+        "file": "src/screens/bodystate/VideoRecordScreen.tsx",
+        "line": 276,
+        "note": "해당 조건을 만들어 팝업을 띄운다"
+      },
+      "keys": [
+        "videoRecord.errorTitle",
+        "videoRecord.saveFailMsg"
+      ],
+      "excluded": null
+    },
+    {
+      "id": "dialog:src/screens/diary/DiaryScreen.tsx:422",
+      "kind": "dialog",
+      "title": "DiaryScreen.tsx alert 팝업",
+      "roles": [
+        "patient",
+        "caregiver-together",
+        "caregiver-apart"
+      ],
+      "entry": {
+        "how": "action",
+        "file": "src/screens/diary/DiaryScreen.tsx",
+        "line": 422,
+        "note": "해당 조건을 만들어 팝업을 띄운다"
+      },
+      "keys": [
+        "diary.playFailTitle",
+        "diary.genericRetryMsg"
+      ],
+      "excluded": null
+    },
+    {
+      "id": "dialog:src/screens/diary/DiaryScreen.tsx:547",
+      "kind": "dialog",
+      "title": "DiaryScreen.tsx alert 팝업",
+      "roles": [
+        "patient",
+        "caregiver-together",
+        "caregiver-apart"
+      ],
+      "entry": {
+        "how": "action",
+        "file": "src/screens/diary/DiaryScreen.tsx",
+        "line": 547,
+        "note": "해당 조건을 만들어 팝업을 띄운다"
+      },
+      "keys": [
+        "diary.playFailTitle",
+        "diary.genericRetryMsg"
+      ],
+      "excluded": null
+    },
+    {
+      "id": "dialog:src/screens/diary/DiaryScreen.tsx:694",
+      "kind": "dialog",
+      "title": "DiaryScreen.tsx alert 팝업",
+      "roles": [
+        "patient",
+        "caregiver-together",
+        "caregiver-apart"
+      ],
+      "entry": {
+        "how": "action",
+        "file": "src/screens/diary/DiaryScreen.tsx",
+        "line": 694,
+        "note": "해당 조건을 만들어 팝업을 띄운다"
+      },
+      "keys": [
+        "diary.introTitle",
+        "diary.introMsg",
+        "diary.introBtn"
+      ],
+      "excluded": null
+    },
+    {
+      "id": "dialog:src/screens/diary/DiaryScreen.tsx:716",
+      "kind": "dialog",
+      "title": "DiaryScreen.tsx confirm 팝업",
+      "roles": [
+        "patient",
+        "caregiver-together",
+        "caregiver-apart"
+      ],
+      "entry": {
+        "how": "action",
+        "file": "src/screens/diary/DiaryScreen.tsx",
+        "line": 716,
+        "note": "해당 조건을 만들어 팝업을 띄운다"
+      },
+      "keys": [
+        "diary.deletePostTitle",
+        "diary.deletePostMsg",
+        "medManage.delete",
+        "common.cancel"
+      ],
+      "excluded": null
+    },
+    {
+      "id": "dialog:src/screens/diary/DiaryScreen.tsx:727",
+      "kind": "dialog",
+      "title": "DiaryScreen.tsx alert 팝업",
+      "roles": [
+        "patient",
+        "caregiver-together",
+        "caregiver-apart"
+      ],
+      "entry": {
+        "how": "action",
+        "file": "src/screens/diary/DiaryScreen.tsx",
+        "line": 727,
+        "note": "해당 조건을 만들어 팝업을 띄운다"
+      },
+      "keys": [
+        "diary.deleteFailTitle",
+        "diary.genericRetryMsg"
+      ],
+      "excluded": null
+    },
+    {
+      "id": "dialog:src/screens/diary/DiaryScreen.tsx:1017",
+      "kind": "dialog",
+      "title": "DiaryScreen.tsx alert 팝업",
+      "roles": [
+        "patient",
+        "caregiver-together",
+        "caregiver-apart"
+      ],
+      "entry": {
+        "how": "action",
+        "file": "src/screens/diary/DiaryScreen.tsx",
+        "line": 1017,
+        "note": "해당 조건을 만들어 팝업을 띄운다"
+      },
+      "keys": [
+        "diary.errorTitle",
+        "diary.genericRetryMsg"
+      ],
+      "excluded": null
+    },
+    {
+      "id": "dialog:src/screens/diary/DiaryScreen.tsx:1392",
+      "kind": "dialog",
+      "title": "DiaryScreen.tsx alert 팝업",
+      "roles": [
+        "patient",
+        "caregiver-together",
+        "caregiver-apart"
+      ],
+      "entry": {
+        "how": "action",
+        "file": "src/screens/diary/DiaryScreen.tsx",
+        "line": 1392,
+        "note": "해당 조건을 만들어 팝업을 띄운다"
+      },
+      "keys": [
+        "diary.quotaReachedTitlePlain"
+      ],
+      "excluded": null
+    },
+    {
+      "id": "dialog:src/screens/diary/DiaryScreen.tsx:1549",
+      "kind": "dialog",
+      "title": "DiaryScreen.tsx alert 팝업",
+      "roles": [
+        "patient",
+        "caregiver-together",
+        "caregiver-apart"
+      ],
+      "entry": {
+        "how": "action",
+        "file": "src/screens/diary/DiaryScreen.tsx",
+        "line": 1549,
+        "note": "해당 조건을 만들어 팝업을 띄운다"
+      },
+      "keys": [
+        "diary.photoMax5TitleAlt",
+        "diary.photoMax5PartialMsg"
+      ],
+      "excluded": null
+    },
+    {
+      "id": "dialog:src/screens/diary/DiaryScreen.tsx:1563",
+      "kind": "dialog",
+      "title": "DiaryScreen.tsx alert 팝업",
+      "roles": [
+        "patient",
+        "caregiver-together",
+        "caregiver-apart"
+      ],
+      "entry": {
+        "how": "action",
+        "file": "src/screens/diary/DiaryScreen.tsx",
+        "line": 1563,
+        "note": "해당 조건을 만들어 팝업을 띄운다"
+      },
+      "keys": [
+        "diary.permRequiredTitle",
+        "diary.galleryPermMsg"
+      ],
+      "excluded": null
+    },
+    {
+      "id": "dialog:src/screens/diary/DiaryScreen.tsx:1586",
+      "kind": "dialog",
+      "title": "DiaryScreen.tsx alert 팝업",
+      "roles": [
+        "patient",
+        "caregiver-together",
+        "caregiver-apart"
+      ],
+      "entry": {
+        "how": "action",
+        "file": "src/screens/diary/DiaryScreen.tsx",
+        "line": 1586,
+        "note": "해당 조건을 만들어 팝업을 띄운다"
+      },
+      "keys": [
+        "diary.permRequiredTitle",
+        "diary.cameraPermMsg"
+      ],
+      "excluded": null
+    },
+    {
+      "id": "dialog:src/screens/diary/DiaryScreen.tsx:1615",
+      "kind": "dialog",
+      "title": "DiaryScreen.tsx alert 팝업",
+      "roles": [
+        "patient",
+        "caregiver-together",
+        "caregiver-apart"
+      ],
+      "entry": {
+        "how": "action",
+        "file": "src/screens/diary/DiaryScreen.tsx",
+        "line": 1615,
+        "note": "해당 조건을 만들어 팝업을 띄운다"
+      },
+      "keys": [
+        "diary.permRequiredTitle",
+        "diary.galleryPermMsg"
+      ],
+      "excluded": null
+    },
+    {
+      "id": "dialog:src/screens/diary/DiaryScreen.tsx:1627",
+      "kind": "dialog",
+      "title": "DiaryScreen.tsx alert 팝업",
+      "roles": [
+        "patient",
+        "caregiver-together",
+        "caregiver-apart"
+      ],
+      "entry": {
+        "how": "action",
+        "file": "src/screens/diary/DiaryScreen.tsx",
+        "line": 1627,
+        "note": "해당 조건을 만들어 팝업을 띄운다"
+      },
+      "keys": [
+        "diary.videoTooLongTitle",
+        "diary.videoTooLongMsg"
+      ],
+      "excluded": null
+    },
+    {
+      "id": "dialog:src/screens/diary/DiaryScreen.tsx:1641",
+      "kind": "dialog",
+      "title": "DiaryScreen.tsx alert 팝업",
+      "roles": [
+        "patient",
+        "caregiver-together",
+        "caregiver-apart"
+      ],
+      "entry": {
+        "how": "action",
+        "file": "src/screens/diary/DiaryScreen.tsx",
+        "line": 1641,
+        "note": "해당 조건을 만들어 팝업을 띄운다"
+      },
+      "keys": [
+        "diary.permRequiredTitle",
+        "diary.cameraPermMsg"
+      ],
+      "excluded": null
+    },
+    {
+      "id": "dialog:src/screens/diary/DiaryScreen.tsx:1653",
+      "kind": "dialog",
+      "title": "DiaryScreen.tsx alert 팝업",
+      "roles": [
+        "patient",
+        "caregiver-together",
+        "caregiver-apart"
+      ],
+      "entry": {
+        "how": "action",
+        "file": "src/screens/diary/DiaryScreen.tsx",
+        "line": 1653,
+        "note": "해당 조건을 만들어 팝업을 띄운다"
+      },
+      "keys": [
+        "diary.videoTooLongTitle",
+        "diary.videoTooLongMsg"
+      ],
+      "excluded": null
+    },
+    {
+      "id": "dialog:src/screens/diary/DiaryScreen.tsx:1685",
+      "kind": "dialog",
+      "title": "DiaryScreen.tsx alert 팝업",
+      "roles": [
+        "patient",
+        "caregiver-together",
+        "caregiver-apart"
+      ],
+      "entry": {
+        "how": "action",
+        "file": "src/screens/diary/DiaryScreen.tsx",
+        "line": 1685,
+        "note": "해당 조건을 만들어 팝업을 띄운다"
+      },
+      "keys": [
+        "diary.micPermTitle",
+        "diary.micPermMsg"
+      ],
+      "excluded": null
+    },
+    {
+      "id": "dialog:src/screens/diary/DiaryScreen.tsx:1699",
+      "kind": "dialog",
+      "title": "DiaryScreen.tsx alert 팝업",
+      "roles": [
+        "patient",
+        "caregiver-together",
+        "caregiver-apart"
+      ],
+      "entry": {
+        "how": "action",
+        "file": "src/screens/diary/DiaryScreen.tsx",
+        "line": 1699,
+        "note": "해당 조건을 만들어 팝업을 띄운다"
+      },
+      "keys": [
+        "diary.recordStartFailTitle",
+        "diary.genericRetryMsg"
+      ],
+      "excluded": null
+    },
+    {
+      "id": "dialog:src/screens/diary/DiaryScreen.tsx:1719",
+      "kind": "dialog",
+      "title": "DiaryScreen.tsx alert 팝업",
+      "roles": [
+        "patient",
+        "caregiver-together",
+        "caregiver-apart"
+      ],
+      "entry": {
+        "how": "action",
+        "file": "src/screens/diary/DiaryScreen.tsx",
+        "line": 1719,
+        "note": "해당 조건을 만들어 팝업을 띄운다"
+      },
+      "keys": [
+        "diary.recordFailTitle",
+        "diary.genericRetryMsg"
+      ],
+      "excluded": null
+    },
+    {
+      "id": "dialog:src/screens/diary/DiaryScreen.tsx:1729",
+      "kind": "dialog",
+      "title": "DiaryScreen.tsx confirm 팝업",
+      "roles": [
+        "patient",
+        "caregiver-together",
+        "caregiver-apart"
+      ],
+      "entry": {
+        "how": "action",
+        "file": "src/screens/diary/DiaryScreen.tsx",
+        "line": 1729,
+        "note": "해당 조건을 만들어 팝업을 띄운다"
+      },
+      "keys": [
+        "diary.stopRecordingTitle",
+        "diary.stopRecordingMsg",
+        "diary.stopAndSave",
+        "diary.continueRecording"
+      ],
+      "excluded": null
+    },
+    {
+      "id": "dialog:src/screens/diary/DiaryScreen.tsx:1784",
+      "kind": "dialog",
+      "title": "DiaryScreen.tsx alert 팝업",
+      "roles": [
+        "patient",
+        "caregiver-together",
+        "caregiver-apart"
+      ],
+      "entry": {
+        "how": "action",
+        "file": "src/screens/diary/DiaryScreen.tsx",
+        "line": 1784,
+        "note": "해당 조건을 만들어 팝업을 띄운다"
+      },
+      "keys": [
+        "diary.recordingInProgressTitle",
+        "diary.recordingInProgressMsg"
+      ],
+      "excluded": null
+    },
+    {
+      "id": "dialog:src/screens/diary/DiaryScreen.tsx:1889",
+      "kind": "dialog",
+      "title": "DiaryScreen.tsx alert 팝업",
+      "roles": [
+        "patient",
+        "caregiver-together",
+        "caregiver-apart"
+      ],
+      "entry": {
+        "how": "action",
+        "file": "src/screens/diary/DiaryScreen.tsx",
+        "line": 1889,
+        "note": "해당 조건을 만들어 팝업을 띄운다"
+      },
+      "keys": [
+        "diary.saveFailTitle",
+        "diary.slowInternetMsg",
+        "diary.genericRetryMsg"
+      ],
+      "excluded": null
+    },
+    {
+      "id": "dialog:src/screens/diary/DiaryScreen.tsx:1904",
+      "kind": "dialog",
+      "title": "DiaryScreen.tsx confirm 팝업",
+      "roles": [
+        "patient",
+        "caregiver-together",
+        "caregiver-apart"
+      ],
+      "entry": {
+        "how": "action",
+        "file": "src/screens/diary/DiaryScreen.tsx",
+        "line": 1904,
+        "note": "해당 조건을 만들어 팝업을 띄운다"
+      },
+      "keys": [
+        "diary.deletePostTitle",
+        "diary.deletePostMsg",
+        "medManage.delete",
+        "common.cancel"
+      ],
+      "excluded": null
+    },
+    {
+      "id": "dialog:src/screens/diary/DiaryScreen.tsx:1916",
+      "kind": "dialog",
+      "title": "DiaryScreen.tsx alert 팝업",
+      "roles": [
+        "patient",
+        "caregiver-together",
+        "caregiver-apart"
+      ],
+      "entry": {
+        "how": "action",
+        "file": "src/screens/diary/DiaryScreen.tsx",
+        "line": 1916,
+        "note": "해당 조건을 만들어 팝업을 띄운다"
+      },
+      "keys": [
+        "diary.deleteFailTitle",
+        "diary.genericRetryMsg"
+      ],
+      "excluded": null
+    },
+    {
+      "id": "dialog:src/screens/diary/DiaryScreen.tsx:2126",
+      "kind": "dialog",
+      "title": "DiaryScreen.tsx alert 팝업",
+      "roles": [
+        "patient",
+        "caregiver-together",
+        "caregiver-apart"
+      ],
+      "entry": {
+        "how": "action",
+        "file": "src/screens/diary/DiaryScreen.tsx",
+        "line": 2126,
+        "note": "해당 조건을 만들어 팝업을 띄운다"
+      },
+      "keys": [
+        "diary.videoOnlyOneTitle",
+        "diary.videoOnlyOneMsg"
+      ],
+      "excluded": null
+    },
+    {
+      "id": "dialog:src/screens/diary/DiaryScreen.tsx:2142",
+      "kind": "dialog",
+      "title": "DiaryScreen.tsx alert 팝업",
+      "roles": [
+        "patient",
+        "caregiver-together",
+        "caregiver-apart"
+      ],
+      "entry": {
+        "how": "action",
+        "file": "src/screens/diary/DiaryScreen.tsx",
+        "line": 2142,
+        "note": "해당 조건을 만들어 팝업을 띄운다"
+      },
+      "keys": [
+        "diary.audioOnlyOneTitle",
+        "diary.audioOnlyOneMsg"
+      ],
+      "excluded": null
+    },
+    {
+      "id": "dialog:src/screens/exercise/ExerciseDurationScreen.tsx:227",
+      "kind": "dialog",
+      "title": "ExerciseDurationScreen.tsx alert 팝업",
+      "roles": [
+        "patient",
+        "caregiver-together",
+        "caregiver-apart"
+      ],
+      "entry": {
+        "how": "action",
+        "file": "src/screens/exercise/ExerciseDurationScreen.tsx",
+        "line": 227,
+        "note": "해당 조건을 만들어 팝업을 띄운다"
+      },
+      "keys": [
+        "exercise.timeAlertTitle",
+        "exercise.timeAlertMsg"
+      ],
+      "excluded": null
+    },
+    {
+      "id": "dialog:src/screens/exercise/ExerciseRecordScreen.tsx:106",
+      "kind": "dialog",
+      "title": "ExerciseRecordScreen.tsx alert 팝업",
+      "roles": [
+        "patient",
+        "caregiver-together",
+        "caregiver-apart"
+      ],
+      "entry": {
+        "how": "action",
+        "file": "src/screens/exercise/ExerciseRecordScreen.tsx",
+        "line": 106,
+        "note": "해당 조건을 만들어 팝업을 띄운다"
+      },
+      "keys": [
+        "exercise.customAlertTitle",
+        "exercise.customAlertMsg"
+      ],
+      "excluded": null
+    },
+    {
+      "id": "dialog:src/screens/exercise/ExerciseScreen.tsx:179",
+      "kind": "dialog",
+      "title": "ExerciseScreen.tsx alert 팝업",
+      "roles": [
+        "patient",
+        "caregiver-together",
+        "caregiver-apart"
+      ],
+      "entry": {
+        "how": "action",
+        "file": "src/screens/exercise/ExerciseScreen.tsx",
+        "line": 179,
+        "note": "해당 조건을 만들어 팝업을 띄운다"
+      },
+      "keys": [
+        "exercise.loadFailTitle"
+      ],
+      "excluded": null
+    },
+    {
+      "id": "dialog:src/screens/exercise/ExerciseScreen.tsx:220",
+      "kind": "dialog",
+      "title": "ExerciseScreen.tsx alert 팝업",
+      "roles": [
+        "patient",
+        "caregiver-together",
+        "caregiver-apart"
+      ],
+      "entry": {
+        "how": "action",
+        "file": "src/screens/exercise/ExerciseScreen.tsx",
+        "line": 220,
+        "note": "해당 조건을 만들어 팝업을 띄운다"
+      },
+      "keys": [
+        "exercise.loadFailTitle"
+      ],
+      "excluded": null
+    },
+    {
+      "id": "dialog:src/screens/exercise/ExerciseScreen.tsx:235",
+      "kind": "dialog",
+      "title": "ExerciseScreen.tsx confirm 팝업",
+      "roles": [
+        "patient",
+        "caregiver-together",
+        "caregiver-apart"
+      ],
+      "entry": {
+        "how": "action",
+        "file": "src/screens/exercise/ExerciseScreen.tsx",
+        "line": 235,
+        "note": "해당 조건을 만들어 팝업을 띄운다"
+      },
+      "keys": [
+        "exercise.cancelRecordTitle",
+        "exercise.cancelRecordMsg",
+        "exercise.cancelRecordConfirm",
+        "common.close"
+      ],
+      "excluded": null
+    },
+    {
+      "id": "dialog:src/screens/exercise/ExerciseScreen.tsx:245",
+      "kind": "dialog",
+      "title": "ExerciseScreen.tsx alert 팝업",
+      "roles": [
+        "patient",
+        "caregiver-together",
+        "caregiver-apart"
+      ],
+      "entry": {
+        "how": "action",
+        "file": "src/screens/exercise/ExerciseScreen.tsx",
+        "line": 245,
+        "note": "해당 조건을 만들어 팝업을 띄운다"
+      },
+      "keys": [
+        "exercise.cancelFailTitle",
+        "exercise.cancelFailMsg"
+      ],
+      "excluded": null
+    },
+    {
+      "id": "dialog:src/screens/feed/PostDetailScreen.tsx:196",
+      "kind": "dialog",
+      "title": "PostDetailScreen.tsx confirm 팝업",
+      "roles": [
+        "patient",
+        "caregiver-together",
+        "caregiver-apart"
+      ],
+      "entry": {
+        "how": "action",
+        "file": "src/screens/feed/PostDetailScreen.tsx",
+        "line": 196,
+        "note": "해당 조건을 만들어 팝업을 띄운다"
+      },
+      "keys": [
+        "postDetail.deleteConfirmTitle",
+        "postDetail.deleteConfirmMsg",
+        "postDetail.deleteConfirmBtn",
+        "postDetail.cancel"
+      ],
+      "excluded": {
+        "reason": "커뮤니티는 국내 전용",
+        "approved": "2026-07-29"
+      }
+    },
+    {
+      "id": "dialog:src/screens/feed/PostDetailScreen.tsx:211",
+      "kind": "dialog",
+      "title": "PostDetailScreen.tsx alert 팝업",
+      "roles": [
+        "patient",
+        "caregiver-together",
+        "caregiver-apart"
+      ],
+      "entry": {
+        "how": "action",
+        "file": "src/screens/feed/PostDetailScreen.tsx",
+        "line": 211,
+        "note": "해당 조건을 만들어 팝업을 띄운다"
+      },
+      "keys": [
+        "postDetail.deleteDoneTitle",
+        "postDetail.deleteDoneMsg"
+      ],
+      "excluded": {
+        "reason": "커뮤니티는 국내 전용",
+        "approved": "2026-07-29"
+      }
+    },
+    {
+      "id": "dialog:src/screens/feed/PostDetailScreen.tsx:217",
+      "kind": "dialog",
+      "title": "PostDetailScreen.tsx alert 팝업",
+      "roles": [
+        "patient",
+        "caregiver-together",
+        "caregiver-apart"
+      ],
+      "entry": {
+        "how": "action",
+        "file": "src/screens/feed/PostDetailScreen.tsx",
+        "line": 217,
+        "note": "해당 조건을 만들어 팝업을 띄운다"
+      },
+      "keys": [
+        "postDetail.errorTitle",
+        "postDetail.deleteFailMsg"
+      ],
+      "excluded": {
+        "reason": "커뮤니티는 국내 전용",
+        "approved": "2026-07-29"
+      }
+    },
+    {
+      "id": "dialog:src/screens/feed/PostDetailScreen.tsx:242",
+      "kind": "dialog",
+      "title": "PostDetailScreen.tsx confirm 팝업",
+      "roles": [
+        "patient",
+        "caregiver-together",
+        "caregiver-apart"
+      ],
+      "entry": {
+        "how": "action",
+        "file": "src/screens/feed/PostDetailScreen.tsx",
+        "line": 242,
+        "note": "해당 조건을 만들어 팝업을 띄운다"
+      },
+      "keys": [
+        "postDetail.blockUserTitle",
+        "postDetail.blockUserMsg"
+      ],
+      "excluded": {
+        "reason": "커뮤니티는 국내 전용",
+        "approved": "2026-07-29"
+      }
+    },
+    {
+      "id": "dialog:src/screens/feed/PostDetailScreen.tsx:252",
+      "kind": "dialog",
+      "title": "PostDetailScreen.tsx alert 팝업",
+      "roles": [
+        "patient",
+        "caregiver-together",
+        "caregiver-apart"
+      ],
+      "entry": {
+        "how": "action",
+        "file": "src/screens/feed/PostDetailScreen.tsx",
+        "line": 252,
+        "note": "해당 조건을 만들어 팝업을 띄운다"
+      },
+      "keys": [
+        "postDetail.blockDoneTitle",
+        "postDetail.blockDoneMsg"
+      ],
+      "excluded": {
+        "reason": "커뮤니티는 국내 전용",
+        "approved": "2026-07-29"
+      }
+    },
+    {
+      "id": "dialog:src/screens/feed/PostDetailScreen.tsx:261",
+      "kind": "dialog",
+      "title": "PostDetailScreen.tsx alert 팝업",
+      "roles": [
+        "patient",
+        "caregiver-together",
+        "caregiver-apart"
+      ],
+      "entry": {
+        "how": "action",
+        "file": "src/screens/feed/PostDetailScreen.tsx",
+        "line": 261,
+        "note": "해당 조건을 만들어 팝업을 띄운다"
+      },
+      "keys": [
+        "postDetail.errorTitle",
+        "postDetail.blockFailMsg"
+      ],
+      "excluded": {
+        "reason": "커뮤니티는 국내 전용",
+        "approved": "2026-07-29"
+      }
+    },
+    {
+      "id": "dialog:src/screens/feed/PostDetailScreen.tsx:394",
+      "kind": "dialog",
+      "title": "PostDetailScreen.tsx alert 팝업",
+      "roles": [
+        "patient",
+        "caregiver-together",
+        "caregiver-apart"
+      ],
+      "entry": {
+        "how": "action",
+        "file": "src/screens/feed/PostDetailScreen.tsx",
+        "line": 394,
+        "note": "해당 조건을 만들어 팝업을 띄운다"
+      },
+      "keys": [
+        "postDetail.errorTitle",
+        "postDetail.commentsLoadFailMsg"
+      ],
+      "excluded": {
+        "reason": "커뮤니티는 국내 전용",
+        "approved": "2026-07-29"
+      }
+    },
+    {
+      "id": "dialog:src/screens/feed/PostDetailScreen.tsx:446",
+      "kind": "dialog",
+      "title": "PostDetailScreen.tsx alert 팝업",
+      "roles": [
+        "patient",
+        "caregiver-together",
+        "caregiver-apart"
+      ],
+      "entry": {
+        "how": "action",
+        "file": "src/screens/feed/PostDetailScreen.tsx",
+        "line": 446,
+        "note": "해당 조건을 만들어 팝업을 띄운다"
+      },
+      "keys": [
+        "postDetail.errorTitle",
+        "postDetail.likeFailMsg"
+      ],
+      "excluded": {
+        "reason": "커뮤니티는 국내 전용",
+        "approved": "2026-07-29"
+      }
+    },
+    {
+      "id": "dialog:src/screens/feed/PostDetailScreen.tsx:486",
+      "kind": "dialog",
+      "title": "PostDetailScreen.tsx alert 팝업",
+      "roles": [
+        "patient",
+        "caregiver-together",
+        "caregiver-apart"
+      ],
+      "entry": {
+        "how": "action",
+        "file": "src/screens/feed/PostDetailScreen.tsx",
+        "line": 486,
+        "note": "해당 조건을 만들어 팝업을 띄운다"
+      },
+      "keys": [
+        "postDetail.errorTitle",
+        "postDetail.commentFailMsg"
+      ],
+      "excluded": {
+        "reason": "커뮤니티는 국내 전용",
+        "approved": "2026-07-29"
+      }
+    },
+    {
+      "id": "dialog:src/screens/feed/PostDetailScreen.tsx:519",
+      "kind": "dialog",
+      "title": "PostDetailScreen.tsx alert 팝업",
+      "roles": [
+        "patient",
+        "caregiver-together",
+        "caregiver-apart"
+      ],
+      "entry": {
+        "how": "action",
+        "file": "src/screens/feed/PostDetailScreen.tsx",
+        "line": 519,
+        "note": "해당 조건을 만들어 팝업을 띄운다"
+      },
+      "keys": [
+        "postDetail.errorTitle",
+        "postDetail.commentLikeFailMsg"
+      ],
+      "excluded": {
+        "reason": "커뮤니티는 국내 전용",
+        "approved": "2026-07-29"
+      }
+    },
+    {
+      "id": "dialog:src/screens/feed/PostWriteScreen.tsx:137",
+      "kind": "dialog",
+      "title": "PostWriteScreen.tsx alert 팝업",
+      "roles": [
+        "patient",
+        "caregiver-together",
+        "caregiver-apart"
+      ],
+      "entry": {
+        "how": "action",
+        "file": "src/screens/feed/PostWriteScreen.tsx",
+        "line": 137,
+        "note": "해당 조건을 만들어 팝업을 띄운다"
+      },
+      "keys": [
+        "postWrite.photoLimitTitle",
+        "postWrite.photoLimitMsg"
+      ],
+      "excluded": {
+        "reason": "커뮤니티는 국내 전용",
+        "approved": "2026-07-29"
+      }
+    },
+    {
+      "id": "dialog:src/screens/feed/PostWriteScreen.tsx:142",
+      "kind": "dialog",
+      "title": "PostWriteScreen.tsx alert 팝업",
+      "roles": [
+        "patient",
+        "caregiver-together",
+        "caregiver-apart"
+      ],
+      "entry": {
+        "how": "action",
+        "file": "src/screens/feed/PostWriteScreen.tsx",
+        "line": 142,
+        "note": "해당 조건을 만들어 팝업을 띄운다"
+      },
+      "keys": [
+        "postWrite.permTitle",
+        "postWrite.permMsg"
+      ],
+      "excluded": {
+        "reason": "커뮤니티는 국내 전용",
+        "approved": "2026-07-29"
+      }
+    },
+    {
+      "id": "dialog:src/screens/feed/PostWriteScreen.tsx:183",
+      "kind": "dialog",
+      "title": "PostWriteScreen.tsx alert 팝업",
+      "roles": [
+        "patient",
+        "caregiver-together",
+        "caregiver-apart"
+      ],
+      "entry": {
+        "how": "action",
+        "file": "src/screens/feed/PostWriteScreen.tsx",
+        "line": 183,
+        "note": "해당 조건을 만들어 팝업을 띄운다"
+      },
+      "keys": [
+        "postWrite.categoryTitle",
+        "postWrite.categoryMsg"
+      ],
+      "excluded": {
+        "reason": "커뮤니티는 국내 전용",
+        "approved": "2026-07-29"
+      }
+    },
+    {
+      "id": "dialog:src/screens/feed/PostWriteScreen.tsx:187",
+      "kind": "dialog",
+      "title": "PostWriteScreen.tsx alert 팝업",
+      "roles": [
+        "patient",
+        "caregiver-together",
+        "caregiver-apart"
+      ],
+      "entry": {
+        "how": "action",
+        "file": "src/screens/feed/PostWriteScreen.tsx",
+        "line": 187,
+        "note": "해당 조건을 만들어 팝업을 띄운다"
+      },
+      "keys": [
+        "postWrite.titleRequiredTitle",
+        "postWrite.titleRequiredMsg"
+      ],
+      "excluded": {
+        "reason": "커뮤니티는 국내 전용",
+        "approved": "2026-07-29"
+      }
+    },
+    {
+      "id": "dialog:src/screens/feed/PostWriteScreen.tsx:191",
+      "kind": "dialog",
+      "title": "PostWriteScreen.tsx alert 팝업",
+      "roles": [
+        "patient",
+        "caregiver-together",
+        "caregiver-apart"
+      ],
+      "entry": {
+        "how": "action",
+        "file": "src/screens/feed/PostWriteScreen.tsx",
+        "line": 191,
+        "note": "해당 조건을 만들어 팝업을 띄운다"
+      },
+      "keys": [
+        "postWrite.contentRequiredTitle",
+        "postWrite.contentRequiredMsg"
+      ],
+      "excluded": {
+        "reason": "커뮤니티는 국내 전용",
+        "approved": "2026-07-29"
+      }
+    },
+    {
+      "id": "dialog:src/screens/feed/PostWriteScreen.tsx:238",
+      "kind": "dialog",
+      "title": "PostWriteScreen.tsx alert 팝업",
+      "roles": [
+        "patient",
+        "caregiver-together",
+        "caregiver-apart"
+      ],
+      "entry": {
+        "how": "action",
+        "file": "src/screens/feed/PostWriteScreen.tsx",
+        "line": 238,
+        "note": "해당 조건을 만들어 팝업을 띄운다"
+      },
+      "keys": [
+        "postWrite.photoUploadErrorTitle"
+      ],
+      "excluded": {
+        "reason": "커뮤니티는 국내 전용",
+        "approved": "2026-07-29"
+      }
+    },
+    {
+      "id": "dialog:src/screens/feed/PostWriteScreen.tsx:254",
+      "kind": "dialog",
+      "title": "PostWriteScreen.tsx alert 팝업",
+      "roles": [
+        "patient",
+        "caregiver-together",
+        "caregiver-apart"
+      ],
+      "entry": {
+        "how": "action",
+        "file": "src/screens/feed/PostWriteScreen.tsx",
+        "line": 254,
+        "note": "해당 조건을 만들어 팝업을 띄운다"
+      },
+      "keys": [
+        "postWrite.editDoneTitle",
+        "postWrite.editDoneMsg"
+      ],
+      "excluded": {
+        "reason": "커뮤니티는 국내 전용",
+        "approved": "2026-07-29"
+      }
+    },
+    {
+      "id": "dialog:src/screens/feed/PostWriteScreen.tsx:292",
+      "kind": "dialog",
+      "title": "PostWriteScreen.tsx alert 팝업",
+      "roles": [
+        "patient",
+        "caregiver-together",
+        "caregiver-apart"
+      ],
+      "entry": {
+        "how": "action",
+        "file": "src/screens/feed/PostWriteScreen.tsx",
+        "line": 292,
+        "note": "해당 조건을 만들어 팝업을 띄운다"
+      },
+      "keys": [
+        "postWrite.photoUploadErrorTitle"
+      ],
+      "excluded": {
+        "reason": "커뮤니티는 국내 전용",
+        "approved": "2026-07-29"
+      }
+    },
+    {
+      "id": "dialog:src/screens/feed/PostWriteScreen.tsx:298",
+      "kind": "dialog",
+      "title": "PostWriteScreen.tsx alert 팝업",
+      "roles": [
+        "patient",
+        "caregiver-together",
+        "caregiver-apart"
+      ],
+      "entry": {
+        "how": "action",
+        "file": "src/screens/feed/PostWriteScreen.tsx",
+        "line": 298,
+        "note": "해당 조건을 만들어 팝업을 띄운다"
+      },
+      "keys": [
+        "postWrite.createDoneTitle",
+        "postWrite.createDoneMsg"
+      ],
+      "excluded": {
+        "reason": "커뮤니티는 국내 전용",
+        "approved": "2026-07-29"
+      }
+    },
+    {
+      "id": "dialog:src/screens/feed/PostWriteScreen.tsx:306",
+      "kind": "dialog",
+      "title": "PostWriteScreen.tsx alert 팝업",
+      "roles": [
+        "patient",
+        "caregiver-together",
+        "caregiver-apart"
+      ],
+      "entry": {
+        "how": "action",
+        "file": "src/screens/feed/PostWriteScreen.tsx",
+        "line": 306,
+        "note": "해당 조건을 만들어 팝업을 띄운다"
+      },
+      "keys": [
+        "postWrite.errorTitle",
+        "postWrite.editFailMsg",
+        "postWrite.createFailMsg"
+      ],
+      "excluded": {
+        "reason": "커뮤니티는 국내 전용",
+        "approved": "2026-07-29"
+      }
+    },
+    {
+      "id": "dialog:src/screens/feed/PostWriteScreen.tsx:476",
+      "kind": "dialog",
+      "title": "PostWriteScreen.tsx alert 팝업",
+      "roles": [
+        "patient",
+        "caregiver-together",
+        "caregiver-apart"
+      ],
+      "entry": {
+        "how": "action",
+        "file": "src/screens/feed/PostWriteScreen.tsx",
+        "line": 476,
+        "note": "해당 조건을 만들어 팝업을 띄운다"
+      },
+      "keys": [
+        "postWrite.noticeTitle",
+        "postWrite.guidelineOpenFailMsg"
+      ],
+      "excluded": {
+        "reason": "커뮤니티는 국내 전용",
+        "approved": "2026-07-29"
+      }
+    },
+    {
+      "id": "dialog:src/screens/medication/MedicationScreen.tsx:299",
+      "kind": "dialog",
+      "title": "MedicationScreen.tsx confirm 팝업",
+      "roles": [
+        "patient",
+        "caregiver-together",
+        "caregiver-apart"
+      ],
+      "entry": {
+        "how": "action",
+        "file": "src/screens/medication/MedicationScreen.tsx",
+        "line": 299,
+        "note": "해당 조건을 만들어 팝업을 띄운다"
+      },
+      "keys": [
+        "medication.familyGuideTitle",
+        "medication.familyGuideMsg",
+        "medication.familyGuideConfirm",
+        "medication.later"
+      ],
+      "excluded": null
+    },
+    {
+      "id": "dialog:src/screens/medication/MedicationScreen.tsx:665",
+      "kind": "dialog",
+      "title": "MedicationScreen.tsx confirm 팝업",
+      "roles": [
+        "patient",
+        "caregiver-together",
+        "caregiver-apart"
+      ],
+      "entry": {
+        "how": "action",
+        "file": "src/screens/medication/MedicationScreen.tsx",
+        "line": 665,
+        "note": "해당 조건을 만들어 팝업을 띄운다"
+      },
+      "keys": [
+        "medication.cancelRecordTitle",
+        "medication.cancelRecordMsg",
+        "medication.cancelRecordConfirm",
+        "common.close"
+      ],
+      "excluded": null
+    },
+    {
+      "id": "dialog:src/screens/medication/MedicationScreen.tsx:676",
+      "kind": "dialog",
+      "title": "MedicationScreen.tsx alert 팝업",
+      "roles": [
+        "patient",
+        "caregiver-together",
+        "caregiver-apart"
+      ],
+      "entry": {
+        "how": "action",
+        "file": "src/screens/medication/MedicationScreen.tsx",
+        "line": 676,
+        "note": "해당 조건을 만들어 팝업을 띄운다"
+      },
+      "keys": [
+        "medication.cancelFailTitle",
+        "medication.cancelFailMsg"
+      ],
+      "excluded": null
+    },
+    {
+      "id": "dialog:src/screens/medication/MedicationScreen.tsx:737",
+      "kind": "dialog",
+      "title": "MedicationScreen.tsx alert 팝업",
+      "roles": [
+        "patient",
+        "caregiver-together",
+        "caregiver-apart"
+      ],
+      "entry": {
+        "how": "action",
+        "file": "src/screens/medication/MedicationScreen.tsx",
+        "line": 737,
+        "note": "해당 조건을 만들어 팝업을 띄운다"
+      },
+      "keys": [
+        "medication.wrongTimeTitle",
+        "medication.wrongTimeMsg"
+      ],
+      "excluded": null
+    },
+    {
+      "id": "dialog:src/screens/medication/MedicationScreen.tsx:1057",
+      "kind": "dialog",
+      "title": "MedicationScreen.tsx alert 팝업",
+      "roles": [
+        "patient",
+        "caregiver-together",
+        "caregiver-apart"
+      ],
+      "entry": {
+        "how": "action",
+        "file": "src/screens/medication/MedicationScreen.tsx",
+        "line": 1057,
+        "note": "해당 조건을 만들어 팝업을 띄운다"
+      },
+      "keys": [
+        "medication.wrongTimeTitle",
+        "medication.wrongTimeMsg"
+      ],
+      "excluded": null
+    },
+    {
+      "id": "dialog:src/screens/medication/MedicationScreen.tsx:1116",
+      "kind": "dialog",
+      "title": "MedicationScreen.tsx alert 팝업",
+      "roles": [
+        "patient",
+        "caregiver-together",
+        "caregiver-apart"
+      ],
+      "entry": {
+        "how": "action",
+        "file": "src/screens/medication/MedicationScreen.tsx",
+        "line": 1116,
+        "note": "해당 조건을 만들어 팝업을 띄운다"
+      },
+      "keys": [
+        "medication.alreadyTakenTitle",
+        "medication.alreadyTakenMsgAt"
+      ],
+      "excluded": null
+    },
+    {
+      "id": "dialog:src/screens/medication/MedicationScreen.tsx:1133",
+      "kind": "dialog",
+      "title": "MedicationScreen.tsx alert 팝업",
+      "roles": [
+        "patient",
+        "caregiver-together",
+        "caregiver-apart"
+      ],
+      "entry": {
+        "how": "action",
+        "file": "src/screens/medication/MedicationScreen.tsx",
+        "line": 1133,
+        "note": "해당 조건을 만들어 팝업을 띄운다"
+      },
+      "keys": [
+        "medication.wrongTimeTitle",
+        "medication.wrongTimeMsg"
+      ],
+      "excluded": null
+    },
+    {
+      "id": "dialog:src/screens/menu/AppointmentWriteScreen.tsx:414",
+      "kind": "dialog",
+      "title": "AppointmentWriteScreen.tsx alert 팝업",
+      "roles": [
+        "patient",
+        "caregiver-together",
+        "caregiver-apart"
+      ],
+      "entry": {
+        "how": "action",
+        "file": "src/screens/menu/AppointmentWriteScreen.tsx",
+        "line": 414,
+        "note": "해당 조건을 만들어 팝업을 띄운다"
+      },
+      "keys": [
+        "appointmentWrite.errorTitle",
+        "appointmentWrite.loadFailAlertMsg"
+      ],
+      "excluded": null
+    },
+    {
+      "id": "dialog:src/screens/menu/AppointmentWriteScreen.tsx:463",
+      "kind": "dialog",
+      "title": "AppointmentWriteScreen.tsx alert 팝업",
+      "roles": [
+        "patient",
+        "caregiver-together",
+        "caregiver-apart"
+      ],
+      "entry": {
+        "how": "action",
+        "file": "src/screens/menu/AppointmentWriteScreen.tsx",
+        "line": 463,
+        "note": "해당 조건을 만들어 팝업을 띄운다"
+      },
+      "keys": [
+        "appointmentWrite.linkRequiredTitle",
+        "appointmentWrite.linkRequiredMsg"
+      ],
+      "excluded": null
+    },
+    {
+      "id": "dialog:src/screens/menu/AppointmentWriteScreen.tsx:515",
+      "kind": "dialog",
+      "title": "AppointmentWriteScreen.tsx alert 팝업",
+      "roles": [
+        "patient",
+        "caregiver-together",
+        "caregiver-apart"
+      ],
+      "entry": {
+        "how": "action",
+        "file": "src/screens/menu/AppointmentWriteScreen.tsx",
+        "line": 515,
+        "note": "해당 조건을 만들어 팝업을 띄운다"
+      },
+      "keys": [
+        "appointmentWrite.saveDoneTitle",
+        "appointmentWrite.saveDoneMsg"
+      ],
+      "excluded": null
+    },
+    {
+      "id": "dialog:src/screens/menu/AppointmentWriteScreen.tsx:518",
+      "kind": "dialog",
+      "title": "AppointmentWriteScreen.tsx alert 팝업",
+      "roles": [
+        "patient",
+        "caregiver-together",
+        "caregiver-apart"
+      ],
+      "entry": {
+        "how": "action",
+        "file": "src/screens/menu/AppointmentWriteScreen.tsx",
+        "line": 518,
+        "note": "해당 조건을 만들어 팝업을 띄운다"
+      },
+      "keys": [
+        "appointmentWrite.errorTitle",
+        "appointmentWrite.saveFailMsg"
+      ],
+      "excluded": null
+    },
+    {
+      "id": "dialog:src/screens/menu/BlockedUsersScreen.tsx:97",
+      "kind": "dialog",
+      "title": "BlockedUsersScreen.tsx confirm 팝업",
+      "roles": [
+        "patient",
+        "caregiver-together",
+        "caregiver-apart"
+      ],
+      "entry": {
+        "how": "action",
+        "file": "src/screens/menu/BlockedUsersScreen.tsx",
+        "line": 97,
+        "note": "해당 조건을 만들어 팝업을 띄운다"
+      },
+      "keys": [
+        "blockedUsers.unblockTitle",
+        "blockedUsers.unblockMsg"
+      ],
+      "excluded": null
+    },
+    {
+      "id": "dialog:src/screens/menu/BlockedUsersScreen.tsx:108",
+      "kind": "dialog",
+      "title": "BlockedUsersScreen.tsx alert 팝업",
+      "roles": [
+        "patient",
+        "caregiver-together",
+        "caregiver-apart"
+      ],
+      "entry": {
+        "how": "action",
+        "file": "src/screens/menu/BlockedUsersScreen.tsx",
+        "line": 108,
+        "note": "해당 조건을 만들어 팝업을 띄운다"
+      },
+      "keys": [
+        "blockedUsers.errorTitle",
+        "blockedUsers.unblockFailMsg"
+      ],
+      "excluded": null
+    },
+    {
+      "id": "dialog:src/screens/menu/FamilyLinkScreen.tsx:192",
+      "kind": "dialog",
+      "title": "FamilyLinkScreen.tsx confirm 팝업",
+      "roles": [
+        "patient",
+        "caregiver-together",
+        "caregiver-apart"
+      ],
+      "entry": {
+        "how": "action",
+        "file": "src/screens/menu/FamilyLinkScreen.tsx",
+        "line": 192,
+        "note": "해당 조건을 만들어 팝업을 띄운다"
+      },
+      "keys": [
+        "familyLink.disconnectTitle",
+        "familyLink.disconnectMsg",
+        "familyLink.defaultFamilyName"
+      ],
+      "excluded": null
+    },
+    {
+      "id": "dialog:src/screens/menu/FamilyLinkScreen.tsx:208",
+      "kind": "dialog",
+      "title": "FamilyLinkScreen.tsx alert 팝업",
+      "roles": [
+        "patient",
+        "caregiver-together",
+        "caregiver-apart"
+      ],
+      "entry": {
+        "how": "action",
+        "file": "src/screens/menu/FamilyLinkScreen.tsx",
+        "line": 208,
+        "note": "해당 조건을 만들어 팝업을 띄운다"
+      },
+      "keys": [
+        "familyLink.errorTitle",
+        "familyLink.disconnectFailMsg"
+      ],
+      "excluded": null
+    },
+    {
+      "id": "dialog:src/screens/menu/FamilyLinkScreen.tsx:220",
+      "kind": "dialog",
+      "title": "FamilyLinkScreen.tsx alert 팝업",
+      "roles": [
+        "patient",
+        "caregiver-together",
+        "caregiver-apart"
+      ],
+      "entry": {
+        "how": "action",
+        "file": "src/screens/menu/FamilyLinkScreen.tsx",
+        "line": 220,
+        "note": "해당 조건을 만들어 팝업을 띄운다"
+      },
+      "keys": [
+        "familyLink.errorTitle",
+        "familyLink.inviteCodeGenFailMsg"
+      ],
+      "excluded": null
+    },
+    {
+      "id": "dialog:src/screens/menu/FamilyLinkScreen.tsx:245",
+      "kind": "dialog",
+      "title": "FamilyLinkScreen.tsx confirm 팝업",
+      "roles": [
+        "patient",
+        "caregiver-together",
+        "caregiver-apart"
+      ],
+      "entry": {
+        "how": "action",
+        "file": "src/screens/menu/FamilyLinkScreen.tsx",
+        "line": 245,
+        "note": "해당 조건을 만들어 팝업을 띄운다"
+      },
+      "keys": [
+        "familyLink.familyChangeTitle",
+        "familyLink.confirm",
+        "familyLink.cancel"
+      ],
+      "excluded": null
+    },
+    {
+      "id": "dialog:src/screens/menu/FamilyLinkScreen.tsx:258",
+      "kind": "dialog",
+      "title": "FamilyLinkScreen.tsx alert 팝업",
+      "roles": [
+        "patient",
+        "caregiver-together",
+        "caregiver-apart"
+      ],
+      "entry": {
+        "how": "action",
+        "file": "src/screens/menu/FamilyLinkScreen.tsx",
+        "line": 258,
+        "note": "해당 조건을 만들어 팝업을 띄운다"
+      },
+      "keys": [
+        "familyLink.connectDoneTitle"
+      ],
+      "excluded": null
+    },
+    {
+      "id": "dialog:src/screens/menu/FamilyLinkScreen.tsx:265",
+      "kind": "dialog",
+      "title": "FamilyLinkScreen.tsx alert 팝업",
+      "roles": [
+        "patient",
+        "caregiver-together",
+        "caregiver-apart"
+      ],
+      "entry": {
+        "how": "action",
+        "file": "src/screens/menu/FamilyLinkScreen.tsx",
+        "line": 265,
+        "note": "해당 조건을 만들어 팝업을 띄운다"
+      },
+      "keys": [
+        "familyLink.connectFailTitle"
+      ],
+      "excluded": null
+    },
+    {
+      "id": "dialog:src/screens/menu/FamilyLinkScreen.tsx:272",
+      "kind": "dialog",
+      "title": "FamilyLinkScreen.tsx alert 팝업",
+      "roles": [
+        "patient",
+        "caregiver-together",
+        "caregiver-apart"
+      ],
+      "entry": {
+        "how": "action",
+        "file": "src/screens/menu/FamilyLinkScreen.tsx",
+        "line": 272,
+        "note": "해당 조건을 만들어 팝업을 띄운다"
+      },
+      "keys": [
+        "familyLink.connectDoneTitle"
+      ],
+      "excluded": null
+    },
+    {
+      "id": "dialog:src/screens/menu/FamilyLinkScreen.tsx:276",
+      "kind": "dialog",
+      "title": "FamilyLinkScreen.tsx alert 팝업",
+      "roles": [
+        "patient",
+        "caregiver-together",
+        "caregiver-apart"
+      ],
+      "entry": {
+        "how": "action",
+        "file": "src/screens/menu/FamilyLinkScreen.tsx",
+        "line": 276,
+        "note": "해당 조건을 만들어 팝업을 띄운다"
+      },
+      "keys": [
+        "familyLink.connectFailTitle"
+      ],
+      "excluded": null
+    },
+    {
+      "id": "dialog:src/screens/menu/MedicalRecordDetailScreen.tsx:122",
+      "kind": "dialog",
+      "title": "MedicalRecordDetailScreen.tsx confirm 팝업",
+      "roles": [
+        "patient",
+        "caregiver-together",
+        "caregiver-apart"
+      ],
+      "entry": {
+        "how": "action",
+        "file": "src/screens/menu/MedicalRecordDetailScreen.tsx",
+        "line": 122,
+        "note": "해당 조건을 만들어 팝업을 띄운다"
+      },
+      "keys": [
+        "medRecordDetail.deleteTitle",
+        "medRecordDetail.deleteMsg",
+        "medRecordDetail.delete",
+        "medRecordDetail.cancel"
+      ],
+      "excluded": null
+    },
+    {
+      "id": "dialog:src/screens/menu/MedicalRecordDetailScreen.tsx:147",
+      "kind": "dialog",
+      "title": "MedicalRecordDetailScreen.tsx alert 팝업",
+      "roles": [
+        "patient",
+        "caregiver-together",
+        "caregiver-apart"
+      ],
+      "entry": {
+        "how": "action",
+        "file": "src/screens/menu/MedicalRecordDetailScreen.tsx",
+        "line": 147,
+        "note": "해당 조건을 만들어 팝업을 띄운다"
+      },
+      "keys": [
+        "medRecordDetail.deleteDoneTitle",
+        "medRecordDetail.deleteDoneMsg"
+      ],
+      "excluded": null
+    },
+    {
+      "id": "dialog:src/screens/menu/MedicalRecordDetailScreen.tsx:153",
+      "kind": "dialog",
+      "title": "MedicalRecordDetailScreen.tsx alert 팝업",
+      "roles": [
+        "patient",
+        "caregiver-together",
+        "caregiver-apart"
+      ],
+      "entry": {
+        "how": "action",
+        "file": "src/screens/menu/MedicalRecordDetailScreen.tsx",
+        "line": 153,
+        "note": "해당 조건을 만들어 팝업을 띄운다"
+      },
+      "keys": [
+        "medRecordDetail.errorTitle",
+        "medRecordDetail.deleteFailMsg"
+      ],
+      "excluded": null
+    },
+    {
+      "id": "dialog:src/screens/menu/MedicalRecordListScreen.tsx:240",
+      "kind": "dialog",
+      "title": "MedicalRecordListScreen.tsx confirm 팝업",
+      "roles": [
+        "patient",
+        "caregiver-together",
+        "caregiver-apart"
+      ],
+      "entry": {
+        "how": "action",
+        "file": "src/screens/menu/MedicalRecordListScreen.tsx",
+        "line": 240,
+        "note": "해당 조건을 만들어 팝업을 띄운다"
+      },
+      "keys": [
+        "medRecordList.deleteScheduleTitle",
+        "medRecordList.deleteScheduleMsg"
+      ],
+      "excluded": null
+    },
+    {
+      "id": "dialog:src/screens/menu/MedicalRecordListScreen.tsx:266",
+      "kind": "dialog",
+      "title": "MedicalRecordListScreen.tsx alert 팝업",
+      "roles": [
+        "patient",
+        "caregiver-together",
+        "caregiver-apart"
+      ],
+      "entry": {
+        "how": "action",
+        "file": "src/screens/menu/MedicalRecordListScreen.tsx",
+        "line": 266,
+        "note": "해당 조건을 만들어 팝업을 띄운다"
+      },
+      "keys": [
+        "medRecordList.errorTitle",
+        "medRecordList.deleteFailMsg"
+      ],
+      "excluded": null
+    },
+    {
+      "id": "dialog:src/screens/menu/MedicalRecordListScreen.tsx:315",
+      "kind": "dialog",
+      "title": "MedicalRecordListScreen.tsx alert 팝업",
+      "roles": [
+        "patient",
+        "caregiver-together",
+        "caregiver-apart"
+      ],
+      "entry": {
+        "how": "action",
+        "file": "src/screens/menu/MedicalRecordListScreen.tsx",
+        "line": 315,
+        "note": "해당 조건을 만들어 팝업을 띄운다"
+      },
+      "keys": [
+        "medRecordList.alarmOffTitle",
+        "medRecordList.alarmOffMsg"
+      ],
+      "excluded": null
+    },
+    {
+      "id": "dialog:src/screens/menu/MedicalRecordListScreen.tsx:324",
+      "kind": "dialog",
+      "title": "MedicalRecordListScreen.tsx alert 팝업",
+      "roles": [
+        "patient",
+        "caregiver-together",
+        "caregiver-apart"
+      ],
+      "entry": {
+        "how": "action",
+        "file": "src/screens/menu/MedicalRecordListScreen.tsx",
+        "line": 324,
+        "note": "해당 조건을 만들어 팝업을 띄운다"
+      },
+      "keys": [
+        "medRecordList.errorTitle",
+        "medRecordList.alarmSaveFailAlertMsg"
+      ],
+      "excluded": null
+    },
+    {
+      "id": "dialog:src/screens/menu/MedicalRecordListScreen.tsx:329",
+      "kind": "dialog",
+      "title": "MedicalRecordListScreen.tsx confirm 팝업",
+      "roles": [
+        "patient",
+        "caregiver-together",
+        "caregiver-apart"
+      ],
+      "entry": {
+        "how": "action",
+        "file": "src/screens/menu/MedicalRecordListScreen.tsx",
+        "line": 329,
+        "note": "해당 조건을 만들어 팝업을 띄운다"
+      },
+      "keys": [
+        "medRecordList.deleteRecordTitle",
+        "medRecordList.deleteRecordMsg"
+      ],
+      "excluded": null
+    },
+    {
+      "id": "dialog:src/screens/menu/MedicalRecordListScreen.tsx:346",
+      "kind": "dialog",
+      "title": "MedicalRecordListScreen.tsx alert 팝업",
+      "roles": [
+        "patient",
+        "caregiver-together",
+        "caregiver-apart"
+      ],
+      "entry": {
+        "how": "action",
+        "file": "src/screens/menu/MedicalRecordListScreen.tsx",
+        "line": 346,
+        "note": "해당 조건을 만들어 팝업을 띄운다"
+      },
+      "keys": [
+        "medRecordList.errorTitle",
+        "medRecordList.deleteFailMsg"
+      ],
+      "excluded": null
+    },
+    {
+      "id": "dialog:src/screens/menu/MedicalRecordWriteScreen.tsx:392",
+      "kind": "dialog",
+      "title": "MedicalRecordWriteScreen.tsx alert 팝업",
+      "roles": [
+        "patient",
+        "caregiver-together",
+        "caregiver-apart"
+      ],
+      "entry": {
+        "how": "action",
+        "file": "src/screens/menu/MedicalRecordWriteScreen.tsx",
+        "line": 392,
+        "note": "해당 조건을 만들어 팝업을 띄운다"
+      },
+      "keys": [
+        "medRecordWrite.errorTitle",
+        "medRecordWrite.loadFailAlertMsg"
+      ],
+      "excluded": null
+    },
+    {
+      "id": "dialog:src/screens/menu/MedicalRecordWriteScreen.tsx:431",
+      "kind": "dialog",
+      "title": "MedicalRecordWriteScreen.tsx alert 팝업",
+      "roles": [
+        "patient",
+        "caregiver-together",
+        "caregiver-apart"
+      ],
+      "entry": {
+        "how": "action",
+        "file": "src/screens/menu/MedicalRecordWriteScreen.tsx",
+        "line": 431,
+        "note": "해당 조건을 만들어 팝업을 띄운다"
+      },
+      "keys": [
+        "medRecordWrite.permRequiredTitle",
+        "medRecordWrite.cameraPermMsg"
+      ],
+      "excluded": null
+    },
+    {
+      "id": "dialog:src/screens/menu/MedicalRecordWriteScreen.tsx:435",
+      "kind": "dialog",
+      "title": "MedicalRecordWriteScreen.tsx alert 팝업",
+      "roles": [
+        "patient",
+        "caregiver-together",
+        "caregiver-apart"
+      ],
+      "entry": {
+        "how": "action",
+        "file": "src/screens/menu/MedicalRecordWriteScreen.tsx",
+        "line": 435,
+        "note": "해당 조건을 만들어 팝업을 띄운다"
+      },
+      "keys": [
+        "medRecordWrite.permRequiredTitle",
+        "medRecordWrite.galleryPermMsg"
+      ],
+      "excluded": null
+    },
+    {
+      "id": "dialog:src/screens/menu/MedicalRecordWriteScreen.tsx:454",
+      "kind": "dialog",
+      "title": "MedicalRecordWriteScreen.tsx alert 팝업",
+      "roles": [
+        "patient",
+        "caregiver-together",
+        "caregiver-apart"
+      ],
+      "entry": {
+        "how": "action",
+        "file": "src/screens/menu/MedicalRecordWriteScreen.tsx",
+        "line": 454,
+        "note": "해당 조건을 만들어 팝업을 띄운다"
+      },
+      "keys": [
+        "medRecordWrite.noticeTitle",
+        "medRecordWrite.ocrNoMedsMsg"
+      ],
+      "excluded": null
+    },
+    {
+      "id": "dialog:src/screens/menu/MedicalRecordWriteScreen.tsx:456",
+      "kind": "dialog",
+      "title": "MedicalRecordWriteScreen.tsx alert 팝업",
+      "roles": [
+        "patient",
+        "caregiver-together",
+        "caregiver-apart"
+      ],
+      "entry": {
+        "how": "action",
+        "file": "src/screens/menu/MedicalRecordWriteScreen.tsx",
+        "line": 456,
+        "note": "해당 조건을 만들어 팝업을 띄운다"
+      },
+      "keys": [
+        "medRecordWrite.errorTitle",
+        "medRecordWrite.ocrErrorMsg"
+      ],
+      "excluded": null
+    },
+    {
+      "id": "dialog:src/screens/menu/MedicalRecordWriteScreen.tsx:466",
+      "kind": "dialog",
+      "title": "MedicalRecordWriteScreen.tsx alert 팝업",
+      "roles": [
+        "patient",
+        "caregiver-together",
+        "caregiver-apart"
+      ],
+      "entry": {
+        "how": "action",
+        "file": "src/screens/menu/MedicalRecordWriteScreen.tsx",
+        "line": 466,
+        "note": "해당 조건을 만들어 팝업을 띄운다"
+      },
+      "keys": [
+        "medRecordWrite.linkRequiredTitle",
+        "medRecordWrite.linkRequiredMsg"
+      ],
+      "excluded": null
+    },
+    {
+      "id": "dialog:src/screens/menu/MedicalRecordWriteScreen.tsx:505",
+      "kind": "dialog",
+      "title": "MedicalRecordWriteScreen.tsx alert 팝업",
+      "roles": [
+        "patient",
+        "caregiver-together",
+        "caregiver-apart"
+      ],
+      "entry": {
+        "how": "action",
+        "file": "src/screens/menu/MedicalRecordWriteScreen.tsx",
+        "line": 505,
+        "note": "해당 조건을 만들어 팝업을 띄운다"
+      },
+      "keys": [
+        "medRecordWrite.saveDoneTitle",
+        "medRecordWrite.saveDoneMsg"
+      ],
+      "excluded": null
+    },
+    {
+      "id": "dialog:src/screens/menu/MedicalRecordWriteScreen.tsx:508",
+      "kind": "dialog",
+      "title": "MedicalRecordWriteScreen.tsx alert 팝업",
+      "roles": [
+        "patient",
+        "caregiver-together",
+        "caregiver-apart"
+      ],
+      "entry": {
+        "how": "action",
+        "file": "src/screens/menu/MedicalRecordWriteScreen.tsx",
+        "line": 508,
+        "note": "해당 조건을 만들어 팝업을 띄운다"
+      },
+      "keys": [
+        "medRecordWrite.errorTitle",
+        "medRecordWrite.saveFailMsg"
+      ],
+      "excluded": null
+    },
+    {
+      "id": "dialog:src/screens/menu/MedicationManageScreen.tsx:1094",
+      "kind": "dialog",
+      "title": "MedicationManageScreen.tsx alert 팝업",
+      "roles": [
+        "patient",
+        "caregiver-together",
+        "caregiver-apart"
+      ],
+      "entry": {
+        "how": "action",
+        "file": "src/screens/menu/MedicationManageScreen.tsx",
+        "line": 1094,
+        "note": "해당 조건을 만들어 팝업을 띄운다"
+      },
+      "keys": [
+        "medManage.setupGuideTitle",
+        "medManage.setupGuideMsg"
+      ],
+      "excluded": null
+    },
+    {
+      "id": "dialog:src/screens/menu/MedicationManageScreen.tsx:1254",
+      "kind": "dialog",
+      "title": "MedicationManageScreen.tsx alert 팝업",
+      "roles": [
+        "patient",
+        "caregiver-together",
+        "caregiver-apart"
+      ],
+      "entry": {
+        "how": "action",
+        "file": "src/screens/menu/MedicationManageScreen.tsx",
+        "line": 1254,
+        "note": "해당 조건을 만들어 팝업을 띄운다"
+      },
+      "keys": [
+        "medManage.deleteFailMsg"
+      ],
+      "excluded": null
+    },
+    {
+      "id": "dialog:src/screens/menu/MedicationManageScreen.tsx:1268",
+      "kind": "dialog",
+      "title": "MedicationManageScreen.tsx alert 팝업",
+      "roles": [
+        "patient",
+        "caregiver-together",
+        "caregiver-apart"
+      ],
+      "entry": {
+        "how": "action",
+        "file": "src/screens/menu/MedicationManageScreen.tsx",
+        "line": 1268,
+        "note": "해당 조건을 만들어 팝업을 띄운다"
+      },
+      "keys": [
+        "medManage.deleteFailMsg"
+      ],
+      "excluded": null
+    },
+    {
+      "id": "dialog:src/screens/menu/MedicationManageScreen.tsx:1299",
+      "kind": "dialog",
+      "title": "MedicationManageScreen.tsx confirm 팝업",
+      "roles": [
+        "patient",
+        "caregiver-together",
+        "caregiver-apart"
+      ],
+      "entry": {
+        "how": "action",
+        "file": "src/screens/menu/MedicationManageScreen.tsx",
+        "line": 1299,
+        "note": "해당 조건을 만들어 팝업을 띄운다"
+      },
+      "keys": [
+        "medManage.deleteSlotTitle",
+        "medManage.deleteSlotMsg"
+      ],
+      "excluded": null
+    },
+    {
+      "id": "dialog:src/screens/menu/MedicationManageScreen.tsx:1378",
+      "kind": "dialog",
+      "title": "MedicationManageScreen.tsx alert 팝업",
+      "roles": [
+        "patient",
+        "caregiver-together",
+        "caregiver-apart"
+      ],
+      "entry": {
+        "how": "action",
+        "file": "src/screens/menu/MedicationManageScreen.tsx",
+        "line": 1378,
+        "note": "해당 조건을 만들어 팝업을 띄운다"
+      },
+      "keys": [
+        "medManage.etDefaultDoneTitle",
+        "medManage.etDefaultDoneMsg"
+      ],
+      "excluded": null
+    },
+    {
+      "id": "dialog:src/screens/menu/MedicationManageScreen.tsx:1435",
+      "kind": "dialog",
+      "title": "MedicationManageScreen.tsx alert 팝업",
+      "roles": [
+        "patient",
+        "caregiver-together",
+        "caregiver-apart"
+      ],
+      "entry": {
+        "how": "action",
+        "file": "src/screens/menu/MedicationManageScreen.tsx",
+        "line": 1435,
+        "note": "해당 조건을 만들어 팝업을 띄운다"
+      },
+      "keys": [
+        "medManage.etTrackTitle"
+      ],
+      "excluded": null
+    },
+    {
+      "id": "dialog:src/screens/menu/MedicationManageScreen.tsx:1525",
+      "kind": "dialog",
+      "title": "MedicationManageScreen.tsx alert 팝업",
+      "roles": [
+        "patient",
+        "caregiver-together",
+        "caregiver-apart"
+      ],
+      "entry": {
+        "how": "action",
+        "file": "src/screens/menu/MedicationManageScreen.tsx",
+        "line": 1525,
+        "note": "해당 조건을 만들어 팝업을 띄운다"
+      },
+      "keys": [
+        "medManage.medNameRequired"
+      ],
+      "excluded": null
+    },
+    {
+      "id": "dialog:src/screens/menu/MedicationManageScreen.tsx:1851",
+      "kind": "dialog",
+      "title": "MedicationManageScreen.tsx alert 팝업",
+      "roles": [
+        "patient",
+        "caregiver-together",
+        "caregiver-apart"
+      ],
+      "entry": {
+        "how": "action",
+        "file": "src/screens/menu/MedicationManageScreen.tsx",
+        "line": 1851,
+        "note": "해당 조건을 만들어 팝업을 띄운다"
+      },
+      "keys": [
+        "medManage.permRequiredTitle",
+        "medManage.cameraPermMsg"
+      ],
+      "excluded": null
+    },
+    {
+      "id": "dialog:src/screens/menu/MedicationManageScreen.tsx:1854",
+      "kind": "dialog",
+      "title": "MedicationManageScreen.tsx alert 팝업",
+      "roles": [
+        "patient",
+        "caregiver-together",
+        "caregiver-apart"
+      ],
+      "entry": {
+        "how": "action",
+        "file": "src/screens/menu/MedicationManageScreen.tsx",
+        "line": 1854,
+        "note": "해당 조건을 만들어 팝업을 띄운다"
+      },
+      "keys": [
+        "medManage.permRequiredTitle",
+        "medManage.galleryPermMsg"
+      ],
+      "excluded": null
+    },
+    {
+      "id": "dialog:src/screens/menu/MedicationManageScreen.tsx:1864",
+      "kind": "dialog",
+      "title": "MedicationManageScreen.tsx alert 팝업",
+      "roles": [
+        "patient",
+        "caregiver-together",
+        "caregiver-apart"
+      ],
+      "entry": {
+        "how": "action",
+        "file": "src/screens/menu/MedicationManageScreen.tsx",
+        "line": 1864,
+        "note": "해당 조건을 만들어 팝업을 띄운다"
+      },
+      "keys": [
+        "common.error",
+        "medManage.cantReadImage"
+      ],
+      "excluded": null
+    },
+    {
+      "id": "dialog:src/screens/menu/MedicationManageScreen.tsx:1892",
+      "kind": "dialog",
+      "title": "MedicationManageScreen.tsx alert 팝업",
+      "roles": [
+        "patient",
+        "caregiver-together",
+        "caregiver-apart"
+      ],
+      "entry": {
+        "how": "action",
+        "file": "src/screens/menu/MedicationManageScreen.tsx",
+        "line": 1892,
+        "note": "해당 조건을 만들어 팝업을 띄운다"
+      },
+      "keys": [
+        "medManage.medNotFoundTitle",
+        "medManage.medNotFoundMsg"
+      ],
+      "excluded": null
+    },
+    {
+      "id": "dialog:src/screens/menu/MedicationManageScreen.tsx:1907",
+      "kind": "dialog",
+      "title": "MedicationManageScreen.tsx alert 팝업",
+      "roles": [
+        "patient",
+        "caregiver-together",
+        "caregiver-apart"
+      ],
+      "entry": {
+        "how": "action",
+        "file": "src/screens/menu/MedicationManageScreen.tsx",
+        "line": 1907,
+        "note": "해당 조건을 만들어 팝업을 띄운다"
+      },
+      "keys": [
+        "medManage.analysisFailMsg"
+      ],
+      "excluded": null
+    },
+    {
+      "id": "dialog:src/screens/menu/MedicationManageScreen.tsx:2335",
+      "kind": "dialog",
+      "title": "MedicationManageScreen.tsx confirm 팝업",
+      "roles": [
+        "patient",
+        "caregiver-together",
+        "caregiver-apart"
+      ],
+      "entry": {
+        "how": "action",
+        "file": "src/screens/menu/MedicationManageScreen.tsx",
+        "line": 2335,
+        "note": "해당 조건을 만들어 팝업을 띄운다"
+      },
+      "keys": [
+        "medManage.confirmPrescriptionTitle",
+        "medManage.registerBtn",
+        "common.cancel"
+      ],
+      "excluded": null
+    },
+    {
+      "id": "dialog:src/screens/menu/MedicationManageScreen.tsx:2385",
+      "kind": "dialog",
+      "title": "MedicationManageScreen.tsx alert 팝업",
+      "roles": [
+        "patient",
+        "caregiver-together",
+        "caregiver-apart"
+      ],
+      "entry": {
+        "how": "action",
+        "file": "src/screens/menu/MedicationManageScreen.tsx",
+        "line": 2385,
+        "note": "해당 조건을 만들어 팝업을 띄운다"
+      },
+      "keys": [
+        "medManage.medNameRequired"
+      ],
+      "excluded": null
+    },
+    {
+      "id": "dialog:src/screens/menu/MedicationManageScreen.tsx:2397",
+      "kind": "dialog",
+      "title": "MedicationManageScreen.tsx alert 팝업",
+      "roles": [
+        "patient",
+        "caregiver-together",
+        "caregiver-apart"
+      ],
+      "entry": {
+        "how": "action",
+        "file": "src/screens/menu/MedicationManageScreen.tsx",
+        "line": 2397,
+        "note": "해당 조건을 만들어 팝업을 띄운다"
+      },
+      "keys": [
+        "medManage.medNameRequired"
+      ],
+      "excluded": null
+    },
+    {
+      "id": "dialog:src/screens/menu/MedicationManageScreen.tsx:2476",
+      "kind": "dialog",
+      "title": "MedicationManageScreen.tsx alert 팝업",
+      "roles": [
+        "patient",
+        "caregiver-together",
+        "caregiver-apart"
+      ],
+      "entry": {
+        "how": "action",
+        "file": "src/screens/menu/MedicationManageScreen.tsx",
+        "line": 2476,
+        "note": "해당 조건을 만들어 팝업을 띄운다"
+      },
+      "keys": [
+        "medManage.medNameRequired2"
+      ],
+      "excluded": null
+    },
+    {
+      "id": "dialog:src/screens/menu/MedicationManageScreen.tsx:2534",
+      "kind": "dialog",
+      "title": "MedicationManageScreen.tsx alert 팝업",
+      "roles": [
+        "patient",
+        "caregiver-together",
+        "caregiver-apart"
+      ],
+      "entry": {
+        "how": "action",
+        "file": "src/screens/menu/MedicationManageScreen.tsx",
+        "line": 2534,
+        "note": "해당 조건을 만들어 팝업을 띄운다"
+      },
+      "keys": [
+        "medManage.addFailMsg"
+      ],
+      "excluded": null
+    },
+    {
+      "id": "dialog:src/screens/menu/MedicationManageScreen.tsx:2557",
+      "kind": "dialog",
+      "title": "MedicationManageScreen.tsx alert 팝업",
+      "roles": [
+        "patient",
+        "caregiver-together",
+        "caregiver-apart"
+      ],
+      "entry": {
+        "how": "action",
+        "file": "src/screens/menu/MedicationManageScreen.tsx",
+        "line": 2557,
+        "note": "해당 조건을 만들어 팝업을 띄운다"
+      },
+      "keys": [
+        "medManage.medNameRequired2"
+      ],
+      "excluded": null
+    },
+    {
+      "id": "dialog:src/screens/menu/MedicationManageScreen.tsx:2598",
+      "kind": "dialog",
+      "title": "MedicationManageScreen.tsx alert 팝업",
+      "roles": [
+        "patient",
+        "caregiver-together",
+        "caregiver-apart"
+      ],
+      "entry": {
+        "how": "action",
+        "file": "src/screens/menu/MedicationManageScreen.tsx",
+        "line": 2598,
+        "note": "해당 조건을 만들어 팝업을 띄운다"
+      },
+      "keys": [
+        "medManage.editFailMsg"
+      ],
+      "excluded": null
+    },
+    {
+      "id": "dialog:src/screens/menu/MedicationManageScreen.tsx:2617",
+      "kind": "dialog",
+      "title": "MedicationManageScreen.tsx confirm 팝업",
+      "roles": [
+        "patient",
+        "caregiver-together",
+        "caregiver-apart"
+      ],
+      "entry": {
+        "how": "action",
+        "file": "src/screens/menu/MedicationManageScreen.tsx",
+        "line": 2617,
+        "note": "해당 조건을 만들어 팝업을 띄운다"
+      },
+      "keys": [
+        "medManage.stopMedTitle",
+        "medManage.stopMedMsg"
+      ],
+      "excluded": null
+    },
+    {
+      "id": "dialog:src/screens/menu/MedicationManageScreen.tsx:2668",
+      "kind": "dialog",
+      "title": "MedicationManageScreen.tsx alert 팝업",
+      "roles": [
+        "patient",
+        "caregiver-together",
+        "caregiver-apart"
+      ],
+      "entry": {
+        "how": "action",
+        "file": "src/screens/menu/MedicationManageScreen.tsx",
+        "line": 2668,
+        "note": "해당 조건을 만들어 팝업을 띄운다"
+      },
+      "keys": [
+        "medManage.stopFailMsg"
+      ],
+      "excluded": null
+    },
+    {
+      "id": "dialog:src/screens/menu/MedicationManageScreen.tsx:2677",
+      "kind": "dialog",
+      "title": "MedicationManageScreen.tsx confirm 팝업",
+      "roles": [
+        "patient",
+        "caregiver-together",
+        "caregiver-apart"
+      ],
+      "entry": {
+        "how": "action",
+        "file": "src/screens/menu/MedicationManageScreen.tsx",
+        "line": 2677,
+        "note": "해당 조건을 만들어 팝업을 띄운다"
+      },
+      "keys": [
+        "medManage.deletePastTitle",
+        "medManage.deletePastMsg"
+      ],
+      "excluded": null
+    },
+    {
+      "id": "dialog:src/screens/menu/MedicationManageScreen.tsx:2694",
+      "kind": "dialog",
+      "title": "MedicationManageScreen.tsx alert 팝업",
+      "roles": [
+        "patient",
+        "caregiver-together",
+        "caregiver-apart"
+      ],
+      "entry": {
+        "how": "action",
+        "file": "src/screens/menu/MedicationManageScreen.tsx",
+        "line": 2694,
+        "note": "해당 조건을 만들어 팝업을 띄운다"
+      },
+      "keys": [
+        "medManage.deleteFailMsg"
+      ],
+      "excluded": null
+    },
+    {
+      "id": "dialog:src/screens/menu/MedicationManageScreen.tsx:2735",
+      "kind": "dialog",
+      "title": "MedicationManageScreen.tsx alert 팝업",
+      "roles": [
+        "patient",
+        "caregiver-together",
+        "caregiver-apart"
+      ],
+      "entry": {
+        "how": "action",
+        "file": "src/screens/menu/MedicationManageScreen.tsx",
+        "line": 2735,
+        "note": "해당 조건을 만들어 팝업을 띄운다"
+      },
+      "keys": [
+        "medManage.assignSaveFailMsg"
+      ],
+      "excluded": null
+    },
+    {
+      "id": "dialog:src/screens/menu/MedicationManageScreen.tsx:2776",
+      "kind": "dialog",
+      "title": "MedicationManageScreen.tsx alert 팝업",
+      "roles": [
+        "patient",
+        "caregiver-together",
+        "caregiver-apart"
+      ],
+      "entry": {
+        "how": "action",
+        "file": "src/screens/menu/MedicationManageScreen.tsx",
+        "line": 2776,
+        "note": "해당 조건을 만들어 팝업을 띄운다"
+      },
+      "keys": [
+        "medManage.notifSaveFailMsg"
+      ],
+      "excluded": null
+    },
+    {
+      "id": "dialog:src/screens/menu/MedicationManageScreen.tsx:2876",
+      "kind": "dialog",
+      "title": "MedicationManageScreen.tsx confirm 팝업",
+      "roles": [
+        "patient",
+        "caregiver-together",
+        "caregiver-apart"
+      ],
+      "entry": {
+        "how": "action",
+        "file": "src/screens/menu/MedicationManageScreen.tsx",
+        "line": 2876,
+        "note": "해당 조건을 만들어 팝업을 띄운다"
+      },
+      "keys": [
+        "medManage.alarmPreviewTitle",
+        "medManage.alarmPreviewMsg",
+        "common.close"
+      ],
+      "excluded": null
+    },
+    {
+      "id": "dialog:src/screens/menu/MedicationManageScreen.tsx:4025",
+      "kind": "dialog",
+      "title": "MedicationManageScreen.tsx alert 팝업",
+      "roles": [
+        "patient",
+        "caregiver-together",
+        "caregiver-apart"
+      ],
+      "entry": {
+        "how": "action",
+        "file": "src/screens/menu/MedicationManageScreen.tsx",
+        "line": 4025,
+        "note": "해당 조건을 만들어 팝업을 띄운다"
+      },
+      "keys": [
+        "medSlotAssign.doneTitle",
+        "medSlotAssign.doneMsg"
+      ],
+      "excluded": null
+    },
+    {
+      "id": "dialog:src/screens/menu/MenuScreen.tsx:407",
+      "kind": "dialog",
+      "title": "MenuScreen.tsx confirm 팝업",
+      "roles": [
+        "patient",
+        "caregiver-together",
+        "caregiver-apart"
+      ],
+      "entry": {
+        "how": "action",
+        "file": "src/screens/menu/MenuScreen.tsx",
+        "line": 407,
+        "note": "해당 조건을 만들어 팝업을 띄운다"
+      },
+      "keys": [
+        "menu.logout",
+        "menu.logoutConfirmMsg",
+        "menu.logout",
+        "common.cancel"
+      ],
+      "excluded": null
+    },
+    {
+      "id": "dialog:src/screens/menu/MenuScreen.tsx:420",
+      "kind": "dialog",
+      "title": "MenuScreen.tsx confirm 팝업",
+      "roles": [
+        "patient",
+        "caregiver-together",
+        "caregiver-apart"
+      ],
+      "entry": {
+        "how": "action",
+        "file": "src/screens/menu/MenuScreen.tsx",
+        "line": 420,
+        "note": "해당 조건을 만들어 팝업을 띄운다"
+      },
+      "keys": [
+        "menu.withdrawTitle",
+        "menu.withdrawConfirmMsg",
+        "menu.withdrawConfirmBtn",
+        "common.cancel"
+      ],
+      "excluded": null
+    },
+    {
+      "id": "dialog:src/screens/menu/MenuScreen.tsx:462",
+      "kind": "dialog",
+      "title": "MenuScreen.tsx alert 팝업",
+      "roles": [
+        "patient",
+        "caregiver-together",
+        "caregiver-apart"
+      ],
+      "entry": {
+        "how": "action",
+        "file": "src/screens/menu/MenuScreen.tsx",
+        "line": 462,
+        "note": "해당 조건을 만들어 팝업을 띄운다"
+      },
+      "keys": [
+        "common.error",
+        "menu.withdrawErrorMsg"
+      ],
+      "excluded": null
+    },
+    {
+      "id": "dialog:src/screens/menu/MenuScreen.tsx:476",
+      "kind": "dialog",
+      "title": "MenuScreen.tsx alert 팝업",
+      "roles": [
+        "patient",
+        "caregiver-together",
+        "caregiver-apart"
+      ],
+      "entry": {
+        "how": "action",
+        "file": "src/screens/menu/MenuScreen.tsx",
+        "line": 476,
+        "note": "해당 조건을 만들어 팝업을 띄운다"
+      },
+      "keys": [
+        "menu.withdrawDoneTitle",
+        "menu.withdrawDoneMsg"
+      ],
+      "excluded": null
+    },
+    {
+      "id": "dialog:src/screens/menu/ProfileEditScreen.tsx:200",
+      "kind": "dialog",
+      "title": "ProfileEditScreen.tsx alert 팝업",
+      "roles": [
+        "patient",
+        "caregiver-together",
+        "caregiver-apart"
+      ],
+      "entry": {
+        "how": "action",
+        "file": "src/screens/menu/ProfileEditScreen.tsx",
+        "line": 200,
+        "note": "해당 조건을 만들어 팝업을 띄운다"
+      },
+      "keys": [
+        "common.notice"
+      ],
+      "excluded": null
+    },
+    {
+      "id": "dialog:src/screens/menu/ProfileEditScreen.tsx:208",
+      "kind": "dialog",
+      "title": "ProfileEditScreen.tsx alert 팝업",
+      "roles": [
+        "patient",
+        "caregiver-together",
+        "caregiver-apart"
+      ],
+      "entry": {
+        "how": "action",
+        "file": "src/screens/menu/ProfileEditScreen.tsx",
+        "line": 208,
+        "note": "해당 조건을 만들어 팝업을 띄운다"
+      },
+      "keys": [
+        "profileEdit.roleChangedTitle",
+        "profileEdit.roleChangedToPatient",
+        "profileEdit.roleChangedToCaregiver"
+      ],
+      "excluded": null
+    },
+    {
+      "id": "dialog:src/screens/menu/ProfileEditScreen.tsx:222",
+      "kind": "dialog",
+      "title": "ProfileEditScreen.tsx confirm 팝업",
+      "roles": [
+        "patient",
+        "caregiver-together",
+        "caregiver-apart"
+      ],
+      "entry": {
+        "how": "action",
+        "file": "src/screens/menu/ProfileEditScreen.tsx",
+        "line": 222,
+        "note": "해당 조건을 만들어 팝업을 띄운다"
+      },
+      "keys": [
+        "profileEdit.roleToPatientTitle",
+        "profileEdit.roleToPatientMsg",
+        "profileEdit.roleChangeDo",
+        "common.cancel"
+      ],
+      "excluded": null
+    },
+    {
+      "id": "dialog:src/screens/menu/ProfileEditScreen.tsx:231",
+      "kind": "dialog",
+      "title": "ProfileEditScreen.tsx alert 팝업",
+      "roles": [
+        "patient",
+        "caregiver-together",
+        "caregiver-apart"
+      ],
+      "entry": {
+        "how": "action",
+        "file": "src/screens/menu/ProfileEditScreen.tsx",
+        "line": 231,
+        "note": "해당 조건을 만들어 팝업을 띄운다"
+      },
+      "keys": [
+        "common.error",
+        "profileEdit.roleChangeFail"
+      ],
+      "excluded": null
+    },
+    {
+      "id": "dialog:src/screens/menu/ProfileEditScreen.tsx:237",
+      "kind": "dialog",
+      "title": "ProfileEditScreen.tsx confirm 팝업",
+      "roles": [
+        "patient",
+        "caregiver-together",
+        "caregiver-apart"
+      ],
+      "entry": {
+        "how": "action",
+        "file": "src/screens/menu/ProfileEditScreen.tsx",
+        "line": 237,
+        "note": "해당 조건을 만들어 팝업을 띄운다"
+      },
+      "keys": [
+        "profileEdit.roleExportTitle",
+        "profileEdit.roleExportMsg",
+        "profileEdit.roleExportDownload",
+        "profileEdit.roleExportSkip"
+      ],
+      "excluded": null
+    },
+    {
+      "id": "dialog:src/screens/menu/ProfileEditScreen.tsx:254",
+      "kind": "dialog",
+      "title": "ProfileEditScreen.tsx confirm 팝업",
+      "roles": [
+        "patient",
+        "caregiver-together",
+        "caregiver-apart"
+      ],
+      "entry": {
+        "how": "action",
+        "file": "src/screens/menu/ProfileEditScreen.tsx",
+        "line": 254,
+        "note": "해당 조건을 만들어 팝업을 띄운다"
+      },
+      "keys": [
+        "profileEdit.roleWarn1Title",
+        "profileEdit.roleWarn1Msg",
+        "common.continue",
+        "common.cancel"
+      ],
+      "excluded": null
+    },
+    {
+      "id": "dialog:src/screens/menu/ProfileEditScreen.tsx:263",
+      "kind": "dialog",
+      "title": "ProfileEditScreen.tsx confirm 팝업",
+      "roles": [
+        "patient",
+        "caregiver-together",
+        "caregiver-apart"
+      ],
+      "entry": {
+        "how": "action",
+        "file": "src/screens/menu/ProfileEditScreen.tsx",
+        "line": 263,
+        "note": "해당 조건을 만들어 팝업을 띄운다"
+      },
+      "keys": [
+        "profileEdit.roleWarn2Title",
+        "profileEdit.roleWarn2Msg",
+        "profileEdit.roleWarn2Confirm",
+        "common.cancel"
+      ],
+      "excluded": null
+    },
+    {
+      "id": "dialog:src/screens/menu/ProfileEditScreen.tsx:274",
+      "kind": "dialog",
+      "title": "ProfileEditScreen.tsx alert 팝업",
+      "roles": [
+        "patient",
+        "caregiver-together",
+        "caregiver-apart"
+      ],
+      "entry": {
+        "how": "action",
+        "file": "src/screens/menu/ProfileEditScreen.tsx",
+        "line": 274,
+        "note": "해당 조건을 만들어 팝업을 띄운다"
+      },
+      "keys": [
+        "common.error",
+        "profileEdit.roleChangeFail"
+      ],
+      "excluded": null
+    },
+    {
+      "id": "dialog:src/screens/menu/ProfileEditScreen.tsx:485",
+      "kind": "dialog",
+      "title": "ProfileEditScreen.tsx alert 팝업",
+      "roles": [
+        "patient",
+        "caregiver-together",
+        "caregiver-apart"
+      ],
+      "entry": {
+        "how": "action",
+        "file": "src/screens/menu/ProfileEditScreen.tsx",
+        "line": 485,
+        "note": "해당 조건을 만들어 팝업을 띄운다"
+      },
+      "keys": [
+        "profileEdit.nameCheckTitle",
+        "profileEdit.nameRequiredMsg"
+      ],
+      "excluded": null
+    },
+    {
+      "id": "dialog:src/screens/menu/ProfileEditScreen.tsx:593",
+      "kind": "dialog",
+      "title": "ProfileEditScreen.tsx alert 팝업",
+      "roles": [
+        "patient",
+        "caregiver-together",
+        "caregiver-apart"
+      ],
+      "entry": {
+        "how": "action",
+        "file": "src/screens/menu/ProfileEditScreen.tsx",
+        "line": 593,
+        "note": "해당 조건을 만들어 팝업을 띄운다"
+      },
+      "keys": [
+        "profileEdit.savedToast"
+      ],
+      "excluded": null
+    },
+    {
+      "id": "dialog:src/screens/menu/SettingsScreen.tsx:531",
+      "kind": "dialog",
+      "title": "SettingsScreen.tsx alert 팝업",
+      "roles": [
+        "patient",
+        "caregiver-together",
+        "caregiver-apart"
+      ],
+      "entry": {
+        "how": "action",
+        "file": "src/screens/menu/SettingsScreen.tsx",
+        "line": 531,
+        "note": "해당 조건을 만들어 팝업을 띄운다"
+      },
+      "keys": [
+        "settings.saveFailTitle",
+        "settings.saveNotifFailMsg"
+      ],
+      "excluded": null
+    },
+    {
+      "id": "dialog:src/screens/menu/SettingsScreen.tsx:698",
+      "kind": "dialog",
+      "title": "SettingsScreen.tsx alert 팝업",
+      "roles": [
+        "patient",
+        "caregiver-together",
+        "caregiver-apart"
+      ],
+      "entry": {
+        "how": "action",
+        "file": "src/screens/menu/SettingsScreen.tsx",
+        "line": 698,
+        "note": "해당 조건을 만들어 팝업을 띄운다"
+      },
+      "keys": [
+        "settings.saveFailTitle",
+        "settings.savePatientNotifFailMsg"
+      ],
+      "excluded": null
+    },
+    {
+      "id": "dialog:src/screens/menu/SettingsScreen.tsx:772",
+      "kind": "dialog",
+      "title": "SettingsScreen.tsx alert 팝업",
+      "roles": [
+        "patient",
+        "caregiver-together",
+        "caregiver-apart"
+      ],
+      "entry": {
+        "how": "action",
+        "file": "src/screens/menu/SettingsScreen.tsx",
+        "line": 772,
+        "note": "해당 조건을 만들어 팝업을 띄운다"
+      },
+      "keys": [
+        "settings.saveFailTitle",
+        "settings.saveNotifFailMsg"
+      ],
+      "excluded": null
+    },
+    {
+      "id": "dialog:src/screens/menu/SettingsScreen.tsx:831",
+      "kind": "dialog",
+      "title": "SettingsScreen.tsx alert 팝업",
+      "roles": [
+        "patient",
+        "caregiver-together",
+        "caregiver-apart"
+      ],
+      "entry": {
+        "how": "action",
+        "file": "src/screens/menu/SettingsScreen.tsx",
+        "line": 831,
+        "note": "해당 조건을 만들어 팝업을 띄운다"
+      },
+      "keys": [
+        "settings.caregiverGuideTitle",
+        "settings.caregiverGuideMsg"
+      ],
+      "excluded": null
+    },
+    {
+      "id": "dialog:src/screens/menu/SettingsScreen.tsx:849",
+      "kind": "dialog",
+      "title": "SettingsScreen.tsx alert 팝업",
+      "roles": [
+        "patient",
+        "caregiver-together",
+        "caregiver-apart"
+      ],
+      "entry": {
+        "how": "action",
+        "file": "src/screens/menu/SettingsScreen.tsx",
+        "line": 849,
+        "note": "해당 조건을 만들어 팝업을 띄운다"
+      },
+      "keys": [
+        "pushRefresh.refreshingMsg"
+      ],
+      "excluded": null
+    },
+    {
+      "id": "dialog:src/screens/menu/SettingsScreen.tsx:854",
+      "kind": "dialog",
+      "title": "SettingsScreen.tsx alert 팝업",
+      "roles": [
+        "patient",
+        "caregiver-together",
+        "caregiver-apart"
+      ],
+      "entry": {
+        "how": "action",
+        "file": "src/screens/menu/SettingsScreen.tsx",
+        "line": 854,
+        "note": "해당 조건을 만들어 팝업을 띄운다"
+      },
+      "keys": [
+        "pushRefresh.noPermTitle",
+        "pushRefresh.noPermMsg"
+      ],
+      "excluded": null
+    },
+    {
+      "id": "dialog:src/screens/menu/SettingsScreen.tsx:863",
+      "kind": "dialog",
+      "title": "SettingsScreen.tsx alert 팝업",
+      "roles": [
+        "patient",
+        "caregiver-together",
+        "caregiver-apart"
+      ],
+      "entry": {
+        "how": "action",
+        "file": "src/screens/menu/SettingsScreen.tsx",
+        "line": 863,
+        "note": "해당 조건을 만들어 팝업을 띄운다"
+      },
+      "keys": [
+        "pushRefresh.failTitle",
+        "pushRefresh.tokenFailMsg"
+      ],
+      "excluded": null
+    },
+    {
+      "id": "dialog:src/screens/menu/SettingsScreen.tsx:870",
+      "kind": "dialog",
+      "title": "SettingsScreen.tsx alert 팝업",
+      "roles": [
+        "patient",
+        "caregiver-together",
+        "caregiver-apart"
+      ],
+      "entry": {
+        "how": "action",
+        "file": "src/screens/menu/SettingsScreen.tsx",
+        "line": 870,
+        "note": "해당 조건을 만들어 팝업을 띄운다"
+      },
+      "keys": [
+        "pushRefresh.failTitle",
+        "pushRefresh.noSessionMsg"
+      ],
+      "excluded": null
+    },
+    {
+      "id": "dialog:src/screens/menu/SettingsScreen.tsx:876",
+      "kind": "dialog",
+      "title": "SettingsScreen.tsx alert 팝업",
+      "roles": [
+        "patient",
+        "caregiver-together",
+        "caregiver-apart"
+      ],
+      "entry": {
+        "how": "action",
+        "file": "src/screens/menu/SettingsScreen.tsx",
+        "line": 876,
+        "note": "해당 조건을 만들어 팝업을 띄운다"
+      },
+      "keys": [
+        "pushRefresh.failTitle",
+        "pushRefresh.noUserMsg"
+      ],
+      "excluded": null
+    },
+    {
+      "id": "dialog:src/screens/menu/SettingsScreen.tsx:895",
+      "kind": "dialog",
+      "title": "SettingsScreen.tsx alert 팝업",
+      "roles": [
+        "patient",
+        "caregiver-together",
+        "caregiver-apart"
+      ],
+      "entry": {
+        "how": "action",
+        "file": "src/screens/menu/SettingsScreen.tsx",
+        "line": 895,
+        "note": "해당 조건을 만들어 팝업을 띄운다"
+      },
+      "keys": [
+        "pushRefresh.failTitle",
+        "pushRefresh.dbFailMsg"
+      ],
+      "excluded": null
+    },
+    {
+      "id": "dialog:src/screens/menu/SettingsScreen.tsx:899",
+      "kind": "dialog",
+      "title": "SettingsScreen.tsx alert 팝업",
+      "roles": [
+        "patient",
+        "caregiver-together",
+        "caregiver-apart"
+      ],
+      "entry": {
+        "how": "action",
+        "file": "src/screens/menu/SettingsScreen.tsx",
+        "line": 899,
+        "note": "해당 조건을 만들어 팝업을 띄운다"
+      },
+      "keys": [
+        "pushRefresh.successTitle",
+        "pushRefresh.registeredMsg"
+      ],
+      "excluded": null
+    },
+    {
+      "id": "dialog:src/screens/menu/SettingsScreen.tsx:901",
+      "kind": "dialog",
+      "title": "SettingsScreen.tsx alert 팝업",
+      "roles": [
+        "patient",
+        "caregiver-together",
+        "caregiver-apart"
+      ],
+      "entry": {
+        "how": "action",
+        "file": "src/screens/menu/SettingsScreen.tsx",
+        "line": 901,
+        "note": "해당 조건을 만들어 팝업을 띄운다"
+      },
+      "keys": [
+        "pushRefresh.errorTitle"
+      ],
+      "excluded": null
+    },
+    {
+      "id": "dialog:src/screens/menu/SettingsScreen.tsx:1216",
+      "kind": "dialog",
+      "title": "SettingsScreen.tsx alert 팝업",
+      "roles": [
+        "patient",
+        "caregiver-together",
+        "caregiver-apart"
+      ],
+      "entry": {
+        "how": "action",
+        "file": "src/screens/menu/SettingsScreen.tsx",
+        "line": 1216,
+        "note": "해당 조건을 만들어 팝업을 띄운다"
+      },
+      "keys": [
+        "settings.saveFailTitle",
+        "settings.savePatientNotifFailMsg"
+      ],
+      "excluded": null
+    },
+    {
+      "id": "dialog:src/screens/menu/SettingsScreen.tsx:1226",
+      "kind": "dialog",
+      "title": "SettingsScreen.tsx alert 팝업",
+      "roles": [
+        "patient",
+        "caregiver-together",
+        "caregiver-apart"
+      ],
+      "entry": {
+        "how": "action",
+        "file": "src/screens/menu/SettingsScreen.tsx",
+        "line": 1226,
+        "note": "해당 조건을 만들어 팝업을 띄운다"
+      },
+      "keys": [
+        "settings.duplicateNotifTitle",
+        "settings.duplicateNotifMsg"
+      ],
+      "excluded": null
+    },
+    {
+      "id": "dialog:src/screens/menu/SettingsScreen.tsx:1231",
+      "kind": "dialog",
+      "title": "SettingsScreen.tsx alert 팝업",
+      "roles": [
+        "patient",
+        "caregiver-together",
+        "caregiver-apart"
+      ],
+      "entry": {
+        "how": "action",
+        "file": "src/screens/menu/SettingsScreen.tsx",
+        "line": 1231,
+        "note": "해당 조건을 만들어 팝업을 띄운다"
+      },
+      "keys": [
+        "settings.mealGapConflictTitle",
+        "settings.mealGapConflictMsg"
+      ],
+      "excluded": null
+    },
+    {
+      "id": "dialog:src/screens/menu/SettingsScreen.tsx:1255",
+      "kind": "dialog",
+      "title": "SettingsScreen.tsx alert 팝업",
+      "roles": [
+        "patient",
+        "caregiver-together",
+        "caregiver-apart"
+      ],
+      "entry": {
+        "how": "action",
+        "file": "src/screens/menu/SettingsScreen.tsx",
+        "line": 1255,
+        "note": "해당 조건을 만들어 팝업을 띄운다"
+      },
+      "keys": [
+        "settings.duplicateNotifTitle",
+        "settings.duplicateNotifMsg"
+      ],
+      "excluded": null
+    },
+    {
+      "id": "dialog:src/screens/menu/SettingsScreen.tsx:1293",
+      "kind": "dialog",
+      "title": "SettingsScreen.tsx confirm 팝업",
+      "roles": [
+        "patient",
+        "caregiver-together",
+        "caregiver-apart"
+      ],
+      "entry": {
+        "how": "action",
+        "file": "src/screens/menu/SettingsScreen.tsx",
+        "line": 1293,
+        "note": "해당 조건을 만들어 팝업을 띄운다"
+      },
+      "keys": [
+        "settings.deleteNotifTitle",
+        "settings.deleteNotifMsg",
+        "settings.deleteNotifConfirm",
+        "common.cancel"
+      ],
+      "excluded": null
+    },
+    {
+      "id": "dialog:src/screens/menu/SettingsScreen.tsx:1310",
+      "kind": "dialog",
+      "title": "SettingsScreen.tsx confirm 팝업",
+      "roles": [
+        "patient",
+        "caregiver-together",
+        "caregiver-apart"
+      ],
+      "entry": {
+        "how": "action",
+        "file": "src/screens/menu/SettingsScreen.tsx",
+        "line": 1310,
+        "note": "해당 조건을 만들어 팝업을 띄운다"
+      },
+      "keys": [
+        "settings.deleteNotifTitle",
+        "settings.deleteNotifMsg",
+        "settings.deleteNotifConfirm",
+        "common.cancel"
+      ],
+      "excluded": null
+    },
+    {
+      "id": "dialog:src/screens/menu/SettingsScreen.tsx:1340",
+      "kind": "dialog",
+      "title": "SettingsScreen.tsx alert 팝업",
+      "roles": [
+        "patient",
+        "caregiver-together",
+        "caregiver-apart"
+      ],
+      "entry": {
+        "how": "action",
+        "file": "src/screens/menu/SettingsScreen.tsx",
+        "line": 1340,
+        "note": "해당 조건을 만들어 팝업을 띄운다"
+      },
+      "keys": [
+        "settings.saveFailTitle",
+        "settings.savePatientSoundFailMsg"
+      ],
+      "excluded": null
+    },
+    {
+      "id": "dialog:src/screens/menu/SettingsScreen.tsx:1366",
+      "kind": "dialog",
+      "title": "SettingsScreen.tsx alert 팝업",
+      "roles": [
+        "patient",
+        "caregiver-together",
+        "caregiver-apart"
+      ],
+      "entry": {
+        "how": "action",
+        "file": "src/screens/menu/SettingsScreen.tsx",
+        "line": 1366,
+        "note": "해당 조건을 만들어 팝업을 띄운다"
+      },
+      "keys": [
+        "settings.saveFailTitle",
+        "settings.savePatientSoundFailMsg"
+      ],
+      "excluded": null
+    },
+    {
+      "id": "dialog:src/screens/menu/SettingsScreen.tsx:1444",
+      "kind": "dialog",
+      "title": "SettingsScreen.tsx confirm 팝업",
+      "roles": [
+        "patient",
+        "caregiver-together",
+        "caregiver-apart"
+      ],
+      "entry": {
+        "how": "action",
+        "file": "src/screens/menu/SettingsScreen.tsx",
+        "line": 1444,
+        "note": "해당 조건을 만들어 팝업을 띄운다"
+      },
+      "keys": [
+        "settings.deleteNotifTitle",
+        "settings.deleteNotifMsg",
+        "settings.deleteNotifConfirm",
+        "common.cancel"
+      ],
+      "excluded": null
+    },
+    {
+      "id": "dialog:src/screens/menu/SettingsScreen.tsx:1462",
+      "kind": "dialog",
+      "title": "SettingsScreen.tsx alert 팝업",
+      "roles": [
+        "patient",
+        "caregiver-together",
+        "caregiver-apart"
+      ],
+      "entry": {
+        "how": "action",
+        "file": "src/screens/menu/SettingsScreen.tsx",
+        "line": 1462,
+        "note": "해당 조건을 만들어 팝업을 띄운다"
+      },
+      "keys": [
+        "settings.duplicateNotifTitle",
+        "settings.duplicateNotifMsg"
+      ],
+      "excluded": null
+    },
+    {
+      "id": "dialog:src/screens/menu/SettingsScreen.tsx:1467",
+      "kind": "dialog",
+      "title": "SettingsScreen.tsx alert 팝업",
+      "roles": [
+        "patient",
+        "caregiver-together",
+        "caregiver-apart"
+      ],
+      "entry": {
+        "how": "action",
+        "file": "src/screens/menu/SettingsScreen.tsx",
+        "line": 1467,
+        "note": "해당 조건을 만들어 팝업을 띄운다"
+      },
+      "keys": [
+        "settings.mealGapConflictTitle",
+        "settings.mealGapConflictMsg"
+      ],
+      "excluded": null
+    },
+    {
+      "id": "dialog:src/screens/menu/SettingsScreen.tsx:1506",
+      "kind": "dialog",
+      "title": "SettingsScreen.tsx confirm 팝업",
+      "roles": [
+        "patient",
+        "caregiver-together",
+        "caregiver-apart"
+      ],
+      "entry": {
+        "how": "action",
+        "file": "src/screens/menu/SettingsScreen.tsx",
+        "line": 1506,
+        "note": "해당 조건을 만들어 팝업을 띄운다"
+      },
+      "keys": [
+        "settings.deleteNotifTitle",
+        "settings.deleteNotifMsg",
+        "settings.deleteNotifConfirm",
+        "common.cancel"
+      ],
+      "excluded": null
+    },
+    {
+      "id": "dialog:src/screens/menu/SettingsScreen.tsx:1524",
+      "kind": "dialog",
+      "title": "SettingsScreen.tsx alert 팝업",
+      "roles": [
+        "patient",
+        "caregiver-together",
+        "caregiver-apart"
+      ],
+      "entry": {
+        "how": "action",
+        "file": "src/screens/menu/SettingsScreen.tsx",
+        "line": 1524,
+        "note": "해당 조건을 만들어 팝업을 띄운다"
+      },
+      "keys": [
+        "settings.duplicateNotifTitle",
+        "settings.duplicateNotifMsg"
+      ],
+      "excluded": null
+    },
+    {
+      "id": "dialog:src/screens/menu/SettingsScreen.tsx:1619",
+      "kind": "dialog",
+      "title": "SettingsScreen.tsx confirm 팝업",
+      "roles": [
+        "patient",
+        "caregiver-together",
+        "caregiver-apart"
+      ],
+      "entry": {
+        "how": "action",
+        "file": "src/screens/menu/SettingsScreen.tsx",
+        "line": 1619,
+        "note": "해당 조건을 만들어 팝업을 띄운다"
+      },
+      "keys": [
+        "settings.deleteNotifTitle",
+        "settings.deleteMedSlotMsg"
+      ],
+      "excluded": null
+    },
+    {
+      "id": "dialog:src/screens/menu/SubscriptionManageScreen.tsx:132",
+      "kind": "dialog",
+      "title": "SubscriptionManageScreen.tsx alert 팝업",
+      "roles": [
+        "patient",
+        "caregiver-together",
+        "caregiver-apart"
+      ],
+      "entry": {
+        "how": "action",
+        "file": "src/screens/menu/SubscriptionManageScreen.tsx",
+        "line": 132,
+        "note": "해당 조건을 만들어 팝업을 띄운다"
+      },
+      "keys": [
+        "subscription.comingSoonTitle",
+        "subscription.comingSoonMsg"
+      ],
+      "excluded": null
+    },
+    {
+      "id": "dialog:src/screens/menu/SubscriptionManageScreen.tsx:144",
+      "kind": "dialog",
+      "title": "SubscriptionManageScreen.tsx alert 팝업",
+      "roles": [
+        "patient",
+        "caregiver-together",
+        "caregiver-apart"
+      ],
+      "entry": {
+        "how": "action",
+        "file": "src/screens/menu/SubscriptionManageScreen.tsx",
+        "line": 144,
+        "note": "해당 조건을 만들어 팝업을 띄운다"
+      },
+      "keys": [
+        "subscription.purchaseDoneTitle",
+        "subscription.purchaseDoneMsg"
+      ],
+      "excluded": null
+    },
+    {
+      "id": "dialog:src/screens/menu/SubscriptionManageScreen.tsx:147",
+      "kind": "dialog",
+      "title": "SubscriptionManageScreen.tsx alert 팝업",
+      "roles": [
+        "patient",
+        "caregiver-together",
+        "caregiver-apart"
+      ],
+      "entry": {
+        "how": "action",
+        "file": "src/screens/menu/SubscriptionManageScreen.tsx",
+        "line": 147,
+        "note": "해당 조건을 만들어 팝업을 띄운다"
+      },
+      "keys": [
+        "subscription.purchaseFailTitle",
+        "subscription.purchaseFailMsg"
+      ],
+      "excluded": null
+    },
+    {
+      "id": "dialog:src/screens/menu/SubscriptionManageScreen.tsx:162",
+      "kind": "dialog",
+      "title": "SubscriptionManageScreen.tsx alert 팝업",
+      "roles": [
+        "patient",
+        "caregiver-together",
+        "caregiver-apart"
+      ],
+      "entry": {
+        "how": "action",
+        "file": "src/screens/menu/SubscriptionManageScreen.tsx",
+        "line": 162,
+        "note": "해당 조건을 만들어 팝업을 띄운다"
+      },
+      "keys": [
+        "subscription.comingSoonTitle",
+        "subscription.comingSoonMsg"
+      ],
+      "excluded": null
+    },
+    {
+      "id": "dialog:src/screens/menu/SubscriptionManageScreen.tsx:167",
+      "kind": "dialog",
+      "title": "SubscriptionManageScreen.tsx confirm 팝업",
+      "roles": [
+        "patient",
+        "caregiver-together",
+        "caregiver-apart"
+      ],
+      "entry": {
+        "how": "action",
+        "file": "src/screens/menu/SubscriptionManageScreen.tsx",
+        "line": 167,
+        "note": "해당 조건을 만들어 팝업을 띄운다"
+      },
+      "keys": [
+        "subscription.restoreConfirmTitle",
+        "subscription.restoreConfirmMsg",
+        "subscription.restoreConfirmOk",
+        "common.cancel"
+      ],
+      "excluded": null
+    },
+    {
+      "id": "dialog:src/screens/onboarding/FamilyCheckScreen.tsx:59",
+      "kind": "dialog",
+      "title": "FamilyCheckScreen.tsx alert 팝업",
+      "roles": [
+        "patient",
+        "caregiver-together",
+        "caregiver-apart"
+      ],
+      "entry": {
+        "how": "action",
+        "file": "src/screens/onboarding/FamilyCheckScreen.tsx",
+        "line": 59,
+        "note": "해당 조건을 만들어 팝업을 띄운다"
+      },
+      "keys": [
+        "familyCheck.alertEnterAll"
+      ],
+      "excluded": null
+    },
+    {
+      "id": "dialog:src/screens/onboarding/FamilyCheckScreen.tsx:78",
+      "kind": "dialog",
+      "title": "FamilyCheckScreen.tsx alert 팝업",
+      "roles": [
+        "patient",
+        "caregiver-together",
+        "caregiver-apart"
+      ],
+      "entry": {
+        "how": "action",
+        "file": "src/screens/onboarding/FamilyCheckScreen.tsx",
+        "line": 78,
+        "note": "해당 조건을 만들어 팝업을 띄운다"
+      },
+      "keys": [
+        "familyCheck.loginRequiredTitle",
+        "familyCheck.loginRequiredMsg"
+      ],
+      "excluded": null
+    },
+    {
+      "id": "dialog:src/screens/onboarding/FamilyCheckScreen.tsx:101",
+      "kind": "dialog",
+      "title": "FamilyCheckScreen.tsx alert 팝업",
+      "roles": [
+        "patient",
+        "caregiver-together",
+        "caregiver-apart"
+      ],
+      "entry": {
+        "how": "action",
+        "file": "src/screens/onboarding/FamilyCheckScreen.tsx",
+        "line": 101,
+        "note": "해당 조건을 만들어 팝업을 띄운다"
+      },
+      "keys": [
+        "familyCheck.lookupFailTitle",
+        "familyCheck.lookupFailMsg"
+      ],
+      "excluded": null
+    },
+    {
+      "id": "dialog:src/screens/onboarding/FamilyCheckScreen.tsx:120",
+      "kind": "dialog",
+      "title": "FamilyCheckScreen.tsx alert 팝업",
+      "roles": [
+        "patient",
+        "caregiver-together",
+        "caregiver-apart"
+      ],
+      "entry": {
+        "how": "action",
+        "file": "src/screens/onboarding/FamilyCheckScreen.tsx",
+        "line": 120,
+        "note": "해당 조건을 만들어 팝업을 띄운다"
+      },
+      "keys": [
+        "familyCheck.codeErrorTitle",
+        "familyCheck.codeErrorMsg"
+      ],
+      "excluded": null
+    },
+    {
+      "id": "dialog:src/screens/onboarding/FamilyCheckScreen.tsx:171",
+      "kind": "dialog",
+      "title": "FamilyCheckScreen.tsx confirm 팝업",
+      "roles": [
+        "patient",
+        "caregiver-together",
+        "caregiver-apart"
+      ],
+      "entry": {
+        "how": "action",
+        "file": "src/screens/onboarding/FamilyCheckScreen.tsx",
+        "line": 171,
+        "note": "해당 조건을 만들어 팝업을 띄운다"
+      },
+      "keys": [
+        "familyCheck.confirmPatientTitle",
+        "familyCheck.confirmPatientMsg"
+      ],
+      "excluded": null
+    },
+    {
+      "id": "dialog:src/screens/onboarding/FamilyCheckScreen.tsx:177",
+      "kind": "dialog",
+      "title": "FamilyCheckScreen.tsx confirm 팝업",
+      "roles": [
+        "patient",
+        "caregiver-together",
+        "caregiver-apart"
+      ],
+      "entry": {
+        "how": "action",
+        "file": "src/screens/onboarding/FamilyCheckScreen.tsx",
+        "line": 177,
+        "note": "해당 조건을 만들어 팝업을 띄운다"
+      },
+      "keys": [
+        "familyCheck.confirmGroupTitle",
+        "familyCheck.confirmGroupMsg",
+        "familyCheck.confirmGroupYes",
+        "familyCheck.confirmGroupNo"
+      ],
+      "excluded": null
+    },
+    {
+      "id": "dialog:src/screens/onboarding/FamilyCheckScreen.tsx:194",
+      "kind": "dialog",
+      "title": "FamilyCheckScreen.tsx alert 팝업",
+      "roles": [
+        "patient",
+        "caregiver-together",
+        "caregiver-apart"
+      ],
+      "entry": {
+        "how": "action",
+        "file": "src/screens/onboarding/FamilyCheckScreen.tsx",
+        "line": 194,
+        "note": "해당 조건을 만들어 팝업을 띄운다"
+      },
+      "keys": [
+        "common.error",
+        "familyCheck.codeErrorGenericMsg"
+      ],
+      "excluded": null
+    },
+    {
+      "id": "dialog:src/screens/onboarding/FamilyInviteScreen.tsx:81",
+      "kind": "dialog",
+      "title": "FamilyInviteScreen.tsx alert 팝업",
+      "roles": [
+        "patient",
+        "caregiver-together",
+        "caregiver-apart"
+      ],
+      "entry": {
+        "how": "action",
+        "file": "src/screens/onboarding/FamilyInviteScreen.tsx",
+        "line": 81,
+        "note": "해당 조건을 만들어 팝업을 띄운다"
+      },
+      "keys": [
+        "familyInvite.copied"
+      ],
+      "excluded": null
+    },
+    {
+      "id": "dialog:src/screens/onboarding/FamilyInviteScreen.tsx:112",
+      "kind": "dialog",
+      "title": "FamilyInviteScreen.tsx alert 팝업",
+      "roles": [
+        "patient",
+        "caregiver-together",
+        "caregiver-apart"
+      ],
+      "entry": {
+        "how": "action",
+        "file": "src/screens/onboarding/FamilyInviteScreen.tsx",
+        "line": 112,
+        "note": "해당 조건을 만들어 팝업을 띄운다"
+      },
+      "keys": [
+        "familyInvite.shareFailMsg"
+      ],
+      "excluded": null
+    },
+    {
+      "id": "dialog:src/screens/onboarding/FamilyInviteScreen.tsx:266",
+      "kind": "dialog",
+      "title": "FamilyInviteScreen.tsx alert 팝업",
+      "roles": [
+        "patient",
+        "caregiver-together",
+        "caregiver-apart"
+      ],
+      "entry": {
+        "how": "action",
+        "file": "src/screens/onboarding/FamilyInviteScreen.tsx",
+        "line": 266,
+        "note": "해당 조건을 만들어 팝업을 띄운다"
+      },
+      "keys": [
+        "familyInvite.twoPatientsTitle",
+        "familyInvite.twoPatientsMsg"
+      ],
+      "excluded": null
+    },
+    {
+      "id": "dialog:src/screens/onboarding/FamilyInviteScreen.tsx:437",
+      "kind": "dialog",
+      "title": "FamilyInviteScreen.tsx alert 팝업",
+      "roles": [
+        "patient",
+        "caregiver-together",
+        "caregiver-apart"
+      ],
+      "entry": {
+        "how": "action",
+        "file": "src/screens/onboarding/FamilyInviteScreen.tsx",
+        "line": 437,
+        "note": "해당 조건을 만들어 팝업을 띄운다"
+      },
+      "keys": [
+        "familyInvite.saveErrorTitle",
+        "familyInvite.saveErrorMsg"
+      ],
+      "excluded": null
+    },
+    {
+      "id": "dialog:src/screens/onboarding/LoginScreen.tsx:224",
+      "kind": "dialog",
+      "title": "LoginScreen.tsx alert 팝업",
+      "roles": [
+        "patient",
+        "caregiver-together",
+        "caregiver-apart"
+      ],
+      "entry": {
+        "how": "action",
+        "file": "src/screens/onboarding/LoginScreen.tsx",
+        "line": 224,
+        "note": "해당 조건을 만들어 팝업을 띄운다"
+      },
+      "keys": [
+        "login.errorTitle",
+        "login.appleError"
+      ],
+      "excluded": null
+    },
+    {
+      "id": "dialog:src/screens/onboarding/MedTimeOnboardingScreen.tsx:104",
+      "kind": "dialog",
+      "title": "MedTimeOnboardingScreen.tsx alert 팝업",
+      "roles": [
+        "patient",
+        "caregiver-together",
+        "caregiver-apart"
+      ],
+      "entry": {
+        "how": "action",
+        "file": "src/screens/onboarding/MedTimeOnboardingScreen.tsx",
+        "line": 104,
+        "note": "해당 조건을 만들어 팝업을 띄운다"
+      },
+      "keys": [
+        "medTimeOnboarding.introTitle",
+        "medTimeOnboarding.introMsg"
+      ],
+      "excluded": null
+    },
+    {
+      "id": "dialog:src/screens/onboarding/MedTimeOnboardingScreen.tsx:227",
+      "kind": "dialog",
+      "title": "MedTimeOnboardingScreen.tsx alert 팝업",
+      "roles": [
+        "patient",
+        "caregiver-together",
+        "caregiver-apart"
+      ],
+      "entry": {
+        "how": "action",
+        "file": "src/screens/onboarding/MedTimeOnboardingScreen.tsx",
+        "line": 227,
+        "note": "해당 조건을 만들어 팝업을 띄운다"
+      },
+      "keys": [
+        "medTimeOnboarding.doneTitle",
+        "medTimeOnboarding.doneMsg"
+      ],
+      "excluded": null
+    },
+    {
+      "id": "dialog:src/screens/onboarding/MedTimeOnboardingScreen.tsx:234",
+      "kind": "dialog",
+      "title": "MedTimeOnboardingScreen.tsx alert 팝업",
+      "roles": [
+        "patient",
+        "caregiver-together",
+        "caregiver-apart"
+      ],
+      "entry": {
+        "how": "action",
+        "file": "src/screens/onboarding/MedTimeOnboardingScreen.tsx",
+        "line": 234,
+        "note": "해당 조건을 만들어 팝업을 띄운다"
+      },
+      "keys": [
+        "common.error",
+        "medTimeOnboarding.saveFail"
+      ],
+      "excluded": null
+    },
+    {
+      "id": "dialog:src/screens/onboarding/MedTimeOnboardingScreen.tsx:250",
+      "kind": "dialog",
+      "title": "MedTimeOnboardingScreen.tsx alert 팝업",
+      "roles": [
+        "patient",
+        "caregiver-together",
+        "caregiver-apart"
+      ],
+      "entry": {
+        "how": "action",
+        "file": "src/screens/onboarding/MedTimeOnboardingScreen.tsx",
+        "line": 250,
+        "note": "해당 조건을 만들어 팝업을 띄운다"
+      },
+      "keys": [
+        "medTimeOnboarding.reqSentTitle",
+        "medTimeOnboarding.reqSentMsg"
+      ],
+      "excluded": null
+    },
+    {
+      "id": "dialog:src/screens/onboarding/MedTimeOnboardingScreen.tsx:256",
+      "kind": "dialog",
+      "title": "MedTimeOnboardingScreen.tsx alert 팝업",
+      "roles": [
+        "patient",
+        "caregiver-together",
+        "caregiver-apart"
+      ],
+      "entry": {
+        "how": "action",
+        "file": "src/screens/onboarding/MedTimeOnboardingScreen.tsx",
+        "line": 256,
+        "note": "해당 조건을 만들어 팝업을 띄운다"
+      },
+      "keys": [
+        "medTimeOnboarding.reqNoPushTitle",
+        "medTimeOnboarding.reqNoPushMsg"
+      ],
+      "excluded": null
+    },
+    {
+      "id": "dialog:src/screens/onboarding/RoleSelectScreen.tsx:92",
+      "kind": "dialog",
+      "title": "RoleSelectScreen.tsx alert 팝업",
+      "roles": [
+        "patient",
+        "caregiver-together",
+        "caregiver-apart"
+      ],
+      "entry": {
+        "how": "action",
+        "file": "src/screens/onboarding/RoleSelectScreen.tsx",
+        "line": 92,
+        "note": "해당 조건을 만들어 팝업을 띄운다"
+      },
+      "keys": [
+        "common.error",
+        "roleSelect.saveErrorMessage"
+      ],
+      "excluded": null
+    },
+    {
+      "id": "dialog:src/screens/onboarding/SensitiveInfoConsentScreen.tsx:77",
+      "kind": "dialog",
+      "title": "SensitiveInfoConsentScreen.tsx alert 팝업",
+      "roles": [
+        "patient",
+        "caregiver-together",
+        "caregiver-apart"
+      ],
+      "entry": {
+        "how": "action",
+        "file": "src/screens/onboarding/SensitiveInfoConsentScreen.tsx",
+        "line": 77,
+        "note": "해당 조건을 만들어 팝업을 띄운다"
+      },
+      "keys": [
+        "sensitiveConsent.errorTitle",
+        "sensitiveConsent.consentSaveFailMsg"
+      ],
+      "excluded": null
+    },
+    {
+      "id": "dialog:src/screens/onboarding/SensitiveInfoConsentScreen.tsx:90",
+      "kind": "dialog",
+      "title": "SensitiveInfoConsentScreen.tsx alert 팝업",
+      "roles": [
+        "patient",
+        "caregiver-together",
+        "caregiver-apart"
+      ],
+      "entry": {
+        "how": "action",
+        "file": "src/screens/onboarding/SensitiveInfoConsentScreen.tsx",
+        "line": 90,
+        "note": "해당 조건을 만들어 팝업을 띄운다"
+      },
+      "keys": [
+        "sensitiveConsent.errorTitle",
+        "sensitiveConsent.consentSaveExceptionMsg"
+      ],
+      "excluded": null
+    },
+    {
+      "id": "dialog:src/screens/onboarding/SensitiveInfoConsentScreen.tsx:96",
+      "kind": "dialog",
+      "title": "SensitiveInfoConsentScreen.tsx alert 팝업",
+      "roles": [
+        "patient",
+        "caregiver-together",
+        "caregiver-apart"
+      ],
+      "entry": {
+        "how": "action",
+        "file": "src/screens/onboarding/SensitiveInfoConsentScreen.tsx",
+        "line": 96,
+        "note": "해당 조건을 만들어 팝업을 띄운다"
+      },
+      "keys": [
+        "sensitiveConsent.noticeTitle",
+        "sensitiveConsent.privacyPolicyOpenFailMsg"
+      ],
+      "excluded": null
+    },
+    {
+      "id": "dialog:src/screens/onboarding/SensitiveInfoConsentScreen.tsx:248",
+      "kind": "dialog",
+      "title": "SensitiveInfoConsentScreen.tsx confirm 팝업",
+      "roles": [
+        "patient",
+        "caregiver-together",
+        "caregiver-apart"
+      ],
+      "entry": {
+        "how": "action",
+        "file": "src/screens/onboarding/SensitiveInfoConsentScreen.tsx",
+        "line": 248,
+        "note": "해당 조건을 만들어 팝업을 띄운다"
+      },
+      "keys": [
+        "sensitiveConsent.exitTitle",
+        "sensitiveConsent.exitMsg",
+        "common.close",
+        "common.cancel"
+      ],
+      "excluded": null
+    },
+    {
+      "id": "dialog:src/screens/records/RecordsScreen.tsx:106",
+      "kind": "dialog",
+      "title": "RecordsScreen.tsx alert 팝업",
+      "roles": [
+        "patient",
+        "caregiver-together",
+        "caregiver-apart"
+      ],
+      "entry": {
+        "how": "action",
+        "file": "src/screens/records/RecordsScreen.tsx",
+        "line": 106,
+        "note": "해당 조건을 만들어 팝업을 띄운다"
+      },
+      "keys": [
+        "records.errorTitle",
+        "records.genericRetryMsg"
+      ],
+      "excluded": null
+    },
+    {
+      "id": "dialog:src/screens/sound/AlarmSoundSettingsScreen.tsx:208",
+      "kind": "dialog",
+      "title": "AlarmSoundSettingsScreen.tsx alert 팝업",
+      "roles": [
+        "patient",
+        "caregiver-together",
+        "caregiver-apart"
+      ],
+      "entry": {
+        "how": "action",
+        "file": "src/screens/sound/AlarmSoundSettingsScreen.tsx",
+        "line": 208,
+        "note": "해당 조건을 만들어 팝업을 띄운다"
+      },
+      "keys": [
+        "alarmSound.cannotHearTitle",
+        "alarmSound.cannotHearMsg"
+      ],
+      "excluded": null
+    },
+    {
+      "id": "dialog:src/screens/sound/AlarmSoundSettingsScreen.tsx:235",
+      "kind": "dialog",
+      "title": "AlarmSoundSettingsScreen.tsx alert 팝업",
+      "roles": [
+        "patient",
+        "caregiver-together",
+        "caregiver-apart"
+      ],
+      "entry": {
+        "how": "action",
+        "file": "src/screens/sound/AlarmSoundSettingsScreen.tsx",
+        "line": 235,
+        "note": "해당 조건을 만들어 팝업을 띄운다"
+      },
+      "keys": [
+        "alarmSound.playFailTitle",
+        "alarmSound.playFailMsg"
+      ],
+      "excluded": null
+    },
+    {
+      "id": "dialog:src/screens/sound/AlarmSoundSettingsScreen.tsx:253",
+      "kind": "dialog",
+      "title": "AlarmSoundSettingsScreen.tsx alert 팝업",
+      "roles": [
+        "patient",
+        "caregiver-together",
+        "caregiver-apart"
+      ],
+      "entry": {
+        "how": "action",
+        "file": "src/screens/sound/AlarmSoundSettingsScreen.tsx",
+        "line": 253,
+        "note": "해당 조건을 만들어 팝업을 띄운다"
+      },
+      "keys": [
+        "alarmSound.playFailTitle",
+        "alarmSound.playFailMsg"
+      ],
+      "excluded": null
+    },
+    {
+      "id": "dialog:src/screens/sound/AlarmSoundSettingsScreen.tsx:269",
+      "kind": "dialog",
+      "title": "AlarmSoundSettingsScreen.tsx alert 팝업",
+      "roles": [
+        "patient",
+        "caregiver-together",
+        "caregiver-apart"
+      ],
+      "entry": {
+        "how": "action",
+        "file": "src/screens/sound/AlarmSoundSettingsScreen.tsx",
+        "line": 269,
+        "note": "해당 조건을 만들어 팝업을 띄운다"
+      },
+      "keys": [
+        "alarmSound.cannotTestTitle",
+        "alarmSound.cannotTestMsg"
+      ],
+      "excluded": null
+    },
+    {
+      "id": "dialog:src/screens/sound/AlarmSoundSettingsScreen.tsx:277",
+      "kind": "dialog",
+      "title": "AlarmSoundSettingsScreen.tsx alert 팝업",
+      "roles": [
+        "patient",
+        "caregiver-together",
+        "caregiver-apart"
+      ],
+      "entry": {
+        "how": "action",
+        "file": "src/screens/sound/AlarmSoundSettingsScreen.tsx",
+        "line": 277,
+        "note": "해당 조건을 만들어 팝업을 띄운다"
+      },
+      "keys": [
+        "alarmSound.iosUpdateRequiredTitle",
+        "alarmSound.iosUpdateRequiredMsg"
+      ],
+      "excluded": null
+    },
+    {
+      "id": "dialog:src/screens/sound/AlarmSoundSettingsScreen.tsx:286",
+      "kind": "dialog",
+      "title": "AlarmSoundSettingsScreen.tsx alert 팝업",
+      "roles": [
+        "patient",
+        "caregiver-together",
+        "caregiver-apart"
+      ],
+      "entry": {
+        "how": "action",
+        "file": "src/screens/sound/AlarmSoundSettingsScreen.tsx",
+        "line": 286,
+        "note": "해당 조건을 만들어 팝업을 띄운다"
+      },
+      "keys": [
+        "alarmSound.testPrepFailTitle",
+        "alarmSound.testPrepFailMsg"
+      ],
+      "excluded": null
+    },
+    {
+      "id": "dialog:src/screens/sound/AlarmSoundSettingsScreen.tsx:324",
+      "kind": "dialog",
+      "title": "AlarmSoundSettingsScreen.tsx alert 팝업",
+      "roles": [
+        "patient",
+        "caregiver-together",
+        "caregiver-apart"
+      ],
+      "entry": {
+        "how": "action",
+        "file": "src/screens/sound/AlarmSoundSettingsScreen.tsx",
+        "line": 324,
+        "note": "해당 조건을 만들어 팝업을 띄운다"
+      },
+      "keys": [
+        "alarmSound.testFailTitle"
+      ],
+      "excluded": null
+    },
+    {
+      "id": "dialog:src/screens/sound/AlarmSoundSettingsScreen.tsx:336",
+      "kind": "dialog",
+      "title": "AlarmSoundSettingsScreen.tsx confirm 팝업",
+      "roles": [
+        "patient",
+        "caregiver-together",
+        "caregiver-apart"
+      ],
+      "entry": {
+        "how": "action",
+        "file": "src/screens/sound/AlarmSoundSettingsScreen.tsx",
+        "line": 336,
+        "note": "해당 조건을 만들어 팝업을 띄운다"
+      },
+      "keys": [
+        "alarmSound.deleteTitle",
+        "alarmSound.deleteMsg",
+        "alarmSound.deleteBtn",
+        "alarmSound.cancel"
+      ],
+      "excluded": null
+    },
+    {
+      "id": "dialog:src/screens/sound/AlarmSoundSettingsScreen.tsx:357",
+      "kind": "dialog",
+      "title": "AlarmSoundSettingsScreen.tsx alert 팝업",
+      "roles": [
+        "patient",
+        "caregiver-together",
+        "caregiver-apart"
+      ],
+      "entry": {
+        "how": "action",
+        "file": "src/screens/sound/AlarmSoundSettingsScreen.tsx",
+        "line": 357,
+        "note": "해당 조건을 만들어 팝업을 띄운다"
+      },
+      "keys": [
+        "alarmSound.deleteForbiddenTitle",
+        "alarmSound.deleteForbiddenMsg"
+      ],
+      "excluded": null
+    },
+    {
+      "id": "dialog:src/screens/sound/AlarmSoundSettingsScreen.tsx:368",
+      "kind": "dialog",
+      "title": "AlarmSoundSettingsScreen.tsx alert 팝업",
+      "roles": [
+        "patient",
+        "caregiver-together",
+        "caregiver-apart"
+      ],
+      "entry": {
+        "how": "action",
+        "file": "src/screens/sound/AlarmSoundSettingsScreen.tsx",
+        "line": 368,
+        "note": "해당 조건을 만들어 팝업을 띄운다"
+      },
+      "keys": [
+        "alarmSound.deleteFailTitle",
+        "alarmSound.genericRetryMsg"
+      ],
+      "excluded": null
+    },
+    {
+      "id": "dialog:src/screens/sound/AlarmSoundSettingsScreen.tsx:383",
+      "kind": "dialog",
+      "title": "AlarmSoundSettingsScreen.tsx confirm 팝업",
+      "roles": [
+        "patient",
+        "caregiver-together",
+        "caregiver-apart"
+      ],
+      "entry": {
+        "how": "action",
+        "file": "src/screens/sound/AlarmSoundSettingsScreen.tsx",
+        "line": 383,
+        "note": "해당 조건을 만들어 팝업을 띄운다"
+      },
+      "keys": [
+        "alarmSound.limitTitle",
+        "alarmSound.limitMsg",
+        "alarmSound.limitCta",
+        "alarmSound.cancel"
+      ],
+      "excluded": null
+    },
+    {
+      "id": "dialog:src/screens/sound/RecordSoundScreen.tsx:97",
+      "kind": "dialog",
+      "title": "RecordSoundScreen.tsx confirm 팝업",
+      "roles": [
+        "patient",
+        "caregiver-together",
+        "caregiver-apart"
+      ],
+      "entry": {
+        "how": "action",
+        "file": "src/screens/sound/RecordSoundScreen.tsx",
+        "line": 97,
+        "note": "해당 조건을 만들어 팝업을 띄운다"
+      },
+      "keys": [
+        "recordSound.micPermTitle",
+        "recordSound.micPermMsg",
+        "recordSound.micPermOpenSettings",
+        "common.cancel"
+      ],
+      "excluded": null
+    },
+    {
+      "id": "dialog:src/screens/sound/RecordSoundScreen.tsx:163",
+      "kind": "dialog",
+      "title": "RecordSoundScreen.tsx alert 팝업",
+      "roles": [
+        "patient",
+        "caregiver-together",
+        "caregiver-apart"
+      ],
+      "entry": {
+        "how": "action",
+        "file": "src/screens/sound/RecordSoundScreen.tsx",
+        "line": 163,
+        "note": "해당 조건을 만들어 팝업을 띄운다"
+      },
+      "keys": [
+        "recordSound.recordStartFailTitle",
+        "recordSound.genericRetryMsg"
+      ],
+      "excluded": null
+    },
+    {
+      "id": "dialog:src/screens/sound/RecordSoundScreen.tsx:208",
+      "kind": "dialog",
+      "title": "RecordSoundScreen.tsx alert 팝업",
+      "roles": [
+        "patient",
+        "caregiver-together",
+        "caregiver-apart"
+      ],
+      "entry": {
+        "how": "action",
+        "file": "src/screens/sound/RecordSoundScreen.tsx",
+        "line": 208,
+        "note": "해당 조건을 만들어 팝업을 띄운다"
+      },
+      "keys": [
+        "recordSound.recordFailTitle",
+        "recordSound.recordFailMsg"
+      ],
+      "excluded": null
+    },
+    {
+      "id": "dialog:src/screens/sound/RecordSoundScreen.tsx:216",
+      "kind": "dialog",
+      "title": "RecordSoundScreen.tsx alert 팝업",
+      "roles": [
+        "patient",
+        "caregiver-together",
+        "caregiver-apart"
+      ],
+      "entry": {
+        "how": "action",
+        "file": "src/screens/sound/RecordSoundScreen.tsx",
+        "line": 216,
+        "note": "해당 조건을 만들어 팝업을 띄운다"
+      },
+      "keys": [
+        "recordSound.recordFailTitle",
+        "recordSound.recordFailMsg"
+      ],
+      "excluded": null
+    },
+    {
+      "id": "dialog:src/screens/sound/RecordSoundScreen.tsx:251",
+      "kind": "dialog",
+      "title": "RecordSoundScreen.tsx alert 팝업",
+      "roles": [
+        "patient",
+        "caregiver-together",
+        "caregiver-apart"
+      ],
+      "entry": {
+        "how": "action",
+        "file": "src/screens/sound/RecordSoundScreen.tsx",
+        "line": 251,
+        "note": "해당 조건을 만들어 팝업을 띄운다"
+      },
+      "keys": [
+        "recordSound.playFailTitle",
+        "recordSound.playFailMsg"
+      ],
+      "excluded": null
+    },
+    {
+      "id": "dialog:src/screens/sound/RecordSoundScreen.tsx:308",
+      "kind": "dialog",
+      "title": "RecordSoundScreen.tsx alert 팝업",
+      "roles": [
+        "patient",
+        "caregiver-together",
+        "caregiver-apart"
+      ],
+      "entry": {
+        "how": "action",
+        "file": "src/screens/sound/RecordSoundScreen.tsx",
+        "line": 308,
+        "note": "해당 조건을 만들어 팝업을 띄운다"
+      },
+      "keys": [
+        "recordSound.linkFamilyRequiredTitle",
+        "recordSound.linkFamilyRequiredMsg"
+      ],
+      "excluded": null
+    },
+    {
+      "id": "dialog:src/screens/sound/RecordSoundScreen.tsx:352",
+      "kind": "dialog",
+      "title": "RecordSoundScreen.tsx alert 팝업",
+      "roles": [
+        "patient",
+        "caregiver-together",
+        "caregiver-apart"
+      ],
+      "entry": {
+        "how": "action",
+        "file": "src/screens/sound/RecordSoundScreen.tsx",
+        "line": 352,
+        "note": "해당 조건을 만들어 팝업을 띄운다"
+      },
+      "keys": [
+        "recordSound.editForbiddenTitle",
+        "recordSound.editForbiddenMsg"
+      ],
+      "excluded": null
+    },
+    {
+      "id": "dialog:src/screens/sound/RecordSoundScreen.tsx:364",
+      "kind": "dialog",
+      "title": "RecordSoundScreen.tsx alert 팝업",
+      "roles": [
+        "patient",
+        "caregiver-together",
+        "caregiver-apart"
+      ],
+      "entry": {
+        "how": "action",
+        "file": "src/screens/sound/RecordSoundScreen.tsx",
+        "line": 364,
+        "note": "해당 조건을 만들어 팝업을 띄운다"
+      },
+      "keys": [
+        "recordSound.editDoneTitle",
+        "recordSound.editDoneMsg"
+      ],
+      "excluded": null
+    },
+    {
+      "id": "dialog:src/screens/sound/RecordSoundScreen.tsx:399",
+      "kind": "dialog",
+      "title": "RecordSoundScreen.tsx alert 팝업",
+      "roles": [
+        "patient",
+        "caregiver-together",
+        "caregiver-apart"
+      ],
+      "entry": {
+        "how": "action",
+        "file": "src/screens/sound/RecordSoundScreen.tsx",
+        "line": 399,
+        "note": "해당 조건을 만들어 팝업을 띄운다"
+      },
+      "keys": [
+        "recordSound.saveDoneTitle",
+        "recordSound.saveDoneMsg"
+      ],
+      "excluded": null
+    },
+    {
+      "id": "dialog:src/screens/sound/RecordSoundScreen.tsx:414",
+      "kind": "dialog",
+      "title": "RecordSoundScreen.tsx alert 팝업",
+      "roles": [
+        "patient",
+        "caregiver-together",
+        "caregiver-apart"
+      ],
+      "entry": {
+        "how": "action",
+        "file": "src/screens/sound/RecordSoundScreen.tsx",
+        "line": 414,
+        "note": "해당 조건을 만들어 팝업을 띄운다"
+      },
+      "keys": [
+        "recordSound.saveFailTitle",
+        "recordSound.slowInternetMsg",
+        "recordSound.genericRetryMsg"
+      ],
+      "excluded": null
+    },
+    {
+      "id": "dialog:src/utils/banGuard.ts:29",
+      "kind": "dialog",
+      "title": "banGuard.ts alert 팝업",
+      "roles": [
+        "patient",
+        "caregiver-together",
+        "caregiver-apart"
+      ],
+      "entry": {
+        "how": "action",
+        "file": "src/utils/banGuard.ts",
+        "line": 29,
+        "note": "해당 조건을 만들어 팝업을 띄운다"
+      },
+      "keys": [
+        "banGuard.title",
+        "banGuard.message"
+      ],
+      "excluded": null
+    },
+    {
+      "id": "notif:appointment_reminder:receive",
+      "kind": "notification",
+      "title": "appointment_reminder 알림 수신 문구",
+      "roles": [
+        "patient",
+        "caregiver-together",
+        "caregiver-apart"
+      ],
+      "entry": {
+        "how": "device",
+        "note": "실기기 필요 — 시뮬레이터는 원격 푸시를 못 받는다"
+      },
+      "excluded": null
+    },
+    {
+      "id": "notif:appointment_reminder:open",
+      "kind": "notification",
+      "title": "appointment_reminder 알림 탭 → 진입 화면",
+      "roles": [
+        "patient",
+        "caregiver-together",
+        "caregiver-apart"
+      ],
+      "entry": {
+        "how": "payload",
+        "note": "알림 payload 를 넣어 앱을 띄우면 시뮬레이터에서도 재현된다"
+      },
+      "excluded": null
+    },
+    {
+      "id": "notif:effect_tracking:receive",
+      "kind": "notification",
+      "title": "effect_tracking 알림 수신 문구",
+      "roles": [
+        "patient",
+        "caregiver-together",
+        "caregiver-apart"
+      ],
+      "entry": {
+        "how": "device",
+        "note": "실기기 필요 — 시뮬레이터는 원격 푸시를 못 받는다"
+      },
+      "excluded": null
+    },
+    {
+      "id": "notif:effect_tracking:open",
+      "kind": "notification",
+      "title": "effect_tracking 알림 탭 → 진입 화면",
+      "roles": [
+        "patient",
+        "caregiver-together",
+        "caregiver-apart"
+      ],
+      "entry": {
+        "how": "payload",
+        "note": "알림 payload 를 넣어 앱을 띄우면 시뮬레이터에서도 재현된다"
+      },
+      "excluded": null
+    },
+    {
+      "id": "notif:exercise_reminder:receive",
+      "kind": "notification",
+      "title": "exercise_reminder 알림 수신 문구",
+      "roles": [
+        "patient",
+        "caregiver-together",
+        "caregiver-apart"
+      ],
+      "entry": {
+        "how": "device",
+        "note": "실기기 필요 — 시뮬레이터는 원격 푸시를 못 받는다"
+      },
+      "excluded": null
+    },
+    {
+      "id": "notif:exercise_reminder:open",
+      "kind": "notification",
+      "title": "exercise_reminder 알림 탭 → 진입 화면",
+      "roles": [
+        "patient",
+        "caregiver-together",
+        "caregiver-apart"
+      ],
+      "entry": {
+        "how": "payload",
+        "note": "알림 payload 를 넣어 앱을 띄우면 시뮬레이터에서도 재현된다"
+      },
+      "excluded": null
+    },
+    {
+      "id": "notif:family_joined:receive",
+      "kind": "notification",
+      "title": "family_joined 알림 수신 문구",
+      "roles": [
+        "patient",
+        "caregiver-together",
+        "caregiver-apart"
+      ],
+      "entry": {
+        "how": "device",
+        "note": "실기기 필요 — 시뮬레이터는 원격 푸시를 못 받는다"
+      },
+      "excluded": null
+    },
+    {
+      "id": "notif:family_joined:open",
+      "kind": "notification",
+      "title": "family_joined 알림 탭 → 진입 화면",
+      "roles": [
+        "patient",
+        "caregiver-together",
+        "caregiver-apart"
+      ],
+      "entry": {
+        "how": "payload",
+        "note": "알림 payload 를 넣어 앱을 띄우면 시뮬레이터에서도 재현된다"
+      },
+      "excluded": null
+    },
+    {
+      "id": "notif:measurement_completed:receive",
+      "kind": "notification",
+      "title": "measurement_completed 알림 수신 문구",
+      "roles": [
+        "patient",
+        "caregiver-together",
+        "caregiver-apart"
+      ],
+      "entry": {
+        "how": "device",
+        "note": "실기기 필요 — 시뮬레이터는 원격 푸시를 못 받는다"
+      },
+      "excluded": {
+        "reason": "측정 기능 — 재오픈 시점에 처리",
+        "approved": "2026-07-29"
+      }
+    },
+    {
+      "id": "notif:measurement_completed:open",
+      "kind": "notification",
+      "title": "measurement_completed 알림 탭 → 진입 화면",
+      "roles": [
+        "patient",
+        "caregiver-together",
+        "caregiver-apart"
+      ],
+      "entry": {
+        "how": "payload",
+        "note": "알림 payload 를 넣어 앱을 띄우면 시뮬레이터에서도 재현된다"
+      },
+      "excluded": {
+        "reason": "측정 기능 — 재오픈 시점에 처리",
+        "approved": "2026-07-29"
+      }
+    },
+    {
+      "id": "notif:medication_reminder:receive",
+      "kind": "notification",
+      "title": "medication_reminder 알림 수신 문구",
+      "roles": [
+        "patient",
+        "caregiver-together",
+        "caregiver-apart"
+      ],
+      "entry": {
+        "how": "device",
+        "note": "실기기 필요 — 시뮬레이터는 원격 푸시를 못 받는다"
+      },
+      "excluded": null
+    },
+    {
+      "id": "notif:medication_reminder:open",
+      "kind": "notification",
+      "title": "medication_reminder 알림 탭 → 진입 화면",
+      "roles": [
+        "patient",
+        "caregiver-together",
+        "caregiver-apart"
+      ],
+      "entry": {
+        "how": "payload",
+        "note": "알림 payload 를 넣어 앱을 띄우면 시뮬레이터에서도 재현된다"
+      },
+      "excluded": null
+    },
+    {
+      "id": "notif:missed_medication:receive",
+      "kind": "notification",
+      "title": "missed_medication 알림 수신 문구",
+      "roles": [
+        "patient",
+        "caregiver-together",
+        "caregiver-apart"
+      ],
+      "entry": {
+        "how": "device",
+        "note": "실기기 필요 — 시뮬레이터는 원격 푸시를 못 받는다"
+      },
+      "excluded": null
+    },
+    {
+      "id": "notif:missed_medication:open",
+      "kind": "notification",
+      "title": "missed_medication 알림 탭 → 진입 화면",
+      "roles": [
+        "patient",
+        "caregiver-together",
+        "caregiver-apart"
+      ],
+      "entry": {
+        "how": "payload",
+        "note": "알림 payload 를 넣어 앱을 띄우면 시뮬레이터에서도 재현된다"
+      },
+      "excluded": null
+    },
+    {
+      "id": "state:empty",
+      "kind": "data-state",
+      "title": "기록이 하나도 없는 계정",
+      "roles": [
+        "patient",
+        "caregiver-together",
+        "caregiver-apart"
+      ],
+      "entry": {
+        "how": "account",
+        "note": "빈 계정으로 전체 순회 — \"아직 기록이 없어요\" 류 문구가 여기서만 나온다"
+      },
+      "excluded": null
+    },
+    {
+      "id": "state:filled",
+      "kind": "data-state",
+      "title": "3주치 기록이 쌓인 계정",
+      "roles": [
+        "patient",
+        "caregiver-together",
+        "caregiver-apart"
+      ],
+      "entry": {
+        "how": "account",
+        "note": "시드 계정으로 전체 순회 — 통계·그래프·비교 문구"
+      },
+      "excluded": null
+    },
+    {
+      "id": "state:unlinked",
+      "kind": "data-state",
+      "title": "가족 연동이 안 된 계정",
+      "roles": [
+        "patient",
+        "caregiver-together",
+        "caregiver-apart"
+      ],
+      "entry": {
+        "how": "account",
+        "note": "그룹 없는 계정 — 연동 유도 문구"
+      },
+      "excluded": null
+    }
+  ]
+}
