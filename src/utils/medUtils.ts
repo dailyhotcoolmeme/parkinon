@@ -1,10 +1,7 @@
 import i18n from '../i18n';
+import { isOverseasLocale } from '../i18n/detectLocale';
 import { LEGACY_SLOT_META, type LegacyMealKey } from '../constants/doseSlots';
 
-// 현재 언어가 영어권인지. 한국어(ko)일 때는 아래 라벨을 기존과 100% 동일하게 유지한다.
-function isEnLocale(): boolean {
-  return (i18n.language || '').toLowerCase().startsWith('en');
-}
 
 // legacy 슬롯키 → 영어 시간대 라벨(약 이름 없이). mealTimeToPeriod 영어 출력용.
 const EN_MEAL_PERIOD: Record<LegacyMealKey, string> = {
@@ -126,7 +123,7 @@ export function getKSTDayRange(dateStr: string): { start: string; end: string } 
 export function minutesToLabel(m: number): string {
   const h = Math.floor(m / 60);
   const rem = m % 60;
-  if (isEnLocale()) {
+  if (isOverseasLocale()) {
     if (m === 0) return 'right after taking';
     if (m < 60) return `${m} min later`;
     return rem === 0 ? `${h} hr later` : `${h} hr ${rem} min later`;
@@ -141,7 +138,7 @@ export function minutesToLabel(m: number): string {
  */
 export function triggerLabelToTag(label: string | null | undefined): string {
   if (!label) return '';
-  if (isEnLocale()) {
+  if (isOverseasLocale()) {
     if (label === 'after_medication') return '+now';
     const minMatchEn = label.match(/^(\d+)min_after$/);
     if (minMatchEn) {
@@ -176,7 +173,7 @@ export function triggerLabelToTag(label: string | null | undefined): string {
  */
 export function triggerLabelToText(label: string | null | undefined): string {
   if (!label) return '';
-  if (isEnLocale()) {
+  if (isOverseasLocale()) {
     if (label === 'after_medication') return 'right after taking';
     const minMatchEn = label.match(/^(\d+)min_after$/);
     if (minMatchEn) {
@@ -231,7 +228,7 @@ export function mealTimeToKorean(mealTime: string | null | undefined): string {
   if (!mealTime) return '';
   const meta = LEGACY_SLOT_META[mealTime as LegacyMealKey];
   if (!meta) return mealTime;
-  if (isEnLocale()) return EN_MEAL_MED[meta.key];
+  if (isOverseasLocale()) return EN_MEAL_MED[meta.key];
   return meta.korMed;
 }
 
@@ -243,7 +240,7 @@ export function mealTimeToPeriod(mealTime: string | null | undefined): string {
   if (!mealTime) return '';
   const meta = LEGACY_SLOT_META[mealTime as LegacyMealKey];
   if (!meta) return mealTime;
-  if (isEnLocale()) return EN_MEAL_PERIOD[meta.key];
+  if (isOverseasLocale()) return EN_MEAL_PERIOD[meta.key];
   return meta.label;
 }
 

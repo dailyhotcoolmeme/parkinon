@@ -3,10 +3,8 @@
 // 반응속도(ms) → 사람이 읽기 쉬운 "0.32초 (320ms)" 형식.
 // 그래프 막대의 수치 계산은 ms 그대로 사용하고, 라벨/텍스트에서만 이 함수 사용.
 import i18n from '../i18n';
+import { isOverseasLocale } from '../i18n/detectLocale';
 
-function isEnLocale(): boolean {
-  return (i18n.language || '').toLowerCase().startsWith('en');
-}
 
 /**
  * ms → "0.32초 (320ms)" 형식 문자열.
@@ -20,7 +18,7 @@ export function formatReactionMs(value: number | null | undefined): string {
   }
   const ms = Math.round(value as number);
   const seconds = (ms / 1000).toFixed(2);
-  return isEnLocale() ? `${seconds}s (${ms}ms)` : `${seconds}초 (${ms}ms)`;
+  return isOverseasLocale() ? `${seconds}s (${ms}ms)` : `${seconds}초 (${ms}ms)`;
 }
 
 // 요일 한 글자 — Date.getDay() 인덱스 기준 (0=일 ~ 6=토)
@@ -40,6 +38,6 @@ export function formatDateTimeWithWeekday(iso: string): string {
   const da = String(d.getDate()).padStart(2, '0');
   const h = String(d.getHours()).padStart(2, '0');
   const mi = String(d.getMinutes()).padStart(2, '0');
-  const w = (isEnLocale() ? WEEKDAYS_EN : WEEKDAYS_KO)[d.getDay()] ?? '';
+  const w = (isOverseasLocale() ? WEEKDAYS_EN : WEEKDAYS_KO)[d.getDay()] ?? '';
   return `${y}-${mo}-${da}(${w}) ${h}:${mi}`;
 }

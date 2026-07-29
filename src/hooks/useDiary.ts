@@ -5,10 +5,8 @@ import { usePatientId } from './usePatientId';
 import { triggerLabelToMinutes } from '../utils/medUtils';
 import { normalizeMediaOrder } from '../utils/diaryMedia';
 import i18n from '../i18n';
+import { isOverseasLocale } from '../i18n/detectLocale';
 
-function isEnLocale(): boolean {
-  return (i18n.language || '').toLowerCase().startsWith('en');
-}
 
 // ─── 자동 수집 요약 타입 ──────────────────────────────────────────────────────
 
@@ -141,7 +139,7 @@ function triggerLabelToChip(label: string | null | undefined): string {
   const min = (!label || label === 'after_medication') ? 0 : triggerLabelToMinutes(label);
   const h = Math.floor(min / 60);
   const rem = min % 60;
-  if (isEnLocale()) {
+  if (isOverseasLocale()) {
     if (!label || label === 'after_medication' || !isFinite(min) || min === 0) return 'right after taking';
     if (min < 60) return `${min} min later`;
     return rem === 0 ? `${h} hr later` : `${h} hr ${rem} min later`;

@@ -13,6 +13,7 @@ import {
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useTranslation } from 'react-i18next';
 import i18n from '../../i18n';
+import { isOverseasLocale, displayLocaleTag } from '../../i18n/detectLocale';
 import { useFocusEffect, useRoute, useNavigation, RouteProp } from '@react-navigation/native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { Ionicons } from '@expo/vector-icons';
@@ -87,10 +88,6 @@ const MEAL_LABEL_KEYS: Record<MealTime, string> = {
   bedtime: 'medication.mealBedtime',
 };
 
-// 현재 언어가 영어권인지. 한국어(ko)일 때는 아래 날짜/시간 포맷을 기존과 100% 동일하게 유지한다.
-function isEnLocale(): boolean {
-  return (i18n.language || '').toLowerCase().startsWith('en');
-}
 
 // 시간 비교용 HH:MM 기본값
 const DEFAULT_MEAL_TIMES: Record<MealTime, string> = {
@@ -106,7 +103,7 @@ function formatTakenAt(isoString: string): string {
   const m = d.getMinutes();
   const hour = h % 12 === 0 ? 12 : h % 12;
   const mm = m.toString().padStart(2, '0');
-  if (isEnLocale()) {
+  if (isOverseasLocale()) {
     return `${hour}:${mm} ${h < 12 ? 'AM' : 'PM'}`;
   }
   const ampm = h < 12 ? '오전' : '오후';
@@ -118,7 +115,7 @@ function formatMealTime(timeStr: string): string {
   const [h, m] = timeStr.split(':').map(Number);
   const hour = h % 12 === 0 ? 12 : h % 12;
   const mm = m.toString().padStart(2, '0');
-  if (isEnLocale()) {
+  if (isOverseasLocale()) {
     return `${hour}:${mm} ${h < 12 ? 'AM' : 'PM'}`;
   }
   const ampm = h < 12 ? '오전' : '오후';
@@ -126,9 +123,9 @@ function formatMealTime(timeStr: string): string {
 }
 
 function getDateLabel(date: Date): string {
-  if (isEnLocale()) {
+  if (isOverseasLocale()) {
     // "Monday, January 1" 형식(연도 생략, 요일 강조).
-    return date.toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric' });
+    return date.toLocaleDateString(displayLocaleTag(), { weekday: 'long', month: 'long', day: 'numeric' });
   }
   const month = date.getMonth() + 1;
   const day = date.getDate();
@@ -1928,7 +1925,7 @@ interface NextNotifInfo {
 // fetch 실패(throw)·환자ID 미해석 등으로 다음 알림 정보를 못 구한 경우에도 팝업은 항상 띄운다
 // (다음 알림은 최소한 내일 복용이라도 늘 존재). timeStr 가 비면 NextNotifModal 이 일반 문구로 렌더.
 const FALLBACK_NEXT_NOTIF: NextNotifInfo = {
-  label: isEnLocale() ? 'Next notification' : '다음 알림',
+  label: isOverseasLocale() ? 'Next notification' : '다음 알림',
   timeStr: '',
   minutesLeft: 0,
   isTomorrow: false,
@@ -1943,7 +1940,7 @@ function formatTimeHHMM(date: Date): string {
   const m = date.getMinutes();
   const hour = h % 12 === 0 ? 12 : h % 12;
   const mm = m.toString().padStart(2, '0');
-  if (isEnLocale()) {
+  if (isOverseasLocale()) {
     return `${hour}:${mm} ${h < 12 ? 'AM' : 'PM'}`;
   }
   const ampm = h < 12 ? '오전' : '오후';
@@ -1960,7 +1957,7 @@ function parseHHMM(hhmm: string, base: Date): Date {
 
 // 인터벌(분) → "복용 N분 후" 스타일 라벨. ko는 기존과 100% 동일.
 function mIntervalLabel(intervalMin: number): string {
-  if (isEnLocale()) {
+  if (isOverseasLocale()) {
     if (intervalMin === 0) return 'right after taking';
     if (intervalMin < 60) return `${intervalMin} min after taking`;
     const h = Math.floor(intervalMin / 60);
@@ -1980,13 +1977,13 @@ function mIntervalLabel(intervalMin: number): string {
 function mMealMedLabel(mealKo: string | null): string | null {
   if (!mealKo) return null;
   const display = translateRawSlotLabel(mealKo) ?? mealKo;
-  if (isEnLocale()) return display;
+  if (isOverseasLocale()) return display;
   return display.endsWith('약') ? display : `${display}약`;
 }
 
 // "{시간대} {interval} 약효추적" 라벨. ko는 기존과 100% 동일.
 function mEffectTrackingLabel(mealKoMed: string | null, intervalLabel: string): string {
-  if (isEnLocale()) {
+  if (isOverseasLocale()) {
     return mealKoMed ? `${mealKoMed} effect tracking, ${intervalLabel}` : `Effect tracking, ${intervalLabel}`;
   }
   return mealKoMed ? `${mealKoMed} ${intervalLabel} 약효추적` : `${intervalLabel} 약효추적`;
@@ -1996,7 +1993,7 @@ function mEffectTrackingLabel(mealKoMed: string | null, intervalLabel: string): 
 // ⚠️ slotLabel은 dose_slots.label(raw DB, 항상 한글)일 수 있어 translateRawSlotLabel로 먼저 변환.
 function mNextDoseLabel(slotLabel: string | null, hhmm: string, now: Date): string {
   const display = translateRawSlotLabel(slotLabel);
-  if (isEnLocale()) {
+  if (isOverseasLocale()) {
     return display ? `Next: ${display} dose` : `Next dose (${formatTimeHHMM(parseHHMM(hhmm, now))})`;
   }
   return display ? `다음 ${display}약 복용` : `다음 ${formatTimeHHMM(parseHHMM(hhmm, now))} 복용`;
@@ -2109,7 +2106,7 @@ async function fetchNextNotifMessage(
       mealCandidates = LEGACY_SLOT_ORDER.map((key) => {
         const meta = LEGACY_SLOT_META[key];
         const time = mealSchedules[key] ?? meta.defaultTime;
-        return { time, label: `${isEnLocale() ? 'Next: ' : '다음 '}${mealTimeToKorean(key)}${isEnLocale() ? '' : ' 복용'}` };
+        return { time, label: `${isOverseasLocale() ? 'Next: ' : '다음 '}${mealTimeToKorean(key)}${isOverseasLocale() ? '' : ' 복용'}` };
       });
     }
 
@@ -2148,7 +2145,7 @@ async function fetchNextNotifMessage(
         scheduled.setHours(hour, ep.minute, 0, 0);
         if (scheduled > now) {
           const minutesLeft = Math.round((scheduled.getTime() - now.getTime()) / 60000);
-          candidates.push({ minutesLeft, label: isEnLocale() ? 'Exercise time' : '운동 시간', sendAt: scheduled });
+          candidates.push({ minutesLeft, label: isOverseasLocale() ? 'Exercise time' : '운동 시간', sendAt: scheduled });
         }
       }
     }
@@ -2160,7 +2157,7 @@ async function fetchNextNotifMessage(
       tomorrow.setHours(8, 0, 0, 0);
       return {
         // "내일"은 timeStr 에서 명시 → 라벨은 오늘과 동일한 형태로.
-        label: isEnLocale() ? 'Next: morning dose' : '다음 아침약 복용',
+        label: isOverseasLocale() ? 'Next: morning dose' : '다음 아침약 복용',
         timeStr: formatTimeHHMM(tomorrow),
         minutesLeft: Math.round((tomorrow.getTime() - now.getTime()) / 60000),
         isTomorrow: true,
@@ -2188,7 +2185,7 @@ async function fetchNextNotifMessage(
       tomorrow.setDate(tomorrow.getDate() + 1);
       tomorrow.setHours(8, 0, 0, 0);
       return {
-        label: isEnLocale() ? 'Next: morning dose' : '다음 아침약 복용',
+        label: isOverseasLocale() ? 'Next: morning dose' : '다음 아침약 복용',
         timeStr: formatTimeHHMM(tomorrow),
         minutesLeft: Math.round((tomorrow.getTime() - now.getTime()) / 60000),
         isTomorrow: true,

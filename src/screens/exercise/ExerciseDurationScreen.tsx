@@ -10,6 +10,7 @@ import {
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useTranslation } from 'react-i18next';
 import i18n from '../../i18n';
+import { isOverseasLocale } from '../../i18n/detectLocale';
 import { useNavigation, useRoute } from '@react-navigation/native';
 import type { CompositeNavigationProp } from '@react-navigation/native';
 import type { NativeStackNavigationProp, NativeStackScreenProps } from '@react-navigation/native-stack';
@@ -36,10 +37,6 @@ type Nav = CompositeNavigationProp<
 >;
 type RouteProps = NativeStackScreenProps<ExerciseStackParamList, 'ExerciseDuration'>['route'];
 
-// 현재 언어가 영어권인지. 한국어(ko)일 때는 아래 라벨/시간을 기존과 100% 동일하게 유지한다.
-function isEnLocale(): boolean {
-  return (i18n.language || '').toLowerCase().startsWith('en');
-}
 
 const DURATION_GROUPS = [
   { labelKey: 'exercise.durShort', items: [10, 20, 30] },
@@ -50,7 +47,7 @@ const DURATION_GROUPS = [
 function formatDuration(min: number): string {
   // 영문은 시:분 분해 대신 기록 리스트(exercise.recordLabel 등)와 동일하게
   // 항상 "{min} min"으로 표기(한 줄 고정 + 저장 후 기록 표시와의 일관성).
-  if (isEnLocale()) return `${min} min`;
+  if (isOverseasLocale()) return `${min} min`;
   if (min < 60) return `${min}분`;
   const h = Math.floor(min / 60);
   const m = min % 60;
@@ -70,14 +67,14 @@ function exFormatTimeHHMM(date: Date): string {
   const m = date.getMinutes();
   const hour = h % 12 === 0 ? 12 : h % 12;
   const mm = m.toString().padStart(2, '0');
-  if (isEnLocale()) return `${hour}:${mm} ${h < 12 ? 'AM' : 'PM'}`;
+  if (isOverseasLocale()) return `${hour}:${mm} ${h < 12 ? 'AM' : 'PM'}`;
   const ampm = h < 12 ? '오전' : '오후';
   return `${ampm} ${hour}:${mm}`;
 }
 
 // 약효추적 interval(분) → 라벨. ko는 기존과 100% 동일.
 function exIntervalLabel(intervalMin: number): string {
-  if (isEnLocale()) {
+  if (isOverseasLocale()) {
     if (intervalMin === 0) return 'right after taking';
     if (intervalMin < 60) return `${intervalMin} min after taking`;
     const h = Math.floor(intervalMin / 60);
@@ -93,7 +90,7 @@ function exIntervalLabel(intervalMin: number): string {
 
 // "{시간대} {interval} 약효추적" 라벨. ko는 기존과 100% 동일.
 function exEffectTrackingLabel(mealKo: string | null, intervalLabel: string): string {
-  if (isEnLocale()) {
+  if (isOverseasLocale()) {
     return mealKo ? `${mealKo} effect tracking, ${intervalLabel}` : `Effect tracking, ${intervalLabel}`;
   }
   return mealKo ? `${mealKo} ${intervalLabel} 약효추적` : `${intervalLabel} 약효추적`;
@@ -105,7 +102,7 @@ function exNextDoseLabelLoc(
   label: string | null | undefined,
   time: string | null | undefined,
 ): string {
-  if (!isEnLocale()) return nextDoseLabel(legacyKey, label, time);
+  if (!isOverseasLocale()) return nextDoseLabel(legacyKey, label, time);
   if (legacyKey) return `Next ${mealTimeToKorean(legacyKey)}`;
   const trimmed = (label ?? '').trim();
   if (trimmed) return `Next ${trimmed}`;
@@ -194,7 +191,7 @@ async function fetchExerciseNextNotif(patientId: string): Promise<ExNextNotifInf
         tomorrowFirst.setHours(fh, fm || 0, 0, 0);
         const minutesLeft = Math.round((tomorrowFirst.getTime() - now.getTime()) / 60000);
         const baseLabel = exNextDoseLabelLoc(first.legacyKey, first.label, first.time);
-        const tomorrowLabel = isEnLocale()
+        const tomorrowLabel = isOverseasLocale()
           ? `Tomorrow, ${baseLabel.replace(/^Next /, '')}`
           : `내일 ${baseLabel.replace(/^다음 /, '')}`;
         candidates.push({
@@ -219,7 +216,7 @@ async function fetchExerciseNextNotif(patientId: string): Promise<ExNextNotifInf
         scheduled.setHours(hour, ep.minute, 0, 0);
         if (scheduled > now) {
           const minutesLeft = Math.round((scheduled.getTime() - now.getTime()) / 60000);
-          candidates.push({ minutesLeft, label: isEnLocale() ? 'Exercise reminder' : '운동 알림', sendAt: scheduled });
+          candidates.push({ minutesLeft, label: isOverseasLocale() ? 'Exercise reminder' : '운동 알림', sendAt: scheduled });
         }
       }
     }
@@ -230,7 +227,7 @@ async function fetchExerciseNextNotif(patientId: string): Promise<ExNextNotifInf
       tomorrow.setDate(tomorrow.getDate() + 1);
       tomorrow.setHours(8, 0, 0, 0);
       return {
-        label: isEnLocale() ? 'Tomorrow, morning dose' : '내일 아침약 복용',
+        label: isOverseasLocale() ? 'Tomorrow, morning dose' : '내일 아침약 복용',
         timeStr: exFormatTimeHHMM(tomorrow),
         minutesLeft: Math.round((tomorrow.getTime() - now.getTime()) / 60000),
       };

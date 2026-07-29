@@ -12,6 +12,7 @@
  * ⚠️ 실제 알림 재생은 번들 자산이 포함된 새 빌드에서만 동작(OTA 불가). 빌드 전엔 기본음.
  */
 import i18n from '../i18n';
+import { isOverseasLocale } from '../i18n/detectLocale';
 
 /** dose_slots 저장 id 접두 — 녹음(uuid)과 프리셋을 구분 */
 export const PRESET_SOUND_PREFIX = 'preset:';
@@ -47,8 +48,7 @@ export const PRESET_ALARM_SOUNDS: PresetAlarmSound[] = [
 
 /** 현재 로케일 기준 표시명(nameKo/nameEn 중 선택). */
 export function presetSoundDisplayName(p: Pick<PresetAlarmSound, 'nameKo' | 'nameEn'>): string {
-  const isEn = (i18n.language || '').toLowerCase().startsWith('en');
-  return isEn ? p.nameEn : p.nameKo;
+  return isOverseasLocale() ? p.nameEn : p.nameKo;
 }
 
 /** dose_slots 저장값이 프리셋인지 */

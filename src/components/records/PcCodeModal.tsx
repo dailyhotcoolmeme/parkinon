@@ -24,10 +24,8 @@ import { Colors } from '../../constants/colors';
 import { useSwipeDownDismiss } from '../../hooks/useSwipeDownDismiss';
 import { useTranslation } from 'react-i18next';
 import i18n from '../../i18n';
+import { isOverseasLocale } from '../../i18n/detectLocale';
 
-function isEnLocale(): boolean {
-  return (i18n.language || '').toLowerCase().startsWith('en');
-}
 
 // react-native 코어 Clipboard는 최신 RN에서 제거되어 import가 undefined일 수 있다.
 // expo-clipboard는 미설치(네이티브라 OTA로 새로 못 넣음).
@@ -55,7 +53,7 @@ export interface PcCodeModalProps {
 function formatRemain(sec: number): string {
   const m = Math.floor(sec / 60);
   const s = sec % 60;
-  if (isEnLocale()) {
+  if (isOverseasLocale()) {
     if (sec <= 0) return '0s';
     if (m > 0) return `${m}m ${s}s`;
     return `${s}s`;

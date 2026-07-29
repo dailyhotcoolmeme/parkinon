@@ -25,7 +25,7 @@ import { TopBar } from '../../components/common/TopBar';
 import { useAuth } from '../../context/AuthContext';
 import { useDialog } from '../../context/DialogContext';
 import { useSubscription } from '../../context/SubscriptionContext';
-import { isOverseasLocale } from '../../i18n/detectLocale';
+import { isOverseasLocale, displayLocaleTag } from '../../i18n/detectLocale';
 import { supabase } from '../../lib/supabase';
 import { resolvePlaybackUrl } from '../../lib/r2Get';
 import i18n from '../../i18n';
@@ -43,8 +43,8 @@ interface CustomSound {
 function formatDate(iso: string): string {
   try {
     const d = new Date(iso);
-    if ((i18n.language || '').toLowerCase().startsWith('en')) {
-      return d.toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric' });
+    if (isOverseasLocale()) {
+      return d.toLocaleDateString(displayLocaleTag(), { year: 'numeric', month: 'long', day: 'numeric' });
     }
     return `${d.getFullYear()}년 ${d.getMonth() + 1}월 ${d.getDate()}일`;
   } catch {

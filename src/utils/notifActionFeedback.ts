@@ -16,10 +16,8 @@
 import { supabase } from '../lib/supabase';
 import { getLocalToday, getLocalDayRange } from './medUtils';
 import i18n from '../i18n';
+import { isOverseasLocale } from '../i18n/detectLocale';
 
-function isEnLocale(): boolean {
-  return (i18n.language || '').toLowerCase().startsWith('en');
-}
 
 const FALLBACK_TZ = 'Asia/Seoul';
 
@@ -76,7 +74,7 @@ export function formatTimeKor(hhmm: string | null | undefined): string {
   let dh = h % 12;
   if (dh === 0) dh = 12;
   const mm = String(m).padStart(2, '0');
-  if (isEnLocale()) {
+  if (isOverseasLocale()) {
     const period = h < 12 ? 'AM' : 'PM';
     return `${dh}:${mm} ${period}`;
   }

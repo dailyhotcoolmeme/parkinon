@@ -34,11 +34,9 @@ import { useNotificationBadge } from '../../context/NotificationBadgeContext';
 import { useDialog } from '../../context/DialogContext';
 import { useBottomSheetPadding } from '../../hooks/useBottomSheetPadding';
 import i18n from '../../i18n';
+import { isOverseasLocale } from '../../i18n/detectLocale';
 import { useTranslation } from 'react-i18next';
 
-function isEnLocale(): boolean {
-  return (i18n.language || '').toLowerCase().startsWith('en');
-}
 
 type NavProp = StackNavigationProp<MenuStackParamList>;
 type RouteType = RouteProp<{ MedicalRecordWrite: { recordId?: string } }, 'MedicalRecordWrite'>;
@@ -61,7 +59,7 @@ const PICKER_HOURS = Array.from({ length: 24 }, (_, i) => i);
 const PICKER_MINUTES = Array.from({ length: 12 }, (_, i) => i * 5);
 
 function getDaysInMonth(y: number, m: number) { return new Date(y, m, 0).getDate(); }
-function getDayOfWeek(y: number, m: number, d: number) { return (isEnLocale() ? DAYS_EN : DAYS_KR)[new Date(y, m - 1, d).getDay()]; }
+function getDayOfWeek(y: number, m: number, d: number) { return (isOverseasLocale() ? DAYS_EN : DAYS_KR)[new Date(y, m - 1, d).getDay()]; }
 
 function PickerCol({
   data, selected, onSelect, suffix, padLen = 0, getLabel, fontSize = 20,
@@ -140,19 +138,19 @@ function DatePickerModal({
           <View style={mpStyles.colsRow}>
             <View style={{ flex: 5 }}>
               <Text style={mpStyles.colHeader}>{t('medRecordWrite.yearHeader')}</Text>
-              <PickerCol data={PICKER_YEARS} selected={year} onSelect={onYearChange} suffix={isEnLocale() ? '' : '년'} fontSize={19} />
+              <PickerCol data={PICKER_YEARS} selected={year} onSelect={onYearChange} suffix={isOverseasLocale() ? '' : '년'} fontSize={19} />
             </View>
             <View style={mpStyles.colDivider} />
             <View style={{ flex: 3 }}>
               <Text style={mpStyles.colHeader}>{t('medRecordWrite.monthHeader')}</Text>
-              <PickerCol data={availableMonths} selected={month} onSelect={onMonthChange} suffix={isEnLocale() ? '' : '월'} fontSize={19} />
+              <PickerCol data={availableMonths} selected={month} onSelect={onMonthChange} suffix={isOverseasLocale() ? '' : '월'} fontSize={19} />
             </View>
             <View style={mpStyles.colDivider} />
             <View style={{ flex: 5 }}>
               <Text style={mpStyles.colHeader}>{t('medRecordWrite.dayHeader')}</Text>
               <PickerCol
-                data={days} selected={day} onSelect={onDayChange} suffix={isEnLocale() ? '' : '일'} fontSize={18}
-                getLabel={(d) => isEnLocale() ? `${d} (${getDayOfWeek(year, month, d)})` : `${d}일 (${getDayOfWeek(year, month, d)})`}
+                data={days} selected={day} onSelect={onDayChange} suffix={isOverseasLocale() ? '' : '일'} fontSize={18}
+                getLabel={(d) => isOverseasLocale() ? `${d} (${getDayOfWeek(year, month, d)})` : `${d}일 (${getDayOfWeek(year, month, d)})`}
               />
             </View>
           </View>
@@ -185,12 +183,12 @@ function TimePickerModal({
           <View style={mpStyles.colsRow}>
             <View style={{ flex: 1 }}>
               <Text style={mpStyles.colHeader}>{t('medRecordWrite.hourHeader')}</Text>
-              <PickerCol data={PICKER_HOURS} selected={hour} onSelect={onHourChange} suffix={isEnLocale() ? '' : '시'} padLen={2} />
+              <PickerCol data={PICKER_HOURS} selected={hour} onSelect={onHourChange} suffix={isOverseasLocale() ? '' : '시'} padLen={2} />
             </View>
             <View style={mpStyles.colDivider} />
             <View style={{ flex: 1 }}>
               <Text style={mpStyles.colHeader}>{t('medRecordWrite.minuteHeader')}</Text>
-              <PickerCol data={PICKER_MINUTES} selected={minute} onSelect={onMinuteChange} suffix={isEnLocale() ? '' : '분'} padLen={2} />
+              <PickerCol data={PICKER_MINUTES} selected={minute} onSelect={onMinuteChange} suffix={isOverseasLocale() ? '' : '분'} padLen={2} />
             </View>
           </View>
           <TouchableOpacity style={mpStyles.confirmBtn} onPress={onConfirm} activeOpacity={0.8}>
@@ -416,10 +414,10 @@ export function MedicalRecordWriteScreen() {
   };
 
   const dow = getDayOfWeek(selYear, selMonth, selDay);
-  const displayDate = isEnLocale()
+  const displayDate = isOverseasLocale()
     ? `${selYear}-${selMonth}-${selDay} (${dow})`
     : `${selYear}년 ${selMonth}월 ${selDay}일 (${dow})`;
-  const displayTime = isEnLocale()
+  const displayTime = isOverseasLocale()
     ? `${String(selHour).padStart(2, '0')}:${String(selMinute).padStart(2, '0')}`
     : `${String(selHour).padStart(2, '0')}시 ${String(selMinute).padStart(2, '0')}분`;
 

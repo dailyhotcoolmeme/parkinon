@@ -8,6 +8,7 @@ import {
 } from 'react-native';
 import { useTranslation } from 'react-i18next';
 import { Colors } from '../../constants/colors';
+import { isOverseasLocale, displayLocaleTag } from '../../i18n/detectLocale';
 
 interface DatePickerModalProps {
   visible: boolean;
@@ -21,8 +22,8 @@ const WEEKDAYS_EN = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
 
 export function DatePickerModal({ visible, selectedDate, onSelect, onClose }: DatePickerModalProps) {
   const { t, i18n } = useTranslation();
-  const isEn = (i18n.language || '').toLowerCase().startsWith('en');
-  const WEEKDAYS = isEn ? WEEKDAYS_EN : WEEKDAYS_KO;
+  const overseas = isOverseasLocale();
+  const WEEKDAYS = overseas ? WEEKDAYS_EN : WEEKDAYS_KO;
   const [viewYear, setViewYear] = useState(selectedDate.getFullYear());
   const [viewMonth, setViewMonth] = useState(selectedDate.getMonth());
 
@@ -75,8 +76,8 @@ export function DatePickerModal({ visible, selectedDate, onSelect, onClose }: Da
               <Text style={styles.navArrowText}>‹</Text>
             </TouchableOpacity>
             <Text style={styles.monthTitle}>
-              {isEn
-                ? new Date(viewYear, viewMonth).toLocaleDateString('en-US', { month: 'long', year: 'numeric' })
+              {overseas
+                ? new Date(viewYear, viewMonth).toLocaleDateString(displayLocaleTag(), { month: 'long', year: 'numeric' })
                 : t('datePicker.monthTitle', { year: viewYear, month: viewMonth + 1 })}
             </Text>
             <TouchableOpacity style={styles.navArrow} onPress={goToNext} activeOpacity={0.7}>

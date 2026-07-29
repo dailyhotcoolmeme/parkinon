@@ -14,12 +14,8 @@
  */
 
 import i18n from '../i18n';
+import { isOverseasLocale } from '../i18n/detectLocale';
 
-// 현재 언어가 영어권인지. 한국어(ko)일 때는 아래 라벨/시간대명을 기존과 100% 동일하게 유지한다.
-// (이 파일은 여러 화면이 공유하는 순수 함수 모듈이라 useTranslation 대신 i18n.language 로 분기)
-function isEnLocale(): boolean {
-  return (i18n.language || '').toLowerCase().startsWith('en');
-}
 
 // ─── legacy 4슬롯 식별자 (기존 MealTime enum과 동일) ──────────────────────────
 export type LegacyMealKey = 'morning' | 'lunch' | 'dinner' | 'bedtime';
@@ -133,7 +129,7 @@ export function translateRawSlotLabel(rawLabel: string | null | undefined): stri
   const trimmed = rawLabel.trim();
   if (!trimmed) return null;
   const key = LABEL_TO_LEGACY_KEY[trimmed];
-  if (key && isEnLocale()) return LEGACY_LABEL_EN[key];
+  if (key && isOverseasLocale()) return LEGACY_LABEL_EN[key];
   return trimmed;
 }
 
@@ -152,7 +148,7 @@ export function formatSlotTime(hhmm: string | null | undefined): string {
   let displayH = h % 12;
   if (displayH === 0) displayH = 12;
   const mm = String(m).padStart(2, '0');
-  if (isEnLocale()) {
+  if (isOverseasLocale()) {
     const period = h < 12 ? 'AM' : 'PM';
     return `${displayH}:${mm} ${period}`;
   }
@@ -171,7 +167,7 @@ export function periodWord(time: string | null | undefined): string {
   if (!time) return '';
   const h = parseInt(time.split(':')[0] ?? '', 10);
   if (Number.isNaN(h)) return '';
-  if (isEnLocale()) {
+  if (isOverseasLocale()) {
     if (h < 6) return 'Early morning';
     if (h < 11) return 'Morning';
     if (h < 13) return 'Midday';
@@ -249,13 +245,13 @@ export function nextDoseLabel(
 ): string {
   if (legacyKey) {
     // 기존 4슬롯과 100% 동일: "다음 아침약 복용" 등
-    if (isEnLocale()) return i18n.t('doseSlots.nextDoseLegacy', { med: i18n.t(`doseSlots.legacyMed_${legacyKey}`) });
+    if (isOverseasLocale()) return i18n.t('doseSlots.nextDoseLegacy', { med: i18n.t(`doseSlots.legacyMed_${legacyKey}`) });
     return `다음 ${LEGACY_SLOT_META[legacyKey].korMed} 복용`;
   }
   const trimmed = (label ?? '').trim();
-  if (trimmed) return isEnLocale() ? i18n.t('doseSlots.nextDoseLegacy', { med: trimmed }) : `다음 ${trimmed} 복용`;
+  if (trimmed) return isOverseasLocale() ? i18n.t('doseSlots.nextDoseLegacy', { med: trimmed }) : `다음 ${trimmed} 복용`;
   const t = formatSlotTime(time);
-  if (isEnLocale()) return t ? i18n.t('doseSlots.nextDoseWithTime', { time: t }) : i18n.t('doseSlots.nextDosePlain');
+  if (isOverseasLocale()) return t ? i18n.t('doseSlots.nextDoseWithTime', { time: t }) : i18n.t('doseSlots.nextDosePlain');
   return t ? `다음 복용 (${t})` : '다음 복용';
 }
 

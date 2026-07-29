@@ -27,7 +27,7 @@ import { useAuth } from '../../context/AuthContext';
 import { CaregiverConfirmModal } from '../../components/common/CaregiverConfirmModal';
 import { supabase } from '../../lib/supabase';
 import { useNotificationBadge } from '../../context/NotificationBadgeContext';
-import { isOverseasLocale } from '../../i18n/detectLocale';
+import { isOverseasLocale, displayLocaleTag } from '../../i18n/detectLocale';
 import { HistoryTimeline } from '../../components/common/HistoryTimeline';
 import { useDialog } from '../../context/DialogContext';
 import { ensureNotGuest } from '../../utils/guestGuard';
@@ -72,14 +72,10 @@ function ExerciseTypeIcon({ type, size = 30, color = Colors.text }: { type: stri
   return <Ionicons name={iconName} size={size} color={color} />;
 }
 
-// 현재 언어가 영어권인지. 한국어(ko)일 때는 아래 날짜 포맷을 기존과 100% 동일하게 유지한다.
-function isEnLocale(): boolean {
-  return (i18n.language || '').toLowerCase().startsWith('en');
-}
 
 function getDateLabel(date: Date): string {
-  if (isEnLocale()) {
-    return date.toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric' });
+  if (isOverseasLocale()) {
+    return date.toLocaleDateString(displayLocaleTag(), { weekday: 'long', month: 'long', day: 'numeric' });
   }
   const month = date.getMonth() + 1;
   const day = date.getDate();
@@ -89,8 +85,8 @@ function getDateLabel(date: Date): string {
 
 // 섹션 제목용 짧은 날짜. ko: "M월 D일"(기존과 동일), en: "January 1".
 function getShortDateLabel(date: Date): string {
-  if (isEnLocale()) {
-    return date.toLocaleDateString('en-US', { month: 'long', day: 'numeric' });
+  if (isOverseasLocale()) {
+    return date.toLocaleDateString(displayLocaleTag(), { month: 'long', day: 'numeric' });
   }
   return getDateLabel(date).split(' ').slice(0, 2).join(' ');
 }
@@ -353,7 +349,7 @@ export function ExerciseScreen() {
                     {t('exercise.recordLabel', { type: translateRawExerciseType(record.exercise_type), min: record.duration_minutes })}
                   </Text>
                   <Text style={styles.recordTime}>
-                    {new Date(record.logged_at).toLocaleTimeString(isEnLocale() ? 'en-US' : 'ko-KR', { hour: '2-digit', minute: '2-digit' })}
+                    {new Date(record.logged_at).toLocaleTimeString(displayLocaleTag(), { hour: '2-digit', minute: '2-digit' })}
                   </Text>
                 </View>
                 {canCancel && (

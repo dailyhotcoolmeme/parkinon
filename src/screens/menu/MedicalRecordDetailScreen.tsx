@@ -22,10 +22,8 @@ import { MenuStackParamList } from '../../navigation/MenuNavigator';
 import { useDialog } from '../../context/DialogContext';
 import { useTranslation } from 'react-i18next';
 import i18n from '../../i18n';
+import { isOverseasLocale } from '../../i18n/detectLocale';
 
-function isEnLocale(): boolean {
-  return (i18n.language || '').toLowerCase().startsWith('en');
-}
 
 type NavProp = StackNavigationProp<MenuStackParamList>;
 type RouteType = RouteProp<{ MedicalRecordDetail: { recordId: string } }, 'MedicalRecordDetail'>;
@@ -52,7 +50,7 @@ interface RecordDetail {
 
 function formatDate(iso: string): string {
   const d = new Date(iso);
-  if (isEnLocale()) return `${d.getFullYear()}-${d.getMonth() + 1}-${d.getDate()}`;
+  if (isOverseasLocale()) return `${d.getFullYear()}-${d.getMonth() + 1}-${d.getDate()}`;
   return `${d.getFullYear()}년 ${d.getMonth() + 1}월 ${d.getDate()}일`;
 }
 

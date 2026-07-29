@@ -168,8 +168,7 @@ function formatDosageForDisplay(dosage?: string | null): string {
   const num = numMatch ? numMatch[0] : '';
   if (!num) return trimmed; // 예상 밖 포맷이면 회귀 방지로 그대로 표시
   if (/mg/i.test(trimmed)) return `${num}mg`; // mg는 로케일 무관 그대로
-  const isEn = (i18n.language || '').toLowerCase().startsWith('en');
-  return isEn ? `${num} ${i18n.t('medManage.unitTablet')}` : `${num}정`;
+  return isOverseasLocale() ? `${num} ${i18n.t('medManage.unitTablet')}` : `${num}정`;
 }
 
 type ChangeType = 'added' | 'updated' | 'deleted';
@@ -1401,7 +1400,7 @@ export function MedicationManageScreen({ modeOverride, hideBack, hideTopBar, onG
   useEffect(() => {
     if (!route.params?.openEffectTrackingAfterMeds || etAfterMedsShownRef.current) return;
     etAfterMedsShownRef.current = true;
-    const en = (i18n.language || '').toLowerCase().startsWith('en');
+    const en = isOverseasLocale();
     setTimeout(async () => {
       const pid = targetPatientId ?? user?.id ?? null;
       if (!pid) return;

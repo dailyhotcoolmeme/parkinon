@@ -15,10 +15,10 @@ import { supabase } from '../lib/supabase';
 import { getDeviceTimeZone } from './timezone';
 import type { MedNotif, ExerciseNotif } from '../context/SettingsContext';
 import i18n from '../i18n';
-import { isOverseasLocale } from '../i18n/detectLocale';
+import { resolveInitialLanguage } from '../i18n/detectLocale';
 
-function isEnLocale(): boolean {
-  return (i18n.language || '').toLowerCase().startsWith('en');
+function isKoLocale(): boolean {
+  return (i18n.language || '').toLowerCase().startsWith('ko');
 }
 
 const SUPABASE_URL = process.env.EXPO_PUBLIC_SUPABASE_URL!;
@@ -64,14 +64,20 @@ const MEAL_TIMES: Record<string, { hour: number; minute: number; label: string }
 function minutesToLabel(m: number): string {
   const h = Math.floor(m / 60);
   const rem = m % 60;
-  if (isEnLocale()) {
-    if (m === 0) return 'right after taking';
-    if (m < 60) return `${m} min later`;
-    return rem === 0 ? `${h} hr later` : `${h} hr ${rem} min later`;
+  // 국내 문구는 기존 출력 그대로 둔다(언어 파일의 medManage 값과 띄어쓰기가 달라
+  // 키로 갈아타면 국내 알림 문구가 바뀐다).
+  if (isKoLocale()) {
+    if (m === 0) return '복용 직후';
+    if (m < 60) return `${m}분 후`;
+    return rem === 0 ? `${h}시간 후` : `${h}시간 ${rem}분 후`;
   }
-  if (m === 0) return '복용 직후';
-  if (m < 60) return `${m}분 후`;
-  return rem === 0 ? `${h}시간 후` : `${h}시간 ${rem}분 후`;
+  // 해외는 언어 파일을 그대로 쓴다. 예전엔 en/ko 이분법이라 프랑스어·일본어
+  // 사용자에게 "{{when}}" 자리만 영어로 섞여 나왔다. 이제 언어가 늘어도 여긴 그대로.
+  if (m === 0) return i18n.t('medManage.rightAfter');
+  if (m < 60) return i18n.t('medManage.minLater', { m });
+  return rem === 0
+    ? i18n.t('medManage.hourLaterOnly', { h })
+    : i18n.t('medManage.hourMinLater', { h, m: rem });
 }
 
 /**
@@ -175,12 +181,16 @@ export async function requestPermissionsAndSaveToken(
       //   해외 이동 시 자동 갱신되고, 국내 기기는 항상 'Asia/Seoul'(DEFAULT와 동일) → 회귀 0.
       //   서버/화면 로직은 아직 timezone을 사용하지 않는다(S2/S3).
       // language: 서버 푸시(약 복용/진료/미복용 알림 등) title·body 로케일 분기용.
-      //   국내 기기는 항상 'ko'(DEFAULT와 동일) → 회귀 0. 해외 기기만 'en'으로 upsert.
+      //   ⚠️ 앱이 실제로 쓰는 언어를 그대로 저장한다. 예전엔 해외를 전부 'en' 으로
+      //   눌러 담았는데, 그러면 프랑스어·일본어 사용자가 앱은 자기 언어인데 푸시만
+      //   영어로 받는다. resolveInitialLanguage() 는 i18next 의 lng 와 같은 값이라
+      //   앱 화면과 알림의 언어가 어긋날 수 없고, 미지원 언어는 'en' 으로 떨어진다.
+      //   국내 기기는 'ko'(DEFAULT와 동일) → 회귀 0.
       body: JSON.stringify({
         push_token: token,
         push_platform: Platform.OS,
         timezone: getDeviceTimeZone(),
-        language: isOverseasLocale() ? 'en' : 'ko',
+        language: resolveInitialLanguage(),
       }),
     });
 

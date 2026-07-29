@@ -12,6 +12,7 @@ import {
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useTranslation } from 'react-i18next';
 import i18n from '../../i18n';
+import { isOverseasLocale, displayLocaleTag } from '../../i18n/detectLocale';
 import { useBottomSheetPadding } from '../../hooks/useBottomSheetPadding';
 import { useNavigation, useRoute, useFocusEffect } from '@react-navigation/native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
@@ -69,14 +70,10 @@ interface BodyRecord {
   constipation?: boolean;
 }
 
-// 현재 언어가 영어권인지. 한국어(ko)일 때는 아래 날짜/시간/기간 포맷을 기존과 100% 동일하게 유지한다.
-function isEnLocale(): boolean {
-  return (i18n.language || '').toLowerCase().startsWith('en');
-}
 
 function getDateLabel(date: Date): string {
-  if (isEnLocale()) {
-    return date.toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric' });
+  if (isOverseasLocale()) {
+    return date.toLocaleDateString(displayLocaleTag(), { weekday: 'long', month: 'long', day: 'numeric' });
   }
   const month = date.getMonth() + 1;
   const day = date.getDate();
@@ -90,7 +87,7 @@ function formatTime(isoString: string): string {
   const m = d.getMinutes();
   const hour = h % 12 === 0 ? 12 : h % 12;
   const mm = m.toString().padStart(2, '0');
-  if (isEnLocale()) return `${hour}:${mm} ${h < 12 ? 'AM' : 'PM'}`;
+  if (isOverseasLocale()) return `${hour}:${mm} ${h < 12 ? 'AM' : 'PM'}`;
   const ampm = h < 12 ? '오전' : '오후';
   return `${ampm} ${hour}:${mm}`;
 }
@@ -115,7 +112,7 @@ const PERIOD_LABEL_EN: Record<string, string> = {
   '오후': 'Afternoon', '저녁': 'Evening', '밤': 'Night', '취침': 'Bedtime',
 };
 function periodDisplayLabel(period: string): string {
-  return isEnLocale() ? (PERIOD_LABEL_EN[period] ?? period) : period;
+  return isOverseasLocale() ? (PERIOD_LABEL_EN[period] ?? period) : period;
 }
 
 function labelToMinutes(label: string): number | null {
@@ -259,7 +256,7 @@ function intervalMinutesToLabel(min: number): string {
 
 // 인터벌(분) → 사용자 표시 텍스트 (예: 0→'직후', 60→'1시간 후'). ko는 기존과 100% 동일.
 function intervalMinutesToText(min: number): string {
-  if (isEnLocale()) {
+  if (isOverseasLocale()) {
     if (min === 0) return 'right after';
     if (min < 60) return `${min} min later`;
     const he = Math.floor(min / 60);
@@ -276,7 +273,7 @@ function intervalMinutesToText(min: number): string {
 // 경과/잔여 분 → 자연스러운 표현. ko는 기존과 100% 동일.
 function formatDurationKo(totalMin: number): string {
   const m = Math.max(0, Math.round(totalMin));
-  if (isEnLocale()) {
+  if (isOverseasLocale()) {
     if (m < 60) return `${m} min`;
     const he = Math.floor(m / 60);
     const reme = m % 60;
@@ -2147,14 +2144,14 @@ function formatTimeHHMM_BS(date: Date): string {
   const m = date.getMinutes();
   const hour = h % 12 === 0 ? 12 : h % 12;
   const mm = m.toString().padStart(2, '0');
-  if (isEnLocale()) return `${hour}:${mm} ${h < 12 ? 'AM' : 'PM'}`;
+  if (isOverseasLocale()) return `${hour}:${mm} ${h < 12 ? 'AM' : 'PM'}`;
   const ampm = h < 12 ? '오전' : '오후';
   return `${ampm} ${hour}:${mm}`;
 }
 
 // 약효추적 interval(분) → 라벨. ko는 기존과 100% 동일.
 function bsIntervalLabel(intervalMin: number): string {
-  if (isEnLocale()) {
+  if (isOverseasLocale()) {
     if (intervalMin === 0) return 'right after taking';
     if (intervalMin < 60) return `${intervalMin} min after taking`;
     const h = Math.floor(intervalMin / 60);
@@ -2170,7 +2167,7 @@ function bsIntervalLabel(intervalMin: number): string {
 
 // "{시간대} {interval} 약효추적" 라벨. ko는 기존과 100% 동일.
 function bsEffectTrackingLabel(mealKo: string | null, intervalLabel: string): string {
-  if (isEnLocale()) {
+  if (isOverseasLocale()) {
     return mealKo ? `${mealKo} effect tracking, ${intervalLabel}` : `Effect tracking, ${intervalLabel}`;
   }
   return mealKo ? `${mealKo} ${intervalLabel} 약효추적` : `${intervalLabel} 약효추적`;
@@ -2182,7 +2179,7 @@ function bsNextDoseLabelLoc(
   label: string | null | undefined,
   time: string | null | undefined,
 ): string {
-  if (!isEnLocale()) return nextDoseLabel(legacyKey, label, time);
+  if (!isOverseasLocale()) return nextDoseLabel(legacyKey, label, time);
   if (legacyKey) return `Next ${mealTimeToKorean(legacyKey)}`;
   const trimmed = (label ?? '').trim();
   if (trimmed) return `Next ${trimmed}`;
@@ -2305,7 +2302,7 @@ async function fetchNextNotifMessage(
         tomorrowFirst.setHours(fh, fm || 0, 0, 0);
         const minutesLeft = Math.round((tomorrowFirst.getTime() - now.getTime()) / 60000);
         const baseLabel = bsNextDoseLabelLoc(first.legacyKey, first.label, first.time);
-        const tomorrowLabel = isEnLocale()
+        const tomorrowLabel = isOverseasLocale()
           ? `Tomorrow, ${baseLabel.replace(/^Next /, '')}`
           : `내일 ${baseLabel.replace(/^다음 /, '')}`;
         candidates.push({
@@ -2330,7 +2327,7 @@ async function fetchNextNotifMessage(
         scheduled.setHours(hour, ep.minute, 0, 0);
         if (scheduled > now) {
           const minutesLeft = Math.round((scheduled.getTime() - now.getTime()) / 60000);
-          candidates.push({ minutesLeft, label: isEnLocale() ? 'Exercise reminder' : '운동 알림', sendAt: scheduled });
+          candidates.push({ minutesLeft, label: isOverseasLocale() ? 'Exercise reminder' : '운동 알림', sendAt: scheduled });
         }
       }
     }
@@ -2341,7 +2338,7 @@ async function fetchNextNotifMessage(
       tomorrow.setDate(tomorrow.getDate() + 1);
       tomorrow.setHours(8, 0, 0, 0);
       return {
-        label: isEnLocale() ? 'Tomorrow, morning dose' : '내일 아침약 복용',
+        label: isOverseasLocale() ? 'Tomorrow, morning dose' : '내일 아침약 복용',
         timeStr: formatTimeHHMM_BS(tomorrow),
         minutesLeft: Math.round((tomorrow.getTime() - now.getTime()) / 60000),
       };

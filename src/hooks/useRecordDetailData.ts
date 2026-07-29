@@ -16,10 +16,8 @@ import { triggerLabelToText, triggerLabelToMinutes } from '../utils/medUtils';
 import { fetchPatientLabelDoseSlots, type DoseSlot } from './useDoseSlots';
 import { formatSlotTime, slotSortValue, slotTitle } from '../constants/doseSlots';
 import i18n from '../i18n';
+import { isOverseasLocale } from '../i18n/detectLocale';
 
-function isEnLocale(): boolean {
-  return (i18n.language || '').toLowerCase().startsWith('en');
-}
 
 type Period = '이번 주' | '이번 달' | '최근 3개월';
 type ItemKey = 'medication' | 'bodyState' | 'mood' | 'sleep' | 'constipation' | 'exercise';
@@ -119,7 +117,7 @@ function getQuarterRange(quartersAgo: number): { start: Date; end: Date } {
 }
 
 function weekLabel(weeksAgo: number): string {
-  if (isEnLocale()) {
+  if (isOverseasLocale()) {
     if (weeksAgo === 0) return 'This week';
     if (weeksAgo === 1) return 'Last week';
     return `${weeksAgo}w ago`;
@@ -130,7 +128,7 @@ function weekLabel(weeksAgo: number): string {
 }
 
 function monthLabel(monthsAgo: number): string {
-  if (isEnLocale()) {
+  if (isOverseasLocale()) {
     if (monthsAgo === 0) return 'This month';
     if (monthsAgo === 1) return 'Last month';
     return `${monthsAgo}mo ago`;
@@ -141,7 +139,7 @@ function monthLabel(monthsAgo: number): string {
 }
 
 function quarterLabel(quartersAgo: number): string {
-  if (isEnLocale()) {
+  if (isOverseasLocale()) {
     if (quartersAgo === 0) return 'Last 3 mo';
     if (quartersAgo === 1) return 'Prev 3 mo';
     return `${quartersAgo * 3}mo ago`;
@@ -409,7 +407,7 @@ export function useRecordDetailData(type: ItemKey, period: Period): UseRecordDet
         // 정규 키만 알고 메타가 없으므로, 같은 키의 임의 로그 1건으로 라벨을 복원한다.
         //   - dose_slot_id 로만 남은 경우: 라벨/시각 알 수 없음 → '이전 복용' 폴백.
         //   - legacy meal_time 으로 남은 경우: meal_time 자체가 키이자 표시 단서.
-        const legacyMealLabel: Record<string, string> = isEnLocale()
+        const legacyMealLabel: Record<string, string> = isOverseasLocale()
           ? { morning: 'Morning medication', lunch: 'Lunch medication', dinner: 'Dinner medication', bedtime: 'Bedtime medication' }
           : { morning: '아침약', lunch: '점심약', dinner: '저녁약', bedtime: '취침약' };
         const legacyMealOrder: Record<string, number> = {

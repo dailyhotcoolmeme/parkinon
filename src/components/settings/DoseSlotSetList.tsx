@@ -59,11 +59,9 @@ import { HangingText } from '../common/HangingText';
 import { useDialog } from '../../context/DialogContext';
 import { useAuth } from '../../context/AuthContext';
 import i18n from '../../i18n';
+import { isOverseasLocale } from '../../i18n/detectLocale';
 import { useTranslation } from 'react-i18next';
 
-function isEnLocale(): boolean {
-  return (i18n.language || '').toLowerCase().startsWith('en');
-}
 import {
   timeChangeImmediatePopup,
   timeChangeWhileOffPopup,
@@ -94,7 +92,7 @@ interface TrackOption {
 }
 // locale에 따라 매번 새로 계산 — 모듈 로드 시점에 고정하지 않는다(런타임 언어 변경 반영).
 function getTrackOptions(): TrackOption[] {
-  if (isEnLocale()) {
+  if (isOverseasLocale()) {
     return [
       { minutes: 0, label: 'Right after taking' },
       { minutes: 30, label: '30 min later' },
@@ -123,7 +121,7 @@ const DEFAULT_TRACK_INTERVALS = [0, 30];
 function minutesToCheckLabel(min: number): string {
   const h = Math.floor(min / 60);
   const rem = min % 60;
-  if (isEnLocale()) {
+  if (isOverseasLocale()) {
     if (min === 0) return 'Right after taking';
     if (min < 60) return `${min} min later`;
     return rem === 0 ? `${h} hr later` : `${h} hr ${rem} min later`;
@@ -155,13 +153,13 @@ function topicParticle(word: string): '은' | '는' {
 // 약명 목록 → "마도파와 스타레보" 식 자연스러운 나열(주어용). 영어는 "A and B".
 function joinNames(names: string[]): string {
   if (names.length <= 1) return names[0] ?? '';
-  const sep = isEnLocale() ? ' and ' : '와 ';
+  const sep = isOverseasLocale() ? ' and ' : '와 ';
   return names.slice(0, -1).join(', ') + sep + names[names.length - 1];
 }
 
 // 시점 한 개를 메인 문장용 어구로. 영어는 "after taking" 없이 순수 기간만(문장에서 한 번만 붙임).
 function offsetPhrase(min: number): string {
-  if (isEnLocale()) {
+  if (isOverseasLocale()) {
     if (min === 0) return 'right away';
     if (min < 60) return `${min} minutes`;
     const h = Math.floor(min / 60);
@@ -175,7 +173,7 @@ function offsetPhrase(min: number): string {
 function joinOffsets(offsets: number[]): string {
   const parts = [...offsets].sort((a, b) => a - b).map(offsetPhrase);
   if (parts.length <= 1) return parts[0] ?? '';
-  const sep = isEnLocale() ? ' and ' : '와 ';
+  const sep = isOverseasLocale() ? ' and ' : '와 ';
   return parts.slice(0, -1).join(', ') + sep + parts[parts.length - 1];
 }
 
@@ -187,7 +185,7 @@ function buildMainSentence(names: string[], offsets: number[]): {
   timing: string;
 } {
   const subject = joinNames(names);
-  const particle = isEnLocale() ? '' : topicParticle(subject);
+  const particle = isOverseasLocale() ? '' : topicParticle(subject);
   const timing = joinOffsets(offsets);
   return { subject, particle, timing };
 }
@@ -1341,7 +1339,7 @@ export function DoseSlotSetList({
                             recMain은 minHeight(최소값)라 줄이 늘어도 그냥 박스가 커질 뿐 안 깨진다. */}
                         <Text style={styles.recMain}>
                           {showRec && recSentence
-                            ? (isEnLocale()
+                            ? (isOverseasLocale()
                                 ? t('doseSlotSetList.recSentenceEn', { subject: recSentence.subject, timing: recSentence.timing })
                                 : `${recSentence.subject}${recSentence.particle} ${recSentence.timing}에 몸 상태를 확인하는 걸 추천해요.`)
                             : t('doseSlotSetList.noRecTiming')}

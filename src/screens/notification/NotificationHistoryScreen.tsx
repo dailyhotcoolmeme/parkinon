@@ -19,10 +19,8 @@ import { useNotificationBadge } from '../../context/NotificationBadgeContext';
 import { navigateTo } from '../../navigation/navigationRef';
 import { useTranslation } from 'react-i18next';
 import i18n from '../../i18n';
+import { isOverseasLocale, displayLocaleTag } from '../../i18n/detectLocale';
 
-function isEnLocale(): boolean {
-  return (i18n.language || '').toLowerCase().startsWith('en');
-}
 
 // ─────────────────────────────────────────────
 // 타입
@@ -66,7 +64,7 @@ const DEFAULT_NOTIF_CONFIG = { icon: 'notifications', bgColor: '#F5F5F5', iconCo
 // 유틸 함수
 // ─────────────────────────────────────────────
 function groupByDate(logs: NotifLog[]): Section[] {
-  const locale = isEnLocale() ? 'en-US' : 'ko-KR';
+  const locale = displayLocaleTag();
   const groups: Record<string, NotifLog[]> = {};
   const today = new Date().toLocaleDateString(locale, {
     year: 'numeric', month: '2-digit', day: '2-digit',
@@ -119,7 +117,7 @@ function formatTime(iso: string): string {
   const h = d.getHours();
   const m = d.getMinutes();
   const hour = h === 0 ? 12 : h > 12 ? h - 12 : h;
-  if (isEnLocale()) return `${hour}:${String(m).padStart(2, '0')} ${h < 12 ? 'AM' : 'PM'}`;
+  if (isOverseasLocale()) return `${hour}:${String(m).padStart(2, '0')} ${h < 12 ? 'AM' : 'PM'}`;
   const ampm = h < 12 ? '오전' : '오후';
   return `${ampm} ${hour}:${String(m).padStart(2, '0')}`;
 }

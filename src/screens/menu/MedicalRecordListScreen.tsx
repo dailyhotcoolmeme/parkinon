@@ -24,15 +24,13 @@ import { useNotificationBadge } from '../../context/NotificationBadgeContext';
 import { useDialog } from '../../context/DialogContext';
 import { useTranslation } from 'react-i18next';
 import i18n from '../../i18n';
+import { isOverseasLocale } from '../../i18n/detectLocale';
 
 type NavProp = StackNavigationProp<MenuStackParamList>;
 
 const SUPABASE_URL = process.env.EXPO_PUBLIC_SUPABASE_URL!;
 const SUPABASE_ANON_KEY = process.env.EXPO_PUBLIC_SUPABASE_ANON_KEY!;
 
-function isEnLocale(): boolean {
-  return (i18n.language || '').toLowerCase().startsWith('en');
-}
 
 const DAYS_KR = ['일', '월', '화', '수', '목', '금', '토'];
 const DAYS_EN = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
@@ -58,7 +56,7 @@ function alarmDate(iso: string, daysBefore: number): Date {
 function formatNotifDateTime(d: Date): string {
   const hh = String(d.getHours()).padStart(2, '0');
   const mm = String(d.getMinutes()).padStart(2, '0');
-  if (isEnLocale()) {
+  if (isOverseasLocale()) {
     const dow = DAYS_EN[d.getDay()];
     return `${d.getFullYear()}-${d.getMonth() + 1}-${d.getDate()} (${dow}) ${hh}:${mm}`;
   }
@@ -72,7 +70,7 @@ function apptWhenKor(iso: string): string {
   const h = d.getHours();
   const m = d.getMinutes();
   const h12 = h % 12 === 0 ? 12 : h % 12;
-  if (isEnLocale()) {
+  if (isOverseasLocale()) {
     const dow = DAYS_EN[d.getDay()];
     return `${d.getMonth() + 1}/${d.getDate()} (${dow}) ${h12}:${String(m).padStart(2, '0')} ${h < 12 ? 'AM' : 'PM'}`;
   }
@@ -110,7 +108,7 @@ interface MedRecord {
 
 function formatApptDate(iso: string): string {
   const d = new Date(iso);
-  if (isEnLocale()) {
+  if (isOverseasLocale()) {
     const dow = DAYS_EN[d.getDay()];
     return `${d.getFullYear()}-${d.getMonth() + 1}-${d.getDate()} (${dow})`;
   }
@@ -123,7 +121,7 @@ function formatApptTime(iso: string): string {
   const h = d.getHours();
   const m = d.getMinutes();
   const h12 = h % 12 === 0 ? 12 : h % 12;
-  if (isEnLocale()) return `${h12}:${String(m).padStart(2, '0')} ${h < 12 ? 'AM' : 'PM'}`;
+  if (isOverseasLocale()) return `${h12}:${String(m).padStart(2, '0')} ${h < 12 ? 'AM' : 'PM'}`;
   const ampm = h < 12 ? '오전' : '오후';
   return `${ampm} ${h12}:${String(m).padStart(2, '0')}`;
 }
@@ -144,7 +142,7 @@ function apptPlaceText(appt: { hospital_name: string | null; doctor_name: string
 
 function formatRecordDate(iso: string): string {
   const d = new Date(iso);
-  const dow = isEnLocale() ? DAYS_EN[d.getDay()] : DAYS_KR[d.getDay()];
+  const dow = isOverseasLocale() ? DAYS_EN[d.getDay()] : DAYS_KR[d.getDay()];
   return `${d.getFullYear()}. ${d.getMonth() + 1}. ${d.getDate()}. (${dow})`;
 }
 
@@ -153,7 +151,7 @@ function formatRecordTime(iso: string): string {
   const h = d.getHours();
   const m = d.getMinutes();
   const h12 = h % 12 === 0 ? 12 : h % 12;
-  if (isEnLocale()) return `${h12}:${String(m).padStart(2, '0')} ${h < 12 ? 'AM' : 'PM'}`;
+  if (isOverseasLocale()) return `${h12}:${String(m).padStart(2, '0')} ${h < 12 ? 'AM' : 'PM'}`;
   const ampm = h < 12 ? '오전' : '오후';
   return `${ampm} ${h12}:${String(m).padStart(2, '0')}`;
 }

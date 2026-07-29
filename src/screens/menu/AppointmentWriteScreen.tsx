@@ -31,11 +31,9 @@ import { MenuStackParamList } from '../../navigation/MenuNavigator';
 import { useNotificationBadge } from '../../context/NotificationBadgeContext';
 import { useDialog } from '../../context/DialogContext';
 import i18n from '../../i18n';
+import { isOverseasLocale } from '../../i18n/detectLocale';
 import { useTranslation } from 'react-i18next';
 
-function isEnLocale(): boolean {
-  return (i18n.language || '').toLowerCase().startsWith('en');
-}
 
 type NavProp = StackNavigationProp<MenuStackParamList>;
 type RouteType = RouteProp<{ AppointmentWrite: { appointmentId?: string } }, 'AppointmentWrite'>;
@@ -63,7 +61,7 @@ function getDaysInMonth(y: number, m: number): number {
 }
 
 function getDayOfWeek(y: number, m: number, d: number): string {
-  return (isEnLocale() ? DAYS_EN : DAYS_KR)[new Date(y, m - 1, d).getDay()];
+  return (isOverseasLocale() ? DAYS_EN : DAYS_KR)[new Date(y, m - 1, d).getDay()];
 }
 
 // ─── 알림 유틸 ──────────────────────────────────────────────────────────────
@@ -214,7 +212,7 @@ function DatePickerModal({
                 data={PICKER_YEARS}
                 selected={year}
                 onSelect={handleYearChange}
-                suffix={isEnLocale() ? '' : '년'}
+                suffix={isOverseasLocale() ? '' : '년'}
                 fontSize={19}
               />
             </View>
@@ -226,7 +224,7 @@ function DatePickerModal({
                 data={availableMonths}
                 selected={month}
                 onSelect={handleMonthChange}
-                suffix={isEnLocale() ? '' : '월'}
+                suffix={isOverseasLocale() ? '' : '월'}
                 fontSize={19}
               />
             </View>
@@ -238,9 +236,9 @@ function DatePickerModal({
                 data={days}
                 selected={day}
                 onSelect={onDayChange}
-                suffix={isEnLocale() ? '' : '일'}
+                suffix={isOverseasLocale() ? '' : '일'}
                 fontSize={18}
-                getLabel={(d) => isEnLocale() ? `${d} (${getDayOfWeek(year, month, d)})` : `${d}일 (${getDayOfWeek(year, month, d)})`}
+                getLabel={(d) => isOverseasLocale() ? `${d} (${getDayOfWeek(year, month, d)})` : `${d}일 (${getDayOfWeek(year, month, d)})`}
               />
             </View>
           </View>
@@ -282,7 +280,7 @@ function TimePickerModal({
                 data={PICKER_HOURS}
                 selected={hour}
                 onSelect={onHourChange}
-                suffix={isEnLocale() ? '' : '시'}
+                suffix={isOverseasLocale() ? '' : '시'}
                 padLen={2}
               />
             </View>
@@ -293,7 +291,7 @@ function TimePickerModal({
                 data={PICKER_MINUTES}
                 selected={minute}
                 onSelect={onMinuteChange}
-                suffix={isEnLocale() ? '' : '분'}
+                suffix={isOverseasLocale() ? '' : '분'}
                 padLen={2}
               />
             </View>
@@ -450,10 +448,10 @@ export function AppointmentWriteScreen() {
   };
 
   const dow = getDayOfWeek(selYear, selMonth, selDay);
-  const displayDate = isEnLocale()
+  const displayDate = isOverseasLocale()
     ? `${selYear}-${selMonth}-${selDay} (${dow})`
     : `${selYear}년 ${selMonth}월 ${selDay}일 (${dow})`;
-  const displayTime = isEnLocale()
+  const displayTime = isOverseasLocale()
     ? `${String(selHour).padStart(2, '0')}:${String(selMinute).padStart(2, '0')}`
     : `${String(selHour).padStart(2, '0')}시 ${String(selMinute).padStart(2, '0')}분`;
 

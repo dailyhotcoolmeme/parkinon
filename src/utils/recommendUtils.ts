@@ -19,10 +19,8 @@ import {
 // MedNotif 타입은 SettingsContext 단일 정의를 재사용한다(중복 정의 금지).
 import type { MedNotif } from '../context/SettingsContext';
 import i18n from '../i18n';
+import { isOverseasLocale } from '../i18n/detectLocale';
 
-function isEnLocale(): boolean {
-  return (i18n.language || '').toLowerCase().startsWith('en');
-}
 
 /** 키워드 매칭용 정규화: 소문자 + 모든 공백 제거 (§5) */
 function normalize(s: string | null | undefined): string {
@@ -111,7 +109,7 @@ export function buildRecommendedMedNotifs(
       }
     } else if (rec.note) {
       // 추적 비대상(비레보도파) — 알림 미생성, 안내 문구만 수집
-      noteSet.add((isEnLocale() && rec.noteEn) ? rec.noteEn : rec.note);
+      noteSet.add((isOverseasLocale() && rec.noteEn) ? rec.noteEn : rec.note);
     }
   }
 
@@ -149,7 +147,7 @@ export type SlotMedInput = { name: string; mfdsClassName?: string | null };
  * UI 는 'recommendUtils.SOURCE_LABEL' 만 보면 된다(60대 일반어·전문어 "약동학" 제거).
  */
 export function getSourceLabel(): string {
-  return isEnLocale() ? 'US FDA & manufacturer drug information' : '미국 FDA·제조사 의약품 정보';
+  return isOverseasLocale() ? 'US FDA & manufacturer drug information' : '미국 FDA·제조사 의약품 정보';
 }
 
 /** 슬롯 단위 안내 결과 (DoseSlotSetList 박스2 안내 렌더용 — §7.3·"슬롯 단위 안내" 절) */

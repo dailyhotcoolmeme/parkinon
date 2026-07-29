@@ -87,3 +87,25 @@ export function isKoreanLocale(): boolean {
 export function isOverseasLocale(): boolean {
   return !isKoreanLocale();
 }
+
+/** 지원 언어 → 화면 표기용 Intl 로케일 태그. */
+const DISPLAY_TAGS: Record<SupportedLanguage, string> = {
+  ko: 'ko-KR',
+  en: 'en-US',
+  fr: 'fr-FR',
+  ja: 'ja-JP',
+};
+
+/**
+ * 날짜·시간을 화면에 그릴 때 쓸 Intl 로케일 태그.
+ * 해외를 전부 'en-US' 로 고정하면 프랑스어 사용자가 앱은 프랑스어인데 날짜만
+ * "Monday, July 27" 로 본다. 언어를 추가하면 위 표에 한 줄만 더하면 된다.
+ *
+ * ⚠️ 계산용으로 쓰지 말 것. Intl.DateTimeFormat 으로 연·월·일 조각을 뽑아
+ *    다시 조립하는 코드(medUtils·timezone·notifActionFeedback)는 'en-US' 고정이라야
+ *    파싱 결과가 안정적이다.
+ */
+export function displayLocaleTag(): string {
+  const lang = getDeviceLanguage();
+  return isSupportedLanguage(lang) ? DISPLAY_TAGS[lang] : DISPLAY_TAGS[FALLBACK_LANGUAGE];
+}

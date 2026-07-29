@@ -12,6 +12,7 @@ import {
 } from 'react-native';
 import { useTranslation } from 'react-i18next';
 import i18n from '../../i18n';
+import { isOverseasLocale, displayLocaleTag } from '../../i18n/detectLocale';
 import { supabase } from '../../lib/supabase';
 import { useAuth } from '../../context/AuthContext';
 import { Colors } from '../../constants/colors';
@@ -34,10 +35,6 @@ interface TimelineEntry {
   tag?: string;  // 몸상태 전용: "(저녁약 +30분)" 형태
 }
 
-// 현재 언어가 영어권인지. 한국어(ko)일 때는 날짜 포맷을 기존과 100% 동일하게 유지한다.
-function isEnLocale(): boolean {
-  return (i18n.language || '').toLowerCase().startsWith('en');
-}
 
 // 수시 기록의 시간대 단어 추론. 오너 확정 6구간(doseSlots.periodWord)과 일치.
 // (이전 4구간은 15시를 '저녁'으로 표기 — 낮인데 저녁/달로 보이던 문제와 같은 경계 오류)
@@ -71,9 +68,9 @@ function toKSTTime(isoString: string): string {
 function formatDateLabel(dateStr: string): string {
   const [y, m, d] = dateStr.split('-').map(Number);
   const date = new Date(y, m - 1, d);
-  if (isEnLocale()) {
+  if (isOverseasLocale()) {
     // 예: "Thu, Jul 3" (연도 생략, 요일 강조).
-    return date.toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' });
+    return date.toLocaleDateString(displayLocaleTag(), { weekday: 'short', month: 'short', day: 'numeric' });
   }
   const dayNames = ['일', '월', '화', '수', '목', '금', '토'];
   return `${m}.${d}(${dayNames[date.getDay()]})`;
@@ -210,7 +207,7 @@ export function HistoryTimeline({ type, patientId, refreshKey }: HistoryTimeline
           const fullText = row.trigger_time_label ? triggerLabelToText(row.trigger_time_label) : '';
           // ko: 괄호 안에서는 선행 "복용 " 제거("복용 직후"는 유지).
           // en: triggerLabelToText 가 접두 없는 표현("30 min later" 등)을 반환하므로 그대로 사용.
-          const interval = isEnLocale()
+          const interval = isOverseasLocale()
             ? fullText
             : (fullText === '복용 직후' ? fullText : fullText.replace(/^복용\s+/, ''));
           const tag = interval ? t('timeline.tag', { slot: slotName, interval }) : undefined;
