@@ -6,7 +6,14 @@ import './src/i18n';
 import i18n from './src/i18n';
 // 해외 로케일 폰트 축소 패치(side-effect import). i18n 초기화 직후, 모든 화면 모듈이
 // import되어 StyleSheet.create가 호출되기 전에 실행되어야 함.
+// ⚠️ 현재 이 패치는 비활성 상태다(파일 내 주석 참고). 60대 타겟이라 글씨를 줄이지 않고
+//    버튼이 늘어나도록 minHeight 로 해결하는 방향으로 정리했다(2026-07-29).
 import './src/i18n/localeFontScale';
+// 해외 언어인데 화면에 한글이 그려지면 개발 빌드에서 콘솔로 잡아낸다.
+// i18n 미경유 하드코딩 한글을 소스 훑기(오탐 많음) 대신 실제 렌더로 검출한다.
+import { installHangulGuard } from './src/i18n/hangulGuard';
+
+installHangulGuard();
 import { initAds } from './src/lib/ads';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
