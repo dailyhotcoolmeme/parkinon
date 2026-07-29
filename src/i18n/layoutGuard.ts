@@ -20,62 +20,21 @@
  *   - flex 컨테이너가 줄바꿈을 허용하는 자리는 "2줄"이 정상일 수 있다 —
  *     넘침 판정은 numberOfLines 제한이 있거나, 줄 폭이 상자보다 실제로 클 때만.
  */
-import React from 'react';
-import { Text } from 'react-native';
-import type { LayoutChangeEvent, NativeSyntheticEvent, TextLayoutEventData } from 'react-native';
+import { onTextOverflow } from './textHook';
+import { qaEvent } from './qaProbe';
 
 const reported = new Set<string>();
 
 export function installLayoutGuard(): void {
   if (!__DEV__) return;
 
-  const TextAny = Text as unknown as { render?: (...args: unknown[]) => React.ReactElement };
-  const original = TextAny.render;
-  if (typeof original !== 'function') return;
-
-  TextAny.render = function patchedRender(...args: unknown[]) {
-    const props = (args[0] ?? {}) as Record<string, unknown>;
-
-    // 자동 축소 자리는 넘칠 수 없다 — 제외.
-    if (props.adjustsFontSizeToFit) return original.apply(this, args);
-
-    // 텍스트별 측정값 보관(클로저) — 두 콜백이 서로 다른 시점에 온다.
-    const state: { boxW?: number; lines?: TextLayoutEventData['lines'] } = {};
-
-    const check = () => {
-      if (state.boxW == null || !state.lines?.length) return;
-      const maxLineW = Math.max(...state.lines.map((l) => l.width));
-      // 1px 미만 오차는 렌더러 반올림 — 실제 잘림은 1px 이상 차이난다.
-      if (maxLineW <= state.boxW + 1) return;
-
-      const text = state.lines.map((l) => l.text).join('');
-      const key = `${text}|${Math.round(maxLineW)}|${Math.round(state.boxW)}`;
-      if (reported.has(key)) return;
-      reported.add(key);
-      const nol = (props.numberOfLines as number | undefined) ?? 0;
-      console.error(
-        `[넘침] ${JSON.stringify(text.slice(0, 80))} 줄폭=${Math.round(maxLineW)} 상자=${Math.round(state.boxW)} (numberOfLines=${nol})`,
-      );
-    };
-
-    const userOnLayout = props.onLayout as ((e: LayoutChangeEvent) => void) | undefined;
-    const userOnTextLayout = props.onTextLayout as
-      | ((e: NativeSyntheticEvent<TextLayoutEventData>) => void)
-      | undefined;
-
-    const nextProps = {
-      ...props,
-      onLayout: (e: LayoutChangeEvent) => {
-        state.boxW = e.nativeEvent.layout.width;
-        check();
-        userOnLayout?.(e);
-      },
-      onTextLayout: (e: NativeSyntheticEvent<TextLayoutEventData>) => {
-        state.lines = e.nativeEvent.lines;
-        check();
-        userOnTextLayout?.(e);
-      },
-    };
-    return original.apply(this, [nextProps, ...args.slice(1)]);
-  };
+  onTextOverflow(({ text, lineWidth, boxWidth, numberOfLines }) => {
+    const key = `${text}|${lineWidth}|${boxWidth}`;
+    if (reported.has(key)) return;
+    reported.add(key);
+    console.error(
+      `[넘침] ${JSON.stringify(text.slice(0, 80))} 줄폭=${lineWidth} 상자=${boxWidth} (numberOfLines=${numberOfLines})`,
+    );
+    qaEvent({ type: 'overflow', text: text.slice(0, 200), lineW: lineWidth, boxW: boxWidth, numberOfLines });
+  });
 }

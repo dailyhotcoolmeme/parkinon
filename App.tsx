@@ -13,7 +13,14 @@ import './src/i18n/localeFontScale';
 // i18n 미경유 하드코딩 한글을 소스 훑기(오탐 많음) 대신 실제 렌더로 검출한다.
 import { installHangulGuard } from './src/i18n/hangulGuard';
 import { installLayoutGuard } from './src/i18n/layoutGuard';
+// 화면에 실제로 그려진 문구를 맥의 수집기로 보낸다(개발 빌드 전용).
+// "어느 키가 아직 한 번도 안 떴는지"를 사람 기억이 아니라 숫자로 판정하기 위함.
+import { installQaProbe } from './src/i18n/qaProbe';
+// 순회는 로그인 이후에 시작한다(라우트가 준비돼야 하므로 내부에서 대기).
+import { maybeRunQaWalk } from './src/i18n/qaWalk';
 
+installQaProbe();
+void maybeRunQaWalk();
 installHangulGuard();
 installLayoutGuard();
 import { initAds } from './src/lib/ads';
