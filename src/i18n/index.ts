@@ -20,12 +20,16 @@ import { initReactI18next } from 'react-i18next';
 
 import ko from './locales/ko.json';
 import en from './locales/en.json';
+import fr from './locales/fr.json';
+import ja from './locales/ja.json';
 import { resolveInitialLanguage, FALLBACK_LANGUAGE } from './detectLocale';
 
 // 언어별 리소스. 새 언어는 여기에 한 줄씩만 추가하면 된다.
 const resources = {
   ko: { translation: ko },
   en: { translation: en },
+  fr: { translation: fr },
+  ja: { translation: ja },
 } as const;
 
 if (!i18n.isInitialized) {

@@ -11,7 +11,7 @@
  */
 
 /** 앱이 리소스로 보유한(=번역 가능한) 언어. 새 언어 추가 시 여기에 코드만 추가. */
-export const SUPPORTED_LANGUAGES = ['ko', 'en'] as const;
+export const SUPPORTED_LANGUAGES = ['ko', 'en', 'fr', 'ja'] as const;
 export type SupportedLanguage = (typeof SUPPORTED_LANGUAGES)[number];
 
 /** 폴백 언어. 지원하지 않는 기기 언어는 전부 여기로 수렴한다. */
