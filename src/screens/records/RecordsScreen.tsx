@@ -98,7 +98,8 @@ export function RecordsScreen() {
       // 웹의 로딩 화면은 토큰 교환(계정 확인) 전이라 언어를 모른다 → 앱이 URL 로 알려준다.
       // 없으면 이전 방문 값/브라우저 언어를 써서 영어 사용자에게 한국어 로딩이 보인다.
       const webUrl = String(data.url);
-      const lang = (i18n.language || '').toLowerCase().startsWith('ko') ? 'ko' : 'en';
+      // ko/en 이분법이면 fr/ja 사용자가 영어 웹을 본다 — 실제 언어를 그대로 싣는다(웹이 4개 언어 지원).
+      const lang = (i18n.language || 'en').split('-')[0];
       const urlWithLang = webUrl + (webUrl.includes('?') ? '&' : '?') + `lang=${lang}`;
       await Linking.openURL(urlWithLang);
     } catch (e: any) {
