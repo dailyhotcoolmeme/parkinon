@@ -12,8 +12,10 @@ import './src/i18n/localeFontScale';
 // 해외 언어인데 화면에 한글이 그려지면 개발 빌드에서 콘솔로 잡아낸다.
 // i18n 미경유 하드코딩 한글을 소스 훑기(오탐 많음) 대신 실제 렌더로 검출한다.
 import { installHangulGuard } from './src/i18n/hangulGuard';
+import { installLayoutGuard } from './src/i18n/layoutGuard';
 
 installHangulGuard();
+installLayoutGuard();
 import { initAds } from './src/lib/ads';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
