@@ -1,0 +1,6 @@
+{
+  "CFBundleDisplayName": "ParkinON",
+  "NSMicrophoneUsageDescription": "ParkinON utilise le microphone pour enregistrer des notes vocales dans le journal et des sons de rappel avec la voix de vos proches.",
+  "NSCameraUsageDescription": "ParkinON utilise l'appareil photo pour lire vos ordonnances et filmer des vidéos.",
+  "NSPhotoLibraryUsageDescription": "ParkinON a besoin d'accéder à vos photos pour que vous puissiez joindre des photos et des vidéos."
+}

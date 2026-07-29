@@ -176,7 +176,9 @@
       }
     },
     "locales": {
-      "en": "./locales/en.json"
+      "en": "./locales/en.json",
+      "fr": "./locales/fr.json",
+      "ja": "./locales/ja.json"
     },
     "android": {
       "googleServicesFile": "./google-services.json",
