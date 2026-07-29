@@ -23,6 +23,7 @@ import { useDialog } from '../../context/DialogContext';
 import { useTranslation } from 'react-i18next';
 import i18n from '../../i18n';
 import { isOverseasLocale } from '../../i18n/detectLocale';
+import { formatDosage } from '../../utils/medUtils';
 
 
 type NavProp = StackNavigationProp<MenuStackParamList>;
@@ -229,7 +230,7 @@ export function MedicalRecordDetailScreen() {
                       <View key={m.id} style={[styles.medRow, { backgroundColor: cfg.bgColor }]}>
                         <Text style={[styles.medName, { color: cfg.color }]}>{m.medication_name}</Text>
                         {m.dosage ? (
-                          <Text style={[styles.medDosage, { color: cfg.color }]}>{m.dosage}</Text>
+                          <Text style={[styles.medDosage, { color: cfg.color }]}>{formatDosage(m.dosage)}</Text>
                         ) : null}
                       </View>
                     ))}

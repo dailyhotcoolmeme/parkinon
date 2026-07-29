@@ -247,3 +247,33 @@ export function mealTimeToPeriodKo(mealTime: string | null | undefined): string 
   if (!meta) return mealTime;
   return meta.label;
 }
+
+/**
+ * 용량 표시 — 단일 출처.
+ * dosage_unit(언어 무관 키: tablet/capsule/mg)이 있으면 그걸로, 없으면
+ * 옛 합성 문자열('1정'/'5mg')을 파싱해 현재 언어 단위로 바꾼다.
+ * (raw 를 그대로 그리면 해외 화면에 '정'이 샌다 — 진료기록 상세에서 실제 발생.)
+ */
+export function formatDosage(dosage?: string | null, unit?: string | null): string {
+  const trimmed = (dosage ?? '').trim();
+  if (!trimmed) return '';
+  const numMatch = trimmed.match(/[0-9]+(?:\.[0-9]+)?/);
+  const num = numMatch ? numMatch[0] : '';
+  const u = (unit ?? '').trim() ||
+    (/정$/.test(trimmed) ? 'tablet' : /캡슐$/.test(trimmed) ? 'capsule' : /mg/i.test(trimmed) ? 'mg' : '');
+  if (!num) return trimmed;
+  if (u === 'mg') return `${num}mg`;
+  if (u === 'tablet') return `${num}${isOverseasLocale() ? ' ' + i18n.t('medManage.unitTablet') : '정'}`;
+  if (u === 'capsule') return `${num}${isOverseasLocale() ? ' ' + i18n.t('medManage.unitCapsule') : '캡슐'}`;
+  return trimmed;
+}
+
+/** raw dosage 문자열('1정'/'1캡슐'/'5mg')에서 언어 무관 단위 키 추출. 모르면 null. */
+export function dosageUnitFromRaw(dosage?: string | null): 'tablet' | 'capsule' | 'mg' | null {
+  const trimmed = (dosage ?? '').trim();
+  if (!trimmed) return null;
+  if (/정$/.test(trimmed)) return 'tablet';
+  if (/캡슐$/.test(trimmed)) return 'capsule';
+  if (/mg$/i.test(trimmed)) return 'mg';
+  return null;
+}

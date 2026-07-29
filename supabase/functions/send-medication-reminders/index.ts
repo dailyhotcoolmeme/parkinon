@@ -213,6 +213,9 @@ interface DoseTarget {
 }
 
 function toDoseTarget(row: MedRow): DoseTarget | null {
+  // meal_time 은 RPC 가 legacy_key(언어 무관)로 산출한 표준 슬롯 키다.
+  // 예전엔 label('아침')을 파싱했는데, 프랑스어/일본어 사용자의 슬롯은 label 이
+  // 한글이 아니라서 시간대 판정이 통째로 빠졌다. 키를 단일 진실로 쓴다.
   const mealTime = row.meal_time ?? null
   const doseSlotId = row.dose_slot_id ?? null
   // 표시 이름: 앱 slotTitle 과 동일하게 "이름 + 시각"(예 "아침 오전 8:10", "밤 11:00").
@@ -226,12 +229,12 @@ function toDoseTarget(row: MedRow): DoseTarget | null {
     '약'
   // 푸시 문구 {시간대} — 표준 라벨 우선, 없으면 시각 기반 periodWord, 둘 다 없으면 legacy mealTime 라벨.
   const periodLabel =
-    periodLabelFor(row.label, row.time) ||
     (mealTime ? MEAL_LABELS[mealTime] : '') ||
+    periodLabelFor(row.label, row.time) ||
     ''
   const periodLabelEn =
-    periodLabelForEn(row.label, row.time) ||
     (mealTime ? MEAL_LABELS_EN[mealTime] : '') ||
+    periodLabelForEn(row.label, row.time) ||
     ''
   // 안정 키: dose_slot_id 우선, 없으면 meal_time. 둘 다 없으면 식별 불가 → skip.
   const key = doseSlotId ?? mealTime

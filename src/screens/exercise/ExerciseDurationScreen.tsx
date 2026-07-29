@@ -201,7 +201,7 @@ async function fetchExerciseNextNotif(patientId: string): Promise<ExNextNotifInf
 export function ExerciseDurationScreen() {
   const navigation = useNavigation<Nav>();
   const route = useRoute<RouteProps>();
-  const { exerciseName } = route.params;
+  const { exerciseName, exerciseId } = route.params;
   const [selected, setSelected] = useState<number | null>(null);
   const [saving, setSaving] = useState(false);
   const { saveExercise } = useExercise();
@@ -234,7 +234,9 @@ export function ExerciseDurationScreen() {
     let info: ExNextNotifInfo | null = null;
     try {
       [success, info] = await Promise.all([
-        saveExercise(exerciseName, selected),
+        // DB 에는 언어 무관 키(walk 등)를 저장한다 — 번역된 글자('걷기'/'Marche')를
+        // 저장하면 다른 언어 사용자 화면에 그 글자가 그대로 샌다. 커스텀 입력만 원문 저장.
+        saveExercise(exerciseId ?? exerciseName, selected),
         patientId ? fetchExerciseNextNotif(patientId) : Promise.resolve(null),
       ]);
     } catch (e) {

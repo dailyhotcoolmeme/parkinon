@@ -758,7 +758,8 @@
     "alarmPreviewTitle": "전체화면 알람 미리보기",
     "alarmPreviewMsg": "'알람처럼' 알림이 뜨는 화면을 지금 미리 볼까요?\n실제 알림이 아닌 테스트 화면이니 안심하고 확인해 보세요.",
     "alarmModePatientIosNote": "⚠️ '알람처럼'은 안드로이드 기기에서만 구동돼요. 아이폰에서는 구동되지 않아 '기본'과 동일하게 울려요.",
-    "effectSourceLabel": "미국 FDA·제조사 의약품 정보"
+    "effectSourceLabel": "미국 FDA·제조사 의약품 정보",
+    "unitCapsule": "캡슐"
   },
   "settings": {
     "notifMedTakenLabel": "환자 약 복용 기록 시",
@@ -2130,5 +2131,25 @@
     "last3Mo": "최근3개월",
     "prev3Mo": "지난3개월",
     "monthsAgoQ": "{{n}}개월전"
+  },
+  "pkNote": {
+    "patch24h": "경피흡수. 24시간 부착",
+    "dopamineAgonist": "도파민 작용제",
+    "onceDailyEr": "1일 1회 서방형",
+    "erGastricSlow": "서방형(위체류). 효과 발현 느림",
+    "immediateRelease": "속방형",
+    "morningInsomnia": "오전 복용 권장(불면)",
+    "onceDailySteady5d": "1일 1회. 정상상태 5일",
+    "dopamineAgonistAnyMeal": "도파민 작용제. 식사 무관",
+    "levodopaEntacapone": "레보도파+엔타카폰 복합. 작용시간 연장",
+    "erNoCrush": "서방형. 분쇄·씹지 말 것",
+    "irProteinTiming": "속방형. 식전 30분 또는 식후 1시간 권장 (단백질 흡수 경쟁)",
+    "lidRelief": "이상운동증(LID) 완화에도 사용",
+    "onceDailyTyramine": "1일 1회. 누적효과. 티라민 음식 주의",
+    "tremorElderlyCaution": "진전 위주 환자. 노인은 인지부작용 주의",
+    "bedtimeFasting": "취침 1시간 전, 식사와 1시간 간격",
+    "levodopaAdjunct": "레보도파 보조요법",
+    "withLevodopaOnly": "레보도파와 동시 복용. 단독효과 없음",
+    "sinemetEquivalent": "시네메트(레보도파+카르비도파) 동일성분 대체약"
   }
 }

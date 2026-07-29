@@ -6,16 +6,20 @@
 import i18n from '../i18n';
 
 const RAW_LABEL_TO_ID: Record<string, string> = {
-  '걷기': 'walk', 'Walking': 'walk',
-  '근력': 'strength', 'Strength': 'strength',
-  '균형': 'balance', 'Balance': 'balance',
-  '스트레칭': 'stretch', 'Stretching': 'stretch',
-  '자전거': 'bike', 'Cycling': 'bike',
-  '수영': 'swim', 'Swimming': 'swim',
-  '댄스': 'dance', 'Dancing': 'dance',
-  '복싱': 'boxing', 'Boxing': 'boxing',
-  '요가': 'yoga', 'Yoga': 'yoga',
-  '조깅': 'jog', 'Jogging': 'jog',
+  // 신규 저장값(2026-07-29 이후): 언어 무관 키 자체가 저장된다.
+  walk: 'walk', strength: 'strength', balance: 'balance', stretch: 'stretch',
+  bike: 'bike', swim: 'swim', dance: 'dance', boxing: 'boxing', yoga: 'yoga', jog: 'jog',
+  // 과거 저장값: 기록 당시 언어의 번역 라벨이 그대로 저장돼 있다 — 전부 역매핑.
+  '걷기': 'walk', 'Walking': 'walk', 'Marche': 'walk', 'ウォーキング': 'walk',
+  '근력': 'strength', 'Strength': 'strength', 'Renforcement': 'strength', '筋力トレーニング': 'strength',
+  '균형': 'balance', 'Balance': 'balance', 'Équilibre': 'balance', 'バランス運動': 'balance',
+  '스트레칭': 'stretch', 'Stretching': 'stretch', 'Étirements': 'stretch', 'ストレッチ': 'stretch',
+  '자전거': 'bike', 'Cycling': 'bike', 'Vélo': 'bike', '自転車': 'bike',
+  '수영': 'swim', 'Swimming': 'swim', 'Natation': 'swim', '水泳': 'swim',
+  '댄스': 'dance', 'Dancing': 'dance', 'Danse': 'dance', 'ダンス': 'dance',
+  '복싱': 'boxing', 'Boxing': 'boxing', 'Boxe': 'boxing', 'ボクシング': 'boxing',
+  '요가': 'yoga', 'Yoga': 'yoga', 'ヨガ': 'yoga',
+  '조깅': 'jog', 'Jogging': 'jog', 'ジョギング': 'jog',
 };
 
 const ID_TO_LABEL_KEY: Record<string, string> = {

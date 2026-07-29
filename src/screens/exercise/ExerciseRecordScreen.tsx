@@ -97,7 +97,7 @@ export function ExerciseRecordScreen() {
     setCustomText('');
     const found = [...BASIC_EXERCISES, ...OTHER_EXERCISES].find(e => e.id === id);
     setTimeout(() => {
-      navigation.navigate('ExerciseDuration', { exerciseName: found ? t(found.labelKey) : '' });
+      navigation.navigate('ExerciseDuration', { exerciseName: found ? t(found.labelKey) : '', exerciseId: id });
     }, 300);
   };
 
@@ -106,7 +106,7 @@ export function ExerciseRecordScreen() {
       dialog.alert({ title: t('exercise.customAlertTitle'), message: t('exercise.customAlertMsg') });
       return;
     }
-    navigation.navigate('ExerciseDuration', { exerciseName: customText.trim() });
+    navigation.navigate('ExerciseDuration', { exerciseName: customText.trim(), exerciseId: null });
   };
 
   return (

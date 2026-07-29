@@ -281,10 +281,11 @@ export function slotDisplayName(
   legacyKey: LegacyMealKey | null | undefined,
   time: string | null | undefined
 ): string {
-  if (legacyKey) return LEGACY_KEY_TO_LABEL[legacyKey];
-  const trimmed = (label ?? '').trim();
-  if (trimmed) return trimmed;
-  return autoSlotLabel(time);
+  // 표준 4슬롯: 언어 파일에서 — ko '아침' / fr 'Matin' / ja '朝'.
+  if (legacyKey) return i18n.t(`slot.${legacyKey}`);
+  // 커스텀 슬롯: DB label(생성 당시 언어의 글자)은 읽지 않는다 — 시각으로 현재 언어 라벨 생성.
+  //   (예전엔 label 을 그대로 그려서 프랑스어 화면에 '아침 7:00' 한글이 샜다.)
+  return autoSlotLabel(time) || (label ?? '').trim();
 }
 
 /**

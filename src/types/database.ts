@@ -383,6 +383,7 @@ export type Database = {
           id: string
           is_active: boolean
           label: string | null
+          legacy_key: string | null
           patient_id: string
           remind_enabled: boolean
           remind_sound_id: string | null
@@ -398,6 +399,7 @@ export type Database = {
           id?: string
           is_active?: boolean
           label?: string | null
+          legacy_key?: string | null
           patient_id: string
           remind_enabled?: boolean
           remind_sound_id?: string | null
@@ -413,6 +415,7 @@ export type Database = {
           id?: string
           is_active?: boolean
           label?: string | null
+          legacy_key?: string | null
           patient_id?: string
           remind_enabled?: boolean
           remind_sound_id?: string | null
@@ -1081,6 +1084,7 @@ export type Database = {
           created_at: string | null
           daily_count: number | null
           dosage: string | null
+          dosage_unit: string | null
           drug_code: string | null
           drug_image_url: string | null
           ended_at: string | null
@@ -1099,6 +1103,7 @@ export type Database = {
           created_at?: string | null
           daily_count?: number | null
           dosage?: string | null
+          dosage_unit?: string | null
           drug_code?: string | null
           drug_image_url?: string | null
           ended_at?: string | null
@@ -1117,6 +1122,7 @@ export type Database = {
           created_at?: string | null
           daily_count?: number | null
           dosage?: string | null
+          dosage_unit?: string | null
           drug_code?: string | null
           drug_image_url?: string | null
           ended_at?: string | null

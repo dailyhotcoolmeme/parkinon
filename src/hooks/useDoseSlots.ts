@@ -82,7 +82,9 @@ function rowToDoseSlot(row: DoseSlotRow): DoseSlot {
     trackIntervals: row.track_intervals ?? [],
     trackSoundId: row.track_sound_id,
     trackAlarmMode: ((row as any).track_alarm_mode ?? 'basic') as AlarmMode,
-    legacyKey: labelToLegacyKey(row.label),
+    // 언어 무관 키가 단일 진실(2026-07-29 i18n 구조 변경).
+    // legacy_key 가 비어 있는 옛 행은 한글 label 파싱으로 폴백(백필 전 데이터 호환).
+    legacyKey: ((row as any).legacy_key as LegacyMealKey | null) ?? labelToLegacyKey(row.label),
     isReal: true,
   };
 }
@@ -559,7 +561,7 @@ export async function ensurePatientDoseSlots(
     // 기존 슬롯 조회 (멱등 키 매칭용). is_active 무관 — 같은 label 행이 있으면 재사용.
     const { data: existing, error: selErr } = await supabase
       .from('dose_slots')
-      .select('id, label')
+      .select('id, label, legacy_key')
       .eq('patient_id', patientId);
 
     if (selErr) {
@@ -567,8 +569,12 @@ export async function ensurePatientDoseSlots(
       return;
     }
 
-    const byLabel = new Map<string, string>(); // label → id
+    // legacy_key 우선 매칭(언어 무관), 없으면 한글 label 폴백(백필 전 옛 행).
+    const byKey = new Map<string, string>();   // legacy_key → id
+    const byLabel = new Map<string, string>(); // label → id (폴백)
     (existing ?? []).forEach((r) => {
+      const lk = (r as any).legacy_key as string | null;
+      if (lk) byKey.set(lk, r.id);
       if (r.label) byLabel.set(r.label.trim(), r.id);
     });
 
@@ -584,7 +590,7 @@ export async function ensurePatientDoseSlots(
       //   (명시 prefs 가 오면 그대로 존중 — 이후 편집/이관 경로 보존)
       const remindEnabled = prefs ? prefs[key] !== false : false;
 
-      const existingId = byLabel.get(label);
+      const existingId = byKey.get(key) ?? byLabel.get(label);
       if (existingId) {
         // ⚠️ 시간 단일 소스 원칙(통합 복용 관리 재설계):
         //   dose_slots.time 은 "슬롯 편집(DoseSlotSetList)" 경로로만 변경한다.
@@ -599,6 +605,9 @@ export async function ensurePatientDoseSlots(
           .insert({
             patient_id: patientId,
             time,
+            // 언어 무관 키가 단일 진실. label 은 구버전 앱(한글 label 로 슬롯을 식별)이
+            // 아직 읽으므로 당분간 병기한다 — 전원 업데이트 후 제거 예정.
+            legacy_key: key,
             label,
             sort_order: idx,
             remind_enabled: remindEnabled,

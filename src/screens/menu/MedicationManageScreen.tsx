@@ -72,6 +72,7 @@ import {
 import type { MenuStackParamList } from '../../navigation/MenuNavigator';
 import i18n from '../../i18n';
 import { isOverseasLocale } from '../../i18n/detectLocale';
+import { formatDosage, dosageUnitFromRaw } from '../../utils/medUtils';
 
 // ─── 타입 ────────────────────────────────────────────────────────────────────
 
@@ -161,15 +162,7 @@ const formatDoseCount = (n?: number | null, u?: 'day' | 'week') =>
 // 복용량 표시: dosage는 "1정"/"5mg" 처럼 숫자+단위가 합쳐진 raw 문자열로 저장되는데,
 // '정' 단위는 DB에 항상 한글로 박혀 있어(로케일 무관) 그대로 보여주면 해외에서도 "정"이 노출된다.
 // (등록 직후 하단 리스트·과거 기록 리스트 두 곳에서 이 raw 문자열을 그대로 표시하던 버그)
-function formatDosageForDisplay(dosage?: string | null): string {
-  const trimmed = (dosage ?? '').trim();
-  if (!trimmed) return '';
-  const numMatch = trimmed.match(/[0-9]+(?:\.[0-9]+)?/);
-  const num = numMatch ? numMatch[0] : '';
-  if (!num) return trimmed; // 예상 밖 포맷이면 회귀 방지로 그대로 표시
-  if (/mg/i.test(trimmed)) return `${num}mg`; // mg는 로케일 무관 그대로
-  return isOverseasLocale() ? `${num} ${i18n.t('medManage.unitTablet')}` : `${num}정`;
-}
+const formatDosageForDisplay = formatDosage;
 
 type ChangeType = 'added' | 'updated' | 'deleted';
 
@@ -2022,6 +2015,8 @@ export function MedicationManageScreen({ modeOverride, hideBack, hideTopBar, onG
               patient_id: targetPatientId,
               name: med.name,
               dosage: med.dosage?.trim() ? med.dosage.trim() : null,
+              // 단위는 언어 무관 키로 병기 — 표시 함수(formatDosage)가 이 키를 우선 사용.
+              dosage_unit: dosageUnitFromRaw(med.dosage),
               // 처방전 등록 = "내 약"에만 추가. 슬롯 자동배정 안 함 → meal_times 비움.
               // daily_count(1일 횟수)만 보유 → 사용자가 슬롯에서 직접 배정(가이드 기준).
               meal_times: [] as TimeSlot[],
@@ -2493,6 +2488,7 @@ export function MedicationManageScreen({ modeOverride, hideBack, hideTopBar, onG
           patient_id: targetPatientId,
           name: trimmed,
           dosage: addDosage.trim() || null,
+          dosage_unit: dosageUnitFromRaw(addDosage),
           daily_count: dailyCount,
           count_unit: addCountUnit,
           // "내 약"에만 추가 — 슬롯 자동배정 안 함(시간 단일 소스는 dose_slots).
@@ -2589,6 +2585,7 @@ export function MedicationManageScreen({ modeOverride, hideBack, hideTopBar, onG
         .update({
           name: trimmed,
           dosage: editDosage.trim() || null,
+          dosage_unit: dosageUnitFromRaw(editDosage),
           daily_count: dailyCount,
           count_unit: editCountUnit,
           drug_image_url: editDrugInfo?.itemImage ?? null,

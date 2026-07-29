@@ -758,7 +758,8 @@
     "alarmPreviewTitle": "全画面アラームのプレビュー",
     "alarmPreviewMsg": "「目覚ましのように」の画面を今すぐ確認しますか？\nテスト画面なので、何も記録されません。",
     "alarmModePatientIosNote": "⚠️「目覚ましのように」は Android 端末のみで動作します。iPhone では「基本」と同じ鳴り方になります。",
-    "effectSourceLabel": "米国FDAおよび製薬会社の医薬品情報"
+    "effectSourceLabel": "米国FDAおよび製薬会社の医薬品情報",
+    "unitCapsule": "カプセル"
   },
   "settings": {
     "notifMedTakenLabel": "患者さんがお薬を記録したとき",
@@ -2130,5 +2131,25 @@
     "last3Mo": "直近3か月",
     "prev3Mo": "前の3か月",
     "monthsAgoQ": "{{n}}か月前"
+  },
+  "pkNote": {
+    "patch24h": "経皮吸収パッチ。24時間貼付",
+    "dopamineAgonist": "ドパミン作動薬",
+    "onceDailyEr": "1日1回の徐放性製剤",
+    "erGastricSlow": "徐放性（胃内滞留）。効果の発現は緩やか",
+    "immediateRelease": "速放性製剤",
+    "morningInsomnia": "午前の服用を推奨（不眠のおそれ）",
+    "onceDailySteady5d": "1日1回。約5日で定常状態",
+    "dopamineAgonistAnyMeal": "ドパミン作動薬。食事の影響なし",
+    "levodopaEntacapone": "レボドパ＋エンタカポン配合。作用時間が延長",
+    "erNoCrush": "徐放性。粉砕・かみ砕き不可",
+    "irProteinTiming": "速放性。食前30分または食後1時間の服用を推奨（タンパク質と吸収が競合）",
+    "lidRelief": "ジスキネジア（LID）の緩和にも使用",
+    "onceDailyTyramine": "1日1回。蓄積効果。チラミンを多く含む食品に注意",
+    "tremorElderlyCaution": "振戦が主体の方に。高齢者は認知面の副作用に注意",
+    "bedtimeFasting": "就寝1時間前、食事と1時間あけて服用",
+    "levodopaAdjunct": "レボドパの補助療法",
+    "withLevodopaOnly": "レボドパと同時に服用。単独では効果なし",
+    "sinemetEquivalent": "シネメット（レボドパ＋カルビドパ）と同一成分の代替薬"
   }
 }

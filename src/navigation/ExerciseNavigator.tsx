@@ -9,7 +9,9 @@ import { ExerciseVideoPlayerScreen } from '../screens/exercise/ExerciseVideoPlay
 export type ExerciseStackParamList = {
   ExerciseMain: undefined;
   ExerciseRecord: undefined;
-  ExerciseDuration: { exerciseName: string };
+  // exerciseId: 사전 정의 운동의 언어 무관 키(walk 등). 커스텀 입력이면 null.
+  // exerciseName: 화면 표시용(현재 언어). 저장은 exerciseId 를 우선 사용한다.
+  ExerciseDuration: { exerciseName: string; exerciseId?: string | null };
   ExerciseVideo: undefined;
   ExerciseVideoPlayer: { videoId: string; title: string; description: string };
 };

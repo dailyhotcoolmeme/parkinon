@@ -758,7 +758,8 @@
     "alarmPreviewTitle": "Aperçu de l'alarme plein écran",
     "alarmPreviewMsg": "Voir maintenant à quoi ressemble l'écran « comme un réveil » ?\nC'est un simple écran de test — rien ne sera enregistré.",
     "alarmModePatientIosNote": "⚠️ « Comme un réveil » ne fonctionne que sur Android. Sur iPhone, l'alarme sonne comme en mode « Simple ».",
-    "effectSourceLabel": "FDA (États-Unis) et notices des fabricants"
+    "effectSourceLabel": "FDA (États-Unis) et notices des fabricants",
+    "unitCapsule": "gélule"
   },
   "settings": {
     "notifMedTakenLabel": "Quand le patient note une prise",
@@ -2130,5 +2131,25 @@
     "last3Mo": "3 derniers mois",
     "prev3Mo": "3 mois préc.",
     "monthsAgoQ": "il y a {{n}} mois"
+  },
+  "pkNote": {
+    "patch24h": "Patch transdermique. À porter 24 heures",
+    "dopamineAgonist": "Agoniste dopaminergique",
+    "onceDailyEr": "Une prise par jour, libération prolongée",
+    "erGastricSlow": "Libération prolongée (rétention gastrique). Effet lent à apparaître",
+    "immediateRelease": "Libération immédiate",
+    "morningInsomnia": "Prise le matin recommandée (risque d'insomnie)",
+    "onceDailySteady5d": "Une prise par jour. État d'équilibre en 5 jours environ",
+    "dopamineAgonistAnyMeal": "Agoniste dopaminergique. Avec ou sans nourriture",
+    "levodopaEntacapone": "Association lévodopa + entacapone. Effet prolongé",
+    "erNoCrush": "Libération prolongée. Ne pas écraser ni croquer",
+    "irProteinTiming": "Libération immédiate. À prendre 30 min avant ou 1 h après le repas (compétition avec les protéines)",
+    "lidRelief": "Utilisé aussi pour atténuer les dyskinésies (LID)",
+    "onceDailyTyramine": "Une prise par jour. Effet cumulatif. Attention aux aliments riches en tyramine",
+    "tremorElderlyCaution": "Surtout pour le tremblement. Prudence chez la personne âgée (effets cognitifs)",
+    "bedtimeFasting": "1 heure avant le coucher, à 1 heure des repas",
+    "levodopaAdjunct": "Traitement d'appoint de la lévodopa",
+    "withLevodopaOnly": "À prendre avec la lévodopa. Sans effet seul",
+    "sinemetEquivalent": "Équivalent du Sinemet (lévodopa + carbidopa), même principe actif"
   }
 }

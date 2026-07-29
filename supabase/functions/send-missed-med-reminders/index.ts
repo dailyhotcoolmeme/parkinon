@@ -105,8 +105,13 @@ function bodyFor(
   label: string | null | undefined,
   time: string | null | undefined,
   subject?: string,
+  legacyKey?: string | null,
 ): string {
-  const periodLabel = lang === 'ko' ? periodLabelFor(label, time) : periodLabelForEn(label, time)
+  // legacy_key(언어 무관)가 있으면 그걸로 시간대 라벨을 뽑는다 — label 한글 파싱은
+  // 프랑스어/일본어 사용자 슬롯에서 실패한다. 키 없으면 기존 파싱 폴백(옛 행 호환).
+  const keyed = legacyKey ? t(lang, `slot.${legacyKey}`) : ''
+  const periodLabel = keyed ||
+    (lang === 'ko' ? periodLabelFor(label, time) : periodLabelForEn(label, time))
   const when = [periodLabel, formatClockTime(time)].filter(Boolean).join(' ')
   const keys = kind === 'missed'
     ? ['med.missed.body', 'med.missed.bodyNoTime']
@@ -195,7 +200,7 @@ Deno.serve(async (req: Request) => {
   if (dose_slot_id) {
     const { data: slot } = await supabase
       .from('dose_slots')
-      .select('id, patient_id, label, time, remind_enabled, is_active')
+      .select('id, patient_id, label, legacy_key, time, remind_enabled, is_active')
       .eq('id', dose_slot_id)
       .maybeSingle()
 
@@ -249,7 +254,7 @@ Deno.serve(async (req: Request) => {
     }
 
     const patientTitle = t(patientLang, 'med.missed.title')
-    const patientBody = bodyFor(patientLang, 'missed', (slot as any).label, (slot as any).time)
+    const patientBody = bodyFor(patientLang, 'missed', (slot as any).label, (slot as any).time, undefined, (slot as any).legacy_key ?? meal_time)
     await sendPush(
       patient.push_token,
       patientTitle,
@@ -283,7 +288,7 @@ Deno.serve(async (req: Request) => {
           const cuLang = resolveLang((cu as any).language)
           const cgTitle = t(cuLang, 'med.missed.title')
           const cgBody = bodyFor(cuLang, 'caregiverMissed', (slot as any).label, (slot as any).time,
-            cuLang === 'ko' ? subject : subjectEn)
+            cuLang === 'ko' ? subject : subjectEn, (slot as any).legacy_key ?? meal_time)
           await sendPush(cu.push_token, cgTitle, cgBody, {
             type: 'caregiver_missed_med',
             mealTime: meal_time ?? null,

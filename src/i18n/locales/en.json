@@ -758,7 +758,8 @@
     "alarmPreviewTitle": "Preview full-screen alarm",
     "alarmPreviewMsg": "Preview how the 'like an alarm' screen looks now?\nThis is just a test screen — nothing will be recorded.",
     "alarmModePatientIosNote": "⚠️ 'Like an alarm' only works on Android devices. On iPhone it won't run — it rings the same as 'Basic'.",
-    "effectSourceLabel": "US FDA & manufacturer drug information"
+    "effectSourceLabel": "US FDA & manufacturer drug information",
+    "unitCapsule": "capsule"
   },
   "settings": {
     "notifMedTakenLabel": "When the patient records medication",
@@ -2130,5 +2131,25 @@
     "last3Mo": "Last 3 mo",
     "prev3Mo": "Prev 3 mo",
     "monthsAgoQ": "{{n}}mo ago"
+  },
+  "pkNote": {
+    "patch24h": "Transdermal patch. Worn for 24 hours",
+    "dopamineAgonist": "Dopamine agonist",
+    "onceDailyEr": "Once daily, extended-release",
+    "erGastricSlow": "Extended-release (gastric retention). Slow onset",
+    "immediateRelease": "Immediate-release",
+    "morningInsomnia": "Morning dosing recommended (may cause insomnia)",
+    "onceDailySteady5d": "Once daily. Steady state in ~5 days",
+    "dopamineAgonistAnyMeal": "Dopamine agonist. With or without food",
+    "levodopaEntacapone": "Levodopa + entacapone combination. Prolonged effect",
+    "erNoCrush": "Extended-release. Do not crush or chew",
+    "irProteinTiming": "Immediate-release. Take 30 min before or 1 hr after meals (competes with protein absorption)",
+    "lidRelief": "Also used to relieve dyskinesia (LID)",
+    "onceDailyTyramine": "Once daily. Cumulative effect. Watch tyramine-rich foods",
+    "tremorElderlyCaution": "Mainly for tremor. Cognitive side-effect caution in older adults",
+    "bedtimeFasting": "1 hour before bedtime, 1 hour apart from meals",
+    "levodopaAdjunct": "Adjunct to levodopa therapy",
+    "withLevodopaOnly": "Take together with levodopa. No effect alone",
+    "sinemetEquivalent": "Same-ingredient alternative to Sinemet (levodopa + carbidopa)"
   }
 }
