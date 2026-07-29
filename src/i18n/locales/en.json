@@ -1582,7 +1582,10 @@
     "threeMonthTrend": "3-month trend",
     "noDataMsg": "No data recorded in this period.\nTry adding a record first.",
     "prevBtn": "← Previous",
-    "nextBtn": "Next →"
+    "nextBtn": "Next →",
+    "unitTimes": "x",
+    "unitPoints": " pts",
+    "unitDays": " days"
   },
   "notifHistory": {
     "today": "Today",

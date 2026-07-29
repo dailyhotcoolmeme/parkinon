@@ -1582,7 +1582,10 @@
     "threeMonthTrend": "3か月の推移",
     "noDataMsg": "この期間の記録はありません。\nまず記録を追加してみましょう。",
     "prevBtn": "← 前へ",
-    "nextBtn": "次へ →"
+    "nextBtn": "次へ →",
+    "unitTimes": "回",
+    "unitPoints": "点",
+    "unitDays": "日"
   },
   "notifHistory": {
     "today": "今日",

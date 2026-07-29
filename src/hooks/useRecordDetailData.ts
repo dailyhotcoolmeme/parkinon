@@ -478,7 +478,7 @@ export function useRecordDetailData(type: ItemKey, period: Period): UseRecordDet
             label: r.label,
           }));
           const maxVal = Math.max(...mealPoints.map(p => p.value), 1);
-          mealTSM[meta.slotKey] = { points: mealPoints, unit: '회', max: maxVal, color: meta.color };
+          mealTSM[meta.slotKey] = { points: mealPoints, unit: i18n.t('recordDetail.unitTimes'), max: maxVal, color: meta.color };
         }
 
         // 표시 라벨 맵(키→라벨)을 RecordDetailScreen 이 쓸 수 있게 summarySlot 에 동봉.
@@ -505,8 +505,8 @@ export function useRecordDetailData(type: ItemKey, period: Period): UseRecordDet
         const curr = avgField(filterOnOff(onOffLogs, currRange.start, currRange.end), 'sleep_quality');
         const prev = avgField(filterOnOff(onOffLogs, prevRange.start, prevRange.end), 'sleep_quality');
 
-        setSummarySlot({ current: curr, prev, unit: '점' });
-        setTrendSeries({ points, unit: '점', max: 5, color: '#9C27B0' });
+        setSummarySlot({ current: curr, prev, unit: i18n.t('recordDetail.unitPoints') });
+        setTrendSeries({ points, unit: i18n.t('recordDetail.unitPoints'), max: 5, color: '#9C27B0' });
         setTimeSeriesMap(null);
         setMealTimeSeriesMap(null);
 
@@ -519,8 +519,8 @@ export function useRecordDetailData(type: ItemKey, period: Period): UseRecordDet
         const prev = countConstipationDays(filterOnOff(onOffLogs, prevRange.start, prevRange.end));
         const maxVal = Math.max(...points.map(p => p.value), 7);
 
-        setSummarySlot({ current: curr, prev, unit: '일' });
-        setTrendSeries({ points, unit: '일', max: maxVal, color: '#FF9800' });
+        setSummarySlot({ current: curr, prev, unit: i18n.t('recordDetail.unitDays') });
+        setTrendSeries({ points, unit: i18n.t('recordDetail.unitDays'), max: maxVal, color: '#FF9800' });
         setTimeSeriesMap(null);
         setMealTimeSeriesMap(null);
 
@@ -536,9 +536,9 @@ export function useRecordDetailData(type: ItemKey, period: Period): UseRecordDet
         setSummarySlot({
           current: currEx.length,
           prev: prevEx.length,
-          unit: '회',
+          unit: i18n.t('recordDetail.unitTimes'),
         });
-        setTrendSeries({ points, unit: '회', max: maxVal, color: '#FF5722' });
+        setTrendSeries({ points, unit: i18n.t('recordDetail.unitTimes'), max: maxVal, color: '#FF5722' });
         setTimeSeriesMap(null);
         setMealTimeSeriesMap(null);
 
@@ -599,7 +599,7 @@ export function useRecordDetailData(type: ItemKey, period: Period): UseRecordDet
         setSummarySlot({
           current: midLabel ? (currAvg[midLabel] ?? 0) : 0,
           prev: midLabel ? (prevAvg[midLabel] ?? 0) : 0,
-          unit: '점',
+          unit: i18n.t('recordDetail.unitPoints'),
           timeSlots,
         });
 
@@ -611,7 +611,7 @@ export function useRecordDetailData(type: ItemKey, period: Period): UseRecordDet
             const avg = timeSlotAvg(filterOnOff(onOffLogs, r.start, r.end), field);
             return { value: avg[label] ?? 0, label: r.label };
           });
-          tsmResult[label] = { points, unit: '점', max: 5, color };
+          tsmResult[label] = { points, unit: i18n.t('recordDetail.unitPoints'), max: 5, color };
         });
         setTimeSeriesMap(tsmResult);
         setMealTimeSeriesMap(null);

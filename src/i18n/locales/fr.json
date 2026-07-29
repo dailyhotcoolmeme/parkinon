@@ -1582,7 +1582,10 @@
     "threeMonthTrend": "Évolution sur 3 mois",
     "noDataMsg": "Aucune donnée sur cette période.\nCommencez par ajouter une entrée.",
     "prevBtn": "← Précédent",
-    "nextBtn": "Suivant →"
+    "nextBtn": "Suivant →",
+    "unitTimes": "×",
+    "unitPoints": " pts",
+    "unitDays": " j"
   },
   "notifHistory": {
     "today": "Aujourd'hui",

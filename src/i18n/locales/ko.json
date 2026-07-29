@@ -1582,7 +1582,10 @@
     "threeMonthTrend": "3개월별 트렌드",
     "noDataMsg": "이 기간에 기록된 데이터가 없어요.\n기록을 먼저 입력해보세요.",
     "prevBtn": "← 이전",
-    "nextBtn": "다음 →"
+    "nextBtn": "다음 →",
+    "unitTimes": "회",
+    "unitPoints": "점",
+    "unitDays": "일"
   },
   "notifHistory": {
     "today": "오늘",
