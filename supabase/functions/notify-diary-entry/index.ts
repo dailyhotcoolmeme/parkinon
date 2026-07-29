@@ -16,6 +16,7 @@
 // payload data: { type: 'family_diary', date, patient_id }  → App.tsx 가 Diary { date } 로 라우팅
 
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
+import { resolveLang, t } from '../_shared/i18n.ts';
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
@@ -141,8 +142,6 @@ Deno.serve(async (req) => {
     // 이름이 없을 때의 폴백은 언어별로 따로 둔다.
     // 한 값만 쓰면 영어 알림에 '가족' 이 그대로 들어간다(실측 2026-07-27).
     const authorNameRaw = (authorRow as any)?.name?.trim() || null;
-    const authorName = authorNameRaw ?? '가족';
-    const authorNameEn = authorNameRaw ?? 'A family member';
 
     // 그룹 보호자 목록
     const { data: members } = await supabase
@@ -172,9 +171,11 @@ Deno.serve(async (req) => {
       // 가족 일기 알림 토글 — 기본 ON(false 명시일 때만 스킵)
       if ((u as any)?.diary_notif_enabled === false) { skipped += 1; continue; }
 
-      const isEn = (u as any)?.language === 'en';
-      const title = isEn ? `📔 ${authorNameEn} wrote in the family diary` : `📔 ${authorName}님이 가족 일기를 남겼어요`;
-      const bodyText = isEn ? 'Tap to view the family diary.' : '가족 일기를 확인해보세요.';
+      const lang = resolveLang((u as any)?.language);
+      // 작성자 이름이 없으면 언어별 대체어("가족" / "A family member")를 쓴다.
+      const author = authorNameRaw ?? t(lang, 'diary.authorFallback');
+      const title = t(lang, 'diary.title', { author });
+      const bodyText = t(lang, 'diary.body');
       const payload = { type: 'family_diary', date: entryDate, patient_id: patientId };
       const channelId = channelForStoredSound((u as any)?.diary_notif_sound_id ?? null);
       const platform = (u as any)?.push_platform ?? null;

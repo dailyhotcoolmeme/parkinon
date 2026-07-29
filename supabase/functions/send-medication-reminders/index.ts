@@ -254,51 +254,24 @@ function periodWithTime(periodLabel: string, clock: string): string {
   return [periodLabel, clock].filter(Boolean).join(' ')
 }
 
-/** 정시 복용 알림 body: "{시간대} {시각} 약 복용 시간이에요." */
-function reminderBody(periodLabel: string, clock: string): string {
-  const head = periodWithTime(periodLabel, clock)
-  return head ? `${head} 약 복용 시간이에요.` : '약 드실 시간이에요.'
-}
-
-/** reminderBody 영어판: "It's time for your {head} medication." */
-function reminderBodyEn(periodLabel: string, clock: string): string {
-  const head = periodWithTime(periodLabel, clock)
-  return head ? `${head} — time to take your medication.` : 'Time to take your medication.'
-}
-
-/** 미복용 재알림 body(환자): "아직 {시간대} {시각} 약을 드시지 않으셨어요." */
-function missedBody(periodLabel: string, clock: string): string {
-  const head = periodWithTime(periodLabel, clock)
-  return head
-    ? `아직 ${head} 약을 드시지 않으셨어요.`
-    : '아직 약을 드시지 않으셨어요.'
-}
-
-/** missedBody 영어판 */
-function missedBodyEn(periodLabel: string, clock: string): string {
-  const head = periodWithTime(periodLabel, clock)
-  return head
-    ? `You haven't taken your ${head} medication yet.`
-    : "You haven't taken your medication yet."
-}
-
 /**
- * 보호자 미복용 body: "{환자명}님이 아직 {시간대} {시각} 약을 안 드셨어요. 약 드시도록 챙겨주세요."
- * subject = "{환자명}님"(받침 무관 조사 "이"). 시간대/시각 못 구하면 시간대 없이 폴백.
+ * 알림 body 생성 — 언어별 문구는 _shared/i18n.ts 한 곳에만 있다.
+ * periodLabel(시간대) + clock(시각) 을 합쳐 {{when}} 에 넣는다. 둘 다 없으면 시간대 없는 문구로 폴백.
  */
-function caregiverMissedBody(subject: string, periodLabel: string, clock: string): string {
-  const head = periodWithTime(periodLabel, clock)
-  return head
-    ? `${subject}이 아직 ${head} 약을 안 드셨어요. 약 드시도록 챙겨주세요.`
-    : `${subject}이 아직 약을 안 드셨어요. 약 드시도록 챙겨주세요.`
-}
-
-/** caregiverMissedBody 영어판. subject(en) = 이름 또는 'The patient'. */
-function caregiverMissedBodyEn(subject: string, periodLabel: string, clock: string): string {
-  const head = periodWithTime(periodLabel, clock)
-  return head
-    ? `${subject} hasn't taken their ${head} medication yet. Please check in on them.`
-    : `${subject} hasn't taken their medication yet. Please check in on them.`
+function bodyFor(
+  lang: Lang,
+  kind: 'reminder' | 'missed' | 'caregiverMissed',
+  periodLabel: string,
+  clock: string,
+  subject?: string,
+): string {
+  const when = periodWithTime(periodLabel, clock)
+  const keys = {
+    reminder: ['med.time.body', 'med.time.bodyNoTime'],
+    missed: ['med.missed.body', 'med.missed.bodyNoTime'],
+    caregiverMissed: ['med.missed.caregiverBody', 'med.missed.caregiverBodyNoTime'],
+  }[kind]
+  return t(lang, when ? keys[0] : keys[1], { when, subject: subject ?? '' })
 }
 
 /** 환자별 DoseTarget 목록을 RPC 행에서 구성 (key 기준 중복제거). */
@@ -510,11 +483,14 @@ async function sendCaregiverMissed(
     const prefs = (cu.caregiver_notif_prefs ?? {}) as Record<string, boolean>
     if (prefs.med_missed === false) continue
     const channelId = await resolveAlarmChannel(cu.id)
-    const isEn = (cu as any).language === 'en'
-    const title = isEn ? '💊 Missed dose' : '💊 약을 아직 안 드셨어요'
-    const body = isEn
-      ? caregiverMissedBodyEn(subjectEn, target.periodLabelEn, formatClockTime(target.time))
-      : caregiverMissedBody(subject, target.periodLabel, formatClockTime(target.time))
+    const lang = resolveLang((cu as any).language)
+    const title = t(lang, 'med.missed.title')
+    const body = bodyFor(
+      lang, 'caregiverMissed',
+      lang === 'ko' ? target.periodLabel : target.periodLabelEn,
+      formatClockTime(target.time),
+      lang === 'ko' ? subject : subjectEn,
+    )
     const data = { type: 'caregiver_missed_med', mealTime: target.mealTime, doseSlotId: target.doseSlotId }
     await sendPush(
       cu.push_token,
@@ -648,7 +624,7 @@ Deno.serve(async (_req: Request) => {
 
     const prefs = (patient.med_time_notif_prefs ?? {}) as Record<string, boolean>
     const soundPrefs = (patient.med_time_sound_prefs ?? {}) as Record<string, string | null>
-    const isEn = (patient as any).language === 'en'
+    const lang = resolveLang((patient as any).language)
     const tz = (patient as any).timezone || 'Asia/Seoul'
     // 슬롯별 알림음·방식(신규 단일 진실). 없으면 legacy soundPrefs 폴백.
     const slotAlarms = await getDoseSlotAlarms(patientId)
@@ -666,10 +642,10 @@ Deno.serve(async (_req: Request) => {
       if (alarmMode === 'alarm' && platform === 'android') continue
       const channelId = soundChannel
       const data = { type: 'medication_reminder', mealTime: target.mealTime, doseSlotId: target.doseSlotId, alarmMode }
-      const title = isEn ? '💊 Medication time' : '💊 약 드실 시간이에요'
-      const body = isEn
-        ? reminderBodyEn(target.periodLabelEn, formatClockTime(target.time))
-        : reminderBody(target.periodLabel, formatClockTime(target.time))
+      const title = t(lang, 'med.time.title')
+      const body = bodyFor(lang, 'reminder',
+        lang === 'ko' ? target.periodLabel : target.periodLabelEn,
+        formatClockTime(target.time))
 
       await sendPush(
         patient.push_token,
@@ -699,7 +675,7 @@ Deno.serve(async (_req: Request) => {
 
     const prefs = (patient.med_time_notif_prefs ?? {}) as Record<string, boolean>
     const soundPrefs = (patient.med_time_sound_prefs ?? {}) as Record<string, string | null>
-    const isEn = (patient as any).language === 'en'
+    const lang = resolveLang((patient as any).language)
     const tz = (patient as any).timezone || 'Asia/Seoul'
     // 환자가 1차 미복용 알림을 끈 경우 발송 안 함
     if (prefs.missed_first === false) continue
@@ -712,10 +688,10 @@ Deno.serve(async (_req: Request) => {
 
       const channelId = missedChannelFor(missedSounds.first, soundPrefs, target)
       const data = { type: 'missed_medication_first', mealTime: target.mealTime, doseSlotId: target.doseSlotId }
-      const title = isEn ? '💊 Missed dose' : '💊 약을 아직 안 드셨어요'
-      const body = isEn
-        ? missedBodyEn(target.periodLabelEn, formatClockTime(target.time))
-        : missedBody(target.periodLabel, formatClockTime(target.time))
+      const title = t(lang, 'med.missed.title')
+      const body = bodyFor(lang, 'missed',
+        lang === 'ko' ? target.periodLabel : target.periodLabelEn,
+        formatClockTime(target.time))
 
       await sendPush(
         patient.push_token,
@@ -745,7 +721,7 @@ Deno.serve(async (_req: Request) => {
 
     const prefs = (patient.med_time_notif_prefs ?? {}) as Record<string, boolean>
     const soundPrefs = (patient.med_time_sound_prefs ?? {}) as Record<string, string | null>
-    const isEn = (patient as any).language === 'en'
+    const lang = resolveLang((patient as any).language)
     const tz = (patient as any).timezone || 'Asia/Seoul'
     // 미복용 2차 전용 알림음 (없으면 med_time_sound_prefs로 fallback) — 환자 본인만 적용
     const missedSounds = await getMissedSoundPrefs(patientId)
@@ -759,10 +735,10 @@ Deno.serve(async (_req: Request) => {
       // 환자에게 2차 알림 (환자가 2차 미복용 알림을 끈 경우 보내지 않음 — 보호자 알림은 아래에서 독립 처리)
       if (patient.push_token && prefs.missed_second !== false) {
         const data = { type: 'missed_medication_second', mealTime: target.mealTime, doseSlotId: target.doseSlotId }
-        const title = isEn ? '💊 Missed dose' : '💊 약을 아직 안 드셨어요'
-        const body = isEn
-          ? missedBodyEn(target.periodLabelEn, formatClockTime(target.time))
-          : missedBody(target.periodLabel, formatClockTime(target.time))
+        const title = t(lang, 'med.missed.title')
+        const body = bodyFor(lang, 'missed',
+          lang === 'ko' ? target.periodLabel : target.periodLabelEn,
+          formatClockTime(target.time))
         await sendPush(
           patient.push_token,
           title,
@@ -792,7 +768,7 @@ Deno.serve(async (_req: Request) => {
 
   for (const patient of allPatients ?? []) {
     if (!patient.push_token) continue
-    const isEn = (patient as any).language === 'en'
+    const lang = resolveLang((patient as any).language)
     // 이 환자 tz 기준 현재 현지 HH:MM(Phase1-S3, 전역 KST currentTime 대체).
     // tz='Asia/Seoul'이면 기존 currentTime과 매분 동일 문자열(회귀 0).
     const patientCurrentTime = nowHHMMInTz((patient as any).timezone || 'Asia/Seoul')
@@ -809,8 +785,8 @@ Deno.serve(async (_req: Request) => {
       if (target !== patientCurrentTime) continue
       // 이 운동 알림 항목에 지정된 소리(soundId: 'preset:<id>' 프리셋 또는 녹음 uuid). 없으면 기본음.
       const exerciseChannelId = channelForStoredSound(pref.soundId)
-      const title = isEn ? '🏃 Exercise time!' : '🏃 운동할 시간이에요!'
-      const body = isEn ? 'Log your exercise for today.' : '오늘 운동 기록을 남겨보세요.'
+      const title = t(lang, 'exercise.title')
+      const body = t(lang, 'exercise.body')
       await sendPush(
         patient.push_token,
         title,

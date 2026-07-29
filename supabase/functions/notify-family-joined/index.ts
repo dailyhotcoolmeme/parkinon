@@ -12,6 +12,7 @@
 // payload data: { type: 'family_joined', new_member_id, group_id }
 
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
+import { resolveLang, t } from '../_shared/i18n.ts';
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
@@ -116,11 +117,11 @@ Deno.serve(async (req) => {
     for (const u of users ?? []) {
       const token = (u as any)?.push_token as string | null;
       if (!token || (u as any)?.notification_enabled === false) { skipped += 1; continue; }
-      const isEn = (u as any)?.language === 'en';
-      const title = isEn ? '👨‍👩‍👧 New family member' : '👨‍👩‍👧 새 가족이 연결되었어요';
-      const body = isEn
-        ? (newMemberName ? `${newMemberName} is now linked to your family.` : 'A new family member is now linked.')
-        : (newMemberName ? `${newMemberName}님이 가족으로 연결되었어요.` : '새 가족이 연결되었어요.');
+      const lang = resolveLang((u as any)?.language);
+      const title = t(lang, 'family.joined.title');
+      const body = newMemberName
+        ? t(lang, 'family.joined.body', { name: newMemberName })
+        : t(lang, 'family.joined.bodyNoName');
       await sendPush(token, title, body, payload);
       await logNotification((u as any).id, title, body, payload);
       sent += 1;

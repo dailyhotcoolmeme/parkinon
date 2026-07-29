@@ -1,20 +1,11 @@
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2'
+import { resolveLang, t, intervalLabel } from '../_shared/i18n.ts'
 
 const supabase = createClient(
   Deno.env.get('SUPABASE_URL')!,
   Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!
 )
 
-const INTERVAL_LABELS: Record<number, string> = {
-  0: '복용 직후',
-  30: '30분 후',
-  120: '2시간 후',
-}
-const INTERVAL_LABELS_EN: Record<number, string> = {
-  0: 'right after taking',
-  30: '30 minutes after',
-  120: '2 hours after',
-}
 
 // legacy 4슬롯 라벨 fallback. dose_slot.label 이 있으면 그 값을 우선 사용.
 const MEAL_LABELS: Record<string, string> = {
@@ -156,22 +147,6 @@ function resolvePeriodHeadEn(
   return ''
 }
 
-function getIntervalLabel(minutes: number): string {
-  if (INTERVAL_LABELS[minutes]) return INTERVAL_LABELS[minutes]
-  if (minutes < 60) return `${minutes}분 후`
-  const h = Math.floor(minutes / 60)
-  const rem = minutes % 60
-  return rem === 0 ? `${h}시간 후` : `${h}시간 ${rem}분 후`
-}
-
-/** getIntervalLabel 영어판 */
-function getIntervalLabelEn(minutes: number): string {
-  if (INTERVAL_LABELS_EN[minutes]) return INTERVAL_LABELS_EN[minutes]
-  if (minutes < 60) return `${minutes} minutes after`
-  const h = Math.floor(minutes / 60)
-  const rem = minutes % 60
-  return rem === 0 ? `${h} hours after` : `${h} hours ${rem} minutes after`
-}
 
 // ─── iOS 커스텀 알림음(가족 목소리) ──────────────────────────────────────────
 // Android 는 채널(channelId=`parkinon_alarm_<soundId>`)로 커스텀음을 울리지만,
@@ -311,32 +286,18 @@ Deno.serve(async (_req: Request) => {
 
     // dose_slot 조인은 단일 객체 또는 배열로 올 수 있어 정규화.
     const doseSlot = Array.isArray(item.dose_slot) ? (item.dose_slot[0] ?? null) : (item.dose_slot ?? null)
-    const isEn = languageByPatient.get(item.patient_id) === 'en'
+    const lang = resolveLang(languageByPatient.get(item.patient_id))
     const isImmediate = item.interval_minutes === 0
-    const titleText = isEn ? '😊 How do you feel?' : '😊 몸 상태는 어때요?'
-    let bodyText: string
-    if (isEn) {
-      const headEn = resolvePeriodHeadEn(doseSlot, item.meal_time)
-      const intervalLabelEn = getIntervalLabelEn(item.interval_minutes)
-      bodyText = headEn
-        ? (isImmediate
-            ? `${headEn} — Record your body state right after taking your medication.`
-            : `${headEn} — Record your body state ${intervalLabelEn} taking your medication.`)
-        : (isImmediate
-            ? 'Record your body state right after taking your medication.'
-            : `Record your body state ${intervalLabelEn} taking your medication.`)
-    } else {
-      const head = resolvePeriodHead(doseSlot, item.meal_time) // "저녁 6:00" 또는 ''
-      // 간격이 0(복용 직후)이면 "복용약 드신 직후", 그 외(분/시간)는 "복용약의 {N분 후}".
-      const intervalLabel = getIntervalLabel(item.interval_minutes) // "30분 후" 등 (0이면 미사용)
-      bodyText = head
-        ? (isImmediate
-            ? `${head} 복용약 드신 직후 몸 상태를 기록해보세요.`
-            : `${head} 복용약의 ${intervalLabel} 몸 상태를 기록해보세요.`)
-        : (isImmediate
-            ? `복용약 드신 직후 몸 상태를 기록해보세요.`
-            : `복용약의 ${intervalLabel} 몸 상태를 기록해보세요.`)
-    }
+    const titleText = t(lang, 'bodystate.title')
+    // 시간대 머리말("저녁 6:00" 등). 한국어 외에는 영문 포맷을 쓴다.
+    const head = lang === 'ko'
+      ? resolvePeriodHead(doseSlot, item.meal_time)
+      : resolvePeriodHeadEn(doseSlot, item.meal_time)
+    const interval = isImmediate ? '' : intervalLabel(lang, item.interval_minutes)
+    const bodyKey = isImmediate
+      ? (head ? 'bodystate.bodyImmediate' : 'bodystate.bodyImmediateNoTime')
+      : (head ? 'bodystate.body' : 'bodystate.bodyNoTime')
+    const bodyText = t(lang, bodyKey, { when: head, interval })
 
     // 목소리(채널) 결정:
     //  1) 큐에 직접 지정된 sound_id(구 경로) 우선

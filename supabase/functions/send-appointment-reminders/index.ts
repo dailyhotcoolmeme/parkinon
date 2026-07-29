@@ -5,6 +5,7 @@
 //   → 환자에게 푸시 + notified_* = true (1회 발송 보장). 이미 지난 D-시점도 첫 실행에서 따라잡아 발송.
 // 발송 문구는 앱(AppointmentWrite/MedicalRecordList)과 동일하게 유지.
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2'
+import { resolveLang, t } from '../_shared/i18n.ts'
 
 const supabase = createClient(
   Deno.env.get('SUPABASE_URL')!,
@@ -136,24 +137,13 @@ async function processBucket(rows: ApptRow[] | null, kind: 'week' | 'day') {
     // 진료 알림은 유지되어야 한다. 토큰만 확인(없으면 보류: 나중에 발급되면 윈도우 안에서 발송).
     if (!patient?.push_token) continue
 
-    const isEn = (patient as any).language === 'en'
+    const lang = resolveLang((patient as any).language)
     const tz = (patient as any).timezone || 'Asia/Seoul'
-    const title = isEn ? '🏥 Appointment reminder' : '🏥 진료 일정 알림'
-    const body = isEn
-      ? (() => {
-          const hosp = appt.hospital_name?.trim() || 'your appointment'
-          const when = kstWhenEn(appt.appointment_date, tz)
-          return kind === 'week'
-            ? `${hosp} is in 1 week.\n${when}`
-            : `${hosp} is tomorrow.\n${when}`
-        })()
-      : (() => {
-          const hosp = appt.hospital_name?.trim() || '진료'
-          const when = kstWhen(appt.appointment_date, tz)
-          return kind === 'week'
-            ? `${hosp} 진료가 1주일 후입니다.\n${when}`
-            : `${hosp} 진료가 내일입니다.\n${when}`
-        })()
+    const title = t(lang, 'appointment.title')
+    const hosp = appt.hospital_name?.trim() || t(lang, 'appointment.hospitalFallback')
+    // 날짜 표기는 언어별 포맷터가 따로 있다(kstWhen / kstWhenEn). 한국어 외에는 영문 포맷을 쓴다.
+    const when = lang === 'ko' ? kstWhen(appt.appointment_date, tz) : kstWhenEn(appt.appointment_date, tz)
+    const body = t(lang, kind === 'week' ? 'appointment.bodyWeek' : 'appointment.bodyTomorrow', { hospital: hosp, when })
     const channelId = await resolveAlarmChannel(appt.patient_id)
     const data = { type: 'appointment_reminder', appointmentId: appt.id, kind }
 

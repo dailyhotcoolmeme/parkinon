@@ -24,6 +24,7 @@
 // payload data: { type: 'measurement_completed', measurement_type, patient_id, measurement_id }
 
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
+import { resolveLang, t } from '../_shared/i18n.ts';
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
@@ -278,13 +279,9 @@ Deno.serve(async (req) => {
         continue;
       }
 
-      const isEn = (cu as any)?.language === 'en';
-      const title = isEn
-        ? `🖐️ ${patientName} did a condition measurement`
-        : `🖐️ ${patientName}님이 컨디션 측정을 했어요`;
-      const bodyText = isEn
-        ? "Check today's measurement results."
-        : '오늘 측정 결과를 확인해보세요.';
+      const lang = resolveLang((cu as any)?.language);
+      const title = t(lang, 'measurement.title', { name: patientName });
+      const bodyText = t(lang, 'measurement.body');
 
       await sendPush(token, title, bodyText, payload);
       await logNotification((cu as any).id, title, bodyText, payload);

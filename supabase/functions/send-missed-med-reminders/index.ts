@@ -94,32 +94,23 @@ function periodWithTime(periodLabel: string, clock: string): string {
   return [periodLabel, clock].filter(Boolean).join(' ')
 }
 
-/** 환자 미복용 body: "아직 {시간대} {시각} 약을 드시지 않으셨어요." */
-function missedBody(label: string | null | undefined, time: string | null | undefined): string {
-  const head = periodWithTime(periodLabelFor(label, time), formatClockTime(time))
-  return head ? `아직 ${head} 약을 드시지 않으셨어요.` : '아직 약을 드시지 않으셨어요.'
-}
-
-/** missedBody 영어판 */
-function missedBodyEn(label: string | null | undefined, time: string | null | undefined): string {
-  const head = periodWithTime(periodLabelForEn(label, time), formatClockTime(time))
-  return head ? `You haven't taken your ${head} medication yet.` : "You haven't taken your medication yet."
-}
-
-/** 보호자 미복용 body: "{환자명}님이 아직 {시간대} {시각} 약을 안 드셨어요. 약 드시도록 챙겨주세요." */
-function caregiverMissedBody(subject: string, label: string | null | undefined, time: string | null | undefined): string {
-  const head = periodWithTime(periodLabelFor(label, time), formatClockTime(time))
-  return head
-    ? `${subject}이 아직 ${head} 약을 안 드셨어요. 약 드시도록 챙겨주세요.`
-    : `${subject}이 아직 약을 안 드셨어요. 약 드시도록 챙겨주세요.`
-}
-
-/** caregiverMissedBody 영어판. subject(en) = 이름 또는 'The patient'. */
-function caregiverMissedBodyEn(subject: string, label: string | null | undefined, time: string | null | undefined): string {
-  const head = periodWithTime(periodLabelForEn(label, time), formatClockTime(time))
-  return head
-    ? `${subject} hasn't taken their ${head} medication yet. Please check in on them.`
-    : `${subject} hasn't taken their medication yet. Please check in on them.`
+/**
+ * 알림 body 생성 — 언어별 문구는 _shared/i18n.ts 한 곳에만 있다.
+ * label(시간대) + time(시각) 을 합쳐 {{when}} 에 넣는다. 둘 다 없으면 시간대 없는 문구로 폴백.
+ */
+function bodyFor(
+  lang: Lang,
+  kind: 'missed' | 'caregiverMissed',
+  label: string | null | undefined,
+  time: string | null | undefined,
+  subject?: string,
+): string {
+  const periodLabel = lang === 'ko' ? periodLabelFor(label, time) : periodLabelForEn(label, time)
+  const when = [periodLabel, formatClockTime(time)].filter(Boolean).join(' ')
+  const keys = kind === 'missed'
+    ? ['med.missed.body', 'med.missed.bodyNoTime']
+    : ['med.missed.caregiverBody', 'med.missed.caregiverBodyNoTime']
+  return t(lang, when ? keys[0] : keys[1], { when, subject: subject ?? '' })
 }
 
 /** 주어진 IANA tz에서 "오늘" 날짜(YYYY-MM-DD). en-CA 포맷이 그대로 YYYY-MM-DD. */
@@ -224,7 +215,7 @@ Deno.serve(async (req: Request) => {
         headers: { 'Content-Type': 'application/json' },
       })
     }
-    const patientIsEn = (patient as any).language === 'en'
+    const patientLang = resolveLang((patient as any).language)
     const patientTz = (patient as any).timezone || 'Asia/Seoul'
     const { start: dayStart, end: dayEnd } = localDayRangeUtc(localTodayStr(patientTz), patientTz)
 
@@ -256,10 +247,8 @@ Deno.serve(async (req: Request) => {
       })
     }
 
-    const patientTitle = patientIsEn ? '💊 Missed dose' : '💊 약을 아직 안 드셨어요'
-    const patientBody = patientIsEn
-      ? missedBodyEn((slot as any).label, (slot as any).time)
-      : missedBody((slot as any).label, (slot as any).time)
+    const patientTitle = t(patientLang, 'med.missed.title')
+    const patientBody = bodyFor(patientLang, 'missed', (slot as any).label, (slot as any).time)
     await sendPush(
       patient.push_token,
       patientTitle,
@@ -290,11 +279,10 @@ Deno.serve(async (req: Request) => {
           if (!cu.push_token) continue
           const prefs = (cu.caregiver_notif_prefs ?? {}) as Record<string, boolean>
           if (prefs.med_missed === false) continue
-          const cuIsEn = (cu as any).language === 'en'
-          const cgTitle = cuIsEn ? '💊 Missed dose' : '💊 약을 아직 안 드셨어요'
-          const cgBody = cuIsEn
-            ? caregiverMissedBodyEn(subjectEn, (slot as any).label, (slot as any).time)
-            : caregiverMissedBody(subject, (slot as any).label, (slot as any).time)
+          const cuLang = resolveLang((cu as any).language)
+          const cgTitle = t(cuLang, 'med.missed.title')
+          const cgBody = bodyFor(cuLang, 'caregiverMissed', (slot as any).label, (slot as any).time,
+            cuLang === 'ko' ? subject : subjectEn)
           await sendPush(cu.push_token, cgTitle, cgBody, {
             type: 'caregiver_missed_med',
             mealTime: meal_time ?? null,
@@ -355,11 +343,10 @@ Deno.serve(async (req: Request) => {
 
     if (logs?.length) continue
 
-    const patientIsEn = (patient as any).language === 'en'
-    const patientTitle = patientIsEn ? '💊 Missed dose' : '💊 약을 아직 안 드셨어요'
-    const patientBody = patientIsEn
-      ? missedBodyEn(MEAL_LABELS[meal_time!], LEGACY_MEAL_DEFAULT_TIME[meal_time!])
-      : missedBody(MEAL_LABELS[meal_time!], LEGACY_MEAL_DEFAULT_TIME[meal_time!])
+    const patientLang = resolveLang((patient as any).language)
+    const patientTitle = t(patientLang, 'med.missed.title')
+    const patientBody = bodyFor(patientLang, 'missed',
+      MEAL_LABELS[meal_time!], LEGACY_MEAL_DEFAULT_TIME[meal_time!])
     await sendPush(
       patient.push_token,
       patientTitle,
@@ -390,12 +377,12 @@ Deno.serve(async (req: Request) => {
           const patientName = (patient as any).name?.trim()
           const subject = patientName ? `${patientName}님` : '환자분'
           const subjectEn = patientName || 'The patient'
-          const cuIsEn = (cu as any).language === 'en'
-          const cgTitle = cuIsEn ? '💊 Missed dose' : '💊 약을 아직 안 드셨어요'
+          const cuLang = resolveLang((cu as any).language)
+          const cgTitle = t(cuLang, 'med.missed.title')
           // 구 경로: meal_time → 라벨 + 기본 시각으로 {시간대} {시각} 구성.
-          const cgBody = cuIsEn
-            ? caregiverMissedBodyEn(subjectEn, MEAL_LABELS[meal_time!], LEGACY_MEAL_DEFAULT_TIME[meal_time!])
-            : caregiverMissedBody(subject, MEAL_LABELS[meal_time!], LEGACY_MEAL_DEFAULT_TIME[meal_time!])
+          const cgBody = bodyFor(cuLang, 'caregiverMissed',
+            MEAL_LABELS[meal_time!], LEGACY_MEAL_DEFAULT_TIME[meal_time!],
+            cuLang === 'ko' ? subject : subjectEn)
           await sendPush(
             cu.push_token,
             cgTitle,
