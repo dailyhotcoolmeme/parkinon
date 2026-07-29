@@ -7,7 +7,7 @@ import { useTranslation } from 'react-i18next';
 import { Colors } from '../../constants/colors';
 import { TopBar } from '../../components/common/TopBar';
 import { useNotificationBadge } from '../../context/NotificationBadgeContext';
-import { isOverseasLocale } from '../../i18n/detectLocale';
+import { isOverseasLocale, legalDocUrl } from '../../i18n/detectLocale';
 
 
 export function PrivacyScreen() {
@@ -25,7 +25,7 @@ export function PrivacyScreen() {
       />
       <WebView
         style={styles.webview}
-        source={{ uri: isOverseasLocale() ? 'https://parkinon.com/privacy/en' : 'https://parkinon.com/privacy' }}
+        source={{ uri: legalDocUrl('privacy') }}
         originWhitelist={['https://parkinon.com']}
         // 신뢰 도메인 외부로의 이탈 차단 — 외부 링크는 차단(필요 시 외부 브라우저로만)
         onShouldStartLoadWithRequest={(req) =>

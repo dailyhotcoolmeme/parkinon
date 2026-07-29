@@ -19,7 +19,7 @@ import { useAuth } from '../../context/AuthContext';
 import { supabase } from '../../lib/supabase';
 import { useBottomSheetPadding } from '../../hooks/useBottomSheetPadding';
 import { useTranslation } from 'react-i18next';
-import { isOverseasLocale } from '../../i18n/detectLocale';
+import { isOverseasLocale, legalDocUrl } from '../../i18n/detectLocale';
 
 type Nav = StackNavigationProp<OnboardingStackParamList, 'SensitiveInfoConsent'>;
 
@@ -31,7 +31,7 @@ export const INTERNATIONAL_TRANSFER_CONSENT_VERSION = 1;
 
 // 개인정보처리방침 링크 (자세히 보기)
 function getPrivacyPolicyUrl(): string {
-  return isOverseasLocale() ? 'https://parkinon.com/privacy/en' : 'https://parkinon.com/privacy';
+  return legalDocUrl('privacy');
 }
 
 export function SensitiveInfoConsentScreen() {

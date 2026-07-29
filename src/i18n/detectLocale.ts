@@ -109,3 +109,17 @@ export function displayLocaleTag(): string {
   const lang = getDeviceLanguage();
   return isSupportedLanguage(lang) ? DISPLAY_TAGS[lang] : DISPLAY_TAGS[FALLBACK_LANGUAGE];
 }
+
+/**
+ * 약관·개인정보처리방침 등 웹 문서의 언어별 경로.
+ *   ko → https://parkinon.com/terms
+ *   그 외 → https://parkinon.com/terms/<lang>   (fr·ja·en 페이지가 실제로 있음)
+ * 언어를 추가할 때 웹에 /<page>/<lang> 을 올리고 SUPPORTED_LANGUAGES 에만 넣으면
+ * 여기 코드는 그대로 따라온다.
+ */
+export function legalDocUrl(page: 'terms' | 'privacy'): string {
+  const lang = resolveInitialLanguage();
+  return lang === KOREAN_CODE
+    ? `https://parkinon.com/${page}`
+    : `https://parkinon.com/${page}/${lang}`;
+}

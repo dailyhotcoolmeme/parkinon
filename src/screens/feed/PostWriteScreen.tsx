@@ -33,6 +33,7 @@ import { useDialog } from '../../context/DialogContext';
 import { ensureNotGuest } from '../../utils/guestGuard';
 import { ensureNotBanned, isBanRlsError, showBannedDialog } from '../../utils/banGuard';
 import { useBottomSheetPadding } from '../../hooks/useBottomSheetPadding';
+import { legalDocUrl } from '../../i18n/detectLocale';
 
 type PostType = Database['public']['Tables']['posts']['Row']['post_type'];
 
@@ -471,7 +472,7 @@ export function PostWriteScreen() {
               style={styles.guidelineLink}
               suppressHighlighting
               onPress={() => {
-                Linking.openURL('https://parkinon.com/terms').catch(() => {
+                Linking.openURL(legalDocUrl('terms')).catch(() => {
                   dialog.alert({ title: t('postWrite.noticeTitle'), message: t('postWrite.guidelineOpenFailMsg') });
                 });
               }}

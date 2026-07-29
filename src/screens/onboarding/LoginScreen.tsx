@@ -19,7 +19,7 @@ import * as Crypto from 'expo-crypto';
 const APPLE_LOGIN_ENABLED = true;
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useTranslation } from 'react-i18next';
-import { isOverseasLocale } from '../../i18n/detectLocale';
+import { isOverseasLocale, legalDocUrl } from '../../i18n/detectLocale';
 import { useBottomSheetPadding } from '../../hooks/useBottomSheetPadding';
 import { useNavigation } from '@react-navigation/native';
 import type { StackNavigationProp } from '@react-navigation/stack';
@@ -31,12 +31,6 @@ import { useAuth } from '../../context/AuthContext';
 import { useDialog } from '../../context/DialogContext';
 import { supabase } from '../../lib/supabase';
 const SYMBOL_LOGO = require('../../../assets/parkinon-symbol-en.png');
-function getTermsUrl(): string {
-  return isOverseasLocale() ? 'https://parkinon.com/terms/en' : 'https://parkinon.com/terms';
-}
-function getPrivacyUrl(): string {
-  return isOverseasLocale() ? 'https://parkinon.com/privacy/en' : 'https://parkinon.com/privacy';
-}
 
 type Nav = StackNavigationProp<OnboardingStackParamList, 'Login'>;
 
@@ -321,14 +315,14 @@ export function LoginScreen() {
           {t('login.terms.prefix')}
           <Text
             style={styles.termsLink}
-            onPress={() => Linking.openURL(getTermsUrl())}
+            onPress={() => Linking.openURL(legalDocUrl('terms'))}
           >
             {t('login.terms.terms')}
           </Text>
           {t('login.terms.middle')}
           <Text
             style={styles.termsLink}
-            onPress={() => Linking.openURL(getPrivacyUrl())}
+            onPress={() => Linking.openURL(legalDocUrl('privacy'))}
           >
             {t('login.terms.privacy')}
           </Text>
