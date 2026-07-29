@@ -35,6 +35,7 @@ import { useDialog } from '../../context/DialogContext';
 import { useBottomSheetPadding } from '../../hooks/useBottomSheetPadding';
 import i18n from '../../i18n';
 import { isOverseasLocale } from '../../i18n/detectLocale';
+import { weekdayShort } from '../../utils/dateLabels';
 import { useTranslation } from 'react-i18next';
 
 

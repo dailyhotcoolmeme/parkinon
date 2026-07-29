@@ -140,7 +140,7 @@ function triggerLabelToChip(label: string | null | undefined): string {
   const h = Math.floor(min / 60);
   const rem = min % 60;
   if (isOverseasLocale()) {
-    if (!label || label === 'after_medication' || !isFinite(min) || min === 0) return 'right after taking';
+    if (!label || label === 'after_medication' || !isFinite(min) || min === 0) return i18n.t('interval.rightAfter');
     if (min < 60) return `${min} min later`;
     return rem === 0 ? `${h} hr later` : `${h} hr ${rem} min later`;
   }

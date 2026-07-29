@@ -15,6 +15,7 @@
  */
 import { supabase } from '../lib/supabase';
 import { getLocalToday, getLocalDayRange } from './medUtils';
+import { formatClock } from './notifLabels';
 import i18n from '../i18n';
 import { isOverseasLocale } from '../i18n/detectLocale';
 
@@ -74,10 +75,7 @@ export function formatTimeKor(hhmm: string | null | undefined): string {
   let dh = h % 12;
   if (dh === 0) dh = 12;
   const mm = String(m).padStart(2, '0');
-  if (isOverseasLocale()) {
-    const period = h < 12 ? 'AM' : 'PM';
-    return `${dh}:${mm} ${period}`;
-  }
+  if (isOverseasLocale()) return formatClock(new Date(2000, 0, 1, h, m));
   const period = h < 12 ? '오전' : '오후';
   return `${period} ${dh}:${mm}`;
 }

@@ -14,7 +14,7 @@
  */
 
 import i18n from '../i18n';
-import { isOverseasLocale } from '../i18n/detectLocale';
+import { isOverseasLocale, displayLocaleTag } from '../i18n/detectLocale';
 
 
 // ─── legacy 4슬롯 식별자 (기존 MealTime enum과 동일) ──────────────────────────
@@ -113,9 +113,10 @@ export function labelToLegacyKey(label: string | null | undefined): LegacyMealKe
 
 // 표준 4슬롯 label의 영어 표시명. dose_slots.label 은 DB에 항상 한글("아침" 등)로 저장되므로
 // (생성 로케일과 무관), 해외 로케일에서는 화면 표시 직전 이걸로 변환해야 한다.
-const LEGACY_LABEL_EN: Record<LegacyMealKey, string> = {
-  morning: 'Morning', lunch: 'Lunch', dinner: 'Dinner', bedtime: 'Bedtime',
-};
+// (구) 영어 고정표를 언어 파일 키로 옮겼다. 영어만 있으면 새 언어에서 영어가 나온다.
+function legacyLabelLocalized(key: LegacyMealKey): string {
+  return i18n.t(`slot.${key}`);
+}
 
 /**
  * dose_slots.label 같은 raw DB 라벨(예: "아침")을 표시용으로 변환.
@@ -129,7 +130,7 @@ export function translateRawSlotLabel(rawLabel: string | null | undefined): stri
   const trimmed = rawLabel.trim();
   if (!trimmed) return null;
   const key = LABEL_TO_LEGACY_KEY[trimmed];
-  if (key && isOverseasLocale()) return LEGACY_LABEL_EN[key];
+  if (key && isOverseasLocale()) return legacyLabelLocalized(key);
   return trimmed;
 }
 
@@ -149,8 +150,14 @@ export function formatSlotTime(hhmm: string | null | undefined): string {
   if (displayH === 0) displayH = 12;
   const mm = String(m).padStart(2, '0');
   if (isOverseasLocale()) {
-    const period = h < 12 ? 'AM' : 'PM';
-    return `${displayH}:${mm} ${period}`;
+    // 언어마다 시각 표기가 다르다(en "8:00 AM" / fr "08:00" / ja "8:00").
+    // 하드코딩 AM/PM 을 쓰면 프랑스어·일본어에서 영어가 섞인다 → Intl 에 맡긴다.
+    try {
+      const d = new Date(2000, 0, 1, h, Number.isNaN(m) ? 0 : m);
+      return new Intl.DateTimeFormat(displayLocaleTag(), { hour: 'numeric', minute: '2-digit' }).format(d);
+    } catch {
+      return `${displayH}:${mm}`;
+    }
   }
   const period = h < 12 ? '오전' : '오후';
   return `${period} ${displayH}:${mm}`;
@@ -168,12 +175,12 @@ export function periodWord(time: string | null | undefined): string {
   const h = parseInt(time.split(':')[0] ?? '', 10);
   if (Number.isNaN(h)) return '';
   if (isOverseasLocale()) {
-    if (h < 6) return 'Early morning';
-    if (h < 11) return 'Morning';
-    if (h < 13) return 'Midday';
-    if (h < 17) return 'Afternoon';
-    if (h < 21) return 'Evening';
-    return 'Night';
+    if (h < 6) return i18n.t('period.dawn');
+    if (h < 11) return i18n.t('period.morning');
+    if (h < 13) return i18n.t('period.midday');
+    if (h < 17) return i18n.t('period.afternoon');
+    if (h < 21) return i18n.t('period.evening');
+    return i18n.t('period.night');
   }
   if (h < 6) return '새벽';
   if (h < 11) return '아침';
@@ -249,7 +256,12 @@ export function nextDoseLabel(
     return `다음 ${LEGACY_SLOT_META[legacyKey].korMed} 복용`;
   }
   const trimmed = (label ?? '').trim();
-  if (trimmed) return isOverseasLocale() ? i18n.t('doseSlots.nextDoseLegacy', { med: trimmed }) : `다음 ${trimmed} 복용`;
+  if (trimmed) {
+    // ⚠️ trimmed 는 dose_slots.label 원본(DB 에 한글로 저장돼 있다).
+    //    그대로 넣으면 해외 사용자에게 "Next 아침" 처럼 한글이 새어나간다.
+    const shown = translateRawSlotLabel(trimmed) ?? trimmed;
+    return isOverseasLocale() ? i18n.t('doseSlots.nextDoseLegacy', { med: shown }) : `다음 ${trimmed} 복용`;
+  }
   const t = formatSlotTime(time);
   if (isOverseasLocale()) return t ? i18n.t('doseSlots.nextDoseWithTime', { time: t }) : i18n.t('doseSlots.nextDosePlain');
   return t ? `다음 복용 (${t})` : '다음 복용';

@@ -65,6 +65,7 @@ const SETTINGS_PRESET_SOUND_OPTIONS: AlarmSoundOption[] = PRESET_ALARM_SOUNDS.ma
 import { useTranslation } from 'react-i18next';
 import i18n from '../../i18n';
 import { isOverseasLocale } from '../../i18n/detectLocale';
+import { formatClock } from '../../utils/notifLabels';
 
 interface CaregiverNotif {
   id: string;
@@ -203,10 +204,10 @@ function computeAnyNotifOn(
 // label은 legacy 시간대 삭제 확인 다이얼로그(deleteMedSlot)에만 쓰이는 표시용 문자열이라
 // 로케일 분기 필요 — 해외에서 한글 라벨이 영문 문장에 섞여 나오던 버그(2026-07).
 const MED_TIME_SLOTS = [
-  { key: 'morning', label: isOverseasLocale() ? 'Morning' : '아침' },
-  { key: 'lunch',   label: isOverseasLocale() ? 'Lunch' : '점심' },
-  { key: 'dinner',  label: isOverseasLocale() ? 'Dinner' : '저녁' },
-  { key: 'bedtime', label: isOverseasLocale() ? 'Bedtime' : '취침' },
+  { key: 'morning', label: i18n.t('slot.morning') },
+  { key: 'lunch',   label: i18n.t('slot.lunch') },
+  { key: 'dinner',  label: i18n.t('slot.dinner') },
+  { key: 'bedtime', label: i18n.t('slot.bedtime') },
 ] as const;
 
 type MedTimeSlotKey = 'morning' | 'lunch' | 'dinner' | 'bedtime';
@@ -1646,9 +1647,11 @@ export function SettingsScreen() {
   //   한글이 뜬다(실측 2026-07-27: 운동 알림 목록 4곳). 표기는 로케일에 맞춰 만든다.
   const formatExerciseNotif = (n: ExerciseNotif) => {
     const mm = String(n.minute).padStart(2, '0');
-    return isOverseasLocale()
-      ? `${n.hour}:${mm} ${n.ampm === '오전' ? 'AM' : 'PM'}`
-      : `${n.ampm} ${n.hour}:${mm}`;
+    if (isOverseasLocale()) {
+      const h24 = n.ampm === '오전' ? (n.hour === 12 ? 0 : n.hour) : (n.hour === 12 ? 12 : n.hour + 12);
+      return formatClock(new Date(2000, 0, 1, h24, n.minute));
+    }
+    return `${n.ampm} ${n.hour}:${mm}`;
   };
 
   const optionButtonWidth = (SCREEN_WIDTH - 72) / 2;

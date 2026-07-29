@@ -14,6 +14,7 @@ import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context'
 import { useTranslation } from 'react-i18next';
 import i18n from '../../i18n';
 import { isOverseasLocale, displayLocaleTag } from '../../i18n/detectLocale';
+import { formatClock, intervalAfterLabel, effectTrackingLabel } from '../../utils/notifLabels';
 import { useFocusEffect, useRoute, useNavigation, RouteProp } from '@react-navigation/native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { Ionicons } from '@expo/vector-icons';
@@ -103,9 +104,7 @@ function formatTakenAt(isoString: string): string {
   const m = d.getMinutes();
   const hour = h % 12 === 0 ? 12 : h % 12;
   const mm = m.toString().padStart(2, '0');
-  if (isOverseasLocale()) {
-    return `${hour}:${mm} ${h < 12 ? 'AM' : 'PM'}`;
-  }
+  if (isOverseasLocale()) return formatClock(d);
   const ampm = h < 12 ? '오전' : '오후';
   return `${ampm} ${hour}:${mm}`;
 }
@@ -115,9 +114,7 @@ function formatMealTime(timeStr: string): string {
   const [h, m] = timeStr.split(':').map(Number);
   const hour = h % 12 === 0 ? 12 : h % 12;
   const mm = m.toString().padStart(2, '0');
-  if (isOverseasLocale()) {
-    return `${hour}:${mm} ${h < 12 ? 'AM' : 'PM'}`;
-  }
+  if (isOverseasLocale()) return formatClock(new Date(2000, 0, 1, h, m || 0));
   const ampm = h < 12 ? '오전' : '오후';
   return `${ampm} ${hour}:${mm}`;
 }
@@ -1925,7 +1922,7 @@ interface NextNotifInfo {
 // fetch 실패(throw)·환자ID 미해석 등으로 다음 알림 정보를 못 구한 경우에도 팝업은 항상 띄운다
 // (다음 알림은 최소한 내일 복용이라도 늘 존재). timeStr 가 비면 NextNotifModal 이 일반 문구로 렌더.
 const FALLBACK_NEXT_NOTIF: NextNotifInfo = {
-  label: isOverseasLocale() ? 'Next notification' : '다음 알림',
+  label: i18n.t('nextNotif.title'),
   timeStr: '',
   minutesLeft: 0,
   isTomorrow: false,
@@ -1935,17 +1932,7 @@ const FALLBACK_NEXT_NOTIF: NextNotifInfo = {
 // 기록 완료 후 다음 예정 알림 정보를 반환합니다.
 // effect_tracking_queue (약효추적), meal_schedules (식사 알림), exercise_notif_prefs (운동 알림) 중 가장 가까운 것 선택.
 
-function formatTimeHHMM(date: Date): string {
-  const h = date.getHours();
-  const m = date.getMinutes();
-  const hour = h % 12 === 0 ? 12 : h % 12;
-  const mm = m.toString().padStart(2, '0');
-  if (isOverseasLocale()) {
-    return `${hour}:${mm} ${h < 12 ? 'AM' : 'PM'}`;
-  }
-  const ampm = h < 12 ? '오전' : '오후';
-  return `${ampm} ${hour}:${mm}`;
-}
+const formatTimeHHMM = formatClock;
 
 // 'HH:MM[:SS]' → 오늘(now 기준) 해당 시각의 Date
 function parseHHMM(hhmm: string, base: Date): Date {
@@ -1955,21 +1942,7 @@ function parseHHMM(hhmm: string, base: Date): Date {
   return d;
 }
 
-// 인터벌(분) → "복용 N분 후" 스타일 라벨. ko는 기존과 100% 동일.
-function mIntervalLabel(intervalMin: number): string {
-  if (isOverseasLocale()) {
-    if (intervalMin === 0) return 'right after taking';
-    if (intervalMin < 60) return `${intervalMin} min after taking`;
-    const h = Math.floor(intervalMin / 60);
-    const rem = intervalMin % 60;
-    return rem === 0 ? `${h} hr after taking` : `${h} hr ${rem} min after taking`;
-  }
-  if (intervalMin === 0) return '복용 직후';
-  if (intervalMin < 60) return `복용 ${intervalMin}분 후`;
-  const h = Math.floor(intervalMin / 60);
-  const rem = intervalMin % 60;
-  return rem === 0 ? `복용 ${h}시간 후` : `복용 ${h}시간 ${rem}분 후`;
-}
+const mIntervalLabel = intervalAfterLabel;
 
 // 슬롯명에 "약" 단위 붙이기(아침→아침약). 영어는 그대로(단위 불필요).
 // ⚠️ mealKo는 dose_slots.label 등 raw DB 값(항상 한글)일 수 있어, 먼저 translateRawSlotLabel로
@@ -1981,22 +1954,15 @@ function mMealMedLabel(mealKo: string | null): string | null {
   return display.endsWith('약') ? display : `${display}약`;
 }
 
-// "{시간대} {interval} 약효추적" 라벨. ko는 기존과 100% 동일.
-function mEffectTrackingLabel(mealKoMed: string | null, intervalLabel: string): string {
-  if (isOverseasLocale()) {
-    return mealKoMed ? `${mealKoMed} effect tracking, ${intervalLabel}` : `Effect tracking, ${intervalLabel}`;
-  }
-  return mealKoMed ? `${mealKoMed} ${intervalLabel} 약효추적` : `${intervalLabel} 약효추적`;
-}
+const mEffectTrackingLabel = effectTrackingLabel;
 
 // "다음 {슬롯}약 복용" / "다음 {시각} 복용" 라벨. ko는 기존과 100% 동일.
 // ⚠️ slotLabel은 dose_slots.label(raw DB, 항상 한글)일 수 있어 translateRawSlotLabel로 먼저 변환.
 function mNextDoseLabel(slotLabel: string | null, hhmm: string, now: Date): string {
   const display = translateRawSlotLabel(slotLabel);
-  if (isOverseasLocale()) {
-    return display ? `Next: ${display} dose` : `Next dose (${formatTimeHHMM(parseHHMM(hhmm, now))})`;
-  }
-  return display ? `다음 ${display}약 복용` : `다음 ${formatTimeHHMM(parseHHMM(hhmm, now))} 복용`;
+  return display
+    ? i18n.t('nextNotif.nextDoseSlot', { slot: display })
+    : i18n.t('nextNotif.nextDoseTime', { time: formatTimeHHMM(parseHHMM(hhmm, now)) });
 }
 
 
@@ -2145,7 +2111,7 @@ async function fetchNextNotifMessage(
         scheduled.setHours(hour, ep.minute, 0, 0);
         if (scheduled > now) {
           const minutesLeft = Math.round((scheduled.getTime() - now.getTime()) / 60000);
-          candidates.push({ minutesLeft, label: isOverseasLocale() ? 'Exercise time' : '운동 시간', sendAt: scheduled });
+          candidates.push({ minutesLeft, label: i18n.t('nextNotif.exerciseTime'), sendAt: scheduled });
         }
       }
     }
@@ -2157,7 +2123,7 @@ async function fetchNextNotifMessage(
       tomorrow.setHours(8, 0, 0, 0);
       return {
         // "내일"은 timeStr 에서 명시 → 라벨은 오늘과 동일한 형태로.
-        label: isOverseasLocale() ? 'Next: morning dose' : '다음 아침약 복용',
+        label: i18n.t('nextNotif.nextMorningDose'),
         timeStr: formatTimeHHMM(tomorrow),
         minutesLeft: Math.round((tomorrow.getTime() - now.getTime()) / 60000),
         isTomorrow: true,
@@ -2185,7 +2151,7 @@ async function fetchNextNotifMessage(
       tomorrow.setDate(tomorrow.getDate() + 1);
       tomorrow.setHours(8, 0, 0, 0);
       return {
-        label: isOverseasLocale() ? 'Next: morning dose' : '다음 아침약 복용',
+        label: i18n.t('nextNotif.nextMorningDose'),
         timeStr: formatTimeHHMM(tomorrow),
         minutesLeft: Math.round((tomorrow.getTime() - now.getTime()) / 60000),
         isTomorrow: true,

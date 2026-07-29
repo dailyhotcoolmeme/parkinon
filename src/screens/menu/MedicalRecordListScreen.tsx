@@ -25,6 +25,8 @@ import { useDialog } from '../../context/DialogContext';
 import { useTranslation } from 'react-i18next';
 import i18n from '../../i18n';
 import { isOverseasLocale } from '../../i18n/detectLocale';
+import { fullDate, monthDayShort } from '../../utils/dateLabels';
+import { formatClock } from '../../utils/notifLabels';
 
 type NavProp = StackNavigationProp<MenuStackParamList>;
 
@@ -56,10 +58,7 @@ function alarmDate(iso: string, daysBefore: number): Date {
 function formatNotifDateTime(d: Date): string {
   const hh = String(d.getHours()).padStart(2, '0');
   const mm = String(d.getMinutes()).padStart(2, '0');
-  if (isOverseasLocale()) {
-    const dow = DAYS_EN[d.getDay()];
-    return `${d.getFullYear()}-${d.getMonth() + 1}-${d.getDate()} (${dow}) ${hh}:${mm}`;
-  }
+  if (isOverseasLocale()) return `${fullDate(d)} ${hh}:${mm}`;
   const dow = DAYS_KR[d.getDay()];
   return `${d.getFullYear()}년 ${d.getMonth() + 1}월 ${d.getDate()}일(${dow}) ${hh}:${mm}`;
 }
@@ -70,10 +69,7 @@ function apptWhenKor(iso: string): string {
   const h = d.getHours();
   const m = d.getMinutes();
   const h12 = h % 12 === 0 ? 12 : h % 12;
-  if (isOverseasLocale()) {
-    const dow = DAYS_EN[d.getDay()];
-    return `${d.getMonth() + 1}/${d.getDate()} (${dow}) ${h12}:${String(m).padStart(2, '0')} ${h < 12 ? 'AM' : 'PM'}`;
-  }
+  if (isOverseasLocale()) return `${monthDayShort(d)} ${formatClock(d)}`;
   const dow = DAYS_KR[d.getDay()];
   const ampm = h < 12 ? '오전' : '오후';
   return `${d.getMonth() + 1}월 ${d.getDate()}일(${dow}) ${ampm} ${h12}:${String(m).padStart(2, '0')}`;
@@ -108,10 +104,7 @@ interface MedRecord {
 
 function formatApptDate(iso: string): string {
   const d = new Date(iso);
-  if (isOverseasLocale()) {
-    const dow = DAYS_EN[d.getDay()];
-    return `${d.getFullYear()}-${d.getMonth() + 1}-${d.getDate()} (${dow})`;
-  }
+  if (isOverseasLocale()) return fullDate(d);
   const dow = DAYS_KR[d.getDay()];
   return `${d.getFullYear()}년 ${d.getMonth() + 1}월 ${d.getDate()}일 (${dow})`;
 }
@@ -121,7 +114,7 @@ function formatApptTime(iso: string): string {
   const h = d.getHours();
   const m = d.getMinutes();
   const h12 = h % 12 === 0 ? 12 : h % 12;
-  if (isOverseasLocale()) return `${h12}:${String(m).padStart(2, '0')} ${h < 12 ? 'AM' : 'PM'}`;
+  if (isOverseasLocale()) return formatClock(d);
   const ampm = h < 12 ? '오전' : '오후';
   return `${ampm} ${h12}:${String(m).padStart(2, '0')}`;
 }
@@ -142,8 +135,7 @@ function apptPlaceText(appt: { hospital_name: string | null; doctor_name: string
 
 function formatRecordDate(iso: string): string {
   const d = new Date(iso);
-  const dow = isOverseasLocale() ? DAYS_EN[d.getDay()] : DAYS_KR[d.getDay()];
-  return `${d.getFullYear()}. ${d.getMonth() + 1}. ${d.getDate()}. (${dow})`;
+  return fullDate(d);
 }
 
 function formatRecordTime(iso: string): string {
@@ -151,7 +143,7 @@ function formatRecordTime(iso: string): string {
   const h = d.getHours();
   const m = d.getMinutes();
   const h12 = h % 12 === 0 ? 12 : h % 12;
-  if (isOverseasLocale()) return `${h12}:${String(m).padStart(2, '0')} ${h < 12 ? 'AM' : 'PM'}`;
+  if (isOverseasLocale()) return formatClock(d);
   const ampm = h < 12 ? '오전' : '오후';
   return `${ampm} ${h12}:${String(m).padStart(2, '0')}`;
 }
@@ -162,9 +154,9 @@ function calcDday(iso: string): string {
   const target = new Date(iso);
   target.setHours(0, 0, 0, 0);
   const diff = Math.round((target.getTime() - now.getTime()) / (1000 * 60 * 60 * 24));
-  if (diff === 0) return 'D-Day';
-  if (diff > 0) return `D-${diff}`;
-  return `D+${Math.abs(diff)}`;
+  if (diff === 0) return i18n.t('medRecordList.dday');
+  if (diff > 0) return i18n.t('medRecordList.dMinus', { n: diff });
+  return i18n.t('medRecordList.dPlus', { n: Math.abs(diff) });
 }
 
 /** 각 알림(D-7/D-1) 이름 밑 보조문구: 발송 정확 일시 + 상태. */

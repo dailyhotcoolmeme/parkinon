@@ -319,8 +319,8 @@
     "noticeNotToday": "Vous ne pouvez noter que pour la date du jour",
     "measureNow": "Mesurer mon état",
     "measureRecords": "Voir les mesures",
-    "videoRecord": "Filmer une vidéo",
-    "videoList": "Vidéos enregistrées",
+    "videoRecord": "Filmer",
+    "videoList": "Mes vidéos",
     "sectionTitleToday": "État et humeur du jour",
     "sectionTitle": "État et humeur",
     "empty": "Aucune entrée",
@@ -757,7 +757,8 @@
     },
     "alarmPreviewTitle": "Aperçu de l'alarme plein écran",
     "alarmPreviewMsg": "Voir maintenant à quoi ressemble l'écran « comme un réveil » ?\nC'est un simple écran de test — rien ne sera enregistré.",
-    "alarmModePatientIosNote": "⚠️ « Comme un réveil » ne fonctionne que sur Android. Sur iPhone, l'alarme sonne comme en mode « Simple »."
+    "alarmModePatientIosNote": "⚠️ « Comme un réveil » ne fonctionne que sur Android. Sur iPhone, l'alarme sonne comme en mode « Simple ».",
+    "effectSourceLabel": "FDA (États-Unis) et notices des fabricants"
   },
   "settings": {
     "notifMedTakenLabel": "Quand le patient note une prise",
@@ -1152,7 +1153,10 @@
     "a11yPrescriptionChanged": "Ordonnance modifiée — aller à la gestion des médicaments",
     "alarmOff": "(désactivé)",
     "alarmPastNote": "Cette date est déjà passée : aucun rappel ne sera envoyé",
-    "alarmWillSend": "Nous vous enverrons un rappel le {{date}}"
+    "alarmWillSend": "Nous vous enverrons un rappel le {{date}}",
+    "dday": "Jour J",
+    "dMinus": "J-{{n}}",
+    "dPlus": "J+{{n}}"
   },
   "medRecordWrite": {
     "headerEdit": "Modifier la visite",
@@ -1864,7 +1868,16 @@
     "deleteWithRecords": "Supprimer les entrées",
     "keepRecords": "Conserver les entrées",
     "oneMomentTitle": "Un instant",
-    "preparingMsg": "Nous préparons tout. Veuillez réessayer dans un instant."
+    "preparingMsg": "Nous préparons tout. Veuillez réessayer dans un instant.",
+    "checkRightAfter": "Juste après la prise",
+    "checkMin": "{{m}} min après",
+    "checkHour": "{{h}} h après",
+    "checkHourMin": "{{h}} h {{m}} min après",
+    "offsetNow": "juste après la prise",
+    "offsetMin": "{{m}} minutes",
+    "offsetHour": "{{h}} heures",
+    "offsetHourMin": "{{h}} heures {{m}} minutes",
+    "joinAnd": " et "
   },
   "scoreSelector": {
     "bodyLabel5": "Très bien",
@@ -2052,5 +2065,70 @@
       "medPhase": "Phase du traitement",
       "context": "Contexte"
     }
+  },
+  "period": {
+    "dawn": "Petit matin",
+    "morning": "Matin",
+    "midday": "Midi",
+    "afternoon": "Après-midi",
+    "evening": "Soir",
+    "night": "Nuit"
+  },
+  "slot": {
+    "morning": "Matin",
+    "lunch": "Midi",
+    "dinner": "Soir",
+    "bedtime": "Coucher",
+    "morningMed": "Médicament du matin",
+    "lunchMed": "Médicament du midi",
+    "dinnerMed": "Médicament du soir",
+    "bedtimeMed": "Médicament du coucher"
+  },
+  "interval": {
+    "rightAfter": "juste après la prise",
+    "minLater": "{{m}} min après",
+    "hourLater": "{{h}} h après",
+    "hourMinLater": "{{h}} h {{m}} min après",
+    "tagNow": "+auss.",
+    "tagMin": "+{{m}} min",
+    "tagHour": "+{{h}} h",
+    "tagHourMin": "+{{h}} h {{m}}",
+    "short": "juste après",
+    "shortMin": "{{m}} min après",
+    "shortHour": "{{h}} h après",
+    "shortHourMin": "{{h}} h {{m}} min après",
+    "elapsedMin": "{{m}} min",
+    "elapsedHour": "{{h}} h",
+    "elapsedHourMin": "{{h}} h {{m}} min"
+  },
+  "nextNotif": {
+    "intervalRightAfter": "juste après la prise",
+    "intervalAfterMin": "{{m}} min après la prise",
+    "intervalAfterHour": "{{h}} h après la prise",
+    "intervalAfterHourMin": "{{h}} h {{m}} min après la prise",
+    "effectTrack": "Suivi de l'effet {{meal}}, {{interval}}",
+    "effectTrackNoMeal": "Suivi de l'effet, {{interval}}",
+    "tomorrow": "Demain, {{label}}",
+    "exerciseReminder": "Rappel d'activité",
+    "tomorrowMorningDose": "Demain, prise du matin",
+    "title": "Prochain rappel",
+    "durationMin": "{{m}} min",
+    "durationHour": "{{h}} h",
+    "durationHourMin": "{{h}} h {{m}} min",
+    "nextDoseSlot": "Prochaine prise : {{slot}}",
+    "nextDoseTime": "Prochaine prise ({{time}})",
+    "exerciseTime": "Heure de l'activité",
+    "nextMorningDose": "Prochaine prise : matin"
+  },
+  "chartPeriod": {
+    "thisWeek": "Cette sem.",
+    "lastWeek": "Sem. dern.",
+    "weeksAgo": "il y a {{n}} sem.",
+    "thisMonth": "Ce mois",
+    "lastMonth": "Mois dern.",
+    "monthsAgo": "il y a {{n}} mois",
+    "last3Mo": "3 derniers mois",
+    "prev3Mo": "3 mois préc.",
+    "monthsAgoQ": "il y a {{n}} mois"
   }
 }

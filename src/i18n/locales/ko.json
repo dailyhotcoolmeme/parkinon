@@ -757,7 +757,8 @@
     },
     "alarmPreviewTitle": "전체화면 알람 미리보기",
     "alarmPreviewMsg": "'알람처럼' 알림이 뜨는 화면을 지금 미리 볼까요?\n실제 알림이 아닌 테스트 화면이니 안심하고 확인해 보세요.",
-    "alarmModePatientIosNote": "⚠️ '알람처럼'은 안드로이드 기기에서만 구동돼요. 아이폰에서는 구동되지 않아 '기본'과 동일하게 울려요."
+    "alarmModePatientIosNote": "⚠️ '알람처럼'은 안드로이드 기기에서만 구동돼요. 아이폰에서는 구동되지 않아 '기본'과 동일하게 울려요.",
+    "effectSourceLabel": "미국 FDA·제조사 의약품 정보"
   },
   "settings": {
     "notifMedTakenLabel": "환자 약 복용 기록 시",
@@ -1152,7 +1153,10 @@
     "a11yPrescriptionChanged": "처방 변경 — 복용약 관리로 이동",
     "alarmOff": "(꺼짐)",
     "alarmPastNote": "이미 지난 시점이라 알림이 오지 않아요",
-    "alarmWillSend": "{{date}}에 알림을 보내요"
+    "alarmWillSend": "{{date}}에 알림을 보내요",
+    "dday": "D-Day",
+    "dMinus": "D-{{n}}",
+    "dPlus": "D+{{n}}"
   },
   "medRecordWrite": {
     "headerEdit": "진료 기록 수정",
@@ -1864,7 +1868,16 @@
     "deleteWithRecords": "기록도 삭제",
     "keepRecords": "기록은 유지",
     "oneMomentTitle": "잠시만요",
-    "preparingMsg": "준비 중이에요. 잠시 후 다시 시도해 주세요."
+    "preparingMsg": "준비 중이에요. 잠시 후 다시 시도해 주세요.",
+    "checkRightAfter": "복용 직후",
+    "checkMin": "{{m}}분 후",
+    "checkHour": "{{h}}시간 후",
+    "checkHourMin": "{{h}}시간 {{m}}분 후",
+    "offsetNow": "복용 직후",
+    "offsetMin": "{{m}}분",
+    "offsetHour": "{{h}}시간",
+    "offsetHourMin": "{{h}}시간 {{m}}분",
+    "joinAnd": "와 "
   },
   "scoreSelector": {
     "bodyLabel5": "매우 좋아요",
@@ -2052,5 +2065,70 @@
       "medPhase": "약효 단계",
       "context": "상황"
     }
+  },
+  "period": {
+    "dawn": "새벽",
+    "morning": "아침",
+    "midday": "점심",
+    "afternoon": "오후",
+    "evening": "저녁",
+    "night": "밤"
+  },
+  "slot": {
+    "morning": "아침",
+    "lunch": "점심",
+    "dinner": "저녁",
+    "bedtime": "취침",
+    "morningMed": "아침약",
+    "lunchMed": "점심약",
+    "dinnerMed": "저녁약",
+    "bedtimeMed": "취침약"
+  },
+  "interval": {
+    "rightAfter": "복용 직후",
+    "minLater": "{{m}}분 후",
+    "hourLater": "{{h}}시간 후",
+    "hourMinLater": "{{h}}시간 {{m}}분 후",
+    "tagNow": "+즉시",
+    "tagMin": "+{{m}}분",
+    "tagHour": "+{{h}}시간",
+    "tagHourMin": "+{{h}}시간 {{m}}분",
+    "short": "직후",
+    "shortMin": "{{m}}분 후",
+    "shortHour": "{{h}}시간 후",
+    "shortHourMin": "{{h}}시간 {{m}}분 후",
+    "elapsedMin": "{{m}}분",
+    "elapsedHour": "{{h}}시간",
+    "elapsedHourMin": "{{h}}시간 {{m}}분"
+  },
+  "nextNotif": {
+    "intervalRightAfter": "복용 직후",
+    "intervalAfterMin": "복용 {{m}}분 후",
+    "intervalAfterHour": "복용 {{h}}시간 후",
+    "intervalAfterHourMin": "복용 {{h}}시간 {{m}}분 후",
+    "effectTrack": "{{meal}} {{interval}} 약효추적",
+    "effectTrackNoMeal": "{{interval}} 약효추적",
+    "tomorrow": "내일 {{label}}",
+    "exerciseReminder": "운동 알림",
+    "tomorrowMorningDose": "내일 아침약 복용",
+    "title": "다음 알림",
+    "durationMin": "{{m}}분",
+    "durationHour": "{{h}}시간",
+    "durationHourMin": "{{h}}시간 {{m}}분",
+    "nextDoseSlot": "다음 {{slot}}약 복용",
+    "nextDoseTime": "다음 {{time}} 복용",
+    "exerciseTime": "운동 시간",
+    "nextMorningDose": "다음 아침약 복용"
+  },
+  "chartPeriod": {
+    "thisWeek": "이번주",
+    "lastWeek": "지난주",
+    "weeksAgo": "{{n}}주전",
+    "thisMonth": "이번달",
+    "lastMonth": "지난달",
+    "monthsAgo": "{{n}}개월전",
+    "last3Mo": "최근3개월",
+    "prev3Mo": "지난3개월",
+    "monthsAgoQ": "{{n}}개월전"
   }
 }

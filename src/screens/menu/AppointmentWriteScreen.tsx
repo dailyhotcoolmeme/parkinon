@@ -32,6 +32,7 @@ import { useNotificationBadge } from '../../context/NotificationBadgeContext';
 import { useDialog } from '../../context/DialogContext';
 import i18n from '../../i18n';
 import { isOverseasLocale } from '../../i18n/detectLocale';
+import { weekdayShort } from '../../utils/dateLabels';
 import { useTranslation } from 'react-i18next';
 
 
@@ -61,7 +62,7 @@ function getDaysInMonth(y: number, m: number): number {
 }
 
 function getDayOfWeek(y: number, m: number, d: number): string {
-  return (isOverseasLocale() ? DAYS_EN : DAYS_KR)[new Date(y, m - 1, d).getDay()];
+  return weekdayShort(new Date(y, m - 1, d));
 }
 
 // ─── 알림 유틸 ──────────────────────────────────────────────────────────────

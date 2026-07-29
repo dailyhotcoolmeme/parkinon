@@ -20,6 +20,7 @@ import { navigateTo } from '../../navigation/navigationRef';
 import { useTranslation } from 'react-i18next';
 import i18n from '../../i18n';
 import { isOverseasLocale, displayLocaleTag } from '../../i18n/detectLocale';
+import { formatClock } from '../../utils/notifLabels';
 
 
 // ─────────────────────────────────────────────
@@ -117,7 +118,7 @@ function formatTime(iso: string): string {
   const h = d.getHours();
   const m = d.getMinutes();
   const hour = h === 0 ? 12 : h > 12 ? h - 12 : h;
-  if (isOverseasLocale()) return `${hour}:${String(m).padStart(2, '0')} ${h < 12 ? 'AM' : 'PM'}`;
+  if (isOverseasLocale()) return formatClock(d);
   const ampm = h < 12 ? '오전' : '오후';
   return `${ampm} ${hour}:${String(m).padStart(2, '0')}`;
 }

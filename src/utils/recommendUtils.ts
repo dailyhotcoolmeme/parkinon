@@ -147,7 +147,7 @@ export type SlotMedInput = { name: string; mfdsClassName?: string | null };
  * UI 는 'recommendUtils.SOURCE_LABEL' 만 보면 된다(60대 일반어·전문어 "약동학" 제거).
  */
 export function getSourceLabel(): string {
-  return isOverseasLocale() ? 'US FDA & manufacturer drug information' : '미국 FDA·제조사 의약품 정보';
+  return i18n.t('medManage.effectSourceLabel');
 }
 
 /** 슬롯 단위 안내 결과 (DoseSlotSetList 박스2 안내 렌더용 — §7.3·"슬롯 단위 안내" 절) */

@@ -11,6 +11,10 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { useTranslation } from 'react-i18next';
 import i18n from '../../i18n';
 import { isOverseasLocale } from '../../i18n/detectLocale';
+import {
+  formatClock, intervalAfterLabel, effectTrackingLabel, nextDoseLabelLoc,
+  tomorrowLabel, exerciseReminderLabel, tomorrowMorningDoseLabel, durationLabel,
+} from '../../utils/notifLabels';
 import { useNavigation, useRoute } from '@react-navigation/native';
 import type { CompositeNavigationProp } from '@react-navigation/native';
 import type { NativeStackNavigationProp, NativeStackScreenProps } from '@react-navigation/native-stack';
@@ -44,15 +48,7 @@ const DURATION_GROUPS = [
   { labelKey: 'exercise.durLong', items: [90, 120, 150, 180] },
 ];
 
-function formatDuration(min: number): string {
-  // 영문은 시:분 분해 대신 기록 리스트(exercise.recordLabel 등)와 동일하게
-  // 항상 "{min} min"으로 표기(한 줄 고정 + 저장 후 기록 표시와의 일관성).
-  if (isOverseasLocale()) return `${min} min`;
-  if (min < 60) return `${min}분`;
-  const h = Math.floor(min / 60);
-  const m = min % 60;
-  return m > 0 ? `${h}시간 ${m}분` : `${h}시간`;
-}
+const formatDuration = durationLabel;
 
 // ─── NextNotifInfo 타입 (ExerciseDurationScreen 전용) ───────────────────────
 
@@ -62,52 +58,13 @@ interface ExNextNotifInfo {
   minutesLeft: number;
 }
 
-function exFormatTimeHHMM(date: Date): string {
-  const h = date.getHours();
-  const m = date.getMinutes();
-  const hour = h % 12 === 0 ? 12 : h % 12;
-  const mm = m.toString().padStart(2, '0');
-  if (isOverseasLocale()) return `${hour}:${mm} ${h < 12 ? 'AM' : 'PM'}`;
-  const ampm = h < 12 ? '오전' : '오후';
-  return `${ampm} ${hour}:${mm}`;
-}
+const exFormatTimeHHMM = formatClock;
 
-// 약효추적 interval(분) → 라벨. ko는 기존과 100% 동일.
-function exIntervalLabel(intervalMin: number): string {
-  if (isOverseasLocale()) {
-    if (intervalMin === 0) return 'right after taking';
-    if (intervalMin < 60) return `${intervalMin} min after taking`;
-    const h = Math.floor(intervalMin / 60);
-    const rem = intervalMin % 60;
-    return rem === 0 ? `${h} hr after taking` : `${h} hr ${rem} min after taking`;
-  }
-  if (intervalMin === 0) return '복용 직후';
-  if (intervalMin < 60) return `복용 ${intervalMin}분 후`;
-  const h = Math.floor(intervalMin / 60);
-  const rem = intervalMin % 60;
-  return rem === 0 ? `복용 ${h}시간 후` : `복용 ${h}시간 ${rem}분 후`;
-}
+const exIntervalLabel = intervalAfterLabel;
 
-// "{시간대} {interval} 약효추적" 라벨. ko는 기존과 100% 동일.
-function exEffectTrackingLabel(mealKo: string | null, intervalLabel: string): string {
-  if (isOverseasLocale()) {
-    return mealKo ? `${mealKo} effect tracking, ${intervalLabel}` : `Effect tracking, ${intervalLabel}`;
-  }
-  return mealKo ? `${mealKo} ${intervalLabel} 약효추적` : `${intervalLabel} 약효추적`;
-}
+const exEffectTrackingLabel = effectTrackingLabel;
 
-// nextDoseLabel(공용 유틸·한국어 고정)의 로케일 대응 래퍼. ko는 그대로 위임(회귀 0).
-function exNextDoseLabelLoc(
-  legacyKey: Parameters<typeof nextDoseLabel>[0],
-  label: string | null | undefined,
-  time: string | null | undefined,
-): string {
-  if (!isOverseasLocale()) return nextDoseLabel(legacyKey, label, time);
-  if (legacyKey) return `Next ${mealTimeToKorean(legacyKey)}`;
-  const trimmed = (label ?? '').trim();
-  if (trimmed) return `Next ${trimmed}`;
-  return time ? `Next dose (${time})` : 'Next dose';
-}
+const exNextDoseLabelLoc = nextDoseLabelLoc;
 
 async function fetchExerciseNextNotif(patientId: string): Promise<ExNextNotifInfo | null> {
   try {
@@ -191,12 +148,10 @@ async function fetchExerciseNextNotif(patientId: string): Promise<ExNextNotifInf
         tomorrowFirst.setHours(fh, fm || 0, 0, 0);
         const minutesLeft = Math.round((tomorrowFirst.getTime() - now.getTime()) / 60000);
         const baseLabel = exNextDoseLabelLoc(first.legacyKey, first.label, first.time);
-        const tomorrowLabel = isOverseasLocale()
-          ? `Tomorrow, ${baseLabel.replace(/^Next /, '')}`
-          : `내일 ${baseLabel.replace(/^다음 /, '')}`;
+        const tomorrowText = tomorrowLabel(baseLabel.replace(/^다음 /, ''));
         candidates.push({
           minutesLeft,
-          label: tomorrowLabel,
+          label: tomorrowText,
           sendAt: tomorrowFirst,
         });
       }
@@ -216,7 +171,7 @@ async function fetchExerciseNextNotif(patientId: string): Promise<ExNextNotifInf
         scheduled.setHours(hour, ep.minute, 0, 0);
         if (scheduled > now) {
           const minutesLeft = Math.round((scheduled.getTime() - now.getTime()) / 60000);
-          candidates.push({ minutesLeft, label: isOverseasLocale() ? 'Exercise reminder' : '운동 알림', sendAt: scheduled });
+          candidates.push({ minutesLeft, label: exerciseReminderLabel(), sendAt: scheduled });
         }
       }
     }
@@ -227,7 +182,7 @@ async function fetchExerciseNextNotif(patientId: string): Promise<ExNextNotifInf
       tomorrow.setDate(tomorrow.getDate() + 1);
       tomorrow.setHours(8, 0, 0, 0);
       return {
-        label: isOverseasLocale() ? 'Tomorrow, morning dose' : '내일 아침약 복용',
+        label: tomorrowMorningDoseLabel(),
         timeStr: exFormatTimeHHMM(tomorrow),
         minutesLeft: Math.round((tomorrow.getTime() - now.getTime()) / 60000),
       };

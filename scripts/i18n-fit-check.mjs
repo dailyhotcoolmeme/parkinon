@@ -69,6 +69,12 @@ const SLOTS = [
     ],
   },
   {
+    name: '영상 버튼 2등분',
+    where: 'BodyStateScreen — outlineButton flex:1, 아이콘24+gap10 뺀 폭',
+    width: 141, size: 18, weight: 700,
+    keys: ['bodystate.videoRecord', 'bodystate.videoList'],
+  },
+  {
     name: '해외 약/알림 탭(2등분)',
     where: 'OverseasMedTabScreen — tab flex:1, numberOfLines={1}',
     width: 179, size: 17, weight: 700,

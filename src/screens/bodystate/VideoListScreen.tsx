@@ -27,6 +27,8 @@ import { useNotificationBadge } from '../../context/NotificationBadgeContext';
 import { useDialog } from '../../context/DialogContext';
 import i18n from '../../i18n';
 import { isOverseasLocale } from '../../i18n/detectLocale';
+import { monthDayShort, monthYearTitle } from '../../utils/dateLabels';
+import { formatClock } from '../../utils/notifLabels';
 import { useTranslation } from 'react-i18next';
 
 
@@ -62,10 +64,7 @@ function formatDateLabel(isoString: string): string {
   const d = new Date(isoString);
   const month = d.getMonth() + 1;
   const day = d.getDate();
-  if (isOverseasLocale()) {
-    const dayNamesEn = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
-    return `${month}/${day} (${dayNamesEn[d.getDay()]})`;
-  }
+  if (isOverseasLocale()) return monthDayShort(d);
   const dayNames = ['일', '월', '화', '수', '목', '금', '토'];
   return `${month}월 ${day}일 (${dayNames[d.getDay()]})`;
 }
@@ -75,7 +74,7 @@ function formatTime(isoString: string): string {
   const h = d.getHours();
   const m = d.getMinutes();
   const hour = h % 12 === 0 ? 12 : h % 12;
-  if (isOverseasLocale()) return `${hour}:${m.toString().padStart(2, '0')} ${h < 12 ? 'AM' : 'PM'}`;
+  if (isOverseasLocale()) return formatClock(d);
   const ampm = h < 12 ? '오전' : '오후';
   return `${ampm} ${hour}시 ${m.toString().padStart(2, '0')}분`;
 }
@@ -83,10 +82,7 @@ function formatTime(isoString: string): string {
 
 function getSectionKey(isoString: string): string {
   const d = new Date(isoString);
-  if (isOverseasLocale()) {
-    const monthNames = ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December'];
-    return `${monthNames[d.getMonth()]} ${d.getFullYear()}`;
-  }
+  if (isOverseasLocale()) return monthYearTitle(d.getFullYear(), d.getMonth());
   return `${d.getFullYear()}년 ${d.getMonth() + 1}월`;
 }
 

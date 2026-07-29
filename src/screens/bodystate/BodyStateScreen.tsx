@@ -13,6 +13,11 @@ import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context'
 import { useTranslation } from 'react-i18next';
 import i18n from '../../i18n';
 import { isOverseasLocale, displayLocaleTag } from '../../i18n/detectLocale';
+import {
+  formatClock, intervalAfterLabel, effectTrackingLabel, nextDoseLabelLoc,
+  tomorrowLabel, exerciseReminderLabel, tomorrowMorningDoseLabel,
+  intervalShortLabel, elapsedLabel, periodKeyToLabel,
+} from '../../utils/notifLabels';
 import { useBottomSheetPadding } from '../../hooks/useBottomSheetPadding';
 import { useNavigation, useRoute, useFocusEffect } from '@react-navigation/native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
@@ -87,7 +92,7 @@ function formatTime(isoString: string): string {
   const m = d.getMinutes();
   const hour = h % 12 === 0 ? 12 : h % 12;
   const mm = m.toString().padStart(2, '0');
-  if (isOverseasLocale()) return `${hour}:${mm} ${h < 12 ? 'AM' : 'PM'}`;
+  if (isOverseasLocale()) return formatClock(d);
   const ampm = h < 12 ? '오전' : '오후';
   return `${ampm} ${hour}:${mm}`;
 }
@@ -105,15 +110,9 @@ function getPeriod(isoString: string): string {
   return '밤';                // 21–23
 }
 
-// getPeriod() 반환값(내부 키·PERIOD_COLOR/ICON 조회용)의 표시용 영어 라벨.
-// 수시(식사시간대 없는) 기록의 slotLabel 폴백에서만 사용 — 키 자체는 그대로 둔다(색/아이콘 조회 영향 없음).
-const PERIOD_LABEL_EN: Record<string, string> = {
-  '새벽': 'Early morning', '아침': 'Morning', '점심': 'Midday',
-  '오후': 'Afternoon', '저녁': 'Evening', '밤': 'Night', '취침': 'Bedtime',
-};
-function periodDisplayLabel(period: string): string {
-  return isOverseasLocale() ? (PERIOD_LABEL_EN[period] ?? period) : period;
-}
+// getPeriod() 반환값(내부 키·PERIOD_COLOR/ICON 조회용)의 표시용 라벨.
+// 영어 고정표를 쓰면 새 언어에서 영어가 나온다 → 언어 파일 키로 위임한다.
+const periodDisplayLabel = periodKeyToLabel;
 
 function labelToMinutes(label: string): number | null {
   if (label === 'after_medication') return 0;
@@ -254,36 +253,9 @@ function intervalMinutesToLabel(min: number): string {
   return `${min}min_after`;
 }
 
-// 인터벌(분) → 사용자 표시 텍스트 (예: 0→'직후', 60→'1시간 후'). ko는 기존과 100% 동일.
-function intervalMinutesToText(min: number): string {
-  if (isOverseasLocale()) {
-    if (min === 0) return 'right after';
-    if (min < 60) return `${min} min later`;
-    const he = Math.floor(min / 60);
-    const reme = min % 60;
-    return reme === 0 ? `${he} hr later` : `${he} hr ${reme} min later`;
-  }
-  if (min === 0) return '직후';
-  if (min < 60) return `${min}분 후`;
-  const h = Math.floor(min / 60);
-  const rem = min % 60;
-  return rem === 0 ? `${h}시간 후` : `${h}시간 ${rem}분 후`;
-}
+const intervalMinutesToText = intervalShortLabel;
 
-// 경과/잔여 분 → 자연스러운 표현. ko는 기존과 100% 동일.
-function formatDurationKo(totalMin: number): string {
-  const m = Math.max(0, Math.round(totalMin));
-  if (isOverseasLocale()) {
-    if (m < 60) return `${m} min`;
-    const he = Math.floor(m / 60);
-    const reme = m % 60;
-    return reme === 0 ? `${he} hr` : `${he} hr ${reme} min`;
-  }
-  if (m < 60) return `${m}분`;
-  const h = Math.floor(m / 60);
-  const rem = m % 60;
-  return rem === 0 ? `${h}시간` : `${h}시간 ${rem}분`;
-}
+const formatDurationKo = elapsedLabel;
 
 export function BodyStateScreen() {
   const { t } = useTranslation();
@@ -2139,52 +2111,13 @@ interface NextNotifInfo {
 // 기록 완료 후 다음 예정 알림 정보를 반환합니다.
 // effect_tracking_queue (약효추적), meal_schedules (식사 알림), exercise_notif_prefs (운동 알림) 중 가장 가까운 것 선택.
 
-function formatTimeHHMM_BS(date: Date): string {
-  const h = date.getHours();
-  const m = date.getMinutes();
-  const hour = h % 12 === 0 ? 12 : h % 12;
-  const mm = m.toString().padStart(2, '0');
-  if (isOverseasLocale()) return `${hour}:${mm} ${h < 12 ? 'AM' : 'PM'}`;
-  const ampm = h < 12 ? '오전' : '오후';
-  return `${ampm} ${hour}:${mm}`;
-}
+const formatTimeHHMM_BS = formatClock;
 
-// 약효추적 interval(분) → 라벨. ko는 기존과 100% 동일.
-function bsIntervalLabel(intervalMin: number): string {
-  if (isOverseasLocale()) {
-    if (intervalMin === 0) return 'right after taking';
-    if (intervalMin < 60) return `${intervalMin} min after taking`;
-    const h = Math.floor(intervalMin / 60);
-    const rem = intervalMin % 60;
-    return rem === 0 ? `${h} hr after taking` : `${h} hr ${rem} min after taking`;
-  }
-  if (intervalMin === 0) return '복용 직후';
-  if (intervalMin < 60) return `복용 ${intervalMin}분 후`;
-  const h = Math.floor(intervalMin / 60);
-  const rem = intervalMin % 60;
-  return rem === 0 ? `복용 ${h}시간 후` : `복용 ${h}시간 ${rem}분 후`;
-}
+const bsIntervalLabel = intervalAfterLabel;
 
-// "{시간대} {interval} 약효추적" 라벨. ko는 기존과 100% 동일.
-function bsEffectTrackingLabel(mealKo: string | null, intervalLabel: string): string {
-  if (isOverseasLocale()) {
-    return mealKo ? `${mealKo} effect tracking, ${intervalLabel}` : `Effect tracking, ${intervalLabel}`;
-  }
-  return mealKo ? `${mealKo} ${intervalLabel} 약효추적` : `${intervalLabel} 약효추적`;
-}
+const bsEffectTrackingLabel = effectTrackingLabel;
 
-// nextDoseLabel(공용 유틸·한국어 고정)의 로케일 대응 래퍼. ko는 그대로 위임(회귀 0).
-function bsNextDoseLabelLoc(
-  legacyKey: Parameters<typeof nextDoseLabel>[0],
-  label: string | null | undefined,
-  time: string | null | undefined,
-): string {
-  if (!isOverseasLocale()) return nextDoseLabel(legacyKey, label, time);
-  if (legacyKey) return `Next ${mealTimeToKorean(legacyKey)}`;
-  const trimmed = (label ?? '').trim();
-  if (trimmed) return `Next ${trimmed}`;
-  return time ? `Next dose (${time})` : 'Next dose';
-}
+const bsNextDoseLabelLoc = nextDoseLabelLoc;
 
 
 async function fetchNextNotifMessage(
@@ -2302,12 +2235,10 @@ async function fetchNextNotifMessage(
         tomorrowFirst.setHours(fh, fm || 0, 0, 0);
         const minutesLeft = Math.round((tomorrowFirst.getTime() - now.getTime()) / 60000);
         const baseLabel = bsNextDoseLabelLoc(first.legacyKey, first.label, first.time);
-        const tomorrowLabel = isOverseasLocale()
-          ? `Tomorrow, ${baseLabel.replace(/^Next /, '')}`
-          : `내일 ${baseLabel.replace(/^다음 /, '')}`;
+        const tomorrowText = tomorrowLabel(baseLabel.replace(/^다음 /, ''));
         candidates.push({
           minutesLeft,
-          label: tomorrowLabel,
+          label: tomorrowText,
           sendAt: tomorrowFirst,
         });
       }
@@ -2327,7 +2258,7 @@ async function fetchNextNotifMessage(
         scheduled.setHours(hour, ep.minute, 0, 0);
         if (scheduled > now) {
           const minutesLeft = Math.round((scheduled.getTime() - now.getTime()) / 60000);
-          candidates.push({ minutesLeft, label: isOverseasLocale() ? 'Exercise reminder' : '운동 알림', sendAt: scheduled });
+          candidates.push({ minutesLeft, label: exerciseReminderLabel(), sendAt: scheduled });
         }
       }
     }
@@ -2338,7 +2269,7 @@ async function fetchNextNotifMessage(
       tomorrow.setDate(tomorrow.getDate() + 1);
       tomorrow.setHours(8, 0, 0, 0);
       return {
-        label: isOverseasLocale() ? 'Tomorrow, morning dose' : '내일 아침약 복용',
+        label: tomorrowMorningDoseLabel(),
         timeStr: formatTimeHHMM_BS(tomorrow),
         minutesLeft: Math.round((tomorrow.getTime() - now.getTime()) / 60000),
       };

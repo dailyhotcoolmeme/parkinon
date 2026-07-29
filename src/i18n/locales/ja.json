@@ -757,7 +757,8 @@
     },
     "alarmPreviewTitle": "全画面アラームのプレビュー",
     "alarmPreviewMsg": "「目覚ましのように」の画面を今すぐ確認しますか？\nテスト画面なので、何も記録されません。",
-    "alarmModePatientIosNote": "⚠️「目覚ましのように」は Android 端末のみで動作します。iPhone では「基本」と同じ鳴り方になります。"
+    "alarmModePatientIosNote": "⚠️「目覚ましのように」は Android 端末のみで動作します。iPhone では「基本」と同じ鳴り方になります。",
+    "effectSourceLabel": "米国FDAおよび製薬会社の医薬品情報"
   },
   "settings": {
     "notifMedTakenLabel": "患者さんがお薬を記録したとき",
@@ -1152,7 +1153,10 @@
     "a11yPrescriptionChanged": "処方が変わりました — お薬の管理へ",
     "alarmOff": "（オフ）",
     "alarmPastNote": "この時間はすでに過ぎているため、お知らせは届きません",
-    "alarmWillSend": "{{date}} にお知らせします"
+    "alarmWillSend": "{{date}} にお知らせします",
+    "dday": "当日",
+    "dMinus": "あと{{n}}日",
+    "dPlus": "{{n}}日経過"
   },
   "medRecordWrite": {
     "headerEdit": "記録を編集",
@@ -1864,7 +1868,16 @@
     "deleteWithRecords": "記録も削除",
     "keepRecords": "記録は残す",
     "oneMomentTitle": "少々お待ちください",
-    "preparingMsg": "準備しています。少し経ってからもう一度お試しください。"
+    "preparingMsg": "準備しています。少し経ってからもう一度お試しください。",
+    "checkRightAfter": "飲んだ直後",
+    "checkMin": "{{m}}分後",
+    "checkHour": "{{h}}時間後",
+    "checkHourMin": "{{h}}時間{{m}}分後",
+    "offsetNow": "飲んだ直後",
+    "offsetMin": "{{m}}分",
+    "offsetHour": "{{h}}時間",
+    "offsetHourMin": "{{h}}時間{{m}}分",
+    "joinAnd": "と"
   },
   "scoreSelector": {
     "bodyLabel5": "とても良い",
@@ -2052,5 +2065,70 @@
       "medPhase": "服薬の段階",
       "context": "状況"
     }
+  },
+  "period": {
+    "dawn": "早朝",
+    "morning": "朝",
+    "midday": "昼",
+    "afternoon": "午後",
+    "evening": "夕方",
+    "night": "夜"
+  },
+  "slot": {
+    "morning": "朝",
+    "lunch": "昼",
+    "dinner": "夕",
+    "bedtime": "就寝前",
+    "morningMed": "朝のお薬",
+    "lunchMed": "昼のお薬",
+    "dinnerMed": "夕のお薬",
+    "bedtimeMed": "就寝前のお薬"
+  },
+  "interval": {
+    "rightAfter": "飲んだ直後",
+    "minLater": "{{m}}分後",
+    "hourLater": "{{h}}時間後",
+    "hourMinLater": "{{h}}時間{{m}}分後",
+    "tagNow": "+直後",
+    "tagMin": "+{{m}}分",
+    "tagHour": "+{{h}}時間",
+    "tagHourMin": "+{{h}}時間{{m}}分",
+    "short": "直後",
+    "shortMin": "{{m}}分後",
+    "shortHour": "{{h}}時間後",
+    "shortHourMin": "{{h}}時間{{m}}分後",
+    "elapsedMin": "{{m}}分",
+    "elapsedHour": "{{h}}時間",
+    "elapsedHourMin": "{{h}}時間{{m}}分"
+  },
+  "nextNotif": {
+    "intervalRightAfter": "飲んだ直後",
+    "intervalAfterMin": "服用{{m}}分後",
+    "intervalAfterHour": "服用{{h}}時間後",
+    "intervalAfterHourMin": "服用{{h}}時間{{m}}分後",
+    "effectTrack": "{{meal}}の効き目チェック（{{interval}}）",
+    "effectTrackNoMeal": "効き目チェック（{{interval}}）",
+    "tomorrow": "明日 {{label}}",
+    "exerciseReminder": "運動のお知らせ",
+    "tomorrowMorningDose": "明日 朝のお薬",
+    "title": "次のお知らせ",
+    "durationMin": "{{m}}分",
+    "durationHour": "{{h}}時間",
+    "durationHourMin": "{{h}}時間{{m}}分",
+    "nextDoseSlot": "次のお薬：{{slot}}",
+    "nextDoseTime": "次のお薬（{{time}}）",
+    "exerciseTime": "運動の時間",
+    "nextMorningDose": "次のお薬：朝"
+  },
+  "chartPeriod": {
+    "thisWeek": "今週",
+    "lastWeek": "先週",
+    "weeksAgo": "{{n}}週前",
+    "thisMonth": "今月",
+    "lastMonth": "先月",
+    "monthsAgo": "{{n}}か月前",
+    "last3Mo": "直近3か月",
+    "prev3Mo": "前の3か月",
+    "monthsAgoQ": "{{n}}か月前"
   }
 }

@@ -92,22 +92,7 @@ interface TrackOption {
 }
 // locale에 따라 매번 새로 계산 — 모듈 로드 시점에 고정하지 않는다(런타임 언어 변경 반영).
 function getTrackOptions(): TrackOption[] {
-  if (isOverseasLocale()) {
-    return [
-      { minutes: 0, label: 'Right after taking' },
-      { minutes: 30, label: '30 min later' },
-      { minutes: 60, label: '1 hr later' },
-      { minutes: 120, label: '2 hr later' },
-      { minutes: 180, label: '3 hr later' },
-    ];
-  }
-  return [
-    { minutes: 0, label: '복용 직후' },
-    { minutes: 30, label: '30분 후' },
-    { minutes: 60, label: '1시간 후' },
-    { minutes: 120, label: '2시간 후' },
-    { minutes: 180, label: '3시간 후' },
-  ];
+  return [0, 30, 60, 120, 180].map((minutes) => ({ minutes, label: minutesToCheckLabel(minutes) }));
 }
 // 프리셋 분(중복 행 방지용 빠른 조회) — 값 집합은 로케일 무관이므로 고정 상수로 둔다.
 const TRACK_OPTIONS_MINUTES = [0, 30, 60, 120, 180];
@@ -121,14 +106,11 @@ const DEFAULT_TRACK_INTERVALS = [0, 30];
 function minutesToCheckLabel(min: number): string {
   const h = Math.floor(min / 60);
   const rem = min % 60;
-  if (isOverseasLocale()) {
-    if (min === 0) return 'Right after taking';
-    if (min < 60) return `${min} min later`;
-    return rem === 0 ? `${h} hr later` : `${h} hr ${rem} min later`;
-  }
-  if (min === 0) return '복용 직후';
-  if (min < 60) return `${min}분 후`;
-  return rem === 0 ? `${h}시간 후` : `${h}시간 ${rem}분 후`;
+  if (min === 0) return i18n.t('doseSlotSetList.checkRightAfter');
+  if (min < 60) return i18n.t('doseSlotSetList.checkMin', { m: min });
+  return rem === 0
+    ? i18n.t('doseSlotSetList.checkHour', { h })
+    : i18n.t('doseSlotSetList.checkHourMin', { h, m: rem });
 }
 
 // "직접 추가" 휠 아이템: 시간 0~12, 분 0·5·…·55(5분 단위, 기존 스텝퍼 범위와 동일)
@@ -153,27 +135,26 @@ function topicParticle(word: string): '은' | '는' {
 // 약명 목록 → "마도파와 스타레보" 식 자연스러운 나열(주어용). 영어는 "A and B".
 function joinNames(names: string[]): string {
   if (names.length <= 1) return names[0] ?? '';
-  const sep = isOverseasLocale() ? ' and ' : '와 ';
+  const sep = i18n.t('doseSlotSetList.joinAnd');
   return names.slice(0, -1).join(', ') + sep + names[names.length - 1];
 }
 
 // 시점 한 개를 메인 문장용 어구로. 영어는 "after taking" 없이 순수 기간만(문장에서 한 번만 붙임).
 function offsetPhrase(min: number): string {
-  if (isOverseasLocale()) {
-    if (min === 0) return 'right away';
-    if (min < 60) return `${min} minutes`;
-    const h = Math.floor(min / 60);
-    const rem = min % 60;
-    return rem === 0 ? `${h} hour${h > 1 ? 's' : ''}` : `${h} hour${h > 1 ? 's' : ''} ${rem} minutes`;
-  }
-  return min === 0 ? '복용 직후' : minutesToCheckLabel(min);
+  if (min === 0) return i18n.t('doseSlotSetList.offsetNow');
+  if (min < 60) return i18n.t('doseSlotSetList.offsetMin', { m: min });
+  const h = Math.floor(min / 60);
+  const rem = min % 60;
+  return rem === 0
+    ? i18n.t('doseSlotSetList.offsetHour', { h })
+    : i18n.t('doseSlotSetList.offsetHourMin', { h, m: rem });
 }
 
 // 권장 시점들 → "30분 후와 2시간 후" / "30분 후, 1시간 후와 2시간 후" 자연 나열. 영어는 "A, B and C".
 function joinOffsets(offsets: number[]): string {
   const parts = [...offsets].sort((a, b) => a - b).map(offsetPhrase);
   if (parts.length <= 1) return parts[0] ?? '';
-  const sep = isOverseasLocale() ? ' and ' : '와 ';
+  const sep = i18n.t('doseSlotSetList.joinAnd');
   return parts.slice(0, -1).join(', ') + sep + parts[parts.length - 1];
 }
 

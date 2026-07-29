@@ -3,20 +3,9 @@ import { isOverseasLocale } from '../i18n/detectLocale';
 import { LEGACY_SLOT_META, type LegacyMealKey } from '../constants/doseSlots';
 
 
-// legacy 슬롯키 → 영어 시간대 라벨(약 이름 없이). mealTimeToPeriod 영어 출력용.
-const EN_MEAL_PERIOD: Record<LegacyMealKey, string> = {
-  morning: 'Morning',
-  lunch: 'Lunch',
-  dinner: 'Dinner',
-  bedtime: 'Bedtime',
-};
-// legacy 슬롯키 → 영어 약 이름. mealTimeToKorean 영어 출력용('아침약' → 'Morning dose').
-const EN_MEAL_MED: Record<LegacyMealKey, string> = {
-  morning: 'Morning dose',
-  lunch: 'Lunch dose',
-  dinner: 'Dinner dose',
-  bedtime: 'Bedtime dose',
-};
+// 영어 고정표를 언어 파일 키로 옮겼다(영어만 있으면 새 언어에서 영어가 나온다).
+//   mealTimeToPeriod → slot.<key>       ('아침')
+//   mealTimeToKorean → slot.<key>Med    ('아침약')
 
 /* ────────────────────────────────────────────────────────────────────────── *
  *  하루 경계(오늘/DayRange) — 타임존 일반화 (Phase 1 · S2)
@@ -124,9 +113,9 @@ export function minutesToLabel(m: number): string {
   const h = Math.floor(m / 60);
   const rem = m % 60;
   if (isOverseasLocale()) {
-    if (m === 0) return 'right after taking';
-    if (m < 60) return `${m} min later`;
-    return rem === 0 ? `${h} hr later` : `${h} hr ${rem} min later`;
+    if (m === 0) return i18n.t('interval.rightAfter');
+    if (m < 60) return i18n.t('interval.minLater', { m });
+    return rem === 0 ? i18n.t('interval.hourLater', { h }) : i18n.t('interval.hourMinLater', { h, m: rem });
   }
   if (m === 0) return '복용 직후';
   if (m < 60) return `${m}분 후`;
@@ -139,17 +128,17 @@ export function minutesToLabel(m: number): string {
 export function triggerLabelToTag(label: string | null | undefined): string {
   if (!label) return '';
   if (isOverseasLocale()) {
-    if (label === 'after_medication') return '+now';
+    if (label === 'after_medication') return i18n.t('interval.tagNow');
     const minMatchEn = label.match(/^(\d+)min_after$/);
     if (minMatchEn) {
       const min = parseInt(minMatchEn[1], 10);
-      if (min < 60) return `+${min}m`;
+      if (min < 60) return i18n.t('interval.tagMin', { m: min });
       const h = Math.floor(min / 60);
       const rem = min % 60;
-      return rem === 0 ? `+${h}h` : `+${h}h ${rem}m`;
+      return rem === 0 ? i18n.t('interval.tagHour', { h }) : i18n.t('interval.tagHourMin', { h, m: rem });
     }
     const hourMatchEn = label.match(/^(\d+)hour_after$/);
-    if (hourMatchEn) return `+${hourMatchEn[1]}h`;
+    if (hourMatchEn) return i18n.t('interval.tagHour', { h: hourMatchEn[1] });
     return '';
   }
   if (label === 'after_medication') return '+즉시';
@@ -174,19 +163,19 @@ export function triggerLabelToTag(label: string | null | undefined): string {
 export function triggerLabelToText(label: string | null | undefined): string {
   if (!label) return '';
   if (isOverseasLocale()) {
-    if (label === 'after_medication') return 'right after taking';
+    if (label === 'after_medication') return i18n.t('interval.rightAfter');
     const minMatchEn = label.match(/^(\d+)min_after$/);
     if (minMatchEn) {
       const min = parseInt(minMatchEn[1], 10);
-      if (min === 0) return 'right after taking';
-      if (min < 60) return `${min} min later`;
+      if (min === 0) return i18n.t('interval.rightAfter');
+      if (min < 60) return i18n.t('interval.minLater', { m: min });
       const h = Math.floor(min / 60);
       const rem = min % 60;
-      return rem === 0 ? `${h} hr later` : `${h} hr ${rem} min later`;
+      return rem === 0 ? i18n.t('interval.hourLater', { h }) : i18n.t('interval.hourMinLater', { h, m: rem });
     }
     const hourMatchEn = label.match(/^(\d+)hour_after$/);
     if (hourMatchEn) {
-      return `${hourMatchEn[1]} hr later`;
+      return i18n.t('interval.hourLater', { h: hourMatchEn[1] });
     }
     return label;
   }
@@ -228,7 +217,7 @@ export function mealTimeToKorean(mealTime: string | null | undefined): string {
   if (!mealTime) return '';
   const meta = LEGACY_SLOT_META[mealTime as LegacyMealKey];
   if (!meta) return mealTime;
-  if (isOverseasLocale()) return EN_MEAL_MED[meta.key];
+  if (isOverseasLocale()) return i18n.t(`slot.${meta.key}Med`);
   return meta.korMed;
 }
 
@@ -240,7 +229,7 @@ export function mealTimeToPeriod(mealTime: string | null | undefined): string {
   if (!mealTime) return '';
   const meta = LEGACY_SLOT_META[mealTime as LegacyMealKey];
   if (!meta) return mealTime;
-  if (isOverseasLocale()) return EN_MEAL_PERIOD[meta.key];
+  if (isOverseasLocale()) return i18n.t(`slot.${meta.key}`);
   return meta.label;
 }
 

@@ -117,36 +117,21 @@ function getQuarterRange(quartersAgo: number): { start: Date; end: Date } {
 }
 
 function weekLabel(weeksAgo: number): string {
-  if (isOverseasLocale()) {
-    if (weeksAgo === 0) return 'This week';
-    if (weeksAgo === 1) return 'Last week';
-    return `${weeksAgo}w ago`;
-  }
-  if (weeksAgo === 0) return '이번주';
-  if (weeksAgo === 1) return '지난주';
-  return `${weeksAgo}주전`;
+  if (weeksAgo === 0) return i18n.t('chartPeriod.thisWeek');
+  if (weeksAgo === 1) return i18n.t('chartPeriod.lastWeek');
+  return i18n.t('chartPeriod.weeksAgo', { n: weeksAgo });
 }
 
 function monthLabel(monthsAgo: number): string {
-  if (isOverseasLocale()) {
-    if (monthsAgo === 0) return 'This month';
-    if (monthsAgo === 1) return 'Last month';
-    return `${monthsAgo}mo ago`;
-  }
-  if (monthsAgo === 0) return '이번달';
-  if (monthsAgo === 1) return '지난달';
-  return `${monthsAgo}개월전`;
+  if (monthsAgo === 0) return i18n.t('chartPeriod.thisMonth');
+  if (monthsAgo === 1) return i18n.t('chartPeriod.lastMonth');
+  return i18n.t('chartPeriod.monthsAgo', { n: monthsAgo });
 }
 
 function quarterLabel(quartersAgo: number): string {
-  if (isOverseasLocale()) {
-    if (quartersAgo === 0) return 'Last 3 mo';
-    if (quartersAgo === 1) return 'Prev 3 mo';
-    return `${quartersAgo * 3}mo ago`;
-  }
-  if (quartersAgo === 0) return '최근3개월';
-  if (quartersAgo === 1) return '지난3개월';
-  return `${quartersAgo * 3}개월전`;
+  if (quartersAgo === 0) return i18n.t('chartPeriod.last3Mo');
+  if (quartersAgo === 1) return i18n.t('chartPeriod.prev3Mo');
+  return i18n.t('chartPeriod.monthsAgoQ', { n: quartersAgo * 3 });
 }
 
 // ── 집계 함수 ─────────────────────────────────────────────────────────────────
@@ -407,9 +392,10 @@ export function useRecordDetailData(type: ItemKey, period: Period): UseRecordDet
         // 정규 키만 알고 메타가 없으므로, 같은 키의 임의 로그 1건으로 라벨을 복원한다.
         //   - dose_slot_id 로만 남은 경우: 라벨/시각 알 수 없음 → '이전 복용' 폴백.
         //   - legacy meal_time 으로 남은 경우: meal_time 자체가 키이자 표시 단서.
-        const legacyMealLabel: Record<string, string> = isOverseasLocale()
-          ? { morning: 'Morning medication', lunch: 'Lunch medication', dinner: 'Dinner medication', bedtime: 'Bedtime medication' }
-          : { morning: '아침약', lunch: '점심약', dinner: '저녁약', bedtime: '취침약' };
+        const legacyMealLabel: Record<string, string> = {
+          morning: i18n.t('slot.morningMed'), lunch: i18n.t('slot.lunchMed'),
+          dinner: i18n.t('slot.dinnerMed'), bedtime: i18n.t('slot.bedtimeMed'),
+        };
         const legacyMealOrder: Record<string, number> = {
           morning: 0, lunch: 1, dinner: 2, bedtime: 3,
         };

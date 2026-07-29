@@ -757,7 +757,8 @@
     },
     "alarmPreviewTitle": "Preview full-screen alarm",
     "alarmPreviewMsg": "Preview how the 'like an alarm' screen looks now?\nThis is just a test screen — nothing will be recorded.",
-    "alarmModePatientIosNote": "⚠️ 'Like an alarm' only works on Android devices. On iPhone it won't run — it rings the same as 'Basic'."
+    "alarmModePatientIosNote": "⚠️ 'Like an alarm' only works on Android devices. On iPhone it won't run — it rings the same as 'Basic'.",
+    "effectSourceLabel": "US FDA & manufacturer drug information"
   },
   "settings": {
     "notifMedTakenLabel": "When the patient records medication",
@@ -1152,7 +1153,10 @@
     "a11yPrescriptionChanged": "Prescription changed — go to manage medications",
     "alarmOff": "(off)",
     "alarmPastNote": "This time has already passed, so no reminder will come",
-    "alarmWillSend": "We'll send a reminder at {{date}}"
+    "alarmWillSend": "We'll send a reminder at {{date}}",
+    "dday": "D-Day",
+    "dMinus": "D-{{n}}",
+    "dPlus": "D+{{n}}"
   },
   "medRecordWrite": {
     "headerEdit": "Edit Record",
@@ -1864,7 +1868,16 @@
     "deleteWithRecords": "Delete records",
     "keepRecords": "Keep records",
     "oneMomentTitle": "One moment",
-    "preparingMsg": "We're getting things ready. Please try again shortly."
+    "preparingMsg": "We're getting things ready. Please try again shortly.",
+    "checkRightAfter": "Right after taking",
+    "checkMin": "{{m}} min later",
+    "checkHour": "{{h}} hr later",
+    "checkHourMin": "{{h}} hr {{m}} min later",
+    "offsetNow": "right away",
+    "offsetMin": "{{m}} minutes",
+    "offsetHour": "{{h}} hours",
+    "offsetHourMin": "{{h}} hours {{m}} minutes",
+    "joinAnd": " and "
   },
   "scoreSelector": {
     "bodyLabel5": "Very good",
@@ -2052,5 +2065,70 @@
       "medPhase": "Med phase",
       "context": "Context"
     }
+  },
+  "period": {
+    "dawn": "Early morning",
+    "morning": "Morning",
+    "midday": "Midday",
+    "afternoon": "Afternoon",
+    "evening": "Evening",
+    "night": "Night"
+  },
+  "slot": {
+    "morning": "Morning",
+    "lunch": "Lunch",
+    "dinner": "Dinner",
+    "bedtime": "Bedtime",
+    "morningMed": "Morning medication",
+    "lunchMed": "Lunch medication",
+    "dinnerMed": "Dinner medication",
+    "bedtimeMed": "Bedtime medication"
+  },
+  "interval": {
+    "rightAfter": "right after taking",
+    "minLater": "{{m}} min later",
+    "hourLater": "{{h}} hr later",
+    "hourMinLater": "{{h}} hr {{m}} min later",
+    "tagNow": "+now",
+    "tagMin": "+{{m}}m",
+    "tagHour": "+{{h}}h",
+    "tagHourMin": "+{{h}}h {{m}}m",
+    "short": "right after",
+    "shortMin": "{{m}} min later",
+    "shortHour": "{{h}} hr later",
+    "shortHourMin": "{{h}} hr {{m}} min later",
+    "elapsedMin": "{{m}} min",
+    "elapsedHour": "{{h}} hr",
+    "elapsedHourMin": "{{h}} hr {{m}} min"
+  },
+  "nextNotif": {
+    "intervalRightAfter": "right after taking",
+    "intervalAfterMin": "{{m}} min after taking",
+    "intervalAfterHour": "{{h}} hr after taking",
+    "intervalAfterHourMin": "{{h}} hr {{m}} min after taking",
+    "effectTrack": "{{meal}} effect tracking, {{interval}}",
+    "effectTrackNoMeal": "Effect tracking, {{interval}}",
+    "tomorrow": "Tomorrow, {{label}}",
+    "exerciseReminder": "Exercise reminder",
+    "tomorrowMorningDose": "Tomorrow, morning dose",
+    "title": "Next notification",
+    "durationMin": "{{m}} min",
+    "durationHour": "{{h}} hr",
+    "durationHourMin": "{{h}} hr {{m}} min",
+    "nextDoseSlot": "Next: {{slot}} dose",
+    "nextDoseTime": "Next dose ({{time}})",
+    "exerciseTime": "Exercise time",
+    "nextMorningDose": "Next: morning dose"
+  },
+  "chartPeriod": {
+    "thisWeek": "This week",
+    "lastWeek": "Last week",
+    "weeksAgo": "{{n}}w ago",
+    "thisMonth": "This month",
+    "lastMonth": "Last month",
+    "monthsAgo": "{{n}}mo ago",
+    "last3Mo": "Last 3 mo",
+    "prev3Mo": "Prev 3 mo",
+    "monthsAgoQ": "{{n}}mo ago"
   }
 }

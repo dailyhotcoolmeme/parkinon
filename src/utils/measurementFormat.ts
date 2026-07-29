@@ -4,6 +4,7 @@
 // 그래프 막대의 수치 계산은 ms 그대로 사용하고, 라벨/텍스트에서만 이 함수 사용.
 import i18n from '../i18n';
 import { isOverseasLocale } from '../i18n/detectLocale';
+import { weekdayShort } from './dateLabels';
 
 
 /**
@@ -21,9 +22,7 @@ export function formatReactionMs(value: number | null | undefined): string {
   return isOverseasLocale() ? `${seconds}s (${ms}ms)` : `${seconds}초 (${ms}ms)`;
 }
 
-// 요일 한 글자 — Date.getDay() 인덱스 기준 (0=일 ~ 6=토)
-const WEEKDAYS_KO: readonly string[] = ['일', '월', '화', '수', '목', '금', '토'];
-const WEEKDAYS_EN: readonly string[] = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
+// 요일은 utils/dateLabels 가 언어에 맞춰 만든다(영어 고정표 제거).
 
 /**
  * ISO 시각 → "YYYY-MM-DD(요일) HH:MM" (로컬 시각, 24시간제).
@@ -38,6 +37,6 @@ export function formatDateTimeWithWeekday(iso: string): string {
   const da = String(d.getDate()).padStart(2, '0');
   const h = String(d.getHours()).padStart(2, '0');
   const mi = String(d.getMinutes()).padStart(2, '0');
-  const w = (isOverseasLocale() ? WEEKDAYS_EN : WEEKDAYS_KO)[d.getDay()] ?? '';
+  const w = weekdayShort(d);
   return `${y}-${mo}-${da}(${w}) ${h}:${mi}`;
 }

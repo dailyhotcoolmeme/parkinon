@@ -46,6 +46,8 @@ import { useSwipeDownDismiss } from '../../hooks/useSwipeDownDismiss';
 import i18n from '../../i18n';
 import { useTranslation } from 'react-i18next';
 import { isOverseasLocale } from '../../i18n/detectLocale';
+import { monthYearTitle, monthDayWeekday, weekdayShort } from '../../utils/dateLabels';
+import { formatClock } from '../../utils/notifLabels';
 import { useBottomSheetPadding } from '../../hooks/useBottomSheetPadding';
 import { translateRawExerciseType } from '../../constants/exerciseTypes';
 import {
@@ -77,10 +79,7 @@ const Journal = {
 // 해외 로케일은 한국어와 동일하게 시스템 기본 폰트를 쓰게 해 정렬을 맞춘다.
 const SERIF = isOverseasLocale() ? undefined : Platform.select({ ios: 'Georgia', android: 'serif' });
 
-const WEEKDAYS_FULL = isOverseasLocale()
-  ? ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday']
-  : ['일요일', '월요일', '화요일', '수요일', '목요일', '금요일', '토요일'];
-const MONTH_NAMES_EN = ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December'];
+// 요일·월 이름 고정표를 없앴다 — utils/dateLabels 가 Intl 로 언어에 맞춰 만든다.
 const MAX_VIDEO_DURATION_SEC = 120;
 const UPLOAD_TIMEOUT_MS = 180_000;
 // 보기(읽기) 모드 첨부 썸네일 정사각 크기 — 사진/영상/음성 모두 동일. (에디터는 104px로 별도)
@@ -126,10 +125,7 @@ function formatEntryStamp(iso: string | null | undefined): string {
   const min = String(kst.getUTCMinutes()).padStart(2, '0');
   let h12 = h24 % 12;
   if (h12 === 0) h12 = 12;
-  if (isOverseasLocale()) {
-    const ampm = h24 < 12 ? 'AM' : 'PM';
-    return `${h12}:${min} ${ampm}`;
-  }
+  if (isOverseasLocale()) return formatClock(new Date(2000, 0, 1, h24, Number(min) || 0));
   const ampm = h24 < 12 ? '오전' : '오후';
   return `${ampm} ${h12}:${min}`;
 }
@@ -286,7 +282,7 @@ function DiaryCalendarModal({
                 <Ionicons name="chevron-back" size={24} color={Journal.inkSoft} />
               </TouchableOpacity>
               <Text style={styles.calMonthTitle}>
-                {isOverseasLocale() ? `${MONTH_NAMES_EN[viewMonth]} ${viewYear}` : `${viewYear}년 ${viewMonth + 1}월`}
+                {monthYearTitle(viewYear, viewMonth)}
               </Text>
               <TouchableOpacity style={styles.calNavArrow} onPress={goNext} activeOpacity={0.7} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
                 <Ionicons name="chevron-forward" size={24} color={Journal.inkSoft} />
@@ -713,9 +709,7 @@ export function DiaryScreen() {
   }, [entries]);
 
   const dt = dateStrToDate(dateStr);
-  const dateTitle = isOverseasLocale()
-    ? `${MONTH_NAMES_EN[dt.getMonth()]} ${dt.getDate()}, ${WEEKDAYS_FULL[dt.getDay()]}`
-    : `${dt.getMonth() + 1}월 ${dt.getDate()}일 ${WEEKDAYS_FULL[dt.getDay()]}`;
+  const dateTitle = monthDayWeekday(dt);
 
   // 글 인라인 삭제 — 엔트리 줄의 삭제 아이콘에서 그 글 id로 호출.
   const handleInlineDelete = async (id: string) => {
