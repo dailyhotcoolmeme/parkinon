@@ -1,5 +1,5 @@
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2'
-import { resolveLang, t, intervalLabel } from '../_shared/i18n.ts'
+import { resolveLang, t, intervalLabel, periodKeyFor, type Lang } from '../_shared/i18n.ts'
 
 const supabase = createClient(
   Deno.env.get('SUPABASE_URL')!,
@@ -129,6 +129,28 @@ function resolvePeriodHead(
   return ''
 }
 
+/**
+ * 언어별 시간대 머리말 — legacy_key(언어 무관) 우선, 없으면 시각 기반 period 키.
+ * 문구는 _shared/i18n.ts 의 slot.* / period.* (4개 언어) 에서 꺼낸다.
+ */
+function resolvePeriodHeadLoc(
+  lang: Lang,
+  doseSlot: { label?: string | null; legacy_key?: string | null; time?: string | null } | null | undefined,
+  mealTime: string | null | undefined,
+): string {
+  const key = (doseSlot as any)?.legacy_key ?? mealTime ?? null
+  const time = doseSlot?.time ?? (mealTime ? LEGACY_MEAL_DEFAULT_TIME[mealTime] : null)
+  let label = ''
+  if (key && ['morning', 'lunch', 'dinner', 'bedtime'].includes(key)) label = t(lang, `slot.${key}`)
+  if (!label && time) {
+    const pk = periodKeyFor(time)
+    if (pk) label = t(lang, pk)
+  }
+  // 옛 행(legacy_key 없음 + 한글 label) 폴백 — ko 만 원문 유지, 그 외는 시각 기반으로 이미 처리됨
+  if (!label && lang === 'ko') return resolvePeriodHead(doseSlot, mealTime)
+  return periodWithTime(label, formatClockTime(time))
+}
+
 /** resolvePeriodHead 영어판 */
 function resolvePeriodHeadEn(
   doseSlot: { label?: string | null; time?: string | null } | null | undefined,
@@ -214,7 +236,7 @@ Deno.serve(async (_req: Request) => {
   // 구 데이터(dose_slot_id NULL)는 join이 null로 와서 meal_time fallback 경로 사용.
   const { data: pending } = await supabase
     .from('effect_tracking_queue')
-    .select('*, dose_slot:dose_slots(label, time, track_sound_id, track_alarm_mode, is_active, track_enabled)')
+    .select('*, dose_slot:dose_slots(label, legacy_key, time, track_sound_id, track_alarm_mode, is_active, track_enabled)')
     .lte('send_at', now.toISOString())
     .is('sent_at', null)
     .limit(100)
@@ -289,10 +311,9 @@ Deno.serve(async (_req: Request) => {
     const lang = resolveLang(languageByPatient.get(item.patient_id))
     const isImmediate = item.interval_minutes === 0
     const titleText = t(lang, 'bodystate.title')
-    // 시간대 머리말("저녁 6:00" 등). 한국어 외에는 영문 포맷을 쓴다.
-    const head = lang === 'ko'
-      ? resolvePeriodHead(doseSlot, item.meal_time)
-      : resolvePeriodHeadEn(doseSlot, item.meal_time)
+    // 시간대 머리말("저녁 6:00" / "Soir 6:00" / "夕方 6:00").
+    // ko/en 이분법이던 것을 t(lang, slot.*/period.*) 로 — fr/ja 도 자기 언어로 나온다.
+    const head = resolvePeriodHeadLoc(lang, doseSlot, item.meal_time)
     const interval = isImmediate ? '' : intervalLabel(lang, item.interval_minutes)
     const bodyKey = isImmediate
       ? (head ? 'bodystate.bodyImmediate' : 'bodystate.bodyImmediateNoTime')

@@ -1,5 +1,5 @@
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2'
-import { resolveLang, t, type Lang } from '../_shared/i18n.ts'
+import { resolveLang, t, periodKeyFor, type Lang } from '../_shared/i18n.ts'
 
 const supabase = createClient(
   Deno.env.get('SUPABASE_URL')!,
@@ -109,8 +109,11 @@ function bodyFor(
 ): string {
   // legacy_key(언어 무관)가 있으면 그걸로 시간대 라벨을 뽑는다 — label 한글 파싱은
   // 프랑스어/일본어 사용자 슬롯에서 실패한다. 키 없으면 기존 파싱 폴백(옛 행 호환).
-  const keyed = legacyKey ? t(lang, `slot.${legacyKey}`) : ''
+  const keyed = legacyKey && ['morning','lunch','dinner','bedtime'].includes(legacyKey)
+    ? t(lang, `slot.${legacyKey}`) : ''
+  const timeKey = !keyed && time ? periodKeyFor(time) : null
   const periodLabel = keyed ||
+    (timeKey ? t(lang, timeKey) : '') ||
     (lang === 'ko' ? periodLabelFor(label, time) : periodLabelForEn(label, time))
   const when = [periodLabel, formatClockTime(time)].filter(Boolean).join(' ')
   const keys = kind === 'missed'

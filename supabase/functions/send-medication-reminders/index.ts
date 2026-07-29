@@ -1,5 +1,5 @@
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2'
-import { resolveLang, t, type Lang } from '../_shared/i18n.ts'
+import { resolveLang, t, periodKeyFor, type Lang } from '../_shared/i18n.ts'
 
 const supabase = createClient(
   Deno.env.get('SUPABASE_URL')!,
@@ -278,6 +278,21 @@ function bodyFor(
   return t(lang, when ? keys[0] : keys[1], { when, subject: subject ?? '' })
 }
 
+/**
+ * 언어별 {시간대} 라벨 — mealTime 키(언어 무관) 우선, 없으면 시각 기반 period 키.
+ * ko/en 이분법(periodLabel/periodLabelEn)이던 것을 4개 언어로 — fr/ja 사용자 문장에
+ * 영어 시간대가 섞이지 않는다.
+ */
+function periodLabelLoc(lang: Lang, target: DoseTarget): string {
+  if (target.mealTime && ['morning','lunch','dinner','bedtime'].includes(target.mealTime))
+    return t(lang, `slot.${target.mealTime}`)
+  if (target.time) {
+    const pk = periodKeyFor(target.time)
+    if (pk) return t(lang, pk)
+  }
+  return lang === 'ko' ? target.periodLabel : target.periodLabelEn
+}
+
 /** 환자별 DoseTarget 목록을 RPC 행에서 구성 (key 기준 중복제거). */
 function groupTargets(rows: MedRow[] | null | undefined): Map<string, DoseTarget[]> {
   const out = new Map<string, Map<string, DoseTarget>>()
@@ -491,7 +506,7 @@ async function sendCaregiverMissed(
     const title = t(lang, 'med.missed.title')
     const body = bodyFor(
       lang, 'caregiverMissed',
-      lang === 'ko' ? target.periodLabel : target.periodLabelEn,
+      periodLabelLoc(lang, target),
       formatClockTime(target.time),
       lang === 'ko' ? subject : subjectEn,
     )
@@ -648,7 +663,7 @@ Deno.serve(async (_req: Request) => {
       const data = { type: 'medication_reminder', mealTime: target.mealTime, doseSlotId: target.doseSlotId, alarmMode }
       const title = t(lang, 'med.time.title')
       const body = bodyFor(lang, 'reminder',
-        lang === 'ko' ? target.periodLabel : target.periodLabelEn,
+        periodLabelLoc(lang, target),
         formatClockTime(target.time))
 
       await sendPush(
@@ -694,7 +709,7 @@ Deno.serve(async (_req: Request) => {
       const data = { type: 'missed_medication_first', mealTime: target.mealTime, doseSlotId: target.doseSlotId }
       const title = t(lang, 'med.missed.title')
       const body = bodyFor(lang, 'missed',
-        lang === 'ko' ? target.periodLabel : target.periodLabelEn,
+        periodLabelLoc(lang, target),
         formatClockTime(target.time))
 
       await sendPush(
@@ -741,7 +756,7 @@ Deno.serve(async (_req: Request) => {
         const data = { type: 'missed_medication_second', mealTime: target.mealTime, doseSlotId: target.doseSlotId }
         const title = t(lang, 'med.missed.title')
         const body = bodyFor(lang, 'missed',
-          lang === 'ko' ? target.periodLabel : target.periodLabelEn,
+          periodLabelLoc(lang, target),
           formatClockTime(target.time))
         await sendPush(
           patient.push_token,
