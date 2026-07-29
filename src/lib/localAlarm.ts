@@ -27,6 +27,7 @@ import notifee, {
   AlarmType,
 } from '@notifee/react-native';
 import i18n from '../i18n';
+import { slotDisplayName } from '../constants/doseSlots';
 
 const ANDROID_PACKAGE = 'com.ourmine.parkinon';
 
@@ -149,7 +150,8 @@ async function scheduleRemindAlarmForSlot(slot: DoseSlot): Promise<void> {
   // 로컬이 정각에 소리를 낸다(사용자가 고른 소리 채널). 서버는 안드에서 무음 백업.
   const channelId = await resolveLocalAlarmSoundChannel(slot.remindSoundId);
   const fileId = presetFileIdOf(slot.remindSoundId);
-  const label = slot.label ?? '';
+  // DB 원본 라벨은 한글('아침')이다 — 알림 본문에 그대로 나가면 해외 사용자에게 한글이 보인다.
+  const label = slotDisplayName(slot.label, slot.legacyKey, slot.time);
   const notif = buildAlarmNotification({
     id,
     channelId,
@@ -158,7 +160,9 @@ async function scheduleRemindAlarmForSlot(slot: DoseSlot): Promise<void> {
     title: i18n.t('localAlarm.remindTitle'),
     body: i18n.t('localAlarm.remindBody', { label }),
     fileId,
-    data: { doseSlotId: slot.id, mealTime: label },
+    // mealTime 은 'morning' 같은 **식별자**로 소비된다(서버 알림도 legacy key 를 싣는다).
+    // 예전엔 표시용 라벨('아침')을 넣어 selectedMealTime 매칭이 늘 실패했다 — 키를 싣는다.
+    data: { doseSlotId: slot.id, mealTime: slot.legacyKey ?? '' },
   });
   await notifee.createTriggerNotification(notif, {
     type: TriggerType.TIMESTAMP,

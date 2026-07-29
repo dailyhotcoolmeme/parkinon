@@ -14,6 +14,7 @@ import { sendCaregiverPush } from '../utils/notifications';
 import { getLocalToday, getLocalDayRange } from '../utils/medUtils';
 import type { Database } from '../types/database';
 import i18n from '../i18n';
+import { translateRawExerciseType } from '../constants/exerciseTypes';
 
 type ExerciseLogRow = Database['public']['Tables']['exercise_logs']['Row'];
 
@@ -183,7 +184,12 @@ export function useExercise(): UseExerciseReturn {
                 await sendCaregiverPush(
                   cu.push_token,
                   i18n.t('exerciseHook.pushTitle'),
-                  i18n.t('exerciseHook.pushBody', { name: patientName, type: exerciseType, duration: durationMinutes }),
+                  i18n.t('exerciseHook.pushBody', {
+                    name: patientName,
+                    // 저장값은 'walk' 같은 키다 — 그대로 넣으면 문장에 키가 박힌다(옛 기록은 한글).
+                    type: translateRawExerciseType(exerciseType),
+                    duration: durationMinutes,
+                  }),
                   { type: 'caregiver_exercise' },
                 );
               }

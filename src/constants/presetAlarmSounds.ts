@@ -47,7 +47,12 @@ export const PRESET_ALARM_SOUNDS: PresetAlarmSound[] = [
 ].map((p) => ({ ...p, id: `${PRESET_SOUND_PREFIX}${p.fileId}` }));
 
 /** 현재 로케일 기준 표시명(nameKo/nameEn 중 선택). */
-export function presetSoundDisplayName(p: Pick<PresetAlarmSound, 'nameKo' | 'nameEn'>): string {
+export function presetSoundDisplayName(p: Pick<PresetAlarmSound, 'fileId' | 'nameKo' | 'nameEn'>): string {
+  // nameKo/nameEn 이분법이면 프랑스어·일본어 사용자가 영어 이름만 본다.
+  // 표시명은 언어 파일(presetSound.*)에서 가져오고, 키가 없을 때만 예전 값으로 떨어진다.
+  const key = `presetSound.${p.fileId.replace('preset_', '')}`;
+  const translated = i18n.t(key);
+  if (translated && translated !== key) return translated;
   return isOverseasLocale() ? p.nameEn : p.nameKo;
 }
 

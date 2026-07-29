@@ -2164,5 +2164,19 @@
     "successTitle": "Done",
     "registeredMsg": "Notification token registered!\n\nToken: {{token}}...",
     "errorTitle": "Error"
+  },
+  "presetSound": {
+    "knock": "Gentle knock",
+    "waterdrop": "Bouncy water drop",
+    "shortloop": "Short repeating chime",
+    "dreamy": "Dreamy and rhythmic",
+    "bouncy": "Catchy and bouncy",
+    "dramatic": "Dramatic, urgent reminder",
+    "cheerful": "Cheerful and upbeat",
+    "trot": "Retro trot-style tune",
+    "calm": "Rhythmic yet calm",
+    "ballad": "Wistful, song-like melody",
+    "lullaby": "Soothing lullaby",
+    "sitcom": "Cheerful sitcom vibe"
   }
 }

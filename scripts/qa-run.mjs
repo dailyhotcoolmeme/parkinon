@@ -30,6 +30,10 @@ const PROJECT_REF = 'avqaflxufyadgzjiojkk';
 /** 언어별 검수 계정. 새 언어를 추가하면 여기 한 줄 늘린다. */
 const ACCOUNTS = {
   fr: { email: 'i18n-qa+fr@ourmine.co.kr', locale: 'fr_FR', langs: ['fr-FR', 'en-US'] },
+  // 보호자 전용 문구(알림 설정·대신 입력 안내 등)는 환자 계정으로는 절대 렌더되지 않는다.
+  // 언어마다 환자 1회 + 보호자 1회를 돌려야 커버리지가 채워진다.
+  'fr-cg': { email: 'i18n-qa+frc@ourmine.co.kr', locale: 'fr_FR', langs: ['fr-FR', 'en-US'] },
+  'ja-cg': { email: 'i18n-qa+jac@ourmine.co.kr', locale: 'ja_JP', langs: ['ja-JP', 'en-US'] },
   ja: { email: 'i18n-qa+ja@ourmine.co.kr', locale: 'ja_JP', langs: ['ja-JP', 'en-US'] },
   en: { email: 'i18n-qa+en@ourmine.co.kr', locale: 'en_US', langs: ['en-US'] },
 };

@@ -2164,5 +2164,19 @@
     "successTitle": "成功",
     "registeredMsg": "通知トークンを登録しました！\n\nトークン: {{token}}...",
     "errorTitle": "エラー"
+  },
+  "presetSound": {
+    "knock": "そっとノックする音",
+    "waterdrop": "弾む水滴の音",
+    "shortloop": "短く繰り返すチャイム",
+    "dreamy": "幻想的でリズミカル",
+    "bouncy": "弾むような軽快な音",
+    "dramatic": "劇的で急かす通知音",
+    "cheerful": "明るく軽快な音",
+    "trot": "昭和歌謡ふうの旋律",
+    "calm": "リズミカルで落ち着いた音",
+    "ballad": "切なく歌うような旋律",
+    "lullaby": "心地よい子守唄",
+    "sitcom": "楽しいホームコメディ風"
   }
 }

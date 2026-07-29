@@ -2164,5 +2164,19 @@
     "successTitle": "성공",
     "registeredMsg": "알림 토큰이 등록되었습니다!\n\n토큰: {{token}}...",
     "errorTitle": "오류"
+  },
+  "presetSound": {
+    "knock": "조심스레 노크하는",
+    "waterdrop": "물방울 느낌 통통튀는",
+    "shortloop": "그냥 짧게 반복 알림으로 쓸법한",
+    "dreamy": "몽환적이면서 리듬감 있는",
+    "bouncy": "통통 튀면서 중독성 있는",
+    "dramatic": "극적이면서 꼭 약을 먹어야할거 같은",
+    "cheerful": "기분 좋으면서 리듬감 느껴지는",
+    "trot": "딱 트로트 같은",
+    "calm": "리듬감 있는데 차분하기도 한",
+    "ballad": "구슬픈 듯 하면서 노래를 불러주는 느낌",
+    "lullaby": "틀어놓고 자도 될거 같은",
+    "sitcom": "시트콤 주인공 행복한 일상 느낌"
   }
 }

@@ -14,6 +14,7 @@ import { useAuth } from '../context/AuthContext';
 import { sendCaregiverPush, scheduleEffectTrackingNotifications } from '../utils/notifications';
 import { getLocalToday, getLocalDayRange } from '../utils/medUtils';
 import i18n from '../i18n';
+import { slotDisplayName } from '../constants/doseSlots';
 import { useSettings } from '../context/SettingsContext';
 import {
   useDoseSlots,
@@ -531,7 +532,10 @@ export function useMedication(): UseMedicationReturn {
             }
 
             // 몇 시 약을 드셨는지(슬롯 라벨, 예 "저녁 8:05")를 알림 본문에 포함.
-            const takenSlotLabel = resolvedSlot?.label?.trim() || null;
+            // DB 원본 라벨은 한글('아침')이다 — 그대로 넣으면 해외 보호자에게 한글이 간다.
+            const takenSlotLabel = resolvedSlot
+              ? slotDisplayName(resolvedSlot.label, resolvedSlot.legacyKey, resolvedSlot.time)
+              : null;
             const body = takenSlotLabel
               ? i18n.t('medicationHook.pushBodyWithSlot', { name: patientName, slot: takenSlotLabel })
               : i18n.t('medicationHook.pushBody', { name: patientName });

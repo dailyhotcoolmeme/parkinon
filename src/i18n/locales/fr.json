@@ -2164,5 +2164,19 @@
     "successTitle": "Terminé",
     "registeredMsg": "Jeton de notification enregistré !\n\nJeton : {{token}}...",
     "errorTitle": "Erreur"
+  },
+  "presetSound": {
+    "knock": "Toc-toc discret",
+    "waterdrop": "Goutte d’eau rebondissante",
+    "shortloop": "Carillon bref répété",
+    "dreamy": "Rêveur et rythmé",
+    "bouncy": "Entraînant et rebondissant",
+    "dramatic": "Rappel dramatique et urgent",
+    "cheerful": "Joyeux et enjoué",
+    "trot": "Air rétro à l’ancienne",
+    "calm": "Rythmé mais apaisant",
+    "ballad": "Mélodie nostalgique chantée",
+    "lullaby": "Berceuse apaisante",
+    "sitcom": "Ambiance de sitcom joyeuse"
   }
 }
