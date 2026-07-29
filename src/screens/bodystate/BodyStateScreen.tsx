@@ -1909,7 +1909,7 @@ const styles = StyleSheet.create({
     backgroundColor: Colors.primary,
     borderRadius: 16,
     width: '100%',
-    height: 220,
+    minHeight: 220,
     alignItems: 'center',
     justifyContent: 'center',
     shadowColor: '#000',

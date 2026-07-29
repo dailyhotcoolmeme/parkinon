@@ -2455,7 +2455,7 @@ const styles = StyleSheet.create({
   saveBtn: {
     marginHorizontal: 20,
     marginTop: 20,
-    height: 60,
+    minHeight: 60,
     borderRadius: 16,
     backgroundColor: Colors.primary,
     alignItems: 'center',
@@ -2475,7 +2475,7 @@ const styles = StyleSheet.create({
   },
   sheetCancelBtn: {
     flex: 1,
-    height: 60,
+    minHeight: 60,
     borderRadius: 16,
     borderWidth: 1.5,
     borderColor: Colors.border,
@@ -2490,7 +2490,7 @@ const styles = StyleSheet.create({
   },
   sheetSaveBtn: {
     flex: 1,
-    height: 60,
+    minHeight: 60,
     borderRadius: 16,
     backgroundColor: Colors.primary,
     alignItems: 'center',

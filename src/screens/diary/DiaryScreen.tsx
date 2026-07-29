@@ -2803,7 +2803,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     gap: 8,
     alignSelf: 'flex-start',
-    height: 44,
+    minHeight: 44,
     paddingHorizontal: 16,
     borderRadius: 22,
     backgroundColor: Journal.surface,
@@ -3093,7 +3093,7 @@ const styles = StyleSheet.create({
   attachChipRow: { flexDirection: 'row', gap: 10, marginTop: 16 },
   attachChip: {
     flex: 1,
-    height: 44,
+    minHeight: 44,
     borderRadius: 10,
     backgroundColor: Journal.surface,
     alignItems: 'center',
@@ -3317,7 +3317,7 @@ const styles = StyleSheet.create({
     backgroundColor: Journal.pageDeep,
   },
   saveBtn: {
-    height: 52,
+    minHeight: 52,
     borderRadius: 12,
     backgroundColor: Journal.accent,
     alignItems: 'center',

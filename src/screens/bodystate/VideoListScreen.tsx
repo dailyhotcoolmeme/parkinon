@@ -982,7 +982,7 @@ const styles = StyleSheet.create({
   unlinkedDesc: { fontSize: 18, color: Colors.textHint, textAlign: 'center', marginTop: 8, lineHeight: 26 },
   linkFamilyBtn: {
     flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8,
-    height: 56, paddingHorizontal: 24, borderRadius: 12,
+    minHeight: 56, paddingHorizontal: 24, borderRadius: 12,
     backgroundColor: Colors.primary, marginTop: 24,
   },
   linkFamilyBtnText: { fontSize: 18, fontWeight: '700', color: Colors.white },

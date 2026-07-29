@@ -4348,7 +4348,7 @@ const styles = StyleSheet.create({
 
   // 식약처 버튼 및 결과
   mfdsBtn: {
-    height: 52,
+    minHeight: 52,
     borderRadius: 12,
     backgroundColor: '#4CAF50',
     alignItems: 'center',
@@ -4392,7 +4392,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
     gap: 8,
-    height: 56,
+    minHeight: 56,
     paddingHorizontal: 24,
     borderRadius: 12,
     backgroundColor: Colors.primary,
@@ -4469,7 +4469,7 @@ const styles = StyleSheet.create({
   editActionRow: { flexDirection: 'row', gap: 10, marginTop: 8 },
   editCancelBtn: {
     flex: 1,
-    height: 56,
+    minHeight: 56,
     borderRadius: 12,
     borderWidth: 1.5,
     borderColor: Colors.border,
@@ -4479,7 +4479,7 @@ const styles = StyleSheet.create({
   editCancelBtnText: { fontSize: 18, fontWeight: '600', color: Colors.textSub },
   editSaveBtn: {
     flex: 1,
-    height: 56,
+    minHeight: 56,
     borderRadius: 12,
     backgroundColor: Colors.primary,
     alignItems: 'center',

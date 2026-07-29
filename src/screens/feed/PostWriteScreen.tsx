@@ -520,7 +520,7 @@ const styles = StyleSheet.create({
   },
   categoryBtn: {
     flex: 1,
-    height: 40,
+    minHeight: 40,
     borderRadius: 20,
     borderWidth: 1.5,
     borderColor: Colors.border,
@@ -629,7 +629,7 @@ const styles = StyleSheet.create({
   bottomMainBtn: {
     backgroundColor: Colors.primary,
     borderRadius: 12,
-    height: 56,
+    minHeight: 56,
     alignItems: 'center',
     justifyContent: 'center',
   },

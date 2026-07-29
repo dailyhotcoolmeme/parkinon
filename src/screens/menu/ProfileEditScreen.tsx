@@ -1209,7 +1209,7 @@ const styles = StyleSheet.create({
   segRow: { flexDirection: 'row', gap: 12 },
   segBtn: {
     flex: 1,
-    height: 64,
+    minHeight: 64,
     borderRadius: 12,
     borderWidth: 2,
     borderColor: Colors.border,
@@ -1268,7 +1268,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
     gap: 8,
-    height: 56,
+    minHeight: 56,
     borderRadius: 12,
     backgroundColor: Colors.primary,
   },
@@ -1281,7 +1281,7 @@ const styles = StyleSheet.create({
   // Save button
   saveBtn: {
     marginTop: 32,
-    height: 64,
+    minHeight: 64,
     borderRadius: 16,
     backgroundColor: Colors.accent,
     alignItems: 'center',

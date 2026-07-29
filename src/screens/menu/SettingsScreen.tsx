@@ -3029,7 +3029,7 @@ const styles = StyleSheet.create({
   saveBtn: {
     marginHorizontal: 20,
     marginTop: 20,
-    height: 60,
+    minHeight: 60,
     borderRadius: 16,
     backgroundColor: Colors.accent,
     alignItems: 'center',
@@ -3067,7 +3067,7 @@ const styles = StyleSheet.create({
     gap: 10,
   },
   optionBtn: {
-    height: 64,
+    minHeight: 64,
     borderRadius: 14,
     alignItems: 'center',
     justifyContent: 'center',

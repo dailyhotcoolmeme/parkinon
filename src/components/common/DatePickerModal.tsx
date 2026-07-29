@@ -242,7 +242,7 @@ const styles = StyleSheet.create({
   },
   todayBtn: {
     flex: 1,
-    height: 56,
+    minHeight: 56,
     borderRadius: 12,
     borderWidth: 1.5,
     borderColor: Colors.primary,
@@ -252,7 +252,7 @@ const styles = StyleSheet.create({
   todayBtnText: { fontSize: 18, fontWeight: '700', color: Colors.primary },
   closeBtn: {
     flex: 1,
-    height: 56,
+    minHeight: 56,
     borderRadius: 12,
     backgroundColor: Colors.primary,
     alignItems: 'center',

@@ -465,7 +465,7 @@ const styles = StyleSheet.create({
     borderTopColor: Colors.border,
   },
   confirmBtn: {
-    height: 60,
+    minHeight: 60,
     borderRadius: 16,
     backgroundColor: Colors.primary,
     alignItems: 'center',
@@ -488,7 +488,7 @@ const styles = StyleSheet.create({
     color: Colors.primary,
   },
   laterBtn: {
-    height: 56,
+    minHeight: 56,
     borderRadius: 14,
     borderWidth: 1.5,
     borderColor: Colors.border,

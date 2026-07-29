@@ -424,7 +424,7 @@ const styles = StyleSheet.create({
   primaryBtn: {
     backgroundColor: Colors.primary,
     width: '100%',
-    height: 220,
+    minHeight: 220,
     borderRadius: 16,
     alignItems: 'center',
     justifyContent: 'center',
