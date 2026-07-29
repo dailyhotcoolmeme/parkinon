@@ -1,4 +1,5 @@
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2'
+import { resolveLang, t, type Lang } from '../_shared/i18n.ts'
 
 const supabase = createClient(
   Deno.env.get('SUPABASE_URL')!,
