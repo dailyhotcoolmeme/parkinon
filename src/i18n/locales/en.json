@@ -2151,5 +2151,18 @@
     "levodopaAdjunct": "Adjunct to levodopa therapy",
     "withLevodopaOnly": "Take together with levodopa. No effect alone",
     "sinemetEquivalent": "Same-ingredient alternative to Sinemet (levodopa + carbidopa)"
+  },
+  "pushRefresh": {
+    "refreshingMsg": "Re-registering your notification settings…",
+    "noPermTitle": "No notification permission",
+    "noPermMsg": "Please allow notifications in your device settings.",
+    "failTitle": "Failed",
+    "tokenFailMsg": "Could not get a push token",
+    "noSessionMsg": "No sign-in session",
+    "noUserMsg": "No user info",
+    "dbFailMsg": "Database save failed: {{status}}\n{{error}}",
+    "successTitle": "Done",
+    "registeredMsg": "Notification token registered!\n\nToken: {{token}}...",
+    "errorTitle": "Error"
   }
 }

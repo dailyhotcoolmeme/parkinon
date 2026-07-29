@@ -2151,5 +2151,18 @@
     "levodopaAdjunct": "레보도파 보조요법",
     "withLevodopaOnly": "레보도파와 동시 복용. 단독효과 없음",
     "sinemetEquivalent": "시네메트(레보도파+카르비도파) 동일성분 대체약"
+  },
+  "pushRefresh": {
+    "refreshingMsg": "알림 설정을 다시 등록하고 있어요…",
+    "noPermTitle": "알림 권한 없음",
+    "noPermMsg": "기기 설정에서 알림 권한을 허용해주세요.",
+    "failTitle": "실패",
+    "tokenFailMsg": "토큰 획득 실패",
+    "noSessionMsg": "로그인 세션 없음",
+    "noUserMsg": "사용자 정보 없음",
+    "dbFailMsg": "DB 저장 실패: {{status}}\n{{error}}",
+    "successTitle": "성공",
+    "registeredMsg": "알림 토큰이 등록되었습니다!\n\n토큰: {{token}}...",
+    "errorTitle": "오류"
   }
 }

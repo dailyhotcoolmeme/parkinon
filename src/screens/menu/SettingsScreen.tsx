@@ -846,12 +846,12 @@ export function SettingsScreen() {
     if (await ensureNotGuest(user, dialog, { signOut })) return;
     try {
       // 진행 표시는 흐름을 막지 않도록 토스트로(원래 Alert도 비차단)
-      dialog.alert({ message: '알림 설정을 다시 등록하고 있어요…', toast: true });
+      dialog.alert({ message: t('pushRefresh.refreshingMsg'), toast: true });
 
       // 1. Expo Push Token 획득
       const { status } = await Notifications.getPermissionsAsync();
       if (status !== 'granted') {
-        await dialog.alert({ title: '알림 권한 없음', message: '기기 설정에서 알림 권한을 허용해주세요.' });
+        await dialog.alert({ title: t('pushRefresh.noPermTitle'), message: t('pushRefresh.noPermMsg') });
         return;
       }
 
@@ -860,20 +860,20 @@ export function SettingsScreen() {
       });
 
       if (!token?.data) {
-        await dialog.alert({ title: '실패', message: '토큰 획득 실패' });
+        await dialog.alert({ title: t('pushRefresh.failTitle'), message: t('pushRefresh.tokenFailMsg') });
         return;
       }
 
       // 2. DB에 저장 (fetch 사용, supabase-js 절대 사용 금지)
       const { data: { session } } = await supabase.auth.getSession();
       if (!session?.access_token) {
-        await dialog.alert({ title: '실패', message: '로그인 세션 없음' });
+        await dialog.alert({ title: t('pushRefresh.failTitle'), message: t('pushRefresh.noSessionMsg') });
         return;
       }
 
       const { data: { user } } = await supabase.auth.getUser();
       if (!user?.id) {
-        await dialog.alert({ title: '실패', message: '사용자 정보 없음' });
+        await dialog.alert({ title: t('pushRefresh.failTitle'), message: t('pushRefresh.noUserMsg') });
         return;
       }
 
@@ -892,13 +892,13 @@ export function SettingsScreen() {
 
       if (!response.ok) {
         const error = await response.text();
-        await dialog.alert({ title: '실패', message: `DB 저장 실패: ${response.status}\n${error}` });
+        await dialog.alert({ title: t('pushRefresh.failTitle'), message: t('pushRefresh.dbFailMsg', { status: response.status, error }) });
         return;
       }
 
-      await dialog.alert({ title: '성공', message: `알림 토큰이 등록되었습니다!\n\n토큰: ${token.data.substring(0, 30)}...` });
+      await dialog.alert({ title: t('pushRefresh.successTitle'), message: t('pushRefresh.registeredMsg', { token: token.data.substring(0, 30) }) });
     } catch (error: any) {
-      await dialog.alert({ title: '오류', message: error.message });
+      await dialog.alert({ title: t('pushRefresh.errorTitle'), message: error.message });
     }
   };
 

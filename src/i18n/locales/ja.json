@@ -2151,5 +2151,18 @@
     "levodopaAdjunct": "レボドパの補助療法",
     "withLevodopaOnly": "レボドパと同時に服用。単独では効果なし",
     "sinemetEquivalent": "シネメット（レボドパ＋カルビドパ）と同一成分の代替薬"
+  },
+  "pushRefresh": {
+    "refreshingMsg": "通知設定を再登録しています…",
+    "noPermTitle": "通知の権限がありません",
+    "noPermMsg": "端末の設定で通知を許可してください。",
+    "failTitle": "失敗",
+    "tokenFailMsg": "トークンを取得できませんでした",
+    "noSessionMsg": "ログインセッションがありません",
+    "noUserMsg": "ユーザー情報がありません",
+    "dbFailMsg": "DB保存に失敗しました: {{status}}\n{{error}}",
+    "successTitle": "成功",
+    "registeredMsg": "通知トークンを登録しました！\n\nトークン: {{token}}...",
+    "errorTitle": "エラー"
   }
 }

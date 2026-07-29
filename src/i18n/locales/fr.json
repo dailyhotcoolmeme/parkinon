@@ -2151,5 +2151,18 @@
     "levodopaAdjunct": "Traitement d'appoint de la lévodopa",
     "withLevodopaOnly": "À prendre avec la lévodopa. Sans effet seul",
     "sinemetEquivalent": "Équivalent du Sinemet (lévodopa + carbidopa), même principe actif"
+  },
+  "pushRefresh": {
+    "refreshingMsg": "Réenregistrement de vos réglages de notification…",
+    "noPermTitle": "Notifications non autorisées",
+    "noPermMsg": "Autorisez les notifications dans les réglages de votre appareil.",
+    "failTitle": "Échec",
+    "tokenFailMsg": "Impossible d'obtenir le jeton de notification",
+    "noSessionMsg": "Aucune session de connexion",
+    "noUserMsg": "Informations utilisateur introuvables",
+    "dbFailMsg": "Échec de l'enregistrement : {{status}}\n{{error}}",
+    "successTitle": "Terminé",
+    "registeredMsg": "Jeton de notification enregistré !\n\nJeton : {{token}}...",
+    "errorTitle": "Erreur"
   }
 }
