@@ -452,7 +452,7 @@ export function MenuScreen() {
 
       if (!res.ok) {
         const body = await res.text();
-        console.error('[handleWithdraw] edge function 오류:', res.status, body);
+        console.error('[handleWithdraw] edge function error:', res.status, body);
         throw new Error('account deletion failed');
       }
     } catch (e: any) {
@@ -470,7 +470,7 @@ export function MenuScreen() {
     try {
       await signOut();
     } catch (e) {
-      console.error('[handleWithdraw] 삭제 성공 후 로그아웃 실패:', e);
+      console.error('[handleWithdraw] sign-out failed after successful deletion:', e);
     }
     // 로그인 화면 위로 완료 안내(블로킹 X).
     dialog.alert({

@@ -166,13 +166,13 @@ const PERIOD_BADGE_BG: Record<string, string> = {
 };
 // 배지 텍스트: 섹션 색상보다 진한 버전
 const PERIOD_BADGE_TEXT: Record<string, string> = {
-  '새벽': '#283593',
-  '아침': '#BF360C',
-  '점심': '#1B5E20',
-  '오후': '#E65100',
-  '저녁': '#E65100',
-  '밤': '#311B92',
-  '취침': '#4527A0',
+  dawn: '#283593',
+  morning: '#BF360C',
+  midday: '#1B5E20',
+  afternoon: '#E65100',
+  evening: '#E65100',
+  night: '#311B92',
+  bedtime: '#4527A0',
 };
 
 // KST(UTC+9) 기준 날짜 문자열 반환 — UTC 사용 시 오후 11시 이후 날짜 오류 방지
@@ -466,7 +466,7 @@ export function BodyStateScreen() {
         navigation.setParams({ triggerMinutes: null, triggerMealTime: null, triggerDoseSlotId: null, triggerMedLogId: null, triggerTs: null });
       }
       } catch (e) {
-        console.error('[BodyStateScreen] route.params 트리거 처리 예외(안전망):', e);
+        console.error('[BodyStateScreen] exception handling route.params trigger (safety net):', e);
       }
     }, [route.params?.triggerMinutes, (route.params as any)?.triggerMealTime, (route.params as any)?.triggerDoseSlotId, (route.params as any)?.triggerMedLogId, (route.params as any)?.triggerTs, patientId])
   );
@@ -1111,7 +1111,7 @@ export function BodyStateScreen() {
     });
 
     if (error) {
-      console.error('[BodyStateScreen] handleCancelRecord 오류:', error);
+      console.error('[BodyStateScreen] handleCancelRecord error:', error);
       dialog.alert({ title: t('bodystate.cancelFailTitle'), message: t('bodystate.cancelFailMsg') });
       return;
     }
@@ -1150,7 +1150,7 @@ export function BodyStateScreen() {
     });
 
     if (error) {
-      console.error('[BodyStateScreen] handleSaveEdit 오류:', error);
+      console.error('[BodyStateScreen] handleSaveEdit error:', error);
       dialog.alert({ title: t('bodystate.editFailTitle'), message: t('bodystate.editFailMsg') });
       return;
     }
@@ -1246,7 +1246,7 @@ export function BodyStateScreen() {
           // 화면 갱신
           await refresh();
         } catch (overrideErr) {
-          console.error('[handleSaveRecord] 기존 로그 삭제 실패:', overrideErr);
+          console.error('[handleSaveRecord] failed to delete the existing log:', overrideErr);
         }
       }
 
@@ -1281,7 +1281,7 @@ export function BodyStateScreen() {
               setShowPreRecordInfo(true);
             }
           } catch (queueErr) {
-            console.error('[handleSaveRecord] 큐 삭제 오류:', queueErr);
+            console.error('[handleSaveRecord] queue delete error:', queueErr);
           }
         })();
       }
@@ -1311,7 +1311,7 @@ export function BodyStateScreen() {
         setSaving(false);
       }
     })().catch((e) => {
-      console.error('[handleSaveRecord] 저장 처리 오류:', e);
+      console.error('[handleSaveRecord] save handling error:', e);
     });
   };
 

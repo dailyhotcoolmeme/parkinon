@@ -58,7 +58,7 @@ async function logNotification(
       user_id: userId, type: 'family_joined', title, body, data, read_at: null,
     });
   } catch (e) {
-    console.warn('[notify-family-joined] logNotification 실패:', e);
+    console.warn('[notify-family-joined] logNotification failed:', e);
   }
 }
 

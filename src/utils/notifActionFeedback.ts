@@ -158,7 +158,7 @@ export async function hasTakenTodayKST(
     if (error) throw error;
     return (data?.length ?? 0) > 0;
   } catch (e) {
-    console.error('[notifActionFeedback] hasTakenTodayKST 조회 실패:', e);
+    console.error('[notifActionFeedback] hasTakenTodayKST lookup failed:', e);
     return null;
   }
 }

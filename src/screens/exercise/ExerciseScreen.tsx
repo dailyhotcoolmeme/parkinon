@@ -34,7 +34,7 @@ import { useDialog } from '../../context/DialogContext';
 import { ensureNotGuest } from '../../utils/guestGuard';
 import { useRecordRealtime } from '../../hooks/useRecordRealtime';
 import { useScrollTopOnTabPress } from '../../hooks/useScrollTopOnTabPress';
-import { translateRawExerciseType } from '../../constants/exerciseTypes';
+import { translateRawExerciseType, exerciseTypeId } from '../../constants/exerciseTypes';
 
 type Nav = NativeStackNavigationProp<ExerciseStackParamList, 'ExerciseMain'>;
 
@@ -43,33 +43,24 @@ const TOP_BAR_H = 56;
 const DATE_HEADER_H = 56;
 const TAB_BAR_H = 68;
 
-// 아이콘 매핑 키 = 저장된 exercise_type(로케일별 라벨). 한/영 양쪽 라벨을 모두 등록해
-// 영어로 저장된 기록도 올바른 아이콘이 뜨게 한다(한국어 회귀 없음).
+// 아이콘 매핑 키 = 운동 종류 **키**(walk/strength/…). 저장값이 옛 라벨이어도
+// exerciseTypeId 가 먼저 키로 되돌려주므로 여기서는 키만 알면 된다.
 const EXERCISE_ICONS: Record<string, React.ComponentProps<typeof Ionicons>['name']> = {
-  '걷기': 'walk-outline',
-  '스트레칭': 'body-outline',
-  '근력': 'barbell-outline',
-  '균형': 'man-outline',
-  '자전거': 'bicycle-outline',
-  '수영': 'water-outline',
-  '댄스': 'musical-notes-outline',
-  '복싱': 'fitness-outline',
-  '요가': 'leaf-outline',
-  '조깅': 'footsteps-outline',
-  'Walking': 'walk-outline',
-  'Stretching': 'body-outline',
-  'Strength': 'barbell-outline',
-  'Balance': 'man-outline',
-  'Cycling': 'bicycle-outline',
-  'Swimming': 'water-outline',
-  'Dancing': 'musical-notes-outline',
-  'Boxing': 'fitness-outline',
-  'Yoga': 'leaf-outline',
-  'Jogging': 'footsteps-outline',
+  walk: 'walk-outline',
+  stretch: 'body-outline',
+  strength: 'barbell-outline',
+  balance: 'man-outline',
+  bike: 'bicycle-outline',
+  swim: 'water-outline',
+  dance: 'musical-notes-outline',
+  boxing: 'fitness-outline',
+  yoga: 'leaf-outline',
+  jog: 'footsteps-outline',
 };
 
 function ExerciseTypeIcon({ type, size = 30, color = Colors.text }: { type: string; size?: number; color?: string }) {
-  const iconName = EXERCISE_ICONS[type] ?? 'fitness-outline';
+  // 옛 라벨로 저장된 기록도 키로 되돌려 찾는다.
+  const iconName = EXERCISE_ICONS[exerciseTypeId(type) ?? type] ?? 'fitness-outline';
   return <Ionicons name={iconName} size={size} color={color} />;
 }
 
@@ -205,7 +196,7 @@ export function ExerciseScreen() {
           try {
             navigation.push('ExerciseRecord');
           } catch (e) {
-            console.error('[ExerciseScreen] ExerciseRecord push 실패:', e);
+            console.error('[ExerciseScreen] ExerciseRecord push failed:', e);
           }
         }
       });

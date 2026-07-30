@@ -242,7 +242,7 @@ export function ExerciseDurationScreen() {
         patientId ? fetchExerciseNextNotif(patientId) : Promise.resolve(null),
       ]);
     } catch (e) {
-      console.error('[ExerciseDurationScreen] handleSave 오류:', e);
+      console.error('[ExerciseDurationScreen] handleSave error:', e);
     } finally {
       // 위 저장/조회 중 예기치 못한 예외가 나도 저장중 오버레이가 영구히 뜬 채
       // 멈춘 것처럼 보이는 상황을 막기 위해 반드시 해제한다.

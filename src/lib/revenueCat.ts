@@ -30,7 +30,7 @@ export async function initRevenueCat(userId: string | null): Promise<void> {
     }
     configuredUserId = userId;
   } catch (e: any) {
-    if (__DEV__) console.warn('[revenueCat] init 실패(재빌드 전이면 정상):', e);
+    if (__DEV__) console.warn('[revenueCat] init failed (expected before a rebuild):', e);
   }
 }
 
@@ -85,7 +85,7 @@ export async function getPremiumPackages(): Promise<any[]> {
     const offerings = await Purchases.getOfferings();
     return offerings?.current?.availablePackages ?? [];
   } catch (e) {
-    if (__DEV__) console.warn('[revenueCat] offerings 조회 실패:', e);
+    if (__DEV__) console.warn('[revenueCat] offerings lookup failed:', e);
     return [];
   }
 }

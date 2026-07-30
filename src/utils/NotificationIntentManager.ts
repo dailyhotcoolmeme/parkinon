@@ -10,7 +10,7 @@ class NotificationIntentManager {
       try {
         this.listener(intent);
       } catch (e) {
-        console.warn('[NotificationIntentManager] listener throw(무시):', e);
+        console.warn('[NotificationIntentManager] listener throw(ignored):', e);
       }
     } else {
       this.pendingIntent = intent;
@@ -26,7 +26,7 @@ class NotificationIntentManager {
         try {
           listener(pending);
         } catch (e) {
-          console.warn('[NotificationIntentManager] pending listener throw(무시):', e);
+          console.warn('[NotificationIntentManager] pending listener throw(ignored):', e);
         }
       }, 0);
     }

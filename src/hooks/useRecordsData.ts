@@ -337,7 +337,7 @@ export function useRecordsData(period: Period): UseRecordsDataReturn {
         },
       });
     } catch (err: any) {
-      console.error('[useRecordsData] 조회 오류:', err);
+      console.error('[useRecordsData] lookup error:', err);
       setError(i18n.t('recordsHook.fetchError'));
     } finally {
       setLoading(false);

@@ -100,7 +100,7 @@ export function useBodyState(): UseBodyStateReturn {
       if (queryError) throw queryError;
       setTodayLogs(data ?? []);
     } catch (err: any) {
-      console.error('[useBodyState] fetchTodayLogs 오류:', err);
+      console.error('[useBodyState] fetchTodayLogs error:', err);
       setError(i18n.t('bodyStateHook.fetchError'));
     } finally {
       setLoading(false);
@@ -242,13 +242,13 @@ export function useBodyState(): UseBodyStateReturn {
           }
         }
       } catch (notifErr) {
-        console.error('[useBodyState] 보호자 푸시 실패 (기록은 저장됨):', notifErr);
+        console.error('[useBodyState] caregiver push failed (the record was still saved):', notifErr);
       }
       })();
 
       return true;
     } catch (err: any) {
-      console.error('[useBodyState] saveBodyState 오류:', err);
+      console.error('[useBodyState] saveBodyState error:', err);
       setError(i18n.t('bodyStateHook.saveError'));
       return false;
     } finally {
@@ -276,7 +276,7 @@ export function useBodyState(): UseBodyStateReturn {
       if (queryError) throw queryError;
       return data ?? [];
     } catch (err: any) {
-      console.error('[useBodyState] getBodyStateLogs 오류:', err);
+      console.error('[useBodyState] getBodyStateLogs error:', err);
       return [];
     }
   }, [user, getPatientId]);
@@ -302,7 +302,7 @@ export function useBodyState(): UseBodyStateReturn {
       if (queryError) throw queryError;
       return (count ?? 0) === 0;
     } catch (err: any) {
-      console.error('[useBodyState] isFirstLogToday 오류:', err);
+      console.error('[useBodyState] isFirstLogToday error:', err);
       return true;
     }
   }, [user, getPatientId]);
@@ -328,7 +328,7 @@ export function useBodyState(): UseBodyStateReturn {
 
       return data ?? [];
     } catch (err: any) {
-      console.error('[useBodyState] fetchVideoLogs 오류:', err);
+      console.error('[useBodyState] fetchVideoLogs error:', err);
       return [];
     }
   }, [user, getPatientId]);

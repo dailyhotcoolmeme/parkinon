@@ -53,7 +53,7 @@ export function useSetupGate(): UseSetupGateReturn {
       // 보수적: 판정 불가(로딩 중 또는 조회 실패)면 통과(멀쩡한 사용자 오차단 방지).
       // 조회 실패는 로그만 남기고 막지 않는다(스펙: 실패는 통과, 확정 0 만 차단).
       if (setupUnknown) {
-        if (!setupComplete) console.warn('[useSetupGate] setup 판정 불가 → 게이트 통과(차단 안 함)');
+        if (!setupComplete) console.warn('[useSetupGate] cannot determine setup state - letting the gate pass (not blocking)');
         return true;
       }
       // 활성 슬롯이 1개 이상이면 통과.

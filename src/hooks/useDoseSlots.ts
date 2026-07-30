@@ -125,7 +125,7 @@ async function fetchDoseSlots(patientId: string): Promise<DoseSlot[]> {
     .order('sort_order', { ascending: true });
 
   if (error) {
-    console.error('[useDoseSlots] fetch 오류:', error);
+    console.error('[useDoseSlots] fetch error:', error);
     throw error;
   }
 
@@ -171,7 +171,7 @@ async function fetchLabelDoseSlots(patientId: string): Promise<DoseSlot[]> {
     .order('sort_order', { ascending: true });
 
   if (error) {
-    console.error('[useDoseSlots] label fetch 오류:', error);
+    console.error('[useDoseSlots] label fetch error:', error);
     throw error;
   }
 
@@ -561,7 +561,7 @@ export async function ensurePatientDoseSlots(
       .eq('patient_id', patientId);
 
     if (selErr) {
-      console.warn('[ensurePatientDoseSlots] select 실패(계속):', selErr);
+      console.warn('[ensurePatientDoseSlots] select failed (continuing):', selErr);
       return;
     }
 
@@ -617,7 +617,7 @@ export async function ensurePatientDoseSlots(
     // 캐시 무효화 — 직후 읽기 경로가 새 슬롯을 보게.
     invalidateDoseSlotsCache(patientId);
   } catch (e) {
-    console.warn('[ensurePatientDoseSlots] 예외(계속):', e);
+    console.warn('[ensurePatientDoseSlots] exception (continuing):', e);
   }
 }
 
@@ -660,7 +660,7 @@ export async function setMedicationSlots(
     }
     if (patientId) invalidateDoseSlotsCache(patientId);
   } catch (e) {
-    console.error('[setMedicationSlots] 매핑 저장 실패:', e);
+    console.error('[setMedicationSlots] failed to save mapping:', e);
     throw e;
   }
 }
@@ -698,7 +698,7 @@ export async function syncMedicationDoseSlots(
       .from('medication_dose_slots')
       .delete()
       .eq('medication_id', medicationId);
-    if (delErr) console.warn('[syncMedicationDoseSlots] delete 실패(계속):', delErr);
+    if (delErr) console.warn('[syncMedicationDoseSlots] delete failed (continuing):', delErr);
 
     // meal_times → 슬롯 id 재배정(중복/매핑실패 제거).
     const slotIds = [...new Set(
@@ -712,9 +712,9 @@ export async function syncMedicationDoseSlots(
       const { error: insErr } = await supabase
         .from('medication_dose_slots')
         .insert(rows as any);
-      if (insErr) console.warn('[syncMedicationDoseSlots] insert 실패(계속):', insErr);
+      if (insErr) console.warn('[syncMedicationDoseSlots] insert failed (continuing):', insErr);
     }
   } catch (e) {
-    console.warn('[syncMedicationDoseSlots] 예외(계속):', e);
+    console.warn('[syncMedicationDoseSlots] exception (continuing):', e);
   }
 }

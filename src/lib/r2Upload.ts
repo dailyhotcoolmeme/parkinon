@@ -312,7 +312,7 @@ export async function saveMediaLog(
   });
 
   if (error) {
-    console.error('media_logs 저장 실패:', error);
+    console.error('media_logs save failed:', error);
     // 업로드 자체는 성공했으므로 에러를 throw하지 않음
   }
 }

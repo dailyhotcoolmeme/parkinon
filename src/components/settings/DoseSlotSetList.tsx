@@ -486,7 +486,7 @@ export function DoseSlotSetList({
             invalidateDoseSlotsCache(patientIdRef.current);
           }
         } catch (e) {
-          console.error('[DoseSlotSetList] dose_slots update 실패:', e);
+          console.error('[DoseSlotSetList] dose_slots update failed:', e);
           // 3) 최신 쓰기였을 때만 롤백(옛 응답이 최신값을 덮지 않게).
           if (writeSeqRef.current.get(seqKey) !== seq) return;
           setOverrides((prev) => ({
@@ -557,7 +557,7 @@ export function DoseSlotSetList({
           }
           // 성공 시 캐시 무효화/refresh 하지 않음 — 낙관적 medChecked 가 이미 정확.
         } catch (e) {
-          console.error('[DoseSlotSetList] 슬롯-약 연결 토글 실패:', e);
+          console.error('[DoseSlotSetList] slot-medication link toggle failed:', e);
           setMedChecked((prev) => ({ ...prev, [slotId]: current }));
         }
       })();
@@ -722,7 +722,7 @@ export function DoseSlotSetList({
           // 결과 안내: 약 복용(즉시 중단)+약효추적(오늘 예약분)을 한 번에(통합 1회 팝업).
           dialog.alert(deleteSlotCombinedPopup(takenToday));
         } catch (e) {
-          console.error('[DoseSlotSetList] dose_slots 삭제 실패:', e);
+          console.error('[DoseSlotSetList] dose_slots delete failed:', e);
           dialog.alert({
             title: i18n.t('doseSlotSetList.deleteFailTitle'),
             message: i18n.t('doseSlotSetList.deleteFailMsg'),
@@ -742,7 +742,7 @@ export function DoseSlotSetList({
           await finishRemoval();
           dialog.alert(deleteSlotCombinedPopup(takenToday));
         } catch (e) {
-          console.error('[DoseSlotSetList] 슬롯+기록 삭제(RPC) 실패:', e);
+          console.error('[DoseSlotSetList] slot + records delete (RPC) failed:', e);
           dialog.alert({
             title: i18n.t('doseSlotSetList.deleteFailTitle'),
             message: i18n.t('doseSlotSetList.deleteFailMsg'),
@@ -769,7 +769,7 @@ export function DoseSlotSetList({
         recordCount = (medRes.count ?? 0) + (onoffRes.count ?? 0);
       } catch (e) {
         // 조회 실패 시 보수적으로 0 취급 → 기록은 건드리지 않는 기존 삭제 흐름으로.
-        console.error('[DoseSlotSetList] 슬롯 기록 건수 조회 실패:', e);
+        console.error('[DoseSlotSetList] failed to count slot records:', e);
         recordCount = 0;
       }
 
@@ -892,7 +892,7 @@ export function DoseSlotSetList({
       //   (보통 수정1·2로 환자 슬롯/patientId 가 해결되지만, 환자 정보 로딩 직후 등
       //    드문 타이밍에서 pid 가 아직 null 일 수 있어 방어선으로 둔다.)
       if (!pid) {
-        console.warn('[DoseSlotSetList] 슬롯 추가 시 patientId 미해결 → 저장 보류, 재시도 안내');
+        console.warn('[DoseSlotSetList] patientId unresolved while adding slot - deferring save, prompting retry');
         dialog.alert({
           title: i18n.t('doseSlotSetList.oneMomentTitle'),
           message: i18n.t('doseSlotSetList.preparingMsg'),
@@ -992,7 +992,7 @@ export function DoseSlotSetList({
             await refreshSlotMeds();
           } catch (linkErr) {
             // 자동 연결 실패해도 슬롯 생성·흐름은 막지 않는다(편집뷰에서 직접 체크 가능).
-            console.error('[DoseSlotSetList] 새 슬롯 약 자동연결 실패:', linkErr);
+            console.error('[DoseSlotSetList] failed to auto-link meds to the new slot:', linkErr);
           }
         }
         // addOnly 는 부모가 모달을 수정 시트로 전환하므로 건드리지 않는다.
@@ -1000,7 +1000,7 @@ export function DoseSlotSetList({
         if (addOnly) onAddDone?.(newSlotId ?? undefined);
         else if (newSlotId) focusSlotAfterSave(newSlotId);
       } catch (e) {
-        console.error('[DoseSlotSetList] dose_slots insert 실패:', e);
+        console.error('[DoseSlotSetList] dose_slots insert failed:', e);
         // 실패 시 낙관적 슬롯 롤백 + 모달 닫기(미저장 처리).
         setAddedSlots((prev) => prev.filter((s) => s.id !== optimistic.id));
         if (addOnly) onAddDone?.();

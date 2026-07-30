@@ -131,7 +131,7 @@ Deno.serve(async (req) => {
         keys.filter((k) => k.startsWith('parkinon/') && k.includes(`/${user.id}/`)),
       ))
       r2Stats = await deleteR2Keys(safeKeys)
-      console.log(`[change-role] R2 정리 user=${user.id}:`, JSON.stringify(r2Stats))
+      console.log(`[change-role] R2 cleanup user=${user.id}:`, JSON.stringify(r2Stats))
     }
 
     // DB RPC: 검증 + (환자→보호자면) 기록 완전 삭제 + 역할 변경 (원자적).
@@ -140,7 +140,7 @@ Deno.serve(async (req) => {
       p_confirm: confirm,
     })
     if (error) {
-      console.error('[change-role] RPC 오류:', error)
+      console.error('[change-role] RPC error:', error)
       return new Response(JSON.stringify({ ok: false, code: 'error', message: 'role change failed' }),
         { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } })
     }
@@ -152,7 +152,7 @@ Deno.serve(async (req) => {
       headers: { ...corsHeaders, 'Content-Type': 'application/json' },
     })
   } catch (e) {
-    console.error('[change-role] 오류:', e)
+    console.error('[change-role] error:', e)
     return new Response(JSON.stringify({ ok: false, code: 'error', message: 'role change failed' }), {
       status: 500,
       headers: { ...corsHeaders, 'Content-Type': 'application/json' },

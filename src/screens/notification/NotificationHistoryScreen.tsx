@@ -197,7 +197,7 @@ export function NotificationHistoryScreen() {
           await markRead(item.id);
           refreshBadge();
         } catch (e) {
-          console.warn('[NotificationHistory] markRead 실패(무시):', e);
+          console.warn('[NotificationHistory] markRead failed(ignored):', e);
         }
       }
 
@@ -243,7 +243,7 @@ export function NotificationHistoryScreen() {
             JSON.stringify({ mealTime, doseSlotId, ts: Date.now() }),
           );
         } catch (e) {
-          console.warn('[NotificationHistory] pendingMedNotif 세팅 실패(무시):', e);
+          console.warn('[NotificationHistory] pendingMedNotif set failed(ignored):', e);
         }
         navigateTo('Main', {
           screen: 'Medication',
@@ -280,7 +280,7 @@ export function NotificationHistoryScreen() {
             await AsyncStorage.removeItem('pendingBodyStateNotif');
           }
         } catch (e) {
-          console.warn('[NotificationHistory] pendingBodyStateNotif 세팅 실패(무시):', e);
+          console.warn('[NotificationHistory] pendingBodyStateNotif set failed(ignored):', e);
         }
         navigateTo('Main', {
           screen: 'BodyStateTab',
@@ -305,7 +305,7 @@ export function NotificationHistoryScreen() {
           await AsyncStorage.multiRemove(['pendingMedNotif', 'pendingBodyStateNotif']);
           await AsyncStorage.setItem('pendingExerciseNotif', 'true');
         } catch (e) {
-          console.warn('[NotificationHistory] pendingExerciseNotif 세팅 실패(무시):', e);
+          console.warn('[NotificationHistory] pendingExerciseNotif set failed(ignored):', e);
         }
         navigateTo('Main', { screen: 'Exercise', params: { screen: 'ExerciseMain' } });
       } else {
@@ -322,7 +322,7 @@ export function NotificationHistoryScreen() {
     } catch (e) {
       // 어떤 예외든 앱을 죽이지 않는다 — 조용히 무시(가드도 풀어 다음 탭 허용).
       navInFlightRef.current = false;
-      console.error('[NotificationHistory] handleItemPress 예외(안전망 폴백):', e);
+      console.error('[NotificationHistory] handleItemPress exception (safety net fallback):', e);
     }
   };
 

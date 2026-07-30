@@ -37,6 +37,8 @@ const LIST = args.includes('--list') ? args[args.indexOf('--list') + 1] : null;
 const EXCLUDE_SOURCE = [
   { where: 'web', match: /pages\/Admin\.tsx$/, reason: '관리자 페이지 — 오너가 직접 보며 작업', approved: '2026-07-30' },
   { where: '*', match: /[Mm]easurement|TapGame|ReactionGame|utils\/biomarker\.ts$/, reason: '측정 기능 — 재오픈 시점에 처리', approved: '2026-07-29' },
+  // 웹 증상 상세의 탭 횟수·반응시간은 측정 기능 화면이다(같은 결정).
+  { where: 'web', match: /pages\/SymptomDetail\.tsx$/, reason: '측정 기능 — 재오픈 시점에 처리', approved: '2026-07-29' },
   { where: '*', match: /ExerciseVideo/, reason: '운동 영상 — 국내 전용', approved: '2026-07-29' },
   { where: '*', match: /screens\/feed\/|components\/feed\/|PostWrite|PostDetail/, reason: '커뮤니티 — 국내 전용', approved: '2026-07-29' },
   { where: '*', match: /i18n\/locales\/(ko|en|fr|ja)\.json$/, reason: '번역 파일 자체(ko 는 원문)', approved: '2026-07-29' },
@@ -123,7 +125,8 @@ const walk = (dir, exts, out = []) => {
  * 주석은 뺀다(코드가 아니다). 로그는 **빼지 않는다** — A-1 확정.
  */
 function scanFile(file) {
-  const lines = fs.readFileSync(file, 'utf8').split('\n');
+  const src = fs.readFileSync(file, 'utf8');
+  const lines = src.split('\n');
   const hits = [];
   let inBlock = false;
   lines.forEach((raw, i) => {
@@ -145,6 +148,15 @@ function scanFile(file) {
     // 한국어 문법 처리(조사 은/는 판정)는 번역 대상이 아니라 언어 규칙 자체다.
     // 다른 언어에는 조사가 없어 옮길 곳도 없다(2026-07-30 오너 승인).
     if (/topicParticle|josa|particle/i.test(l) || /'(은|는|이|가|을|를|와|과)'/.test(l)) return;
+    // 옛 DB 값을 알아보기 위한 비교값(includes/startsWith)은 표시 문자열이 아니다.
+    // 예: label.includes('직후'), s.includes('아침') — 미업데이트 앱이 쓴 값과 맞춰야 한다.
+    if (/\.(includes|startsWith|endsWith)\(\s*['"][^'"]*[가-힣]/.test(l)) return;
+    // 옛 저장값 → 키 역매핑 표. 한국어뿐 아니라 영어·프랑스어·일본어 라벨도 함께 들어 있고,
+    // 미업데이트 앱이 다시 쓸 수 있어 지울 수 없다(오너 승인 2026-07-30).
+    if (/RAW_LABEL_TO_ID|RAW_EXERCISE_TYPE_TO_ID/.test(src)) {
+      const inTable = lines.slice(Math.max(0, i - 25), i).some((x) => /RAW_(LABEL|EXERCISE_TYPE)_TO_ID/.test(x));
+      if (inTable) return;
+    }
     for (const m of l.matchAll(/(['"`])((?:\\.|(?!\1)[\s\S])*?)\1/g)) {
       if (!HANGUL.test(m[2])) continue;
       // 한글이 객체 키로 쓰이면 표시 문자열이 아니라 식별자다 — 영어 키로 바꿔야 할 자리.

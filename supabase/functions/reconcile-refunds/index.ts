@@ -76,7 +76,7 @@ async function googleAccessToken(): Promise<string | null> {
     }),
   })
   if (!r.ok) {
-    console.error('[reconcile-refunds] 토큰 발급 실패:', await r.text())
+    console.error('[reconcile-refunds] failed to issue a token:', await r.text())
     return null
   }
   return (await r.json()).access_token ?? null
@@ -168,7 +168,7 @@ async function reconcileAgainstRevenueCat(): Promise<number> {
     try {
       await supabase.rpc('reset_group_custom_sounds', { p_group_id: g.id })
     } catch (e) {
-      console.error('[reconcile-refunds] reset_group_custom_sounds 실패:', g.id, e)
+      console.error('[reconcile-refunds] reset_group_custom_sounds failed:', g.id, e)
     }
     await supabase.from('revenuecat_events').insert({
       event_type: 'ENTITLEMENT_RECONCILE',
@@ -211,7 +211,7 @@ Deno.serve(async (req: Request) => {
     .eq('subscription_tier', 'premium')
     .in('subscription_original_txn_id', [...voided])
   if (error) {
-    console.error('[reconcile-refunds] 조회 실패:', error)
+    console.error('[reconcile-refunds] lookup failed:', error)
     return new Response('query failed', { status: 500 })
   }
   if (!hit?.length) {
@@ -236,7 +236,7 @@ Deno.serve(async (req: Request) => {
     try {
       await supabase.rpc('reset_group_custom_sounds', { p_group_id: gid })
     } catch (e) {
-      console.error('[reconcile-refunds] reset_group_custom_sounds 실패:', gid, e)
+      console.error('[reconcile-refunds] reset_group_custom_sounds failed:', gid, e)
     }
   }
 

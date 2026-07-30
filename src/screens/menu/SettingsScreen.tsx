@@ -358,7 +358,7 @@ export function SettingsScreen() {
       ? (supabase.rpc as any)('update_patient_diary_notif_sound', { p_patient_id: diaryTargetId, p_sound_id: soundId })
       : supabase.from('users').update({ diary_notif_sound_id: soundId } as any).eq('id', diaryTargetId);
     p.then(({ error }: any) => {
-      if (error) console.error('[SettingsScreen] 가족 일기 알림음 저장 실패:', error);
+      if (error) console.error('[SettingsScreen] failed to save the family diary notification sound:', error);
     });
     // 채널 프로비저닝은 '본인' 모드에서만 의미 있음(로컬 채널 = 이 기기용).
     // '환자 대신'일 땐 환자 본인 기기에서 그쪽 앱이 자기 값으로 알아서 프로비저닝한다.
@@ -493,7 +493,7 @@ export function SettingsScreen() {
           );
         }
       } catch (e) {
-        console.warn('[SettingsScreen] dose_slots 부트스트랩 실패(계속):', e);
+        console.warn('[SettingsScreen] dose_slots bootstrap failed(continuing):', e);
       }
     } catch {}
   }, [user, isCaregiver, medNotifs]);
@@ -524,7 +524,7 @@ export function SettingsScreen() {
             },
       );
     } catch (e) {
-      console.error('[SettingsScreen] toggleMedTimeSlot 저장 실패:', e);
+      console.error('[SettingsScreen] toggleMedTimeSlot save failed:', e);
       setMedTimePrefs(prev);
       await dialog.alert({ title: t('settings.saveFailTitle'), message: t('settings.saveNotifFailMsg') });
     }
@@ -567,7 +567,7 @@ export function SettingsScreen() {
       const pgData = await pgRes.json();
       const pid = pgData[0]?.user_id;
       if (!pid) {
-        console.warn('[SettingsScreen] 환자 ID 없음, pgData:', pgData);
+        console.warn('[SettingsScreen] patient id missing, pgData:', pgData);
         // 그룹은 있으나 환자 멤버가 없음 → 미연동으로 확정
         setPatientId(null);
         setPatientLoadDone(true);
@@ -601,7 +601,7 @@ export function SettingsScreen() {
         setLinkedPatientName(patientUser.name);
       } else {
         // 보안: 환자 user 객체(이름·역할·그룹 등 PII)는 로그에 남기지 않음
-        console.warn('[SettingsScreen] 환자 name이 없음');
+        console.warn('[SettingsScreen] patient name is missing');
       }
       // 환자의 전체 알림(마스터) 상태 — '환자 알림 수정' 토글 게이팅용
       setPatientNotificationEnabled(patientUser?.notification_enabled ?? true);
@@ -636,7 +636,7 @@ export function SettingsScreen() {
           });
         }
       } catch (e) {
-        console.warn('[SettingsScreen] 환자 미복용 알림음 로드 실패(계속):', e);
+        console.warn('[SettingsScreen] failed to load the patient missed-dose notification sound (continuing):', e);
       }
 
       // 3. 환자의 활성 약 슬롯 + 복용 시간 (위에서 병렬로 시작한 medsResP 결과 사용)
@@ -671,7 +671,7 @@ export function SettingsScreen() {
         setPatientActiveMedSlots(['morning', 'lunch', 'dinner', 'bedtime']);
       }
     } catch (e) {
-      console.error('[SettingsScreen] 환자 정보 로드 오류:', e);
+      console.error('[SettingsScreen] patient profile load error:', e);
     }
   }, [user, isCaregiver]);
 
@@ -690,7 +690,7 @@ export function SettingsScreen() {
       if (!session?.access_token) throw new Error(i18n.t('common.sessionExpired'));
       await patchPatientUser(patientId, session.access_token, { med_time_notif_prefs: next, notification_enabled: anyOn });
     } catch (e) {
-      console.error('[SettingsScreen] togglePatientMedTimeSlot 저장 실패:', e);
+      console.error('[SettingsScreen] togglePatientMedTimeSlot save failed:', e);
       setPatientMedTimePrefs(prev);
       setPatientNotificationEnabled(prevMaster);
       await dialog.alert({ title: t('settings.saveFailTitle'), message: t('settings.savePatientNotifFailMsg') });
@@ -762,7 +762,7 @@ export function SettingsScreen() {
         .eq('id', session.user.id);
       if (error) throw error;
     } catch (e) {
-      console.error('[SettingsScreen] caregiver_notif_prefs 저장 실패:', e);
+      console.error('[SettingsScreen] caregiver_notif_prefs save failed:', e);
       // 저장 실패 → 그 사이 다른 토글이 없었다면 UI/AsyncStorage 롤백 + 사용자 안내
       if (caregiverWriteSeq.current === seq) {
         setCaregiverNotifs(prevNotifs);
@@ -799,7 +799,7 @@ export function SettingsScreen() {
           if (error) throw error;
         }
       } catch (e) {
-        console.error('[SettingsScreen] 전체→보호자 개별 일괄 저장 실패:', e);
+        console.error('[SettingsScreen] bulk save of per-caregiver settings failed:', e);
       }
     } else {
       const SLOT_KEYS = ['morning', 'lunch', 'dinner', 'bedtime', 'missed_first', 'missed_second'];
@@ -813,7 +813,7 @@ export function SettingsScreen() {
           await patchUser(user.id, session.access_token, { med_time_notif_prefs: next });
         }
       } catch (e) {
-        console.error('[SettingsScreen] 전체→환자 시간알림 일괄 저장 실패:', e);
+        console.error('[SettingsScreen] bulk save of patient time notifications failed:', e);
       }
     }
   }, [isCaregiver, caregiverNotifs, medTimePrefs, user]);
@@ -834,7 +834,7 @@ export function SettingsScreen() {
         await setNotificationEnabled(true);       // master 게이트 ON
         await cascadeMasterToIndividual(true);    // 개별 보호자 토글 전부 ON + DB 저장
       } catch (e) {
-        console.warn('[SettingsScreen] 보호자 안내 확인 후 전체 ON 실패:', e);
+        console.warn('[SettingsScreen] failed to turn everything on after the caregiver prompt:', e);
       }
     })();
   }, [route.params?.guideCaregiverNotif, isCaregiver, setNotificationEnabled, cascadeMasterToIndividual]);
@@ -984,7 +984,7 @@ export function SettingsScreen() {
           //    재조회는 방금 쓴 값을 read-after-write 로 덮어쓰는 stale-read 원인이라 제거.
           //    (이 제거로 notifPrefsLocalWriteAtRef 5초 가드도 불필요해졌다.)
         } catch (e) {
-          console.warn('[SettingsScreen] 설정 로드 오류:', e);
+          console.warn('[SettingsScreen] settings load error:', e);
         } finally {
           focusLoadInFlight.current = false;
           lastFocusLoadAt.current = Date.now();
@@ -1209,7 +1209,7 @@ export function SettingsScreen() {
       if (!session?.access_token) throw new Error(i18n.t('common.sessionExpired'));
       await patchPatientUser(patientId!, session.access_token, body);
     } catch (e) {
-      console.error('[SettingsScreen] 환자 알림 설정 저장 실패:', e);
+      console.error('[SettingsScreen] failed to save patient notification settings:', e);
       prevSnapshot(); // 실패 시 롤백
       dialog.alert({ title: t('settings.saveFailTitle'), message: t('settings.savePatientNotifFailMsg') });
     }
@@ -1333,7 +1333,7 @@ export function SettingsScreen() {
       await patchPatientUser(patientId, session.access_token, { exercise_notif_prefs: next });
       provisionForUser(patientId, user?.patient_group_id ?? null).catch(() => {});
     } catch (e) {
-      console.error('[SettingsScreen] 환자 운동 알림음 저장 실패:', e);
+      console.error('[SettingsScreen] failed to save the patient exercise notification sound:', e);
       setPatientExerciseNotifs(prev);
       dialog.alert({ title: t('settings.saveFailTitle'), message: t('settings.savePatientSoundFailMsg') });
     }
@@ -1359,7 +1359,7 @@ export function SettingsScreen() {
       if (!res.ok) throw new Error(`HTTP ${res.status}: ${await res.text()}`);
       provisionForUser(patientId, user?.patient_group_id ?? null).catch(() => {});
     } catch (e) {
-      console.error('[SettingsScreen] 환자 미복용 알림음 저장 실패:', e);
+      console.error('[SettingsScreen] failed to save the patient missed-dose notification sound:', e);
       setPatientMissedMedSounds(prev);
       dialog.alert({ title: t('settings.saveFailTitle'), message: t('settings.savePatientSoundFailMsg') });
     }
@@ -1423,7 +1423,7 @@ export function SettingsScreen() {
       .from('missed_med_sound_prefs' as any)
       .upsert({ user_id: user.id, [column]: soundId, updated_at: new Date().toISOString() })
       .then(({ error }) => {
-        if (error) console.error('[SettingsScreen] 미복용 알림음 저장 실패:', error);
+        if (error) console.error('[SettingsScreen] failed to save the missed-dose notification sound:', error);
       });
     provisionForUser(user.id, user.patient_group_id ?? null).catch(() => {});
   };

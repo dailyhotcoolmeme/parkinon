@@ -80,7 +80,7 @@ export function RoleSelectScreen() {
             'Content-Type': 'application/json',
           },
           body: JSON.stringify({ role: selectedRole }),
-        }).catch((e) => console.warn('[RoleSelect] role DB 저장 실패 (계속 진행):', e?.message));
+        }).catch((e) => console.warn('[RoleSelect] failed to save role to DB (continuing):', e?.message));
       }
 
       if (selectedRole === 'patient') {

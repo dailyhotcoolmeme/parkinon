@@ -148,10 +148,10 @@ Deno.serve(async (req) => {
     let r2Stats: Awaited<ReturnType<typeof deleteUserR2Objects>>
     try {
       r2Stats = await deleteUserR2Objects(user.id)
-      console.log(`[delete-account] R2 정리 결과 user=${user.id}:`, JSON.stringify(r2Stats))
+      console.log(`[delete-account] R2 cleanup result user=${user.id}:`, JSON.stringify(r2Stats))
     } catch (e) {
       // 어떤 경우에도 DB 삭제를 막지 않음
-      console.error('[delete-account] R2 정리 예외:', e)
+      console.error('[delete-account] R2 cleanup exception:', e)
       r2Stats = { listed: 0, deleted: 0, failed: 0, errors: [String(e)] }
     }
 
@@ -179,7 +179,7 @@ Deno.serve(async (req) => {
       headers: { ...corsHeaders, 'Content-Type': 'application/json' },
     })
   } catch (e) {
-    console.error('[delete-account] 오류:', e)
+    console.error('[delete-account] error:', e)
     // 보안: 내부 에러 문자열을 클라이언트에 노출하지 않음(상세는 로그에만).
     return new Response(JSON.stringify({ error: 'account deletion failed' }), {
       status: 500,

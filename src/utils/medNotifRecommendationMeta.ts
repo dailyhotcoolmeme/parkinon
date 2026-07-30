@@ -47,7 +47,7 @@ export async function getRecommendationMeta(): Promise<MedNotifRecommendationMet
       sourceMedSignature: parsed.sourceMedSignature,
     };
   } catch (e) {
-    console.warn('[medNotifRecommendationMeta] 읽기 오류:', e);
+    console.warn('[medNotifRecommendationMeta] read error:', e);
     return null;
   }
 }
@@ -70,7 +70,7 @@ export async function patchRecommendationMeta(
       JSON.stringify(next)
     );
   } catch (e) {
-    console.warn('[medNotifRecommendationMeta] 갱신 오류:', e);
+    console.warn('[medNotifRecommendationMeta] update error:', e);
   }
 }
 

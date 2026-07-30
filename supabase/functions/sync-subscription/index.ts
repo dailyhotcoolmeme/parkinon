@@ -62,7 +62,7 @@ async function fetchState(appUserId: string): Promise<{
 async function ensureGroupFor(userId: string): Promise<string | null> {
   const { data, error } = await supabase.rpc('ensure_group_for_user', { p_user_id: userId })
   if (error) {
-    console.error('[sync-subscription] 그룹 확보 실패:', error)
+    console.error('[sync-subscription] failed to resolve group:', error)
     return null
   }
   return (data as string | null) ?? null
@@ -84,7 +84,7 @@ Deno.serve(async (req: Request) => {
   try {
     state = await fetchState(userId)
   } catch (e) {
-    console.error('[sync-subscription] RevenueCat 조회 실패:', e)
+    console.error('[sync-subscription] RevenueCat lookup failed:', e)
     return json({ error: 'revenuecat unavailable' }, 502)
   }
   // 조회 실패(네트워크·장애)면 아무것도 바꾸지 않는다. 잘못된 값으로 덮는 것보다 낫다.
@@ -111,7 +111,7 @@ Deno.serve(async (req: Request) => {
     })
     .eq('id', groupId)
   if (upErr) {
-    console.error('[sync-subscription] 그룹 갱신 실패:', upErr)
+    console.error('[sync-subscription] failed to update group:', upErr)
     return json({ error: 'update failed' }, 500)
   }
 

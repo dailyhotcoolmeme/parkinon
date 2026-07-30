@@ -233,7 +233,7 @@ export function VideoRecordScreen() {
         videoUri = compressed;
       } catch (compressErr) {
         // 압축 실패 시 원본으로 fallback
-        console.warn('영상 압축 실패, 원본 사용:', compressErr);
+        console.warn('video compression failed, using the original:', compressErr);
       }
 
       if (cancelledRef.current) return;

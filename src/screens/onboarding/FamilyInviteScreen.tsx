@@ -240,7 +240,7 @@ export function FamilyInviteScreen() {
           }
         } else {
           const errText = await groupRes.text();
-          console.warn('[FamilyInviteScreen] patient_groups 생성 오류 (계속 진행):', errText);
+          console.warn('[FamilyInviteScreen] patient_groups create error (continuing):', errText);
         }
       }
 
@@ -269,11 +269,11 @@ export function FamilyInviteScreen() {
             });
           } else {
             // already_member 등 → finalGroupId 유지(이미 같은 그룹일 수 있음). 안내만 생략.
-            console.warn('[FamilyInviteScreen] join_family_by_code 비정상 결과:', rpcResult);
+            console.warn('[FamilyInviteScreen] join_family_by_code returned an unexpected result:', rpcResult);
           }
         } else {
           const errText = await rpcRes.text().catch(() => '');
-          console.warn('[FamilyInviteScreen] join_family_by_code 실패 (계속 진행):', rpcRes.status, errText);
+          console.warn('[FamilyInviteScreen] join_family_by_code failed (continuing):', rpcRes.status, errText);
           finalGroupId = null;
         }
       } else if (resolvedJoinGroupId && role) {
@@ -314,10 +314,10 @@ export function FamilyInviteScreen() {
             method: 'PATCH',
             headers: { ...baseHeaders, 'Prefer': 'return=minimal' },
             body: JSON.stringify({ med_notif_prefs: medNotifs }),
-          }).catch((e) => console.warn('[FamilyInviteScreen] med_notif_prefs 저장 오류:', e));
+          }).catch((e) => console.warn('[FamilyInviteScreen] med_notif_prefs save error:', e));
         }
       } catch (parseErr) {
-        console.warn('[FamilyInviteScreen] med notifs 브리지 파싱 오류:', parseErr);
+        console.warn('[FamilyInviteScreen] med notifs bridge parsing error:', parseErr);
       }
 
       // [근본 수정] track_intervals 기본값용 notifMinutes — onboarding_med_notifs에서 enabled 분 추출.
@@ -390,7 +390,7 @@ export function FamilyInviteScreen() {
           });
           if (!medRes.ok) {
             const errText = await medRes.text();
-            console.warn(`[FamilyInviteScreen] medications 저장 실패 (계속 진행): ${medRes.status} ${errText}`);
+            console.warn(`[FamilyInviteScreen] failed to save medications (continuing): ${medRes.status} ${errText}`);
           } else {
             // representation 응답: 삽입된 약 행 배열(요청 meds와 동일 순서). id ↔ meal_times 매핑 후 슬롯 배정.
             try {
@@ -404,7 +404,7 @@ export function FamilyInviteScreen() {
                 }
               }
             } catch (mapErr) {
-              console.warn('[FamilyInviteScreen] dose_slot 배정 파싱 오류 (계속 진행):', mapErr);
+              console.warn('[FamilyInviteScreen] dose_slot assignment parsing error (continuing):', mapErr);
             }
           }
 
@@ -433,7 +433,7 @@ export function FamilyInviteScreen() {
         'onboarding_group_id',
       ]);
     } catch (e: any) {
-      console.error('[FamilyInviteScreen] handleFinish 오류:', e);
+      console.error('[FamilyInviteScreen] handleFinish error:', e);
       await dialog.alert({
         title: t('familyInvite.saveErrorTitle'),
         message: t('familyInvite.saveErrorMsg') + (e?.message ?? ''),

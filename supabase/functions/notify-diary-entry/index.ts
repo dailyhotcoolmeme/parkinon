@@ -101,7 +101,7 @@ async function logNotification(userId: string, title: string, body: string, data
   try {
     await supabase.from('notification_logs').insert({ user_id: userId, type: 'family_diary', title, body, data, read_at: null });
   } catch (e) {
-    console.warn('[notify-diary-entry] logNotification 실패:', e);
+    console.warn('[notify-diary-entry] logNotification failed:', e);
   }
 }
 

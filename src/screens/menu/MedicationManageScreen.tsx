@@ -581,7 +581,7 @@ function DrugInfoModal({ drug, onClose }: { drug: Medication | null; onClose: ()
         // ── 3차: 둘 다 없음 ──
         if (!cancelled) setEasyNotFound(true);
       } catch (e) {
-        if (__DEV__) console.error('[DrugInfo] 약정보 로드 오류:', e);
+        if (__DEV__) console.error('[DrugInfo] drug info load error:', e);
         if (!cancelled) setEasyNotFound(true);
       } finally {
         if (!cancelled) setEasyLoading(false);
@@ -1243,7 +1243,7 @@ export function MedicationManageScreen({ modeOverride, hideBack, hideTopBar, onG
         finishRemoval();
         await dialog.alert(deleteSlotCombinedPopup(takenToday));
       } catch (e) {
-        console.error('[MedicationManageScreen] dose_slot 삭제 실패:', e);
+        console.error('[MedicationManageScreen] dose_slot delete failed:', e);
         await dialog.alert({ message: t('medManage.deleteFailMsg') });
       }
     };
@@ -1257,7 +1257,7 @@ export function MedicationManageScreen({ modeOverride, hideBack, hideTopBar, onG
         finishRemoval();
         await dialog.alert(deleteSlotCombinedPopup(takenToday));
       } catch (e) {
-        console.error('[MedicationManageScreen] 슬롯+기록 삭제(RPC) 실패:', e);
+        console.error('[MedicationManageScreen] slot + records delete (RPC) failed:', e);
         await dialog.alert({ message: t('medManage.deleteFailMsg') });
       }
     };
@@ -1283,7 +1283,7 @@ export function MedicationManageScreen({ modeOverride, hideBack, hideTopBar, onG
       if (medRes.error || onoffRes.error) throw medRes.error ?? onoffRes.error;
       recordCount = (medRes.count ?? 0) + (onoffRes.count ?? 0);
     } catch (e) {
-      console.error('[MedicationManageScreen] 슬롯 기록 건수 조회 실패:', e);
+      console.error('[MedicationManageScreen] failed to count slot records:', e);
       recordCount = null; // 불명 → 보수적으로 함께-삭제 선택지를 띄움
     }
 
@@ -1632,7 +1632,7 @@ export function MedicationManageScreen({ modeOverride, hideBack, hideTopBar, onG
         }
       } catch (slotE) {
         // dose_slots 조인 실패 시 legacy 표시로 안전 폴백
-        console.warn('[MedicationManageScreen] dose_slots 조인 실패, legacy 표시로 폴백:', slotE);
+        console.warn('[MedicationManageScreen] dose_slots join failed, falling back to legacy display:', slotE);
         patientHasDoseSlots = false;
         medsWithSlots = baseMeds;
       }
@@ -1663,7 +1663,7 @@ export function MedicationManageScreen({ modeOverride, hideBack, hideTopBar, onG
           }))
         );
       } catch (stoppedE) {
-        console.warn('[MedicationManageScreen] 중단 약 조회 실패(계속):', stoppedE);
+        console.warn('[MedicationManageScreen] stopped-medication lookup failed(continuing):', stoppedE);
         setStoppedMeds([]);
       }
 
@@ -1697,7 +1697,7 @@ export function MedicationManageScreen({ modeOverride, hideBack, hideTopBar, onG
         }).catch(() => {});
       }
     } catch (e) {
-      console.error('[MedicationManageScreen] loadMedications 오류:', e);
+      console.error('[MedicationManageScreen] loadMedications error:', e);
     } finally {
       if (!silent) setIsLoading(false);
     }
@@ -1739,7 +1739,7 @@ export function MedicationManageScreen({ modeOverride, hideBack, hideTopBar, onG
         autoEnsuredSlotsForRef.current !== pid
       ) {
         autoEnsuredSlotsForRef.current = pid;
-        console.warn('[MedicationManageScreen] 0슬롯 환자 감지 → 기본 4슬롯 자동 생성(안전망)');
+        console.warn('[MedicationManageScreen] patient with 0 slots detected - auto-creating the 4 default slots (safety net)');
         await ensurePatientDoseSlots(pid, null);
         invalidateDoseSlotsCache(pid);
         slots = await fetchPatientDoseSlots(pid);
@@ -1764,7 +1764,7 @@ export function MedicationManageScreen({ modeOverride, hideBack, hideTopBar, onG
       }
       setMedSlotMap(map);
     } catch (e) {
-      console.warn('[MedicationManageScreen] loadDoseSlots 실패:', e);
+      console.warn('[MedicationManageScreen] loadDoseSlots failed:', e);
     }
   }, [targetPatientId, user?.role, user?.id]);
 
@@ -1974,11 +1974,11 @@ export function MedicationManageScreen({ modeOverride, hideBack, hideTopBar, onG
             const { error: itemErr } = await supabase
               .from('prescription_items')
               .insert(itemRows);
-            if (itemErr) console.warn('[OCR confirm] prescription_items 저장 실패:', itemErr);
+            if (itemErr) console.warn('[OCR confirm] prescription_items save failed:', itemErr);
           }
         }
       } catch (rxErr) {
-        console.warn('[OCR confirm] prescriptions 저장 실패:', rxErr);
+        console.warn('[OCR confirm] prescriptions save failed:', rxErr);
       }
 
       // 2) medications 동기화 — diff 기반 (EDI코드 우선 매칭)
@@ -2058,7 +2058,7 @@ export function MedicationManageScreen({ modeOverride, hideBack, hideTopBar, onG
             is_active: true,
           })
           .eq('id', d.prevMedId);
-        if (upErr) console.warn('[OCR confirm] medications update 실패:', upErr);
+        if (upErr) console.warn('[OCR confirm] medications update failed:', upErr);
         else updatedIds.push(d.prevMedId);
       }
 
@@ -2077,7 +2077,7 @@ export function MedicationManageScreen({ modeOverride, hideBack, hideTopBar, onG
             .from('medications')
             .update({ is_active: false })
             .eq('id', d.prevMedId);
-          if (upErr2) console.warn('[OCR confirm] 중단 처리 실패:', upErr2);
+          if (upErr2) console.warn('[OCR confirm] stop handling failed:', upErr2);
           else stoppedIds.push(d.prevMedId);
         } else {
           stoppedIds.push(d.prevMedId);
@@ -2095,7 +2095,7 @@ export function MedicationManageScreen({ modeOverride, hideBack, hideTopBar, onG
         );
         invalidateDoseSlotsCache(targetPatientId);
       } catch (dsErr) {
-        console.warn('[OCR confirm] 중단 약 슬롯 매핑 정리 실패(계속):', dsErr);
+        console.warn('[OCR confirm] failed to clean up stopped-med slot mapping(continuing):', dsErr);
       }
 
       // 3) 화면 상태 동기화
@@ -2124,7 +2124,7 @@ export function MedicationManageScreen({ modeOverride, hideBack, hideTopBar, onG
         saveMedicationHistory(targetPatientId!, m.id, 'added', nextMedsForHistory);
       });
     } catch (e) {
-      console.error('[OCR confirm] 저장 오류:', e);
+      console.error('[OCR confirm] save error:', e);
       // 최후 폴백: 화면에 표시만
       setMedications(prev => [...prev, ...selected]);
     }
@@ -2255,7 +2255,7 @@ export function MedicationManageScreen({ modeOverride, hideBack, hideTopBar, onG
         }
       }
     } catch (cmpErr) {
-      console.warn('[OCR confirm] 비교 실패, 전부 신규로 진행:', cmpErr);
+      console.warn('[OCR confirm] comparison failed, treating everything as new:', cmpErr);
       diffs = selected.map(m => ({ type: 'added', name: m.name, ediCode: m.ediCode, key: matchKey(m) } as DiffEntry));
     }
 
@@ -2292,7 +2292,7 @@ export function MedicationManageScreen({ modeOverride, hideBack, hideTopBar, onG
         }
       }
     } catch (matchErr) {
-      console.warn('[OCR confirm] PK 매칭 실패:', matchErr);
+      console.warn('[OCR confirm] PK matching failed:', matchErr);
     }
 
     // ── 비교 다이얼로그 메시지 작성 ───────────────────────────────────────
@@ -2419,7 +2419,7 @@ export function MedicationManageScreen({ modeOverride, hideBack, hideTopBar, onG
         snapshot: snapshot as unknown as Json,
       });
     } catch (e) {
-      console.warn('[saveMedicationHistory] 이력 저장 실패:', e);
+      console.warn('[saveMedicationHistory] failed to save the history row:', e);
     }
   }, []);
 
@@ -2453,7 +2453,7 @@ export function MedicationManageScreen({ modeOverride, hideBack, hideTopBar, onG
           .single();
         notifPrefs = (userRow?.med_time_notif_prefs ?? null) as Record<string, boolean> | null;
       } catch (e) {
-        console.warn('[MedicationManageScreen] med_time_notif_prefs 조회 실패(계속):', e);
+        console.warn('[MedicationManageScreen] med_time_notif_prefs lookup failed (continuing):', e);
       }
       await ensurePatientDoseSlots(pid, mealSchedules, notifPrefs, enabledTrackMinutes());
     },
@@ -2523,7 +2523,7 @@ export function MedicationManageScreen({ modeOverride, hideBack, hideTopBar, onG
       setAddCountUnit('day');
       setAddDrugInfo(undefined);
     } catch (e) {
-      console.error('[MedicationManageScreen] 약 직접 등록 오류:', e);
+      console.error('[MedicationManageScreen] manual medication registration error:', e);
       await dialog.alert({ message: t('medManage.addFailMsg') });
     }
   };
@@ -2587,7 +2587,7 @@ export function MedicationManageScreen({ modeOverride, hideBack, hideTopBar, onG
         .eq('id', savedId);
       if (error) throw error;
     } catch (e) {
-      console.error('[MedicationManageScreen] 약 수정 오류:', e);
+      console.error('[MedicationManageScreen] medication edit error:', e);
       await dialog.alert({ message: t('medManage.editFailMsg') });
       loadMedications();
     }
@@ -2633,7 +2633,7 @@ export function MedicationManageScreen({ modeOverride, hideBack, hideTopBar, onG
         .eq('id', med.id);
       // ended_at 업데이트 실패 시(컬럼/권한) is_active만이라도 처리
       if (error) {
-        console.warn('[MedicationManageScreen] ended_at 기록 실패, is_active만 처리:', error);
+        console.warn('[MedicationManageScreen] ended_at write failed, handling is_active only:', error);
         const { error: err2 } = await supabase
           .from('medications')
           .update({ is_active: false })
@@ -2653,11 +2653,11 @@ export function MedicationManageScreen({ modeOverride, hideBack, hideTopBar, onG
           await syncMedicationDoseSlots(targetPatientId, med.id, []);
           invalidateDoseSlotsCache(targetPatientId);
         } catch (dsErr) {
-          console.warn('[MedicationManageScreen] dose_slots 매핑 정리 실패(계속):', dsErr);
+          console.warn('[MedicationManageScreen] dose_slots mapping cleanup failed(continuing):', dsErr);
         }
       }
     } catch (e) {
-      console.error('[MedicationManageScreen] 약 중단 오류:', e);
+      console.error('[MedicationManageScreen] medication stop error:', e);
       await dialog.alert({ message: t('medManage.stopFailMsg') });
       loadMedications();
     }
@@ -2683,7 +2683,7 @@ export function MedicationManageScreen({ modeOverride, hideBack, hideTopBar, onG
       const { error } = await supabase.from('medications').delete().eq('id', med.id);
       if (error) throw error;
     } catch (e) {
-      console.error('[MedicationManageScreen] 지난 약 삭제 오류:', e);
+      console.error('[MedicationManageScreen] past-medication delete error:', e);
       await dialog.alert({ message: t('medManage.deleteFailMsg') });
       loadMedications();
     }
@@ -2724,7 +2724,7 @@ export function MedicationManageScreen({ modeOverride, hideBack, hideTopBar, onG
       setMedSlotMap((prev) => ({ ...prev, [slotId]: [...nextIds] }));
       invalidateDoseSlotsCache(targetPatientId);
     } catch (e) {
-      console.error('[MedicationManageScreen] 약 배정 커밋 실패:', e);
+      console.error('[MedicationManageScreen] failed to commit medication assignment:', e);
       await dialog.alert({ message: t('medManage.assignSaveFailMsg') });
       throw e;
     } finally {
@@ -2761,7 +2761,7 @@ export function MedicationManageScreen({ modeOverride, hideBack, hideTopBar, onG
         if (error) throw error;
         if (targetPatientId) invalidateDoseSlotsCache(targetPatientId);
       } catch (e) {
-        console.error('[MedicationManageScreen] dose_slots 토글 update 실패:', e);
+        console.error('[MedicationManageScreen] dose_slots toggle update failed:', e);
         if (prev) {
           const rollback = prev;
           setDoseSlotList((list) => list.map((s) => (s.id === slotId ? rollback : s)));

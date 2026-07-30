@@ -186,13 +186,13 @@ Deno.serve(async (req: Request) => {
       if (insertError) {
         if (insertError.code === '23505') {
           // 부분 유니크 인덱스 위반 = 동시 더블탭으로 이미 같은 복용 큐가 적재됨 → 멱등 무시.
-          console.warn('[queue-effect-tracking] (dose_slot) 중복 큐 무시(동시 더블탭, 23505):', insertError.message)
+          console.warn('[queue-effect-tracking] (dose_slot) duplicate queue ignored (concurrent double tap, 23505):', insertError.message)
           return new Response(JSON.stringify({ queued: 0, deduped: true, path: 'dose_slot' }), {
             status: 200,
             headers: { ...CORS_HEADERS, 'Content-Type': 'application/json' },
           })
         }
-        console.error('[queue-effect-tracking] (dose_slot) INSERT 오류:', insertError)
+        console.error('[queue-effect-tracking] (dose_slot) INSERT error:', insertError)
         return new Response(JSON.stringify({ error: insertError.message }), {
           status: 500,
           headers: { ...CORS_HEADERS, 'Content-Type': 'application/json' },
@@ -247,7 +247,7 @@ Deno.serve(async (req: Request) => {
       .insert(rows)
 
     if (insertError) {
-      console.error('[queue-effect-tracking] INSERT 오류:', insertError)
+      console.error('[queue-effect-tracking] INSERT error:', insertError)
       return new Response(JSON.stringify({ error: insertError.message }), {
         status: 500,
         headers: { ...CORS_HEADERS, 'Content-Type': 'application/json' },
@@ -259,7 +259,7 @@ Deno.serve(async (req: Request) => {
       headers: { ...CORS_HEADERS, 'Content-Type': 'application/json' },
     })
   } catch (e) {
-    console.error('[queue-effect-tracking] 예외:', e)
+    console.error('[queue-effect-tracking] exception:', e)
     return new Response(JSON.stringify({ error: 'Internal server error' }), {
       status: 500,
       headers: { ...CORS_HEADERS, 'Content-Type': 'application/json' },

@@ -73,7 +73,7 @@ export function SensitiveInfoConsentScreen() {
         );
         if (!res.ok) {
           const errText = await res.text();
-          console.error('[SensitiveInfoConsent] DB 저장 실패:', res.status, errText);
+          console.error('[SensitiveInfoConsent] DB save failed:', res.status, errText);
           dialog.alert({ title: t('sensitiveConsent.errorTitle'), message: t('sensitiveConsent.consentSaveFailMsg') });
           return;
         }
@@ -86,7 +86,7 @@ export function SensitiveInfoConsentScreen() {
       ]);
       navigation.replace('FamilyCheck');
     } catch (e) {
-      console.error('[SensitiveInfoConsent] handleAgree 예외:', e);
+      console.error('[SensitiveInfoConsent] handleAgree exception:', e);
       dialog.alert({ title: t('sensitiveConsent.errorTitle'), message: t('sensitiveConsent.consentSaveExceptionMsg') });
     }
   };

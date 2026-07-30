@@ -155,7 +155,7 @@ function NotificationOnboardingModalContent({ isCaregiver, userId, visible, onCl
         if (finalStatus === 'granted') {
           await setNotificationEnabled(true);
           await requestPermissionsAndSaveToken(userId).catch((e) =>
-            console.warn('[NotificationOnboardingModal] push_token 저장 오류:', e)
+            console.warn('[NotificationOnboardingModal] push_token save error:', e)
           );
 
           if (isCaregiver) {
@@ -174,7 +174,7 @@ function NotificationOnboardingModalContent({ isCaregiver, userId, visible, onCl
                 });
               }
             } catch (e) {
-              console.warn('[NotificationOnboardingModal] caregiver_notif_prefs 저장 오류:', e);
+              console.warn('[NotificationOnboardingModal] caregiver_notif_prefs save error:', e);
             }
           }
         }

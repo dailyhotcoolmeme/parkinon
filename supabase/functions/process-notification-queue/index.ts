@@ -164,7 +164,7 @@ Deno.serve(async (_req: Request) => {
       .select('id')
 
     if (!claimed || claimed.length === 0) {
-      console.log('[process-queue] 이미 처리된 항목 건너뜀:', item.id)
+      console.log('[process-queue] skipping already-processed item:', item.id)
       continue
     }
 
@@ -181,7 +181,7 @@ Deno.serve(async (_req: Request) => {
     if (item.dose_slot_id) {
       const guardSlot = Array.isArray(item.dose_slot) ? (item.dose_slot[0] ?? null) : (item.dose_slot ?? null)
       if (!guardSlot || guardSlot.is_active === false || guardSlot.track_enabled === false) {
-        console.log('[process-queue] 비활성/추적OFF/삭제 슬롯 — 발송 스킵(sent_at 유지):', item.id, item.dose_slot_id)
+        console.log('[process-queue] inactive / tracking-off / deleted slot - skipping send (sent_at kept):', item.id, item.dose_slot_id)
         continue
       }
     }
@@ -190,7 +190,7 @@ Deno.serve(async (_req: Request) => {
     // 이미 위에서 sent_at 을 선점(claim)했으므로, 여기서 그냥 continue 하면
     // 해당 큐 항목은 sent_at 마킹된 채로 남아 무한 재시도되지 않는다(스킵=발송완료 처리).
     if (notifEnabledByPatient.get(item.patient_id) === false) {
-      console.log('[process-queue] 전체 알림 OFF — 발송 스킵(sent_at 유지):', item.id)
+      console.log('[process-queue] all notifications off - skipping send (sent_at kept):', item.id)
       continue
     }
 
@@ -221,7 +221,7 @@ Deno.serve(async (_req: Request) => {
     //   이미 위에서 sent_at 을 선점했으므로 continue = 재시도 없이 스킵(발송완료 처리).
     // 안드 '알람처럼'만 로컬 알람이 담당 → 서버 미발송. basic·(옛)sound30·iOS 는 서버가 소리.
     if (alarmMode === 'alarm' && platform === 'android') {
-      console.log('[process-queue] 안드 알람처럼 — 서버 미발송(로컬 담당·sent_at 유지):', item.id)
+      console.log('[process-queue] Android alarm-style - server does not send (local handles it, sent_at kept):', item.id)
       continue
     }
     const channelId = channelForStoredSound(soundId)
@@ -250,7 +250,7 @@ Deno.serve(async (_req: Request) => {
         .from('effect_tracking_queue')
         .update({ sent_at: null })
         .eq('id', item.id)
-      console.error('[process-queue] push 실패 — sent_at 초기화, 재시도 대기:', item.id)
+      console.error('[process-queue] push failed - resetting sent_at, will retry:', item.id)
     }
   }
 

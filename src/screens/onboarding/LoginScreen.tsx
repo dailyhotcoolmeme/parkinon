@@ -76,7 +76,7 @@ export function LoginScreen() {
           if (session?.user) {
             // 세션이 있으면 onAuthStateChange가 곧 발동하거나 이미 발동했을 것
             // 60초 타임아웃을 짧게(10초)로 줄여서 user 설정을 기다림
-            console.log('[LoginScreen] AppState active: 세션 확인됨, user 대기 중');
+            console.log('[LoginScreen] AppState active: session confirmed, waiting for user');
             if (signingTimeoutRef.current) clearTimeout(signingTimeoutRef.current);
             signingTimeoutRef.current = setTimeout(() => {
               // 10초 후에도 user가 안 오면 스피너 해제 (비정상 상황)
@@ -86,17 +86,17 @@ export function LoginScreen() {
           } else {
             // 세션 없음: 딥링크가 조금 늦게 도착할 수 있으므로 즉시 해제하지 않음
             // signInWithKakao(openBrowserAsync)가 authReceived=false 반환 시 handleKakaoLogin이 해제함
-            console.log('[LoginScreen] AppState active: 세션 없음, 딥링크 추가 대기 중...');
+            console.log('[LoginScreen] AppState active: session missing, waiting for deep link...');
             if (signingTimeoutRef.current) clearTimeout(signingTimeoutRef.current);
             signingTimeoutRef.current = setTimeout(() => {
               if (!kakaoStarted.current) return;
-              console.log('[LoginScreen] 최종 타임아웃: 로그인 취소 처리');
+              console.log('[LoginScreen] final timeout: treating login as cancelled');
               kakaoStarted.current = false;
               setSigning(false);
             }, 25000);
           }
         } catch (e) {
-          console.error('[LoginScreen] AppState active 세션 확인 오류:', e);
+          console.error('[LoginScreen] AppState active session check error:', e);
           // 오류 시 60초 타임아웃으로 자동 복구
           if (signingTimeoutRef.current) clearTimeout(signingTimeoutRef.current);
           signingTimeoutRef.current = setTimeout(() => {

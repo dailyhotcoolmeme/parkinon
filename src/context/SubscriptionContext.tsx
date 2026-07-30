@@ -110,7 +110,7 @@ export function SubscriptionProvider({ children }: { children: React.ReactNode }
       // ⚠️ 조회 실패(네트워크 등)로 free 로 내리지 않는다. 일시적 오류 때문에 결제한
       //   사용자에게 결제창이 뜨는 것보다 직전 상태를 유지하는 편이 안전하다.
       //   실제 만료는 서버가 tier 를 내려야 반영된다.
-      if (__DEV__) console.warn('[useSubscription] 조회 실패, 직전 상태 유지:', e);
+      if (__DEV__) console.warn('[useSubscription] lookup failed, keeping previous state:', e);
       return tierRef.current === 'premium';
     }
   }, [groupId, authLoading]);
@@ -172,7 +172,7 @@ export function SubscriptionProvider({ children }: { children: React.ReactNode }
       // 스토어에 권한이 없다 → 서버 값 그대로 반영.
       return await fetchOnce();
     } catch (e) {
-      if (__DEV__) console.warn('[useSubscription] sync 실패, 서버 값으로 대체:', e);
+      if (__DEV__) console.warn('[useSubscription] sync failed, falling back to the server value:', e);
       // 동기화 실패(네트워크 등) 시엔 웹훅이 반영했을 수 있으니 짧게 재조회.
       return await fetchOnce();
     } finally {

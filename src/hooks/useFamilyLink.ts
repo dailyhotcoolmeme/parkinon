@@ -208,7 +208,7 @@ export function useFamilyLink(): UseFamilyLinkReturn {
 
       return code;
     } catch (err: any) {
-      console.error('[useFamilyLink] generateInviteCode 오류:', err);
+      console.error('[useFamilyLink] generateInviteCode error:', err);
       setError(i18n.t('familyLinkHook.inviteCodeGenFail'));
       return null;
     } finally {
@@ -250,7 +250,7 @@ export function useFamilyLink(): UseFamilyLinkReturn {
 
       if (!res.ok) {
         const errText = await res.text().catch(() => '');
-        console.warn('[useFamilyLink] join_family_by_code HTTP 오류:', res.status, errText);
+        console.warn('[useFamilyLink] join_family_by_code HTTP error:', res.status, errText);
         return { success: false, message: i18n.t('familyLinkHook.joinHttpFail') };
       }
 
@@ -288,7 +288,7 @@ export function useFamilyLink(): UseFamilyLinkReturn {
       // two_patients / invalid_code / already_member / error 등 → 안내만
       return { success: false, message };
     } catch (err: any) {
-      console.error('[useFamilyLink] join_family_by_code 오류:', err);
+      console.error('[useFamilyLink] join_family_by_code error:', err);
       const message = i18n.t('familyLinkHook.joinCatchFail');
       setError(message);
       return { success: false, message };
@@ -376,7 +376,7 @@ export function useFamilyLink(): UseFamilyLinkReturn {
           user: Array.isArray(item.user) ? (item.user[0] ?? null) : (item.user ?? null),
         }));
     } catch (err: any) {
-      console.error('[useFamilyLink] getGroupMembers 오류:', err);
+      console.error('[useFamilyLink] getGroupMembers error:', err);
       return [];
     }
   }, [user]);
@@ -406,7 +406,7 @@ export function useFamilyLink(): UseFamilyLinkReturn {
       if (patientError) throw patientError;
       return patient ?? null;
     } catch (err: any) {
-      console.error('[useFamilyLink] getPatientForCaregiver 오류:', err);
+      console.error('[useFamilyLink] getPatientForCaregiver error:', err);
       return null;
     }
   }, [user]);
@@ -476,7 +476,7 @@ export function useFamilyLink(): UseFamilyLinkReturn {
       await refreshUser();
       return true;
     } catch (err: any) {
-      console.error('[useFamilyLink] leaveGroup 오류:', err);
+      console.error('[useFamilyLink] leaveGroup error:', err);
       setError(i18n.t('familyLinkHook.disconnectFail'));
       return false;
     } finally {
@@ -529,7 +529,7 @@ export function useFamilyLink(): UseFamilyLinkReturn {
       await refreshUser();
       return true;
     } catch (err: any) {
-      console.error('[useFamilyLink] removeFamilyMember 오류:', err);
+      console.error('[useFamilyLink] removeFamilyMember error:', err);
       setError(i18n.t('familyLinkHook.disconnectFail'));
       return false;
     } finally {

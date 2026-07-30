@@ -97,7 +97,7 @@ export function FamilyCheckScreen() {
       if (!lookupRes.ok) {
         // 조회 자체가 실패하면 group_id를 확정할 수 없으므로 진행 금지(조용히 무시 금지).
         const errText = await lookupRes.text().catch(() => '');
-        console.warn('[FamilyCheck] 코드 조회 실패:', lookupRes.status, errText);
+        console.warn('[FamilyCheck] code lookup failed:', lookupRes.status, errText);
         dialog.alert({ title: t('familyCheck.lookupFailTitle'), message: t('familyCheck.lookupFailMsg') });
         setLoading(false);
         return;
@@ -152,10 +152,10 @@ export function FamilyCheckScreen() {
           if (typeof parsed === 'string') maskedName = parsed;
           else if (parsed && typeof parsed === 'object' && typeof parsed.name === 'string') maskedName = parsed.name;
         } else {
-          console.warn('[FamilyCheck] 환자명 조회 RPC 실패:', rpcRes.status);
+          console.warn('[FamilyCheck] patient-name lookup RPC failed:', rpcRes.status);
         }
       } catch (rpcErr) {
-        console.warn('[FamilyCheck] 환자명 조회 RPC 예외:', rpcErr);
+        console.warn('[FamilyCheck] patient-name lookup RPC exception:', rpcErr);
       }
 
       const trimmedName = (maskedName ?? '').trim();

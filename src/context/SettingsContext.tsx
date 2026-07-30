@@ -126,7 +126,7 @@ export function SettingsProvider({ children }: { children: React.ReactNode }) {
             });
           }
         } catch (e) {
-          console.warn('[SettingsContext] 시스템 권한 차단 DB 동기화 오류:', e);
+          console.warn('[SettingsContext] error syncing blocked system permission to DB:', e);
         }
       }
       // granted / undetermined → 시스템 권한 상태(systemPermissionGranted)만 갱신하고
@@ -134,7 +134,7 @@ export function SettingsProvider({ children }: { children: React.ReactNode }) {
       // ⚠️ 예전엔 granted면 무조건 true로 덮어써, 사용자가 끈 전체 알림 OFF가
       //    앱 재시작/포그라운드마다 ON으로 되살아나는 버그가 있었음 → 강제 ON 제거.
     } catch (e) {
-      console.warn('[SettingsContext] 시스템 권한 확인 오류:', e);
+      console.warn('[SettingsContext] system permission check error:', e);
     }
   }, []);
 
@@ -211,7 +211,7 @@ export function SettingsProvider({ children }: { children: React.ReactNode }) {
           }
         }
       } catch (e) {
-        console.warn('[SettingsContext] 설정 로드 오류:', e);
+        console.warn('[SettingsContext] settings load error:', e);
       } finally {
         setLoaded(true);
       }
@@ -295,10 +295,10 @@ export function SettingsProvider({ children }: { children: React.ReactNode }) {
       });
       if (!res.ok) {
         const txt = await res.text();
-        console.error('[SettingsContext] notification_enabled 저장 오류:', res.status, txt);
+        console.error('[SettingsContext] notification_enabled save error:', res.status, txt);
       }
     } catch (e) {
-      console.error('[SettingsContext] _persistNotificationEnabled 오류:', e);
+      console.error('[SettingsContext] _persistNotificationEnabled error:', e);
     }
   }, []);
 
@@ -315,7 +315,7 @@ export function SettingsProvider({ children }: { children: React.ReactNode }) {
       try {
         await Notifications.cancelAllScheduledNotificationsAsync();
       } catch (e) {
-        console.warn('[SettingsContext] 알림 취소 오류:', e);
+        console.warn('[SettingsContext] notification cancel error:', e);
       }
     }
 
@@ -339,7 +339,7 @@ export function SettingsProvider({ children }: { children: React.ReactNode }) {
       try {
         await Notifications.cancelAllScheduledNotificationsAsync();
       } catch (e) {
-        console.warn('[SettingsContext] 알림 취소 오류:', e);
+        console.warn('[SettingsContext] notification cancel error:', e);
       }
     }
     await _persistNotificationEnabled(enabled);

@@ -80,7 +80,7 @@ export function useExercise(): UseExerciseReturn {
       if (queryError) throw queryError;
       setTodayLogs(data ?? []);
     } catch (err: any) {
-      console.error('[useExercise] fetchTodayLogs 오류:', err);
+      console.error('[useExercise] fetchTodayLogs error:', err);
       setError(i18n.t('exerciseHook.fetchError'));
     } finally {
       setLoading(false);
@@ -197,7 +197,7 @@ export function useExercise(): UseExerciseReturn {
           }
         }
       } catch (notifErr) {
-        console.error('[useExercise] 보호자 푸시 실패 (기록은 저장됨):', notifErr);
+        console.error('[useExercise] caregiver push failed (the record was still saved):', notifErr);
       }
 
       // 같은 시간대 미읽음 운동 알림 일괄 읽음 처리
@@ -215,7 +215,7 @@ export function useExercise(): UseExerciseReturn {
 
       return true;
     } catch (err: any) {
-      console.error('[useExercise] saveExercise 오류:', err);
+      console.error('[useExercise] saveExercise error:', err);
       setError(i18n.t('exerciseHook.saveError'));
       return false;
     } finally {
@@ -239,7 +239,7 @@ export function useExercise(): UseExerciseReturn {
       await fetchTodayLogs();
       return true;
     } catch (err: any) {
-      console.error('[useExercise] cancelExercise 오류:', err);
+      console.error('[useExercise] cancelExercise error:', err);
       return false;
     }
   }, [user, fetchTodayLogs]);
@@ -264,7 +264,7 @@ export function useExercise(): UseExerciseReturn {
       if (queryError) throw queryError;
       return { logs: data ?? [], error: null };
     } catch (err: any) {
-      console.error('[useExercise] getExerciseLogs 오류:', err);
+      console.error('[useExercise] getExerciseLogs error:', err);
       const msg = i18n.t('exerciseHook.fetchError');
       return { logs: [], error: msg };
     }

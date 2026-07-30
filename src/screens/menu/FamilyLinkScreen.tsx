@@ -167,7 +167,7 @@ export function FamilyLinkScreen() {
         setInviteCode('');
       }
     } catch (e: any) {
-      console.warn('[FamilyLinkScreen] loadData 오류:', e);
+      console.warn('[FamilyLinkScreen] loadData error:', e);
     } finally {
       isLoadingRef.current = false;
     }
@@ -219,7 +219,7 @@ export function FamilyLinkScreen() {
       const message = t('familyLink.shareMessage', { code });
       await Share.share({ message });
     } catch (shareErr) {
-      console.warn('[FamilyLinkScreen] 공유 오류:', shareErr);
+      console.warn('[FamilyLinkScreen] share error:', shareErr);
     }
   };
 

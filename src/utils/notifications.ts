@@ -92,17 +92,17 @@ export async function requestPermissionsAndSaveToken(
 
   // undetermined인 경우에만 시스템 다이얼로그 요청
   if (existingStatus === 'undetermined') {
-    console.log('[notifications] 권한 미설정 → 권한 요청 다이얼로그 표시');
+    console.log('[notifications] permission not set - showing the permission request dialog');
     const { status: requestedStatus } = await Notifications.requestPermissionsAsync();
     finalStatus = requestedStatus;
   }
 
   if (finalStatus !== 'granted') {
-    console.warn('[notifications] 알림 권한 없음 (상태:', finalStatus, ') — push token 저장 스킵');
+    console.warn('[notifications] notification permission not granted (status:', finalStatus, ') — push token skipping save');
     return null;
   }
 
-  console.log('[notifications] 알림 권한 있음 → push token 저장 진행');
+  console.log('[notifications] notification permission granted - saving push token');
 
   // 2. Android 알림 채널 생성 (MAX 중요도 — 시스템 알림 설정에 채널이 표시되어야 차단 해제 가능)
   if (Platform.OS === 'android') {
@@ -131,7 +131,7 @@ export async function requestPermissionsAndSaveToken(
 
   // 3. Expo Push Token 획득
   try {
-    console.log('[notifications] Expo Push Token 획득 시작...');
+    console.log('[notifications] acquiring Expo Push Token...');
     const projectId =
       Constants.expoConfig?.extra?.eas?.projectId ??
       Constants.easConfig?.projectId;
@@ -143,23 +143,23 @@ export async function requestPermissionsAndSaveToken(
       : await Notifications.getExpoPushTokenAsync();
 
     const token = tokenData.data;
-    if (__DEV__) console.log('[notifications] Expo Push Token 획득 성공:', token.substring(0, 30) + '...');
+    if (__DEV__) console.log('[notifications] acquired Expo Push Token:', token.substring(0, 30) + '...');
 
     // 4. users 테이블에 push_token 저장
     //    supabase-js PostgREST 대신 직접 fetch 사용 (새 아키텍처 hang 버그 우회)
     let token_ = accessToken;
     if (!token_) {
-      console.log('[notifications] accessToken 미전달 → getSession()으로 폴백');
+      console.log('[notifications] accessToken not passed - falling back to getSession()');
       const { data: { session } } = await supabase.auth.getSession();
       token_ = session?.access_token;
     }
 
     if (!token_) {
-      console.error('[notifications] ❌ accessToken 없음 — push_token DB 저장 불가');
+      console.error('[notifications] ❌ accessToken missing - cannot save push_token to DB');
       return null;
     }
 
-    if (__DEV__) console.log('[notifications] DB 저장 시작 → userId:', userId);
+    if (__DEV__) console.log('[notifications] starting DB save - userId:', userId);
 
     const res = await fetch(`${SUPABASE_URL}/rest/v1/users?id=eq.${userId}`, {
       method: 'PATCH',
@@ -191,20 +191,20 @@ export async function requestPermissionsAndSaveToken(
     if (!res.ok) {
       const txt = await res.text();
       if (__DEV__) {
-        console.error('[notifications] ❌ push_token PATCH 실패:', res.status, txt);
+        console.error('[notifications] ❌ push_token PATCH failed:', res.status, txt);
         console.error('[notifications] userId:', userId);
         console.error('[notifications] SUPABASE_URL:', SUPABASE_URL);
       }
       return null;
     }
 
-    console.log('[notifications] ✅ push_token DB 저장 성공');
+    console.log('[notifications] ✅ push_token saved to DB');
     return token;
   } catch (e) {
-    console.error('[notifications] ❌ push token 획득/저장 실패:', e);
+    console.error('[notifications] ❌ failed to acquire/save push token:', e);
     if (e instanceof Error) {
-      console.error('[notifications] 에러 상세:', e.message);
-      console.error('[notifications] 스택:', e.stack);
+      console.error('[notifications] error detail:', e.message);
+      console.error('[notifications] stack:', e.stack);
     }
     return null;
   }
@@ -317,6 +317,6 @@ export async function sendCaregiverPush(
       body: { to: caregiverPushToken, title, body, data: data ?? {} },
     });
   } catch (e) {
-    console.error('[notifications] 보호자 푸시 전송 실패:', e);
+    console.error('[notifications] failed to send caregiver push:', e);
   }
 }

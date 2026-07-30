@@ -86,7 +86,7 @@ async function ensureGroupFor(appUserId: string): Promise<string | null> {
   //   무시돼 결제가 유실됐다(실측 2026-07-27). DB 함수에 원자적으로 맡긴다.
   const { data, error } = await supabase.rpc('ensure_group_for_user', { p_user_id: appUserId })
   if (error) {
-    console.error('[revenuecat-webhook] 그룹 확보 실패:', error)
+    console.error('[revenuecat-webhook] failed to resolve group:', error)
     return null
   }
   return (data as string | null) ?? null
@@ -126,7 +126,7 @@ Deno.serve(async (req: Request) => {
       payload: body,
     })
   } catch (e) {
-    console.error('[revenuecat-webhook] 이벤트 로그 실패:', e)
+    console.error('[revenuecat-webhook] failed to log the event:', e)
   }
   return new Response(result, { status: 200 })
 })
@@ -294,7 +294,7 @@ async function handleEvent(body: any): Promise<string> {
       try {
         await supabase.rpc('reset_group_custom_sounds', { p_group_id: groupId })
       } catch (e) {
-        console.error('[revenuecat-webhook] reset_group_custom_sounds 실패:', e)
+        console.error('[revenuecat-webhook] reset_group_custom_sounds failed:', e)
       }
       return `cancellation (${cancelReason || 'unknown'}): revoked`
     }
@@ -336,7 +336,7 @@ async function handleEvent(body: any): Promise<string> {
       try {
         await supabase.rpc('reset_group_custom_sounds', { p_group_id: groupId })
       } catch (e) {
-        console.error('[revenuecat-webhook] reset_group_custom_sounds 실패:', e)
+        console.error('[revenuecat-webhook] reset_group_custom_sounds failed:', e)
       }
       return 'revoked (entitlement inactive)'
     }
@@ -372,7 +372,7 @@ async function handleEvent(body: any): Promise<string> {
     try {
       await supabase.rpc('reset_group_custom_sounds', { p_group_id: groupId })
     } catch (e) {
-      console.error('[revenuecat-webhook] reset_group_custom_sounds 실패:', e)
+      console.error('[revenuecat-webhook] reset_group_custom_sounds failed:', e)
     }
     return 'expired'
   }

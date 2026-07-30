@@ -75,7 +75,7 @@ async function processAuthUrl(
   onAuthStateChangeFallback?: (userId: string, userMeta?: Record<string, any>, accessToken?: string) => Promise<void>,
   dialog?: DialogApi,
 ): Promise<void> {
-  if (__DEV__) console.log('[useAuth] Auth URL 처리 시작:', url.substring(0, 80));
+  if (__DEV__) console.log('[useAuth] handling auth URL:', url.substring(0, 80));
 
   // fragment 방식 (access_token + refresh_token)
   const fragmentStr = url.split('#')[1] ?? '';
@@ -84,33 +84,33 @@ async function processAuthUrl(
   const refreshToken = fragmentParams.get('refresh_token');
 
   if (accessToken && refreshToken) {
-    if (__DEV__) console.log('[useAuth] fragment 토큰 발견 → setSession');
+    if (__DEV__) console.log('[useAuth] found fragment token - calling setSession');
     const { error } = await supabase.auth.setSession({ access_token: accessToken, refresh_token: refreshToken });
     if (error) {
-      console.error('[useAuth] setSession 오류:', error.message);
+      console.error('[useAuth] setSession error:', error.message);
       dialog?.alert({ title: i18n.t('authHook.loginFailTitle'), message: i18n.t('authHook.kakaoErrorMsg') });
     }
   } else {
     // PKCE 방식 (code 파라미터)
     const parsed = Linking.parse(url);
     const code = parsed.queryParams?.code as string | undefined;
-    if (__DEV__) console.log('[useAuth] PKCE code 있음:', !!code);
+    if (__DEV__) console.log('[useAuth] PKCE code present:', !!code);
 
     if (code) {
       const { data, error } = await supabase.auth.exchangeCodeForSession(code);
       if (error) {
-        console.error('[useAuth] exchangeCodeForSession 오류:', error.message, error.status);
+        console.error('[useAuth] exchangeCodeForSession error:', error.message, error.status);
         dialog?.alert({ title: i18n.t('authHook.loginFailTitle'), message: i18n.t('authHook.kakaoErrorMsg') });
         return;
       }
       // onAuthStateChange가 발동하지 않을 경우를 대비해 세션 직접 확인
       if (data?.session?.user) {
-        if (__DEV__) console.log('[useAuth] exchangeCodeForSession 성공, onAuthStateChange 대기 중:', data.session.user.id);
+        if (__DEV__) console.log('[useAuth] exchangeCodeForSession succeeded, waiting for onAuthStateChange:', data.session.user.id);
         // 300ms 대기 후 onAuthStateChange 발동 여부 확인
         await new Promise(resolve => setTimeout(resolve, 300));
         const { data: { session: currentSession } } = await supabase.auth.getSession();
         if (currentSession?.user && onAuthStateChangeFallback) {
-          if (__DEV__) console.log('[useAuth] fallback 직접 처리 → loadUserProfile 호출');
+          if (__DEV__) console.log('[useAuth] fallback handling directly - calling loadUserProfile');
           await onAuthStateChangeFallback(
             currentSession.user.id,
             currentSession.user.user_metadata,
@@ -119,7 +119,7 @@ async function processAuthUrl(
         }
       }
     } else {
-      if (__DEV__) console.error('[useAuth] Auth URL에서 토큰/코드 없음. 파라미터:', Object.keys(parsed.queryParams ?? {}));
+      if (__DEV__) console.error('[useAuth] no token/code in the auth URL. params:', Object.keys(parsed.queryParams ?? {}));
       dialog?.alert({ title: i18n.t('authHook.loginFailTitle'), message: i18n.t('authHook.kakaoInvalidResponseMsg') });
     }
   }
@@ -201,7 +201,7 @@ async function cacheProfile(profile: UserProfile): Promise<void> {
   try {
     await AsyncStorage.setItem(profileCacheKey(profile.id), JSON.stringify(profile));
   } catch (e) {
-    if (__DEV__) console.warn('[useAuth] 프로필 캐시 저장 실패:', e);
+    if (__DEV__) console.warn('[useAuth] failed to save the profile cache:', e);
   }
 }
 
@@ -214,7 +214,7 @@ async function readCachedProfile(userId: string): Promise<UserProfile | null> {
     if (parsed?.id !== userId) return null;
     return parsed;
   } catch (e) {
-    if (__DEV__) console.warn('[useAuth] 프로필 캐시 읽기 실패:', e);
+    if (__DEV__) console.warn('[useAuth] failed to read the profile cache:', e);
     return null;
   }
 }
@@ -234,7 +234,7 @@ async function dbFetch(path: string, token: string, options?: RequestInit): Prom
   });
   const text = await res.text();
   if (!res.ok) {
-    console.error('[dbFetch] 오류:', res.status, text);
+    console.error('[dbFetch] error:', res.status, text);
     throw new Error(`HTTP ${res.status}: ${text}`);
   }
   return text ? JSON.parse(text) : null;
@@ -263,7 +263,7 @@ export function useAuthProvider(): UseAuthReturn {
       setTimeout(() => reject(new Error('Supabase DB connection timeout')), 8000)
     );
     try {
-      if (__DEV__) console.log('[useAuth] loadUserProfile 시작:', userId);
+      if (__DEV__) console.log('[useAuth] loadUserProfile start:', userId);
 
       // 탈퇴 진행 중이면 프로필을 만들거나 로드하지 않고 즉시 로그인 화면으로(온보딩 오탈출 방지).
       if (withdrawing) {
@@ -279,7 +279,7 @@ export function useAuthProvider(): UseAuthReturn {
         token = session?.access_token;
       }
       if (!token) {
-        console.error('[useAuth] 액세스 토큰 없음 — 프로필 로드 불가');
+        console.error('[useAuth] no access token - cannot load profile');
         setLoading(false);
         return;
       }
@@ -290,7 +290,7 @@ export function useAuthProvider(): UseAuthReturn {
         timeoutPromise,
       ]);
 
-      if (__DEV__) console.log('[useAuth] users select 결과: rows.length =', rows?.length);
+      if (__DEV__) console.log('[useAuth] users select result: rows.length =', rows?.length);
 
       if (!rows || rows.length === 0) {
         // ── 신규(또는 아직 보이지 않는) 유저 ──────────────────────────────────
@@ -313,7 +313,7 @@ export function useAuthProvider(): UseAuthReturn {
               kakaoRow = retry[0];
               break;
             }
-            if (__DEV__) console.log(`[useAuth] 카카오 행 폴링 ${attempt + 1}/5 — 아직 없음`);
+            if (__DEV__) console.log(`[useAuth] polling for the kakao row ${attempt + 1}/5 — not there yet`);
           }
           if (kakaoRow) {
             setUser(kakaoRow);
@@ -321,7 +321,7 @@ export function useAuthProvider(): UseAuthReturn {
             provisionForUser(kakaoRow.id, kakaoRow.patient_group_id ?? null).catch(() => {});
           } else {
             // Edge Function 행이 끝내 안 보임 → 로그인 실패 처리(클라 INSERT 금지)
-            console.error('[useAuth] 카카오 유저 행을 찾지 못함 — Edge Function 행 누락 추정');
+            console.error('[useAuth] kakao user row not found - the Edge Function row is likely missing');
             dialog?.alert({ title: i18n.t('authHook.loginFailTitle'), message: i18n.t('authHook.genericLoginFailMsg') });
             setUser(null);
             setLoading(false);
@@ -379,7 +379,7 @@ export function useAuthProvider(): UseAuthReturn {
             setUser(retried);
             cacheProfile(retried);
           } else {
-            console.error('[useAuth] users insert 오류:', insertErr);
+            console.error('[useAuth] users insert error:', insertErr);
             setUser(newUser as UserProfile);
           }
         }
@@ -407,14 +407,14 @@ export function useAuthProvider(): UseAuthReturn {
         }
       }
     } catch (e) {
-      console.error('[useAuth] loadUserProfile 오류:', e);
+      console.error('[useAuth] loadUserProfile error:', e);
       if ((e as Error).message?.includes('timeout')) {
         // ⚠️ DB 타임아웃을 "온보딩 미완료"로 단정하지 않는다.
         // 마지막 성공 프로필이 캐시에 있으면 그것을 복원해, 이미 온보딩을 마친
         // 사용자가 FamilyCheck(온보딩)로 추방되는 회귀를 막는다.
         const cached = await readCachedProfile(userId);
         if (cached) {
-          console.warn('[useAuth] DB 타임아웃 → 마지막 성공 프로필 캐시 복원');
+          console.warn('[useAuth] DB timeout - restoring the last successful profile cache');
           setUser(cached);
         } else {
           // 캐시도 없음: 세션은 살아있는데 프로필을 끝내 확정하지 못한 상태.
@@ -422,7 +422,7 @@ export function useAuthProvider(): UseAuthReturn {
           // 사용자도 온보딩으로 빠지므로, 그러지 않고 한 번 더 재조회를 시도한다.
           // 재조회도 실패하면 user는 그대로 두고(섣불리 온보딩/로그인 화면으로 보내지 않음)
           // realtime/다음 onAuthStateChange/refreshUser가 확정하도록 맡긴다.
-          console.warn('[useAuth] DB 타임아웃 + 캐시 없음 → 1회 재조회 시도');
+          console.warn('[useAuth] DB timeout and no cache - retrying the lookup once');
           try {
             let token = accessToken;
             if (!token) {
@@ -437,7 +437,7 @@ export function useAuthProvider(): UseAuthReturn {
               }
             }
           } catch (retryErr) {
-            console.warn('[useAuth] 타임아웃 후 재조회도 실패:', retryErr);
+            console.warn('[useAuth] retry lookup after timeout also failed:', retryErr);
             // user 상태를 건드리지 않는다(온보딩 추방 방지).
           }
         }
@@ -505,12 +505,12 @@ export function useAuthProvider(): UseAuthReturn {
       if (!isAuthUrl(url)) return;
       if (url === lastProcessedUrl.current) return;
       lastProcessedUrl.current = url;
-      if (__DEV__) console.log('[useAuth] auth URL 처리:', url.substring(0, 80));
+      if (__DEV__) console.log('[useAuth] handling auth URL:', url.substring(0, 80));
       processAuthUrl(url, loadUserProfile, dialog);
     };
 
     const subscription = Linking.addEventListener('url', ({ url }) => {
-      if (__DEV__) console.log('[useAuth] 글로벌 Linking URL 수신:', url.substring(0, 80));
+      if (__DEV__) console.log('[useAuth] global Linking URL received:', url.substring(0, 80));
       handleUrl(url);
     });
 
@@ -603,7 +603,7 @@ export function useAuthProvider(): UseAuthReturn {
   // → result.url에서 직접 processAuthUrl 호출
   const signInWithGoogle = useCallback(async () => {
     try {
-      console.log('[useAuth] signInWithGoogle 시작');
+      console.log('[useAuth] signInWithGoogle start');
       const { data, error } = await supabase.auth.signInWithOAuth({
         provider: 'google',
         options: {
@@ -612,14 +612,14 @@ export function useAuthProvider(): UseAuthReturn {
         },
       });
       if (error || !data?.url) {
-        console.error('[useAuth] signInWithOAuth(google) 오류:', error?.message);
+        console.error('[useAuth] signInWithOAuth(google) error:', error?.message);
         return;
       }
 
       // Chrome Custom Tab으로 열기 → OAuth 완료 후 딥링크 감지 시 탭 자동 닫힘
-      console.log('[useAuth] Google - openAuthSessionAsync(Custom Tab) 사용');
+      console.log('[useAuth] Google - using openAuthSessionAsync (Custom Tab)');
       const result = await WebBrowser.openAuthSessionAsync(data.url, REDIRECT_TO);
-      console.log('[useAuth] Google Custom Tab 결과:', result.type);
+      console.log('[useAuth] Google Custom Tab result:', result.type);
 
       if (result.type === 'success' && result.url) {
         // Custom Tab에서 캡처한 URL을 processAuthUrl로 처리
@@ -628,7 +628,7 @@ export function useAuthProvider(): UseAuthReturn {
       }
       // result.type === 'cancel'이면 사용자가 취소한 것 → 아무 처리 안 함
     } catch (err) {
-      console.error('[useAuth] signInWithGoogle 오류:', err);
+      console.error('[useAuth] signInWithGoogle error:', err);
     }
   }, [loadUserProfile, dialog]);
 
@@ -638,23 +638,23 @@ export function useAuthProvider(): UseAuthReturn {
   // magic link token_hash로 verifyOtp → Supabase 세션 발급
   const signInWithKakao = useCallback(async (): Promise<boolean> => {
     try {
-      console.log('[useAuth] signInWithKakao 시작 (Native SDK)');
+      console.log('[useAuth] signInWithKakao start (native SDK)');
 
       // 1) SDK로 카카오 로그인 (카톡 앱 또는 카카오 계정 웹뷰)
       const tokenResult = await kakaoLogin();
-      if (__DEV__) console.log('[useAuth] SDK 로그인 성공, accessToken 획득');
+      if (__DEV__) console.log('[useAuth] SDK login succeeded, accessToken acquired');
 
       // 2) Edge Function 호출 → magic link 발급
       const { data, error } = await supabase.functions.invoke('kakao-auth', {
         body: { kakaoAccessToken: tokenResult.accessToken },
       });
       if (error) {
-        console.error('[useAuth] kakao-auth 호출 오류:', error.message);
+        console.error('[useAuth] kakao-auth call error:', error.message);
         throw error;
       }
       if (!data?.action_link) {
         // 보안: action_link(매직링크 토큰 포함)는 로그에 남기지 않음
-        console.error('[useAuth] action_link 없음 (응답 비정상)');
+        console.error('[useAuth] action_link missing (unexpected response)');
         throw new Error('action_link missing');
       }
 
@@ -663,7 +663,7 @@ export function useAuthProvider(): UseAuthReturn {
       const tokenHash = url.searchParams.get('token');
       if (!tokenHash) {
         // 보안: action_link 값(토큰 포함)은 로그에 남기지 않음
-        console.error('[useAuth] action_link에서 token 파싱 실패');
+        console.error('[useAuth] failed to parse token from action_link');
         throw new Error('token parse failed');
       }
 
@@ -672,12 +672,12 @@ export function useAuthProvider(): UseAuthReturn {
         token_hash: tokenHash,
       });
       if (verifyError) {
-        console.error('[useAuth] verifyOtp 오류:', verifyError.message);
+        console.error('[useAuth] verifyOtp error:', verifyError.message);
         throw verifyError;
       }
 
       if (verifyData.user) {
-        if (__DEV__) console.log('[useAuth] verifyOtp 성공, 프로필 로드:', verifyData.user.id);
+        if (__DEV__) console.log('[useAuth] verifyOtp succeeded, loading profile:', verifyData.user.id);
         // onAuthStateChange가 자동 발동하지만, 만약 안 될 경우를 대비해 직접도 호출
         // (onAuthStateChange가 발동하면 setUser가 두 번 호출되지만 같은 데이터라 문제 없음)
         await loadUserProfile(
@@ -689,7 +689,7 @@ export function useAuthProvider(): UseAuthReturn {
       return true;
     } catch (err: any) {
       const msg = err?.message ?? String(err);
-      console.error('[useAuth] signInWithKakao 오류:', msg);
+      console.error('[useAuth] signInWithKakao error:', msg);
       // 사용자 취소는 에러 알림 표시하지 않음
       const lower = msg.toLowerCase();
       if (
@@ -757,7 +757,7 @@ export function useAuthProvider(): UseAuthReturn {
         });
       }
     } catch (e) {
-      console.warn('[signOut] push_token 초기화 실패:', e);
+      console.warn('[signOut] failed to clear push_token:', e);
     }
 
     await supabase.auth.signOut();
@@ -773,7 +773,7 @@ export function useAuthProvider(): UseAuthReturn {
       if (signedOutUserId) keysToRemove.push(profileCacheKey(signedOutUserId));
       await AsyncStorage.multiRemove(keysToRemove);
     } catch (e) {
-      console.warn('[signOut] 사용자별 로컬 데이터 정리 실패:', e);
+      console.warn('[signOut] failed to clear per-user local data:', e);
     }
     setUser(null);
     setLoading(false);

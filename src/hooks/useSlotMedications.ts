@@ -123,7 +123,7 @@ export function useSlotMedications(): UseSlotMedicationsReturn {
         const next = await fetchSlotMedications(patientId);
         if (mounted.current) setBySlot(next);
       } catch (e) {
-        console.warn('[useSlotMedications] fetch 실패(빈 맵으로 처리):', e);
+        console.warn('[useSlotMedications] fetch failed (treating as an empty map):', e);
         if (mounted.current) setBySlot({});
       } finally {
         if (!silent && mounted.current) setLoading(false);

@@ -233,7 +233,7 @@ export function HistoryTimeline({ type, patientId, refreshKey }: HistoryTimeline
         });
       }
     } catch (err) {
-      console.error('[HistoryTimeline] fetchAllLogs 오류:', err);
+      console.error('[HistoryTimeline] fetchAllLogs error:', err);
     }
 
     setDayDataMap(newMap);

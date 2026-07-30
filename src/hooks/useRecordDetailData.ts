@@ -604,7 +604,7 @@ export function useRecordDetailData(type: ItemKey, period: Period): UseRecordDet
         setTrendSeries(null);
       }
     } catch (err: any) {
-      console.error('[useRecordDetailData] 조회 오류:', err);
+      console.error('[useRecordDetailData] lookup error:', err);
       setError(i18n.t('recordDetailHook.fetchError'));
     } finally {
       setLoading(false);

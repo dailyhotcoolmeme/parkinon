@@ -60,14 +60,14 @@ Deno.serve(async (req: Request) => {
     .eq('id', user.id)
 
   if (error) {
-    console.error('[save-push-token] DB 저장 실패:', error)
+    console.error('[save-push-token] DB save failed:', error)
     return new Response(JSON.stringify({ error: error.message }), {
       status: 500,
       headers: { 'Content-Type': 'application/json' },
     })
   }
 
-  console.log('[save-push-token] push_token 저장 성공 — user:', user.id)
+  console.log('[save-push-token] push_token saved - user:', user.id)
   return new Response(JSON.stringify({ ok: true }), {
     headers: { 'Content-Type': 'application/json' },
   })

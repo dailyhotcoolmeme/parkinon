@@ -57,7 +57,7 @@ async function gatherConsent(): Promise<void> {
     try {
       await AdsConsent.loadAndShowConsentFormIfRequired();
     } catch (e) {
-      if (__DEV__) console.warn('[ads] 동의 폼 표시 실패(계속 진행):', e);
+      if (__DEV__) console.warn('[ads] consent form display failed(continuing):', e);
     }
 
     const info = await AdsConsent.getConsentInfo();
@@ -99,7 +99,7 @@ export function initAds(): Promise<void> {
     try {
       await mobileAds().initialize();
     } catch (e: any) {
-      if (__DEV__) console.warn('[ads] initialize 실패(재빌드 전이면 정상):', e);
+      if (__DEV__) console.warn('[ads] initialize failed (expected before a rebuild):', e);
     }
   })();
   return readyPromise;
@@ -129,6 +129,6 @@ export async function showAdsPrivacyOptions(): Promise<void> {
     adsAllowed = !!info?.canRequestAds;
     privacyOptionsRequired = info?.privacyOptionsRequirementStatus === 'REQUIRED';
   } catch (e) {
-    if (__DEV__) console.warn('[ads] 동의 옵션 폼 실패:', e);
+    if (__DEV__) console.warn('[ads] consent options form failed:', e);
   }
 }

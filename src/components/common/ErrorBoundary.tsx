@@ -40,7 +40,7 @@ export class ErrorBoundary extends React.Component<Props, State> {
 
   componentDidCatch(error: Error, info: { componentStack?: string }) {
     // 콘솔에도 즉시 출력
-    console.error('[ErrorBoundary] 렌더 단계 오류 캡처:', error, info?.componentStack);
+    console.error('[ErrorBoundary] captured render-phase error:', error, info?.componentStack);
 
     // AsyncStorage 에 오류 상세 저장(타임스탬프 포함) — 다음 세션에서 확인 가능.
     const payload = {
@@ -50,7 +50,7 @@ export class ErrorBoundary extends React.Component<Props, State> {
       componentStack: info?.componentStack ?? null,
     };
     AsyncStorage.setItem(LAST_JS_ERROR_KEY, JSON.stringify(payload)).catch((e) => {
-      console.warn('[ErrorBoundary] 오류 저장 실패:', e);
+      console.warn('[ErrorBoundary] error save failed:', e);
     });
   }
 

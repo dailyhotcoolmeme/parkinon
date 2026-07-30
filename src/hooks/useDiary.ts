@@ -102,16 +102,16 @@ async function deleteDiaryVideoMedia(mediaId: string | null | undefined): Promis
         body: { r2_key: r2Key, media_log_id: mediaId },
       });
       if (efError) {
-        console.error('[useDiary] 일기 영상 R2 삭제 실패, DB 행만 삭제 시도:', efError);
+        console.error('[useDiary] diary video R2 delete failed, trying to delete just the DB row:', efError);
         const { error: dbError } = await supabase.from('media_logs').delete().eq('id', mediaId);
-        if (dbError) console.error('[useDiary] 일기 영상 media_logs 삭제 실패:', dbError);
+        if (dbError) console.error('[useDiary] failed to delete the diary video media_logs row:', dbError);
       }
     } else {
       const { error } = await supabase.from('media_logs').delete().eq('id', mediaId);
-      if (error) console.error('[useDiary] 일기 영상 media_logs 삭제 실패:', error);
+      if (error) console.error('[useDiary] failed to delete the diary video media_logs row:', error);
     }
   } catch (e) {
-    console.error('[useDiary] 일기 영상 정리 중 오류(무시):', e);
+    console.error('[useDiary] error while cleaning up the diary video (ignored):', e);
   }
 }
 
@@ -170,7 +170,7 @@ export async function fetchDiaryEntryDates(
     .lte('entry_date', lastDay);
 
   if (error) {
-    console.error('[useDiary] fetchDiaryEntryDates 오류:', error);
+    console.error('[useDiary] fetchDiaryEntryDates error:', error);
     return new Set();
   }
 
@@ -378,7 +378,7 @@ export function useDiary(dateStr: string): UseDiaryReturn {
 
       setEntries(mapped);
     } catch (e) {
-      console.error('[useDiary] fetchAll 오류:', e);
+      console.error('[useDiary] fetchAll error:', e);
     } finally {
       setLoading(false);
     }

@@ -128,7 +128,7 @@ Deno.serve(async (req) => {
       .eq('id', media_log_id);
 
     if (deleteError) {
-      console.error('media_logs 삭제 오류:', deleteError);
+      console.error('media_logs delete error:', deleteError);
       return new Response(
         JSON.stringify({ code: ErrorCode.DB_DELETE_FAILED, error: 'failed to delete database row' }),
         { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } },

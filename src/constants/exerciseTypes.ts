@@ -42,3 +42,10 @@ export function translateRawExerciseType(raw: string | null | undefined): string
   if (!id) return trimmed; // 사전 정의 라벨이 아니면 커스텀 입력 — 그대로 표시(회귀 방지)
   return i18n.t(ID_TO_LABEL_KEY[id]);
 }
+
+/** 저장값(키 또는 옛 라벨) → 운동 종류 키. 사전 정의가 아니면 null. */
+export function exerciseTypeId(raw: string | null | undefined): string | null {
+  const trimmed = (raw ?? '').trim();
+  if (!trimmed) return null;
+  return RAW_LABEL_TO_ID[trimmed] ?? null;
+}

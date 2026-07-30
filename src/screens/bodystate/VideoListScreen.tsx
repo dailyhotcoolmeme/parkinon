@@ -687,7 +687,7 @@ export function VideoListScreen() {
       }
 
       const { data, error: queryError } = await query;
-      if (queryError) console.error('[VideoListScreen] 조회 오류:', queryError);
+      if (queryError) console.error('[VideoListScreen] lookup error:', queryError);
       const logs = (data as VideoLog[]) ?? [];
       setSections(groupBySections(logs));
       // 🔒 비공개(워커) 경유 유지: 리스트 로드 직후 영상들의 워커 presigned URL 을
@@ -695,7 +695,7 @@ export function VideoListScreen() {
       //    기존 캐시/in-flight 합치기 로직이 중복 발급·레이스를 막으며, 실패는 조용히 무시(백그라운드).
       prefetchMediaUrls(logs.map((l) => l.r2_url));
     } catch (e) {
-      console.error('[VideoListScreen] fetchVideos 오류:', e);
+      console.error('[VideoListScreen] fetchVideos error:', e);
     } finally {
       setLoading(false);
       if (fetchInFlightKey.current === reqKey) fetchInFlightKey.current = null;
@@ -753,7 +753,7 @@ export function VideoListScreen() {
           body: { r2_key: item.r2_key, media_log_id: item.id },
         });
         if (efError) {
-          console.error('[VideoListScreen] R2 삭제 오류:', efError);
+          console.error('[VideoListScreen] R2 delete error:', efError);
           // Edge Function 실패 시 DB 행만 삭제 (fallback)
           const { error: dbError } = await supabase.from('media_logs').delete().eq('id', item.id);
           if (dbError) throw dbError;
@@ -765,7 +765,7 @@ export function VideoListScreen() {
       }
       fetchVideos(filter, excludeDiary);
     } catch (e) {
-      console.error('[VideoListScreen] 삭제 오류:', e);
+      console.error('[VideoListScreen] delete error:', e);
       dialog.alert({ title: t('videoList.deleteFailTitle'), message: t('videoList.deleteFailMsg') });
     } finally {
       setDeleting(false);

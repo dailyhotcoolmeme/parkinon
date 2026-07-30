@@ -142,7 +142,7 @@ export function useMedication(): UseMedicationReturn {
 
     // 보호자인 경우 그룹에서 환자 ID 조회
     if (!user.patient_group_id) {
-      console.warn('[useMedication] 보호자 patient_group_id=null → 환자 미연동');
+      console.warn('[useMedication] caregiver patient_group_id is null - not linked to a patient');
       return null;
     }
 
@@ -154,7 +154,7 @@ export function useMedication(): UseMedicationReturn {
       .single();
 
     if (error) {
-      console.error('[useMedication] getPatientId 그룹 조회 오류:', error);
+      console.error('[useMedication] getPatientId group lookup error:', error);
     }
 
     return data?.user_id ?? null;
@@ -232,7 +232,7 @@ export function useMedication(): UseMedicationReturn {
       setTodayStatus(status);
       setBySlotId(slotMap);
     } catch (err: any) {
-      console.error('[useMedication] fetchTodayStatus 오류:', err);
+      console.error('[useMedication] fetchTodayStatus error:', err);
       setError(i18n.t('medicationHook.fetchStatusError'));
     } finally {
       setLoading(false);
@@ -257,7 +257,7 @@ export function useMedication(): UseMedicationReturn {
       if (queryError) throw queryError;
       setMedications(data ?? []);
     } catch (err: any) {
-      console.error('[useMedication] fetchMedications 오류:', err);
+      console.error('[useMedication] fetchMedications error:', err);
     }
   }, [user, getPatientId]);
 
@@ -313,7 +313,7 @@ export function useMedication(): UseMedicationReturn {
     //    (위 검증성 early-return 들은 저장을 시작하지 않으므로 락 밖에 둔다.)
     //    같은 복용에 med_logs 분기 + 약효추적 알림 2~3번 발송을 클라 단에서 1차 차단.
     if (savingRef.current) {
-      console.warn('[useMedication] takeMedication 재진입 차단(저장 진행 중) — 더블탭 무시');
+      console.warn('[useMedication] takeMedication re-entry blocked (save in progress) - ignoring double tap');
       return { success: false, medLogId: null, doseSlotId: null, immediateTrack: null, trackEnabled: null, trackIntervals: null };
     }
     savingRef.current = true;
@@ -325,7 +325,7 @@ export function useMedication(): UseMedicationReturn {
       const patientId = await getPatientId();
       if (!patientId) {
         const msg = i18n.t('medicationHook.noPatientError');
-        console.error('[useMedication] takeMedication: patientId null → insert 중단');
+        console.error('[useMedication] takeMedication: patientId is null - aborting insert');
         setError(msg);
         return { success: false, medLogId: null, doseSlotId: null, immediateTrack: null, trackEnabled: null, trackIntervals: null };
       }
@@ -466,7 +466,7 @@ export function useMedication(): UseMedicationReturn {
                 },
               });
             } else {
-              console.warn('[useMedication] medLogId 없음 → 신규 약효추적 큐잉 생략(서버 400 방지)');
+              console.warn('[useMedication] medLogId missing - skipping new effect-tracking queue (avoids a server 400)');
             }
           } else {
             // 미이관(legacy) 경로 — 취침약은 서버가 스킵하므로 그대로 호출.
@@ -546,7 +546,7 @@ export function useMedication(): UseMedicationReturn {
           }
         }
       } catch (notifErr) {
-        console.error('[useMedication] 알림 처리 실패 (복용 기록은 저장됨):', notifErr);
+        console.error('[useMedication] notification handling failed (the dose record was still saved):', notifErr);
       }
       })();
 
@@ -582,7 +582,7 @@ export function useMedication(): UseMedicationReturn {
         await q;
       } catch (markReadErr) {
         // 약 기록 자체는 이미 성공이므로 silent
-        console.error('[useMedication] 알림 읽음 처리 실패 (복용 기록은 저장됨):', markReadErr);
+        console.error('[useMedication] failed to mark the notification read (the dose record was still saved):', markReadErr);
       }
 
       // 오늘 현황 갱신 (카드 반영) — (성능) await 하지 않고 백그라운드 재조회로 돌린다.
@@ -604,7 +604,7 @@ export function useMedication(): UseMedicationReturn {
       const trackIntervals: number[] | null = doseSlotId ? (resolvedSlot?.trackIntervals ?? null) : null;
       return { success: true, medLogId: medLogId ?? null, doseSlotId: doseSlotId ?? null, immediateTrack, trackEnabled, trackIntervals };
     } catch (err: any) {
-      console.error('[useMedication] takeMedication 오류:', err);
+      console.error('[useMedication] takeMedication error:', err);
       setError(i18n.t('medicationHook.saveError'));
       return { success: false, medLogId: null, doseSlotId: null, immediateTrack: null, trackEnabled: null, trackIntervals: null };
     } finally {
@@ -640,7 +640,7 @@ export function useMedication(): UseMedicationReturn {
       await fetchTodayStatus();
       return true;
     } catch (err: any) {
-      console.error('[useMedication] cancelMedication 오류:', err);
+      console.error('[useMedication] cancelMedication error:', err);
       setError(i18n.t('medicationHook.cancelError'));
       return false;
     }
@@ -666,7 +666,7 @@ export function useMedication(): UseMedicationReturn {
       if (queryError) throw queryError;
       return data ?? [];
     } catch (err: any) {
-      console.error('[useMedication] getMedLogs 오류:', err);
+      console.error('[useMedication] getMedLogs error:', err);
       return [];
     }
   }, [user, getPatientId]);

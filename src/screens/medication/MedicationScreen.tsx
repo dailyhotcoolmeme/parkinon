@@ -386,7 +386,7 @@ export function MedicationScreen() {
           .gte('created_at', since);
         refreshBadge();
       } catch (e) {
-        console.error('[MedicationScreen] 읽음 처리 오류:', e);
+        console.error('[MedicationScreen] read-state handling error:', e);
       }
     })();
 
@@ -403,7 +403,7 @@ export function MedicationScreen() {
       try {
         navigation.setParams({ autoOpen: undefined, mealTime: undefined, doseSlotId: undefined });
       } catch (e) {
-        console.warn('[MedicationScreen] setParams clear 실패:', e);
+        console.warn('[MedicationScreen] setParams clear failed:', e);
       }
     }, 400);
     return () => clearTimeout(timer);
@@ -777,7 +777,7 @@ export function MedicationScreen() {
     // ⚠️ 더블탭 방어(화면 단 in-flight 락): 이전 저장이 끝나기 전 두 번째 진입은 조용히 무시.
     //    (takeMedication 까지 가지 않으므로 "저장 실패" 오알림도 안 뜨고, 후속 팝업 중복도 차단.)
     if (proceedSaveInFlightRef.current) {
-      console.warn('[MedicationScreen] proceedSave 재진입 차단(저장 진행 중) — 더블탭 무시');
+      console.warn('[MedicationScreen] proceedSave re-entry blocked (save in progress) - ignoring double tap');
       return;
     }
     proceedSaveInFlightRef.current = true;
@@ -1237,7 +1237,7 @@ export function MedicationScreen() {
         resolvedSlot = matchSlot(fresh, sel);
       } catch (fetchErr) {
         // fresh fetch 실패해도 죽지 않고 폴백으로(스피너는 finally 에서 해제).
-        console.warn('[MedicationScreen] enterFromNotification fresh fetch 실패:', fetchErr);
+        console.warn('[MedicationScreen] enterFromNotification fresh fetch failed:', fetchErr);
         resolvedSlot = undefined;
       } finally {
         enteringActiveRef.current = false;
@@ -1258,7 +1258,7 @@ export function MedicationScreen() {
       // 어떤 예외든 크래시 대신 안전 폴백: 약복용 화면 전체 선택 모달.
       //  (폴백 경로 — 가드 해제해 정상 재진입 허용.)
       notifEntryGuardRef.current = 0;
-      console.error('[MedicationScreen] enterFromNotification 예외(안전망 폴백):', e);
+      console.error('[MedicationScreen] enterFromNotification exception (safety net fallback):', e);
       try {
         if (enteringActiveRef.current) {
           // 진입 스피너가 켜진 채 예외가 났다면, 폴백 모달을 스피너 위에 적층하지 말고
@@ -1289,10 +1289,10 @@ export function MedicationScreen() {
         const fn = enterFromNotificationRef.current;
         if (typeof fn !== 'function') return;
         void fn(sel, attempt).catch((e) => {
-          console.error('[MedicationScreen] enterFromNotification reject(무시):', e);
+          console.error('[MedicationScreen] enterFromNotification reject(ignored):', e);
         });
       } catch (e) {
-        console.error('[MedicationScreen] safeEnterFromNotification throw(무시):', e);
+        console.error('[MedicationScreen] safeEnterFromNotification throw(ignored):', e);
       }
     },
     [],
