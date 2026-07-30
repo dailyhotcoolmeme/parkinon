@@ -137,18 +137,18 @@ function DatePickerModal({
           <View style={mpStyles.colsRow}>
             <View style={{ flex: 5 }}>
               <Text style={mpStyles.colHeader}>{t('medRecordWrite.yearHeader')}</Text>
-              <PickerCol data={PICKER_YEARS} selected={year} onSelect={onYearChange} suffix={''} fontSize={19} />
+              <PickerCol data={PICKER_YEARS} selected={year} onSelect={onYearChange} suffix={isOverseasLocale() ? '' : t('dateFmt.unitYear')} fontSize={19} />
             </View>
             <View style={mpStyles.colDivider} />
             <View style={{ flex: 3 }}>
               <Text style={mpStyles.colHeader}>{t('medRecordWrite.monthHeader')}</Text>
-              <PickerCol data={availableMonths} selected={month} onSelect={onMonthChange} suffix={''} fontSize={19} />
+              <PickerCol data={availableMonths} selected={month} onSelect={onMonthChange} suffix={isOverseasLocale() ? '' : t('dateFmt.unitMonth')} fontSize={19} />
             </View>
             <View style={mpStyles.colDivider} />
             <View style={{ flex: 5 }}>
               <Text style={mpStyles.colHeader}>{t('medRecordWrite.dayHeader')}</Text>
               <PickerCol
-                data={days} selected={day} onSelect={onDayChange} suffix={''} fontSize={18}
+                data={days} selected={day} onSelect={onDayChange} suffix={isOverseasLocale() ? '' : t('dateFmt.unitDay')} fontSize={18}
                 getLabel={(d) => t('dateFmt.dayWithWeekday', { day: d, weekday: getDayOfWeek(year, month, d) })}
               />
             </View>
@@ -182,12 +182,12 @@ function TimePickerModal({
           <View style={mpStyles.colsRow}>
             <View style={{ flex: 1 }}>
               <Text style={mpStyles.colHeader}>{t('medRecordWrite.hourHeader')}</Text>
-              <PickerCol data={PICKER_HOURS} selected={hour} onSelect={onHourChange} suffix={''} padLen={2} />
+              <PickerCol data={PICKER_HOURS} selected={hour} onSelect={onHourChange} suffix={isOverseasLocale() ? '' : t('dateFmt.unitHour')} padLen={2} />
             </View>
             <View style={mpStyles.colDivider} />
             <View style={{ flex: 1 }}>
               <Text style={mpStyles.colHeader}>{t('medRecordWrite.minuteHeader')}</Text>
-              <PickerCol data={PICKER_MINUTES} selected={minute} onSelect={onMinuteChange} suffix={''} padLen={2} />
+              <PickerCol data={PICKER_MINUTES} selected={minute} onSelect={onMinuteChange} suffix={isOverseasLocale() ? '' : t('dateFmt.unitMinute')} padLen={2} />
             </View>
           </View>
           <TouchableOpacity style={mpStyles.confirmBtn} onPress={onConfirm} activeOpacity={0.8}>

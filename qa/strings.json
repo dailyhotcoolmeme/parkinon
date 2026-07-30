@@ -2,10 +2,10 @@
   "generatedFrom": "scripts/qa-strings-gen.mjs",
   "counts": {
     "keys": 2067,
-    "withSites": 1918,
-    "orphan": 149,
+    "withSites": 1997,
+    "orphan": 70,
     "layoutRisk": 654,
-    "dynamicTemplates": 17
+    "dynamicTemplates": 27
   },
   "entries": [
     {
@@ -37993,10 +37993,19 @@
       "en": "Morning",
       "fr": "Matin",
       "ja": "朝",
-      "sites": [],
-      "siteCount": 0,
+      "sites": [
+        {
+          "zone": "app",
+          "file": "src/utils/exportHealthRecords.ts",
+          "line": 18,
+          "screen": "exportHealthRecords",
+          "surface": "dynamic-match",
+          "template": "healthExport.${key}"
+        }
+      ],
+      "siteCount": 1,
       "layoutRisk": false,
-      "orphan": true
+      "orphan": false
     },
     {
       "key": "healthExport.meal.lunch",
@@ -38004,10 +38013,19 @@
       "en": "Lunch",
       "fr": "Midi",
       "ja": "昼",
-      "sites": [],
-      "siteCount": 0,
+      "sites": [
+        {
+          "zone": "app",
+          "file": "src/utils/exportHealthRecords.ts",
+          "line": 18,
+          "screen": "exportHealthRecords",
+          "surface": "dynamic-match",
+          "template": "healthExport.${key}"
+        }
+      ],
+      "siteCount": 1,
       "layoutRisk": false,
-      "orphan": true
+      "orphan": false
     },
     {
       "key": "healthExport.meal.dinner",
@@ -38015,10 +38033,19 @@
       "en": "Dinner",
       "fr": "Soir",
       "ja": "夕",
-      "sites": [],
-      "siteCount": 0,
+      "sites": [
+        {
+          "zone": "app",
+          "file": "src/utils/exportHealthRecords.ts",
+          "line": 18,
+          "screen": "exportHealthRecords",
+          "surface": "dynamic-match",
+          "template": "healthExport.${key}"
+        }
+      ],
+      "siteCount": 1,
       "layoutRisk": false,
-      "orphan": true
+      "orphan": false
     },
     {
       "key": "healthExport.meal.bedtime",
@@ -38026,10 +38053,19 @@
       "en": "Bedtime",
       "fr": "Coucher",
       "ja": "就寝前",
-      "sites": [],
-      "siteCount": 0,
+      "sites": [
+        {
+          "zone": "app",
+          "file": "src/utils/exportHealthRecords.ts",
+          "line": 18,
+          "screen": "exportHealthRecords",
+          "surface": "dynamic-match",
+          "template": "healthExport.${key}"
+        }
+      ],
+      "siteCount": 1,
       "layoutRisk": false,
-      "orphan": true
+      "orphan": false
     },
     {
       "key": "healthExport.exercise.walking",
@@ -38037,10 +38073,19 @@
       "en": "Walking",
       "fr": "Marche",
       "ja": "ウォーキング",
-      "sites": [],
-      "siteCount": 0,
+      "sites": [
+        {
+          "zone": "app",
+          "file": "src/utils/exportHealthRecords.ts",
+          "line": 18,
+          "screen": "exportHealthRecords",
+          "surface": "dynamic-match",
+          "template": "healthExport.${key}"
+        }
+      ],
+      "siteCount": 1,
       "layoutRisk": false,
-      "orphan": true
+      "orphan": false
     },
     {
       "key": "healthExport.exercise.strength",
@@ -38048,10 +38093,19 @@
       "en": "Strength",
       "fr": "Renforcement",
       "ja": "筋力トレーニング",
-      "sites": [],
-      "siteCount": 0,
+      "sites": [
+        {
+          "zone": "app",
+          "file": "src/utils/exportHealthRecords.ts",
+          "line": 18,
+          "screen": "exportHealthRecords",
+          "surface": "dynamic-match",
+          "template": "healthExport.${key}"
+        }
+      ],
+      "siteCount": 1,
       "layoutRisk": false,
-      "orphan": true
+      "orphan": false
     },
     {
       "key": "healthExport.exercise.balance",
@@ -38059,10 +38113,19 @@
       "en": "Balance",
       "fr": "Équilibre",
       "ja": "バランス運動",
-      "sites": [],
-      "siteCount": 0,
+      "sites": [
+        {
+          "zone": "app",
+          "file": "src/utils/exportHealthRecords.ts",
+          "line": 18,
+          "screen": "exportHealthRecords",
+          "surface": "dynamic-match",
+          "template": "healthExport.${key}"
+        }
+      ],
+      "siteCount": 1,
       "layoutRisk": false,
-      "orphan": true
+      "orphan": false
     },
     {
       "key": "healthExport.exercise.stretching",
@@ -38070,10 +38133,19 @@
       "en": "Stretching",
       "fr": "Étirements",
       "ja": "ストレッチ",
-      "sites": [],
-      "siteCount": 0,
+      "sites": [
+        {
+          "zone": "app",
+          "file": "src/utils/exportHealthRecords.ts",
+          "line": 18,
+          "screen": "exportHealthRecords",
+          "surface": "dynamic-match",
+          "template": "healthExport.${key}"
+        }
+      ],
+      "siteCount": 1,
       "layoutRisk": false,
-      "orphan": true
+      "orphan": false
     },
     {
       "key": "healthExport.exercise.cycling",
@@ -38081,10 +38153,19 @@
       "en": "Cycling",
       "fr": "Vélo",
       "ja": "自転車",
-      "sites": [],
-      "siteCount": 0,
+      "sites": [
+        {
+          "zone": "app",
+          "file": "src/utils/exportHealthRecords.ts",
+          "line": 18,
+          "screen": "exportHealthRecords",
+          "surface": "dynamic-match",
+          "template": "healthExport.${key}"
+        }
+      ],
+      "siteCount": 1,
       "layoutRisk": false,
-      "orphan": true
+      "orphan": false
     },
     {
       "key": "healthExport.exercise.swimming",
@@ -38092,10 +38173,19 @@
       "en": "Swimming",
       "fr": "Natation",
       "ja": "水泳",
-      "sites": [],
-      "siteCount": 0,
+      "sites": [
+        {
+          "zone": "app",
+          "file": "src/utils/exportHealthRecords.ts",
+          "line": 18,
+          "screen": "exportHealthRecords",
+          "surface": "dynamic-match",
+          "template": "healthExport.${key}"
+        }
+      ],
+      "siteCount": 1,
       "layoutRisk": false,
-      "orphan": true
+      "orphan": false
     },
     {
       "key": "healthExport.exercise.dance",
@@ -38103,10 +38193,19 @@
       "en": "Dancing",
       "fr": "Danse",
       "ja": "ダンス",
-      "sites": [],
-      "siteCount": 0,
+      "sites": [
+        {
+          "zone": "app",
+          "file": "src/utils/exportHealthRecords.ts",
+          "line": 18,
+          "screen": "exportHealthRecords",
+          "surface": "dynamic-match",
+          "template": "healthExport.${key}"
+        }
+      ],
+      "siteCount": 1,
       "layoutRisk": false,
-      "orphan": true
+      "orphan": false
     },
     {
       "key": "healthExport.exercise.boxing",
@@ -38114,10 +38213,19 @@
       "en": "Boxing",
       "fr": "Boxe",
       "ja": "ボクシング",
-      "sites": [],
-      "siteCount": 0,
+      "sites": [
+        {
+          "zone": "app",
+          "file": "src/utils/exportHealthRecords.ts",
+          "line": 18,
+          "screen": "exportHealthRecords",
+          "surface": "dynamic-match",
+          "template": "healthExport.${key}"
+        }
+      ],
+      "siteCount": 1,
       "layoutRisk": false,
-      "orphan": true
+      "orphan": false
     },
     {
       "key": "healthExport.exercise.yoga",
@@ -38125,10 +38233,19 @@
       "en": "Yoga",
       "fr": "Yoga",
       "ja": "ヨガ",
-      "sites": [],
-      "siteCount": 0,
+      "sites": [
+        {
+          "zone": "app",
+          "file": "src/utils/exportHealthRecords.ts",
+          "line": 18,
+          "screen": "exportHealthRecords",
+          "surface": "dynamic-match",
+          "template": "healthExport.${key}"
+        }
+      ],
+      "siteCount": 1,
       "layoutRisk": false,
-      "orphan": true
+      "orphan": false
     },
     {
       "key": "healthExport.exercise.jogging",
@@ -38136,10 +38253,19 @@
       "en": "Jogging",
       "fr": "Jogging",
       "ja": "ジョギング",
-      "sites": [],
-      "siteCount": 0,
+      "sites": [
+        {
+          "zone": "app",
+          "file": "src/utils/exportHealthRecords.ts",
+          "line": 18,
+          "screen": "exportHealthRecords",
+          "surface": "dynamic-match",
+          "template": "healthExport.${key}"
+        }
+      ],
+      "siteCount": 1,
       "layoutRisk": false,
-      "orphan": true
+      "orphan": false
     },
     {
       "key": "healthExport.section.medications",
@@ -38147,10 +38273,19 @@
       "en": "Medications",
       "fr": "Médicaments",
       "ja": "お薬",
-      "sites": [],
-      "siteCount": 0,
+      "sites": [
+        {
+          "zone": "app",
+          "file": "src/utils/exportHealthRecords.ts",
+          "line": 18,
+          "screen": "exportHealthRecords",
+          "surface": "dynamic-match",
+          "template": "healthExport.${key}"
+        }
+      ],
+      "siteCount": 1,
       "layoutRisk": false,
-      "orphan": true
+      "orphan": false
     },
     {
       "key": "healthExport.section.medLogs",
@@ -38158,10 +38293,19 @@
       "en": "Dose history",
       "fr": "Historique des prises",
       "ja": "服薬の履歴",
-      "sites": [],
-      "siteCount": 0,
+      "sites": [
+        {
+          "zone": "app",
+          "file": "src/utils/exportHealthRecords.ts",
+          "line": 18,
+          "screen": "exportHealthRecords",
+          "surface": "dynamic-match",
+          "template": "healthExport.${key}"
+        }
+      ],
+      "siteCount": 1,
       "layoutRisk": false,
-      "orphan": true
+      "orphan": false
     },
     {
       "key": "healthExport.section.onOffLogs",
@@ -38169,10 +38313,19 @@
       "en": "Condition & mood",
       "fr": "État et humeur",
       "ja": "体調と気分",
-      "sites": [],
-      "siteCount": 0,
+      "sites": [
+        {
+          "zone": "app",
+          "file": "src/utils/exportHealthRecords.ts",
+          "line": 18,
+          "screen": "exportHealthRecords",
+          "surface": "dynamic-match",
+          "template": "healthExport.${key}"
+        }
+      ],
+      "siteCount": 1,
       "layoutRisk": false,
-      "orphan": true
+      "orphan": false
     },
     {
       "key": "healthExport.section.symptomNotes",
@@ -38180,10 +38333,19 @@
       "en": "Symptom notes",
       "fr": "Notes sur les symptômes",
       "ja": "症状のメモ",
-      "sites": [],
-      "siteCount": 0,
+      "sites": [
+        {
+          "zone": "app",
+          "file": "src/utils/exportHealthRecords.ts",
+          "line": 18,
+          "screen": "exportHealthRecords",
+          "surface": "dynamic-match",
+          "template": "healthExport.${key}"
+        }
+      ],
+      "siteCount": 1,
       "layoutRisk": false,
-      "orphan": true
+      "orphan": false
     },
     {
       "key": "healthExport.section.exerciseLogs",
@@ -38191,10 +38353,19 @@
       "en": "Exercise",
       "fr": "Activité",
       "ja": "運動",
-      "sites": [],
-      "siteCount": 0,
+      "sites": [
+        {
+          "zone": "app",
+          "file": "src/utils/exportHealthRecords.ts",
+          "line": 18,
+          "screen": "exportHealthRecords",
+          "surface": "dynamic-match",
+          "template": "healthExport.${key}"
+        }
+      ],
+      "siteCount": 1,
       "layoutRisk": false,
-      "orphan": true
+      "orphan": false
     },
     {
       "key": "healthExport.section.diary",
@@ -38202,10 +38373,19 @@
       "en": "Diary",
       "fr": "Journal",
       "ja": "日記",
-      "sites": [],
-      "siteCount": 0,
+      "sites": [
+        {
+          "zone": "app",
+          "file": "src/utils/exportHealthRecords.ts",
+          "line": 18,
+          "screen": "exportHealthRecords",
+          "surface": "dynamic-match",
+          "template": "healthExport.${key}"
+        }
+      ],
+      "siteCount": 1,
       "layoutRisk": false,
-      "orphan": true
+      "orphan": false
     },
     {
       "key": "healthExport.section.appointments",
@@ -38213,10 +38393,19 @@
       "en": "Appointments",
       "fr": "Rendez-vous",
       "ja": "受診予定",
-      "sites": [],
-      "siteCount": 0,
+      "sites": [
+        {
+          "zone": "app",
+          "file": "src/utils/exportHealthRecords.ts",
+          "line": 18,
+          "screen": "exportHealthRecords",
+          "surface": "dynamic-match",
+          "template": "healthExport.${key}"
+        }
+      ],
+      "siteCount": 1,
       "layoutRisk": false,
-      "orphan": true
+      "orphan": false
     },
     {
       "key": "healthExport.section.medicalRecords",
@@ -38224,10 +38413,19 @@
       "en": "Visit records",
       "fr": "Comptes rendus de visite",
       "ja": "通院の記録",
-      "sites": [],
-      "siteCount": 0,
+      "sites": [
+        {
+          "zone": "app",
+          "file": "src/utils/exportHealthRecords.ts",
+          "line": 18,
+          "screen": "exportHealthRecords",
+          "surface": "dynamic-match",
+          "template": "healthExport.${key}"
+        }
+      ],
+      "siteCount": 1,
       "layoutRisk": false,
-      "orphan": true
+      "orphan": false
     },
     {
       "key": "healthExport.section.measurements",
@@ -38235,10 +38433,19 @@
       "en": "Motion tests",
       "fr": "Tests moteurs",
       "ja": "動作テスト",
-      "sites": [],
-      "siteCount": 0,
+      "sites": [
+        {
+          "zone": "app",
+          "file": "src/utils/exportHealthRecords.ts",
+          "line": 18,
+          "screen": "exportHealthRecords",
+          "surface": "dynamic-match",
+          "template": "healthExport.${key}"
+        }
+      ],
+      "siteCount": 1,
       "layoutRisk": false,
-      "orphan": true
+      "orphan": false
     },
     {
       "key": "healthExport.col.name",
@@ -38246,10 +38453,19 @@
       "en": "Name",
       "fr": "Nom",
       "ja": "名前",
-      "sites": [],
-      "siteCount": 0,
+      "sites": [
+        {
+          "zone": "app",
+          "file": "src/utils/exportHealthRecords.ts",
+          "line": 18,
+          "screen": "exportHealthRecords",
+          "surface": "dynamic-match",
+          "template": "healthExport.${key}"
+        }
+      ],
+      "siteCount": 1,
       "layoutRisk": false,
-      "orphan": true
+      "orphan": false
     },
     {
       "key": "healthExport.col.dosage",
@@ -38257,10 +38473,19 @@
       "en": "Dose",
       "fr": "Dose",
       "ja": "1回量",
-      "sites": [],
-      "siteCount": 0,
+      "sites": [
+        {
+          "zone": "app",
+          "file": "src/utils/exportHealthRecords.ts",
+          "line": 18,
+          "screen": "exportHealthRecords",
+          "surface": "dynamic-match",
+          "template": "healthExport.${key}"
+        }
+      ],
+      "siteCount": 1,
       "layoutRisk": false,
-      "orphan": true
+      "orphan": false
     },
     {
       "key": "healthExport.col.dailyCount",
@@ -38268,10 +38493,19 @@
       "en": "Times per day",
       "fr": "Prises par jour",
       "ja": "1日の回数",
-      "sites": [],
-      "siteCount": 0,
+      "sites": [
+        {
+          "zone": "app",
+          "file": "src/utils/exportHealthRecords.ts",
+          "line": 18,
+          "screen": "exportHealthRecords",
+          "surface": "dynamic-match",
+          "template": "healthExport.${key}"
+        }
+      ],
+      "siteCount": 1,
       "layoutRisk": false,
-      "orphan": true
+      "orphan": false
     },
     {
       "key": "healthExport.col.mealTimes",
@@ -38279,10 +38513,19 @@
       "en": "Dose slots",
       "fr": "Moments de prise",
       "ja": "服薬の時間帯",
-      "sites": [],
-      "siteCount": 0,
+      "sites": [
+        {
+          "zone": "app",
+          "file": "src/utils/exportHealthRecords.ts",
+          "line": 18,
+          "screen": "exportHealthRecords",
+          "surface": "dynamic-match",
+          "template": "healthExport.${key}"
+        }
+      ],
+      "siteCount": 1,
       "layoutRisk": false,
-      "orphan": true
+      "orphan": false
     },
     {
       "key": "healthExport.col.scheduledTimes",
@@ -38290,10 +38533,19 @@
       "en": "Times",
       "fr": "Heures",
       "ja": "時刻",
-      "sites": [],
-      "siteCount": 0,
+      "sites": [
+        {
+          "zone": "app",
+          "file": "src/utils/exportHealthRecords.ts",
+          "line": 18,
+          "screen": "exportHealthRecords",
+          "surface": "dynamic-match",
+          "template": "healthExport.${key}"
+        }
+      ],
+      "siteCount": 1,
       "layoutRisk": false,
-      "orphan": true
+      "orphan": false
     },
     {
       "key": "healthExport.col.isActive",
@@ -38301,10 +38553,19 @@
       "en": "Active",
       "fr": "Actif",
       "ja": "服用中",
-      "sites": [],
-      "siteCount": 0,
+      "sites": [
+        {
+          "zone": "app",
+          "file": "src/utils/exportHealthRecords.ts",
+          "line": 18,
+          "screen": "exportHealthRecords",
+          "surface": "dynamic-match",
+          "template": "healthExport.${key}"
+        }
+      ],
+      "siteCount": 1,
       "layoutRisk": false,
-      "orphan": true
+      "orphan": false
     },
     {
       "key": "healthExport.col.createdAt",
@@ -38312,10 +38573,19 @@
       "en": "Added",
       "fr": "Ajouté le",
       "ja": "登録日",
-      "sites": [],
-      "siteCount": 0,
+      "sites": [
+        {
+          "zone": "app",
+          "file": "src/utils/exportHealthRecords.ts",
+          "line": 18,
+          "screen": "exportHealthRecords",
+          "surface": "dynamic-match",
+          "template": "healthExport.${key}"
+        }
+      ],
+      "siteCount": 1,
       "layoutRisk": false,
-      "orphan": true
+      "orphan": false
     },
     {
       "key": "healthExport.col.takenAt",
@@ -38323,10 +38593,19 @@
       "en": "Taken at",
       "fr": "Pris à",
       "ja": "服用時刻",
-      "sites": [],
-      "siteCount": 0,
+      "sites": [
+        {
+          "zone": "app",
+          "file": "src/utils/exportHealthRecords.ts",
+          "line": 18,
+          "screen": "exportHealthRecords",
+          "surface": "dynamic-match",
+          "template": "healthExport.${key}"
+        }
+      ],
+      "siteCount": 1,
       "layoutRisk": false,
-      "orphan": true
+      "orphan": false
     },
     {
       "key": "healthExport.col.mealTime",
@@ -38334,10 +38613,19 @@
       "en": "Slot",
       "fr": "Moment",
       "ja": "時間帯",
-      "sites": [],
-      "siteCount": 0,
+      "sites": [
+        {
+          "zone": "app",
+          "file": "src/utils/exportHealthRecords.ts",
+          "line": 18,
+          "screen": "exportHealthRecords",
+          "surface": "dynamic-match",
+          "template": "healthExport.${key}"
+        }
+      ],
+      "siteCount": 1,
       "layoutRisk": false,
-      "orphan": true
+      "orphan": false
     },
     {
       "key": "healthExport.col.note",
@@ -38345,10 +38633,19 @@
       "en": "Note",
       "fr": "Note",
       "ja": "メモ",
-      "sites": [],
-      "siteCount": 0,
+      "sites": [
+        {
+          "zone": "app",
+          "file": "src/utils/exportHealthRecords.ts",
+          "line": 18,
+          "screen": "exportHealthRecords",
+          "surface": "dynamic-match",
+          "template": "healthExport.${key}"
+        }
+      ],
+      "siteCount": 1,
       "layoutRisk": false,
-      "orphan": true
+      "orphan": false
     },
     {
       "key": "healthExport.col.loggedAt",
@@ -38356,10 +38653,19 @@
       "en": "Logged at",
       "fr": "Noté à",
       "ja": "記録時刻",
-      "sites": [],
-      "siteCount": 0,
+      "sites": [
+        {
+          "zone": "app",
+          "file": "src/utils/exportHealthRecords.ts",
+          "line": 18,
+          "screen": "exportHealthRecords",
+          "surface": "dynamic-match",
+          "template": "healthExport.${key}"
+        }
+      ],
+      "siteCount": 1,
       "layoutRisk": false,
-      "orphan": true
+      "orphan": false
     },
     {
       "key": "healthExport.col.bodyState",
@@ -38367,10 +38673,19 @@
       "en": "Condition",
       "fr": "État",
       "ja": "体調",
-      "sites": [],
-      "siteCount": 0,
+      "sites": [
+        {
+          "zone": "app",
+          "file": "src/utils/exportHealthRecords.ts",
+          "line": 18,
+          "screen": "exportHealthRecords",
+          "surface": "dynamic-match",
+          "template": "healthExport.${key}"
+        }
+      ],
+      "siteCount": 1,
       "layoutRisk": false,
-      "orphan": true
+      "orphan": false
     },
     {
       "key": "healthExport.col.mood",
@@ -38378,10 +38693,19 @@
       "en": "Mood",
       "fr": "Humeur",
       "ja": "気分",
-      "sites": [],
-      "siteCount": 0,
+      "sites": [
+        {
+          "zone": "app",
+          "file": "src/utils/exportHealthRecords.ts",
+          "line": 18,
+          "screen": "exportHealthRecords",
+          "surface": "dynamic-match",
+          "template": "healthExport.${key}"
+        }
+      ],
+      "siteCount": 1,
       "layoutRisk": false,
-      "orphan": true
+      "orphan": false
     },
     {
       "key": "healthExport.col.sleep",
@@ -38389,10 +38713,19 @@
       "en": "Sleep",
       "fr": "Sommeil",
       "ja": "睡眠",
-      "sites": [],
-      "siteCount": 0,
+      "sites": [
+        {
+          "zone": "app",
+          "file": "src/utils/exportHealthRecords.ts",
+          "line": 18,
+          "screen": "exportHealthRecords",
+          "surface": "dynamic-match",
+          "template": "healthExport.${key}"
+        }
+      ],
+      "siteCount": 1,
       "layoutRisk": false,
-      "orphan": true
+      "orphan": false
     },
     {
       "key": "healthExport.col.constipation",
@@ -38400,10 +38733,19 @@
       "en": "Constipation",
       "fr": "Constipation",
       "ja": "便秘",
-      "sites": [],
-      "siteCount": 0,
+      "sites": [
+        {
+          "zone": "app",
+          "file": "src/utils/exportHealthRecords.ts",
+          "line": 18,
+          "screen": "exportHealthRecords",
+          "surface": "dynamic-match",
+          "template": "healthExport.${key}"
+        }
+      ],
+      "siteCount": 1,
       "layoutRisk": false,
-      "orphan": true
+      "orphan": false
     },
     {
       "key": "healthExport.col.triggerPoint",
@@ -38411,10 +38753,19 @@
       "en": "Point",
       "fr": "Point",
       "ja": "時点",
-      "sites": [],
-      "siteCount": 0,
+      "sites": [
+        {
+          "zone": "app",
+          "file": "src/utils/exportHealthRecords.ts",
+          "line": 18,
+          "screen": "exportHealthRecords",
+          "surface": "dynamic-match",
+          "template": "healthExport.${key}"
+        }
+      ],
+      "siteCount": 1,
       "layoutRisk": false,
-      "orphan": true
+      "orphan": false
     },
     {
       "key": "healthExport.col.medMealTime",
@@ -38422,10 +38773,19 @@
       "en": "Dose slot",
       "fr": "Moment de prise",
       "ja": "服薬の時間帯",
-      "sites": [],
-      "siteCount": 0,
+      "sites": [
+        {
+          "zone": "app",
+          "file": "src/utils/exportHealthRecords.ts",
+          "line": 18,
+          "screen": "exportHealthRecords",
+          "surface": "dynamic-match",
+          "template": "healthExport.${key}"
+        }
+      ],
+      "siteCount": 1,
       "layoutRisk": false,
-      "orphan": true
+      "orphan": false
     },
     {
       "key": "healthExport.col.content",
@@ -38433,10 +38793,19 @@
       "en": "Content",
       "fr": "Contenu",
       "ja": "内容",
-      "sites": [],
-      "siteCount": 0,
+      "sites": [
+        {
+          "zone": "app",
+          "file": "src/utils/exportHealthRecords.ts",
+          "line": 18,
+          "screen": "exportHealthRecords",
+          "surface": "dynamic-match",
+          "template": "healthExport.${key}"
+        }
+      ],
+      "siteCount": 1,
       "layoutRisk": false,
-      "orphan": true
+      "orphan": false
     },
     {
       "key": "healthExport.col.exerciseType",
@@ -38444,10 +38813,19 @@
       "en": "Type",
       "fr": "Type",
       "ja": "種類",
-      "sites": [],
-      "siteCount": 0,
+      "sites": [
+        {
+          "zone": "app",
+          "file": "src/utils/exportHealthRecords.ts",
+          "line": 18,
+          "screen": "exportHealthRecords",
+          "surface": "dynamic-match",
+          "template": "healthExport.${key}"
+        }
+      ],
+      "siteCount": 1,
       "layoutRisk": false,
-      "orphan": true
+      "orphan": false
     },
     {
       "key": "healthExport.col.durationMin",
@@ -38455,10 +38833,19 @@
       "en": "Minutes",
       "fr": "Minutes",
       "ja": "分",
-      "sites": [],
-      "siteCount": 0,
+      "sites": [
+        {
+          "zone": "app",
+          "file": "src/utils/exportHealthRecords.ts",
+          "line": 18,
+          "screen": "exportHealthRecords",
+          "surface": "dynamic-match",
+          "template": "healthExport.${key}"
+        }
+      ],
+      "siteCount": 1,
       "layoutRisk": false,
-      "orphan": true
+      "orphan": false
     },
     {
       "key": "healthExport.col.date",
@@ -38466,10 +38853,19 @@
       "en": "Date",
       "fr": "Date",
       "ja": "日付",
-      "sites": [],
-      "siteCount": 0,
+      "sites": [
+        {
+          "zone": "app",
+          "file": "src/utils/exportHealthRecords.ts",
+          "line": 18,
+          "screen": "exportHealthRecords",
+          "surface": "dynamic-match",
+          "template": "healthExport.${key}"
+        }
+      ],
+      "siteCount": 1,
       "layoutRisk": false,
-      "orphan": true
+      "orphan": false
     },
     {
       "key": "healthExport.col.photos",
@@ -38477,10 +38873,19 @@
       "en": "Photos",
       "fr": "Photos",
       "ja": "写真",
-      "sites": [],
-      "siteCount": 0,
+      "sites": [
+        {
+          "zone": "app",
+          "file": "src/utils/exportHealthRecords.ts",
+          "line": 18,
+          "screen": "exportHealthRecords",
+          "surface": "dynamic-match",
+          "template": "healthExport.${key}"
+        }
+      ],
+      "siteCount": 1,
       "layoutRisk": false,
-      "orphan": true
+      "orphan": false
     },
     {
       "key": "healthExport.col.audio",
@@ -38488,10 +38893,19 @@
       "en": "Voice",
       "fr": "Voix",
       "ja": "音声",
-      "sites": [],
-      "siteCount": 0,
+      "sites": [
+        {
+          "zone": "app",
+          "file": "src/utils/exportHealthRecords.ts",
+          "line": 18,
+          "screen": "exportHealthRecords",
+          "surface": "dynamic-match",
+          "template": "healthExport.${key}"
+        }
+      ],
+      "siteCount": 1,
       "layoutRisk": false,
-      "orphan": true
+      "orphan": false
     },
     {
       "key": "healthExport.col.appointmentDate",
@@ -38499,10 +38913,19 @@
       "en": "Appointment",
       "fr": "Rendez-vous",
       "ja": "受診予定",
-      "sites": [],
-      "siteCount": 0,
+      "sites": [
+        {
+          "zone": "app",
+          "file": "src/utils/exportHealthRecords.ts",
+          "line": 18,
+          "screen": "exportHealthRecords",
+          "surface": "dynamic-match",
+          "template": "healthExport.${key}"
+        }
+      ],
+      "siteCount": 1,
       "layoutRisk": false,
-      "orphan": true
+      "orphan": false
     },
     {
       "key": "healthExport.col.hospital",
@@ -38510,10 +38933,19 @@
       "en": "Hospital",
       "fr": "Hôpital",
       "ja": "病院",
-      "sites": [],
-      "siteCount": 0,
+      "sites": [
+        {
+          "zone": "app",
+          "file": "src/utils/exportHealthRecords.ts",
+          "line": 18,
+          "screen": "exportHealthRecords",
+          "surface": "dynamic-match",
+          "template": "healthExport.${key}"
+        }
+      ],
+      "siteCount": 1,
       "layoutRisk": false,
-      "orphan": true
+      "orphan": false
     },
     {
       "key": "healthExport.col.doctor",
@@ -38521,10 +38953,19 @@
       "en": "Doctor",
       "fr": "Médecin",
       "ja": "医師",
-      "sites": [],
-      "siteCount": 0,
+      "sites": [
+        {
+          "zone": "app",
+          "file": "src/utils/exportHealthRecords.ts",
+          "line": 18,
+          "screen": "exportHealthRecords",
+          "surface": "dynamic-match",
+          "template": "healthExport.${key}"
+        }
+      ],
+      "siteCount": 1,
       "layoutRisk": false,
-      "orphan": true
+      "orphan": false
     },
     {
       "key": "healthExport.col.visitDate",
@@ -38532,10 +38973,19 @@
       "en": "Visit",
       "fr": "Visite",
       "ja": "受診日",
-      "sites": [],
-      "siteCount": 0,
+      "sites": [
+        {
+          "zone": "app",
+          "file": "src/utils/exportHealthRecords.ts",
+          "line": 18,
+          "screen": "exportHealthRecords",
+          "surface": "dynamic-match",
+          "template": "healthExport.${key}"
+        }
+      ],
+      "siteCount": 1,
       "layoutRisk": false,
-      "orphan": true
+      "orphan": false
     },
     {
       "key": "healthExport.col.consultationNotes",
@@ -38543,10 +38993,19 @@
       "en": "Notes",
       "fr": "Notes",
       "ja": "メモ",
-      "sites": [],
-      "siteCount": 0,
+      "sites": [
+        {
+          "zone": "app",
+          "file": "src/utils/exportHealthRecords.ts",
+          "line": 18,
+          "screen": "exportHealthRecords",
+          "surface": "dynamic-match",
+          "template": "healthExport.${key}"
+        }
+      ],
+      "siteCount": 1,
       "layoutRisk": false,
-      "orphan": true
+      "orphan": false
     },
     {
       "key": "healthExport.col.startedAt",
@@ -38554,10 +39013,19 @@
       "en": "Start",
       "fr": "Début",
       "ja": "開始",
-      "sites": [],
-      "siteCount": 0,
+      "sites": [
+        {
+          "zone": "app",
+          "file": "src/utils/exportHealthRecords.ts",
+          "line": 18,
+          "screen": "exportHealthRecords",
+          "surface": "dynamic-match",
+          "template": "healthExport.${key}"
+        }
+      ],
+      "siteCount": 1,
       "layoutRisk": false,
-      "orphan": true
+      "orphan": false
     },
     {
       "key": "healthExport.col.endedAt",
@@ -38565,10 +39033,19 @@
       "en": "End",
       "fr": "Fin",
       "ja": "終了",
-      "sites": [],
-      "siteCount": 0,
+      "sites": [
+        {
+          "zone": "app",
+          "file": "src/utils/exportHealthRecords.ts",
+          "line": 18,
+          "screen": "exportHealthRecords",
+          "surface": "dynamic-match",
+          "template": "healthExport.${key}"
+        }
+      ],
+      "siteCount": 1,
       "layoutRisk": false,
-      "orphan": true
+      "orphan": false
     },
     {
       "key": "healthExport.col.type",
@@ -38576,10 +39053,19 @@
       "en": "Type",
       "fr": "Type",
       "ja": "種類",
-      "sites": [],
-      "siteCount": 0,
+      "sites": [
+        {
+          "zone": "app",
+          "file": "src/utils/exportHealthRecords.ts",
+          "line": 18,
+          "screen": "exportHealthRecords",
+          "surface": "dynamic-match",
+          "template": "healthExport.${key}"
+        }
+      ],
+      "siteCount": 1,
       "layoutRisk": false,
-      "orphan": true
+      "orphan": false
     },
     {
       "key": "healthExport.col.medPhase",
@@ -38587,10 +39073,19 @@
       "en": "Med phase",
       "fr": "Phase du traitement",
       "ja": "服薬の段階",
-      "sites": [],
-      "siteCount": 0,
+      "sites": [
+        {
+          "zone": "app",
+          "file": "src/utils/exportHealthRecords.ts",
+          "line": 18,
+          "screen": "exportHealthRecords",
+          "surface": "dynamic-match",
+          "template": "healthExport.${key}"
+        }
+      ],
+      "siteCount": 1,
       "layoutRisk": false,
-      "orphan": true
+      "orphan": false
     },
     {
       "key": "healthExport.col.context",
@@ -38598,10 +39093,19 @@
       "en": "Context",
       "fr": "Contexte",
       "ja": "状況",
-      "sites": [],
-      "siteCount": 0,
+      "sites": [
+        {
+          "zone": "app",
+          "file": "src/utils/exportHealthRecords.ts",
+          "line": 18,
+          "screen": "exportHealthRecords",
+          "surface": "dynamic-match",
+          "template": "healthExport.${key}"
+        }
+      ],
+      "siteCount": 1,
       "layoutRisk": false,
-      "orphan": true
+      "orphan": false
     },
     {
       "key": "period.dawn",
@@ -40621,10 +41125,19 @@
       "en": "The request was not valid.",
       "fr": "La requête n'est pas valide.",
       "ja": "リクエストが正しくありません。",
-      "sites": [],
-      "siteCount": 0,
+      "sites": [
+        {
+          "zone": "app",
+          "file": "src/lib/serverError.ts",
+          "line": 33,
+          "screen": "serverError",
+          "surface": "dynamic-match",
+          "template": "serverError.${code}"
+        }
+      ],
+      "siteCount": 1,
       "layoutRisk": false,
-      "orphan": true
+      "orphan": false
     },
     {
       "key": "serverError.INVALID_IMAGE_TYPE",
@@ -40632,10 +41145,19 @@
       "en": "Only JPG or PNG photos can be uploaded.",
       "fr": "Seules les photos JPG ou PNG peuvent être envoyées.",
       "ja": "JPGまたはPNGの写真のみアップロードできます。",
-      "sites": [],
-      "siteCount": 0,
+      "sites": [
+        {
+          "zone": "app",
+          "file": "src/lib/serverError.ts",
+          "line": 33,
+          "screen": "serverError",
+          "surface": "dynamic-match",
+          "template": "serverError.${code}"
+        }
+      ],
+      "siteCount": 1,
       "layoutRisk": false,
-      "orphan": true
+      "orphan": false
     },
     {
       "key": "serverError.IMAGE_TOO_LARGE",
@@ -40643,10 +41165,19 @@
       "en": "That photo is too large.\nPlease try a smaller one.",
       "fr": "Cette photo est trop volumineuse.\nEssayez-en une plus petite.",
       "ja": "写真のサイズが大きすぎます。\n小さい写真でお試しください。",
-      "sites": [],
-      "siteCount": 0,
+      "sites": [
+        {
+          "zone": "app",
+          "file": "src/lib/serverError.ts",
+          "line": 33,
+          "screen": "serverError",
+          "surface": "dynamic-match",
+          "template": "serverError.${code}"
+        }
+      ],
+      "siteCount": 1,
       "layoutRisk": false,
-      "orphan": true
+      "orphan": false
     },
     {
       "key": "serverError.INVALID_CONTENT_TYPE",
@@ -40654,10 +41185,19 @@
       "en": "This file type cannot be uploaded.",
       "fr": "Ce type de fichier ne peut pas être envoyé.",
       "ja": "この形式のファイルはアップロードできません。",
-      "sites": [],
-      "siteCount": 0,
+      "sites": [
+        {
+          "zone": "app",
+          "file": "src/lib/serverError.ts",
+          "line": 33,
+          "screen": "serverError",
+          "surface": "dynamic-match",
+          "template": "serverError.${code}"
+        }
+      ],
+      "siteCount": 1,
       "layoutRisk": false,
-      "orphan": true
+      "orphan": false
     },
     {
       "key": "serverError.FORBIDDEN_PATH",
@@ -40665,10 +41205,19 @@
       "en": "You can only upload to your own records.",
       "fr": "Vous ne pouvez envoyer que vers vos propres enregistrements.",
       "ja": "自分の記録にのみアップロードできます。",
-      "sites": [],
-      "siteCount": 0,
+      "sites": [
+        {
+          "zone": "app",
+          "file": "src/lib/serverError.ts",
+          "line": 33,
+          "screen": "serverError",
+          "surface": "dynamic-match",
+          "template": "serverError.${code}"
+        }
+      ],
+      "siteCount": 1,
       "layoutRisk": false,
-      "orphan": true
+      "orphan": false
     },
     {
       "key": "serverError.FORBIDDEN_UPLOAD",
@@ -40676,10 +41225,19 @@
       "en": "You don't have permission to upload here.",
       "fr": "Vous n'avez pas l'autorisation d'envoyer ici.",
       "ja": "アップロードする権限がありません。",
-      "sites": [],
-      "siteCount": 0,
+      "sites": [
+        {
+          "zone": "app",
+          "file": "src/lib/serverError.ts",
+          "line": 33,
+          "screen": "serverError",
+          "surface": "dynamic-match",
+          "template": "serverError.${code}"
+        }
+      ],
+      "siteCount": 1,
       "layoutRisk": false,
-      "orphan": true
+      "orphan": false
     },
     {
       "key": "serverError.FORBIDDEN_MEDIA",
@@ -40687,10 +41245,19 @@
       "en": "You don't have permission to view this.",
       "fr": "Vous n'avez pas l'autorisation de voir ceci.",
       "ja": "これを表示する権限がありません。",
-      "sites": [],
-      "siteCount": 0,
+      "sites": [
+        {
+          "zone": "app",
+          "file": "src/lib/serverError.ts",
+          "line": 33,
+          "screen": "serverError",
+          "surface": "dynamic-match",
+          "template": "serverError.${code}"
+        }
+      ],
+      "siteCount": 1,
       "layoutRisk": false,
-      "orphan": true
+      "orphan": false
     },
     {
       "key": "serverError.FORBIDDEN_DELETE",
@@ -40698,10 +41265,19 @@
       "en": "You don't have permission to delete this.",
       "fr": "Vous n'avez pas l'autorisation de supprimer ceci.",
       "ja": "削除する権限がありません。",
-      "sites": [],
-      "siteCount": 0,
+      "sites": [
+        {
+          "zone": "app",
+          "file": "src/lib/serverError.ts",
+          "line": 33,
+          "screen": "serverError",
+          "surface": "dynamic-match",
+          "template": "serverError.${code}"
+        }
+      ],
+      "siteCount": 1,
       "layoutRisk": false,
-      "orphan": true
+      "orphan": false
     },
     {
       "key": "serverError.FORBIDDEN_RECIPIENT",
@@ -40709,10 +41285,19 @@
       "en": "You don't have permission to notify this person.",
       "fr": "Vous n'avez pas l'autorisation d'envoyer cette notification.",
       "ja": "この相手に通知する権限がありません。",
-      "sites": [],
-      "siteCount": 0,
+      "sites": [
+        {
+          "zone": "app",
+          "file": "src/lib/serverError.ts",
+          "line": 33,
+          "screen": "serverError",
+          "surface": "dynamic-match",
+          "template": "serverError.${code}"
+        }
+      ],
+      "siteCount": 1,
       "layoutRisk": false,
-      "orphan": true
+      "orphan": false
     },
     {
       "key": "serverError.UNKNOWN_TOKEN",
@@ -40720,10 +41305,19 @@
       "en": "Could not find a device to notify.",
       "fr": "Aucun appareil à notifier n'a été trouvé.",
       "ja": "通知先の端末が見つかりませんでした。",
-      "sites": [],
-      "siteCount": 0,
+      "sites": [
+        {
+          "zone": "app",
+          "file": "src/lib/serverError.ts",
+          "line": 33,
+          "screen": "serverError",
+          "surface": "dynamic-match",
+          "template": "serverError.${code}"
+        }
+      ],
+      "siteCount": 1,
       "layoutRisk": false,
-      "orphan": true
+      "orphan": false
     },
     {
       "key": "serverError.QUOTA_EXCEEDED",
@@ -40731,10 +41325,19 @@
       "en": "You've used today's upload limit.\nPlease try again tomorrow.",
       "fr": "Vous avez atteint la limite d'envoi du jour.\nRéessayez demain.",
       "ja": "本日のアップロード上限に達しました。\n明日お試しください。",
-      "sites": [],
-      "siteCount": 0,
+      "sites": [
+        {
+          "zone": "app",
+          "file": "src/lib/serverError.ts",
+          "line": 33,
+          "screen": "serverError",
+          "surface": "dynamic-match",
+          "template": "serverError.${code}"
+        }
+      ],
+      "siteCount": 1,
       "layoutRisk": false,
-      "orphan": true
+      "orphan": false
     },
     {
       "key": "serverError.PRESIGN_FAILED",
@@ -40742,10 +41345,19 @@
       "en": "Could not prepare the upload.\nPlease try again shortly.",
       "fr": "La préparation de l'envoi a échoué.\nRéessayez dans un instant.",
       "ja": "アップロードの準備に失敗しました。\n少し後にお試しください。",
-      "sites": [],
-      "siteCount": 0,
+      "sites": [
+        {
+          "zone": "app",
+          "file": "src/lib/serverError.ts",
+          "line": 33,
+          "screen": "serverError",
+          "surface": "dynamic-match",
+          "template": "serverError.${code}"
+        }
+      ],
+      "siteCount": 1,
       "layoutRisk": false,
-      "orphan": true
+      "orphan": false
     },
     {
       "key": "serverError.DB_DELETE_FAILED",
@@ -40753,10 +41365,19 @@
       "en": "Could not delete it.\nPlease try again shortly.",
       "fr": "La suppression a échoué.\nRéessayez dans un instant.",
       "ja": "削除できませんでした。\n少し後にお試しください。",
-      "sites": [],
-      "siteCount": 0,
+      "sites": [
+        {
+          "zone": "app",
+          "file": "src/lib/serverError.ts",
+          "line": 33,
+          "screen": "serverError",
+          "surface": "dynamic-match",
+          "template": "serverError.${code}"
+        }
+      ],
+      "siteCount": 1,
       "layoutRisk": false,
-      "orphan": true
+      "orphan": false
     },
     {
       "key": "serverError.DELETE_FAILED",
@@ -40764,10 +41385,19 @@
       "en": "Something went wrong while deleting.\nPlease try again shortly.",
       "fr": "Un problème est survenu lors de la suppression.\nRéessayez dans un instant.",
       "ja": "削除中に問題が発生しました。\n少し後にお試しください。",
-      "sites": [],
-      "siteCount": 0,
+      "sites": [
+        {
+          "zone": "app",
+          "file": "src/lib/serverError.ts",
+          "line": 33,
+          "screen": "serverError",
+          "surface": "dynamic-match",
+          "template": "serverError.${code}"
+        }
+      ],
+      "siteCount": 1,
       "layoutRisk": false,
-      "orphan": true
+      "orphan": false
     },
     {
       "key": "serverError.SEND_FAILED",
@@ -40775,10 +41405,19 @@
       "en": "Could not send the notification.",
       "fr": "La notification n'a pas pu être envoyée.",
       "ja": "通知を送信できませんでした。",
-      "sites": [],
-      "siteCount": 0,
+      "sites": [
+        {
+          "zone": "app",
+          "file": "src/lib/serverError.ts",
+          "line": 33,
+          "screen": "serverError",
+          "surface": "dynamic-match",
+          "template": "serverError.${code}"
+        }
+      ],
+      "siteCount": 1,
       "layoutRisk": false,
-      "orphan": true
+      "orphan": false
     },
     {
       "key": "serverError.OCR_FAILED",
@@ -40786,10 +41425,19 @@
       "en": "Could not read the prescription.\nPlease retake the photo in better light.",
       "fr": "L'ordonnance n'a pas pu être lue.\nReprenez la photo avec un meilleur éclairage.",
       "ja": "処方箋を読み取れませんでした。\n明るい場所で撮り直してください。",
-      "sites": [],
-      "siteCount": 0,
+      "sites": [
+        {
+          "zone": "app",
+          "file": "src/lib/serverError.ts",
+          "line": 33,
+          "screen": "serverError",
+          "surface": "dynamic-match",
+          "template": "serverError.${code}"
+        }
+      ],
+      "siteCount": 1,
       "layoutRisk": false,
-      "orphan": true
+      "orphan": false
     },
     {
       "key": "serverError.CONVERT_UNAVAILABLE",
@@ -40797,10 +41445,19 @@
       "en": "Conversion is unavailable right now.\nPlease try again shortly.",
       "fr": "La conversion est indisponible pour le moment.\nRéessayez dans un instant.",
       "ja": "現在変換できません。\n少し後にお試しください。",
-      "sites": [],
-      "siteCount": 0,
+      "sites": [
+        {
+          "zone": "app",
+          "file": "src/lib/serverError.ts",
+          "line": 33,
+          "screen": "serverError",
+          "surface": "dynamic-match",
+          "template": "serverError.${code}"
+        }
+      ],
+      "siteCount": 1,
       "layoutRisk": false,
-      "orphan": true
+      "orphan": false
     },
     {
       "key": "serverError.SERVER_MISCONFIGURED",
@@ -40808,10 +41465,19 @@
       "en": "Please try again shortly.",
       "fr": "Réessayez dans un instant.",
       "ja": "少し後にお試しください。",
-      "sites": [],
-      "siteCount": 0,
+      "sites": [
+        {
+          "zone": "app",
+          "file": "src/lib/serverError.ts",
+          "line": 33,
+          "screen": "serverError",
+          "surface": "dynamic-match",
+          "template": "serverError.${code}"
+        }
+      ],
+      "siteCount": 1,
       "layoutRisk": false,
-      "orphan": true
+      "orphan": false
     },
     {
       "key": "dateFmt.weekdayLong_sun",
@@ -41258,10 +41924,25 @@
       "en": "Year",
       "fr": "Année",
       "ja": "年",
-      "sites": [],
-      "siteCount": 0,
+      "sites": [
+        {
+          "zone": "app",
+          "file": "src/screens/menu/AppointmentWriteScreen.tsx",
+          "line": 214,
+          "screen": "AppointmentWriteScreen",
+          "surface": "unknown"
+        },
+        {
+          "zone": "app",
+          "file": "src/screens/menu/MedicalRecordWriteScreen.tsx",
+          "line": 140,
+          "screen": "MedicalRecordWriteScreen",
+          "surface": "unknown"
+        }
+      ],
+      "siteCount": 2,
       "layoutRisk": false,
-      "orphan": true
+      "orphan": false
     },
     {
       "key": "dateFmt.unitMonth",
@@ -41269,10 +41950,25 @@
       "en": "Month",
       "fr": "Mois",
       "ja": "月",
-      "sites": [],
-      "siteCount": 0,
+      "sites": [
+        {
+          "zone": "app",
+          "file": "src/screens/menu/AppointmentWriteScreen.tsx",
+          "line": 226,
+          "screen": "AppointmentWriteScreen",
+          "surface": "unknown"
+        },
+        {
+          "zone": "app",
+          "file": "src/screens/menu/MedicalRecordWriteScreen.tsx",
+          "line": 145,
+          "screen": "MedicalRecordWriteScreen",
+          "surface": "unknown"
+        }
+      ],
+      "siteCount": 2,
       "layoutRisk": false,
-      "orphan": true
+      "orphan": false
     },
     {
       "key": "dateFmt.unitDay",
@@ -41280,10 +41976,25 @@
       "en": "Day",
       "fr": "Jour",
       "ja": "日",
-      "sites": [],
-      "siteCount": 0,
+      "sites": [
+        {
+          "zone": "app",
+          "file": "src/screens/menu/AppointmentWriteScreen.tsx",
+          "line": 238,
+          "screen": "AppointmentWriteScreen",
+          "surface": "unknown"
+        },
+        {
+          "zone": "app",
+          "file": "src/screens/menu/MedicalRecordWriteScreen.tsx",
+          "line": 151,
+          "screen": "MedicalRecordWriteScreen",
+          "surface": "unknown"
+        }
+      ],
+      "siteCount": 2,
       "layoutRisk": false,
-      "orphan": true
+      "orphan": false
     },
     {
       "key": "dateFmt.unitHour",
@@ -41291,10 +42002,25 @@
       "en": "Hour",
       "fr": "Heure",
       "ja": "時",
-      "sites": [],
-      "siteCount": 0,
+      "sites": [
+        {
+          "zone": "app",
+          "file": "src/screens/menu/AppointmentWriteScreen.tsx",
+          "line": 282,
+          "screen": "AppointmentWriteScreen",
+          "surface": "unknown"
+        },
+        {
+          "zone": "app",
+          "file": "src/screens/menu/MedicalRecordWriteScreen.tsx",
+          "line": 185,
+          "screen": "MedicalRecordWriteScreen",
+          "surface": "unknown"
+        }
+      ],
+      "siteCount": 2,
       "layoutRisk": false,
-      "orphan": true
+      "orphan": false
     },
     {
       "key": "dateFmt.unitMinute",
@@ -41302,10 +42028,25 @@
       "en": "Min",
       "fr": "Min",
       "ja": "分",
-      "sites": [],
-      "siteCount": 0,
+      "sites": [
+        {
+          "zone": "app",
+          "file": "src/screens/menu/AppointmentWriteScreen.tsx",
+          "line": 293,
+          "screen": "AppointmentWriteScreen",
+          "surface": "unknown"
+        },
+        {
+          "zone": "app",
+          "file": "src/screens/menu/MedicalRecordWriteScreen.tsx",
+          "line": 190,
+          "screen": "MedicalRecordWriteScreen",
+          "surface": "unknown"
+        }
+      ],
+      "siteCount": 2,
       "layoutRisk": false,
-      "orphan": true
+      "orphan": false
     },
     {
       "key": "dateFmt.dayWithWeekday",
@@ -41488,6 +42229,13 @@
     },
     {
       "zone": "app",
+      "file": "src/lib/serverError.ts",
+      "line": 33,
+      "screen": "serverError",
+      "template": "serverError.${code}"
+    },
+    {
+      "zone": "app",
       "file": "src/screens/medication/MedicationScreen.tsx",
       "line": 2058,
       "screen": "MedicationScreen",
@@ -41558,6 +42306,34 @@
     },
     {
       "zone": "app",
+      "file": "src/utils/exportHealthRecords.ts",
+      "line": 40,
+      "screen": "exportHealthRecords",
+      "template": "meal.${k}"
+    },
+    {
+      "zone": "app",
+      "file": "src/utils/exportHealthRecords.ts",
+      "line": 49,
+      "screen": "exportHealthRecords",
+      "template": "exercise.${v}"
+    },
+    {
+      "zone": "app",
+      "file": "src/utils/exportHealthRecords.ts",
+      "line": 148,
+      "screen": "exportHealthRecords",
+      "template": "section.${sec.titleKey}"
+    },
+    {
+      "zone": "app",
+      "file": "src/utils/exportHealthRecords.ts",
+      "line": 155,
+      "screen": "exportHealthRecords",
+      "template": "col.${c.labelKey}"
+    },
+    {
+      "zone": "app",
       "file": "src/utils/medUtils.ts",
       "line": 213,
       "screen": "medUtils",
@@ -41569,6 +42345,41 @@
       "line": 224,
       "screen": "medUtils",
       "template": "slot.${meta.key}"
+    },
+    {
+      "zone": "server",
+      "file": "supabase/functions/_shared/i18n.ts",
+      "line": 328,
+      "screen": "i18n",
+      "template": "slot.${key}"
+    },
+    {
+      "zone": "server",
+      "file": "supabase/functions/_shared/i18n.ts",
+      "line": 344,
+      "screen": "i18n",
+      "template": "weekday.${keys[dowIndex] ?? 'sun'}"
+    },
+    {
+      "zone": "web",
+      "file": "src/lib/doseSlots.ts",
+      "line": 89,
+      "screen": "doseSlots",
+      "template": "slot.${key}"
+    },
+    {
+      "zone": "web",
+      "file": "src/lib/queries.ts",
+      "line": 27,
+      "screen": "queries",
+      "template": "exercise.${id}"
+    },
+    {
+      "zone": "web",
+      "file": "src/lib/queries.ts",
+      "line": 38,
+      "screen": "queries",
+      "template": "exercise.${id}"
     }
   ]
 }

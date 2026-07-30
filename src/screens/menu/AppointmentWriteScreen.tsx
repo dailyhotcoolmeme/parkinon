@@ -211,7 +211,7 @@ function DatePickerModal({
                 data={PICKER_YEARS}
                 selected={year}
                 onSelect={handleYearChange}
-                suffix={''}
+                suffix={isOverseasLocale() ? '' : t('dateFmt.unitYear')}
                 fontSize={19}
               />
             </View>
@@ -223,7 +223,7 @@ function DatePickerModal({
                 data={availableMonths}
                 selected={month}
                 onSelect={handleMonthChange}
-                suffix={''}
+                suffix={isOverseasLocale() ? '' : t('dateFmt.unitMonth')}
                 fontSize={19}
               />
             </View>
@@ -235,7 +235,7 @@ function DatePickerModal({
                 data={days}
                 selected={day}
                 onSelect={onDayChange}
-                suffix={''}
+                suffix={isOverseasLocale() ? '' : t('dateFmt.unitDay')}
                 fontSize={18}
                 getLabel={(d) => t('dateFmt.dayWithWeekday', { day: d, weekday: getDayOfWeek(year, month, d) })}
               />
@@ -279,7 +279,7 @@ function TimePickerModal({
                 data={PICKER_HOURS}
                 selected={hour}
                 onSelect={onHourChange}
-                suffix={''}
+                suffix={isOverseasLocale() ? '' : t('dateFmt.unitHour')}
                 padLen={2}
               />
             </View>
@@ -290,7 +290,7 @@ function TimePickerModal({
                 data={PICKER_MINUTES}
                 selected={minute}
                 onSelect={onMinuteChange}
-                suffix={''}
+                suffix={isOverseasLocale() ? '' : t('dateFmt.unitMinute')}
                 padLen={2}
               />
             </View>

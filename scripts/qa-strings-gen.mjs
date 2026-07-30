@@ -126,6 +126,23 @@ for (const z of zones) {
     for (const h of dynamicHits) {
       dynamicTemplates.push({ zone: z.where, file: rel, line: h.line, screen: screenOf(rel), template: h.template });
     }
+    // 넓은 그물 — t() 호출에 바로 안 붙어도(예: `const key = \`serverError.${code}\`;` 후
+    // 몇 줄 뒤 i18n.t(key)) 번역 키처럼 생긴 템플릿(단어.단어...${...})은 전부 후보로 잡는다.
+    // URL 템플릿(`${SUPABASE_URL}/...`)은 시작이 ${ 라 이 패턴에 안 걸려 자연히 제외된다.
+    const WIDE = /`([a-zA-Z][a-zA-Z0-9_]*(?:\.[a-zA-Z][a-zA-Z0-9_]*)*\.\$\{[^}]+\}[^`]*)`/g;
+    lines.forEach((line, i) => {
+      for (const m of line.matchAll(WIDE)) {
+        dynamicTemplates.push({ zone: z.where, file: rel, line: i + 1, screen: screenOf(rel), template: m[1] });
+      }
+    });
+  }
+}
+// 중복 제거(같은 템플릿이 CALL 스캔과 WIDE 스캔 양쪽에 잡힐 수 있다)
+{
+  const seen = new Set();
+  for (let i = dynamicTemplates.length - 1; i >= 0; i--) {
+    const k = `${dynamicTemplates[i].file}:${dynamicTemplates[i].line}:${dynamicTemplates[i].template}`;
+    if (seen.has(k)) dynamicTemplates.splice(i, 1); else seen.add(k);
   }
 }
 
@@ -164,10 +181,12 @@ for (const key of keys) {
 for (const t of dynamicTemplates) {
   // 리터럴 조각만 이스케이프하고 ${...} 자리만 와일드카드로 — 먼저 분해 후 처리해야
   // 이스케이프가 ${ }  자체를 망가뜨리지 않는다(처음 구현에서 이 순서가 뒤바뀌어 매칭이 전부 실패했다).
+  // 변수 자리는 '.'을 포함할 수 있다(예: key='meal.breakfast') — [^.]+ 로 제한하면
+  // 'healthExport.meal.breakfast' 를 못 잡는다. '.+' 로 넉넉히 잡는다.
   const pattern = '^' + t.template
     .split(/\$\{[^}]+\}/)
     .map((part) => part.replace(/[.*+?^$()|[\]\\]/g, '\\$&'))
-    .join('[^.]+') + '$';
+    .join('.+') + '$';
   let re;
   try { re = new RegExp(pattern); } catch { continue; }
   for (const key of keys) {
