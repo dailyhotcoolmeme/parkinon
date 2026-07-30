@@ -20,15 +20,9 @@ import { useTranslation } from 'react-i18next';
 
 type RouteProps = RouteProp<MenuStackParamList, 'RecordDetail'>;
 type IoniconName = React.ComponentProps<typeof Ionicons>['name'];
-type Period = '이번 주' | '이번 달' | '최근 3개월';
+type Period = 'week' | 'month' | 'quarter';
 
-const PERIODS: Period[] = ['이번 주', '이번 달', '최근 3개월'];
-
-const prevLabels: Record<Period, string> = {
-  '이번 주': '지난주',
-  '이번 달': '지난달',
-  '최근 3개월': '지난 3개월',
-};
+const PERIODS: Period[] = ['week', 'month', 'quarter'];
 
 const TIME_COLORS_PALETTE = ['#F44336', '#4CAF50', '#2196F3', '#FF9800', '#9C27B0'];
 
@@ -44,10 +38,10 @@ function getItemMeta(t: (k: string) => string): Record<string, { icon: IoniconNa
 }
 
 function getPeriodLabel(p: Period, t: (k: string) => string): string {
-  return p === '이번 주' ? t('records.periodWeek') : p === '이번 달' ? t('records.periodMonth') : t('records.period3Month');
+  return p === 'week' ? t('records.periodWeek') : p === 'month' ? t('records.periodMonth') : t('records.period3Month');
 }
 function getPrevLabel(p: Period, t: (k: string) => string): string {
-  return p === '이번 주' ? t('records.prevWeek') : p === '이번 달' ? t('records.prevMonth') : t('records.prev3Month');
+  return p === 'week' ? t('records.prevWeek') : p === 'month' ? t('records.prevMonth') : t('records.prev3Month');
 }
 
 import { triggerLabelToDisplay } from '../../hooks/useRecordDetailData';
@@ -189,7 +183,7 @@ export function RecordDetailScreen() {
   const navigation = useNavigation<any>();
   const { type, period: initialPeriod } = route.params;
 
-  const [period, setPeriod] = useState<Period>((initialPeriod as Period) || '이번 주');
+  const [period, setPeriod] = useState<Period>((initialPeriod as Period) || 'week');
   const { unreadCount } = useNotificationBadge();
 
   const itemMeta = getItemMeta(t);
@@ -370,7 +364,7 @@ export function RecordDetailScreen() {
           {!isTimeItem && trendSeries && (
             <View style={styles.card}>
               <Text style={styles.trendTitle}>
-                {period === '이번 주' ? t('recordDetail.weeklyTrend') : period === '이번 달' ? t('recordDetail.monthlyTrend') : t('recordDetail.threeMonthTrend')}
+                {period === 'week' ? t('recordDetail.weeklyTrend') : period === 'month' ? t('recordDetail.monthlyTrend') : t('recordDetail.threeMonthTrend')}
               </Text>
               <BarChart
                 values={trendSeries.points.map(p => p.value)}

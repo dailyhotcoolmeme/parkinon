@@ -19,7 +19,7 @@ import i18n from '../i18n';
 import { isOverseasLocale } from '../i18n/detectLocale';
 
 
-type Period = '이번 주' | '이번 달' | '최근 3개월';
+type Period = 'week' | 'month' | 'quarter';
 type ItemKey = 'medication' | 'bodyState' | 'mood' | 'sleep' | 'constipation' | 'exercise';
 
 export interface TrendPoint {
@@ -257,13 +257,13 @@ export function useRecordDetailData(type: ItemKey, period: Period): UseRecordDet
       type RangeEntry = { start: Date; end: Date; label: string };
       let ranges: RangeEntry[] = [];
 
-      if (period === '이번 주') {
+      if (period === 'week') {
         // 최근 9주 (이번 주 포함)
         for (let w = 8; w >= 0; w--) {
           const r = getWeekRange(w);
           ranges.push({ start: r.start, end: r.end, label: weekLabel(w) });
         }
-      } else if (period === '이번 달') {
+      } else if (period === 'month') {
         // 최근 5개월 (이번 달 포함)
         for (let m = 4; m >= 0; m--) {
           const r = getMonthRange(m);

@@ -59,8 +59,9 @@ const EXCLUDE_SOURCE = [
 const DB_RULES = [
   { col: 'dose_slots.label', kind: 'translate', reason: '복용 시간대 표시명 — 키로 저장하고 표시명은 번역 파일에서', approved: '2026-07-30' },
   { col: 'medications.dosage', kind: 'translate', reason: '용량 표시값 — dosage_unit 키로 통일', approved: '2026-07-30' },
-  { col: 'dev_letter.body_ko', kind: 'translate', reason: '개발자 편지 — DB 에 언어별 칸 추가', approved: '2026-07-30' },
-  { col: 'dev_letter.signature_ko', kind: 'translate', reason: '개발자 편지 서명 — DB 에 언어별 칸 추가', approved: '2026-07-30' },
+  // 언어별 칸(body_ko/en/fr/ja)이 갖춰졌다 — ko 칸의 한글은 한국어 본문이므로 정상이다.
+  { col: 'dev_letter.body_ko', kind: 'done', reason: '개발자 편지 — 언어별 칸 4개 완비(2026-07-30)', approved: '2026-07-30' },
+  { col: 'dev_letter.signature_ko', kind: 'done', reason: '개발자 편지 서명 — 언어별 칸 4개 완비(2026-07-30)', approved: '2026-07-30' },
 
   { col: 'medication_pk_profile.notes', kind: 'done', reason: 'notes_key 로 대체하고 원본 삭제(2026-07-30)', approved: '2026-07-30' },
   { col: 'medication_pk_profile.product_name', kind: 'exclude', reason: '국내 제품명 대조표 — 한글로 등록해야만 걸림', approved: '2026-07-30' },

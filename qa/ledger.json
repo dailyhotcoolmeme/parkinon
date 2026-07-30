@@ -1,17 +1,17 @@
 {
   "generatedFrom": "scripts/i18n-ledger.mjs",
   "summary": {
-    "translate": 368,
+    "translate": 315,
     "logEn": 260,
-    "identifier": 65,
+    "identifier": 59,
     "exclude": 460,
-    "done": 0,
+    "done": 2,
     "unclassified": 0
   },
   "byZone": {
     "앱": {
-      "translate": 214,
-      "identifier": 48,
+      "translate": 163,
+      "identifier": 42,
       "exclude": 272
     },
     "서버": {
@@ -25,7 +25,7 @@
       "exclude": 108
     },
     "DB": {
-      "translate": 2,
+      "translate": 0,
       "identifier": 0,
       "exclude": 16
     }
@@ -77,83 +77,6 @@
       "zone": "앱",
       "location": "src/components/common/DatePickerModal.tsx:20",
       "text": "토",
-      "kind": "translate",
-      "reason": "기본값 — 번역 대상"
-    },
-    {
-      "zone": "앱",
-      "location": "src/components/common/DevLetterModal.tsx:86",
-      "text": "안녕하세요 파킨온 앱 개발자입니다. 우선 이 앱을 다운 받으신 분들은 파킨슨 환자이거나 혹은 그 가족/지인들일겁니다. 네 그렇습니다. 저도 파킨슨 환자 가족입니다…",
-      "kind": "translate",
-      "reason": "기본값 — 번역 대상"
-    },
-    {
-      "zone": "앱",
-      "location": "src/components/common/DevLetterModal.tsx:87",
-      "text": "처음 저희 장모님께서 파킨슨 진단을 받았던 날을 기억하면 온 가족들이 슬픔에 잠겨 있었는데... 어느덧 10여년이 흘렀습니다.",
-      "kind": "translate",
-      "reason": "기본값 — 번역 대상"
-    },
-    {
-      "zone": "앱",
-      "location": "src/components/common/DevLetterModal.tsx:88",
-      "text": "아마 진단 받으신지 얼마 안되시는 분들도 계실테고, 저희처럼 혹은 저희보다 더 긴 시간 파킨슨과 함께하신 분들도 계실겁니다.",
-      "kind": "translate",
-      "reason": "기본값 — 번역 대상"
-    },
-    {
-      "zone": "앱",
-      "location": "src/components/common/DevLetterModal.tsx:89",
-      "text": "사실 이 앱을 만든 이유는 저희 장모님과 저희 가족을 위해서였습니다. 매일 정해진 시간에 약을 잘 드셨는지, 혹시 잊어버리시진 않으셨는지 항상 신경이 쓰였습니다.…",
-      "kind": "translate",
-      "reason": "기본값 — 번역 대상"
-    },
-    {
-      "zone": "앱",
-      "location": "src/components/common/DevLetterModal.tsx:90",
-      "text": "하물며 저희 가족은 함께 거주하고 있어서 그나마 이렇게 관찰과 관심을 기울일 수 있다지만, 따로 떨어져 지내는 분들은 어떨지 생각해보았습니다.",
-      "kind": "translate",
-      "reason": "기본값 — 번역 대상"
-    },
-    {
-      "zone": "앱",
-      "location": "src/components/common/DevLetterModal.tsx:91",
-      "text": "그래서 파킨슨이라는 같은 아픔을 겪고 있는 환자와 가족분들이 함께할 수 있는 앱을 만들면 좋겠다고 생각했습니다.",
-      "kind": "translate",
-      "reason": "기본값 — 번역 대상"
-    },
-    {
-      "zone": "앱",
-      "location": "src/components/common/DevLetterModal.tsx:92",
-      "text": "이 앱은 환자 혼자서 복약/몸상태 기록하는 앱이 아닙니다. 가족이 함께 하는 앱입니다. 함께 거주하든 따로 거주하든 환자의 기록을 가족들이 함께 확인하고 응원하는…",
-      "kind": "translate",
-      "reason": "기본값 — 번역 대상"
-    },
-    {
-      "zone": "앱",
-      "location": "src/components/common/DevLetterModal.tsx:93",
-      "text": "희망컨대 저희 장모님의 담당 의사 선생님께 기회가 되면 이 앱의 기능들을 설명하면서 6개월치의 복약 기록과 몸상태, 기분상태 기록 그래프를 드려볼까 합니다. 그리…",
-      "kind": "translate",
-      "reason": "기본값 — 번역 대상"
-    },
-    {
-      "zone": "앱",
-      "location": "src/components/common/DevLetterModal.tsx:94",
-      "text": "파킨슨이라는 같은 아픔과 희망을 품고 살아가는 가족으로서 이 앱을 사용하는 환자들이 많이 생기지 않았으면 좋겠습니다. 그렇기에 이 앱으로 돈을 벌겠다는 생각도 없…",
-      "kind": "translate",
-      "reason": "기본값 — 번역 대상"
-    },
-    {
-      "zone": "앱",
-      "location": "src/components/common/DevLetterModal.tsx:95",
-      "text": "마음 편히 사용하시고 불편한 점이 있으시다면 상단 카카오톡 이모티콘 누르면 오픈채팅방으로 연결되니 언제든지 의견 주십시오.",
-      "kind": "translate",
-      "reason": "기본값 — 번역 대상"
-    },
-    {
-      "zone": "앱",
-      "location": "src/components/common/DevLetterModal.tsx:96",
-      "text": "*카카오톡 오픈채팅방은 오직 파킨온 앱 관련 불편사항 의견 받는 용도로만 운영됩니다",
       "kind": "translate",
       "reason": "기본값 — 번역 대상"
     },
@@ -1475,80 +1398,10 @@
     },
     {
       "zone": "앱",
-      "location": "src/hooks/useRecordDetailData.ts:22",
-      "text": "이번 주",
-      "kind": "translate",
-      "reason": "기본값 — 번역 대상"
-    },
-    {
-      "zone": "앱",
-      "location": "src/hooks/useRecordDetailData.ts:22",
-      "text": "이번 달",
-      "kind": "translate",
-      "reason": "기본값 — 번역 대상"
-    },
-    {
-      "zone": "앱",
-      "location": "src/hooks/useRecordDetailData.ts:22",
-      "text": "최근 3개월",
-      "kind": "translate",
-      "reason": "기본값 — 번역 대상"
-    },
-    {
-      "zone": "앱",
-      "location": "src/hooks/useRecordDetailData.ts:260",
-      "text": "이번 주",
-      "kind": "translate",
-      "reason": "기본값 — 번역 대상"
-    },
-    {
-      "zone": "앱",
-      "location": "src/hooks/useRecordDetailData.ts:266",
-      "text": "이번 달",
-      "kind": "translate",
-      "reason": "기본값 — 번역 대상"
-    },
-    {
-      "zone": "앱",
       "location": "src/hooks/useRecordDetailData.ts:607",
       "text": "[useRecordDetailData] 조회 오류:",
       "kind": "log-en",
       "reason": "console 전용 — 영어로 고정"
-    },
-    {
-      "zone": "앱",
-      "location": "src/hooks/useRecordsData.ts:16",
-      "text": "이번 주",
-      "kind": "translate",
-      "reason": "기본값 — 번역 대상"
-    },
-    {
-      "zone": "앱",
-      "location": "src/hooks/useRecordsData.ts:16",
-      "text": "이번 달",
-      "kind": "translate",
-      "reason": "기본값 — 번역 대상"
-    },
-    {
-      "zone": "앱",
-      "location": "src/hooks/useRecordsData.ts:16",
-      "text": "최근 3개월",
-      "kind": "translate",
-      "reason": "기본값 — 번역 대상"
-    },
-    {
-      "zone": "앱",
-      "location": "src/hooks/useRecordsData.ts:63",
-      "text": "이번 주",
-      "kind": "translate",
-      "reason": "기본값 — 번역 대상"
-    },
-    {
-      "zone": "앱",
-      "location": "src/hooks/useRecordsData.ts:84",
-      "text": "이번 달",
-      "kind": "translate",
-      "reason": "기본값 — 번역 대상"
     },
     {
       "zone": "앱",
@@ -4594,258 +4447,6 @@
       "text": "[SensitiveInfoConsent] handleAgree 예외:",
       "kind": "log-en",
       "reason": "console 전용 — 영어로 고정"
-    },
-    {
-      "zone": "앱",
-      "location": "src/screens/records/RecordDetailScreen.tsx:23",
-      "text": "이번 주",
-      "kind": "translate",
-      "reason": "기본값 — 번역 대상"
-    },
-    {
-      "zone": "앱",
-      "location": "src/screens/records/RecordDetailScreen.tsx:23",
-      "text": "이번 달",
-      "kind": "translate",
-      "reason": "기본값 — 번역 대상"
-    },
-    {
-      "zone": "앱",
-      "location": "src/screens/records/RecordDetailScreen.tsx:23",
-      "text": "최근 3개월",
-      "kind": "translate",
-      "reason": "기본값 — 번역 대상"
-    },
-    {
-      "zone": "앱",
-      "location": "src/screens/records/RecordDetailScreen.tsx:25",
-      "text": "이번 주",
-      "kind": "translate",
-      "reason": "기본값 — 번역 대상"
-    },
-    {
-      "zone": "앱",
-      "location": "src/screens/records/RecordDetailScreen.tsx:25",
-      "text": "이번 달",
-      "kind": "translate",
-      "reason": "기본값 — 번역 대상"
-    },
-    {
-      "zone": "앱",
-      "location": "src/screens/records/RecordDetailScreen.tsx:25",
-      "text": "최근 3개월",
-      "kind": "translate",
-      "reason": "기본값 — 번역 대상"
-    },
-    {
-      "zone": "앱",
-      "location": "src/screens/records/RecordDetailScreen.tsx:28",
-      "text": "이번 주",
-      "kind": "identifier",
-      "reason": "한글이 식별자로 쓰임 — 영어 키로 교체"
-    },
-    {
-      "zone": "앱",
-      "location": "src/screens/records/RecordDetailScreen.tsx:28",
-      "text": "지난주",
-      "kind": "translate",
-      "reason": "기본값 — 번역 대상"
-    },
-    {
-      "zone": "앱",
-      "location": "src/screens/records/RecordDetailScreen.tsx:29",
-      "text": "이번 달",
-      "kind": "identifier",
-      "reason": "한글이 식별자로 쓰임 — 영어 키로 교체"
-    },
-    {
-      "zone": "앱",
-      "location": "src/screens/records/RecordDetailScreen.tsx:29",
-      "text": "지난달",
-      "kind": "translate",
-      "reason": "기본값 — 번역 대상"
-    },
-    {
-      "zone": "앱",
-      "location": "src/screens/records/RecordDetailScreen.tsx:30",
-      "text": "최근 3개월",
-      "kind": "identifier",
-      "reason": "한글이 식별자로 쓰임 — 영어 키로 교체"
-    },
-    {
-      "zone": "앱",
-      "location": "src/screens/records/RecordDetailScreen.tsx:30",
-      "text": "지난 3개월",
-      "kind": "translate",
-      "reason": "기본값 — 번역 대상"
-    },
-    {
-      "zone": "앱",
-      "location": "src/screens/records/RecordDetailScreen.tsx:47",
-      "text": "이번 주",
-      "kind": "translate",
-      "reason": "기본값 — 번역 대상"
-    },
-    {
-      "zone": "앱",
-      "location": "src/screens/records/RecordDetailScreen.tsx:47",
-      "text": "이번 달",
-      "kind": "translate",
-      "reason": "기본값 — 번역 대상"
-    },
-    {
-      "zone": "앱",
-      "location": "src/screens/records/RecordDetailScreen.tsx:50",
-      "text": "이번 주",
-      "kind": "translate",
-      "reason": "기본값 — 번역 대상"
-    },
-    {
-      "zone": "앱",
-      "location": "src/screens/records/RecordDetailScreen.tsx:50",
-      "text": "이번 달",
-      "kind": "translate",
-      "reason": "기본값 — 번역 대상"
-    },
-    {
-      "zone": "앱",
-      "location": "src/screens/records/RecordDetailScreen.tsx:192",
-      "text": "이번 주",
-      "kind": "translate",
-      "reason": "기본값 — 번역 대상"
-    },
-    {
-      "zone": "앱",
-      "location": "src/screens/records/RecordDetailScreen.tsx:373",
-      "text": "이번 주",
-      "kind": "translate",
-      "reason": "기본값 — 번역 대상"
-    },
-    {
-      "zone": "앱",
-      "location": "src/screens/records/RecordDetailScreen.tsx:373",
-      "text": "이번 달",
-      "kind": "translate",
-      "reason": "기본값 — 번역 대상"
-    },
-    {
-      "zone": "앱",
-      "location": "src/screens/records/RecordsScreen.tsx:32",
-      "text": "이번 주",
-      "kind": "translate",
-      "reason": "기본값 — 번역 대상"
-    },
-    {
-      "zone": "앱",
-      "location": "src/screens/records/RecordsScreen.tsx:32",
-      "text": "이번 달",
-      "kind": "translate",
-      "reason": "기본값 — 번역 대상"
-    },
-    {
-      "zone": "앱",
-      "location": "src/screens/records/RecordsScreen.tsx:32",
-      "text": "최근 3개월",
-      "kind": "translate",
-      "reason": "기본값 — 번역 대상"
-    },
-    {
-      "zone": "앱",
-      "location": "src/screens/records/RecordsScreen.tsx:35",
-      "text": "이번 주",
-      "kind": "translate",
-      "reason": "기본값 — 번역 대상"
-    },
-    {
-      "zone": "앱",
-      "location": "src/screens/records/RecordsScreen.tsx:35",
-      "text": "이번 달",
-      "kind": "translate",
-      "reason": "기본값 — 번역 대상"
-    },
-    {
-      "zone": "앱",
-      "location": "src/screens/records/RecordsScreen.tsx:35",
-      "text": "최근 3개월",
-      "kind": "translate",
-      "reason": "기본값 — 번역 대상"
-    },
-    {
-      "zone": "앱",
-      "location": "src/screens/records/RecordsScreen.tsx:38",
-      "text": "이번 주",
-      "kind": "identifier",
-      "reason": "한글이 식별자로 쓰임 — 영어 키로 교체"
-    },
-    {
-      "zone": "앱",
-      "location": "src/screens/records/RecordsScreen.tsx:38",
-      "text": "지난주",
-      "kind": "translate",
-      "reason": "기본값 — 번역 대상"
-    },
-    {
-      "zone": "앱",
-      "location": "src/screens/records/RecordsScreen.tsx:39",
-      "text": "이번 달",
-      "kind": "identifier",
-      "reason": "한글이 식별자로 쓰임 — 영어 키로 교체"
-    },
-    {
-      "zone": "앱",
-      "location": "src/screens/records/RecordsScreen.tsx:39",
-      "text": "지난달",
-      "kind": "translate",
-      "reason": "기본값 — 번역 대상"
-    },
-    {
-      "zone": "앱",
-      "location": "src/screens/records/RecordsScreen.tsx:40",
-      "text": "최근 3개월",
-      "kind": "identifier",
-      "reason": "한글이 식별자로 쓰임 — 영어 키로 교체"
-    },
-    {
-      "zone": "앱",
-      "location": "src/screens/records/RecordsScreen.tsx:40",
-      "text": "지난 3개월",
-      "kind": "translate",
-      "reason": "기본값 — 번역 대상"
-    },
-    {
-      "zone": "앱",
-      "location": "src/screens/records/RecordsScreen.tsx:67",
-      "text": "이번 주",
-      "kind": "translate",
-      "reason": "기본값 — 번역 대상"
-    },
-    {
-      "zone": "앱",
-      "location": "src/screens/records/RecordsScreen.tsx:72",
-      "text": "이번 주",
-      "kind": "translate",
-      "reason": "기본값 — 번역 대상"
-    },
-    {
-      "zone": "앱",
-      "location": "src/screens/records/RecordsScreen.tsx:72",
-      "text": "이번 달",
-      "kind": "translate",
-      "reason": "기본값 — 번역 대상"
-    },
-    {
-      "zone": "앱",
-      "location": "src/screens/records/RecordsScreen.tsx:74",
-      "text": "이번 주",
-      "kind": "translate",
-      "reason": "기본값 — 번역 대상"
-    },
-    {
-      "zone": "앱",
-      "location": "src/screens/records/RecordsScreen.tsx:74",
-      "text": "이번 달",
-      "kind": "translate",
-      "reason": "기본값 — 번역 대상"
     },
     {
       "zone": "앱",
@@ -7994,15 +7595,15 @@
       "zone": "DB",
       "location": "dev_letter.body_ko",
       "text": "1/1행 · 예: 안녕하세요 파킨온 앱 개발자입니다. 우선 이 앱을 다운 받으신 분들은 파킨슨 환자이거나 혹",
-      "kind": "translate",
-      "reason": "개발자 편지 — DB 에 언어별 칸 추가"
+      "kind": "done",
+      "reason": "개발자 편지 — 언어별 칸 4개 완비(2026-07-30)"
     },
     {
       "zone": "DB",
       "location": "dev_letter.signature_ko",
       "text": "1/1행 · 예: 2026년 7월 15일(수) 개발자 올림",
-      "kind": "translate",
-      "reason": "개발자 편지 서명 — DB 에 언어별 칸 추가"
+      "kind": "done",
+      "reason": "개발자 편지 서명 — 언어별 칸 4개 완비(2026-07-30)"
     },
     {
       "zone": "DB",

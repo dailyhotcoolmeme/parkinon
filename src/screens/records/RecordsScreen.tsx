@@ -29,16 +29,10 @@ import { SkeletonList } from '../../components/common/SkeletonCard';
 
 type NavigationProp = StackNavigationProp<MenuStackParamList, 'Records'>;
 type IoniconName = React.ComponentProps<typeof Ionicons>['name'];
-type Period = '이번 주' | '이번 달' | '최근 3개월';
+type Period = 'week' | 'month' | 'quarter';
 type ItemKey = 'medication' | 'bodyState' | 'mood' | 'sleep' | 'constipation' | 'exercise';
 
-const PERIODS: Period[] = ['이번 주', '이번 달', '최근 3개월'];
-
-const prevLabels: Record<Period, string> = {
-  '이번 주': '지난주',
-  '이번 달': '지난달',
-  '최근 3개월': '지난 3개월',
-};
+const PERIODS: Period[] = ['week', 'month', 'quarter'];
 
 const ITEMS: { key: ItemKey; icon: IoniconName; label: string; accentColor: string }[] = [
   { key: 'medication', icon: 'medkit-outline', label: i18n.t('records.itemMedication'), accentColor: Colors.primary },
@@ -64,14 +58,14 @@ const ITEM_ROWS: ItemKey[][] = ITEMS.reduce<ItemKey[][]>((rows, item, i) => {
 export function RecordsScreen() {
   const { t } = useTranslation();
   const navigation = useNavigation<NavigationProp>();
-  const [period, setPeriod] = useState<Period>('이번 주');
+  const [period, setPeriod] = useState<Period>('week');
   const { unreadCount } = useNotificationBadge();
   const dialog = useDialog();
 
   const periodLabel = (p: Period): string =>
-    p === '이번 주' ? t('records.periodWeek') : p === '이번 달' ? t('records.periodMonth') : t('records.period3Month');
+    p === 'week' ? t('records.periodWeek') : p === 'month' ? t('records.periodMonth') : t('records.period3Month');
   const prevLabelDisplay = (p: Period): string =>
-    p === '이번 주' ? t('records.prevWeek') : p === '이번 달' ? t('records.prevMonth') : t('records.prev3Month');
+    p === 'week' ? t('records.prevWeek') : p === 'month' ? t('records.prevMonth') : t('records.prev3Month');
 
   // Supabase 실제 데이터
   const { summary, loading, error, refresh, unlinkedCaregiver } = useRecordsData(period);

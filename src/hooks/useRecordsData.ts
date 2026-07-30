@@ -13,7 +13,7 @@ import { useAuth } from '../context/AuthContext';
 import type { Database } from '../types/database';
 import i18n from '../i18n';
 
-type Period = '이번 주' | '이번 달' | '최근 3개월';
+type Period = 'week' | 'month' | 'quarter';
 
 // 시간대별 평균 (trigger_time_label 기준)
 export interface TimeSlotAvg {
@@ -60,7 +60,7 @@ function getDateRanges(period: Period): {
   // 오늘 끝 (현재 순간)
   const todayEnd = now.toISOString();
 
-  if (period === '이번 주') {
+  if (period === 'week') {
     // 이번 주: 이번 주 월요일 00:00 ~ 지금
     const dayOfWeek = now.getDay(); // 0=일요일
     const mondayOffset = dayOfWeek === 0 ? -6 : 1 - dayOfWeek;
@@ -81,7 +81,7 @@ function getDateRanges(period: Period): {
     };
   }
 
-  if (period === '이번 달') {
+  if (period === 'month') {
     // 이번 달: 이번 달 1일 ~ 지금
     const thisMonth1st = new Date(now.getFullYear(), now.getMonth(), 1, 0, 0, 0, 0);
     // 지난 달: 지난달 1일 ~ 지난달 말일
