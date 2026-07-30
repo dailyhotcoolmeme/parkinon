@@ -46,7 +46,7 @@ function formatDate(iso: string): string {
     if (isOverseasLocale()) {
       return d.toLocaleDateString(displayLocaleTag(), { year: 'numeric', month: 'long', day: 'numeric' });
     }
-    return `${d.getFullYear()}년 ${d.getMonth() + 1}월 ${d.getDate()}일`;
+    return i18n.t('dateFmt.yearMonthDay', { year: d.getFullYear(), month: d.getMonth() + 1, day: d.getDate() });
   } catch {
     return '';
   }

@@ -3,6 +3,7 @@
  * 약복용 / 몸상태 / 운동 화면 하단 "과거 기록 보기" 타임라인 컴포넌트
  */
 import React, { useState, useCallback, useEffect } from 'react';
+import { weekdayShort } from '../../utils/dateLabels';
 import {
   View,
   Text,
@@ -72,8 +73,7 @@ function formatDateLabel(dateStr: string): string {
     // 예: "Thu, Jul 3" (연도 생략, 요일 강조).
     return date.toLocaleDateString(displayLocaleTag(), { weekday: 'short', month: 'short', day: 'numeric' });
   }
-  const dayNames = ['일', '월', '화', '수', '목', '금', '토'];
-  return `${m}.${d}(${dayNames[date.getDay()]})`;
+  return i18n.t('dateFmt.monthDotDay', { month: m, day: d, weekday: weekdayShort(date) });
 }
 
 function buildDateRange(todayStr: string, earliestStr: string, limit: number): string[] {
@@ -209,7 +209,7 @@ export function HistoryTimeline({ type, patientId, refreshKey }: HistoryTimeline
           // en: triggerLabelToText 가 접두 없는 표현("30 min later" 등)을 반환하므로 그대로 사용.
           const interval = isOverseasLocale()
             ? fullText
-            : (fullText === '복용 직후' ? fullText : fullText.replace(/^복용\s+/, ''));
+            : (fullText === i18n.t('interval.rightAfter') ? fullText : fullText.replace(/^복용\s+/, ''));
           const tag = interval ? t('timeline.tag', { slot: slotName, interval }) : undefined;
           newMap[kstDate].push({
             time: toKSTTime(row.logged_at),

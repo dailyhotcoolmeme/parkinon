@@ -1,4 +1,5 @@
 import React, { useState, useCallback, useEffect, useRef } from 'react';
+import { monthDayWeekday } from '../../utils/dateLabels';
 import {
   View,
   Text,
@@ -77,10 +78,7 @@ function getDateLabel(date: Date): string {
   if (isOverseasLocale()) {
     return date.toLocaleDateString(displayLocaleTag(), { weekday: 'long', month: 'long', day: 'numeric' });
   }
-  const month = date.getMonth() + 1;
-  const day = date.getDate();
-  const dayNames = ['일요일', '월요일', '화요일', '수요일', '목요일', '금요일', '토요일'];
-  return `${month}월 ${day}일 ${dayNames[date.getDay()]}`;
+  return monthDayWeekday(date);
 }
 
 // 섹션 제목용 짧은 날짜. ko: "M월 D일"(기존과 동일), en: "January 1".

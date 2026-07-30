@@ -33,7 +33,7 @@ export function installLayoutGuard(): void {
     if (reported.has(key)) return;
     reported.add(key);
     console.error(
-      `[넘침] ${JSON.stringify(text.slice(0, 80))} 줄폭=${lineWidth} 상자=${boxWidth} (numberOfLines=${numberOfLines})`,
+      `[overflow] ${JSON.stringify(text.slice(0, 80))} line=${lineWidth} box=${boxWidth} (numberOfLines=${numberOfLines})`,
     );
     qaEvent({ type: 'overflow', text: text.slice(0, 200), lineW: lineWidth, boxW: boxWidth, numberOfLines });
   });

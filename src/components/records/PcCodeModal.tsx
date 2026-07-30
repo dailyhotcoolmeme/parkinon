@@ -58,9 +58,9 @@ function formatRemain(sec: number): string {
     if (m > 0) return `${m}m ${s}s`;
     return `${s}s`;
   }
-  if (sec <= 0) return '0초';
-  if (m > 0) return `${m}분 ${s}초`;
-  return `${s}초`;
+  if (sec <= 0) return i18n.t('dateFmt.secondsLeft', { s: 0 });
+  if (m > 0) return i18n.t('dateFmt.minutesSecondsLeft', { m, s });
+  return i18n.t('dateFmt.secondsLeft', { s });
 }
 
 export function PcCodeModal({

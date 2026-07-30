@@ -15,7 +15,8 @@
     "continue": "계속",
     "notice": "안내",
     "edit": "수정",
-    "sessionExpired": "로그인이 만료됐어요. 다시 로그인해주세요."
+    "sessionExpired": "로그인이 만료됐어요. 다시 로그인해주세요.",
+    "honorific": "{{name}}님"
   },
   "devLetter": {
     "title": "파킨온 앱을 출시하며",
@@ -2114,7 +2115,14 @@
     "shortHourMin": "{{h}}시간 {{m}}분 후",
     "elapsedMin": "{{m}}분",
     "elapsedHour": "{{h}}시간",
-    "elapsedHourMin": "{{h}}시간 {{m}}분"
+    "elapsedHourMin": "{{h}}시간 {{m}}분",
+    "takenRightAfter": "복용 직후",
+    "takenMinLater": "복용 {{m}}분 후",
+    "takenHourLater": "복용 {{h}}시간 후",
+    "takenHourMinLater": "복용 {{h}}시간 {{m}}분 후",
+    "afterTakingHourMin": "복용 후 {{h}}시간 {{m}}분",
+    "afterTakingHour": "복용 후 {{h}}시간",
+    "afterTakingMin": "복용 후 {{m}}분"
   },
   "nextNotif": {
     "intervalRightAfter": "복용 직후",
@@ -2243,6 +2251,9 @@
     "unitMinute": "분",
     "dayWithWeekday": "{{day}}일 ({{weekday}})",
     "yearMonthDayWeekday": "{{year}}년 {{month}}월 {{day}}일 ({{weekday}})",
-    "hourMinute": "{{h}}시 {{m}}분"
+    "hourMinute": "{{h}}시 {{m}}분",
+    "monthDotDay": "{{month}}.{{day}}({{weekday}})",
+    "secondsLeft": "{{s}}초",
+    "minutesSecondsLeft": "{{m}}분 {{s}}초"
   }
 }

@@ -99,10 +99,8 @@ const { width: SCREEN_WIDTH } = Dimensions.get('window');
 // ─── Data model ───────────────────────────────────────────────────────────────
 
 const SLOT_ORDER: MedTimeSlotKey[] = ['morning', 'lunch', 'dinner', 'bedtime'];
-// 갭 충돌 확인 다이얼로그(checkMealGapConflict)에만 쓰이는 표시용 문자열 — 로케일 분기 필요.
-const SLOT_LABELS_KO: Record<string, string> = { morning: '아침', lunch: '점심', dinner: '저녁', bedtime: '취침' };
-const SLOT_LABELS_EN: Record<string, string> = { morning: 'Morning', lunch: 'Lunch', dinner: 'Dinner', bedtime: 'Bedtime' };
-const slotLabel = (key: string): string => (isOverseasLocale() ? SLOT_LABELS_EN : SLOT_LABELS_KO)[key];
+// 갭 충돌 확인 다이얼로그(checkMealGapConflict)에 쓰이는 표시명 — 언어 파일에서 꺼낸다.
+const slotLabel = (key: string): string => i18n.t(`slot.${key}`);
 
 function timeHHMMtoMinutes(hhmm: string): number {
   const [h, m] = hhmm.split(':').map(Number);
@@ -1667,7 +1665,7 @@ export function SettingsScreen() {
     }
     return text.replace(
       /환자(이|가|은|는|을|를|의|와|과|랑|이랑|에게|에게서|도|만|보다|처럼|로서|으로|로)?/g,
-      `${linkedPatientName}님`,
+      t('common.honorific', { name: linkedPatientName }),
     );
   };
 

@@ -30,14 +30,6 @@ import { useBottomSheetPadding } from '../../hooks/useBottomSheetPadding';
 import { useTranslation } from 'react-i18next';
 import { isOverseasLocale } from '../../i18n/detectLocale';
 
-const RELATION_MAP: Record<string, string> = {
-  spouse: '배우자',
-  child: '자녀',
-  sibling: '형제/자매',
-  other: '기타',
-  parent: '부모',
-};
-
 export function FamilyLinkScreen() {
   const { t } = useTranslation();
   // 해외 로케일: 카카오 노란 버튼 대신 중립 스타일(FamilyInviteScreen과 동일 패턴)

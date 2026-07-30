@@ -15,7 +15,8 @@
     "continue": "Continuer",
     "notice": "Avis",
     "edit": "Modifier",
-    "sessionExpired": "Votre session a expiré. Veuillez vous reconnecter."
+    "sessionExpired": "Votre session a expiré. Veuillez vous reconnecter.",
+    "honorific": "{{name}}"
   },
   "devLetter": {
     "title": "À propos du lancement de ParkinON",
@@ -2114,7 +2115,14 @@
     "shortHourMin": "{{h}} h {{m}} min après",
     "elapsedMin": "{{m}} min",
     "elapsedHour": "{{h}} h",
-    "elapsedHourMin": "{{h}} h {{m}} min"
+    "elapsedHourMin": "{{h}} h {{m}} min",
+    "takenRightAfter": "juste après la prise",
+    "takenMinLater": "{{m}} min après la prise",
+    "takenHourLater": "{{h}} h après la prise",
+    "takenHourMinLater": "{{h}} h {{m}} min après la prise",
+    "afterTakingHourMin": "{{h}} h {{m}} min après",
+    "afterTakingHour": "{{h}} h après",
+    "afterTakingMin": "{{m}} min après"
   },
   "nextNotif": {
     "intervalRightAfter": "juste après la prise",
@@ -2243,6 +2251,9 @@
     "unitMinute": "Min",
     "dayWithWeekday": "{{day}} ({{weekday}})",
     "yearMonthDayWeekday": "{{day}}/{{month}}/{{year}} ({{weekday}})",
-    "hourMinute": "{{h}}:{{m}}"
+    "hourMinute": "{{h}}:{{m}}",
+    "monthDotDay": "{{day}}/{{month}} ({{weekday}})",
+    "secondsLeft": "{{s}} s",
+    "minutesSecondsLeft": "{{m}} min {{s}} s"
   }
 }

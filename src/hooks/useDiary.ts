@@ -139,14 +139,9 @@ function triggerLabelToChip(label: string | null | undefined): string {
   const min = (!label || label === 'after_medication') ? 0 : triggerLabelToMinutes(label);
   const h = Math.floor(min / 60);
   const rem = min % 60;
-  if (isOverseasLocale()) {
-    if (!label || label === 'after_medication' || !isFinite(min) || min === 0) return i18n.t('interval.rightAfter');
-    if (min < 60) return `${min} min later`;
-    return rem === 0 ? `${h} hr later` : `${h} hr ${rem} min later`;
-  }
-  if (!label || label === 'after_medication' || !isFinite(min) || min === 0) return '복용직후';
-  if (min < 60) return `${min}분 후`;
-  return rem === 0 ? `${h}시간 후` : `${h}시간 ${rem}분 후`;
+  if (!label || label === 'after_medication' || !isFinite(min) || min === 0) return i18n.t('interval.rightAfter');
+  if (min < 60) return i18n.t('interval.minLater', { m: min });
+  return rem === 0 ? i18n.t('interval.hourLater', { h }) : i18n.t('interval.hourMinLater', { h, m: rem });
 }
 
 // ─── 달력용: 작성 이력 있는 날짜 조회 ─────────────────────────────────────────

@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useCallback, useRef } from 'react';
+import { monthDayWeekday } from '../../utils/dateLabels';
 import {
   View,
   Text,
@@ -80,10 +81,7 @@ function getDateLabel(date: Date): string {
   if (isOverseasLocale()) {
     return date.toLocaleDateString(displayLocaleTag(), { weekday: 'long', month: 'long', day: 'numeric' });
   }
-  const month = date.getMonth() + 1;
-  const day = date.getDate();
-  const dayNames = ['일요일', '월요일', '화요일', '수요일', '목요일', '금요일', '토요일'];
-  return `${month}월 ${day}일 ${dayNames[date.getDay()]}`;
+  return monthDayWeekday(date);
 }
 
 function formatTime(isoString: string): string {
@@ -92,9 +90,7 @@ function formatTime(isoString: string): string {
   const m = d.getMinutes();
   const hour = h % 12 === 0 ? 12 : h % 12;
   const mm = m.toString().padStart(2, '0');
-  if (isOverseasLocale()) return formatClock(d);
-  const ampm = h < 12 ? '오전' : '오후';
-  return `${ampm} ${hour}:${mm}`;
+  return formatClock(d);
 }
 
 // 수시(식사시간대 없는) 기록의 시간대 키.

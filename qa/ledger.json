@@ -1,17 +1,17 @@
 {
   "generatedFrom": "scripts/i18n-ledger.mjs",
   "summary": {
-    "translate": 235,
+    "translate": 152,
     "logEn": 260,
-    "identifier": 52,
+    "identifier": 44,
     "exclude": 460,
     "done": 2,
     "unclassified": 0
   },
   "byZone": {
     "앱": {
-      "translate": 83,
-      "identifier": 35,
+      "translate": 0,
+      "identifier": 27,
       "exclude": 272
     },
     "서버": {
@@ -44,62 +44,6 @@
       "text": "[ErrorBoundary] 오류 저장 실패:",
       "kind": "log-en",
       "reason": "console 전용 — 영어로 고정"
-    },
-    {
-      "zone": "앱",
-      "location": "src/components/common/HistoryTimeline.tsx:75",
-      "text": "일",
-      "kind": "translate",
-      "reason": "기본값 — 번역 대상"
-    },
-    {
-      "zone": "앱",
-      "location": "src/components/common/HistoryTimeline.tsx:75",
-      "text": "월",
-      "kind": "translate",
-      "reason": "기본값 — 번역 대상"
-    },
-    {
-      "zone": "앱",
-      "location": "src/components/common/HistoryTimeline.tsx:75",
-      "text": "화",
-      "kind": "translate",
-      "reason": "기본값 — 번역 대상"
-    },
-    {
-      "zone": "앱",
-      "location": "src/components/common/HistoryTimeline.tsx:75",
-      "text": "수",
-      "kind": "translate",
-      "reason": "기본값 — 번역 대상"
-    },
-    {
-      "zone": "앱",
-      "location": "src/components/common/HistoryTimeline.tsx:75",
-      "text": "목",
-      "kind": "translate",
-      "reason": "기본값 — 번역 대상"
-    },
-    {
-      "zone": "앱",
-      "location": "src/components/common/HistoryTimeline.tsx:75",
-      "text": "금",
-      "kind": "translate",
-      "reason": "기본값 — 번역 대상"
-    },
-    {
-      "zone": "앱",
-      "location": "src/components/common/HistoryTimeline.tsx:75",
-      "text": "토",
-      "kind": "translate",
-      "reason": "기본값 — 번역 대상"
-    },
-    {
-      "zone": "앱",
-      "location": "src/components/common/HistoryTimeline.tsx:212",
-      "text": "복용 직후",
-      "kind": "translate",
-      "reason": "기본값 — 번역 대상"
     },
     {
       "zone": "앱",
@@ -247,27 +191,6 @@
       "text": "${rangeDays}일 전",
       "kind": "exclude",
       "reason": "측정 기능 — 재오픈 시점에 처리"
-    },
-    {
-      "zone": "앱",
-      "location": "src/components/records/PcCodeModal.tsx:61",
-      "text": "0초",
-      "kind": "translate",
-      "reason": "기본값 — 번역 대상"
-    },
-    {
-      "zone": "앱",
-      "location": "src/components/records/PcCodeModal.tsx:62",
-      "text": "${m}분 ${s}초",
-      "kind": "translate",
-      "reason": "기본값 — 번역 대상"
-    },
-    {
-      "zone": "앱",
-      "location": "src/components/records/PcCodeModal.tsx:63",
-      "text": "${s}초",
-      "kind": "translate",
-      "reason": "기본값 — 번역 대상"
     },
     {
       "zone": "앱",
@@ -635,56 +558,49 @@
     },
     {
       "zone": "앱",
-      "location": "src/context/SettingsContext.tsx:17",
-      "text": "오후",
-      "kind": "translate",
-      "reason": "기본값 — 번역 대상"
-    },
-    {
-      "zone": "앱",
-      "location": "src/context/SettingsContext.tsx:124",
+      "location": "src/context/SettingsContext.tsx:129",
       "text": "[SettingsContext] 시스템 권한 차단 DB 동기화 오류:",
       "kind": "log-en",
       "reason": "console 전용 — 영어로 고정"
     },
     {
       "zone": "앱",
-      "location": "src/context/SettingsContext.tsx:132",
+      "location": "src/context/SettingsContext.tsx:137",
       "text": "[SettingsContext] 시스템 권한 확인 오류:",
       "kind": "log-en",
       "reason": "console 전용 — 영어로 고정"
     },
     {
       "zone": "앱",
-      "location": "src/context/SettingsContext.tsx:209",
+      "location": "src/context/SettingsContext.tsx:214",
       "text": "[SettingsContext] 설정 로드 오류:",
       "kind": "log-en",
       "reason": "console 전용 — 영어로 고정"
     },
     {
       "zone": "앱",
-      "location": "src/context/SettingsContext.tsx:293",
+      "location": "src/context/SettingsContext.tsx:298",
       "text": "[SettingsContext] notification_enabled 저장 오류:",
       "kind": "log-en",
       "reason": "console 전용 — 영어로 고정"
     },
     {
       "zone": "앱",
-      "location": "src/context/SettingsContext.tsx:296",
+      "location": "src/context/SettingsContext.tsx:301",
       "text": "[SettingsContext] _persistNotificationEnabled 오류:",
       "kind": "log-en",
       "reason": "console 전용 — 영어로 고정"
     },
     {
       "zone": "앱",
-      "location": "src/context/SettingsContext.tsx:313",
+      "location": "src/context/SettingsContext.tsx:318",
       "text": "[SettingsContext] 알림 취소 오류:",
       "kind": "log-en",
       "reason": "console 전용 — 영어로 고정"
     },
     {
       "zone": "앱",
-      "location": "src/context/SettingsContext.tsx:337",
+      "location": "src/context/SettingsContext.tsx:342",
       "text": "[SettingsContext] 알림 취소 오류:",
       "kind": "log-en",
       "reason": "console 전용 — 영어로 고정"
@@ -782,13 +698,6 @@
     },
     {
       "zone": "앱",
-      "location": "src/hooks/useAuth.ts:263",
-      "text": "Supabase DB 연결 타임아웃",
-      "kind": "translate",
-      "reason": "기본값 — 번역 대상"
-    },
-    {
-      "zone": "앱",
       "location": "src/hooks/useAuth.ts:266",
       "text": "[useAuth] loadUserProfile 시작:",
       "kind": "log-en",
@@ -835,13 +744,6 @@
       "text": "[useAuth] loadUserProfile 오류:",
       "kind": "log-en",
       "reason": "console 전용 — 영어로 고정"
-    },
-    {
-      "zone": "앱",
-      "location": "src/hooks/useAuth.ts:411",
-      "text": "타임아웃",
-      "kind": "translate",
-      "reason": "기본값 — 번역 대상"
     },
     {
       "zone": "앱",
@@ -1055,42 +957,14 @@
     },
     {
       "zone": "앱",
-      "location": "src/hooks/useDiary.ts:147",
-      "text": "복용직후",
-      "kind": "translate",
-      "reason": "기본값 — 번역 대상"
-    },
-    {
-      "zone": "앱",
-      "location": "src/hooks/useDiary.ts:148",
-      "text": "${min}분 후",
-      "kind": "translate",
-      "reason": "기본값 — 번역 대상"
-    },
-    {
-      "zone": "앱",
-      "location": "src/hooks/useDiary.ts:149",
-      "text": "${h}시간 후",
-      "kind": "identifier",
-      "reason": "한글이 식별자로 쓰임 — 영어 키로 교체"
-    },
-    {
-      "zone": "앱",
-      "location": "src/hooks/useDiary.ts:149",
-      "text": "${h}시간 ${rem}분 후",
-      "kind": "translate",
-      "reason": "기본값 — 번역 대상"
-    },
-    {
-      "zone": "앱",
-      "location": "src/hooks/useDiary.ts:178",
+      "location": "src/hooks/useDiary.ts:173",
       "text": "[useDiary] fetchDiaryEntryDates 오류:",
       "kind": "log-en",
       "reason": "console 전용 — 영어로 고정"
     },
     {
       "zone": "앱",
-      "location": "src/hooks/useDiary.ts:386",
+      "location": "src/hooks/useDiary.ts:381",
       "text": "[useDiary] fetchAll 오류:",
       "kind": "log-en",
       "reason": "console 전용 — 영어로 고정"
@@ -1237,112 +1111,84 @@
     },
     {
       "zone": "앱",
-      "location": "src/hooks/useMedication.ts:99",
-      "text": "아침",
-      "kind": "translate",
-      "reason": "기본값 — 번역 대상"
-    },
-    {
-      "zone": "앱",
-      "location": "src/hooks/useMedication.ts:100",
-      "text": "점심",
-      "kind": "translate",
-      "reason": "기본값 — 번역 대상"
-    },
-    {
-      "zone": "앱",
-      "location": "src/hooks/useMedication.ts:101",
-      "text": "저녁",
-      "kind": "translate",
-      "reason": "기본값 — 번역 대상"
-    },
-    {
-      "zone": "앱",
-      "location": "src/hooks/useMedication.ts:102",
-      "text": "취침",
-      "kind": "translate",
-      "reason": "기본값 — 번역 대상"
-    },
-    {
-      "zone": "앱",
-      "location": "src/hooks/useMedication.ts:152",
+      "location": "src/hooks/useMedication.ts:145",
       "text": "[useMedication] 보호자 patient_group_id=null → 환자 미연동",
       "kind": "log-en",
       "reason": "console 전용 — 영어로 고정"
     },
     {
       "zone": "앱",
-      "location": "src/hooks/useMedication.ts:164",
+      "location": "src/hooks/useMedication.ts:157",
       "text": "[useMedication] getPatientId 그룹 조회 오류:",
       "kind": "log-en",
       "reason": "console 전용 — 영어로 고정"
     },
     {
       "zone": "앱",
-      "location": "src/hooks/useMedication.ts:242",
+      "location": "src/hooks/useMedication.ts:235",
       "text": "[useMedication] fetchTodayStatus 오류:",
       "kind": "log-en",
       "reason": "console 전용 — 영어로 고정"
     },
     {
       "zone": "앱",
-      "location": "src/hooks/useMedication.ts:267",
+      "location": "src/hooks/useMedication.ts:260",
       "text": "[useMedication] fetchMedications 오류:",
       "kind": "log-en",
       "reason": "console 전용 — 영어로 고정"
     },
     {
       "zone": "앱",
-      "location": "src/hooks/useMedication.ts:323",
+      "location": "src/hooks/useMedication.ts:316",
       "text": "[useMedication] takeMedication 재진입 차단(저장 진행 중) — 더블탭 무시",
       "kind": "log-en",
       "reason": "console 전용 — 영어로 고정"
     },
     {
       "zone": "앱",
-      "location": "src/hooks/useMedication.ts:335",
+      "location": "src/hooks/useMedication.ts:328",
       "text": "[useMedication] takeMedication: patientId null → insert 중단",
       "kind": "log-en",
       "reason": "console 전용 — 영어로 고정"
     },
     {
       "zone": "앱",
-      "location": "src/hooks/useMedication.ts:476",
+      "location": "src/hooks/useMedication.ts:469",
       "text": "[useMedication] medLogId 없음 → 신규 약효추적 큐잉 생략(서버 400 방지)",
       "kind": "log-en",
       "reason": "console 전용 — 영어로 고정"
     },
     {
       "zone": "앱",
-      "location": "src/hooks/useMedication.ts:556",
+      "location": "src/hooks/useMedication.ts:549",
       "text": "[useMedication] 알림 처리 실패 (복용 기록은 저장됨):",
       "kind": "log-en",
       "reason": "console 전용 — 영어로 고정"
     },
     {
       "zone": "앱",
-      "location": "src/hooks/useMedication.ts:592",
+      "location": "src/hooks/useMedication.ts:585",
       "text": "[useMedication] 알림 읽음 처리 실패 (복용 기록은 저장됨):",
       "kind": "log-en",
       "reason": "console 전용 — 영어로 고정"
     },
     {
       "zone": "앱",
-      "location": "src/hooks/useMedication.ts:614",
+      "location": "src/hooks/useMedication.ts:607",
       "text": "[useMedication] takeMedication 오류:",
       "kind": "log-en",
       "reason": "console 전용 — 영어로 고정"
     },
     {
       "zone": "앱",
-      "location": "src/hooks/useMedication.ts:650",
+      "location": "src/hooks/useMedication.ts:643",
       "text": "[useMedication] cancelMedication 오류:",
       "kind": "log-en",
       "reason": "console 전용 — 영어로 고정"
     },
     {
       "zone": "앱",
-      "location": "src/hooks/useMedication.ts:676",
+      "location": "src/hooks/useMedication.ts:669",
       "text": "[useMedication] getMedLogs 오류:",
       "kind": "log-en",
       "reason": "console 전용 — 영어로 고정"
@@ -1381,13 +1227,6 @@
       "text": "[한글노출] 해외 언어인데 화면에 한글이 그려졌습니다: ${JSON.stringify(text.slice(0, 120))}",
       "kind": "exclude",
       "reason": "한글 검출 가드 자신"
-    },
-    {
-      "zone": "앱",
-      "location": "src/i18n/layoutGuard.ts:36",
-      "text": "[넘침] ${JSON.stringify(text.slice(0, 80))} 줄폭=${lineWidth} 상자=${boxWidth} (numberOfLines=${…",
-      "kind": "translate",
-      "reason": "기본값 — 번역 대상"
     },
     {
       "zone": "앱",
@@ -1433,161 +1272,91 @@
     },
     {
       "zone": "앱",
-      "location": "src/screens/bodystate/BodyStateScreen.tsx:85",
-      "text": "일요일",
-      "kind": "translate",
-      "reason": "기본값 — 번역 대상"
-    },
-    {
-      "zone": "앱",
-      "location": "src/screens/bodystate/BodyStateScreen.tsx:85",
-      "text": "월요일",
-      "kind": "translate",
-      "reason": "기본값 — 번역 대상"
-    },
-    {
-      "zone": "앱",
-      "location": "src/screens/bodystate/BodyStateScreen.tsx:85",
-      "text": "화요일",
-      "kind": "translate",
-      "reason": "기본값 — 번역 대상"
-    },
-    {
-      "zone": "앱",
-      "location": "src/screens/bodystate/BodyStateScreen.tsx:85",
-      "text": "수요일",
-      "kind": "translate",
-      "reason": "기본값 — 번역 대상"
-    },
-    {
-      "zone": "앱",
-      "location": "src/screens/bodystate/BodyStateScreen.tsx:85",
-      "text": "목요일",
-      "kind": "translate",
-      "reason": "기본값 — 번역 대상"
-    },
-    {
-      "zone": "앱",
-      "location": "src/screens/bodystate/BodyStateScreen.tsx:85",
-      "text": "금요일",
-      "kind": "translate",
-      "reason": "기본값 — 번역 대상"
-    },
-    {
-      "zone": "앱",
-      "location": "src/screens/bodystate/BodyStateScreen.tsx:85",
-      "text": "토요일",
-      "kind": "translate",
-      "reason": "기본값 — 번역 대상"
-    },
-    {
-      "zone": "앱",
-      "location": "src/screens/bodystate/BodyStateScreen.tsx:86",
-      "text": "${month}월 ${day}일 ${dayNames[date.getDay()]}",
-      "kind": "translate",
-      "reason": "기본값 — 번역 대상"
-    },
-    {
-      "zone": "앱",
-      "location": "src/screens/bodystate/BodyStateScreen.tsx:96",
-      "text": "오전",
-      "kind": "identifier",
-      "reason": "한글이 식별자로 쓰임 — 영어 키로 교체"
-    },
-    {
-      "zone": "앱",
-      "location": "src/screens/bodystate/BodyStateScreen.tsx:96",
-      "text": "오후",
-      "kind": "translate",
-      "reason": "기본값 — 번역 대상"
-    },
-    {
-      "zone": "앱",
-      "location": "src/screens/bodystate/BodyStateScreen.tsx:173",
+      "location": "src/screens/bodystate/BodyStateScreen.tsx:169",
       "text": "새벽",
       "kind": "identifier",
       "reason": "한글이 식별자로 쓰임 — 영어 키로 교체"
     },
     {
       "zone": "앱",
-      "location": "src/screens/bodystate/BodyStateScreen.tsx:174",
+      "location": "src/screens/bodystate/BodyStateScreen.tsx:170",
       "text": "아침",
       "kind": "identifier",
       "reason": "한글이 식별자로 쓰임 — 영어 키로 교체"
     },
     {
       "zone": "앱",
-      "location": "src/screens/bodystate/BodyStateScreen.tsx:175",
+      "location": "src/screens/bodystate/BodyStateScreen.tsx:171",
       "text": "점심",
       "kind": "identifier",
       "reason": "한글이 식별자로 쓰임 — 영어 키로 교체"
     },
     {
       "zone": "앱",
-      "location": "src/screens/bodystate/BodyStateScreen.tsx:176",
+      "location": "src/screens/bodystate/BodyStateScreen.tsx:172",
       "text": "오후",
       "kind": "identifier",
       "reason": "한글이 식별자로 쓰임 — 영어 키로 교체"
     },
     {
       "zone": "앱",
-      "location": "src/screens/bodystate/BodyStateScreen.tsx:177",
+      "location": "src/screens/bodystate/BodyStateScreen.tsx:173",
       "text": "저녁",
       "kind": "identifier",
       "reason": "한글이 식별자로 쓰임 — 영어 키로 교체"
     },
     {
       "zone": "앱",
-      "location": "src/screens/bodystate/BodyStateScreen.tsx:178",
+      "location": "src/screens/bodystate/BodyStateScreen.tsx:174",
       "text": "밤",
       "kind": "identifier",
       "reason": "한글이 식별자로 쓰임 — 영어 키로 교체"
     },
     {
       "zone": "앱",
-      "location": "src/screens/bodystate/BodyStateScreen.tsx:179",
+      "location": "src/screens/bodystate/BodyStateScreen.tsx:175",
       "text": "취침",
       "kind": "identifier",
       "reason": "한글이 식별자로 쓰임 — 영어 키로 교체"
     },
     {
       "zone": "앱",
-      "location": "src/screens/bodystate/BodyStateScreen.tsx:473",
+      "location": "src/screens/bodystate/BodyStateScreen.tsx:469",
       "text": "[BodyStateScreen] route.params 트리거 처리 예외(안전망):",
       "kind": "log-en",
       "reason": "console 전용 — 영어로 고정"
     },
     {
       "zone": "앱",
-      "location": "src/screens/bodystate/BodyStateScreen.tsx:1118",
+      "location": "src/screens/bodystate/BodyStateScreen.tsx:1114",
       "text": "[BodyStateScreen] handleCancelRecord 오류:",
       "kind": "log-en",
       "reason": "console 전용 — 영어로 고정"
     },
     {
       "zone": "앱",
-      "location": "src/screens/bodystate/BodyStateScreen.tsx:1157",
+      "location": "src/screens/bodystate/BodyStateScreen.tsx:1153",
       "text": "[BodyStateScreen] handleSaveEdit 오류:",
       "kind": "log-en",
       "reason": "console 전용 — 영어로 고정"
     },
     {
       "zone": "앱",
-      "location": "src/screens/bodystate/BodyStateScreen.tsx:1253",
+      "location": "src/screens/bodystate/BodyStateScreen.tsx:1249",
       "text": "[handleSaveRecord] 기존 로그 삭제 실패:",
       "kind": "log-en",
       "reason": "console 전용 — 영어로 고정"
     },
     {
       "zone": "앱",
-      "location": "src/screens/bodystate/BodyStateScreen.tsx:1288",
+      "location": "src/screens/bodystate/BodyStateScreen.tsx:1284",
       "text": "[handleSaveRecord] 큐 삭제 오류:",
       "kind": "log-en",
       "reason": "console 전용 — 영어로 고정"
     },
     {
       "zone": "앱",
-      "location": "src/screens/bodystate/BodyStateScreen.tsx:1318",
+      "location": "src/screens/bodystate/BodyStateScreen.tsx:1314",
       "text": "[handleSaveRecord] 저장 처리 오류:",
       "kind": "log-en",
       "reason": "console 전용 — 영어로 고정"
@@ -1636,133 +1405,77 @@
     },
     {
       "zone": "앱",
-      "location": "src/screens/exercise/ExerciseScreen.tsx:48",
+      "location": "src/screens/exercise/ExerciseScreen.tsx:49",
       "text": "걷기",
       "kind": "identifier",
       "reason": "한글이 식별자로 쓰임 — 영어 키로 교체"
     },
     {
       "zone": "앱",
-      "location": "src/screens/exercise/ExerciseScreen.tsx:49",
+      "location": "src/screens/exercise/ExerciseScreen.tsx:50",
       "text": "스트레칭",
       "kind": "identifier",
       "reason": "한글이 식별자로 쓰임 — 영어 키로 교체"
     },
     {
       "zone": "앱",
-      "location": "src/screens/exercise/ExerciseScreen.tsx:50",
+      "location": "src/screens/exercise/ExerciseScreen.tsx:51",
       "text": "근력",
       "kind": "identifier",
       "reason": "한글이 식별자로 쓰임 — 영어 키로 교체"
     },
     {
       "zone": "앱",
-      "location": "src/screens/exercise/ExerciseScreen.tsx:51",
+      "location": "src/screens/exercise/ExerciseScreen.tsx:52",
       "text": "균형",
       "kind": "identifier",
       "reason": "한글이 식별자로 쓰임 — 영어 키로 교체"
     },
     {
       "zone": "앱",
-      "location": "src/screens/exercise/ExerciseScreen.tsx:52",
+      "location": "src/screens/exercise/ExerciseScreen.tsx:53",
       "text": "자전거",
       "kind": "identifier",
       "reason": "한글이 식별자로 쓰임 — 영어 키로 교체"
     },
     {
       "zone": "앱",
-      "location": "src/screens/exercise/ExerciseScreen.tsx:53",
+      "location": "src/screens/exercise/ExerciseScreen.tsx:54",
       "text": "수영",
       "kind": "identifier",
       "reason": "한글이 식별자로 쓰임 — 영어 키로 교체"
     },
     {
       "zone": "앱",
-      "location": "src/screens/exercise/ExerciseScreen.tsx:54",
+      "location": "src/screens/exercise/ExerciseScreen.tsx:55",
       "text": "댄스",
       "kind": "identifier",
       "reason": "한글이 식별자로 쓰임 — 영어 키로 교체"
     },
     {
       "zone": "앱",
-      "location": "src/screens/exercise/ExerciseScreen.tsx:55",
+      "location": "src/screens/exercise/ExerciseScreen.tsx:56",
       "text": "복싱",
       "kind": "identifier",
       "reason": "한글이 식별자로 쓰임 — 영어 키로 교체"
     },
     {
       "zone": "앱",
-      "location": "src/screens/exercise/ExerciseScreen.tsx:56",
+      "location": "src/screens/exercise/ExerciseScreen.tsx:57",
       "text": "요가",
       "kind": "identifier",
       "reason": "한글이 식별자로 쓰임 — 영어 키로 교체"
     },
     {
       "zone": "앱",
-      "location": "src/screens/exercise/ExerciseScreen.tsx:57",
+      "location": "src/screens/exercise/ExerciseScreen.tsx:58",
       "text": "조깅",
       "kind": "identifier",
       "reason": "한글이 식별자로 쓰임 — 영어 키로 교체"
     },
     {
       "zone": "앱",
-      "location": "src/screens/exercise/ExerciseScreen.tsx:82",
-      "text": "일요일",
-      "kind": "translate",
-      "reason": "기본값 — 번역 대상"
-    },
-    {
-      "zone": "앱",
-      "location": "src/screens/exercise/ExerciseScreen.tsx:82",
-      "text": "월요일",
-      "kind": "translate",
-      "reason": "기본값 — 번역 대상"
-    },
-    {
-      "zone": "앱",
-      "location": "src/screens/exercise/ExerciseScreen.tsx:82",
-      "text": "화요일",
-      "kind": "translate",
-      "reason": "기본값 — 번역 대상"
-    },
-    {
-      "zone": "앱",
-      "location": "src/screens/exercise/ExerciseScreen.tsx:82",
-      "text": "수요일",
-      "kind": "translate",
-      "reason": "기본값 — 번역 대상"
-    },
-    {
-      "zone": "앱",
-      "location": "src/screens/exercise/ExerciseScreen.tsx:82",
-      "text": "목요일",
-      "kind": "translate",
-      "reason": "기본값 — 번역 대상"
-    },
-    {
-      "zone": "앱",
-      "location": "src/screens/exercise/ExerciseScreen.tsx:82",
-      "text": "금요일",
-      "kind": "translate",
-      "reason": "기본값 — 번역 대상"
-    },
-    {
-      "zone": "앱",
-      "location": "src/screens/exercise/ExerciseScreen.tsx:82",
-      "text": "토요일",
-      "kind": "translate",
-      "reason": "기본값 — 번역 대상"
-    },
-    {
-      "zone": "앱",
-      "location": "src/screens/exercise/ExerciseScreen.tsx:83",
-      "text": "${month}월 ${day}일 ${dayNames[date.getDay()]}",
-      "kind": "translate",
-      "reason": "기본값 — 번역 대상"
-    },
-    {
-      "zone": "앱",
-      "location": "src/screens/exercise/ExerciseScreen.tsx:210",
+      "location": "src/screens/exercise/ExerciseScreen.tsx:208",
       "text": "[ExerciseScreen] ExerciseRecord push 실패:",
       "kind": "log-en",
       "reason": "console 전용 — 영어로 고정"
@@ -3176,108 +2889,17 @@
     },
     {
       "zone": "앱",
-      "location": "src/screens/menu/FamilyLinkScreen.tsx:34",
-      "text": "배우자",
-      "kind": "translate",
-      "reason": "기본값 — 번역 대상"
-    },
-    {
-      "zone": "앱",
-      "location": "src/screens/menu/FamilyLinkScreen.tsx:35",
-      "text": "자녀",
-      "kind": "translate",
-      "reason": "기본값 — 번역 대상"
-    },
-    {
-      "zone": "앱",
-      "location": "src/screens/menu/FamilyLinkScreen.tsx:36",
-      "text": "형제/자매",
-      "kind": "translate",
-      "reason": "기본값 — 번역 대상"
-    },
-    {
-      "zone": "앱",
-      "location": "src/screens/menu/FamilyLinkScreen.tsx:37",
-      "text": "기타",
-      "kind": "translate",
-      "reason": "기본값 — 번역 대상"
-    },
-    {
-      "zone": "앱",
-      "location": "src/screens/menu/FamilyLinkScreen.tsx:38",
-      "text": "부모",
-      "kind": "translate",
-      "reason": "기본값 — 번역 대상"
-    },
-    {
-      "zone": "앱",
-      "location": "src/screens/menu/FamilyLinkScreen.tsx:178",
+      "location": "src/screens/menu/FamilyLinkScreen.tsx:170",
       "text": "[FamilyLinkScreen] loadData 오류:",
       "kind": "log-en",
       "reason": "console 전용 — 영어로 고정"
     },
     {
       "zone": "앱",
-      "location": "src/screens/menu/FamilyLinkScreen.tsx:230",
+      "location": "src/screens/menu/FamilyLinkScreen.tsx:222",
       "text": "[FamilyLinkScreen] 공유 오류:",
       "kind": "log-en",
       "reason": "console 전용 — 영어로 고정"
-    },
-    {
-      "zone": "앱",
-      "location": "src/screens/menu/MedicalRecordDetailScreen.tsx:55",
-      "text": "${d.getFullYear()}년 ${d.getMonth() + 1}월 ${d.getDate()}일",
-      "kind": "translate",
-      "reason": "기본값 — 번역 대상"
-    },
-    {
-      "zone": "앱",
-      "location": "src/screens/menu/MedicalRecordListScreen.tsx:37",
-      "text": "일",
-      "kind": "translate",
-      "reason": "기본값 — 번역 대상"
-    },
-    {
-      "zone": "앱",
-      "location": "src/screens/menu/MedicalRecordListScreen.tsx:37",
-      "text": "월",
-      "kind": "translate",
-      "reason": "기본값 — 번역 대상"
-    },
-    {
-      "zone": "앱",
-      "location": "src/screens/menu/MedicalRecordListScreen.tsx:37",
-      "text": "화",
-      "kind": "translate",
-      "reason": "기본값 — 번역 대상"
-    },
-    {
-      "zone": "앱",
-      "location": "src/screens/menu/MedicalRecordListScreen.tsx:37",
-      "text": "수",
-      "kind": "translate",
-      "reason": "기본값 — 번역 대상"
-    },
-    {
-      "zone": "앱",
-      "location": "src/screens/menu/MedicalRecordListScreen.tsx:37",
-      "text": "목",
-      "kind": "translate",
-      "reason": "기본값 — 번역 대상"
-    },
-    {
-      "zone": "앱",
-      "location": "src/screens/menu/MedicalRecordListScreen.tsx:37",
-      "text": "금",
-      "kind": "translate",
-      "reason": "기본값 — 번역 대상"
-    },
-    {
-      "zone": "앱",
-      "location": "src/screens/menu/MedicalRecordListScreen.tsx:37",
-      "text": "토",
-      "kind": "translate",
-      "reason": "기본값 — 번역 대상"
     },
     {
       "zone": "앱",
@@ -3288,210 +2910,182 @@
     },
     {
       "zone": "앱",
-      "location": "src/screens/menu/MedicationManageScreen.tsx:1059",
-      "text": "복용 직후",
-      "kind": "translate",
-      "reason": "기본값 — 번역 대상"
-    },
-    {
-      "zone": "앱",
-      "location": "src/screens/menu/MedicationManageScreen.tsx:1068",
-      "text": "복용 후 ${h}시간 ${m}분",
-      "kind": "translate",
-      "reason": "기본값 — 번역 대상"
-    },
-    {
-      "zone": "앱",
-      "location": "src/screens/menu/MedicationManageScreen.tsx:1069",
-      "text": "복용 후 ${h}시간",
-      "kind": "translate",
-      "reason": "기본값 — 번역 대상"
-    },
-    {
-      "zone": "앱",
-      "location": "src/screens/menu/MedicationManageScreen.tsx:1070",
-      "text": "복용 후 ${m}분",
-      "kind": "translate",
-      "reason": "기본값 — 번역 대상"
-    },
-    {
-      "zone": "앱",
-      "location": "src/screens/menu/MedicationManageScreen.tsx:1252",
+      "location": "src/screens/menu/MedicationManageScreen.tsx:1246",
       "text": "[MedicationManageScreen] dose_slot 삭제 실패:",
       "kind": "log-en",
       "reason": "console 전용 — 영어로 고정"
     },
     {
       "zone": "앱",
-      "location": "src/screens/menu/MedicationManageScreen.tsx:1266",
+      "location": "src/screens/menu/MedicationManageScreen.tsx:1260",
       "text": "[MedicationManageScreen] 슬롯+기록 삭제(RPC) 실패:",
       "kind": "log-en",
       "reason": "console 전용 — 영어로 고정"
     },
     {
       "zone": "앱",
-      "location": "src/screens/menu/MedicationManageScreen.tsx:1292",
+      "location": "src/screens/menu/MedicationManageScreen.tsx:1286",
       "text": "[MedicationManageScreen] 슬롯 기록 건수 조회 실패:",
       "kind": "log-en",
       "reason": "console 전용 — 영어로 고정"
     },
     {
       "zone": "앱",
-      "location": "src/screens/menu/MedicationManageScreen.tsx:1641",
+      "location": "src/screens/menu/MedicationManageScreen.tsx:1635",
       "text": "[MedicationManageScreen] dose_slots 조인 실패, legacy 표시로 폴백:",
       "kind": "log-en",
       "reason": "console 전용 — 영어로 고정"
     },
     {
       "zone": "앱",
-      "location": "src/screens/menu/MedicationManageScreen.tsx:1672",
+      "location": "src/screens/menu/MedicationManageScreen.tsx:1666",
       "text": "[MedicationManageScreen] 중단 약 조회 실패(계속):",
       "kind": "log-en",
       "reason": "console 전용 — 영어로 고정"
     },
     {
       "zone": "앱",
-      "location": "src/screens/menu/MedicationManageScreen.tsx:1706",
+      "location": "src/screens/menu/MedicationManageScreen.tsx:1700",
       "text": "[MedicationManageScreen] loadMedications 오류:",
       "kind": "log-en",
       "reason": "console 전용 — 영어로 고정"
     },
     {
       "zone": "앱",
-      "location": "src/screens/menu/MedicationManageScreen.tsx:1748",
+      "location": "src/screens/menu/MedicationManageScreen.tsx:1742",
       "text": "[MedicationManageScreen] 0슬롯 환자 감지 → 기본 4슬롯 자동 생성(안전망)",
       "kind": "log-en",
       "reason": "console 전용 — 영어로 고정"
     },
     {
       "zone": "앱",
-      "location": "src/screens/menu/MedicationManageScreen.tsx:1773",
+      "location": "src/screens/menu/MedicationManageScreen.tsx:1767",
       "text": "[MedicationManageScreen] loadDoseSlots 실패:",
       "kind": "log-en",
       "reason": "console 전용 — 영어로 고정"
     },
     {
       "zone": "앱",
-      "location": "src/screens/menu/MedicationManageScreen.tsx:1983",
+      "location": "src/screens/menu/MedicationManageScreen.tsx:1977",
       "text": "[OCR confirm] prescription_items 저장 실패:",
       "kind": "log-en",
       "reason": "console 전용 — 영어로 고정"
     },
     {
       "zone": "앱",
-      "location": "src/screens/menu/MedicationManageScreen.tsx:1987",
+      "location": "src/screens/menu/MedicationManageScreen.tsx:1981",
       "text": "[OCR confirm] prescriptions 저장 실패:",
       "kind": "log-en",
       "reason": "console 전용 — 영어로 고정"
     },
     {
       "zone": "앱",
-      "location": "src/screens/menu/MedicationManageScreen.tsx:2067",
+      "location": "src/screens/menu/MedicationManageScreen.tsx:2061",
       "text": "[OCR confirm] medications update 실패:",
       "kind": "log-en",
       "reason": "console 전용 — 영어로 고정"
     },
     {
       "zone": "앱",
-      "location": "src/screens/menu/MedicationManageScreen.tsx:2086",
+      "location": "src/screens/menu/MedicationManageScreen.tsx:2080",
       "text": "[OCR confirm] 중단 처리 실패:",
       "kind": "log-en",
       "reason": "console 전용 — 영어로 고정"
     },
     {
       "zone": "앱",
-      "location": "src/screens/menu/MedicationManageScreen.tsx:2104",
+      "location": "src/screens/menu/MedicationManageScreen.tsx:2098",
       "text": "[OCR confirm] 중단 약 슬롯 매핑 정리 실패(계속):",
       "kind": "log-en",
       "reason": "console 전용 — 영어로 고정"
     },
     {
       "zone": "앱",
-      "location": "src/screens/menu/MedicationManageScreen.tsx:2133",
+      "location": "src/screens/menu/MedicationManageScreen.tsx:2127",
       "text": "[OCR confirm] 저장 오류:",
       "kind": "log-en",
       "reason": "console 전용 — 영어로 고정"
     },
     {
       "zone": "앱",
-      "location": "src/screens/menu/MedicationManageScreen.tsx:2264",
+      "location": "src/screens/menu/MedicationManageScreen.tsx:2258",
       "text": "[OCR confirm] 비교 실패, 전부 신규로 진행:",
       "kind": "log-en",
       "reason": "console 전용 — 영어로 고정"
     },
     {
       "zone": "앱",
-      "location": "src/screens/menu/MedicationManageScreen.tsx:2301",
+      "location": "src/screens/menu/MedicationManageScreen.tsx:2295",
       "text": "[OCR confirm] PK 매칭 실패:",
       "kind": "log-en",
       "reason": "console 전용 — 영어로 고정"
     },
     {
       "zone": "앱",
-      "location": "src/screens/menu/MedicationManageScreen.tsx:2428",
+      "location": "src/screens/menu/MedicationManageScreen.tsx:2422",
       "text": "[saveMedicationHistory] 이력 저장 실패:",
       "kind": "log-en",
       "reason": "console 전용 — 영어로 고정"
     },
     {
       "zone": "앱",
-      "location": "src/screens/menu/MedicationManageScreen.tsx:2462",
+      "location": "src/screens/menu/MedicationManageScreen.tsx:2456",
       "text": "[MedicationManageScreen] med_time_notif_prefs 조회 실패(계속):",
       "kind": "log-en",
       "reason": "console 전용 — 영어로 고정"
     },
     {
       "zone": "앱",
-      "location": "src/screens/menu/MedicationManageScreen.tsx:2532",
+      "location": "src/screens/menu/MedicationManageScreen.tsx:2526",
       "text": "[MedicationManageScreen] 약 직접 등록 오류:",
       "kind": "log-en",
       "reason": "console 전용 — 영어로 고정"
     },
     {
       "zone": "앱",
-      "location": "src/screens/menu/MedicationManageScreen.tsx:2596",
+      "location": "src/screens/menu/MedicationManageScreen.tsx:2590",
       "text": "[MedicationManageScreen] 약 수정 오류:",
       "kind": "log-en",
       "reason": "console 전용 — 영어로 고정"
     },
     {
       "zone": "앱",
-      "location": "src/screens/menu/MedicationManageScreen.tsx:2642",
+      "location": "src/screens/menu/MedicationManageScreen.tsx:2636",
       "text": "[MedicationManageScreen] ended_at 기록 실패, is_active만 처리:",
       "kind": "log-en",
       "reason": "console 전용 — 영어로 고정"
     },
     {
       "zone": "앱",
-      "location": "src/screens/menu/MedicationManageScreen.tsx:2662",
+      "location": "src/screens/menu/MedicationManageScreen.tsx:2656",
       "text": "[MedicationManageScreen] dose_slots 매핑 정리 실패(계속):",
       "kind": "log-en",
       "reason": "console 전용 — 영어로 고정"
     },
     {
       "zone": "앱",
-      "location": "src/screens/menu/MedicationManageScreen.tsx:2666",
+      "location": "src/screens/menu/MedicationManageScreen.tsx:2660",
       "text": "[MedicationManageScreen] 약 중단 오류:",
       "kind": "log-en",
       "reason": "console 전용 — 영어로 고정"
     },
     {
       "zone": "앱",
-      "location": "src/screens/menu/MedicationManageScreen.tsx:2692",
+      "location": "src/screens/menu/MedicationManageScreen.tsx:2686",
       "text": "[MedicationManageScreen] 지난 약 삭제 오류:",
       "kind": "log-en",
       "reason": "console 전용 — 영어로 고정"
     },
     {
       "zone": "앱",
-      "location": "src/screens/menu/MedicationManageScreen.tsx:2733",
+      "location": "src/screens/menu/MedicationManageScreen.tsx:2727",
       "text": "[MedicationManageScreen] 약 배정 커밋 실패:",
       "kind": "log-en",
       "reason": "console 전용 — 영어로 고정"
     },
     {
       "zone": "앱",
-      "location": "src/screens/menu/MedicationManageScreen.tsx:2770",
+      "location": "src/screens/menu/MedicationManageScreen.tsx:2764",
       "text": "[MedicationManageScreen] dose_slots 토글 update 실패:",
       "kind": "log-en",
       "reason": "console 전용 — 영어로 고정"
@@ -3512,203 +3106,154 @@
     },
     {
       "zone": "앱",
-      "location": "src/screens/menu/SettingsScreen.tsx:103",
-      "text": "아침",
-      "kind": "translate",
-      "reason": "기본값 — 번역 대상"
-    },
-    {
-      "zone": "앱",
-      "location": "src/screens/menu/SettingsScreen.tsx:103",
-      "text": "점심",
-      "kind": "translate",
-      "reason": "기본값 — 번역 대상"
-    },
-    {
-      "zone": "앱",
-      "location": "src/screens/menu/SettingsScreen.tsx:103",
-      "text": "저녁",
-      "kind": "translate",
-      "reason": "기본값 — 번역 대상"
-    },
-    {
-      "zone": "앱",
-      "location": "src/screens/menu/SettingsScreen.tsx:103",
-      "text": "취침",
-      "kind": "translate",
-      "reason": "기본값 — 번역 대상"
-    },
-    {
-      "zone": "앱",
-      "location": "src/screens/menu/SettingsScreen.tsx:363",
+      "location": "src/screens/menu/SettingsScreen.tsx:361",
       "text": "[SettingsScreen] 가족 일기 알림음 저장 실패:",
       "kind": "log-en",
       "reason": "console 전용 — 영어로 고정"
     },
     {
       "zone": "앱",
-      "location": "src/screens/menu/SettingsScreen.tsx:498",
+      "location": "src/screens/menu/SettingsScreen.tsx:496",
       "text": "[SettingsScreen] dose_slots 부트스트랩 실패(계속):",
       "kind": "log-en",
       "reason": "console 전용 — 영어로 고정"
     },
     {
       "zone": "앱",
-      "location": "src/screens/menu/SettingsScreen.tsx:529",
+      "location": "src/screens/menu/SettingsScreen.tsx:527",
       "text": "[SettingsScreen] toggleMedTimeSlot 저장 실패:",
       "kind": "log-en",
       "reason": "console 전용 — 영어로 고정"
     },
     {
       "zone": "앱",
-      "location": "src/screens/menu/SettingsScreen.tsx:572",
+      "location": "src/screens/menu/SettingsScreen.tsx:570",
       "text": "[SettingsScreen] 환자 ID 없음, pgData:",
       "kind": "log-en",
       "reason": "console 전용 — 영어로 고정"
     },
     {
       "zone": "앱",
-      "location": "src/screens/menu/SettingsScreen.tsx:606",
+      "location": "src/screens/menu/SettingsScreen.tsx:604",
       "text": "[SettingsScreen] 환자 name이 없음",
       "kind": "log-en",
       "reason": "console 전용 — 영어로 고정"
     },
     {
       "zone": "앱",
-      "location": "src/screens/menu/SettingsScreen.tsx:641",
+      "location": "src/screens/menu/SettingsScreen.tsx:639",
       "text": "[SettingsScreen] 환자 미복용 알림음 로드 실패(계속):",
       "kind": "log-en",
       "reason": "console 전용 — 영어로 고정"
     },
     {
       "zone": "앱",
-      "location": "src/screens/menu/SettingsScreen.tsx:676",
+      "location": "src/screens/menu/SettingsScreen.tsx:674",
       "text": "[SettingsScreen] 환자 정보 로드 오류:",
       "kind": "log-en",
       "reason": "console 전용 — 영어로 고정"
     },
     {
       "zone": "앱",
-      "location": "src/screens/menu/SettingsScreen.tsx:695",
+      "location": "src/screens/menu/SettingsScreen.tsx:693",
       "text": "[SettingsScreen] togglePatientMedTimeSlot 저장 실패:",
       "kind": "log-en",
       "reason": "console 전용 — 영어로 고정"
     },
     {
       "zone": "앱",
-      "location": "src/screens/menu/SettingsScreen.tsx:767",
+      "location": "src/screens/menu/SettingsScreen.tsx:765",
       "text": "[SettingsScreen] caregiver_notif_prefs 저장 실패:",
       "kind": "log-en",
       "reason": "console 전용 — 영어로 고정"
     },
     {
       "zone": "앱",
-      "location": "src/screens/menu/SettingsScreen.tsx:804",
+      "location": "src/screens/menu/SettingsScreen.tsx:802",
       "text": "[SettingsScreen] 전체→보호자 개별 일괄 저장 실패:",
       "kind": "log-en",
       "reason": "console 전용 — 영어로 고정"
     },
     {
       "zone": "앱",
-      "location": "src/screens/menu/SettingsScreen.tsx:818",
+      "location": "src/screens/menu/SettingsScreen.tsx:816",
       "text": "[SettingsScreen] 전체→환자 시간알림 일괄 저장 실패:",
       "kind": "log-en",
       "reason": "console 전용 — 영어로 고정"
     },
     {
       "zone": "앱",
-      "location": "src/screens/menu/SettingsScreen.tsx:839",
+      "location": "src/screens/menu/SettingsScreen.tsx:837",
       "text": "[SettingsScreen] 보호자 안내 확인 후 전체 ON 실패:",
       "kind": "log-en",
       "reason": "console 전용 — 영어로 고정"
     },
     {
       "zone": "앱",
-      "location": "src/screens/menu/SettingsScreen.tsx:989",
+      "location": "src/screens/menu/SettingsScreen.tsx:987",
       "text": "[SettingsScreen] 설정 로드 오류:",
       "kind": "log-en",
       "reason": "console 전용 — 영어로 고정"
     },
     {
       "zone": "앱",
-      "location": "src/screens/menu/SettingsScreen.tsx:1214",
+      "location": "src/screens/menu/SettingsScreen.tsx:1212",
       "text": "[SettingsScreen] 환자 알림 설정 저장 실패:",
       "kind": "log-en",
       "reason": "console 전용 — 영어로 고정"
     },
     {
       "zone": "앱",
-      "location": "src/screens/menu/SettingsScreen.tsx:1338",
+      "location": "src/screens/menu/SettingsScreen.tsx:1336",
       "text": "[SettingsScreen] 환자 운동 알림음 저장 실패:",
       "kind": "log-en",
       "reason": "console 전용 — 영어로 고정"
     },
     {
       "zone": "앱",
-      "location": "src/screens/menu/SettingsScreen.tsx:1364",
+      "location": "src/screens/menu/SettingsScreen.tsx:1362",
       "text": "[SettingsScreen] 환자 미복용 알림음 저장 실패:",
       "kind": "log-en",
       "reason": "console 전용 — 영어로 고정"
     },
     {
       "zone": "앱",
-      "location": "src/screens/menu/SettingsScreen.tsx:1428",
+      "location": "src/screens/menu/SettingsScreen.tsx:1426",
       "text": "[SettingsScreen] 미복용 알림음 저장 실패:",
       "kind": "log-en",
       "reason": "console 전용 — 영어로 고정"
     },
     {
       "zone": "앱",
-      "location": "src/screens/menu/SettingsScreen.tsx:1670",
-      "text": "${linkedPatientName}님",
-      "kind": "translate",
-      "reason": "기본값 — 번역 대상"
-    },
-    {
-      "zone": "앱",
-      "location": "src/screens/notification/NotificationHistoryScreen.tsx:122",
-      "text": "오전",
-      "kind": "identifier",
-      "reason": "한글이 식별자로 쓰임 — 영어 키로 교체"
-    },
-    {
-      "zone": "앱",
-      "location": "src/screens/notification/NotificationHistoryScreen.tsx:122",
-      "text": "오후",
-      "kind": "translate",
-      "reason": "기본값 — 번역 대상"
-    },
-    {
-      "zone": "앱",
-      "location": "src/screens/notification/NotificationHistoryScreen.tsx:203",
+      "location": "src/screens/notification/NotificationHistoryScreen.tsx:200",
       "text": "[NotificationHistory] markRead 실패(무시):",
       "kind": "log-en",
       "reason": "console 전용 — 영어로 고정"
     },
     {
       "zone": "앱",
-      "location": "src/screens/notification/NotificationHistoryScreen.tsx:249",
+      "location": "src/screens/notification/NotificationHistoryScreen.tsx:246",
       "text": "[NotificationHistory] pendingMedNotif 세팅 실패(무시):",
       "kind": "log-en",
       "reason": "console 전용 — 영어로 고정"
     },
     {
       "zone": "앱",
-      "location": "src/screens/notification/NotificationHistoryScreen.tsx:286",
+      "location": "src/screens/notification/NotificationHistoryScreen.tsx:283",
       "text": "[NotificationHistory] pendingBodyStateNotif 세팅 실패(무시):",
       "kind": "log-en",
       "reason": "console 전용 — 영어로 고정"
     },
     {
       "zone": "앱",
-      "location": "src/screens/notification/NotificationHistoryScreen.tsx:311",
+      "location": "src/screens/notification/NotificationHistoryScreen.tsx:308",
       "text": "[NotificationHistory] pendingExerciseNotif 세팅 실패(무시):",
       "kind": "log-en",
       "reason": "console 전용 — 영어로 고정"
     },
     {
       "zone": "앱",
-      "location": "src/screens/notification/NotificationHistoryScreen.tsx:328",
+      "location": "src/screens/notification/NotificationHistoryScreen.tsx:325",
       "text": "[NotificationHistory] handleItemPress 예외(안전망 폴백):",
       "kind": "log-en",
       "reason": "console 전용 — 영어로 고정"
@@ -3838,13 +3383,6 @@
       "text": "[SensitiveInfoConsent] handleAgree 예외:",
       "kind": "log-en",
       "reason": "console 전용 — 영어로 고정"
-    },
-    {
-      "zone": "앱",
-      "location": "src/screens/sound/AlarmSoundSettingsScreen.tsx:49",
-      "text": "${d.getFullYear()}년 ${d.getMonth() + 1}월 ${d.getDate()}일",
-      "kind": "translate",
-      "reason": "기본값 — 번역 대상"
     },
     {
       "zone": "앱",
@@ -4051,287 +3589,112 @@
     },
     {
       "zone": "앱",
-      "location": "src/utils/medUtils.ts:120",
-      "text": "복용 직후",
-      "kind": "translate",
-      "reason": "기본값 — 번역 대상"
-    },
-    {
-      "zone": "앱",
-      "location": "src/utils/medUtils.ts:121",
-      "text": "${m}분 후",
-      "kind": "translate",
-      "reason": "기본값 — 번역 대상"
-    },
-    {
-      "zone": "앱",
-      "location": "src/utils/medUtils.ts:122",
-      "text": "${h}시간 후",
-      "kind": "identifier",
-      "reason": "한글이 식별자로 쓰임 — 영어 키로 교체"
-    },
-    {
-      "zone": "앱",
-      "location": "src/utils/medUtils.ts:122",
-      "text": "${h}시간 ${rem}분 후",
-      "kind": "translate",
-      "reason": "기본값 — 번역 대상"
-    },
-    {
-      "zone": "앱",
-      "location": "src/utils/medUtils.ts:144",
-      "text": "+즉시",
-      "kind": "translate",
-      "reason": "기본값 — 번역 대상"
-    },
-    {
-      "zone": "앱",
-      "location": "src/utils/medUtils.ts:148",
-      "text": "+${min}분",
-      "kind": "translate",
-      "reason": "기본값 — 번역 대상"
-    },
-    {
-      "zone": "앱",
-      "location": "src/utils/medUtils.ts:151",
-      "text": "+${h}시간",
-      "kind": "identifier",
-      "reason": "한글이 식별자로 쓰임 — 영어 키로 교체"
-    },
-    {
-      "zone": "앱",
-      "location": "src/utils/medUtils.ts:151",
-      "text": "+${h}시간 ${rem}분",
-      "kind": "translate",
-      "reason": "기본값 — 번역 대상"
-    },
-    {
-      "zone": "앱",
-      "location": "src/utils/medUtils.ts:155",
-      "text": "+${hourMatch[1]}시간",
-      "kind": "translate",
-      "reason": "기본값 — 번역 대상"
-    },
-    {
-      "zone": "앱",
-      "location": "src/utils/medUtils.ts:182",
-      "text": "복용 직후",
-      "kind": "translate",
-      "reason": "기본값 — 번역 대상"
-    },
-    {
-      "zone": "앱",
-      "location": "src/utils/medUtils.ts:186",
-      "text": "복용 직후",
-      "kind": "translate",
-      "reason": "기본값 — 번역 대상"
-    },
-    {
-      "zone": "앱",
-      "location": "src/utils/medUtils.ts:187",
-      "text": "복용 ${min}분 후",
-      "kind": "translate",
-      "reason": "기본값 — 번역 대상"
-    },
-    {
-      "zone": "앱",
-      "location": "src/utils/medUtils.ts:190",
-      "text": "복용 ${h}시간 후",
-      "kind": "identifier",
-      "reason": "한글이 식별자로 쓰임 — 영어 키로 교체"
-    },
-    {
-      "zone": "앱",
-      "location": "src/utils/medUtils.ts:190",
-      "text": "복용 ${h}시간 ${rem}분 후",
-      "kind": "translate",
-      "reason": "기본값 — 번역 대상"
-    },
-    {
-      "zone": "앱",
-      "location": "src/utils/medUtils.ts:194",
-      "text": "복용 ${hourMatch[1]}시간 후",
-      "kind": "translate",
-      "reason": "기본값 — 번역 대상"
-    },
-    {
-      "zone": "앱",
-      "location": "src/utils/notifActionFeedback.ts:80",
-      "text": "오전",
-      "kind": "identifier",
-      "reason": "한글이 식별자로 쓰임 — 영어 키로 교체"
-    },
-    {
-      "zone": "앱",
-      "location": "src/utils/notifActionFeedback.ts:80",
-      "text": "오후",
-      "kind": "translate",
-      "reason": "기본값 — 번역 대상"
-    },
-    {
-      "zone": "앱",
-      "location": "src/utils/notifActionFeedback.ts:166",
+      "location": "src/utils/notifActionFeedback.ts:161",
       "text": "[notifActionFeedback] hasTakenTodayKST 조회 실패:",
       "kind": "log-en",
       "reason": "console 전용 — 영어로 고정"
     },
     {
       "zone": "앱",
-      "location": "src/utils/notifications.ts:58",
-      "text": "아침",
-      "kind": "translate",
-      "reason": "기본값 — 번역 대상"
-    },
-    {
-      "zone": "앱",
-      "location": "src/utils/notifications.ts:59",
-      "text": "점심",
-      "kind": "translate",
-      "reason": "기본값 — 번역 대상"
-    },
-    {
-      "zone": "앱",
-      "location": "src/utils/notifications.ts:60",
-      "text": "저녁",
-      "kind": "translate",
-      "reason": "기본값 — 번역 대상"
-    },
-    {
-      "zone": "앱",
-      "location": "src/utils/notifications.ts:61",
-      "text": "취침",
-      "kind": "translate",
-      "reason": "기본값 — 번역 대상"
-    },
-    {
-      "zone": "앱",
-      "location": "src/utils/notifications.ts:70",
-      "text": "복용 직후",
-      "kind": "translate",
-      "reason": "기본값 — 번역 대상"
-    },
-    {
-      "zone": "앱",
-      "location": "src/utils/notifications.ts:71",
-      "text": "${m}분 후",
-      "kind": "translate",
-      "reason": "기본값 — 번역 대상"
-    },
-    {
-      "zone": "앱",
-      "location": "src/utils/notifications.ts:72",
-      "text": "${h}시간 후",
-      "kind": "identifier",
-      "reason": "한글이 식별자로 쓰임 — 영어 키로 교체"
-    },
-    {
-      "zone": "앱",
-      "location": "src/utils/notifications.ts:72",
-      "text": "${h}시간 ${rem}분 후",
-      "kind": "translate",
-      "reason": "기본값 — 번역 대상"
-    },
-    {
-      "zone": "앱",
-      "location": "src/utils/notifications.ts:101",
+      "location": "src/utils/notifications.ts:95",
       "text": "[notifications] 권한 미설정 → 권한 요청 다이얼로그 표시",
       "kind": "log-en",
       "reason": "console 전용 — 영어로 고정"
     },
     {
       "zone": "앱",
-      "location": "src/utils/notifications.ts:107",
+      "location": "src/utils/notifications.ts:101",
       "text": "[notifications] 알림 권한 없음 (상태:",
       "kind": "log-en",
       "reason": "console 전용 — 영어로 고정"
     },
     {
       "zone": "앱",
-      "location": "src/utils/notifications.ts:107",
+      "location": "src/utils/notifications.ts:101",
       "text": ") — push token 저장 스킵",
       "kind": "log-en",
       "reason": "console 전용 — 영어로 고정"
     },
     {
       "zone": "앱",
-      "location": "src/utils/notifications.ts:111",
+      "location": "src/utils/notifications.ts:105",
       "text": "[notifications] 알림 권한 있음 → push token 저장 진행",
       "kind": "log-en",
       "reason": "console 전용 — 영어로 고정"
     },
     {
       "zone": "앱",
-      "location": "src/utils/notifications.ts:140",
+      "location": "src/utils/notifications.ts:134",
       "text": "[notifications] Expo Push Token 획득 시작...",
       "kind": "log-en",
       "reason": "console 전용 — 영어로 고정"
     },
     {
       "zone": "앱",
-      "location": "src/utils/notifications.ts:152",
+      "location": "src/utils/notifications.ts:146",
       "text": "[notifications] Expo Push Token 획득 성공:",
       "kind": "log-en",
       "reason": "console 전용 — 영어로 고정"
     },
     {
       "zone": "앱",
-      "location": "src/utils/notifications.ts:158",
+      "location": "src/utils/notifications.ts:152",
       "text": "[notifications] accessToken 미전달 → getSession()으로 폴백",
       "kind": "log-en",
       "reason": "console 전용 — 영어로 고정"
     },
     {
       "zone": "앱",
-      "location": "src/utils/notifications.ts:164",
+      "location": "src/utils/notifications.ts:158",
       "text": "[notifications] ❌ accessToken 없음 — push_token DB 저장 불가",
       "kind": "log-en",
       "reason": "console 전용 — 영어로 고정"
     },
     {
       "zone": "앱",
-      "location": "src/utils/notifications.ts:168",
+      "location": "src/utils/notifications.ts:162",
       "text": "[notifications] DB 저장 시작 → userId:",
       "kind": "log-en",
       "reason": "console 전용 — 영어로 고정"
     },
     {
       "zone": "앱",
-      "location": "src/utils/notifications.ts:200",
+      "location": "src/utils/notifications.ts:194",
       "text": "[notifications] ❌ push_token PATCH 실패:",
       "kind": "log-en",
       "reason": "console 전용 — 영어로 고정"
     },
     {
       "zone": "앱",
-      "location": "src/utils/notifications.ts:207",
+      "location": "src/utils/notifications.ts:201",
       "text": "[notifications] ✅ push_token DB 저장 성공",
       "kind": "log-en",
       "reason": "console 전용 — 영어로 고정"
     },
     {
       "zone": "앱",
-      "location": "src/utils/notifications.ts:210",
+      "location": "src/utils/notifications.ts:204",
       "text": "[notifications] ❌ push token 획득/저장 실패:",
       "kind": "log-en",
       "reason": "console 전용 — 영어로 고정"
     },
     {
       "zone": "앱",
-      "location": "src/utils/notifications.ts:212",
+      "location": "src/utils/notifications.ts:206",
       "text": "[notifications] 에러 상세:",
       "kind": "log-en",
       "reason": "console 전용 — 영어로 고정"
     },
     {
       "zone": "앱",
-      "location": "src/utils/notifications.ts:213",
+      "location": "src/utils/notifications.ts:207",
       "text": "[notifications] 스택:",
       "kind": "log-en",
       "reason": "console 전용 — 영어로 고정"
     },
     {
       "zone": "앱",
-      "location": "src/utils/notifications.ts:326",
+      "location": "src/utils/notifications.ts:320",
       "text": "[notifications] 보호자 푸시 전송 실패:",
       "kind": "log-en",
       "reason": "console 전용 — 영어로 고정"
@@ -7034,14 +6397,14 @@
     {
       "zone": "DB",
       "location": "notification_logs.body",
-      "text": "1480/1674행 · 예: 최성철님이 약을 드셨어요.",
+      "text": "1482/1676행 · 예: 최성철님이 약을 드셨어요.",
       "kind": "exclude",
       "reason": "발송 시점 수신자 언어로 굳은 이력"
     },
     {
       "zone": "DB",
       "location": "notification_logs.title",
-      "text": "1452/1674행 · 예: 💊 약을 드셨어요",
+      "text": "1454/1676행 · 예: 💊 약을 드셨어요",
       "kind": "exclude",
       "reason": "발송 시점 수신자 언어로 굳은 이력"
     },

@@ -15,7 +15,8 @@
     "continue": "続ける",
     "notice": "お知らせ",
     "edit": "編集",
-    "sessionExpired": "ログインの有効期限が切れました。もう一度ログインしてください。"
+    "sessionExpired": "ログインの有効期限が切れました。もう一度ログインしてください。",
+    "honorific": "{{name}}さん"
   },
   "devLetter": {
     "title": "ParkinON をリリースするにあたって",
@@ -2114,7 +2115,14 @@
     "shortHourMin": "{{h}}時間{{m}}分後",
     "elapsedMin": "{{m}}分",
     "elapsedHour": "{{h}}時間",
-    "elapsedHourMin": "{{h}}時間{{m}}分"
+    "elapsedHourMin": "{{h}}時間{{m}}分",
+    "takenRightAfter": "服用直後",
+    "takenMinLater": "服用{{m}}分後",
+    "takenHourLater": "服用{{h}}時間後",
+    "takenHourMinLater": "服用{{h}}時間{{m}}分後",
+    "afterTakingHourMin": "服用後{{h}}時間{{m}}分",
+    "afterTakingHour": "服用後{{h}}時間",
+    "afterTakingMin": "服用後{{m}}分"
   },
   "nextNotif": {
     "intervalRightAfter": "飲んだ直後",
@@ -2243,6 +2251,9 @@
     "unitMinute": "分",
     "dayWithWeekday": "{{day}}日（{{weekday}}）",
     "yearMonthDayWeekday": "{{year}}年{{month}}月{{day}}日（{{weekday}}）",
-    "hourMinute": "{{h}}時{{m}}分"
+    "hourMinute": "{{h}}時{{m}}分",
+    "monthDotDay": "{{month}}.{{day}}（{{weekday}}）",
+    "secondsLeft": "{{s}}秒",
+    "minutesSecondsLeft": "{{m}}分{{s}}秒"
   }
 }

@@ -12,9 +12,14 @@ import { supabase } from '../lib/supabase';
  */
 export type AmPm = 'am' | 'pm';
 
-/** DB 에 남아 있는 옛 값('오전'/'오후')도 받아준다. */
+/**
+ * DB 에 남아 있는 옛 저장값도 받아준다.
+ * 예전에는 표시 문자열을 그대로 저장했다 — 그 값들과 비교해야 하므로 여기서만 남긴다.
+ * (2026-07-30 마이그레이션으로 운영 DB 는 전부 am/pm 이지만, 미업데이트 앱이 다시 쓸 수 있다.)
+ */
+const LEGACY_PM = '\uC624\uD6C4'; // '오후'
 export function normalizeAmPm(v: unknown): AmPm {
-  return v === 'pm' || v === '오후' ? 'pm' : 'am';
+  return v === 'pm' || v === LEGACY_PM ? 'pm' : 'am';
 }
 
 export interface MedNotif {

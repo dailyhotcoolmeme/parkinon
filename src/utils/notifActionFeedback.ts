@@ -73,12 +73,7 @@ export function formatTimeKor(hhmm: string | null | undefined): string {
   if (total === null) return hhmm ?? '';
   const h = Math.floor(total / 60);
   const m = total % 60;
-  let dh = h % 12;
-  if (dh === 0) dh = 12;
-  const mm = String(m).padStart(2, '0');
-  if (isOverseasLocale()) return formatClock(new Date(2000, 0, 1, h, m));
-  const period = h < 12 ? '오전' : '오후';
-  return `${period} ${dh}:${mm}`;
+  return formatClock(new Date(2000, 0, 1, h, m));
 }
 
 /* ────────────────────────────────────────────────────────────────────────── *

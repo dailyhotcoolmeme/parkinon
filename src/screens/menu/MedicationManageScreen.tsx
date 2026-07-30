@@ -1055,19 +1055,13 @@ const PRESET_SOUND_OPTIONS: AlarmSoundOption[] = PRESET_ALARM_SOUNDS.map((p) => 
 }));
 
 // 약효추적 오프셋(분) → 안내 문구. 0=복용 직후, 그 외 "복용 후 N시간 M분".
-function offsetLine(min: number, en: boolean): string {
-  if (min <= 0) return en ? 'Right after taking' : '복용 직후';
+function offsetLine(min: number): string {
+  if (min <= 0) return i18n.t('interval.rightAfter');
   const h = Math.floor(min / 60);
   const m = min % 60;
-  if (en) {
-    const parts: string[] = [];
-    if (h) parts.push(`${h} hr`);
-    if (m) parts.push(`${m} min`);
-    return `${parts.join(' ')} after`;
-  }
-  if (h && m) return `복용 후 ${h}시간 ${m}분`;
-  if (h) return `복용 후 ${h}시간`;
-  return `복용 후 ${m}분`;
+  if (h && m) return i18n.t('interval.afterTakingHourMin', { h, m });
+  if (h) return i18n.t('interval.afterTakingHour', { h });
+  return i18n.t('interval.afterTakingMin', { m });
 }
 
 export function MedicationManageScreen({ modeOverride, hideBack, hideTopBar, onGoRegisterMeds, embedded }: MedicationManageScreenProps = {}) {
@@ -1410,7 +1404,7 @@ export function MedicationManageScreen({ modeOverride, hideBack, hideTopBar, onG
           // 레보도파 계열 → 엔진 정확값 + 출처 표기.
           // ⚠️ 약효추적은 "복용 직후(0)"가 기준선(baseline)으로 필수 → 항상 앞에 포함.
           intervals = Array.from(new Set([0, ...rec.offsets])).sort((a, b) => a - b);
-          const bullets = intervals.map((o) => `· ${offsetLine(o, en)}`).join('\n');
+          const bullets = intervals.map((o) => `· ${offsetLine(o)}`).join('\n');
           message =
             t('medManage.etTrackLevodopaIntro', { names: rec.levodopaNames.join('·') }) +
             '\n\n' + bullets +
@@ -1418,7 +1412,7 @@ export function MedicationManageScreen({ modeOverride, hideBack, hideTopBar, onG
         } else {
           // 비레보도파/매칭 실패 → 표준 기본값. 출처 없이 의사 상담 소프트 안내.
           intervals = [0, 30, 120];
-          const bullets = intervals.map((o) => `· ${offsetLine(o, en)}`).join('\n');
+          const bullets = intervals.map((o) => `· ${offsetLine(o)}`).join('\n');
           message =
             t('medManage.etTrackDefaultIntro') +
             '\n\n' + bullets +
@@ -1426,7 +1420,7 @@ export function MedicationManageScreen({ modeOverride, hideBack, hideTopBar, onG
         }
       } catch {
         intervals = [0, 30, 120];
-        const bullets = intervals.map((o) => `· ${offsetLine(o, en)}`).join('\n');
+        const bullets = intervals.map((o) => `· ${offsetLine(o)}`).join('\n');
         message =
           t('medManage.etTrackDefaultIntro') + '\n\n' + bullets + '\n\n' + t('medManage.etTrackDoctorNote');
       }

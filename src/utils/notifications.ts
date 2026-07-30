@@ -54,23 +54,17 @@ Notifications.setNotificationHandler({
   }),
 });
 
-const MEAL_TIMES: Record<string, { hour: number; minute: number; label: string }> = {
-  morning: { hour: 8, minute: 0, label: '아침' },
-  lunch: { hour: 12, minute: 0, label: '점심' },
-  dinner: { hour: 18, minute: 0, label: '저녁' },
-  bedtime: { hour: 22, minute: 0, label: '취침' },
+const MEAL_TIMES: Record<string, { hour: number; minute: number }> = {
+  morning: { hour: 8, minute: 0 },
+  lunch: { hour: 12, minute: 0 },
+  dinner: { hour: 18, minute: 0 },
+  bedtime: { hour: 22, minute: 0 },
 };
 
 function minutesToLabel(m: number): string {
   const h = Math.floor(m / 60);
   const rem = m % 60;
-  // 국내 문구는 기존 출력 그대로 둔다(언어 파일의 medManage 값과 띄어쓰기가 달라
-  // 키로 갈아타면 국내 알림 문구가 바뀐다).
-  if (isKoLocale()) {
-    if (m === 0) return '복용 직후';
-    if (m < 60) return `${m}분 후`;
-    return rem === 0 ? `${h}시간 후` : `${h}시간 ${rem}분 후`;
-  }
+  // interval.* 의 ko 값이 기존 하드코딩 문구와 글자까지 동일하다(대조 확인) — 분기 없이 쓴다.
   // 해외는 언어 파일을 그대로 쓴다. 예전엔 en/ko 이분법이라 프랑스어·일본어
   // 사용자에게 "{{when}}" 자리만 영어로 섞여 나왔다. 이제 언어가 늘어도 여긴 그대로.
   if (m === 0) return i18n.t('medManage.rightAfter');

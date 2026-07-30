@@ -117,10 +117,7 @@ function formatTime(iso: string): string {
   const d = new Date(iso);
   const h = d.getHours();
   const m = d.getMinutes();
-  const hour = h === 0 ? 12 : h > 12 ? h - 12 : h;
-  if (isOverseasLocale()) return formatClock(d);
-  const ampm = h < 12 ? '오전' : '오후';
-  return `${ampm} ${hour}:${String(m).padStart(2, '0')}`;
+  return formatClock(d);
 }
 
 // ─────────────────────────────────────────────

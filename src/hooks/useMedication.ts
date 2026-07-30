@@ -95,13 +95,6 @@ export interface UseMedicationReturn {
   refresh: () => Promise<void>;
 }
 
-const MEAL_TIME_LABELS: Record<string, string> = {
-  morning: '아침',
-  lunch: '점심',
-  dinner: '저녁',
-  bedtime: '취침',
-};
-
 export function useMedication(): UseMedicationReturn {
   const { user } = useAuth();
   const { medNotifs } = useSettings();

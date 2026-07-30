@@ -260,7 +260,7 @@ export function useAuthProvider(): UseAuthReturn {
     accessToken?: string,
   ) => {
     const timeoutPromise = new Promise<never>((_, reject) =>
-      setTimeout(() => reject(new Error('Supabase DB 연결 타임아웃')), 8000)
+      setTimeout(() => reject(new Error('Supabase DB connection timeout')), 8000)
     );
     try {
       if (__DEV__) console.log('[useAuth] loadUserProfile 시작:', userId);
@@ -408,7 +408,7 @@ export function useAuthProvider(): UseAuthReturn {
       }
     } catch (e) {
       console.error('[useAuth] loadUserProfile 오류:', e);
-      if ((e as Error).message?.includes('타임아웃')) {
+      if ((e as Error).message?.includes('timeout')) {
         // ⚠️ DB 타임아웃을 "온보딩 미완료"로 단정하지 않는다.
         // 마지막 성공 프로필이 캐시에 있으면 그것을 복원해, 이미 온보딩을 마친
         // 사용자가 FamilyCheck(온보딩)로 추방되는 회귀를 막는다.

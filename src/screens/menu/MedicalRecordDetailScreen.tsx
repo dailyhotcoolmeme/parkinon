@@ -51,8 +51,7 @@ interface RecordDetail {
 
 function formatDate(iso: string): string {
   const d = new Date(iso);
-  if (isOverseasLocale()) return `${d.getFullYear()}-${d.getMonth() + 1}-${d.getDate()}`;
-  return `${d.getFullYear()}년 ${d.getMonth() + 1}월 ${d.getDate()}일`;
+  return i18n.t('dateFmt.yearMonthDay', { year: d.getFullYear(), month: d.getMonth() + 1, day: d.getDate() });
 }
 
 function getChangeTypeConfig(): Record<

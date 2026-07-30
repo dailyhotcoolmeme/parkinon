@@ -112,14 +112,9 @@ export function getKSTDayRange(dateStr: string): { start: string; end: string } 
 export function minutesToLabel(m: number): string {
   const h = Math.floor(m / 60);
   const rem = m % 60;
-  if (isOverseasLocale()) {
-    if (m === 0) return i18n.t('interval.rightAfter');
-    if (m < 60) return i18n.t('interval.minLater', { m });
-    return rem === 0 ? i18n.t('interval.hourLater', { h }) : i18n.t('interval.hourMinLater', { h, m: rem });
-  }
-  if (m === 0) return '복용 직후';
-  if (m < 60) return `${m}분 후`;
-  return rem === 0 ? `${h}시간 후` : `${h}시간 ${rem}분 후`;
+  if (m === 0) return i18n.t('interval.rightAfter');
+  if (m < 60) return i18n.t('interval.minLater', { m });
+  return rem === 0 ? i18n.t('interval.hourLater', { h }) : i18n.t('interval.hourMinLater', { h, m: rem });
 }
 
 /**
@@ -141,19 +136,17 @@ export function triggerLabelToTag(label: string | null | undefined): string {
     if (hourMatchEn) return i18n.t('interval.tagHour', { h: hourMatchEn[1] });
     return '';
   }
-  if (label === 'after_medication') return '+즉시';
+  if (label === 'after_medication') return i18n.t('interval.tagNow');
   const minMatch = label.match(/^(\d+)min_after$/);
   if (minMatch) {
     const min = parseInt(minMatch[1], 10);
-    if (min < 60) return `+${min}분`;
+    if (min < 60) return i18n.t('interval.tagMin', { m: min });
     const h = Math.floor(min / 60);
     const rem = min % 60;
-    return rem === 0 ? `+${h}시간` : `+${h}시간 ${rem}분`;
+    return rem === 0 ? i18n.t('interval.tagHour', { h }) : i18n.t('interval.tagHourMin', { h, m: rem });
   }
   const hourMatch = label.match(/^(\d+)hour_after$/);
-  if (hourMatch) {
-    return `+${hourMatch[1]}시간`;
-  }
+  if (hourMatch) return i18n.t('interval.tagHour', { h: hourMatch[1] });
   return '';
 }
 
@@ -179,20 +172,20 @@ export function triggerLabelToText(label: string | null | undefined): string {
     }
     return label;
   }
-  if (label === 'after_medication') return '복용 직후';
+  if (label === 'after_medication') return i18n.t('interval.takenRightAfter');
   const minMatch = label.match(/^(\d+)min_after$/);
   if (minMatch) {
     const min = parseInt(minMatch[1], 10);
-    if (min === 0) return '복용 직후';
-    if (min < 60) return `복용 ${min}분 후`;
+    if (min === 0) return i18n.t('interval.takenRightAfter');
+    if (min < 60) return i18n.t('interval.takenMinLater', { m: min });
     const h = Math.floor(min / 60);
     const rem = min % 60;
-    return rem === 0 ? `복용 ${h}시간 후` : `복용 ${h}시간 ${rem}분 후`;
+    return rem === 0
+      ? i18n.t('interval.takenHourLater', { h })
+      : i18n.t('interval.takenHourMinLater', { h, m: rem });
   }
   const hourMatch = label.match(/^(\d+)hour_after$/);
-  if (hourMatch) {
-    return `복용 ${hourMatch[1]}시간 후`;
-  }
+  if (hourMatch) return i18n.t('interval.takenHourLater', { h: hourMatch[1] });
   return label;
 }
 
