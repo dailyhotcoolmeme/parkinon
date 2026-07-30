@@ -111,23 +111,17 @@ function shiftDate(dateStr: string, days: number): string {
   return toKstDateString(new Date(dt.getTime() - 9 * 60 * 60 * 1000 + 12 * 60 * 60 * 1000));
 }
 
-// 엔트리 작성시각 → KST 기준 "요일 오전/오후 H:MM" 컴팩트 표기 (예: "금 오후 9:14")
-// 출처는 created_at(없으면 updated_at). 요일은 한글 단축(일~토).
-const WEEKDAYS_MINI = ['일', '월', '화', '수', '목', '금', '토'];
+// 엔트리 작성시각 → KST 기준 "오전/오후 H:MM" 컴팩트 표기 (예: "오후 9:14")
+// 출처는 created_at(없으면 updated_at).
 function formatEntryStamp(iso: string | null | undefined): string {
   if (!iso) return '';
   const t = new Date(iso).getTime();
   if (!isFinite(t)) return '';
   // KST(UTC+9)로 옮긴 뒤 getUTC* 로 KST 시각/요일을 읽는다 (디바이스 TZ 무관).
   const kst = new Date(t + 9 * 60 * 60 * 1000);
-  const dow = WEEKDAYS_MINI[kst.getUTCDay()];
   const h24 = kst.getUTCHours();
   const min = String(kst.getUTCMinutes()).padStart(2, '0');
-  let h12 = h24 % 12;
-  if (h12 === 0) h12 = 12;
-  if (isOverseasLocale()) return formatClock(new Date(2000, 0, 1, h24, Number(min) || 0));
-  const ampm = h24 < 12 ? '오전' : '오후';
-  return `${ampm} ${h12}:${min}`;
+  return formatClock(new Date(2000, 0, 1, h24, Number(min) || 0));
 }
 
 // mm:ss 포맷 (음성 플레이어 시간 라벨)
@@ -176,9 +170,8 @@ function DiaryHeader({
 // 날짜 헤더 가운데 날짜를 탭하면 열린다. 월 그리드 + 이전/다음 달 + 작성이력 점.
 // 날짜 탭 → 그 날짜 onSelect(기존 dateStr 이동 로직 재사용) + 닫힘.
 // 스와이프 다운 / 배경탭 / 안드 백버튼으로 닫힘(useSwipeDownDismiss 재사용).
-const WEEKDAYS_SHORT = isOverseasLocale()
-  ? ['S', 'M', 'T', 'W', 'T', 'F', 'S']
-  : ['일', '월', '화', '수', '목', '금', '토'];
+// 요일 머리글자는 공용 dateLabels 에서 — 화면마다 표를 들면 언어가 늘 때 새어나간다.
+const weekdayHeads = () => Array.from({ length: 7 }, (_, i) => weekdayShort(new Date(2024, 8, 1 + i)));
 
 function DiaryCalendarModal({
   visible,
@@ -291,7 +284,7 @@ function DiaryCalendarModal({
 
             {/* 요일 헤더 */}
             <View style={styles.calWeekRow}>
-              {WEEKDAYS_SHORT.map((w, i) => (
+              {weekdayHeads().map((w, i) => (
                 <Text
                   key={w}
                   style={[

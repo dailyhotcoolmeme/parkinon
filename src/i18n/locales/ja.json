@@ -2235,6 +2235,14 @@
     "fullDateTime": "{{date}} {{time}}",
     "monthDayTime": "{{monthDay}} {{time}}",
     "yearMonthDay": "{{year}}年{{month}}月{{day}}日",
-    "clockVerbose": "{{meridiem}}{{h}}時{{mm}}分"
+    "clockVerbose": "{{meridiem}}{{h}}時{{mm}}分",
+    "unitYear": "年",
+    "unitMonth": "月",
+    "unitDay": "日",
+    "unitHour": "時",
+    "unitMinute": "分",
+    "dayWithWeekday": "{{day}}日（{{weekday}}）",
+    "yearMonthDayWeekday": "{{year}}年{{month}}月{{day}}日（{{weekday}}）",
+    "hourMinute": "{{h}}時{{m}}分"
   }
 }

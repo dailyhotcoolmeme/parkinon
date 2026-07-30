@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import { weekdayShort } from '../../utils/dateLabels';
 import {
   View,
   Text,
@@ -17,13 +18,14 @@ interface DatePickerModalProps {
   onClose: () => void;
 }
 
-const WEEKDAYS_KO = ['일', '월', '화', '수', '목', '금', '토'];
-const WEEKDAYS_EN = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
-
 export function DatePickerModal({ visible, selectedDate, onSelect, onClose }: DatePickerModalProps) {
   const { t, i18n } = useTranslation();
   const overseas = isOverseasLocale();
-  const WEEKDAYS = overseas ? WEEKDAYS_EN : WEEKDAYS_KO;
+  // 요일 머리글자는 공용 dateLabels 에서 — 화면마다 표를 들면 언어가 늘 때 새어나간다.
+  const WEEKDAYS = React.useMemo(
+    () => Array.from({ length: 7 }, (_, i) => weekdayShort(new Date(2024, 8, 1 + i))),
+    [i18n.language],
+  );
   const [viewYear, setViewYear] = useState(selectedDate.getFullYear());
   const [viewMonth, setViewMonth] = useState(selectedDate.getMonth());
 

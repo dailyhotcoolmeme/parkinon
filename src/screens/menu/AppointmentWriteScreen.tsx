@@ -54,8 +54,6 @@ const PICKER_MINUTES = Array.from({ length: 12 }, (_, i) => i * 5);
 // 오늘 날짜 (시간 제거)
 const TODAY = new Date(NOW.getFullYear(), NOW.getMonth(), NOW.getDate());
 
-const DAYS_KR = ['일', '월', '화', '수', '목', '금', '토'];
-const DAYS_EN = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
 
 function getDaysInMonth(y: number, m: number): number {
   return new Date(y, m, 0).getDate();
@@ -213,7 +211,7 @@ function DatePickerModal({
                 data={PICKER_YEARS}
                 selected={year}
                 onSelect={handleYearChange}
-                suffix={isOverseasLocale() ? '' : '년'}
+                suffix={''}
                 fontSize={19}
               />
             </View>
@@ -225,7 +223,7 @@ function DatePickerModal({
                 data={availableMonths}
                 selected={month}
                 onSelect={handleMonthChange}
-                suffix={isOverseasLocale() ? '' : '월'}
+                suffix={''}
                 fontSize={19}
               />
             </View>
@@ -237,9 +235,9 @@ function DatePickerModal({
                 data={days}
                 selected={day}
                 onSelect={onDayChange}
-                suffix={isOverseasLocale() ? '' : '일'}
+                suffix={''}
                 fontSize={18}
-                getLabel={(d) => isOverseasLocale() ? `${d} (${getDayOfWeek(year, month, d)})` : `${d}일 (${getDayOfWeek(year, month, d)})`}
+                getLabel={(d) => t('dateFmt.dayWithWeekday', { day: d, weekday: getDayOfWeek(year, month, d) })}
               />
             </View>
           </View>
@@ -281,7 +279,7 @@ function TimePickerModal({
                 data={PICKER_HOURS}
                 selected={hour}
                 onSelect={onHourChange}
-                suffix={isOverseasLocale() ? '' : '시'}
+                suffix={''}
                 padLen={2}
               />
             </View>
@@ -292,7 +290,7 @@ function TimePickerModal({
                 data={PICKER_MINUTES}
                 selected={minute}
                 onSelect={onMinuteChange}
-                suffix={isOverseasLocale() ? '' : '분'}
+                suffix={''}
                 padLen={2}
               />
             </View>
@@ -449,12 +447,12 @@ export function AppointmentWriteScreen() {
   };
 
   const dow = getDayOfWeek(selYear, selMonth, selDay);
-  const displayDate = isOverseasLocale()
-    ? `${selYear}-${selMonth}-${selDay} (${dow})`
-    : `${selYear}년 ${selMonth}월 ${selDay}일 (${dow})`;
-  const displayTime = isOverseasLocale()
-    ? `${String(selHour).padStart(2, '0')}:${String(selMinute).padStart(2, '0')}`
-    : `${String(selHour).padStart(2, '0')}시 ${String(selMinute).padStart(2, '0')}분`;
+  const displayDate = t('dateFmt.yearMonthDayWeekday', {
+    year: selYear, month: selMonth, day: selDay, weekday: dow,
+  });
+  const displayTime = t('dateFmt.hourMinute', {
+    h: String(selHour).padStart(2, '0'), m: String(selMinute).padStart(2, '0'),
+  });
 
   const handleSave = async () => {
     if (!user) return;

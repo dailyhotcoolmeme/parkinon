@@ -1,17 +1,17 @@
 {
   "generatedFrom": "scripts/i18n-ledger.mjs",
   "summary": {
-    "translate": 315,
+    "translate": 235,
     "logEn": 260,
-    "identifier": 59,
+    "identifier": 52,
     "exclude": 460,
     "done": 2,
     "unclassified": 0
   },
   "byZone": {
     "앱": {
-      "translate": 163,
-      "identifier": 42,
+      "translate": 83,
+      "identifier": 35,
       "exclude": 272
     },
     "서버": {
@@ -31,55 +31,6 @@
     }
   },
   "entries": [
-    {
-      "zone": "앱",
-      "location": "src/components/common/DatePickerModal.tsx:20",
-      "text": "일",
-      "kind": "translate",
-      "reason": "기본값 — 번역 대상"
-    },
-    {
-      "zone": "앱",
-      "location": "src/components/common/DatePickerModal.tsx:20",
-      "text": "월",
-      "kind": "translate",
-      "reason": "기본값 — 번역 대상"
-    },
-    {
-      "zone": "앱",
-      "location": "src/components/common/DatePickerModal.tsx:20",
-      "text": "화",
-      "kind": "translate",
-      "reason": "기본값 — 번역 대상"
-    },
-    {
-      "zone": "앱",
-      "location": "src/components/common/DatePickerModal.tsx:20",
-      "text": "수",
-      "kind": "translate",
-      "reason": "기본값 — 번역 대상"
-    },
-    {
-      "zone": "앱",
-      "location": "src/components/common/DatePickerModal.tsx:20",
-      "text": "목",
-      "kind": "translate",
-      "reason": "기본값 — 번역 대상"
-    },
-    {
-      "zone": "앱",
-      "location": "src/components/common/DatePickerModal.tsx:20",
-      "text": "금",
-      "kind": "translate",
-      "reason": "기본값 — 번역 대상"
-    },
-    {
-      "zone": "앱",
-      "location": "src/components/common/DatePickerModal.tsx:20",
-      "text": "토",
-      "kind": "translate",
-      "reason": "기본값 — 번역 대상"
-    },
     {
       "zone": "앱",
       "location": "src/components/common/ErrorBoundary.tsx:43",
@@ -1678,118 +1629,6 @@
     },
     {
       "zone": "앱",
-      "location": "src/screens/diary/DiaryScreen.tsx:116",
-      "text": "일",
-      "kind": "translate",
-      "reason": "기본값 — 번역 대상"
-    },
-    {
-      "zone": "앱",
-      "location": "src/screens/diary/DiaryScreen.tsx:116",
-      "text": "월",
-      "kind": "translate",
-      "reason": "기본값 — 번역 대상"
-    },
-    {
-      "zone": "앱",
-      "location": "src/screens/diary/DiaryScreen.tsx:116",
-      "text": "화",
-      "kind": "translate",
-      "reason": "기본값 — 번역 대상"
-    },
-    {
-      "zone": "앱",
-      "location": "src/screens/diary/DiaryScreen.tsx:116",
-      "text": "수",
-      "kind": "translate",
-      "reason": "기본값 — 번역 대상"
-    },
-    {
-      "zone": "앱",
-      "location": "src/screens/diary/DiaryScreen.tsx:116",
-      "text": "목",
-      "kind": "translate",
-      "reason": "기본값 — 번역 대상"
-    },
-    {
-      "zone": "앱",
-      "location": "src/screens/diary/DiaryScreen.tsx:116",
-      "text": "금",
-      "kind": "translate",
-      "reason": "기본값 — 번역 대상"
-    },
-    {
-      "zone": "앱",
-      "location": "src/screens/diary/DiaryScreen.tsx:116",
-      "text": "토",
-      "kind": "translate",
-      "reason": "기본값 — 번역 대상"
-    },
-    {
-      "zone": "앱",
-      "location": "src/screens/diary/DiaryScreen.tsx:129",
-      "text": "오전",
-      "kind": "identifier",
-      "reason": "한글이 식별자로 쓰임 — 영어 키로 교체"
-    },
-    {
-      "zone": "앱",
-      "location": "src/screens/diary/DiaryScreen.tsx:129",
-      "text": "오후",
-      "kind": "translate",
-      "reason": "기본값 — 번역 대상"
-    },
-    {
-      "zone": "앱",
-      "location": "src/screens/diary/DiaryScreen.tsx:181",
-      "text": "일",
-      "kind": "translate",
-      "reason": "기본값 — 번역 대상"
-    },
-    {
-      "zone": "앱",
-      "location": "src/screens/diary/DiaryScreen.tsx:181",
-      "text": "월",
-      "kind": "translate",
-      "reason": "기본값 — 번역 대상"
-    },
-    {
-      "zone": "앱",
-      "location": "src/screens/diary/DiaryScreen.tsx:181",
-      "text": "화",
-      "kind": "translate",
-      "reason": "기본값 — 번역 대상"
-    },
-    {
-      "zone": "앱",
-      "location": "src/screens/diary/DiaryScreen.tsx:181",
-      "text": "수",
-      "kind": "translate",
-      "reason": "기본값 — 번역 대상"
-    },
-    {
-      "zone": "앱",
-      "location": "src/screens/diary/DiaryScreen.tsx:181",
-      "text": "목",
-      "kind": "translate",
-      "reason": "기본값 — 번역 대상"
-    },
-    {
-      "zone": "앱",
-      "location": "src/screens/diary/DiaryScreen.tsx:181",
-      "text": "금",
-      "kind": "translate",
-      "reason": "기본값 — 번역 대상"
-    },
-    {
-      "zone": "앱",
-      "location": "src/screens/diary/DiaryScreen.tsx:181",
-      "text": "토",
-      "kind": "translate",
-      "reason": "기본값 — 번역 대상"
-    },
-    {
-      "zone": "앱",
       "location": "src/screens/exercise/ExerciseDurationScreen.tsx:245",
       "text": "[ExerciseDurationScreen] handleSave 오류:",
       "kind": "log-en",
@@ -3288,276 +3127,52 @@
     },
     {
       "zone": "앱",
-      "location": "src/screens/medication/MedicationScreen.tsx:106",
-      "text": "오전",
-      "kind": "identifier",
-      "reason": "한글이 식별자로 쓰임 — 영어 키로 교체"
-    },
-    {
-      "zone": "앱",
-      "location": "src/screens/medication/MedicationScreen.tsx:106",
-      "text": "오후",
-      "kind": "translate",
-      "reason": "기본값 — 번역 대상"
-    },
-    {
-      "zone": "앱",
-      "location": "src/screens/medication/MedicationScreen.tsx:116",
-      "text": "오전",
-      "kind": "identifier",
-      "reason": "한글이 식별자로 쓰임 — 영어 키로 교체"
-    },
-    {
-      "zone": "앱",
-      "location": "src/screens/medication/MedicationScreen.tsx:116",
-      "text": "오후",
-      "kind": "translate",
-      "reason": "기본값 — 번역 대상"
-    },
-    {
-      "zone": "앱",
-      "location": "src/screens/medication/MedicationScreen.tsx:127",
-      "text": "일요일",
-      "kind": "translate",
-      "reason": "기본값 — 번역 대상"
-    },
-    {
-      "zone": "앱",
-      "location": "src/screens/medication/MedicationScreen.tsx:127",
-      "text": "월요일",
-      "kind": "translate",
-      "reason": "기본값 — 번역 대상"
-    },
-    {
-      "zone": "앱",
-      "location": "src/screens/medication/MedicationScreen.tsx:127",
-      "text": "화요일",
-      "kind": "translate",
-      "reason": "기본값 — 번역 대상"
-    },
-    {
-      "zone": "앱",
-      "location": "src/screens/medication/MedicationScreen.tsx:127",
-      "text": "수요일",
-      "kind": "translate",
-      "reason": "기본값 — 번역 대상"
-    },
-    {
-      "zone": "앱",
-      "location": "src/screens/medication/MedicationScreen.tsx:127",
-      "text": "목요일",
-      "kind": "translate",
-      "reason": "기본값 — 번역 대상"
-    },
-    {
-      "zone": "앱",
-      "location": "src/screens/medication/MedicationScreen.tsx:127",
-      "text": "금요일",
-      "kind": "translate",
-      "reason": "기본값 — 번역 대상"
-    },
-    {
-      "zone": "앱",
-      "location": "src/screens/medication/MedicationScreen.tsx:127",
-      "text": "토요일",
-      "kind": "translate",
-      "reason": "기본값 — 번역 대상"
-    },
-    {
-      "zone": "앱",
-      "location": "src/screens/medication/MedicationScreen.tsx:128",
-      "text": "${month}월 ${day}일 ${dayNames[date.getDay()]}",
-      "kind": "translate",
-      "reason": "기본값 — 번역 대상"
-    },
-    {
-      "zone": "앱",
-      "location": "src/screens/medication/MedicationScreen.tsx:400",
+      "location": "src/screens/medication/MedicationScreen.tsx:389",
       "text": "[MedicationScreen] 읽음 처리 오류:",
       "kind": "log-en",
       "reason": "console 전용 — 영어로 고정"
     },
     {
       "zone": "앱",
-      "location": "src/screens/medication/MedicationScreen.tsx:417",
+      "location": "src/screens/medication/MedicationScreen.tsx:406",
       "text": "[MedicationScreen] setParams clear 실패:",
       "kind": "log-en",
       "reason": "console 전용 — 영어로 고정"
     },
     {
       "zone": "앱",
-      "location": "src/screens/medication/MedicationScreen.tsx:791",
+      "location": "src/screens/medication/MedicationScreen.tsx:780",
       "text": "[MedicationScreen] proceedSave 재진입 차단(저장 진행 중) — 더블탭 무시",
       "kind": "log-en",
       "reason": "console 전용 — 영어로 고정"
     },
     {
       "zone": "앱",
-      "location": "src/screens/medication/MedicationScreen.tsx:1251",
+      "location": "src/screens/medication/MedicationScreen.tsx:1240",
       "text": "[MedicationScreen] enterFromNotification fresh fetch 실패:",
       "kind": "log-en",
       "reason": "console 전용 — 영어로 고정"
     },
     {
       "zone": "앱",
-      "location": "src/screens/medication/MedicationScreen.tsx:1272",
+      "location": "src/screens/medication/MedicationScreen.tsx:1261",
       "text": "[MedicationScreen] enterFromNotification 예외(안전망 폴백):",
       "kind": "log-en",
       "reason": "console 전용 — 영어로 고정"
     },
     {
       "zone": "앱",
-      "location": "src/screens/medication/MedicationScreen.tsx:1303",
+      "location": "src/screens/medication/MedicationScreen.tsx:1292",
       "text": "[MedicationScreen] enterFromNotification reject(무시):",
       "kind": "log-en",
       "reason": "console 전용 — 영어로 고정"
     },
     {
       "zone": "앱",
-      "location": "src/screens/medication/MedicationScreen.tsx:1306",
+      "location": "src/screens/medication/MedicationScreen.tsx:1295",
       "text": "[MedicationScreen] safeEnterFromNotification throw(무시):",
       "kind": "log-en",
       "reason": "console 전용 — 영어로 고정"
-    },
-    {
-      "zone": "앱",
-      "location": "src/screens/medication/MedicationScreen.tsx:2069",
-      "text": "${isOverseasLocale() ? 'Next: ' : '다음 '}${mealTimeToKorean(key)}${isOverseasLocale() ? '' …",
-      "kind": "translate",
-      "reason": "기본값 — 번역 대상"
-    },
-    {
-      "zone": "앱",
-      "location": "src/screens/medication/MedicationScreen.tsx:2096",
-      "text": "오전",
-      "kind": "translate",
-      "reason": "기본값 — 번역 대상"
-    },
-    {
-      "zone": "앱",
-      "location": "src/screens/medication/MedicationScreen.tsx:2096",
-      "text": "오후",
-      "kind": "translate",
-      "reason": "기본값 — 번역 대상"
-    },
-    {
-      "zone": "앱",
-      "location": "src/screens/medication/MedicationScreen.tsx:2102",
-      "text": "오후",
-      "kind": "translate",
-      "reason": "기본값 — 번역 대상"
-    },
-    {
-      "zone": "앱",
-      "location": "src/screens/medication/MedicationScreen.tsx:2103",
-      "text": "오전",
-      "kind": "translate",
-      "reason": "기본값 — 번역 대상"
-    },
-    {
-      "zone": "앱",
-      "location": "src/screens/menu/AppointmentWriteScreen.tsx:57",
-      "text": "일",
-      "kind": "translate",
-      "reason": "기본값 — 번역 대상"
-    },
-    {
-      "zone": "앱",
-      "location": "src/screens/menu/AppointmentWriteScreen.tsx:57",
-      "text": "월",
-      "kind": "translate",
-      "reason": "기본값 — 번역 대상"
-    },
-    {
-      "zone": "앱",
-      "location": "src/screens/menu/AppointmentWriteScreen.tsx:57",
-      "text": "화",
-      "kind": "translate",
-      "reason": "기본값 — 번역 대상"
-    },
-    {
-      "zone": "앱",
-      "location": "src/screens/menu/AppointmentWriteScreen.tsx:57",
-      "text": "수",
-      "kind": "translate",
-      "reason": "기본값 — 번역 대상"
-    },
-    {
-      "zone": "앱",
-      "location": "src/screens/menu/AppointmentWriteScreen.tsx:57",
-      "text": "목",
-      "kind": "translate",
-      "reason": "기본값 — 번역 대상"
-    },
-    {
-      "zone": "앱",
-      "location": "src/screens/menu/AppointmentWriteScreen.tsx:57",
-      "text": "금",
-      "kind": "translate",
-      "reason": "기본값 — 번역 대상"
-    },
-    {
-      "zone": "앱",
-      "location": "src/screens/menu/AppointmentWriteScreen.tsx:57",
-      "text": "토",
-      "kind": "translate",
-      "reason": "기본값 — 번역 대상"
-    },
-    {
-      "zone": "앱",
-      "location": "src/screens/menu/AppointmentWriteScreen.tsx:216",
-      "text": "년",
-      "kind": "translate",
-      "reason": "기본값 — 번역 대상"
-    },
-    {
-      "zone": "앱",
-      "location": "src/screens/menu/AppointmentWriteScreen.tsx:228",
-      "text": "월",
-      "kind": "translate",
-      "reason": "기본값 — 번역 대상"
-    },
-    {
-      "zone": "앱",
-      "location": "src/screens/menu/AppointmentWriteScreen.tsx:240",
-      "text": "일",
-      "kind": "translate",
-      "reason": "기본값 — 번역 대상"
-    },
-    {
-      "zone": "앱",
-      "location": "src/screens/menu/AppointmentWriteScreen.tsx:242",
-      "text": "${d}일 (${getDayOfWeek(year, month, d)})",
-      "kind": "translate",
-      "reason": "기본값 — 번역 대상"
-    },
-    {
-      "zone": "앱",
-      "location": "src/screens/menu/AppointmentWriteScreen.tsx:284",
-      "text": "시",
-      "kind": "translate",
-      "reason": "기본값 — 번역 대상"
-    },
-    {
-      "zone": "앱",
-      "location": "src/screens/menu/AppointmentWriteScreen.tsx:295",
-      "text": "분",
-      "kind": "translate",
-      "reason": "기본값 — 번역 대상"
-    },
-    {
-      "zone": "앱",
-      "location": "src/screens/menu/AppointmentWriteScreen.tsx:454",
-      "text": "${selYear}년 ${selMonth}월 ${selDay}일 (${dow})",
-      "kind": "translate",
-      "reason": "기본값 — 번역 대상"
-    },
-    {
-      "zone": "앱",
-      "location": "src/screens/menu/AppointmentWriteScreen.tsx:457",
-      "text": "${String(selHour).padStart(2, '0')}시 ${String(selMinute).padStart(2, '0')}분",
-      "kind": "translate",
-      "reason": "기본값 — 번역 대상"
     },
     {
       "zone": "앱",
@@ -3661,111 +3276,6 @@
       "zone": "앱",
       "location": "src/screens/menu/MedicalRecordListScreen.tsx:37",
       "text": "토",
-      "kind": "translate",
-      "reason": "기본값 — 번역 대상"
-    },
-    {
-      "zone": "앱",
-      "location": "src/screens/menu/MedicalRecordWriteScreen.tsx:54",
-      "text": "일",
-      "kind": "translate",
-      "reason": "기본값 — 번역 대상"
-    },
-    {
-      "zone": "앱",
-      "location": "src/screens/menu/MedicalRecordWriteScreen.tsx:54",
-      "text": "월",
-      "kind": "translate",
-      "reason": "기본값 — 번역 대상"
-    },
-    {
-      "zone": "앱",
-      "location": "src/screens/menu/MedicalRecordWriteScreen.tsx:54",
-      "text": "화",
-      "kind": "translate",
-      "reason": "기본값 — 번역 대상"
-    },
-    {
-      "zone": "앱",
-      "location": "src/screens/menu/MedicalRecordWriteScreen.tsx:54",
-      "text": "수",
-      "kind": "translate",
-      "reason": "기본값 — 번역 대상"
-    },
-    {
-      "zone": "앱",
-      "location": "src/screens/menu/MedicalRecordWriteScreen.tsx:54",
-      "text": "목",
-      "kind": "translate",
-      "reason": "기본값 — 번역 대상"
-    },
-    {
-      "zone": "앱",
-      "location": "src/screens/menu/MedicalRecordWriteScreen.tsx:54",
-      "text": "금",
-      "kind": "translate",
-      "reason": "기본값 — 번역 대상"
-    },
-    {
-      "zone": "앱",
-      "location": "src/screens/menu/MedicalRecordWriteScreen.tsx:54",
-      "text": "토",
-      "kind": "translate",
-      "reason": "기본값 — 번역 대상"
-    },
-    {
-      "zone": "앱",
-      "location": "src/screens/menu/MedicalRecordWriteScreen.tsx:142",
-      "text": "년",
-      "kind": "translate",
-      "reason": "기본값 — 번역 대상"
-    },
-    {
-      "zone": "앱",
-      "location": "src/screens/menu/MedicalRecordWriteScreen.tsx:147",
-      "text": "월",
-      "kind": "translate",
-      "reason": "기본값 — 번역 대상"
-    },
-    {
-      "zone": "앱",
-      "location": "src/screens/menu/MedicalRecordWriteScreen.tsx:153",
-      "text": "일",
-      "kind": "translate",
-      "reason": "기본값 — 번역 대상"
-    },
-    {
-      "zone": "앱",
-      "location": "src/screens/menu/MedicalRecordWriteScreen.tsx:154",
-      "text": "${d}일 (${getDayOfWeek(year, month, d)})",
-      "kind": "translate",
-      "reason": "기본값 — 번역 대상"
-    },
-    {
-      "zone": "앱",
-      "location": "src/screens/menu/MedicalRecordWriteScreen.tsx:187",
-      "text": "시",
-      "kind": "translate",
-      "reason": "기본값 — 번역 대상"
-    },
-    {
-      "zone": "앱",
-      "location": "src/screens/menu/MedicalRecordWriteScreen.tsx:192",
-      "text": "분",
-      "kind": "translate",
-      "reason": "기본값 — 번역 대상"
-    },
-    {
-      "zone": "앱",
-      "location": "src/screens/menu/MedicalRecordWriteScreen.tsx:420",
-      "text": "${selYear}년 ${selMonth}월 ${selDay}일 (${dow})",
-      "kind": "translate",
-      "reason": "기본값 — 번역 대상"
-    },
-    {
-      "zone": "앱",
-      "location": "src/screens/menu/MedicalRecordWriteScreen.tsx:423",
-      "text": "${String(selHour).padStart(2, '0')}시 ${String(selMinute).padStart(2, '0')}분",
       "kind": "translate",
       "reason": "기본값 — 번역 대상"
     },
@@ -3999,125 +3509,6 @@
       "text": "[handleWithdraw] 삭제 성공 후 로그아웃 실패:",
       "kind": "log-en",
       "reason": "console 전용 — 영어로 고정"
-    },
-    {
-      "zone": "앱",
-      "location": "src/screens/menu/ProfileEditScreen.tsx:38",
-      "text": "배우자",
-      "kind": "translate",
-      "reason": "기본값 — 번역 대상"
-    },
-    {
-      "zone": "앱",
-      "location": "src/screens/menu/ProfileEditScreen.tsx:38",
-      "text": "자녀",
-      "kind": "translate",
-      "reason": "기본값 — 번역 대상"
-    },
-    {
-      "zone": "앱",
-      "location": "src/screens/menu/ProfileEditScreen.tsx:38",
-      "text": "형제/자매",
-      "kind": "translate",
-      "reason": "기본값 — 번역 대상"
-    },
-    {
-      "zone": "앱",
-      "location": "src/screens/menu/ProfileEditScreen.tsx:38",
-      "text": "기타",
-      "kind": "translate",
-      "reason": "기본값 — 번역 대상"
-    },
-    {
-      "zone": "앱",
-      "location": "src/screens/menu/ProfileEditScreen.tsx:118",
-      "text": "배우자",
-      "kind": "translate",
-      "reason": "기본값 — 번역 대상"
-    },
-    {
-      "zone": "앱",
-      "location": "src/screens/menu/ProfileEditScreen.tsx:325",
-      "text": "배우자",
-      "kind": "translate",
-      "reason": "기본값 — 번역 대상"
-    },
-    {
-      "zone": "앱",
-      "location": "src/screens/menu/ProfileEditScreen.tsx:325",
-      "text": "자녀",
-      "kind": "translate",
-      "reason": "기본값 — 번역 대상"
-    },
-    {
-      "zone": "앱",
-      "location": "src/screens/menu/ProfileEditScreen.tsx:325",
-      "text": "형제/자매",
-      "kind": "translate",
-      "reason": "기본값 — 번역 대상"
-    },
-    {
-      "zone": "앱",
-      "location": "src/screens/menu/ProfileEditScreen.tsx:325",
-      "text": "기타",
-      "kind": "translate",
-      "reason": "기본값 — 번역 대상"
-    },
-    {
-      "zone": "앱",
-      "location": "src/screens/menu/ProfileEditScreen.tsx:328",
-      "text": "배우자",
-      "kind": "identifier",
-      "reason": "한글이 식별자로 쓰임 — 영어 키로 교체"
-    },
-    {
-      "zone": "앱",
-      "location": "src/screens/menu/ProfileEditScreen.tsx:328",
-      "text": "자녀",
-      "kind": "identifier",
-      "reason": "한글이 식별자로 쓰임 — 영어 키로 교체"
-    },
-    {
-      "zone": "앱",
-      "location": "src/screens/menu/ProfileEditScreen.tsx:328",
-      "text": "형제/자매",
-      "kind": "identifier",
-      "reason": "한글이 식별자로 쓰임 — 영어 키로 교체"
-    },
-    {
-      "zone": "앱",
-      "location": "src/screens/menu/ProfileEditScreen.tsx:328",
-      "text": "기타",
-      "kind": "identifier",
-      "reason": "한글이 식별자로 쓰임 — 영어 키로 교체"
-    },
-    {
-      "zone": "앱",
-      "location": "src/screens/menu/ProfileEditScreen.tsx:370",
-      "text": "배우자",
-      "kind": "translate",
-      "reason": "기본값 — 번역 대상"
-    },
-    {
-      "zone": "앱",
-      "location": "src/screens/menu/ProfileEditScreen.tsx:377",
-      "text": "배우자",
-      "kind": "translate",
-      "reason": "기본값 — 번역 대상"
-    },
-    {
-      "zone": "앱",
-      "location": "src/screens/menu/ProfileEditScreen.tsx:522",
-      "text": "기타",
-      "kind": "translate",
-      "reason": "기본값 — 번역 대상"
-    },
-    {
-      "zone": "앱",
-      "location": "src/screens/menu/ProfileEditScreen.tsx:806",
-      "text": "기타",
-      "kind": "translate",
-      "reason": "기본값 — 번역 대상"
     },
     {
       "zone": "앱",

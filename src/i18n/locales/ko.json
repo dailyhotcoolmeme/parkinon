@@ -2235,6 +2235,14 @@
     "fullDateTime": "{{date}} {{time}}",
     "monthDayTime": "{{monthDay}} {{time}}",
     "yearMonthDay": "{{year}}년 {{month}}월 {{day}}일",
-    "clockVerbose": "{{meridiem}} {{h}}시 {{mm}}분"
+    "clockVerbose": "{{meridiem}} {{h}}시 {{mm}}분",
+    "unitYear": "년",
+    "unitMonth": "월",
+    "unitDay": "일",
+    "unitHour": "시",
+    "unitMinute": "분",
+    "dayWithWeekday": "{{day}}일 ({{weekday}})",
+    "yearMonthDayWeekday": "{{year}}년 {{month}}월 {{day}}일 ({{weekday}})",
+    "hourMinute": "{{h}}시 {{m}}분"
   }
 }

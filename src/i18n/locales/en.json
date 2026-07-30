@@ -2235,6 +2235,14 @@
     "fullDateTime": "{{date}} {{time}}",
     "monthDayTime": "{{monthDay}} {{time}}",
     "yearMonthDay": "{{month}}/{{day}}/{{year}}",
-    "clockVerbose": "{{h}}:{{mm}} {{meridiem}}"
+    "clockVerbose": "{{h}}:{{mm}} {{meridiem}}",
+    "unitYear": "Year",
+    "unitMonth": "Month",
+    "unitDay": "Day",
+    "unitHour": "Hour",
+    "unitMinute": "Min",
+    "dayWithWeekday": "{{day}} ({{weekday}})",
+    "yearMonthDayWeekday": "{{month}}/{{day}}/{{year}} ({{weekday}})",
+    "hourMinute": "{{h}}:{{m}}"
   }
 }

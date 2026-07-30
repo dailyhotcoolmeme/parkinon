@@ -35,7 +35,8 @@ type Cohabiting = 'together' | 'apart';
 
 const BIRTH_YEARS = Array.from({ length: 60 }, (_, i) => 1930 + i);
 const DIAGNOSIS_YEARS = Array.from({ length: 40 }, (_, i) => 1985 + i);
-const RELATIONS = ['배우자', '자녀', '형제/자매', '기타'];
+// 상태·DB 저장값은 영어 키다. 표시명은 relLabel 이 번역 파일에서 꺼낸다.
+const RELATIONS = ['spouse', 'child', 'sibling', 'other'] as const;
 
 /**
  * 역할 변경 실패 코드(change_role_purge RPC / change-role 함수) → 앱 번역 키.
@@ -115,7 +116,7 @@ export function ProfileEditScreen() {
   const [birthYear, setBirthYear] = useState(1960);
   const [gender, setGender] = useState<Gender>('male');
   const [diagnosisYear, setDiagnosisYear] = useState(2020);
-  const [relation, setRelation] = useState('배우자');
+  const [relation, setRelation] = useState<string>('spouse');
   const [relationOther, setRelationOther] = useState('');
   const [cohabiting, setCohabiting] = useState<Cohabiting>('together');
 
@@ -321,17 +322,10 @@ export function ProfileEditScreen() {
   }, []);
 
 
-  const relEngToKor: Record<string, string> = {
-    spouse: '배우자', child: '자녀', sibling: '형제/자매', other: '기타',
-  };
-  const relKorToEng: Record<string, string> = {
-    '배우자': 'spouse', '자녀': 'child', '형제/자매': 'sibling', '기타': 'other',
-  };
   const relLabel = (r: string): string => {
-    const eng = relKorToEng[r];
-    if (eng === 'spouse') return t('profileEdit.relSpouse');
-    if (eng === 'child') return t('profileEdit.relChild');
-    if (eng === 'sibling') return t('profileEdit.relSibling');
+    if (r === 'spouse') return t('profileEdit.relSpouse');
+    if (r === 'child') return t('profileEdit.relChild');
+    if (r === 'sibling') return t('profileEdit.relSibling');
     return t('profileEdit.relOther');
   };
 
@@ -367,14 +361,14 @@ export function ProfileEditScreen() {
         setBirthYear(user.birth_year ?? 1960);
         setGender((user.gender as Gender) ?? 'male');
         setDiagnosisYear(user.diagnosis_year ?? 2020);
-        setRelation(relEngToKor[user.caregiver_relation ?? ''] ?? '배우자');
+        setRelation(user.caregiver_relation ?? 'spouse');
         setCohabiting(user.residence_type === 'separate' ? 'apart' : 'together');
       } else {
         setName(freshUser.name ?? '');
         setBirthYear(freshUser.birth_year ?? 1960);
         setGender((freshUser.gender as Gender) ?? 'male');
         setDiagnosisYear(freshUser.diagnosis_year ?? 2020);
-        setRelation(relEngToKor[freshUser.caregiver_relation ?? ''] ?? '배우자');
+        setRelation(freshUser.caregiver_relation ?? 'spouse');
         setRelationOther((freshUser as any).relation_note ?? '');
         setCohabiting(freshUser.residence_type === 'separate' ? 'apart' : 'together');
       }
@@ -517,9 +511,9 @@ export function ProfileEditScreen() {
         ...(isPatient
           ? { diagnosis_year: diagnosisYear }
           : {
-              caregiver_relation: (relKorToEng[relation] ?? 'other') as 'spouse' | 'child' | 'sibling' | 'other',
+              caregiver_relation: relation as 'spouse' | 'child' | 'sibling' | 'other',
               residence_type: cohabiting === 'together' ? 'together' : 'separate',
-              relation_note: relation === '기타' ? relationOther.trim() : null,
+              relation_note: relation === 'other' ? relationOther.trim() : null,
             }),
       });
       if (!res.ok) {
@@ -803,7 +797,7 @@ export function ProfileEditScreen() {
                   </TouchableOpacity>
                 ))}
               </View>
-              {relation === '기타' && (
+              {relation === 'other' && (
                 <>
                   <Text style={[styles.label, { marginTop: 16 }]}>{t('profileEdit.relationOtherLabel')}</Text>
                   <TextInput

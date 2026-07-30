@@ -1,4 +1,6 @@
 import React, { useState, useCallback, useEffect, useRef, useMemo } from 'react';
+import { monthDayWeekday } from '../../utils/dateLabels';
+import type { AmPm } from '../../context/SettingsContext';
 import {
   View,
   Text,
@@ -101,31 +103,18 @@ function formatTakenAt(isoString: string): string {
   const h = d.getHours();
   const m = d.getMinutes();
   const hour = h % 12 === 0 ? 12 : h % 12;
-  const mm = m.toString().padStart(2, '0');
-  if (isOverseasLocale()) return formatClock(d);
-  const ampm = h < 12 ? '오전' : '오후';
-  return `${ampm} ${hour}:${mm}`;
+  return formatClock(d);
 }
 
 // "HH:mm" 문자열을 "오전/오후 H:mm"(영어면 "H:mm AM/PM") 형식으로 변환
 function formatMealTime(timeStr: string): string {
   const [h, m] = timeStr.split(':').map(Number);
-  const hour = h % 12 === 0 ? 12 : h % 12;
-  const mm = m.toString().padStart(2, '0');
-  if (isOverseasLocale()) return formatClock(new Date(2000, 0, 1, h, m || 0));
-  const ampm = h < 12 ? '오전' : '오후';
-  return `${ampm} ${hour}:${mm}`;
+  return formatClock(new Date(2000, 0, 1, h, m || 0));
 }
 
 function getDateLabel(date: Date): string {
-  if (isOverseasLocale()) {
-    // "Monday, January 1" 형식(연도 생략, 요일 강조).
-    return date.toLocaleDateString(displayLocaleTag(), { weekday: 'long', month: 'long', day: 'numeric' });
-  }
-  const month = date.getMonth() + 1;
-  const day = date.getDate();
-  const dayNames = ['일요일', '월요일', '화요일', '수요일', '목요일', '금요일', '토요일'];
-  return `${month}월 ${day}일 ${dayNames[date.getDay()]}`;
+  // 공용 dateLabels 하나만 쓴다 — ko '7월 29일 수요일' / en 'Wednesday, July 29'.
+  return monthDayWeekday(date);
 }
 
 // KST(UTC+9) 기준 날짜 문자열 반환 — UTC 사용 시 오후 11시 이후 날짜 오류 방지
@@ -2066,7 +2055,7 @@ async function fetchNextNotifMessage(
       mealCandidates = LEGACY_SLOT_ORDER.map((key) => {
         const meta = LEGACY_SLOT_META[key];
         const time = mealSchedules[key] ?? meta.defaultTime;
-        return { time, label: `${isOverseasLocale() ? 'Next: ' : '다음 '}${mealTimeToKorean(key)}${isOverseasLocale() ? '' : ' 복용'}` };
+        return { time, label: i18n.t('doseSlots.nextDoseLegacyKo', { med: i18n.t(`slot.${key}Med`) }) };
       });
     }
 
@@ -2093,14 +2082,14 @@ async function fetchNextNotifMessage(
 
     // 3) 운동 알림 (exercise_notif_prefs) — 오늘 이후 가장 가까운 운동 알림 시간
     const exercisePrefs = userData?.exercise_notif_prefs as Array<{
-      id: string; ampm: '오전' | '오후'; hour: number; minute: number; enabled: boolean;
+      id: string; ampm: AmPm; hour: number; minute: number; enabled: boolean;
     }> | null;
     if (exercisePrefs && exercisePrefs.length > 0) {
       for (const ep of exercisePrefs) {
         if (!ep.enabled) continue;
         let hour = ep.hour;
-        if (ep.ampm === '오후' && hour !== 12) hour += 12;
-        if (ep.ampm === '오전' && hour === 12) hour = 0;
+        if (ep.ampm === 'pm' && hour !== 12) hour += 12;
+        if (ep.ampm === 'am' && hour === 12) hour = 0;
         const scheduled = new Date(now);
         scheduled.setHours(hour, ep.minute, 0, 0);
         if (scheduled > now) {
