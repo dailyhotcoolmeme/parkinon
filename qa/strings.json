@@ -1,9 +1,9 @@
 {
   "generatedFrom": "scripts/qa-strings-gen.mjs",
   "counts": {
-    "keys": 2067,
-    "withSites": 1997,
-    "orphan": 70,
+    "keys": 2015,
+    "withSites": 2015,
+    "orphan": 0,
     "layoutRisk": 654,
     "dynamicTemplates": 27
   },
@@ -11248,17 +11248,6 @@
       "orphan": false
     },
     {
-      "key": "postWrite.photoUploadErrorMsg",
-      "ko": "사진 업로드에 실패했어요. 잠시 후 다시 시도해주세요.",
-      "en": "Couldn't upload the photo. Please try again in a moment.",
-      "fr": "Impossible d'envoyer la photo. Veuillez réessayer dans un instant.",
-      "ja": "写真をアップロードできませんでした。少し経ってからもう一度お試しください。",
-      "sites": [],
-      "siteCount": 0,
-      "layoutRisk": false,
-      "orphan": true
-    },
-    {
       "key": "loading.appPreparing",
       "ko": "파킨온을 준비하고 있어요",
       "en": "Getting ParkinON ready",
@@ -14564,28 +14553,6 @@
       "orphan": false
     },
     {
-      "key": "medManage.etAfterMedsTitle",
-      "ko": "약효추적을 켰어요",
-      "en": "Effect-tracking on",
-      "fr": "Suivi de l'effet activé",
-      "ja": "効き目チェックをオンにしました",
-      "sites": [],
-      "siteCount": 0,
-      "layoutRisk": false,
-      "orphan": true
-    },
-    {
-      "key": "medManage.etAfterMedsMsg",
-      "ko": "이제 각 시간대에 드시는 약을 넣어주세요(약 넣기). 레보도파 계열 약은 약 기준 추천 시점을 안내해드려요.\n\n그 외 약은 기본 시간(복용직후·30분·2시간)으로 맞춰뒀는데, 추천이 정확하지 않을 수 있으니 정확한 시점은 의사와 상의해 주세요.\n\n(약효 시간 출처: 미국 FDA·제조사 의약품 정보 · 확인 시점은 참고 안내)",
-      "en": "Now add the medications you take at each time (Add medication). For levodopa-class drugs, we'll suggest check-in times based on the drug.\n\nOther drugs are set to default times (right after, 30 min, 2 hours). These suggestions may not be accurate, so please consult your doctor for the right timing.\n\n(Effect-time source: US FDA & manufacturer drug information · check-in times are reference guidance)",
-      "fr": "Ajoutez maintenant les médicaments pris à chaque heure (Ajouter un médicament). Pour les médicaments à base de lévodopa, nous proposerons des moments de contrôle adaptés au médicament.\n\nLes autres médicaments utilisent les moments par défaut (juste après, 30 min, 2 heures). Ces suggestions peuvent être imprécises : demandez à votre médecin les moments qui vous conviennent.\n\n(Source des délais d'action : FDA américaine et notices des fabricants · les moments de contrôle sont donnés à titre indicatif)",
-      "ja": "次に、それぞれの時間に飲むお薬を追加してください（お薬を追加）。レボドパ系のお薬は、そのお薬に合わせたチェック時間をご提案します。\n\nその他のお薬は初期設定の時間（直後・30分後・2時間後）になります。この提案は正確でない場合がありますので、適切な時間は医師にご相談ください。\n\n（効き目の時間の出典: 米国FDAおよび製薬会社の医薬品情報 · チェック時間は参考です）",
-      "sites": [],
-      "siteCount": 0,
-      "layoutRisk": false,
-      "orphan": true
-    },
-    {
       "key": "medManage.etTrackTitle",
       "ko": "약효 추적 알림",
       "en": "Effect-tracking reminders",
@@ -16140,83 +16107,6 @@
       "orphan": false
     },
     {
-      "key": "settings.patientSyncNote",
-      "ko": "여기서 알림을 바꾸면 {{name}}님 휴대폰의 알림도 똑같이 바뀌어요.",
-      "en": "Changing notifications here also changes them on {{name}}'s phone.",
-      "fr": "Modifier les notifications ici les modifie aussi sur le téléphone de {{name}}.",
-      "ja": "ここで通知を変更すると、{{name}}さんの端末にも反映されます。",
-      "sites": [],
-      "siteCount": 0,
-      "layoutRisk": false,
-      "orphan": true
-    },
-    {
-      "key": "settings.patientFallback",
-      "ko": "환자",
-      "en": "the patient",
-      "fr": "le patient",
-      "ja": "患者さん",
-      "sites": [],
-      "siteCount": 0,
-      "layoutRisk": false,
-      "orphan": true
-    },
-    {
-      "key": "settings.editPatientNotifTitle",
-      "ko": "환자 알림 수정",
-      "en": "Edit patient's notifications",
-      "fr": "Modifier les notifications du patient",
-      "ja": "患者さんの通知を編集",
-      "sites": [],
-      "siteCount": 0,
-      "layoutRisk": false,
-      "orphan": true
-    },
-    {
-      "key": "settings.editPatientNotifSub",
-      "ko": "환자 대신 알림 설정을 변경해요",
-      "en": "Change notification settings on the patient's behalf",
-      "fr": "Changez les réglages de notification à sa place",
-      "ja": "患者さんの代わりに通知設定を変更します",
-      "sites": [],
-      "siteCount": 0,
-      "layoutRisk": false,
-      "orphan": true
-    },
-    {
-      "key": "settings.medTimeNotifTitle",
-      "ko": "복용 시간 알림",
-      "en": "Medication time reminders",
-      "fr": "Rappels d'heure de prise",
-      "ja": "服薬時間のお知らせ",
-      "sites": [],
-      "siteCount": 0,
-      "layoutRisk": false,
-      "orphan": true
-    },
-    {
-      "key": "settings.medTimeNotifDesc",
-      "ko": "{{name}}님의 복용 시간과 복용 알림을 대신 설정할 수 있어요",
-      "en": "You can set up {{name}}'s medication times and reminders on their behalf",
-      "fr": "Vous pouvez régler les heures de prise et les rappels de {{name}} à sa place",
-      "ja": "{{name}}さんの服薬時間とお知らせを、代わりに設定できます",
-      "sites": [],
-      "siteCount": 0,
-      "layoutRisk": false,
-      "orphan": true
-    },
-    {
-      "key": "settings.medTimeNotifSetupBtn",
-      "ko": "복용시간 알림 설정하기",
-      "en": "Set up medication time reminders",
-      "fr": "Régler les rappels d'heure de prise",
-      "ja": "服薬時間のお知らせを設定",
-      "sites": [],
-      "siteCount": 0,
-      "layoutRisk": false,
-      "orphan": true
-    },
-    {
       "key": "settings.pickerTimeSelectTitle",
       "ko": "알림 시간 선택",
       "en": "Select notification time",
@@ -16546,17 +16436,6 @@
       "siteCount": 1,
       "layoutRisk": false,
       "orphan": false
-    },
-    {
-      "key": "settings.myRecordingFallback",
-      "ko": "녹음 알림음",
-      "en": "Recording",
-      "fr": "Enregistrement",
-      "ja": "録音",
-      "sites": [],
-      "siteCount": 0,
-      "layoutRisk": false,
-      "orphan": true
     },
     {
       "key": "diary.headerTitle",
@@ -17155,17 +17034,6 @@
       "orphan": false
     },
     {
-      "key": "diary.pcTokenGenFailMsg",
-      "ko": "번호를 만들지 못했어요. 잠시 후 다시 시도해주세요.",
-      "en": "Couldn't generate the code. Please try again in a moment.",
-      "fr": "Impossible de générer le code. Veuillez réessayer dans un instant.",
-      "ja": "コードを発行できませんでした。少し経ってからもう一度お試しください。",
-      "sites": [],
-      "siteCount": 0,
-      "layoutRisk": false,
-      "orphan": true
-    },
-    {
       "key": "diary.noEntryYet",
       "ko": "아직 작성한 글이 없어요.",
       "en": "No entry written yet.",
@@ -17318,28 +17186,6 @@
       "orphan": false
     },
     {
-      "key": "diary.photoMax5Title",
-      "ko": "사진은 최대 5장까지예요",
-      "en": "Up to 5 photos",
-      "fr": "5 photos maximum",
-      "ja": "写真は5枚までです",
-      "sites": [],
-      "siteCount": 0,
-      "layoutRisk": false,
-      "orphan": true
-    },
-    {
-      "key": "diary.photoMax5Msg",
-      "ko": "더 넣으려면 기존 사진을 삭제한 뒤 추가해 주세요.",
-      "en": "Remove an existing photo to add more.",
-      "fr": "Retirez une photo existante pour en ajouter d'autres.",
-      "ja": "追加するには、既存の写真を削除してください。",
-      "sites": [],
-      "siteCount": 0,
-      "layoutRisk": false,
-      "orphan": true
-    },
-    {
       "key": "diary.photoMax5TitleAlt",
       "ko": "사진은 최대 5장이에요",
       "en": "Up to 5 photos",
@@ -17357,17 +17203,6 @@
       "siteCount": 1,
       "layoutRisk": true,
       "orphan": false
-    },
-    {
-      "key": "diary.photoMax5MsgAlt",
-      "ko": "사진을 더 넣으려면 기존 사진을 빼주세요.",
-      "en": "Remove an existing photo to add more.",
-      "fr": "Retirez une photo existante pour en ajouter d'autres.",
-      "ja": "追加するには、既存の写真を削除してください。",
-      "sites": [],
-      "siteCount": 0,
-      "layoutRisk": false,
-      "orphan": true
     },
     {
       "key": "diary.photoMax5PartialMsg",
@@ -17569,17 +17404,6 @@
       "siteCount": 1,
       "layoutRisk": false,
       "orphan": false
-    },
-    {
-      "key": "diary.micPermOpenSettings",
-      "ko": "설정 열기",
-      "en": "Open Settings",
-      "fr": "Ouvrir les réglages",
-      "ja": "設定を開く",
-      "sites": [],
-      "siteCount": 0,
-      "layoutRisk": false,
-      "orphan": true
     },
     {
       "key": "diary.recordStartFailTitle",
@@ -17979,17 +17803,6 @@
       "siteCount": 1,
       "layoutRisk": false,
       "orphan": false
-    },
-    {
-      "key": "diary.attachHintUpsell",
-      "ko": "무료는 하루 사진 5장·영상 1개·음성 1개까지예요. 프리미엄이면 사진·영상·음성 무제한!",
-      "en": "Free: 5 photos · 2 videos · 1 audio a day per family. Go Premium for unlimited photos, video & audio!",
-      "fr": "Gratuit : 5 photos · 2 vidéos · 1 audio par jour et par famille. Passez à Premium pour des photos, vidéos et audios illimités !",
-      "ja": "無料: 1家族あたり1日に写真5枚 · 動画2本 · 音声1件。Premium なら写真・動画・音声が無制限！",
-      "sites": [],
-      "siteCount": 0,
-      "layoutRisk": false,
-      "orphan": true
     },
     {
       "key": "diary.attachHintUpsellInfo",
@@ -20109,28 +19922,6 @@
       "siteCount": 1,
       "layoutRisk": true,
       "orphan": false
-    },
-    {
-      "key": "profileEdit.roleExportSavedTitle",
-      "ko": "저장 완료",
-      "en": "Saved",
-      "fr": "Enregistré",
-      "ja": "保存しました",
-      "sites": [],
-      "siteCount": 0,
-      "layoutRisk": false,
-      "orphan": true
-    },
-    {
-      "key": "profileEdit.roleExportSavedMsg",
-      "ko": "선택한 폴더에 건강기록 파일(.csv)을 저장했어요. 엑셀에서 열 수 있어요.",
-      "en": "Your health records (.csv) were saved to the selected folder. You can open it in Excel.",
-      "fr": "Votre suivi de santé (.csv) a été enregistré dans le dossier choisi. Vous pouvez l'ouvrir dans Excel.",
-      "ja": "健康の記録（.csv）を選んだフォルダに保存しました。Excel で開けます。",
-      "sites": [],
-      "siteCount": 0,
-      "layoutRisk": false,
-      "orphan": true
     },
     {
       "key": "profileEdit.roleChangeSameRoleMsg",
@@ -26914,17 +26705,6 @@
       "orphan": false
     },
     {
-      "key": "alarmSound.testFailMsg",
-      "ko": "테스트에 실패했어요. 잠시 후 다시 시도해주세요.",
-      "en": "The test didn't work. Please try again in a moment.",
-      "fr": "Le test n'a pas fonctionné. Veuillez réessayer dans un instant.",
-      "ja": "テストできませんでした。少し経ってからもう一度お試しください。",
-      "sites": [],
-      "siteCount": 0,
-      "layoutRisk": false,
-      "orphan": true
-    },
-    {
       "key": "ads.sponsored",
       "ko": "광고",
       "en": "Ad",
@@ -26980,28 +26760,6 @@
       "siteCount": 1,
       "layoutRisk": true,
       "orphan": false
-    },
-    {
-      "key": "subscription.currentFree",
-      "ko": "무료 플랜",
-      "en": "Free plan",
-      "fr": "Offre gratuite",
-      "ja": "無料プラン",
-      "sites": [],
-      "siteCount": 0,
-      "layoutRisk": false,
-      "orphan": true
-    },
-    {
-      "key": "subscription.currentFreeSub",
-      "ko": "하루 사진 5장·영상 2개·음성 1개, 광고 표시",
-      "en": "5 photos, 2 videos, 1 audio a day. With ads.",
-      "fr": "5 photos, 2 vidéos, 1 audio par jour. Avec publicités.",
-      "ja": "1日に写真5枚・動画2本・音声1件。広告あり。",
-      "sites": [],
-      "siteCount": 0,
-      "layoutRisk": false,
-      "orphan": true
     },
     {
       "key": "subscription.currentPremium",
@@ -27211,105 +26969,6 @@
       "siteCount": 1,
       "layoutRisk": true,
       "orphan": false
-    },
-    {
-      "key": "subscription.slotFeatureFamily",
-      "ko": "가족 연동",
-      "en": "Family linking",
-      "fr": "Lien familial",
-      "ja": "家族連携",
-      "sites": [],
-      "siteCount": 0,
-      "layoutRisk": false,
-      "orphan": true
-    },
-    {
-      "key": "subscription.slotFeatureAlarm",
-      "ko": "커스텀 알림음",
-      "en": "Custom notification sounds",
-      "fr": "Sons de notification personnalisés",
-      "ja": "オリジナル通知音",
-      "sites": [],
-      "siteCount": 0,
-      "layoutRisk": false,
-      "orphan": true
-    },
-    {
-      "key": "subscription.slotFeatureMedia",
-      "ko": "하루 사진·영상·음성",
-      "en": "Photos · videos · audio a day",
-      "fr": "Photos · vidéos · audios par jour",
-      "ja": "1日の写真 · 動画 · 音声",
-      "sites": [],
-      "siteCount": 0,
-      "layoutRisk": false,
-      "orphan": true
-    },
-    {
-      "key": "subscription.slotFeatureAds",
-      "ko": "광고",
-      "en": "Ads",
-      "fr": "Publicités",
-      "ja": "広告",
-      "sites": [],
-      "siteCount": 0,
-      "layoutRisk": false,
-      "orphan": true
-    },
-    {
-      "key": "subscription.slotUnlimited",
-      "ko": "무제한",
-      "en": "Unlimited",
-      "fr": "Illimité",
-      "ja": "無制限",
-      "sites": [],
-      "siteCount": 0,
-      "layoutRisk": false,
-      "orphan": true
-    },
-    {
-      "key": "subscription.slotFreeAlarm",
-      "ko": "1개",
-      "en": "1",
-      "fr": "1",
-      "ja": "1",
-      "sites": [],
-      "siteCount": 0,
-      "layoutRisk": false,
-      "orphan": true
-    },
-    {
-      "key": "subscription.slotFreeMedia",
-      "ko": "5·2·1개",
-      "en": "5 · 2 · 1",
-      "fr": "5 · 2 · 1",
-      "ja": "5 · 2 · 1",
-      "sites": [],
-      "siteCount": 0,
-      "layoutRisk": false,
-      "orphan": true
-    },
-    {
-      "key": "subscription.slotFreeAds",
-      "ko": "표시",
-      "en": "Shown",
-      "fr": "Affichées",
-      "ja": "あり",
-      "sites": [],
-      "siteCount": 0,
-      "layoutRisk": false,
-      "orphan": true
-    },
-    {
-      "key": "subscription.slotPremiumAds",
-      "ko": "없음",
-      "en": "None",
-      "fr": "Aucune",
-      "ja": "なし",
-      "sites": [],
-      "siteCount": 0,
-      "layoutRisk": false,
-      "orphan": true
     },
     {
       "key": "subscription.slotCtaFree",
@@ -27540,39 +27199,6 @@
       "siteCount": 1,
       "layoutRisk": false,
       "orphan": false
-    },
-    {
-      "key": "subscription.compareBadge",
-      "ko": "추천",
-      "en": "BEST",
-      "fr": "TOP",
-      "ja": "おすすめ",
-      "sites": [],
-      "siteCount": 0,
-      "layoutRisk": false,
-      "orphan": true
-    },
-    {
-      "key": "subscription.cmpTrialPill",
-      "ko": "7일 무료",
-      "en": "7 days free",
-      "fr": "7 jours offerts",
-      "ja": "7日間無料",
-      "sites": [],
-      "siteCount": 0,
-      "layoutRisk": false,
-      "orphan": true
-    },
-    {
-      "key": "subscription.compareCurrentTag",
-      "ko": "현재",
-      "en": "Current",
-      "fr": "Actuelle",
-      "ja": "利用中",
-      "sites": [],
-      "siteCount": 0,
-      "layoutRisk": false,
-      "orphan": true
     },
     {
       "key": "subscription.slotPitchFree",
@@ -27898,83 +27524,6 @@
       "orphan": false
     },
     {
-      "key": "subscription.cardFamily",
-      "ko": "가족 연동",
-      "en": "Family",
-      "fr": "Famille",
-      "ja": "家族",
-      "sites": [],
-      "siteCount": 0,
-      "layoutRisk": false,
-      "orphan": true
-    },
-    {
-      "key": "subscription.cardAlarm",
-      "ko": "알림음",
-      "en": "Reminders",
-      "fr": "Rappels",
-      "ja": "お知らせ",
-      "sites": [],
-      "siteCount": 0,
-      "layoutRisk": false,
-      "orphan": true
-    },
-    {
-      "key": "subscription.cardPhoto",
-      "ko": "사진",
-      "en": "Photos",
-      "fr": "Photos",
-      "ja": "写真",
-      "sites": [],
-      "siteCount": 0,
-      "layoutRisk": false,
-      "orphan": true
-    },
-    {
-      "key": "subscription.cardAudio",
-      "ko": "음성",
-      "en": "Audio",
-      "fr": "Audio",
-      "ja": "音声",
-      "sites": [],
-      "siteCount": 0,
-      "layoutRisk": false,
-      "orphan": true
-    },
-    {
-      "key": "subscription.cardVideo",
-      "ko": "영상",
-      "en": "Video",
-      "fr": "Vidéo",
-      "ja": "動画",
-      "sites": [],
-      "siteCount": 0,
-      "layoutRisk": false,
-      "orphan": true
-    },
-    {
-      "key": "subscription.cardAds",
-      "ko": "광고",
-      "en": "Ads",
-      "fr": "Publicités",
-      "ja": "広告",
-      "sites": [],
-      "siteCount": 0,
-      "layoutRisk": false,
-      "orphan": true
-    },
-    {
-      "key": "subscription.compareDailyNote",
-      "ko": "사진·음성·영상은 하루 기준이에요.",
-      "en": "Photos, audio & video are per day.",
-      "fr": "Les photos, audios et vidéos sont comptés par jour.",
-      "ja": "写真・音声・動画は1日あたりの数です。",
-      "sites": [],
-      "siteCount": 0,
-      "layoutRisk": false,
-      "orphan": true
-    },
-    {
       "key": "subscription.choosePlanTitle",
       "ko": "구독 플랜",
       "en": "Subscription plan",
@@ -28203,17 +27752,6 @@
       "siteCount": 2,
       "layoutRisk": false,
       "orphan": false
-    },
-    {
-      "key": "subscription.subscribeMonthly",
-      "ko": "또는 월 $4.99로 구독",
-      "en": "Or subscribe monthly for $4.99",
-      "fr": "Ou abonnez-vous au mois pour 4,99 $",
-      "ja": "または月額800円で登録",
-      "sites": [],
-      "siteCount": 0,
-      "layoutRisk": false,
-      "orphan": true
     },
     {
       "key": "subscription.restoreBtn",
@@ -28461,50 +27999,6 @@
       "siteCount": 1,
       "layoutRisk": false,
       "orphan": false
-    },
-    {
-      "key": "subscription.bannerFreeTitle",
-      "ko": "무료 플랜",
-      "en": "Free plan",
-      "fr": "Offre gratuite",
-      "ja": "無料プラン",
-      "sites": [],
-      "siteCount": 0,
-      "layoutRisk": false,
-      "orphan": true
-    },
-    {
-      "key": "subscription.bannerFreeCta",
-      "ko": "프리미엄으로 업그레이드",
-      "en": "Upgrade to Premium",
-      "fr": "Passer à Premium",
-      "ja": "Premium にする",
-      "sites": [],
-      "siteCount": 0,
-      "layoutRisk": false,
-      "orphan": true
-    },
-    {
-      "key": "subscription.bannerPremiumTitle",
-      "ko": "프리미엄 이용 중",
-      "en": "You're on Premium",
-      "fr": "Vous êtes en Premium",
-      "ja": "Premium をご利用中です",
-      "sites": [],
-      "siteCount": 0,
-      "layoutRisk": false,
-      "orphan": true
-    },
-    {
-      "key": "subscription.bannerPremiumCta",
-      "ko": "구독 관리",
-      "en": "Manage subscription",
-      "fr": "Gérer l'abonnement",
-      "ja": "登録内容を管理",
-      "sites": [],
-      "siteCount": 0,
-      "layoutRisk": false,
-      "orphan": true
     },
     {
       "key": "subscription.planMonthlyPriceFmt",
@@ -33145,17 +32639,6 @@
       "orphan": false
     },
     {
-      "key": "r2Upload.quotaExceededError",
-      "ko": "오늘 올릴 수 있는 개수를 모두 사용했어요.\n내일 다시 시도하시거나 프리미엄으로 무제한 이용해 보세요.",
-      "en": "You've used today's upload limit.\nTry again tomorrow, or go Premium for unlimited uploads.",
-      "fr": "Vous avez atteint la limite d'envoi du jour.\nRéessayez demain ou passez à Premium pour un usage illimité.",
-      "ja": "今日のアップロード上限に達しました。\n明日また試すか、Premium で無制限にご利用ください。",
-      "sites": [],
-      "siteCount": 0,
-      "layoutRisk": false,
-      "orphan": true
-    },
-    {
       "key": "r2Upload.fileNotFoundError",
       "ko": "파일을 찾을 수 없어요.",
       "en": "Couldn't find the file.",
@@ -33306,17 +32789,6 @@
       "siteCount": 1,
       "layoutRisk": false,
       "orphan": false
-    },
-    {
-      "key": "notifications.measureNowAction",
-      "ko": "바로 측정하기",
-      "en": "Measure now",
-      "fr": "Mesurer",
-      "ja": "今すぐ測る",
-      "sites": [],
-      "siteCount": 0,
-      "layoutRisk": false,
-      "orphan": true
     },
     {
       "key": "notifActionFeedback.timeChangeTitle",
@@ -36797,17 +36269,6 @@
       "orphan": false
     },
     {
-      "key": "alarmSoundPicker.emptyLine2",
-      "ko": "메뉴 → 알림음 설정에서 만들 수 있어요.",
-      "en": "You can create one in Menu → Notification Sound Settings.",
-      "fr": "Vous pouvez en créer un dans Menu → Sons de notification.",
-      "ja": "メニュー →「通知音」から作成できます。",
-      "sites": [],
-      "siteCount": 0,
-      "layoutRisk": false,
-      "orphan": true
-    },
-    {
       "key": "alarmSoundPicker.goToSettings",
       "ko": "알림음 녹음 설정으로 가기",
       "en": "Go to Notification Sound Settings",
@@ -37055,17 +36516,6 @@
       "orphan": false
     },
     {
-      "key": "medTimeOnboarding.doneAdding",
-      "ko": "다 등록했어요",
-      "en": "All done adding",
-      "fr": "J'ai tout ajouté",
-      "ja": "追加はこれで完了",
-      "sites": [],
-      "siteCount": 0,
-      "layoutRisk": false,
-      "orphan": true
-    },
-    {
       "key": "medTimeOnboarding.summaryTitle",
       "ko": "이렇게 알림 드릴게요",
       "en": "Here's your reminder schedule",
@@ -37235,28 +36685,6 @@
       "siteCount": 1,
       "layoutRisk": true,
       "orphan": false
-    },
-    {
-      "key": "medTimeOnboarding.handoffTitle",
-      "ko": "보호자에게 맡기기",
-      "en": "Ask your caregiver",
-      "fr": "Demander à votre proche",
-      "ja": "ご家族にお願いする",
-      "sites": [],
-      "siteCount": 0,
-      "layoutRisk": false,
-      "orphan": true
-    },
-    {
-      "key": "medTimeOnboarding.handoffMsg",
-      "ko": "보호자분이 대신 설정해드릴 수 있어요.\n지금은 건너뛸게요.",
-      "en": "Your caregiver can set this up for you.\nWe'll skip it for now.",
-      "fr": "Votre proche peut s'en charger pour vous.\nNous passons cette étape pour l'instant.",
-      "ja": "ご家族が代わりに設定できます。\n今回はスキップします。",
-      "sites": [],
-      "siteCount": 0,
-      "layoutRisk": false,
-      "orphan": true
     },
     {
       "key": "medTimeOnboarding.back",
@@ -40460,7 +39888,8 @@
       "sites": [],
       "siteCount": 0,
       "layoutRisk": false,
-      "orphan": true
+      "orphan": true,
+      "deferred": true
     },
     {
       "key": "pkNote.dopamineAgonist",
@@ -40471,7 +39900,8 @@
       "sites": [],
       "siteCount": 0,
       "layoutRisk": false,
-      "orphan": true
+      "orphan": true,
+      "deferred": true
     },
     {
       "key": "pkNote.onceDailyEr",
@@ -40482,7 +39912,8 @@
       "sites": [],
       "siteCount": 0,
       "layoutRisk": false,
-      "orphan": true
+      "orphan": true,
+      "deferred": true
     },
     {
       "key": "pkNote.erGastricSlow",
@@ -40493,7 +39924,8 @@
       "sites": [],
       "siteCount": 0,
       "layoutRisk": false,
-      "orphan": true
+      "orphan": true,
+      "deferred": true
     },
     {
       "key": "pkNote.immediateRelease",
@@ -40504,7 +39936,8 @@
       "sites": [],
       "siteCount": 0,
       "layoutRisk": false,
-      "orphan": true
+      "orphan": true,
+      "deferred": true
     },
     {
       "key": "pkNote.morningInsomnia",
@@ -40515,7 +39948,8 @@
       "sites": [],
       "siteCount": 0,
       "layoutRisk": false,
-      "orphan": true
+      "orphan": true,
+      "deferred": true
     },
     {
       "key": "pkNote.onceDailySteady5d",
@@ -40526,7 +39960,8 @@
       "sites": [],
       "siteCount": 0,
       "layoutRisk": false,
-      "orphan": true
+      "orphan": true,
+      "deferred": true
     },
     {
       "key": "pkNote.dopamineAgonistAnyMeal",
@@ -40537,7 +39972,8 @@
       "sites": [],
       "siteCount": 0,
       "layoutRisk": false,
-      "orphan": true
+      "orphan": true,
+      "deferred": true
     },
     {
       "key": "pkNote.levodopaEntacapone",
@@ -40548,7 +39984,8 @@
       "sites": [],
       "siteCount": 0,
       "layoutRisk": false,
-      "orphan": true
+      "orphan": true,
+      "deferred": true
     },
     {
       "key": "pkNote.erNoCrush",
@@ -40559,7 +39996,8 @@
       "sites": [],
       "siteCount": 0,
       "layoutRisk": false,
-      "orphan": true
+      "orphan": true,
+      "deferred": true
     },
     {
       "key": "pkNote.irProteinTiming",
@@ -40570,7 +40008,8 @@
       "sites": [],
       "siteCount": 0,
       "layoutRisk": false,
-      "orphan": true
+      "orphan": true,
+      "deferred": true
     },
     {
       "key": "pkNote.lidRelief",
@@ -40581,7 +40020,8 @@
       "sites": [],
       "siteCount": 0,
       "layoutRisk": false,
-      "orphan": true
+      "orphan": true,
+      "deferred": true
     },
     {
       "key": "pkNote.onceDailyTyramine",
@@ -40592,7 +40032,8 @@
       "sites": [],
       "siteCount": 0,
       "layoutRisk": false,
-      "orphan": true
+      "orphan": true,
+      "deferred": true
     },
     {
       "key": "pkNote.tremorElderlyCaution",
@@ -40603,7 +40044,8 @@
       "sites": [],
       "siteCount": 0,
       "layoutRisk": false,
-      "orphan": true
+      "orphan": true,
+      "deferred": true
     },
     {
       "key": "pkNote.bedtimeFasting",
@@ -40614,7 +40056,8 @@
       "sites": [],
       "siteCount": 0,
       "layoutRisk": false,
-      "orphan": true
+      "orphan": true,
+      "deferred": true
     },
     {
       "key": "pkNote.levodopaAdjunct",
@@ -40625,7 +40068,8 @@
       "sites": [],
       "siteCount": 0,
       "layoutRisk": false,
-      "orphan": true
+      "orphan": true,
+      "deferred": true
     },
     {
       "key": "pkNote.withLevodopaOnly",
@@ -40636,7 +40080,8 @@
       "sites": [],
       "siteCount": 0,
       "layoutRisk": false,
-      "orphan": true
+      "orphan": true,
+      "deferred": true
     },
     {
       "key": "pkNote.sinemetEquivalent",
@@ -40647,7 +40092,8 @@
       "sites": [],
       "siteCount": 0,
       "layoutRisk": false,
-      "orphan": true
+      "orphan": true,
+      "deferred": true
     },
     {
       "key": "pushRefresh.refreshingMsg",

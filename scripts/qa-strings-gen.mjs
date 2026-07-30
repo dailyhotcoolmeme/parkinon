@@ -230,7 +230,17 @@ const entries = keys.map((key) => {
   };
 });
 
-const orphans = entries.filter((e) => e.orphan);
+/**
+ * 화면에 아직 안 붙었지만 죽은 키가 아닌 것 — 나중에 쓰기로 하고 미리 준비해 둔 키.
+ * (예: pkNote.* — 약 주의사항 화면을 아직 안 만들어서 노출 경로가 없다.
+ *  462c5b0 커밋에 "노출 경로는 없지만 데이터에 한글만 있으면 언젠가 샌다"고 명시.)
+ * 고아 목록에서는 빼되, 지우지는 않는다(오너 확정 2026-07-30).
+ */
+const DEFERRED_PREFIXES = ['pkNote.'];
+for (const e of entries) {
+  if (e.orphan && DEFERRED_PREFIXES.some((p) => e.key.startsWith(p))) e.deferred = true;
+}
+const orphans = entries.filter((e) => e.orphan && !e.deferred);
 const layoutRisk = entries.filter((e) => e.layoutRisk);
 
 fs.mkdirSync(path.dirname(OUT), { recursive: true });
