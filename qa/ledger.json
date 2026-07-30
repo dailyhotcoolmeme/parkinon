@@ -3450,14 +3450,14 @@
     {
       "zone": "DB",
       "location": "notification_logs.body",
-      "text": "1487/1683행 · 예: 최성철님이 약을 드셨어요.",
+      "text": "1492/1689행 · 예: 최성철님이 약을 드셨어요.",
       "kind": "exclude",
       "reason": "발송 시점 수신자 언어로 굳은 이력"
     },
     {
       "zone": "DB",
       "location": "notification_logs.title",
-      "text": "1459/1683행 · 예: 💊 약을 드셨어요",
+      "text": "1464/1689행 · 예: 💊 약을 드셨어요",
       "kind": "exclude",
       "reason": "발송 시점 수신자 언어로 굳은 이력"
     },
