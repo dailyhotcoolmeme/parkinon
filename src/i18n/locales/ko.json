@@ -2230,6 +2230,10 @@
     "monthYear": "{{year}}년 {{month}}월",
     "monthDayWeekday": "{{month}}월 {{day}}일 {{weekday}}",
     "monthDayShort": "{{month}}/{{day}} ({{weekday}})",
-    "fullDate": "{{year}}. {{month}}. {{day}}. ({{weekday}})"
+    "fullDate": "{{year}}. {{month}}. {{day}}. ({{weekday}})",
+    "fullDateTime": "{{date}} {{time}}",
+    "monthDayTime": "{{monthDay}} {{time}}",
+    "yearMonthDay": "{{year}}년 {{month}}월 {{day}}일",
+    "clockVerbose": "{{meridiem}} {{h}}시 {{mm}}분"
   }
 }

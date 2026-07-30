@@ -62,28 +62,27 @@ interface SectionData {
 
 function formatDateLabel(isoString: string): string {
   const d = new Date(isoString);
-  const month = d.getMonth() + 1;
-  const day = d.getDate();
-  if (isOverseasLocale()) return monthDayShort(d);
-  const dayNames = ['일', '월', '화', '수', '목', '금', '토'];
-  return `${month}월 ${day}일 (${dayNames[d.getDay()]})`;
+  // 날짜 표기는 공용 dateLabels 하나만 쓴다 — 화면마다 요일표를 들면 언어가 늘 때 새어나간다.
+  return monthDayShort(d);
 }
 
 function formatTime(isoString: string): string {
   const d = new Date(isoString);
   const h = d.getHours();
   const m = d.getMinutes();
-  const hour = h % 12 === 0 ? 12 : h % 12;
   if (isOverseasLocale()) return formatClock(d);
-  const ampm = h < 12 ? '오전' : '오후';
-  return `${ampm} ${hour}시 ${m.toString().padStart(2, '0')}분`;
+  return i18n.t('dateFmt.clockVerbose', {
+    // 24시간제 언어는 오전/오후가 없다 — 그 언어의 문구가 변수를 안 쓰면 그만이다.
+    meridiem: i18n.t(h < 12 ? 'common.am' : 'common.pm'),
+    h: h % 12 === 0 ? 12 : h % 12,
+    mm: String(m).padStart(2, '0'),
+  });
 }
 
 
 function getSectionKey(isoString: string): string {
   const d = new Date(isoString);
-  if (isOverseasLocale()) return monthYearTitle(d.getFullYear(), d.getMonth());
-  return `${d.getFullYear()}년 ${d.getMonth() + 1}월`;
+  return monthYearTitle(d.getFullYear(), d.getMonth());
 }
 
 function groupBySections(logs: VideoLog[]): SectionData[] {

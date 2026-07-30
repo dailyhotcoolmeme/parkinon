@@ -2230,6 +2230,10 @@
     "monthYear": "{{month}}/{{year}}",
     "monthDayWeekday": "{{month}}/{{day}} {{weekday}}",
     "monthDayShort": "{{month}}/{{day}} ({{weekday}})",
-    "fullDate": "{{year}}-{{month}}-{{day}} ({{weekday}})"
+    "fullDate": "{{year}}-{{month}}-{{day}} ({{weekday}})",
+    "fullDateTime": "{{date}} {{time}}",
+    "monthDayTime": "{{monthDay}} {{time}}",
+    "yearMonthDay": "{{month}}/{{day}}/{{year}}",
+    "clockVerbose": "{{h}}:{{mm}} {{meridiem}}"
   }
 }

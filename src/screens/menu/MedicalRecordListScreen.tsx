@@ -58,9 +58,8 @@ function alarmDate(iso: string, daysBefore: number): Date {
 function formatNotifDateTime(d: Date): string {
   const hh = String(d.getHours()).padStart(2, '0');
   const mm = String(d.getMinutes()).padStart(2, '0');
-  if (isOverseasLocale()) return `${fullDate(d)} ${hh}:${mm}`;
-  const dow = DAYS_KR[d.getDay()];
-  return `${d.getFullYear()}년 ${d.getMonth() + 1}월 ${d.getDate()}일(${dow}) ${hh}:${mm}`;
+  // 날짜 표기는 공용 dateLabels 하나만 쓴다(화면마다 요일표를 들고 있으면 언어가 늘 때 새어나간다).
+  return i18n.t('dateFmt.fullDateTime', { date: fullDate(d), time: `${hh}:${mm}` });
 }
 
 /** '10월 3일(수) 오후 2:00' — 알림 본문에 넣는 진료 일시. ko는 기존과 100% 동일. */
@@ -69,10 +68,7 @@ function apptWhenKor(iso: string): string {
   const h = d.getHours();
   const m = d.getMinutes();
   const h12 = h % 12 === 0 ? 12 : h % 12;
-  if (isOverseasLocale()) return `${monthDayShort(d)} ${formatClock(d)}`;
-  const dow = DAYS_KR[d.getDay()];
-  const ampm = h < 12 ? '오전' : '오후';
-  return `${d.getMonth() + 1}월 ${d.getDate()}일(${dow}) ${ampm} ${h12}:${String(m).padStart(2, '0')}`;
+  return i18n.t('dateFmt.monthDayTime', { monthDay: monthDayShort(d), time: formatClock(d) });
 }
 
 async function ensureNotifPermission(): Promise<boolean> {
@@ -104,19 +100,12 @@ interface MedRecord {
 
 function formatApptDate(iso: string): string {
   const d = new Date(iso);
-  if (isOverseasLocale()) return fullDate(d);
-  const dow = DAYS_KR[d.getDay()];
-  return `${d.getFullYear()}년 ${d.getMonth() + 1}월 ${d.getDate()}일 (${dow})`;
+  return fullDate(d);
 }
 
 function formatApptTime(iso: string): string {
   const d = new Date(iso);
-  const h = d.getHours();
-  const m = d.getMinutes();
-  const h12 = h % 12 === 0 ? 12 : h % 12;
-  if (isOverseasLocale()) return formatClock(d);
-  const ampm = h < 12 ? '오전' : '오후';
-  return `${ampm} ${h12}:${String(m).padStart(2, '0')}`;
+  return formatClock(d);
 }
 
 /** 24시간 'HH:MM' (오전/오후 없이). 예: 08:10 */
@@ -140,12 +129,7 @@ function formatRecordDate(iso: string): string {
 
 function formatRecordTime(iso: string): string {
   const d = new Date(iso);
-  const h = d.getHours();
-  const m = d.getMinutes();
-  const h12 = h % 12 === 0 ? 12 : h % 12;
-  if (isOverseasLocale()) return formatClock(d);
-  const ampm = h < 12 ? '오전' : '오후';
-  return `${ampm} ${h12}:${String(m).padStart(2, '0')}`;
+  return formatClock(d);
 }
 
 function calcDday(iso: string): string {

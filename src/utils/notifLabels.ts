@@ -26,7 +26,9 @@ export function formatClock(date: Date): string {
   }
   const hour = h % 12 === 0 ? 12 : h % 12;
   const mm = String(m).padStart(2, '0');
-  return isOverseasLocale() ? `${hour}:${mm}` : `${h < 12 ? '오전' : '오후'} ${hour}:${mm}`;
+  if (isOverseasLocale()) return `${hour}:${mm}`;
+  // 국내 표기도 코드가 아니라 번역 파일에서 꺼낸다(결과는 기존과 동일).
+  return i18n.t(h < 12 ? 'doseSlots.clockAm' : 'doseSlots.clockPm', { h: hour, mm });
 }
 
 /** 약효추적 간격(분) → "복용 30분 후" 류. */

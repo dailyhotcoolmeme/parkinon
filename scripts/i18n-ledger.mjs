@@ -36,7 +36,7 @@ const LIST = args.includes('--list') ? args[args.indexOf('--list') + 1] : null;
  */
 const EXCLUDE_SOURCE = [
   { where: 'web', match: /pages\/Admin\.tsx$/, reason: '관리자 페이지 — 오너가 직접 보며 작업', approved: '2026-07-30' },
-  { where: '*', match: /[Mm]easurement|TapGame|ReactionGame/, reason: '측정 기능 — 재오픈 시점에 처리', approved: '2026-07-29' },
+  { where: '*', match: /[Mm]easurement|TapGame|ReactionGame|utils\/biomarker\.ts$/, reason: '측정 기능 — 재오픈 시점에 처리', approved: '2026-07-29' },
   { where: '*', match: /ExerciseVideo/, reason: '운동 영상 — 국내 전용', approved: '2026-07-29' },
   { where: '*', match: /screens\/feed\/|components\/feed\/|PostWrite|PostDetail/, reason: '커뮤니티 — 국내 전용', approved: '2026-07-29' },
   { where: '*', match: /i18n\/locales\/(ko|en|fr|ja)\.json$/, reason: '번역 파일 자체(ko 는 원문)', approved: '2026-07-29' },
@@ -130,11 +130,17 @@ function scanFile(file) {
       l = l.slice(end + 2);
       inBlock = false;
     }
+    // 한 줄 안에서 열고 닫는 주석(/* ... */)도 걷어낸다.
+    // 이게 없으면 {/* "닫기" 버튼 */} 같은 주석 문구가 번역 대상으로 잡힌다(2026-07-30 발견).
+    l = l.replace(/\/\*[\s\S]*?\*\//g, '');
     const bs = l.indexOf('/*');
-    if (bs !== -1 && l.indexOf('*/', bs) === -1) { inBlock = true; l = l.slice(0, bs); }
+    if (bs !== -1) { inBlock = true; l = l.slice(0, bs); }
     const ls = l.indexOf('//');
     if (ls !== -1 && !/https?:/.test(l.slice(Math.max(0, ls - 6), ls))) l = l.slice(0, ls);
     if (!HANGUL.test(l)) return;
+    // 한국어 문법 처리(조사 은/는 판정)는 번역 대상이 아니라 언어 규칙 자체다.
+    // 다른 언어에는 조사가 없어 옮길 곳도 없다(2026-07-30 오너 승인).
+    if (/topicParticle|josa|particle/i.test(l) || /'(은|는|이|가|을|를|와|과)'/.test(l)) return;
     for (const m of l.matchAll(/(['"`])((?:\\.|(?!\1)[\s\S])*?)\1/g)) {
       if (!HANGUL.test(m[2])) continue;
       // 한글이 객체 키로 쓰이면 표시 문자열이 아니라 식별자다 — 영어 키로 바꿔야 할 자리.

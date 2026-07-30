@@ -16,6 +16,7 @@
  * 순수 TS · OTA 호환. sticky/fixed 없음. 아이콘 단독 버튼 없음(텍스트 동반).
  */
 import React, { useState, useRef, useCallback, useEffect } from 'react';
+import type { AmPm } from '../../context/SettingsContext';
 import {
   View,
   Text,
@@ -299,7 +300,7 @@ export function DoseSlotSetList({
   const [timeSheet, setTimeSheet] = useState<{
     mode: 'edit' | 'add';
     slotId: string | null;
-    ampm: '오전' | '오후';
+    ampm: AmPm;
     hour: number;
     minute: number;
   } | null>(null);
@@ -819,16 +820,16 @@ export function DoseSlotSetList({
         55,
         Math.round((Number.isNaN(rawMinute) ? 0 : rawMinute) / 5) * 5,
       );
-      let ampm: '오전' | '오후';
+      let ampm: AmPm;
       let hour: number;
-      if (h24 === 0) { ampm = '오전'; hour = 12; }
-      else if (h24 < 12) { ampm = '오전'; hour = h24; }
-      else if (h24 === 12) { ampm = '오후'; hour = 12; }
-      else { ampm = '오후'; hour = h24 - 12; }
+      if (h24 === 0) { ampm = 'am'; hour = 12; }
+      else if (h24 < 12) { ampm = 'am'; hour = h24; }
+      else if (h24 === 12) { ampm = 'pm'; hour = 12; }
+      else { ampm = 'pm'; hour = h24 - 12; }
       setTimeSheet({ mode: 'edit', slotId: slot.id, ampm, hour, minute });
     } else {
       // 추가: 기본 오전 9:00
-      setTimeSheet({ mode: 'add', slotId: null, ampm: '오전', hour: 9, minute: 0 });
+      setTimeSheet({ mode: 'add', slotId: null, ampm: 'am', hour: 9, minute: 0 });
     }
   }, []);
 
@@ -844,9 +845,9 @@ export function DoseSlotSetList({
     openTimeSheet(null);
   }, [autoOpenAddNonce, soloSlotId, openTimeSheet]);
 
-  const sheetToHHMM = (s: { ampm: '오전' | '오후'; hour: number; minute: number }): string => {
+  const sheetToHHMM = (s: { ampm: AmPm; hour: number; minute: number }): string => {
     let h24: number;
-    if (s.ampm === '오전') h24 = s.hour === 12 ? 0 : s.hour;
+    if (s.ampm === 'am') h24 = s.hour === 12 ? 0 : s.hour;
     else h24 = s.hour === 12 ? 12 : s.hour + 12;
     return `${String(h24).padStart(2, '0')}:${String(s.minute).padStart(2, '0')}`;
   };
@@ -1504,7 +1505,7 @@ function PickerCol<T extends string | number>({
   const ref = useRef<FlatList<{ value: T; label: string }>>(null);
   const selectedIndex = Math.max(0, items.findIndex((it) => it.value === selected));
   // 항목이 뷰포트에 다 들어오면(예: 오전/오후 2개) 선택 항목을 맨 위로 스크롤하지 않는다.
-  //   안 그러면 '오후'(index 1) 선택 시 '오전'(index 0)이 위로 밀려 숨어 고를 수 없다.
+  //   안 그러면 오후(index 1) 선택 시 오전(index 0)이 위로 밀려 숨어 고를 수 없다.
   const fitsAll = items.length * PICK_ITEM_H <= PICK_COL_H;
   useEffect(() => {
     if (fitsAll) return;
@@ -1559,7 +1560,7 @@ const pickStyles = StyleSheet.create({
 interface TimeSheetState {
   mode: 'edit' | 'add';
   slotId: string | null;
-  ampm: '오전' | '오후';
+  ampm: AmPm;
   hour: number;
   minute: number;
 }
@@ -1627,14 +1628,14 @@ function TimePickerSheet({
                   <Text style={pickStyles.colHeader}>{t('doseSlotSetList.ampmHeader')}</Text>
                   <PickerCol
                     items={[
-                      { value: '오전', label: t('common.am') },
-                      { value: '오후', label: t('common.pm') },
+                      { value: 'am', label: t('common.am') },
+                      { value: 'pm', label: t('common.pm') },
                     ]}
                     selected={state.ampm}
                     onSelect={(v) => {
                       // 오후로 전환 시 이전 시각(오전 값)이 그대로 남아 불편 → 1시로 초기화.
-                      const nextHour = v === '오후' ? 1 : state.hour;
-                      onChange({ ...state, ampm: v as '오전' | '오후', hour: nextHour });
+                      const nextHour = v === 'pm' ? 1 : state.hour;
+                      onChange({ ...state, ampm: v as AmPm, hour: nextHour });
                     }}
                   />
                 </View>
