@@ -127,18 +127,31 @@ export function PostDetailScreen() {
   // adjustResize/automaticallyAdjustKeyboardInsets만으로는 흐름 안 입력칸이 가려진다.
   // → 키보드 높이를 직접 받아 ScrollView 맨 아래에 그만큼 여백(스페이서)을 주고 scrollToEnd 로 입력칸을 키보드 위로 올린다. (iOS는 automaticallyAdjustKeyboardInsets 가 처리하므로 안드만)
   const [kbHeight, setKbHeight] = useState(0);
+  // 키보드가 떠 있는 동안에는 안전영역(홈 인디케이터/3버튼 내비)을 키보드가 이미 덮는다.
+  // 그때까지 bottomPad(= 안전영역+16, 아이폰 기준 50px)를 그대로 두면 입력칸과 키보드
+  // 사이에 그만큼이 빈 공간으로 남는다 — 그래서 키보드가 뜬 동안만 여백을 줄인다.
+  const [kbVisible, setKbVisible] = useState(false);
   useEffect(() => {
-    if (Platform.OS !== 'android') return;
-    const showSub = Keyboard.addListener('keyboardDidShow', (e) => {
+    const isAndroid = Platform.OS === 'android';
+    const showEvt = isAndroid ? 'keyboardDidShow' : 'keyboardWillShow';
+    const hideEvt = isAndroid ? 'keyboardDidHide' : 'keyboardWillHide';
+    const showSub = Keyboard.addListener(showEvt, (e) => {
+      setKbVisible(true);
+      if (!isAndroid) return;
       setKbHeight(e.endCoordinates?.height ?? 0);
       setTimeout(() => scrollViewRef.current?.scrollToEnd({ animated: true }), 50);
     });
-    const hideSub = Keyboard.addListener('keyboardDidHide', () => setKbHeight(0));
+    const hideSub = Keyboard.addListener(hideEvt, () => {
+      setKbVisible(false);
+      if (isAndroid) setKbHeight(0);
+    });
     return () => {
       showSub.remove();
       hideSub.remove();
     };
   }, []);
+  /** 입력칸 하단 여백 — 키보드가 떠 있으면 최소값만, 닫혀 있으면 안전영역만큼. */
+  const inputBottomPad = kbVisible ? 8 : bottomPad;
 
   const isOwner = !!(user && post.authorId && user.id === post.authorId);
 
@@ -802,7 +815,7 @@ export function PostDetailScreen() {
                 </TouchableOpacity>
               </View>
             )}
-            <View style={[styles.commentInputRow, { paddingBottom: bottomPad }]}>
+            <View style={[styles.commentInputRow, { paddingBottom: inputBottomPad }]}>
               <TextInput
                 style={styles.commentInput}
                 placeholder={replyingTo ? t('postDetail.replyPlaceholder') : t('postDetail.commentPlaceholder')}
