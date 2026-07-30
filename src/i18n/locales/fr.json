@@ -1707,7 +1707,18 @@
     "legacyMed_dinner": "Traitement du soir",
     "legacyMed_bedtime": "Traitement du coucher",
     "nextDoseWithTime": "Prochaine prise ({{time}})",
-    "nextDosePlain": "Prochaine prise"
+    "nextDosePlain": "Prochaine prise",
+    "periodDawn": "Petit matin",
+    "periodMorning": "Matin",
+    "periodMidday": "Midi",
+    "periodAfternoon": "Après-midi",
+    "periodEvening": "Soir",
+    "periodNight": "Nuit",
+    "nextDoseLegacyKo": "Prochaine prise : {{med}}",
+    "nextDoseWithTimeKo": "Prochaine prise ({{time}})",
+    "nextDosePlainKo": "Prochaine prise",
+    "clockAm": "{{h}}:{{mm}}",
+    "clockPm": "{{h}}:{{mm}}"
   },
   "groupMembership": {
     "verifyFailError": "Member insert succeeded but row verification failed.",
@@ -2083,7 +2094,8 @@
     "morningMed": "Médicament du matin",
     "lunchMed": "Médicament du midi",
     "dinnerMed": "Médicament du soir",
-    "bedtimeMed": "Médicament du coucher"
+    "bedtimeMed": "Médicament du coucher",
+    "medLabel": "{{slot}}"
   },
   "interval": {
     "rightAfter": "juste après la prise",
@@ -2178,5 +2190,45 @@
     "ballad": "Mélodie nostalgique chantée",
     "lullaby": "Berceuse apaisante",
     "sitcom": "Ambiance de sitcom joyeuse"
+  },
+  "serverError": {
+    "INVALID_REQUEST": "La requête n'est pas valide.",
+    "INVALID_IMAGE_TYPE": "Seules les photos JPG ou PNG peuvent être envoyées.",
+    "IMAGE_TOO_LARGE": "Cette photo est trop volumineuse.\nEssayez-en une plus petite.",
+    "INVALID_CONTENT_TYPE": "Ce type de fichier ne peut pas être envoyé.",
+    "FORBIDDEN_PATH": "Vous ne pouvez envoyer que vers vos propres enregistrements.",
+    "FORBIDDEN_UPLOAD": "Vous n'avez pas l'autorisation d'envoyer ici.",
+    "FORBIDDEN_MEDIA": "Vous n'avez pas l'autorisation de voir ceci.",
+    "FORBIDDEN_DELETE": "Vous n'avez pas l'autorisation de supprimer ceci.",
+    "FORBIDDEN_RECIPIENT": "Vous n'avez pas l'autorisation d'envoyer cette notification.",
+    "UNKNOWN_TOKEN": "Aucun appareil à notifier n'a été trouvé.",
+    "QUOTA_EXCEEDED": "Vous avez atteint la limite d'envoi du jour.\nRéessayez demain.",
+    "PRESIGN_FAILED": "La préparation de l'envoi a échoué.\nRéessayez dans un instant.",
+    "DB_DELETE_FAILED": "La suppression a échoué.\nRéessayez dans un instant.",
+    "DELETE_FAILED": "Un problème est survenu lors de la suppression.\nRéessayez dans un instant.",
+    "SEND_FAILED": "La notification n'a pas pu être envoyée.",
+    "OCR_FAILED": "L'ordonnance n'a pas pu être lue.\nReprenez la photo avec un meilleur éclairage.",
+    "CONVERT_UNAVAILABLE": "La conversion est indisponible pour le moment.\nRéessayez dans un instant.",
+    "SERVER_MISCONFIGURED": "Réessayez dans un instant."
+  },
+  "dateFmt": {
+    "weekdayLong_sun": "dimanche",
+    "weekdayLong_mon": "lundi",
+    "weekdayLong_tue": "mardi",
+    "weekdayLong_wed": "mercredi",
+    "weekdayLong_thu": "jeudi",
+    "weekdayLong_fri": "vendredi",
+    "weekdayLong_sat": "samedi",
+    "weekdayShort_sun": "dim.",
+    "weekdayShort_mon": "lun.",
+    "weekdayShort_tue": "mar.",
+    "weekdayShort_wed": "mer.",
+    "weekdayShort_thu": "jeu.",
+    "weekdayShort_fri": "ven.",
+    "weekdayShort_sat": "sam.",
+    "monthYear": "{{month}}/{{year}}",
+    "monthDayWeekday": "{{day}}/{{month}} {{weekday}}",
+    "monthDayShort": "{{day}}/{{month}} ({{weekday}})",
+    "fullDate": "{{day}}/{{month}}/{{year}} ({{weekday}})"
   }
 }

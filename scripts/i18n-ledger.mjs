@@ -13,7 +13,9 @@
  *     규칙에는 사유와 승인일이 반드시 있어야 한다(없으면 실패).
  *   - 목록은 사람이 타이핑하지 않는다. 파일은 파일시스템에서, DB 컬럼은
  *     information_schema 에서 긁는다. 그래야 내가 모르는 자리도 빠지지 않는다.
- *   - 로그 문구도 번역 대상이다(A-1). "이건 로그다"라는 판정을 남기지 않기 위해서다.
+ *   - console 안의 문구는 번역하지 않고 **영어로 고정**한다(2026-07-30 오너 확정).
+ *     이건 내 판정이 아니라 코드에 console.error 라고 적혀 있는지로 기계가 가른다.
+ *     262개 문구가 화면 쪽에서도 쓰이는지 전체 소스에서 재검색했고 겹침은 0건이었다.
  */
 import fs from 'node:fs';
 import path from 'node:path';
@@ -38,6 +40,10 @@ const EXCLUDE_SOURCE = [
   { where: '*', match: /ExerciseVideo/, reason: '운동 영상 — 국내 전용', approved: '2026-07-29' },
   { where: '*', match: /screens\/feed\/|components\/feed\/|PostWrite|PostDetail/, reason: '커뮤니티 — 국내 전용', approved: '2026-07-29' },
   { where: '*', match: /i18n\/locales\/(ko|en|fr|ja)\.json$/, reason: '번역 파일 자체(ko 는 원문)', approved: '2026-07-29' },
+  // 서버 번역표. locales/ko.json 과 같은 성격 — ko: 블록이 원문이다.
+  { where: 'server', match: /_shared\/i18n\.ts$/, reason: '서버 번역 파일 자체(ko 는 원문)', approved: '2026-07-29' },
+  { where: '*', match: /kakao-auth|kakaoAuth/, reason: '카카오 로그인 — 국내 전용 로그인 방식', approved: '2026-07-30' },
+  { where: '*', match: /mfds-proxy/, reason: '식약처 API — 국내 전용', approved: '2026-07-30' },
   { where: '*', match: /i18n\/(hangulGuard|textHook|qaProbe|qaWalk)\.ts$/, reason: '한글 검출 가드 자신', approved: '2026-07-30' },
   { where: '*', match: /scripts\/i18n-|scripts\/qa-/, reason: '검수 도구 자신', approved: '2026-07-30' },
   { where: '*', match: /^locales\/(ko|en|fr|ja)\.json$/, reason: 'iOS 네이티브 권한 문구(언어별 파일)', approved: '2026-07-30' },
@@ -130,7 +136,13 @@ function scanFile(file) {
       if (!HANGUL.test(m[2])) continue;
       // 한글이 객체 키로 쓰이면 표시 문자열이 아니라 식별자다 — 영어 키로 바꿔야 할 자리.
       const after = l.slice(m.index + m[0].length).trimStart();
-      hits.push({ line: i + 1, text: m[2], identifier: after.startsWith(':') });
+      hits.push({
+        line: i + 1,
+        text: m[2],
+        identifier: after.startsWith(':'),
+        // 개발자 콘솔에만 찍히는 문구 — 번역하지 않고 영어로 고정한다.
+        log: /console\.(log|warn|error|info|debug)/.test(raw),
+      });
     }
   });
   return hits;
@@ -162,8 +174,14 @@ for (const z of zones) {
         zone: z.where,
         location: `${rel}:${h.line}`,
         text: h.text.length > 90 ? h.text.slice(0, 90) + '…' : h.text,
-        kind: h.identifier && verdict.kind === 'translate' ? 'identifier' : verdict.kind,
-        reason: h.identifier && verdict.kind === 'translate' ? '한글이 식별자로 쓰임 — 영어 키로 교체' : verdict.reason,
+        kind: verdict.kind !== 'translate' ? verdict.kind
+          : h.log ? 'log-en'
+            : h.identifier ? 'identifier'
+              : 'translate',
+        reason: verdict.kind !== 'translate' ? verdict.reason
+          : h.log ? 'console 전용 — 영어로 고정'
+            : h.identifier ? '한글이 식별자로 쓰임 — 영어 키로 교체'
+              : verdict.reason,
       });
     }
   }
@@ -195,6 +213,7 @@ for (const r of dbRows) {
 const by = (k) => entries.filter((e) => e.kind === k);
 const summary = {
   translate: by('translate').length,
+  logEn: by('log-en').length,
   identifier: by('identifier').length,
   exclude: by('exclude').length,
   done: by('done').length,
@@ -216,6 +235,7 @@ fs.writeFileSync(OUT, JSON.stringify({
 console.log('═══ 한글 대장 ═══');
 console.log(`전체 ${entries.length}건 → ${path.relative(ROOT, OUT)}\n`);
 console.log(`  번역 대상        ${String(summary.translate).padStart(5)}`);
+console.log(`  영어 고정(로그)   ${String(summary.logEn).padStart(5)}`);
 console.log(`  식별자 교체 대상  ${String(summary.identifier).padStart(5)}`);
 console.log(`  제외             ${String(summary.exclude).padStart(5)}`);
 console.log(`  처리 완료        ${String(summary.done).padStart(5)}`);

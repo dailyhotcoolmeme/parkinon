@@ -1,4 +1,5 @@
 import { S3Client, PutObjectCommand } from 'npm:@aws-sdk/client-s3@3';
+import { ErrorCode, errorResponse } from '../_shared/errors.ts';
 import { getSignedUrl } from 'npm:@aws-sdk/s3-request-presigner@3';
 import { createClient } from 'npm:@supabase/supabase-js@2';
 
@@ -112,10 +113,7 @@ Deno.serve(async (req) => {
         );
       }
       if (!ALLOWED_IMAGE_TYPES.has(contentType)) {
-        return new Response(
-          JSON.stringify({ error: '허용되지 않는 contentType 입니다.' }),
-          { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } },
-        );
+        return errorResponse(ErrorCode.INVALID_CONTENT_TYPE, 400, 'content type not allowed', corsHeaders);
       }
     } else {
       const m = key.match(KEY_PATTERN);
@@ -136,10 +134,7 @@ Deno.serve(async (req) => {
       }
       const allowedTypes = kind === 'videos' ? ALLOWED_VIDEO_TYPES : ALLOWED_IMAGE_TYPES;
       if (!allowedTypes.has(contentType)) {
-        return new Response(
-          JSON.stringify({ error: '허용되지 않는 contentType 입니다.' }),
-          { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } },
-        );
+        return errorResponse(ErrorCode.INVALID_CONTENT_TYPE, 400, 'content type not allowed', corsHeaders);
       }
     }
 
@@ -148,18 +143,12 @@ Deno.serve(async (req) => {
     //  - videos/photos: 본인 또는 같은 patient_group 멤버(보호자 대리 업로드 허용).
     if (ownerId !== user.id) {
       if (soundMatch || isCommunity) {
-        return new Response(
-          JSON.stringify({ error: '본인 경로에만 업로드할 수 있습니다.' }),
-          { status: 403, headers: { ...corsHeaders, 'Content-Type': 'application/json' } },
-        );
+        return errorResponse(ErrorCode.FORBIDDEN_PATH, 403, 'may only upload to own path', corsHeaders);
       }
       const { data: sameGroup, error: rpcErr } = await supabase
         .rpc('is_same_patient_group', { target_user_id: ownerId });
       if (rpcErr || sameGroup !== true) {
-        return new Response(
-          JSON.stringify({ error: '해당 경로에 업로드할 권한이 없습니다.' }),
-          { status: 403, headers: { ...corsHeaders, 'Content-Type': 'application/json' } },
-        );
+        return errorResponse(ErrorCode.FORBIDDEN_UPLOAD, 403, 'not permitted to upload to this path', corsHeaders);
       }
     }
 
@@ -221,7 +210,7 @@ Deno.serve(async (req) => {
       });
       if ((issued ?? 0) >= ABUSE_CAP[kind]) {
         return new Response(
-          JSON.stringify({ error: '오늘 업로드 한도를 모두 사용했습니다.', code: 'QUOTA_EXCEEDED' }),
+          JSON.stringify({ code: ErrorCode.QUOTA_EXCEEDED, error: 'daily upload quota exceeded' }),
           { status: 429, headers: { ...corsHeaders, 'Content-Type': 'application/json' } },
         );
       }
@@ -264,7 +253,7 @@ Deno.serve(async (req) => {
     console.error('r2-upload error:', err);
     // 보안: 내부 에러 문자열을 클라이언트에 노출하지 않음(상세는 로그에만).
     return new Response(
-      JSON.stringify({ error: 'presigned URL 발급 실패' }),
+      JSON.stringify({ error: 'failed to issue presigned URL' }),
       { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } },
     );
   }

@@ -44,7 +44,7 @@ async function deleteR2Keys(keys: string[]) {
   const R2_BUCKET_NAME = Deno.env.get('R2_BUCKET_NAME') ?? 'parkinon-media'
 
   if (!R2_ENDPOINT || !R2_ACCESS_KEY_ID || !R2_SECRET_ACCESS_KEY) {
-    stats.errors.push('R2 환경변수 누락 — 객체 삭제 건너뜀')
+    stats.errors.push('R2 env vars missing - skipping object deletion')
     return stats
   }
 

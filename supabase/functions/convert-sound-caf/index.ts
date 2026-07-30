@@ -94,7 +94,7 @@ Deno.serve(async (req) => {
     const R2_ACCESS_KEY_ID = Deno.env.get('R2_ACCESS_KEY_ID');
     const R2_SECRET_ACCESS_KEY = Deno.env.get('R2_SECRET_ACCESS_KEY');
     const R2_BUCKET_NAME = Deno.env.get('R2_BUCKET_NAME') ?? 'parkinon-media';
-    if (!R2_ENDPOINT || !R2_ACCESS_KEY_ID || !R2_SECRET_ACCESS_KEY) return json({ error: 'R2 환경변수 미설정' }, 500);
+    if (!R2_ENDPOINT || !R2_ACCESS_KEY_ID || !R2_SECRET_ACCESS_KEY) return json({ error: 'R2 environment variables are not configured' }, 500);
     const R2 = new S3Client({
       region: 'auto', endpoint: R2_ENDPOINT,
       credentials: { accessKeyId: R2_ACCESS_KEY_ID, secretAccessKey: R2_SECRET_ACCESS_KEY },
@@ -107,7 +107,7 @@ Deno.serve(async (req) => {
     return json({
       ok: false,
       status: 'engine_unavailable',
-      message: 'caf 변환 엔진 미확정(ffmpeg.wasm Edge 미지원). 다운로드까지 정상.',
+      message: 'caf conversion engine not available (ffmpeg.wasm unsupported on Edge); download path works',
       r2_key_src: r2KeySrc,
       m4a_bytes: m4a.length,
     }, 501);

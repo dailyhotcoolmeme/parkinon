@@ -11,7 +11,7 @@
  */
 import i18n from '../i18n';
 import { isOverseasLocale, displayLocaleTag } from '../i18n/detectLocale';
-import { nextDoseLabel, translateRawSlotLabel, type LegacyMealKey } from '../constants/doseSlots';
+import { nextDoseLabel, type LegacyMealKey } from '../constants/doseSlots';
 
 /** Date → 화면 표기용 시각. 국내는 '오전 8:00', 해외는 로케일 형식(Intl). */
 export function formatClock(date: Date): string {
@@ -40,9 +40,9 @@ export function intervalAfterLabel(intervalMin: number): string {
     : i18n.t('nextNotif.intervalAfterHourMin', { h, m: rem });
 }
 
-/** "{시간대} {간격} 약효추적". meal 은 DB 원본일 수 있어 반드시 변환을 거친다. */
+/** "{시간대} {간격} 약효추적". meal 은 이미 표시용으로 만들어진 값이다(DB 원본 아님). */
 export function effectTrackingLabel(rawMeal: string | null | undefined, intervalLabel: string): string {
-  const meal = translateRawSlotLabel(rawMeal) ?? (rawMeal ?? '').trim();
+  const meal = (rawMeal ?? '').trim();
   return meal
     ? i18n.t('nextNotif.effectTrack', { meal, interval: intervalLabel })
     : i18n.t('nextNotif.effectTrackNoMeal', { interval: intervalLabel });
@@ -103,11 +103,12 @@ export function elapsedLabel(totalMin: number): string {
 /** 내부 시간대 키('아침' 등) → 표시용. 색·아이콘 조회 키는 그대로 두고 표시만 바꾼다. */
 export function periodKeyToLabel(periodKey: string): string {
   const map: Record<string, string> = {
-    '새벽': 'period.dawn', '아침': 'period.morning', '점심': 'period.midday',
-    '오후': 'period.afternoon', '저녁': 'period.evening', '밤': 'period.night',
-    '취침': 'slot.bedtime',
+    dawn: 'period.dawn', morning: 'period.morning', midday: 'period.midday',
+    afternoon: 'period.afternoon', evening: 'period.evening', night: 'period.night',
+    bedtime: 'slot.bedtime',
   };
   const key = map[periodKey];
-  if (!key) return periodKey;
-  return isOverseasLocale() ? i18n.t(key) : periodKey;
+  // 모르는 키는 그대로 — 화면에 개발자 문자열이 나오는 것보다 낫다고 볼 수 없으니 빈 문자열로.
+  if (!key) return '';
+  return i18n.t(key);
 }

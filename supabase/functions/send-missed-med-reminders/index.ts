@@ -1,80 +1,21 @@
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2'
-import { resolveLang, t, periodKeyFor, type Lang } from '../_shared/i18n.ts'
+import { resolveLang, t, periodKeyFor, type Lang, slotLabelWithTime } from '../_shared/i18n.ts'
+
+/** 유효한 legacy 시간대 키. 표시용이 아니라 요청 검증용이다. */
+const LEGACY_MEAL_KEYS = new Set(['morning', 'lunch', 'dinner', 'bedtime'])
 
 const supabase = createClient(
   Deno.env.get('SUPABASE_URL')!,
   Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!
 )
 
-// legacy 4슬롯 라벨 fallback. dose_slot 경로에선 dose_slots.label을 우선 사용.
-const MEAL_LABELS: Record<string, string> = {
-  morning: '아침',
-  lunch: '점심',
-  dinner: '저녁',
-  bedtime: '취침',
-}
-const MEAL_LABELS_EN: Record<string, string> = {
-  morning: 'Morning',
-  lunch: 'Lunch',
-  dinner: 'Dinner',
-  bedtime: 'Bedtime',
-}
-
 // ─── {시간대} {시각} 표기 (send-medication-reminders 와 1:1 동일 복제) ──────────
-const STANDARD_LABELS = new Set(['아침', '점심', '저녁', '취침'])
 
 const LEGACY_MEAL_DEFAULT_TIME: Record<string, string> = {
   morning: '08:00',
   lunch: '12:00',
   dinner: '18:00',
   bedtime: '22:00',
-}
-
-/** 'HH:MM[:SS]' → 시간대 단어(앱 doseSlots.periodWord 와 1:1 동일). */
-function periodWord(time: string | null | undefined): string {
-  if (!time) return ''
-  const h = parseInt(time.split(':')[0] ?? '', 10)
-  if (Number.isNaN(h)) return ''
-  if (h < 6) return '새벽'
-  if (h < 11) return '아침'
-  if (h < 13) return '점심'
-  if (h < 17) return '오후'
-  if (h < 21) return '저녁'
-  return '밤'
-}
-
-/** periodWord 영어판 — 앱 doseSlots.periodWord isEnLocale 분기와 1:1 동일. */
-function periodWordEn(time: string | null | undefined): string {
-  if (!time) return ''
-  const h = parseInt(time.split(':')[0] ?? '', 10)
-  if (Number.isNaN(h)) return ''
-  if (h < 6) return 'Early morning'
-  if (h < 11) return 'Morning'
-  if (h < 13) return 'Midday'
-  if (h < 17) return 'Afternoon'
-  if (h < 21) return 'Evening'
-  return 'Night'
-}
-
-/** 푸시 문구 {시간대} 라벨. 표준 라벨 우선, 없으면 시각 기반 periodWord. */
-function periodLabelFor(label: string | null | undefined, time: string | null | undefined): string {
-  const trimmed = (label ?? '').trim()
-  if (trimmed && STANDARD_LABELS.has(trimmed)) return trimmed
-  const p = periodWord(time)
-  if (p) return p
-  return ''
-}
-
-/** periodLabelFor 영어판 — 표준 라벨은 MEAL_LABELS_EN 역매핑, 비표준은 periodWordEn. */
-function periodLabelForEn(label: string | null | undefined, time: string | null | undefined): string {
-  const trimmed = (label ?? '').trim()
-  if (trimmed && STANDARD_LABELS.has(trimmed)) {
-    const key = Object.keys(MEAL_LABELS).find((k) => MEAL_LABELS[k] === trimmed)
-    if (key) return MEAL_LABELS_EN[key]
-  }
-  const p = periodWordEn(time)
-  if (p) return p
-  return ''
 }
 
 /** 'HH:MM[:SS]' → 12시간제 'H:MM' (오전/오후 없이). 예 '18:00'→'6:00'. */
@@ -102,20 +43,13 @@ function periodWithTime(periodLabel: string, clock: string): string {
 function bodyFor(
   lang: Lang,
   kind: 'missed' | 'caregiverMissed',
-  label: string | null | undefined,
   time: string | null | undefined,
   subject?: string,
   legacyKey?: string | null,
 ): string {
-  // legacy_key(언어 무관)가 있으면 그걸로 시간대 라벨을 뽑는다 — label 한글 파싱은
-  // 프랑스어/일본어 사용자 슬롯에서 실패한다. 키 없으면 기존 파싱 폴백(옛 행 호환).
-  const keyed = legacyKey && ['morning','lunch','dinner','bedtime'].includes(legacyKey)
-    ? t(lang, `slot.${legacyKey}`) : ''
-  const timeKey = !keyed && time ? periodKeyFor(time) : null
-  const periodLabel = keyed ||
-    (timeKey ? t(lang, timeKey) : '') ||
-    (lang === 'ko' ? periodLabelFor(label, time) : periodLabelForEn(label, time))
-  const when = [periodLabel, formatClockTime(time)].filter(Boolean).join(' ')
+  // DB 의 label(한글)은 보지 않는다 — legacy_key 와 시각만으로 만든다.
+  // (label 한글 파싱은 프랑스어·일본어 사용자 슬롯에서 애초에 실패한다.)
+  const when = slotLabelWithTime(lang, legacyKey, time)
   const keys = kind === 'missed'
     ? ['med.missed.body', 'med.missed.bodyNoTime']
     : ['med.missed.caregiverBody', 'med.missed.caregiverBodyNoTime']
@@ -187,7 +121,7 @@ Deno.serve(async (req: Request) => {
 
   // ─── 분기 결정 ───────────────────────────────────────────────────
   // dose_slot_id가 오면 신규 경로(특정 환자 슬롯), 아니면 구 meal_time 경로(전체 환자).
-  if (!dose_slot_id && (!meal_time || !MEAL_LABELS[meal_time])) {
+  if (!dose_slot_id && (!meal_time || !LEGACY_MEAL_KEYS.has(meal_time))) {
     return new Response(JSON.stringify({ error: 'invalid request: meal_time or dose_slot_id required' }), { status: 400 })
   }
 
@@ -238,7 +172,7 @@ Deno.serve(async (req: Request) => {
       .lte('taken_at', dayEnd)
       .limit(1)
     let taken = !!bySlot?.length
-    if (!taken && meal_time && MEAL_LABELS[meal_time]) {
+    if (!taken && meal_time && LEGACY_MEAL_KEYS.has(meal_time)) {
       const { data: byMeal } = await supabase
         .from('med_logs')
         .select('id')
@@ -257,7 +191,7 @@ Deno.serve(async (req: Request) => {
     }
 
     const patientTitle = t(patientLang, 'med.missed.title')
-    const patientBody = bodyFor(patientLang, 'missed', (slot as any).label, (slot as any).time, undefined, (slot as any).legacy_key ?? meal_time)
+    const patientBody = bodyFor(patientLang, 'missed', (slot as any).time, undefined, (slot as any).legacy_key ?? meal_time)
     await sendPush(
       patient.push_token,
       patientTitle,
@@ -281,8 +215,9 @@ Deno.serve(async (req: Request) => {
           .not('push_token', 'is', null)
 
         const patientName = (patient as any).name?.trim()
-        const subject = patientName ? `${patientName}님` : '환자분'
-        const subjectEn = patientName || 'The patient'
+        const subjectFor = (l: Lang) => patientName
+          ? t(l, 'patient.honorific', { name: patientName })
+          : t(l, 'patient.fallbackName')
 
         for (const cu of caregiverUsers ?? []) {
           if (!cu.push_token) continue
@@ -290,8 +225,8 @@ Deno.serve(async (req: Request) => {
           if (prefs.med_missed === false) continue
           const cuLang = resolveLang((cu as any).language)
           const cgTitle = t(cuLang, 'med.missed.title')
-          const cgBody = bodyFor(cuLang, 'caregiverMissed', (slot as any).label, (slot as any).time,
-            cuLang === 'ko' ? subject : subjectEn, (slot as any).legacy_key ?? meal_time)
+          const cgBody = bodyFor(cuLang, 'caregiverMissed', (slot as any).time,
+            subjectFor(cuLang), (slot as any).legacy_key ?? meal_time)
           await sendPush(cu.push_token, cgTitle, cgBody, {
             type: 'caregiver_missed_med',
             mealTime: meal_time ?? null,
@@ -355,7 +290,7 @@ Deno.serve(async (req: Request) => {
     const patientLang = resolveLang((patient as any).language)
     const patientTitle = t(patientLang, 'med.missed.title')
     const patientBody = bodyFor(patientLang, 'missed',
-      MEAL_LABELS[meal_time!], LEGACY_MEAL_DEFAULT_TIME[meal_time!])
+      LEGACY_MEAL_DEFAULT_TIME[meal_time!], undefined, meal_time)
     await sendPush(
       patient.push_token,
       patientTitle,
@@ -384,14 +319,15 @@ Deno.serve(async (req: Request) => {
           if (prefs.med_missed === false) continue
 
           const patientName = (patient as any).name?.trim()
-          const subject = patientName ? `${patientName}님` : '환자분'
-          const subjectEn = patientName || 'The patient'
-          const cuLang = resolveLang((cu as any).language)
+          const subjectFor = (l: Lang) => patientName
+          ? t(l, 'patient.honorific', { name: patientName })
+          : t(l, 'patient.fallbackName')
+            const cuLang = resolveLang((cu as any).language)
           const cgTitle = t(cuLang, 'med.missed.title')
           // 구 경로: meal_time → 라벨 + 기본 시각으로 {시간대} {시각} 구성.
           const cgBody = bodyFor(cuLang, 'caregiverMissed',
-            MEAL_LABELS[meal_time!], LEGACY_MEAL_DEFAULT_TIME[meal_time!],
-            cuLang === 'ko' ? subject : subjectEn)
+            LEGACY_MEAL_DEFAULT_TIME[meal_time!],
+            subjectFor(cuLang), meal_time)
           await sendPush(
             cu.push_token,
             cgTitle,

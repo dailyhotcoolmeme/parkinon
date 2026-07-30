@@ -29,14 +29,14 @@ async function deleteUserR2Objects(userId: string) {
   }
 
   if (!R2_ENDPOINT || !R2_ACCESS_KEY_ID || !R2_SECRET_ACCESS_KEY) {
-    stats.errors.push('R2 환경변수 누락 — 객체 삭제 건너뜀')
+    stats.errors.push('R2 env vars missing - skipping object deletion')
     return stats
   }
 
   // 안전장치: user_id 형식 검증 (UUID 만 허용 — prefix 인젝션 방지)
   const uuidRe = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
   if (!uuidRe.test(userId)) {
-    stats.errors.push('user_id 형식 비정상 — 객체 삭제 중단')
+    stats.errors.push('malformed user_id - aborting object deletion')
     return stats
   }
 

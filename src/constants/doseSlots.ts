@@ -16,7 +16,6 @@
 import i18n from '../i18n';
 import { isOverseasLocale, displayLocaleTag } from '../i18n/detectLocale';
 
-
 // ─── legacy 4슬롯 식별자 (기존 MealTime enum과 동일) ──────────────────────────
 export type LegacyMealKey = 'morning' | 'lunch' | 'dinner' | 'bedtime';
 
@@ -24,7 +23,6 @@ export const LEGACY_SLOT_ORDER: LegacyMealKey[] = ['morning', 'lunch', 'dinner',
 
 /**
  * legacy 슬롯 메타데이터 — 기존 화면 상수들을 통합한 단일 출처.
- * - label: 짧은 한글 라벨 ('아침') — MedicationScreen.DEFAULT_MEAL_TIME_LABELS, SettingsScreen.MED_TIME_SLOTS
  * - korMed: 약 이름 ('아침약') — MedicationManageScreen.TIME_SLOTS, medUtils.mealTimeToKorean
  * - defaultTime: 기본 복용 시각 (HH:MM) — 전 화면 공통 08:00/12:00/18:00/22:00
  * - icon: Ionicons 이름 — MealTimeModal.MEAL_OPTIONS
@@ -34,8 +32,6 @@ export const LEGACY_SLOT_ORDER: LegacyMealKey[] = ['morning', 'lunch', 'dinner',
  */
 export interface LegacySlotMeta {
   key: LegacyMealKey;
-  label: string;
-  korMed: string;
   defaultTime: string;
   icon: string;
   color: string;
@@ -46,8 +42,6 @@ export interface LegacySlotMeta {
 export const LEGACY_SLOT_META: Record<LegacyMealKey, LegacySlotMeta> = {
   morning: {
     key: 'morning',
-    label: '아침',
-    korMed: '아침약',
     defaultTime: '08:00',
     icon: 'sunny-outline',
     color: '#FF9800',
@@ -56,8 +50,6 @@ export const LEGACY_SLOT_META: Record<LegacyMealKey, LegacySlotMeta> = {
   },
   lunch: {
     key: 'lunch',
-    label: '점심',
-    korMed: '점심약',
     defaultTime: '12:00',
     icon: 'partly-sunny-outline',
     color: '#4CAF50',
@@ -66,8 +58,6 @@ export const LEGACY_SLOT_META: Record<LegacyMealKey, LegacySlotMeta> = {
   },
   dinner: {
     key: 'dinner',
-    label: '저녁',
-    korMed: '저녁약',
     defaultTime: '18:00',
     icon: 'moon-outline',
     color: '#3F51B5',
@@ -76,8 +66,6 @@ export const LEGACY_SLOT_META: Record<LegacyMealKey, LegacySlotMeta> = {
   },
   bedtime: {
     key: 'bedtime',
-    label: '취침',
-    korMed: '취침약',
     defaultTime: '22:00',
     icon: 'bed-outline',
     color: '#7C4DFF',
@@ -85,54 +73,6 @@ export const LEGACY_SLOT_META: Record<LegacyMealKey, LegacySlotMeta> = {
     bgColor: '#EDE7F6',
   },
 };
-
-// ─── label(한글) ↔ legacy key 매핑 ───────────────────────────────────────────
-// 마이그레이션이 dose_slots.label 에 쓴 '아침/점심/저녁/취침'과 정확히 일치.
-export const LABEL_TO_LEGACY_KEY: Record<string, LegacyMealKey> = {
-  아침: 'morning',
-  점심: 'lunch',
-  저녁: 'dinner',
-  취침: 'bedtime',
-};
-
-export const LEGACY_KEY_TO_LABEL: Record<LegacyMealKey, string> = {
-  morning: '아침',
-  lunch: '점심',
-  dinner: '저녁',
-  bedtime: '취침',
-};
-
-/**
- * dose_slot.label(있으면) 로 legacy key 역매핑. 매칭 안 되면 null.
- * (사용자 정의 슬롯이거나 라벨이 비표준이면 legacy key 없음 → 시각 기반으로 표시)
- */
-export function labelToLegacyKey(label: string | null | undefined): LegacyMealKey | null {
-  if (!label) return null;
-  return LABEL_TO_LEGACY_KEY[label.trim()] ?? null;
-}
-
-// 표준 4슬롯 label의 영어 표시명. dose_slots.label 은 DB에 항상 한글("아침" 등)로 저장되므로
-// (생성 로케일과 무관), 해외 로케일에서는 화면 표시 직전 이걸로 변환해야 한다.
-// (구) 영어 고정표를 언어 파일 키로 옮겼다. 영어만 있으면 새 언어에서 영어가 나온다.
-function legacyLabelLocalized(key: LegacyMealKey): string {
-  return i18n.t(`slot.${key}`);
-}
-
-/**
- * dose_slots.label 같은 raw DB 라벨(예: "아침")을 표시용으로 변환.
- * - 표준 4슬롯 라벨이면 해외 로케일에서 영어 이름으로, 국내면 그대로.
- * - 비표준(커스텀) 라벨은 매칭되는 표준 키가 없으므로 그대로 반환
- *   (커스텀 슬롯 라벨은 생성 시점 로케일로 이미 저장돼 있음 — 별도 처리 범위 밖).
- * ⚠️ qSlot.label/jSlot.label 을 화면·알림 문구에 직접 꽂기 전에는 항상 이 함수를 거칠 것.
- */
-export function translateRawSlotLabel(rawLabel: string | null | undefined): string | null {
-  if (!rawLabel) return null;
-  const trimmed = rawLabel.trim();
-  if (!trimmed) return null;
-  const key = LABEL_TO_LEGACY_KEY[trimmed];
-  if (key && isOverseasLocale()) return legacyLabelLocalized(key);
-  return trimmed;
-}
 
 // ─── 시각 포맷/정렬 유틸 ──────────────────────────────────────────────────────
 
@@ -159,8 +99,8 @@ export function formatSlotTime(hhmm: string | null | undefined): string {
       return `${displayH}:${mm}`;
     }
   }
-  const period = h < 12 ? '오전' : '오후';
-  return `${period} ${displayH}:${mm}`;
+  // 국내 표기도 코드가 아니라 번역 파일에서 꺼낸다(결과 문자열은 기존과 동일).
+  return i18n.t(h < 12 ? 'doseSlots.clockAm' : 'doseSlots.clockPm', { h: displayH, mm });
 }
 
 /**
@@ -182,12 +122,12 @@ export function periodWord(time: string | null | undefined): string {
     if (h < 21) return i18n.t('period.evening');
     return i18n.t('period.night');
   }
-  if (h < 6) return '새벽';
-  if (h < 11) return '아침';
-  if (h < 13) return '점심';
-  if (h < 17) return '오후';
-  if (h < 21) return '저녁';
-  return '밤'; // 21–23
+  if (h < 6) return i18n.t('doseSlots.periodDawn');
+  if (h < 11) return i18n.t('doseSlots.periodMorning');
+  if (h < 13) return i18n.t('doseSlots.periodMidday');
+  if (h < 17) return i18n.t('doseSlots.periodAfternoon');
+  if (h < 21) return i18n.t('doseSlots.periodEvening');
+  return i18n.t('doseSlots.periodNight'); // 21–23
 }
 
 /** 시간대 이모지 — periodWord 와 동일 범위. 슬롯 좌측 이모지 단일 출처. */
@@ -253,18 +193,11 @@ export function nextDoseLabel(
   if (legacyKey) {
     // 기존 4슬롯과 100% 동일: "다음 아침약 복용" 등
     if (isOverseasLocale()) return i18n.t('doseSlots.nextDoseLegacy', { med: i18n.t(`doseSlots.legacyMed_${legacyKey}`) });
-    return `다음 ${LEGACY_SLOT_META[legacyKey].korMed} 복용`;
-  }
-  const trimmed = (label ?? '').trim();
-  if (trimmed) {
-    // ⚠️ trimmed 는 dose_slots.label 원본(DB 에 한글로 저장돼 있다).
-    //    그대로 넣으면 해외 사용자에게 "Next 아침" 처럼 한글이 새어나간다.
-    const shown = translateRawSlotLabel(trimmed) ?? trimmed;
-    return isOverseasLocale() ? i18n.t('doseSlots.nextDoseLegacy', { med: shown }) : `다음 ${trimmed} 복용`;
+    return i18n.t('doseSlots.nextDoseLegacyKo', { med: i18n.t(`slot.${legacyKey}Med`) });
   }
   const t = formatSlotTime(time);
   if (isOverseasLocale()) return t ? i18n.t('doseSlots.nextDoseWithTime', { time: t }) : i18n.t('doseSlots.nextDosePlain');
-  return t ? `다음 복용 (${t})` : '다음 복용';
+  return t ? i18n.t('doseSlots.nextDoseWithTimeKo', { time: t }) : i18n.t('doseSlots.nextDosePlainKo');
 }
 
 /**
@@ -319,7 +252,7 @@ export function buildSlotTitleMaps(
   const byId: Record<string, string> = {};
   const byLegacyKey: Record<string, string> = {};
   for (const s of slots) {
-    const lk = s.legacyKey ?? labelToLegacyKey(s.label);
+    const lk = s.legacyKey;
     const title = slotTitle(s.label, lk, s.time);
     if (s.id) byId[s.id] = title;
     if (lk) byLegacyKey[lk] = title;

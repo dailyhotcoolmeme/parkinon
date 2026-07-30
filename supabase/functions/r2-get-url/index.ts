@@ -26,6 +26,7 @@
  * 참고: r2-upload / delete-r2-file 의 인증·prefix 검증 패턴 동일 적용.
  */
 import { S3Client, GetObjectCommand } from 'npm:@aws-sdk/client-s3@3';
+import { ErrorCode, errorResponse } from '../_shared/errors.ts';
 import { getSignedUrl } from 'npm:@aws-sdk/s3-request-presigner@3';
 import { createClient } from 'npm:@supabase/supabase-js@2';
 
@@ -200,7 +201,7 @@ Deno.serve(async (req) => {
         const { data: sameGroup, error: rpcErr } = await supabase
           .rpc('is_same_patient_group', { target_user_id: ownerId });
         if (rpcErr || sameGroup !== true) {
-          return json({ error: '해당 미디어를 열람할 권한이 없습니다.' }, 403);
+          return json({ code: ErrorCode.FORBIDDEN_MEDIA, error: 'not permitted to view this media' }, 403);
         }
       }
     }
@@ -229,6 +230,6 @@ Deno.serve(async (req) => {
     return json({ url: presignedUrl, key }, 200);
   } catch (err: any) {
     console.error('r2-get-url error:', err);
-    return json({ error: 'presigned GET URL 발급 실패' }, 500);
+    return json({ error: 'failed to issue presigned GET URL' }, 500);
   }
 });

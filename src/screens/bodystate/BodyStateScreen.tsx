@@ -31,15 +31,15 @@ import { CaregiverConfirmModal } from '../../components/common/CaregiverConfirmM
 import { DatePickerModal } from '../../components/common/DatePickerModal';
 import { useAuth } from '../../context/AuthContext';
 import { useBodyState } from '../../hooks/useBodyState';
-import { triggerLabelToText, triggerLabelToMinutes, mealTimeToKorean, mealTimeToPeriod, mealTimeToPeriodKo } from '../../utils/medUtils';
+import { triggerLabelToText, triggerLabelToMinutes, mealTimeToKorean, mealTimeToPeriod, mealTimeToPeriodKey } from '../../utils/medUtils';
 import { fetchPatientDoseSlots, fetchPatientLabelDoseSlots, resolveDisplaySlots, getTrackingDayBounds } from '../../hooks/useDoseSlots';
 import { useScrollTopOnTabPress } from '../../hooks/useScrollTopOnTabPress';
 import type { DoseSlot } from '../../hooks/useDoseSlots';
-import { nextDoseLabel, slotSortValue, buildSlotTitleMaps, translateRawSlotLabel } from '../../constants/doseSlots';
+import { nextDoseLabel, slotSortValue, buildSlotTitleMaps, slotDisplayName } from '../../constants/doseSlots';
 import { navigateTo } from '../../navigation/navigationRef';
 import { supabase } from '../../lib/supabase';
 import { useNotificationBadge } from '../../context/NotificationBadgeContext';
-import { useSettings } from '../../context/SettingsContext';
+import { useSettings, type AmPm } from '../../context/SettingsContext';
 import { useDialog } from '../../context/DialogContext';
 import { HistoryTimeline } from '../../components/common/HistoryTimeline';
 import { useRecordRealtime } from '../../hooks/useRecordRealtime';
@@ -61,7 +61,7 @@ const TAB_BAR_H = 68;
 interface BodyRecord {
   id: string;
   time: string;
-  /** 시간대 키('아침'/'점심'/'저녁'/'취침') — 아이콘/색 매핑·기존 동작 보존용 */
+  /** 시간대 키(morning/midday/evening/bedtime) — 아이콘/색 매핑용 */
   period: string;
   /** 표시용 슬롯 명칭(slotTitle, 예: "아침 오전 6:00") — 헤더/그룹 제목 */
   slotLabel: string;
@@ -102,12 +102,12 @@ function formatTime(isoString: string): string {
 // (이전엔 4구간이라 15시가 '저녁'(h<20)으로 묶여 달(🌙) 아이콘이 떴음 — 낮인데 달이 뜨는 버그)
 function getPeriod(isoString: string): string {
   const h = new Date(isoString).getHours();
-  if (h < 6) return '새벽';   // 0–5
-  if (h < 11) return '아침';  // 6–10
-  if (h < 13) return '점심';  // 11–12
-  if (h < 17) return '오후';  // 13–16 (15시 = 오후 = 해)
-  if (h < 21) return '저녁';  // 17–20
-  return '밤';                // 21–23
+  if (h < 6) return 'dawn';       // 0–5
+  if (h < 11) return 'morning';   // 6–10
+  if (h < 13) return 'midday';    // 11–12
+  if (h < 17) return 'afternoon'; // 13–16 (15시 = 오후 = 해)
+  if (h < 21) return 'evening';   // 17–20
+  return 'night';                 // 21–23
 }
 
 // getPeriod() 반환값(내부 키·PERIOD_COLOR/ICON 조회용)의 표시용 라벨.
@@ -136,37 +136,37 @@ function labelToMedPhase(label: string | null | undefined): '30m' | '2h' | null 
 
 
 
-// 시간대 키('아침/점심/저녁/취침'=식사 슬롯, '새벽/오후/밤'=수시 기록 getPeriod)
+// 시간대 키(morning/midday/evening/bedtime=식사 슬롯, dawn/afternoon/night=수시 기록 getPeriod)
 const PERIOD_COLOR: Record<string, string> = {
-  '새벽': '#5C6BC0',
-  '아침': '#FF8A65',
-  '점심': '#4CAF50',
-  '오후': '#FFB300',
-  '저녁': '#FB8C00',
-  '밤': '#5E35B1',
-  '취침': '#7C4DFF',
+  dawn: '#5C6BC0',
+  morning: '#FF8A65',
+  midday: '#4CAF50',
+  afternoon: '#FFB300',
+  evening: '#FB8C00',
+  night: '#5E35B1',
+  bedtime: '#7C4DFF',
 };
 
 // 시간대 키 → 대표 시각(HH). SlotTimeIcon 도형(해/달) 종류 결정용 — slotIconMeta 구간과 1:1.
 const PERIOD_TIME: Record<string, string> = {
-  '새벽': '03:00',  // 초승달
-  '아침': '08:00',  // 뜨는 해
-  '점심': '12:00',  // 꽉 찬 해
-  '오후': '15:00',  // 꽉 찬 해
-  '저녁': '19:00',  // 뜨는 초승달
-  '밤': '22:00',    // 초승달
-  '취침': '23:00',  // 초승달
+  dawn: '03:00',  // 초승달
+  morning: '08:00',  // 뜨는 해
+  midday: '12:00',  // 꽉 찬 해
+  afternoon: '15:00',  // 꽉 찬 해
+  evening: '19:00',  // 뜨는 초승달
+  night: '22:00',    // 초승달
+  bedtime: '23:00',  // 초승달
 };
 
 // 배지 배경: 섹션 색상의 연한 버전
 const PERIOD_BADGE_BG: Record<string, string> = {
-  '새벽': 'rgba(92,107,192,0.15)',
-  '아침': 'rgba(255,138,101,0.15)',
-  '점심': 'rgba(76,175,80,0.15)',
-  '오후': 'rgba(255,179,0,0.15)',
-  '저녁': 'rgba(251,140,0,0.15)',
-  '밤': 'rgba(94,53,177,0.15)',
-  '취침': 'rgba(124,77,255,0.15)',
+  dawn: 'rgba(92,107,192,0.15)',
+  morning: 'rgba(255,138,101,0.15)',
+  midday: 'rgba(76,175,80,0.15)',
+  afternoon: 'rgba(255,179,0,0.15)',
+  evening: 'rgba(251,140,0,0.15)',
+  night: 'rgba(94,53,177,0.15)',
+  bedtime: 'rgba(124,77,255,0.15)',
 };
 // 배지 텍스트: 섹션 색상보다 진한 버전
 const PERIOD_BADGE_TEXT: Record<string, string> = {
@@ -1056,10 +1056,9 @@ export function BodyStateScreen() {
 
   // DB 로그 → BodyRecord 변환
   const records: BodyRecord[] = activeLogs.map((log: any) => {
-    // 아이콘/색 조회용 키는 로케일 무관 한글 고정(mealTimeToPeriodKo) — mealTimeToPeriod을 쓰면
-    // 해외 로케일에서 영어 문자열이 되어 PERIOD_COLOR/PERIOD_ICON 매칭이 전부 실패한다.
-    const mealTimeKo = log.medication_meal_time ? mealTimeToPeriodKo(log.medication_meal_time) : null;
-    const period = mealTimeKo ?? getPeriod(log.logged_at);
+    // 아이콘/색 조회용 키는 로케일 무관 영어 키다 — 표시용 값을 쓰면 해외에서 조회가 전부 실패한다.
+    const mealPeriodKey = log.medication_meal_time ? mealTimeToPeriodKey(log.medication_meal_time) : null;
+    const period = mealPeriodKey ?? getPeriod(log.logged_at);
     // 표시용 슬롯 명칭(slotTitle): byId[dose_slot_id] 우선 → byLegacyKey[meal_time] → legacy 폴백
     const slotLabel =
       (log.dose_slot_id && slotTitleMaps.byId[log.dose_slot_id]) ||
@@ -2156,7 +2155,8 @@ async function fetchNextNotifMessage(
       if (row.dose_slot_id) {
         const qSlots = await fetchPatientDoseSlots(patientId);
         const qSlot = qSlots.find((s) => s.id === row.dose_slot_id);
-        mealKo = translateRawSlotLabel(qSlot?.label) ?? mealTimeToKorean(row.meal_time);
+        // DB 라벨은 비어 있다 — 슬롯 키/시각에서 표시명을 만든다.
+        mealKo = qSlot ? slotDisplayName(null, qSlot.legacyKey, qSlot.time) : mealTimeToKorean(row.meal_time);
       } else {
         mealKo = mealTimeToKorean(row.meal_time);
       }
@@ -2189,7 +2189,7 @@ async function fetchNextNotifMessage(
     if (justTaken) {
       const jSlot = doseSlots.find((s) => s.id === justTaken.doseSlotId);
       if (jSlot && jSlot.trackEnabled && jSlot.trackIntervals.length > 0) {
-        const mealKo = translateRawSlotLabel(jSlot.label);
+        const mealKo = slotDisplayName(null, jSlot.legacyKey, jSlot.time);
         for (const intervalMin of jSlot.trackIntervals) {
           if (!intervalMin || intervalMin <= 0) continue; // 0=복용직후(과거) 제외
           const sendAt = new Date(justTaken.takenAt.getTime() + intervalMin * 60000);
@@ -2246,14 +2246,14 @@ async function fetchNextNotifMessage(
 
     // 3) 운동 알림 (exercise_notif_prefs) — 오늘 이후 가장 가까운 운동 알림 시간
     const exercisePrefs = userData?.exercise_notif_prefs as Array<{
-      id: string; ampm: '오전' | '오후'; hour: number; minute: number; enabled: boolean;
+      id: string; ampm: AmPm; hour: number; minute: number; enabled: boolean;
     }> | null;
     if (exercisePrefs && exercisePrefs.length > 0) {
       for (const ep of exercisePrefs) {
         if (!ep.enabled) continue;
         let hour = ep.hour;
-        if (ep.ampm === '오후' && hour !== 12) hour += 12;
-        if (ep.ampm === '오전' && hour === 12) hour = 0;
+        if (ep.ampm === 'pm' && hour !== 12) hour += 12;
+        if (ep.ampm === 'am' && hour === 12) hour = 0;
         const scheduled = new Date(now);
         scheduled.setHours(hour, ep.minute, 0, 0);
         if (scheduled > now) {

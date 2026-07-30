@@ -1,4 +1,5 @@
 import { createClient } from 'npm:@supabase/supabase-js@2';
+import { ErrorCode, errorResponse } from '../_shared/errors.ts';
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
@@ -90,7 +91,7 @@ Deno.serve(async (req) => {
     }
     if (!ownerRow) {
       return new Response(
-        JSON.stringify({ error: '알 수 없는 수신자 토큰입니다.' }),
+        JSON.stringify({ code: ErrorCode.UNKNOWN_TOKEN, error: 'unknown recipient push token' }),
         { status: 403, headers: { ...corsHeaders, 'Content-Type': 'application/json' } },
       );
     }
@@ -103,7 +104,7 @@ Deno.serve(async (req) => {
 
     if (!isSelf && !sameGroup) {
       return new Response(
-        JSON.stringify({ error: '해당 수신자에게 알림을 보낼 권한이 없습니다.' }),
+        JSON.stringify({ code: ErrorCode.FORBIDDEN_RECIPIENT, error: 'not permitted to notify this recipient' }),
         { status: 403, headers: { ...corsHeaders, 'Content-Type': 'application/json' } },
       );
     }
@@ -167,7 +168,7 @@ Deno.serve(async (req) => {
   } catch (err: any) {
     console.error('send-push error:', err);
     return new Response(
-      JSON.stringify({ error: err.message ?? '전송 실패' }),
+      JSON.stringify({ error: err.message ?? 'push send failed' }),
       { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } },
     );
   }

@@ -1707,7 +1707,18 @@
     "legacyMed_dinner": "Dinner medication",
     "legacyMed_bedtime": "Bedtime medication",
     "nextDoseWithTime": "Next dose ({{time}})",
-    "nextDosePlain": "Next dose"
+    "nextDosePlain": "Next dose",
+    "periodDawn": "Dawn",
+    "periodMorning": "Morning",
+    "periodMidday": "Midday",
+    "periodAfternoon": "Afternoon",
+    "periodEvening": "Evening",
+    "periodNight": "Night",
+    "clockAm": "{{h}}:{{mm}} AM",
+    "clockPm": "{{h}}:{{mm}} PM",
+    "nextDoseLegacyKo": "Next {{med}}",
+    "nextDoseWithTimeKo": "Next dose ({{time}})",
+    "nextDosePlainKo": "Next dose"
   },
   "groupMembership": {
     "verifyFailError": "Member insert succeeded but row verification failed.",
@@ -2083,7 +2094,8 @@
     "morningMed": "Morning medication",
     "lunchMed": "Lunch medication",
     "dinnerMed": "Dinner medication",
-    "bedtimeMed": "Bedtime medication"
+    "bedtimeMed": "Bedtime medication",
+    "medLabel": "{{slot}}"
   },
   "interval": {
     "rightAfter": "right after taking",
@@ -2178,5 +2190,45 @@
     "ballad": "Wistful, song-like melody",
     "lullaby": "Soothing lullaby",
     "sitcom": "Cheerful sitcom vibe"
+  },
+  "serverError": {
+    "INVALID_REQUEST": "The request was not valid.",
+    "INVALID_IMAGE_TYPE": "Only JPG or PNG photos can be uploaded.",
+    "IMAGE_TOO_LARGE": "That photo is too large.\nPlease try a smaller one.",
+    "INVALID_CONTENT_TYPE": "This file type cannot be uploaded.",
+    "FORBIDDEN_PATH": "You can only upload to your own records.",
+    "FORBIDDEN_UPLOAD": "You don't have permission to upload here.",
+    "FORBIDDEN_MEDIA": "You don't have permission to view this.",
+    "FORBIDDEN_DELETE": "You don't have permission to delete this.",
+    "FORBIDDEN_RECIPIENT": "You don't have permission to notify this person.",
+    "UNKNOWN_TOKEN": "Could not find a device to notify.",
+    "QUOTA_EXCEEDED": "You've used today's upload limit.\nPlease try again tomorrow.",
+    "PRESIGN_FAILED": "Could not prepare the upload.\nPlease try again shortly.",
+    "DB_DELETE_FAILED": "Could not delete it.\nPlease try again shortly.",
+    "DELETE_FAILED": "Something went wrong while deleting.\nPlease try again shortly.",
+    "SEND_FAILED": "Could not send the notification.",
+    "OCR_FAILED": "Could not read the prescription.\nPlease retake the photo in better light.",
+    "CONVERT_UNAVAILABLE": "Conversion is unavailable right now.\nPlease try again shortly.",
+    "SERVER_MISCONFIGURED": "Please try again shortly."
+  },
+  "dateFmt": {
+    "weekdayLong_sun": "Sunday",
+    "weekdayLong_mon": "Monday",
+    "weekdayLong_tue": "Tuesday",
+    "weekdayLong_wed": "Wednesday",
+    "weekdayLong_thu": "Thursday",
+    "weekdayLong_fri": "Friday",
+    "weekdayLong_sat": "Saturday",
+    "weekdayShort_sun": "Sun",
+    "weekdayShort_mon": "Mon",
+    "weekdayShort_tue": "Tue",
+    "weekdayShort_wed": "Wed",
+    "weekdayShort_thu": "Thu",
+    "weekdayShort_fri": "Fri",
+    "weekdayShort_sat": "Sat",
+    "monthYear": "{{month}}/{{year}}",
+    "monthDayWeekday": "{{month}}/{{day}} {{weekday}}",
+    "monthDayShort": "{{month}}/{{day}} ({{weekday}})",
+    "fullDate": "{{year}}-{{month}}-{{day}} ({{weekday}})"
   }
 }

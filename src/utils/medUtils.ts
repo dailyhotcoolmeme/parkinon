@@ -217,8 +217,7 @@ export function mealTimeToKorean(mealTime: string | null | undefined): string {
   if (!mealTime) return '';
   const meta = LEGACY_SLOT_META[mealTime as LegacyMealKey];
   if (!meta) return mealTime;
-  if (isOverseasLocale()) return i18n.t(`slot.${meta.key}Med`);
-  return meta.korMed;
+  return i18n.t(`slot.${meta.key}Med`);
 }
 
 /**
@@ -229,23 +228,20 @@ export function mealTimeToPeriod(mealTime: string | null | undefined): string {
   if (!mealTime) return '';
   const meta = LEGACY_SLOT_META[mealTime as LegacyMealKey];
   if (!meta) return mealTime;
-  if (isOverseasLocale()) return i18n.t(`slot.${meta.key}`);
-  return meta.label;
+  return i18n.t(`slot.${meta.key}`);
 }
 
 /**
- * medication_meal_time → 한국어 시간대 라벨(로케일 무관, 항상 한글 고정).
- * mealTimeToPeriod과 달리 표시용이 아니라 PERIOD_COLOR/PERIOD_ICON 같은
- * 내부 조회 키로 쓰인다 — 이 값을 화면에 직접 표시하면 안 된다(그럴 땐 mealTimeToPeriod
- * 또는 표시 전용 변환 함수를 쓸 것). 해외 로케일에서 mealTimeToPeriod의 영어 반환값을
- * 색상 조회 키로 잘못 쓰면 PERIOD_COLOR/PERIOD_ICON이 전부 매칭 실패해 기본색으로
- * 뭉개지는 버그가 있었다(오너 발견, 2026-07-05: 해외판 섹션 헤더 색이 전부 동일).
+ * medication_meal_time → 시간대 **키**(로케일 무관). 표시용이 아니라
+ * PERIOD_COLOR/PERIOD_ICON 같은 내부 조회에 쓴다 — 화면에 직접 표시하지 말 것.
+ * (예전엔 한글을 키로 썼다. 표시값과 키가 같으면 해외 로케일에서 조회가 통째로
+ *  실패한다 — 2026-07-05 오너 발견 버그. 이제 키는 영어로 고정한다.)
  */
-export function mealTimeToPeriodKo(mealTime: string | null | undefined): string {
+export function mealTimeToPeriodKey(mealTime: string | null | undefined): string {
   if (!mealTime) return '';
   const meta = LEGACY_SLOT_META[mealTime as LegacyMealKey];
   if (!meta) return mealTime;
-  return meta.label;
+  return meta.key === 'lunch' ? 'midday' : meta.key;
 }
 
 /**

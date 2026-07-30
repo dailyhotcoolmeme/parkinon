@@ -5,6 +5,18 @@ import { AppState, AppStateStatus } from 'react-native';
 import { rescheduleAllNotifications } from '../utils/notifications';
 import { supabase } from '../lib/supabase';
 
+/**
+ * 오전/오후 저장값. **표시 문자열이 아니라 식별자다** — 화면에는 t('common.am'/'common.pm') 로 그린다.
+ * 예전에는 '오전'/'오후' 를 그대로 저장했다(2026-07-30 오너 확정으로 영어 키로 교체).
+ * 옛 행 호환은 normalizeAmPm 이 담당한다.
+ */
+export type AmPm = 'am' | 'pm';
+
+/** DB 에 남아 있는 옛 값('오전'/'오후')도 받아준다. */
+export function normalizeAmPm(v: unknown): AmPm {
+  return v === 'pm' || v === '오후' ? 'pm' : 'am';
+}
+
 export interface MedNotif {
   id: string;
   minutes: number;
@@ -15,7 +27,7 @@ export interface MedNotif {
 
 export interface ExerciseNotif {
   id: string;
-  ampm: '오전' | '오후';
+  ampm: AmPm;
   hour: number;
   minute: number;
   enabled: boolean;
@@ -64,7 +76,7 @@ export const DEFAULT_MED_NOTIFS: MedNotif[] = [
 ];
 
 const DEFAULT_EXERCISE_NOTIFS: ExerciseNotif[] = [
-  { id: '1', ampm: '오후', hour: 2, minute: 0, enabled: false },
+  { id: '1', ampm: 'pm', hour: 2, minute: 0, enabled: false },
 ];
 
 export function SettingsProvider({ children }: { children: React.ReactNode }) {

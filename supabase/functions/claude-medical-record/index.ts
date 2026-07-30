@@ -4,9 +4,10 @@
 // CLAUDE_API_KEY는 secrets에만 보관하고 클라이언트로 절대 노출하지 않습니다.
 
 import 'jsr:@supabase/functions-js/edge-runtime.d.ts';
+import { ErrorCode, errorResponse } from '../_shared/errors.ts';
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
 
-// 사용자별 in-memory rate limit (5분당 5회). ocr-prescription 과 동일 정책.
+// 사용자별 in-memory rate limit (5분당 5회).
 const RATE_LIMIT_WINDOW_MS = 5 * 60 * 1000;
 const RATE_LIMIT_MAX = 5;
 const rateLimitMap = new Map<string, number[]>();
@@ -55,50 +56,56 @@ const corsHeaders = {
   'Access-Control-Allow-Methods': 'POST, OPTIONS',
 };
 
-const PROMPT_MEDICAL_RECORD = `이 처방전 사진에서 약 이름과 용량을 추출해주세요.
-규칙:
-- 사진에 명확하게 보이는 약 이름만 추출하세요.
-- 약 이름은 사진에 적힌 그대로 정확히 읽어주세요.
-- 처방전이면: 약품명 컬럼에서 읽으세요.
-- 용량(mg, mcg, 정 등)이 명확히 표시된 경우 dosage에 포함하세요.
-- 개인정보(이름, 주민번호, 주소, 전화번호 등)는 절대 포함하지 마세요.
-반드시 아래 JSON 형식으로만 응답하세요 (다른 텍스트 없이):
-{"medications":[{"name":"약 이름","dosage":"용량 또는 빈 문자열"}]}
-약이 보이지 않거나 읽기 어려우면 {"medications":[]} 를 반환하세요.`;
+/**
+ * OCR 프롬프트는 영어로 쓴다 — 모델이 영어 지시를 더 정확히 따른다(2026-07-30 오너 확정).
+ * 다만 따옴표 안의 한국어는 **처방전에 실제로 인쇄된 글자**다. 지시문이 아니라
+ * 모델이 사진에서 찾아야 할 대상이라 그대로 둔다. 사용자 화면에는 나가지 않는다.
+ */
+const PROMPT_MEDICAL_RECORD = `Extract medication names and dosages from this prescription photo.
 
-const PROMPT_MEDICATION_MANAGE = `이 사진에서 약 이름, EDI코드, 복용량, 1일 복용 횟수, 복용 시간대를 추출해주세요.
+Rules:
+- Only extract medication names that are clearly legible in the photo.
+- Read each name exactly as printed. Do not alter or guess.
+- On a prescription form, read from the drug-name column (Korean forms label it "약품명").
+- Include the dosage in \`dosage\` when it is clearly shown (mg, mcg, tablets, etc.).
+- Never include personal data (names, national ID numbers, addresses, phone numbers).
 
-규칙:
-- 사진에 명확하게 보이는 약 이름만 추출하세요. 확실하지 않으면 추출하지 마세요.
-- 약 이름은 사진에 적힌 그대로 정확히 읽어주세요. 임의로 변경하거나 추측하지 마세요.
-- 처방전이면: 약품명 컬럼에서 읽으세요
-- 약봉투/약봉지이면: 봉투에 인쇄된 약품명을 읽으세요
-- 복용 시간대가 명확히 표시된 경우만 포함하세요. 불명확하면 빈 배열로 두세요.
+Respond with this JSON only, no other text:
+{"medications":[{"name":"<drug name>","dosage":"<dosage or empty string>"}]}
+If no medication is visible or legible, return {"medications":[]}.`;
 
-복용량 규칙 (dosage):
-- 1회 복용량(예: "1정", "1포", "2캡슐", "5mg", "10mL" 등)이 처방전/약봉투에 명확히 표시된 경우 그대로 dosage에 채우세요.
-- 보통 처방전의 "1회 투약량" 컬럼 또는 약봉투의 1회 복용량에 표기됩니다.
-- 명확하지 않거나 보이지 않으면 dosage를 빈 문자열 ""로 두세요. 추측 금지.
+const PROMPT_MEDICATION_MANAGE = `Extract the medication name, EDI code, dose per intake, daily intake count, and dosing times from this photo.
 
-1일 복용 횟수 규칙 (dailyCount, 매우 중요):
-- 처방전/약봉투에 "1일 3회", "1일 투여횟수 3", "1일 3번", "하루 2회" 등으로 표시된 1일 복용 횟수를 정수로 추출하세요. 예: "1일 3회" → 3.
-- 보통 처방전의 "1일투여량/투여횟수" 또는 "투약 횟수" 컬럼에 있습니다.
-- 숫자가 명확히 보일 때만 dailyCount에 그 정수를 채우세요.
-- 1일 횟수를 알 수 없거나 명확하지 않으면 dailyCount를 null로 두세요. 추측 금지.
+Rules:
+- Only extract medication names that are clearly legible. If unsure, skip it.
+- Read each name exactly as printed. Do not alter or guess.
+- Prescription form: read from the drug-name column (Korean forms label it "약품명").
+- Medicine pouch/bag: read the drug name printed on the pouch.
+- Include dosing times only when clearly indicated; otherwise leave the array empty.
 
-EDI코드 규칙 (매우 중요):
-- 처방전(처방전 양식이 명확한 경우)에는 각 약품마다 EDI코드(건강보험 표준코드)가 인쇄되어 있습니다. 9자리 숫자 (예: 664601180)입니다.
-- 보통 약품명 옆에 "EDI코드" 또는 "코드" 컬럼에 표기됩니다.
-- 처방전에 EDI코드 컬럼이 있고 해당 약의 코드가 명확히 보일 때만 ediCode 필드에 그 9자리 숫자를 그대로 채우세요.
-- 약봉투/약봉지에는 EDI코드가 없습니다. 코드가 없거나 읽을 수 없으면 ediCode를 빈 문자열 ""로 두세요. 추측 금지.
+Dose per intake (dosage):
+- If a single-intake dose is clearly shown (e.g. "1정", "1포", "2캡슐", "5mg", "10mL"), copy it verbatim.
+- On Korean prescriptions this is usually the "1회 투약량" column; on pouches it is the per-intake amount.
+- If unclear or not visible, set dosage to "". Never guess.
 
-반드시 아래 JSON 형식으로만 응답하세요 (다른 텍스트 없이):
-{"medications":[{"name":"약 이름","ediCode":"664601180","dosage":"1정","dailyCount":3,"times":["morning","lunch","dinner","bedtime"]}]}
-복용 시간대: morning(아침)/lunch(점심)/dinner(저녁)/bedtime(취침)
-dosage: 1회 복용량. 모르면 "".
-dailyCount: 1일 복용 횟수(정수). 모르면 null.
-개인정보(이름, 주민번호 등)는 무시하세요.
-약이 보이지 않거나 읽기 어려우면 {"medications":[]} 를 반환하세요.`;
+Daily intake count (dailyCount — important):
+- Extract the daily count printed on the form or pouch as an integer.
+  Korean forms write it as "1일 3회", "1일 투여횟수 3", "1일 3번", or "하루 2회" — e.g. "1일 3회" is 3.
+- It is usually in the "1일투여량/투여횟수" or "투약 횟수" column.
+- Fill dailyCount only when the number is clearly visible; otherwise null. Never guess.
+
+EDI code (important):
+- Korean prescription forms print a 9-digit health-insurance code per drug (e.g. 664601180).
+- It is usually beside the drug name, in a column labelled "EDI코드" or "코드".
+- Fill ediCode only when the form has that column and the code is clearly legible.
+- Medicine pouches have no EDI code. If absent or unreadable, set ediCode to "". Never guess.
+
+Respond with this JSON only, no other text:
+{"medications":[{"name":"<drug name>","ediCode":"664601180","dosage":"1정","dailyCount":3,"times":["morning","lunch","dinner","bedtime"]}]}
+Dosing times: morning / lunch / dinner / bedtime.
+dosage: dose per intake; "" if unknown. dailyCount: integer; null if unknown.
+Ignore personal data (names, national ID numbers, etc.).
+If no medication is visible or legible, return {"medications":[]}.`;
 
 Deno.serve(async (req: Request) => {
   if (req.method === 'OPTIONS') {
@@ -150,20 +157,20 @@ Deno.serve(async (req: Request) => {
 
     const body = (await req.json()) as ReqBody;
     if (!body.image_base64 || !body.image_type) {
-      return new Response(JSON.stringify({ error: 'image_base64와 image_type이 필요합니다.' }), {
+      return new Response(JSON.stringify({ code: ErrorCode.INVALID_REQUEST, error: 'image_base64 and image_type are required' }), {
         status: 400,
         headers: { ...corsHeaders, 'Content-Type': 'application/json' },
       });
     }
     if (!['jpeg', 'png'].includes(body.image_type)) {
-      return new Response(JSON.stringify({ error: 'image_type은 jpeg 또는 png만 허용됩니다.' }), {
+      return new Response(JSON.stringify({ code: ErrorCode.INVALID_IMAGE_TYPE, error: 'image_type must be jpeg or png' }), {
         status: 400,
         headers: { ...corsHeaders, 'Content-Type': 'application/json' },
       });
     }
     // 이미지 크기 상한 (base64 길이 ≈ 6MB 원본). 과도한 요청 차단.
     if (body.image_base64.length > 8_000_000) {
-      return new Response(JSON.stringify({ error: '이미지가 너무 큽니다.' }), {
+      return new Response(JSON.stringify({ code: ErrorCode.IMAGE_TOO_LARGE, error: 'image too large' }), {
         status: 413,
         headers: { ...corsHeaders, 'Content-Type': 'application/json' },
       });
@@ -204,7 +211,7 @@ Deno.serve(async (req: Request) => {
     if (!apiRes.ok) {
       const errText = await apiRes.text();
       console.error('Claude API 오류:', apiRes.status, errText);
-      return new Response(JSON.stringify({ error: '처방전 분석에 실패했어요.' }), {
+      return new Response(JSON.stringify({ code: ErrorCode.OCR_FAILED, error: 'prescription analysis failed' }), {
         status: 502,
         headers: { ...corsHeaders, 'Content-Type': 'application/json' },
       });
@@ -269,7 +276,7 @@ Deno.serve(async (req: Request) => {
     });
   } catch (err) {
     console.error('claude-medical-record 처리 오류:', err);
-    return new Response(JSON.stringify({ error: '처방전 분석 중 오류가 발생했어요.' }), {
+    return new Response(JSON.stringify({ code: ErrorCode.OCR_FAILED, error: 'prescription analysis failed' }), {
       status: 500,
       headers: { ...corsHeaders, 'Content-Type': 'application/json' },
     });

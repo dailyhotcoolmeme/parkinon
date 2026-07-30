@@ -1,4 +1,5 @@
 import React, { useState, useRef } from 'react';
+import type { AmPm } from '../../context/SettingsContext';
 import {
   View,
   Text,
@@ -31,7 +32,7 @@ import { useAuth } from '../../context/AuthContext';
 import { supabase } from '../../lib/supabase';
 import { useDialog } from '../../context/DialogContext';
 import { fetchPatientDoseSlots, resolveDisplaySlots } from '../../hooks/useDoseSlots';
-import { nextDoseLabel, slotSortValue, translateRawSlotLabel } from '../../constants/doseSlots';
+import { nextDoseLabel, slotSortValue, slotDisplayName } from '../../constants/doseSlots';
 import { mealTimeToKorean } from '../../utils/medUtils';
 
 // NotificationHistory 등 루트 스택 라우트로도 이동하므로 부모(Root) 네비게이션 타입과 합성한다.
@@ -92,7 +93,8 @@ async function fetchExerciseNextNotif(patientId: string): Promise<ExNextNotifInf
       if (row.dose_slot_id) {
         const qSlots = await fetchPatientDoseSlots(patientId);
         const qSlot = qSlots.find((s) => s.id === row.dose_slot_id);
-        mealKo = translateRawSlotLabel(qSlot?.label) ?? mealTimeToKorean(row.meal_time);
+        // DB 라벨은 비어 있다 — 슬롯 키/시각에서 표시명을 만든다.
+        mealKo = qSlot ? slotDisplayName(null, qSlot.legacyKey, qSlot.time) : mealTimeToKorean(row.meal_time);
       } else {
         mealKo = mealTimeToKorean(row.meal_time);
       }
@@ -159,14 +161,14 @@ async function fetchExerciseNextNotif(patientId: string): Promise<ExNextNotifInf
 
     // 3) 운동 알림 (exercise_notif_prefs)
     const exercisePrefs = userData?.exercise_notif_prefs as Array<{
-      id: string; ampm: '오전' | '오후'; hour: number; minute: number; enabled: boolean;
+      id: string; ampm: AmPm; hour: number; minute: number; enabled: boolean;
     }> | null;
     if (exercisePrefs && exercisePrefs.length > 0) {
       for (const ep of exercisePrefs) {
         if (!ep.enabled) continue;
         let hour = ep.hour;
-        if (ep.ampm === '오후' && hour !== 12) hour += 12;
-        if (ep.ampm === '오전' && hour === 12) hour = 0;
+        if (ep.ampm === 'pm' && hour !== 12) hour += 12;
+        if (ep.ampm === 'am' && hour === 12) hour = 0;
         const scheduled = new Date(now);
         scheduled.setHours(hour, ep.minute, 0, 0);
         if (scheduled > now) {

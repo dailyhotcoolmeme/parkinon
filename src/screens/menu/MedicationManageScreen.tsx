@@ -37,7 +37,6 @@ import { useDialog } from '../../context/DialogContext';
 import {
   LEGACY_SLOT_ORDER,
   LEGACY_SLOT_META,
-  labelToLegacyKey,
   normalizeHhmm,
   slotTitle,
   type LegacyMealKey,
@@ -78,14 +77,14 @@ import { formatDosage, dosageUnitFromRaw } from '../../utils/medUtils';
 
 type TimeSlot = 'morning' | 'lunch' | 'dinner' | 'bedtime';
 
-// 화면 내 슬롯 표시 상수(값 동일) — 공용 단일 출처(LEGACY_SLOT_META)에서 파생.
-// label 은 기존 '아침약' 표기 유지(korMed). emoji/defaultTime/bgColor 동일.
-const TIME_SLOTS: { key: TimeSlot; label: string; emoji: string; defaultTime: string; bgColor: string }[] =
+// 화면 내 슬롯 표시 상수 — 공용 단일 출처(LEGACY_SLOT_META)에서 파생.
+// 표시명은 여기 담지 않는다: 모듈 로딩 시점에 굳으면 언어가 준비되기 전 값이 박힌다.
+// 쓰는 곳에서 i18n.t(`slot.${key}`) 로 그때그때 꺼낸다.
+const TIME_SLOTS: { key: TimeSlot; emoji: string; defaultTime: string; bgColor: string }[] =
   LEGACY_SLOT_ORDER.map((key) => {
     const meta = LEGACY_SLOT_META[key];
     return {
       key,
-      label: meta.korMed,
       emoji: meta.emoji,
       defaultTime: meta.defaultTime,
       bgColor: meta.bgColor,
@@ -1620,7 +1619,7 @@ export function MedicationManageScreen({ modeOverride, hideBack, hideTopBar, onG
           patientHasDoseSlots = true;
           const list = byMed.get(row.medication_id) ?? [];
           list.push({
-            key: labelToLegacyKey(ds.label),
+            key: ds.legacyKey ?? null,
             time: normalizeHhmm(ds.time),
             sortOrder: ds.sort_order ?? 0,
           });
@@ -1924,7 +1923,7 @@ export function MedicationManageScreen({ modeOverride, hideBack, hideTopBar, onG
   const slotsLabel = (slots: string[]): string => {
     const order: TimeSlot[] = ['morning', 'lunch', 'dinner', 'bedtime'];
     const sorted = order.filter(s => slots.includes(s));
-    return sorted.map(s => TIME_SLOTS.find(ts => ts.key === s)?.label.replace('약', '') ?? s).join(',') || t('medManage.noneLabel');
+    return sorted.map(s => (TIME_SLOTS.some(ts => ts.key === s) ? t(`slot.${s}`) : s)).join(',') || t('medManage.noneLabel');
   };
 
   type DiffEntry =

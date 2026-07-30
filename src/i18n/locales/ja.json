@@ -1707,7 +1707,18 @@
     "legacyMed_dinner": "夕のお薬",
     "legacyMed_bedtime": "就寝前のお薬",
     "nextDoseWithTime": "次のお薬（{{time}}）",
-    "nextDosePlain": "次のお薬"
+    "nextDosePlain": "次のお薬",
+    "periodDawn": "早朝",
+    "periodMorning": "朝",
+    "periodMidday": "昼",
+    "periodAfternoon": "午後",
+    "periodEvening": "夕方",
+    "periodNight": "夜",
+    "clockAm": "午前{{h}}:{{mm}}",
+    "clockPm": "午後{{h}}:{{mm}}",
+    "nextDoseLegacyKo": "次の{{med}}",
+    "nextDoseWithTimeKo": "次の服用（{{time}}）",
+    "nextDosePlainKo": "次の服用"
   },
   "groupMembership": {
     "verifyFailError": "Member insert succeeded but row verification failed.",
@@ -2083,7 +2094,8 @@
     "morningMed": "朝のお薬",
     "lunchMed": "昼のお薬",
     "dinnerMed": "夕のお薬",
-    "bedtimeMed": "就寝前のお薬"
+    "bedtimeMed": "就寝前のお薬",
+    "medLabel": "{{slot}}"
   },
   "interval": {
     "rightAfter": "飲んだ直後",
@@ -2178,5 +2190,45 @@
     "ballad": "切なく歌うような旋律",
     "lullaby": "心地よい子守唄",
     "sitcom": "楽しいホームコメディ風"
+  },
+  "serverError": {
+    "INVALID_REQUEST": "リクエストが正しくありません。",
+    "INVALID_IMAGE_TYPE": "JPGまたはPNGの写真のみアップロードできます。",
+    "IMAGE_TOO_LARGE": "写真のサイズが大きすぎます。\n小さい写真でお試しください。",
+    "INVALID_CONTENT_TYPE": "この形式のファイルはアップロードできません。",
+    "FORBIDDEN_PATH": "自分の記録にのみアップロードできます。",
+    "FORBIDDEN_UPLOAD": "アップロードする権限がありません。",
+    "FORBIDDEN_MEDIA": "これを表示する権限がありません。",
+    "FORBIDDEN_DELETE": "削除する権限がありません。",
+    "FORBIDDEN_RECIPIENT": "この相手に通知する権限がありません。",
+    "UNKNOWN_TOKEN": "通知先の端末が見つかりませんでした。",
+    "QUOTA_EXCEEDED": "本日のアップロード上限に達しました。\n明日お試しください。",
+    "PRESIGN_FAILED": "アップロードの準備に失敗しました。\n少し後にお試しください。",
+    "DB_DELETE_FAILED": "削除できませんでした。\n少し後にお試しください。",
+    "DELETE_FAILED": "削除中に問題が発生しました。\n少し後にお試しください。",
+    "SEND_FAILED": "通知を送信できませんでした。",
+    "OCR_FAILED": "処方箋を読み取れませんでした。\n明るい場所で撮り直してください。",
+    "CONVERT_UNAVAILABLE": "現在変換できません。\n少し後にお試しください。",
+    "SERVER_MISCONFIGURED": "少し後にお試しください。"
+  },
+  "dateFmt": {
+    "weekdayLong_sun": "日曜日",
+    "weekdayLong_mon": "月曜日",
+    "weekdayLong_tue": "火曜日",
+    "weekdayLong_wed": "水曜日",
+    "weekdayLong_thu": "木曜日",
+    "weekdayLong_fri": "金曜日",
+    "weekdayLong_sat": "土曜日",
+    "weekdayShort_sun": "日",
+    "weekdayShort_mon": "月",
+    "weekdayShort_tue": "火",
+    "weekdayShort_wed": "水",
+    "weekdayShort_thu": "木",
+    "weekdayShort_fri": "金",
+    "weekdayShort_sat": "土",
+    "monthYear": "{{year}}年{{month}}月",
+    "monthDayWeekday": "{{month}}月{{day}}日 {{weekday}}",
+    "monthDayShort": "{{month}}/{{day}}（{{weekday}}）",
+    "fullDate": "{{year}}年{{month}}月{{day}}日（{{weekday}}）"
   }
 }

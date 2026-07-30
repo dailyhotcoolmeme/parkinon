@@ -1,5 +1,5 @@
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2'
-import { resolveLang, t, periodKeyFor, type Lang } from '../_shared/i18n.ts'
+import { resolveLang, t, periodKeyFor, type Lang, slotLabel } from '../_shared/i18n.ts'
 
 const supabase = createClient(
   Deno.env.get('SUPABASE_URL')!,
@@ -7,80 +7,6 @@ const supabase = createClient(
 )
 
 // legacy 4슬롯 라벨 fallback. dose_slot.label이 있으면 그 값을 우선 사용.
-const MEAL_LABELS: Record<string, string> = {
-  morning: '아침', lunch: '점심', dinner: '저녁', bedtime: '취침',
-}
-const MEAL_LABELS_EN: Record<string, string> = {
-  morning: 'Morning', lunch: 'Lunch', dinner: 'Dinner', bedtime: 'Bedtime',
-}
-
-// ─── 앱 슬롯 표시명(slotTitle) 복제 ───────────────────────────────────────────
-// 앱은 src/constants/doseSlots.ts 의 slotTitle(label, legacyKey, time) 로
-// 모든 화면에서 슬롯 이름을 "이름 + 시각"으로 표시한다(예 "아침 오전 8:10", "밤 11:00").
-// 푸시 알림도 동일한 이름을 쓰도록 그 규칙을 그대로 서버에 복제한다.
-// ⚠️ 표기가 바뀌면 안 됨 → 앱 헬퍼와 1:1 동일하게 유지할 것.
-
-const STANDARD_LABELS = new Set(['아침', '점심', '저녁', '취침'])
-
-/**
- * 'HH:MM[:SS]' → 시간대 단어(앱 doseSlots.periodWord 와 1:1 동일).
- * 구간(오너 확정 2026-06): 새벽 0–6 / 아침 6–11 / 점심 11–13 / 오후 13–17 / 저녁 17–21 / 밤 21–24.
- * 파싱 실패 시 빈 문자열.
- */
-function periodWord(time: string | null | undefined): string {
-  if (!time) return ''
-  const h = parseInt(time.split(':')[0] ?? '', 10)
-  if (Number.isNaN(h)) return ''
-  if (h < 6) return '새벽'
-  if (h < 11) return '아침'
-  if (h < 13) return '점심'
-  if (h < 17) return '오후'
-  if (h < 21) return '저녁'
-  return '밤' // 21–23
-}
-
-/** periodWord 영어판 — 앱 doseSlots.periodWord isEnLocale 분기와 1:1 동일. */
-function periodWordEn(time: string | null | undefined): string {
-  if (!time) return ''
-  const h = parseInt(time.split(':')[0] ?? '', 10)
-  if (Number.isNaN(h)) return ''
-  if (h < 6) return 'Early morning'
-  if (h < 11) return 'Morning'
-  if (h < 13) return 'Midday'
-  if (h < 17) return 'Afternoon'
-  if (h < 21) return 'Evening'
-  return 'Night'
-}
-
-/**
- * 푸시 문구의 {시간대} 자리에 들어갈 시간대 라벨 결정.
- * - 표준 4슬롯('아침/점심/저녁/취침' 라벨): 그 라벨 그대로 사용(취침도 그대로).
- * - 비표준(추가) 슬롯: 시각으로 periodWord 계산(아침/점심/오후/저녁/밤/새벽).
- * - 둘 다 없으면 빈 문자열(호출처가 fallback).
- * 합의 문구(docs/agents/AGENT_06_notification.md §알림 문구 목록):
- *   약 복용:        "{시간대} 약 복용 시간이에요."
- *   재알림(미복용):  "아직 {시간대} 약을 드시지 않으셨어요."
- *   보호자 미복용:   "{환자명}님께서 아직 {시간대} 약을 드시지 않으셨어요."
- */
-function periodLabelFor(label: string | null | undefined, time: string | null | undefined): string {
-  const trimmed = (label ?? '').trim()
-  if (trimmed && STANDARD_LABELS.has(trimmed)) return trimmed
-  const p = periodWord(time)
-  if (p) return p
-  return ''
-}
-
-/** periodLabelFor 영어판 — 표준 라벨은 MEAL_LABELS_EN 역매핑, 비표준은 periodWordEn. */
-function periodLabelForEn(label: string | null | undefined, time: string | null | undefined): string {
-  const trimmed = (label ?? '').trim()
-  if (trimmed && STANDARD_LABELS.has(trimmed)) {
-    const key = Object.keys(MEAL_LABELS).find((k) => MEAL_LABELS[k] === trimmed)
-    if (key) return MEAL_LABELS_EN[key]
-  }
-  const p = periodWordEn(time)
-  if (p) return p
-  return ''
-}
 
 /**
  * 'HH:MM[:SS]' → 12시간제 'H:MM' (오전/오후 없이). 푸시 문구의 시각 표기용.
@@ -98,36 +24,6 @@ function formatClockTime(hhmm: string | null | undefined): string {
   if (displayH === 0) displayH = 12
   const mm = String(Number.isNaN(m) ? 0 : m).padStart(2, '0')
   return `${displayH}:${mm}`
-}
-
-/** 'HH:MM[:SS]' → '오전/오후 H:MM' (앱 formatSlotTime 과 동일). */
-function formatSlotTime(hhmm: string | null | undefined): string {
-  if (!hhmm) return ''
-  const parts = hhmm.split(':')
-  const h = parseInt(parts[0], 10)
-  const m = parseInt(parts[1] ?? '0', 10)
-  if (Number.isNaN(h)) return hhmm
-  const period = h < 12 ? '오전' : '오후'
-  let displayH = h % 12
-  if (displayH === 0) displayH = 12
-  const mm = String(Number.isNaN(m) ? 0 : m).padStart(2, '0')
-  return `${period} ${displayH}:${mm}`
-}
-
-/**
- * 앱 slotTitle 복제 — 슬롯의 "전체 표시 제목"(이름 + 시각 인라인).
- * - 비표준 라벨(이미 시각 포함, 예 "밤 11:00"): 라벨 그대로.
- * - 표준 라벨("아침/점심/저녁/취침"): "라벨 시각"(예 "아침 오전 8:10").
- * label/time 이 없으면 빈 문자열(호출처가 fallback 처리).
- */
-function slotTitle(label: string | null | undefined, time: string | null | undefined): string {
-  const trimmed = (label ?? '').trim()
-  const t = formatSlotTime(time)
-  // labelContainsTime: 표준 라벨이 아니고 라벨이 있으면 이미 시각 포함(비표준 추가 슬롯)
-  const labelContainsTime = !!trimmed && !STANDARD_LABELS.has(trimmed)
-  if (labelContainsTime) return trimmed
-  if (trimmed) return `${trimmed} ${t}`.trim()
-  return ''
 }
 
 /**
@@ -194,18 +90,11 @@ function nowHHMMInTz(tz: string): string {
  * - key: 중복제거·prefs 조회용 안정 키 (dose_slot_id 우선, 없으면 meal_time)
  * - mealTime: 구버전 prefs/sound prefs 키 & 푸시 data.mealTime (없으면 null)
  * - doseSlotId: 신규 식별자 (없으면 null)
- * - displayLabel: 표시용 한글 라벨
  */
 interface DoseTarget {
   key: string
   mealTime: string | null
   doseSlotId: string | null
-  /** "이름 + 시각"(예 "아침 오전 8:10") — 미사용 fallback/로그용으로만 유지 */
-  displayLabel: string
-  /** 푸시 문구 {시간대} 자리(예 "아침/점심/오후/저녁/밤"). 합의 문구용. */
-  periodLabel: string
-  /** periodLabel 영어판(해외 로케일 사용자용). */
-  periodLabelEn: string
   /** 슬롯 시각 'HH:MM'(24h, 없으면 null). 푸시 문구에 12시간제 H:MM로 표기. */
   time: string | null
   /** 이 환자의 tz 기준 "오늘"(YYYY-MM-DD). hasTakenMed 하루 경계 계산용. */
@@ -218,29 +107,10 @@ function toDoseTarget(row: MedRow): DoseTarget | null {
   // 한글이 아니라서 시간대 판정이 통째로 빠졌다. 키를 단일 진실로 쓴다.
   const mealTime = row.meal_time ?? null
   const doseSlotId = row.dose_slot_id ?? null
-  // 표시 이름: 앱 slotTitle 과 동일하게 "이름 + 시각"(예 "아침 오전 8:10", "밤 11:00").
-  // - dose_slot 행: label + time 으로 slotTitle 구성(앱 화면과 글자 그대로 일치).
-  // - legacy 행(dose_slot 없음): label 이 NULL 이므로 기존 mealTime MEAL_LABELS 폴백.
-  // - 둘 다 못 만들면 '약'.
-  const slotName = slotTitle(row.label, row.time)
-  const displayLabel =
-    slotName ||
-    (mealTime ? MEAL_LABELS[mealTime] : '') ||
-    '약'
-  // 푸시 문구 {시간대} — 표준 라벨 우선, 없으면 시각 기반 periodWord, 둘 다 없으면 legacy mealTime 라벨.
-  const periodLabel =
-    (mealTime ? MEAL_LABELS[mealTime] : '') ||
-    periodLabelFor(row.label, row.time) ||
-    ''
-  const periodLabelEn =
-    (mealTime ? MEAL_LABELS_EN[mealTime] : '') ||
-    periodLabelForEn(row.label, row.time) ||
-    ''
-  // 안정 키: dose_slot_id 우선, 없으면 meal_time. 둘 다 없으면 식별 불가 → skip.
   const key = doseSlotId ?? mealTime
   if (!key) return null
   return {
-    key, mealTime, doseSlotId, displayLabel, periodLabel, periodLabelEn,
+    key, mealTime, doseSlotId,
     time: row.time ?? null,
     localToday: row.local_today ?? new Date().toISOString().split('T')[0],
   }
@@ -284,13 +154,8 @@ function bodyFor(
  * 영어 시간대가 섞이지 않는다.
  */
 function periodLabelLoc(lang: Lang, target: DoseTarget): string {
-  if (target.mealTime && ['morning','lunch','dinner','bedtime'].includes(target.mealTime))
-    return t(lang, `slot.${target.mealTime}`)
-  if (target.time) {
-    const pk = periodKeyFor(target.time)
-    if (pk) return t(lang, pk)
-  }
-  return lang === 'ko' ? target.periodLabel : target.periodLabelEn
+  // DB 의 한글 라벨을 보지 않는다 — legacy_key(mealTime) 와 시각만으로 만든다.
+  return slotLabel(lang, target.mealTime, target.time)
 }
 
 /** 환자별 DoseTarget 목록을 RPC 행에서 구성 (key 기준 중복제거). */
@@ -488,8 +353,10 @@ async function sendCaregiverMissed(
     .eq('id', patientId)
     .single()
   const patientName = patientUser?.name?.trim()
-  const subject = patientName ? `${patientName}님` : '환자분'
-  const subjectEn = patientName || 'The patient'
+  // 보호자마다 언어가 다르다 — 하나로 만들어 두면 ko/en 이분법이 되어 fr·ja 가 영어를 받는다.
+  const subjectFor = (l: Lang) => patientName
+    ? t(l, 'patient.honorific', { name: patientName })
+    : t(l, 'patient.fallbackName')
 
   const { data: caregiverUsers } = await supabase
     .from('users')
@@ -508,7 +375,7 @@ async function sendCaregiverMissed(
       lang, 'caregiverMissed',
       periodLabelLoc(lang, target),
       formatClockTime(target.time),
-      lang === 'ko' ? subject : subjectEn,
+      subjectFor(lang),
     )
     const data = { type: 'caregiver_missed_med', mealTime: target.mealTime, doseSlotId: target.doseSlotId }
     await sendPush(
@@ -796,10 +663,13 @@ Deno.serve(async (_req: Request) => {
     }>
     for (const pref of prefs) {
       if (!pref.enabled) continue
-      // ampm + hour → 24시간 현지 HH:MM 변환 (ampm은 로케일 무관 내부 저장값 '오전'/'오후')
+      // ampm + hour → 24시간 현지 HH:MM 변환.
+      // ampm 은 표시 문자열이 아니라 식별자다 — 'am'/'pm' 으로 저장한다.
+      // 옛 행에는 '오전'/'오후' 가 남아 있을 수 있어 둘 다 받아준다.
+      const isPm = pref.ampm === 'pm' || pref.ampm === '오후'
       let h = pref.hour
-      if (pref.ampm === '오후' && h !== 12) h += 12
-      if (pref.ampm === '오전' && h === 12) h = 0
+      if (isPm && h !== 12) h += 12
+      if (!isPm && h === 12) h = 0
       const target = `${String(h).padStart(2, '0')}:${String(pref.minute).padStart(2, '0')}`
       if (target !== patientCurrentTime) continue
       // 이 운동 알림 항목에 지정된 소리(soundId: 'preset:<id>' 프리셋 또는 녹음 uuid). 없으면 기본음.

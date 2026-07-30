@@ -53,11 +53,9 @@ import { resolveDisplaySlots, fetchPatientDoseSlots, invalidateDoseSlotsCache, g
 import {
   LEGACY_SLOT_META,
   LEGACY_SLOT_ORDER,
-  LEGACY_KEY_TO_LABEL,
   formatSlotTime,
   slotTitle,
   slotSortValue,
-  translateRawSlotLabel,
   type LegacyMealKey,
 } from '../../constants/doseSlots';
 
@@ -1944,22 +1942,18 @@ function parseHHMM(hhmm: string, base: Date): Date {
 
 const mIntervalLabel = intervalAfterLabel;
 
-// 슬롯명에 "약" 단위 붙이기(아침→아침약). 영어는 그대로(단위 불필요).
-// ⚠️ mealKo는 dose_slots.label 등 raw DB 값(항상 한글)일 수 있어, 먼저 translateRawSlotLabel로
-//   표시용 변환을 거친다(해외 로케일에서 "아침"이 그대로 노출되던 버그 수정).
-function mMealMedLabel(mealKo: string | null): string | null {
-  if (!mealKo) return null;
-  const display = translateRawSlotLabel(mealKo) ?? mealKo;
-  if (isOverseasLocale()) return display;
-  return display.endsWith('약') ? display : `${display}약`;
+// 슬롯명에 "약" 단위 붙이기(아침→아침약). 해외는 단위가 없어 그대로 쓴다.
+// 들어오는 값은 이미 표시용으로 만들어진 이름이다(DB 원본 아님).
+function mMealMedLabel(display: string | null): string | null {
+  if (!display) return null;
+  return i18n.t('slot.medLabel', { slot: display });
 }
 
 const mEffectTrackingLabel = effectTrackingLabel;
 
 // "다음 {슬롯}약 복용" / "다음 {시각} 복용" 라벨. ko는 기존과 100% 동일.
-// ⚠️ slotLabel은 dose_slots.label(raw DB, 항상 한글)일 수 있어 translateRawSlotLabel로 먼저 변환.
-function mNextDoseLabel(slotLabel: string | null, hhmm: string, now: Date): string {
-  const display = translateRawSlotLabel(slotLabel);
+// 들어오는 값은 이미 표시용으로 만들어진 이름이다(DB 원본 아님).
+function mNextDoseLabel(display: string | null, hhmm: string, now: Date): string {
   return display
     ? i18n.t('nextNotif.nextDoseSlot', { slot: display })
     : i18n.t('nextNotif.nextDoseTime', { time: formatTimeHHMM(parseHHMM(hhmm, now)) });

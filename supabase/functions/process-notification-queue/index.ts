@@ -1,82 +1,10 @@
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2'
-import { resolveLang, t, intervalLabel, periodKeyFor, type Lang } from '../_shared/i18n.ts'
+import { resolveLang, t, intervalLabel, periodKeyFor, type Lang, slotLabelWithTime } from '../_shared/i18n.ts'
 
 const supabase = createClient(
   Deno.env.get('SUPABASE_URL')!,
   Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!
 )
-
-
-// legacy 4슬롯 라벨 fallback. dose_slot.label 이 있으면 그 값을 우선 사용.
-const MEAL_LABELS: Record<string, string> = {
-  morning: '아침',
-  lunch: '점심',
-  dinner: '저녁',
-  bedtime: '취침',
-}
-const MEAL_LABELS_EN: Record<string, string> = {
-  morning: 'Morning',
-  lunch: 'Lunch',
-  dinner: 'Dinner',
-  bedtime: 'Bedtime',
-}
-
-// ─── {시간대} {시각} 표기 (send-medication-reminders 와 1:1 동일 복제) ──────────
-// 약효추적 본문은 약 이름(slotTitle "아침 오전 8:10")이 아니라,
-// 정시/미복용 알림과 동일한 "{시간대} {시각}"(예 "저녁 6:00") 표기를 쓴다.
-// periodLabelFor + formatClockTime 두 헬퍼를 send-medication-reminders 에서 복제.
-
-const STANDARD_LABELS = new Set(['아침', '점심', '저녁', '취침'])
-
-/**
- * 'HH:MM[:SS]' → 시간대 단어(앱 doseSlots.periodWord 와 1:1 동일).
- * 새벽 0–6 / 아침 6–11 / 점심 11–13 / 오후 13–17 / 저녁 17–21 / 밤 21–24.
- */
-function periodWord(time: string | null | undefined): string {
-  if (!time) return ''
-  const h = parseInt(time.split(':')[0] ?? '', 10)
-  if (Number.isNaN(h)) return ''
-  if (h < 6) return '새벽'
-  if (h < 11) return '아침'
-  if (h < 13) return '점심'
-  if (h < 17) return '오후'
-  if (h < 21) return '저녁'
-  return '밤'
-}
-
-/** 푸시 문구 {시간대} 라벨. 표준 라벨 우선, 없으면 시각 기반 periodWord. */
-function periodLabelFor(label: string | null | undefined, time: string | null | undefined): string {
-  const trimmed = (label ?? '').trim()
-  if (trimmed && STANDARD_LABELS.has(trimmed)) return trimmed
-  const p = periodWord(time)
-  if (p) return p
-  return ''
-}
-
-/** periodWord 영어판 — 앱 doseSlots.periodWord isEnLocale 분기와 1:1 동일. */
-function periodWordEn(time: string | null | undefined): string {
-  if (!time) return ''
-  const h = parseInt(time.split(':')[0] ?? '', 10)
-  if (Number.isNaN(h)) return ''
-  if (h < 6) return 'Early morning'
-  if (h < 11) return 'Morning'
-  if (h < 13) return 'Midday'
-  if (h < 17) return 'Afternoon'
-  if (h < 21) return 'Evening'
-  return 'Night'
-}
-
-/** periodLabelFor 영어판 */
-function periodLabelForEn(label: string | null | undefined, time: string | null | undefined): string {
-  const trimmed = (label ?? '').trim()
-  if (trimmed && STANDARD_LABELS.has(trimmed)) {
-    const key = Object.keys(MEAL_LABELS).find((k) => MEAL_LABELS[k] === trimmed)
-    if (key) return MEAL_LABELS_EN[key]
-  }
-  const p = periodWordEn(time)
-  if (p) return p
-  return ''
-}
 
 /**
  * 'HH:MM[:SS]' → 12시간제 'H:MM' (오전/오후 없이). 푸시 문구의 시각 표기용.
@@ -101,7 +29,7 @@ function periodWithTime(periodLabel: string, clock: string): string {
 
 /**
  * 약효추적 본문의 "{시간대} {시각}" 머리말 결정.
- *  - 신규: dose_slot(label, time) 으로 periodLabelFor + formatClockTime.
+ *  - 신규: dose_slot(legacy_key, time) 으로 slotLabelWithTime.
  *  - 구(legacy): dose_slot 없으면 meal_time 라벨 + MEAL_TIMES 기본 시각.
  *  - 둘 다 못 구하면 '' (호출처가 폴백 문구 사용).
  */
@@ -112,63 +40,23 @@ const LEGACY_MEAL_DEFAULT_TIME: Record<string, string> = {
   bedtime: '22:00',
 }
 
-function resolvePeriodHead(
-  doseSlot: { label?: string | null; time?: string | null } | null | undefined,
-  mealTime: string | null | undefined,
-): string {
-  if (doseSlot && (doseSlot.label || doseSlot.time)) {
-    const head = periodWithTime(
-      periodLabelFor(doseSlot.label, doseSlot.time),
-      formatClockTime(doseSlot.time),
-    )
-    if (head) return head
-  }
-  if (mealTime && MEAL_LABELS[mealTime]) {
-    return periodWithTime(MEAL_LABELS[mealTime], formatClockTime(LEGACY_MEAL_DEFAULT_TIME[mealTime]))
-  }
-  return ''
-}
-
 /**
  * 언어별 시간대 머리말 — legacy_key(언어 무관) 우선, 없으면 시각 기반 period 키.
  * 문구는 _shared/i18n.ts 의 slot.* / period.* (4개 언어) 에서 꺼낸다.
  */
 function resolvePeriodHeadLoc(
   lang: Lang,
-  doseSlot: { label?: string | null; legacy_key?: string | null; time?: string | null } | null | undefined,
+  doseSlot: { legacy_key?: string | null; time?: string | null } | null | undefined,
   mealTime: string | null | undefined,
 ): string {
-  const key = (doseSlot as any)?.legacy_key ?? mealTime ?? null
+  // DB 의 label(한글)은 보지 않는다 — legacy_key 와 시각만으로 만든다.
+  // (2026-07-30 오너 확정: 시스템 표시값은 키로 저장하고 표시명은 번역표에서.)
+  const key = doseSlot?.legacy_key ?? mealTime ?? null
   const time = doseSlot?.time ?? (mealTime ? LEGACY_MEAL_DEFAULT_TIME[mealTime] : null)
-  let label = ''
-  if (key && ['morning', 'lunch', 'dinner', 'bedtime'].includes(key)) label = t(lang, `slot.${key}`)
-  if (!label && time) {
-    const pk = periodKeyFor(time)
-    if (pk) label = t(lang, pk)
-  }
-  // 옛 행(legacy_key 없음 + 한글 label) 폴백 — ko 만 원문 유지, 그 외는 시각 기반으로 이미 처리됨
-  if (!label && lang === 'ko') return resolvePeriodHead(doseSlot, mealTime)
-  return periodWithTime(label, formatClockTime(time))
+  return slotLabelWithTime(lang, key, time)
 }
 
 /** resolvePeriodHead 영어판 */
-function resolvePeriodHeadEn(
-  doseSlot: { label?: string | null; time?: string | null } | null | undefined,
-  mealTime: string | null | undefined,
-): string {
-  if (doseSlot && (doseSlot.label || doseSlot.time)) {
-    const head = periodWithTime(
-      periodLabelForEn(doseSlot.label, doseSlot.time),
-      formatClockTime(doseSlot.time),
-    )
-    if (head) return head
-  }
-  if (mealTime && MEAL_LABELS_EN[mealTime]) {
-    return periodWithTime(MEAL_LABELS_EN[mealTime], formatClockTime(LEGACY_MEAL_DEFAULT_TIME[mealTime]))
-  }
-  return ''
-}
-
 
 // ─── iOS 커스텀 알림음(가족 목소리) ──────────────────────────────────────────
 // Android 는 채널(channelId=`parkinon_alarm_<soundId>`)로 커스텀음을 울리지만,

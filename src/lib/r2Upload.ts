@@ -8,6 +8,7 @@
  */
 
 import * as FileSystem from 'expo-file-system/legacy';
+import { messageForServerError } from './serverError';
 import { supabase } from './supabase';
 import i18n from '../i18n';
 
@@ -91,21 +92,11 @@ async function uploadToR2(
   });
 
   if (invokeError) {
-    // 서버가 하루 업로드 한도로 막은 경우(429/QUOTA_EXCEEDED)는 사용자에게 원인을 알려준다.
+    // 서버는 문장이 아니라 코드를 돌려준다 — 문장은 앱 번역 파일에서 꺼낸다.
     // 이 분기가 없으면 "presigned URL 발급 실패" 같은 내부 문구가 그대로 노출된다
     // (오너 제보 2026-07-27: 사진 6장째에서 원인 모를 저장 실패).
-    try {
-      const res = (invokeError as any)?.context;
-      if (res && typeof res.json === 'function') {
-        const body = await res.json();
-        if (body?.code === 'QUOTA_EXCEEDED') {
-          throw new Error(i18n.t('r2Upload.quotaExceededError'));
-        }
-      }
-    } catch (e: any) {
-      if (e?.message === i18n.t('r2Upload.quotaExceededError')) throw e;
-      // 본문 파싱 실패는 무시하고 아래 일반 오류로 처리
-    }
+    const known = await messageForServerError(invokeError);
+    if (known) throw new Error(known);
     throw new Error(i18n.t('r2Upload.presignedUrlFailError', { err: invokeError.message }));
   }
 

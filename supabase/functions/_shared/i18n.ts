@@ -74,6 +74,7 @@ const STRINGS: Record<Lang, Dict> = {
     'interval.hours': '{{h}}시간 후',
     'interval.hoursMinutes': '{{h}}시간 {{m}}분 후',
     'patient.fallbackName': '환자분',
+    'patient.honorific': '{{name}}님',
     // 문구의 {{when}} 앞부분에 들어가는 시간대 라벨.
     'period.dawn': '새벽',
     'period.morning': '아침',
@@ -86,6 +87,8 @@ const STRINGS: Record<Lang, Dict> = {
     'slot.lunch': '점심',
     'slot.dinner': '저녁',
     'slot.bedtime': '취침',
+    'clock.am': '오전',
+    'clock.pm': '오후',
   },
   en: {
     'med.time.title': '💊 Medication time',
@@ -119,6 +122,7 @@ const STRINGS: Record<Lang, Dict> = {
     'interval.hours': '{{h}} hours after',
     'interval.hoursMinutes': '{{h}} hours {{m}} minutes after',
     'patient.fallbackName': 'The patient',
+    'patient.honorific': '{{name}}',
     'period.dawn': 'Early morning',
     'period.morning': 'Morning',
     'period.midday': 'Midday',
@@ -129,6 +133,8 @@ const STRINGS: Record<Lang, Dict> = {
     'slot.lunch': 'Lunch',
     'slot.dinner': 'Dinner',
     'slot.bedtime': 'Bedtime',
+    'clock.am': 'AM',
+    'clock.pm': 'PM',
   },
   fr: {
     'med.time.title': '💊 C\'est l\'heure de votre médicament',
@@ -162,6 +168,7 @@ const STRINGS: Record<Lang, Dict> = {
     'interval.hours': '{{h}} heures après',
     'interval.hoursMinutes': '{{h}} heures {{m}} minutes après',
     'patient.fallbackName': 'Le patient',
+    'patient.honorific': '{{name}}',
     'period.dawn': 'Petit matin',
     'period.morning': 'Matin',
     'period.midday': 'Midi',
@@ -172,6 +179,8 @@ const STRINGS: Record<Lang, Dict> = {
     'slot.lunch': 'Midi',
     'slot.dinner': 'Soir',
     'slot.bedtime': 'Coucher',
+    'clock.am': '',
+    'clock.pm': '',
   },
   ja: {
     'med.time.title': '💊 お薬の時間です',
@@ -205,6 +214,7 @@ const STRINGS: Record<Lang, Dict> = {
     'interval.hours': '{{h}}時間後',
     'interval.hoursMinutes': '{{h}}時間{{m}}分後',
     'patient.fallbackName': '患者さん',
+    'patient.honorific': '{{name}}さん',
     'period.dawn': '早朝',
     'period.morning': '朝',
     'period.midday': '昼',
@@ -215,6 +225,8 @@ const STRINGS: Record<Lang, Dict> = {
     'slot.lunch': '昼',
     'slot.dinner': '夕',
     'slot.bedtime': '就寝前',
+    'clock.am': '午前',
+    'clock.pm': '午後',
   },
 };
 
@@ -253,4 +265,43 @@ export function intervalLabel(lang: Lang, minutes: number): string {
   return m === 0
     ? t(lang, 'interval.hours', { h })
     : t(lang, 'interval.hoursMinutes', { h, m });
+}
+
+/**
+ * 시각(HH:MM[:SS])을 언어별 표기로. ko '오전 8:10' / en '8:10 AM' / fr '08:10' / ja '午前8:10'.
+ * 서버는 Intl 없이 돌아야 하므로 직접 만든다(Edge 런타임 로케일 데이터에 기대지 않는다).
+ */
+export function formatClock(lang: Lang, time: string | null | undefined): string {
+  if (!time) return '';
+  const parts = String(time).split(':');
+  const h = parseInt(parts[0] ?? '', 10);
+  const m = parseInt(parts[1] ?? '0', 10);
+  if (Number.isNaN(h)) return String(time);
+  const mm = String(Number.isNaN(m) ? 0 : m).padStart(2, '0');
+  if (lang === 'fr') return `${String(h).padStart(2, '0')}:${mm}`;
+  let h12 = h % 12;
+  if (h12 === 0) h12 = 12;
+  const meridiem = t(lang, h < 12 ? 'clock.am' : 'clock.pm');
+  if (lang === 'en') return `${h12}:${mm} ${meridiem}`;
+  return `${meridiem} ${h12}:${mm}`; // ko·ja 는 오전/午前 이 앞에 온다
+}
+
+/**
+ * 복용 시간대 표시명. **DB 의 label(한글) 을 쓰지 않는다** — legacy_key 또는 시각에서 만든다.
+ * (2026-07-30 오너 확정: 시스템 표시값은 키로 저장하고 표시명은 번역표에서 꺼낸다.)
+ */
+export function slotLabel(lang: Lang, legacyKey: string | null | undefined, time: string | null | undefined): string {
+  const key = String(legacyKey ?? '').trim();
+  if (key === 'morning' || key === 'lunch' || key === 'dinner' || key === 'bedtime') {
+    return t(lang, `slot.${key}`);
+  }
+  const pk = periodKeyFor(time);
+  return pk ? t(lang, pk) : '';
+}
+
+/** '{시간대} {시각}' 표기. 예 ko '저녁 오후 6:00' / fr 'Soir 18:00'. */
+export function slotLabelWithTime(lang: Lang, legacyKey: string | null | undefined, time: string | null | undefined): string {
+  const label = slotLabel(lang, legacyKey, time);
+  const clock = formatClock(lang, time);
+  return [label, clock].filter(Boolean).join(' ');
 }

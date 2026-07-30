@@ -18,8 +18,6 @@ import { usePatientId } from './usePatientId';
 import {
   LEGACY_SLOT_ORDER,
   LEGACY_SLOT_META,
-  LEGACY_KEY_TO_LABEL,
-  labelToLegacyKey,
   normalizeHhmm,
   slotSortValue,
   type LegacyMealKey,
@@ -83,8 +81,7 @@ function rowToDoseSlot(row: DoseSlotRow): DoseSlot {
     trackSoundId: row.track_sound_id,
     trackAlarmMode: ((row as any).track_alarm_mode ?? 'basic') as AlarmMode,
     // 언어 무관 키가 단일 진실(2026-07-29 i18n 구조 변경).
-    // legacy_key 가 비어 있는 옛 행은 한글 label 파싱으로 폴백(백필 전 데이터 호환).
-    legacyKey: ((row as any).legacy_key as LegacyMealKey | null) ?? labelToLegacyKey(row.label),
+    legacyKey: ((row as any).legacy_key as LegacyMealKey | null),
     isReal: true,
   };
 }
@@ -474,7 +471,7 @@ function buildLegacySlots(
       id: null,
       patientId: null,
       time,
-      label: meta.label,
+      label: null, // 표시명은 legacyKey/time 에서 만든다
       sortOrder: idx,
       remindEnabled: prefs ? prefs[key] !== false : true,
       remindSoundId: null,
@@ -533,7 +530,6 @@ function defaultTrackIntervals(
  *
  * 멱등 키 = (patient_id, label). dose_slots 를 select 해 label 매칭 행이 있으면
  * time(+remind_enabled) 을 update, 없으면 insert.
- *  - label = LEGACY_KEY_TO_LABEL[key] ('아침/점심/저녁/취침')
  *  - time = mealSchedules[key] (정규화) || LEGACY_SLOT_META[key].defaultTime
  *  - sort_order = LEGACY_SLOT_ORDER 의 인덱스
  *  - remind_enabled = notifPrefs[key] !== false (명시 false 만 off)
@@ -569,20 +565,17 @@ export async function ensurePatientDoseSlots(
       return;
     }
 
-    // legacy_key 우선 매칭(언어 무관), 없으면 한글 label 폴백(백필 전 옛 행).
+    // legacy_key 로 매칭한다(언어 무관).
     const byKey = new Map<string, string>();   // legacy_key → id
-    const byLabel = new Map<string, string>(); // label → id (폴백)
     (existing ?? []).forEach((r) => {
       const lk = (r as any).legacy_key as string | null;
       if (lk) byKey.set(lk, r.id);
-      if (r.label) byLabel.set(r.label.trim(), r.id);
     });
 
     const trackIntervals = defaultTrackIntervals(notifMinutes);
 
     for (let idx = 0; idx < LEGACY_SLOT_ORDER.length; idx++) {
       const key = LEGACY_SLOT_ORDER[idx];
-      const label = LEGACY_KEY_TO_LABEL[key];
       const time = normalizeHhmm(sched[key]) || LEGACY_SLOT_META[key].defaultTime;
       // 기본 OFF (오너 결정 2026-07-15): 신규 환자의 프리셋 슬롯은 알림을 꺼진 채로 만든다.
       // → 약을 등록하지 않았는데 프리셋 시간에 유령 알림이 오는 문제 차단.
@@ -590,7 +583,7 @@ export async function ensurePatientDoseSlots(
       //   (명시 prefs 가 오면 그대로 존중 — 이후 편집/이관 경로 보존)
       const remindEnabled = prefs ? prefs[key] !== false : false;
 
-      const existingId = byKey.get(key) ?? byLabel.get(label);
+      const existingId = byKey.get(key);
       if (existingId) {
         // ⚠️ 시간 단일 소스 원칙(통합 복용 관리 재설계):
         //   dose_slots.time 은 "슬롯 편집(DoseSlotSetList)" 경로로만 변경한다.
@@ -605,10 +598,9 @@ export async function ensurePatientDoseSlots(
           .insert({
             patient_id: patientId,
             time,
-            // 언어 무관 키가 단일 진실. label 은 구버전 앱(한글 label 로 슬롯을 식별)이
-            // 아직 읽으므로 당분간 병기한다 — 전원 업데이트 후 제거 예정.
+            // 언어 무관 키가 단일 진실. label(한글)은 더 이상 쓰지 않는다 —
+            // 표시명은 legacy_key/시각에서 만든다(2026-07-30 오너 확정).
             legacy_key: key,
-            label,
             sort_order: idx,
             remind_enabled: remindEnabled,
             remind_sound_id: null,
@@ -618,7 +610,7 @@ export async function ensurePatientDoseSlots(
             track_sound_id: null,
             is_active: true,
           } as any);
-        if (insErr) console.warn(`[ensurePatientDoseSlots] insert(${label}) 실패(계속):`, insErr);
+        if (insErr) console.warn(`[ensurePatientDoseSlots] insert(${key}) failed (continuing):`, insErr);
       }
     }
 

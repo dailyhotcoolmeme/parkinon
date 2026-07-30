@@ -14,6 +14,7 @@
  * 순수 TS · OTA 호환.
  */
 import { supabase } from '../lib/supabase';
+import type { AmPm } from '../context/SettingsContext';
 import { getLocalToday, getLocalDayRange } from './medUtils';
 import { formatClock } from './notifLabels';
 import i18n from '../i18n';
@@ -61,8 +62,8 @@ export function isTimePastKST(hhmm: string | null | undefined, tz: string = FALL
 }
 
 /** ampm/hour/minute → 'HH:MM'. (운동 알림 시각 비교용) */
-export function ampmToHHMM(n: { ampm: '오전' | '오후'; hour: number; minute: number }): string {
-  const h24 = n.ampm === '오후' ? (n.hour === 12 ? 12 : n.hour + 12) : (n.hour === 12 ? 0 : n.hour);
+export function ampmToHHMM(n: { ampm: AmPm; hour: number; minute: number }): string {
+  const h24 = n.ampm === 'pm' ? (n.hour === 12 ? 12 : n.hour + 12) : (n.hour === 12 ? 0 : n.hour);
   return `${String(h24).padStart(2, '0')}:${String(n.minute).padStart(2, '0')}`;
 }
 

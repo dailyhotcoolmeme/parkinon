@@ -24,7 +24,7 @@ import Constants from 'expo-constants';
 import { Ionicons } from '@expo/vector-icons';
 import { Colors } from '../../constants/colors';
 import { TopBar } from '../../components/common/TopBar';
-import { useSettings, MedNotif, ExerciseNotif } from '../../context/SettingsContext';
+import { useSettings, MedNotif, ExerciseNotif, type AmPm } from '../../context/SettingsContext';
 import { useAuth } from '../../context/AuthContext';
 import { useNotificationBadge } from '../../context/NotificationBadgeContext';
 import { useDialog } from '../../context/DialogContext';
@@ -622,7 +622,7 @@ export function SettingsScreen() {
         setPatientExerciseNotifs(patientUser.exercise_notif_prefs as ExerciseNotif[]);
       } else {
         setPatientExerciseNotifs([
-          { id: '1', ampm: '오후', hour: 2, minute: 0, enabled: true },
+          { id: '1', ampm: 'pm', hour: 2, minute: 0, enabled: true },
         ]);
       }
 
@@ -914,8 +914,8 @@ export function SettingsScreen() {
   const [editingPatientMedId, setEditingPatientMedId] = useState<string | null>(null);
   const [patientSelectedMinutes, setPatientSelectedMinutes] = useState(30);
   const [editingPatientExerciseId, setEditingPatientExerciseId] = useState<string | null>(null);
-  const [patientPickerExTime, setPatientPickerExTime] = useState<{ ampm: '오전' | '오후'; hour: number; minute: number }>({
-    ampm: '오후', hour: 2, minute: 0,
+  const [patientPickerExTime, setPatientPickerExTime] = useState<{ ampm: AmPm; hour: number; minute: number }>({
+    ampm: 'pm', hour: 2, minute: 0,
   });
   const patientFadeAnim = useRef(new Animated.Value(0)).current;
   const patientSlideAnim = useRef(new Animated.Value(300)).current;
@@ -927,8 +927,8 @@ export function SettingsScreen() {
   const [selectedMinutes, setSelectedMinutes] = useState(0);
   const [editingExerciseId, setEditingExerciseId] = useState<string | null>(null);
   const [editingMedSlotKey, setEditingMedSlotKey] = useState<MedTimeSlotKey | null>(null);
-  const [pickerExTime, setPickerExTime] = useState<{ ampm: '오전' | '오후'; hour: number; minute: number }>({
-    ampm: '오후',
+  const [pickerExTime, setPickerExTime] = useState<{ ampm: AmPm; hour: number; minute: number }>({
+    ampm: 'pm',
     hour: 2,
     minute: 0,
   });
@@ -1119,9 +1119,9 @@ export function SettingsScreen() {
         const existing = exerciseNotifs.find((n) => n.id === exId);
         setPickerExTime(existing
           ? { ampm: existing.ampm, hour: existing.hour, minute: existing.minute }
-          : { ampm: '오전', hour: 8, minute: 0 });
+          : { ampm: 'am', hour: 8, minute: 0 });
       } else {
-        setPickerExTime({ ampm: '오전', hour: 8, minute: 0 });
+        setPickerExTime({ ampm: 'am', hour: 8, minute: 0 });
       }
     }
 
@@ -1177,9 +1177,9 @@ export function SettingsScreen() {
         const existing = patientExerciseNotifs.find(n => n.id === id);
         setPatientPickerExTime(existing
           ? { ampm: existing.ampm, hour: existing.hour, minute: existing.minute }
-          : { ampm: '오후', hour: 2, minute: 0 });
+          : { ampm: 'pm', hour: 2, minute: 0 });
       } else {
-        setPatientPickerExTime({ ampm: '오후', hour: 2, minute: 0 });
+        setPatientPickerExTime({ ampm: 'pm', hour: 2, minute: 0 });
       }
     }
     setPatientPickerVisible(true);
@@ -1368,8 +1368,8 @@ export function SettingsScreen() {
   };
 
   // ─── Sort helpers ───────────────────────────────────────────────────────────
-  const toTotal24hMinutes = (n: { ampm: '오전' | '오후'; hour: number; minute: number }) => {
-    const h24 = n.ampm === '오후' ? (n.hour === 12 ? 12 : n.hour + 12) : (n.hour === 12 ? 0 : n.hour);
+  const toTotal24hMinutes = (n: { ampm: AmPm; hour: number; minute: number }) => {
+    const h24 = n.ampm === 'pm' ? (n.hour === 12 ? 12 : n.hour + 12) : (n.hour === 12 ? 0 : n.hour);
     return h24 * 60 + n.minute;
   };
 
@@ -1550,20 +1550,20 @@ export function SettingsScreen() {
     const h24 = parseInt(hStr, 10);
     const minute = parseInt(mStr, 10);
 
-    let ampm: '오전' | '오후';
+    let ampm: AmPm;
     let hour: number;
 
     if (h24 === 0) {
-      ampm = '오전';
+      ampm = 'am';
       hour = 12;
     } else if (h24 < 12) {
-      ampm = '오전';
+      ampm = 'am';
       hour = h24;
     } else if (h24 === 12) {
-      ampm = '오후';
+      ampm = 'pm';
       hour = 12;
     } else {
-      ampm = '오후';
+      ampm = 'pm';
       hour = h24 - 12;
     }
 
@@ -1591,7 +1591,7 @@ export function SettingsScreen() {
 
     // { ampm, hour, minute } → HH:MM 24시간 형식으로 변환
     let h24: number;
-    if (pickerExTime.ampm === '오전') {
+    if (pickerExTime.ampm === 'am') {
       h24 = pickerExTime.hour === 12 ? 0 : pickerExTime.hour;
     } else {
       h24 = pickerExTime.hour === 12 ? 12 : pickerExTime.hour + 12;
@@ -1648,7 +1648,7 @@ export function SettingsScreen() {
   const formatExerciseNotif = (n: ExerciseNotif) => {
     const mm = String(n.minute).padStart(2, '0');
     if (isOverseasLocale()) {
-      const h24 = n.ampm === '오전' ? (n.hour === 12 ? 0 : n.hour) : (n.hour === 12 ? 12 : n.hour + 12);
+      const h24 = n.ampm === 'am' ? (n.hour === 12 ? 0 : n.hour) : (n.hour === 12 ? 12 : n.hour + 12);
       return formatClock(new Date(2000, 0, 1, h24, n.minute));
     }
     return `${n.ampm} ${n.hour}:${mm}`;
@@ -2190,7 +2190,7 @@ export function SettingsScreen() {
 
                 {/* AM/PM row */}
                 <View style={styles.ampmRow}>
-                  {(['오전', '오후'] as const).map((ap) => {
+                  {(['am', 'pm'] as const).map((ap) => {
                     const active = pickerExTime.ampm === ap;
                     return (
                       <TouchableOpacity
@@ -2214,7 +2214,7 @@ export function SettingsScreen() {
                               : styles.ampmBtnTextInactive,
                           ]}
                         >
-                          {ap === '오전' ? t('common.am') : t('common.pm')}
+                          {ap === 'am' ? t('common.am') : t('common.pm')}
                         </Text>
                       </TouchableOpacity>
                     );
@@ -2321,7 +2321,7 @@ export function SettingsScreen() {
 
                 {/* AM/PM row */}
                 <View style={styles.ampmRow}>
-                  {(['오전', '오후'] as const).map((ap) => {
+                  {(['am', 'pm'] as const).map((ap) => {
                     const active = pickerExTime.ampm === ap;
                     return (
                       <TouchableOpacity
@@ -2345,7 +2345,7 @@ export function SettingsScreen() {
                               : styles.ampmBtnTextInactive,
                           ]}
                         >
-                          {ap === '오전' ? t('common.am') : t('common.pm')}
+                          {ap === 'am' ? t('common.am') : t('common.pm')}
                         </Text>
                       </TouchableOpacity>
                     );
@@ -2527,7 +2527,7 @@ export function SettingsScreen() {
 
                 {/* AM/PM row */}
                 <View style={styles.ampmRow}>
-                  {(['오전', '오후'] as const).map((ap) => {
+                  {(['am', 'pm'] as const).map((ap) => {
                     const active = patientPickerExTime.ampm === ap;
                     return (
                       <TouchableOpacity
@@ -2545,7 +2545,7 @@ export function SettingsScreen() {
                             active ? styles.ampmBtnTextActive : styles.ampmBtnTextInactive,
                           ]}
                         >
-                          {ap === '오전' ? t('common.am') : t('common.pm')}
+                          {ap === 'am' ? t('common.am') : t('common.pm')}
                         </Text>
                       </TouchableOpacity>
                     );
