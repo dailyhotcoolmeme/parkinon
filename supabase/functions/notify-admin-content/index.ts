@@ -17,7 +17,11 @@
 //   ADMIN_NOTIFY_TO     받는 주소 (미설정 시 GMAIL_USER 로 보냄)
 //   ADMIN_NOTIFY_SECRET 트리거만 호출할 수 있게 하는 공유 비밀값
 
-import { SMTPClient } from 'https://deno.land/x/denomailer@1.6.0/mod.ts';
+// nodemailer 를 쓰는 이유:
+//   denomailer 는 한글 제목을 RFC 2047 인코딩할 때 길이 제한(75자)을 넘겨 한 덩어리로 내보내
+//   Gmail 이 디코딩하지 못하고 "=?utf-8?Q?..." 원문을 그대로 보여줬다(실측).
+//   nodemailer 는 헤더 접기·본문 charset 처리가 검증돼 있다.
+import nodemailer from 'npm:nodemailer@6.9.14';
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
 
 const corsHeaders = {
@@ -57,25 +61,19 @@ function esc(s: string): string {
 }
 
 async function sendMail(subject: string, html: string, text: string): Promise<void> {
-  const client = new SMTPClient({
-    connection: {
-      hostname: 'smtp.gmail.com',
-      port: 465,
-      tls: true,
-      auth: { username: GMAIL_USER, password: GMAIL_APP_PASSWORD },
-    },
+  const transport = nodemailer.createTransport({
+    host: 'smtp.gmail.com',
+    port: 465,
+    secure: true,
+    auth: { user: GMAIL_USER, pass: GMAIL_APP_PASSWORD },
   });
-  try {
-    await client.send({
-      from: `파킨온 알림 <${GMAIL_USER}>`,
-      to: NOTIFY_TO,
-      subject,
-      content: text,
-      html,
-    });
-  } finally {
-    await client.close();
-  }
+  await transport.sendMail({
+    from: `"파킨온 알림" <${GMAIL_USER}>`,
+    to: NOTIFY_TO,
+    subject,
+    text,
+    html,
+  });
 }
 
 Deno.serve(async (req: Request): Promise<Response> => {
