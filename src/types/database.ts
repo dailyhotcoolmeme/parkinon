@@ -170,6 +170,7 @@ export type Database = {
       comments: {
         Row: {
           author_id: string
+          author_name_override: string | null
           content: string
           created_at: string | null
           hidden: boolean
@@ -182,6 +183,7 @@ export type Database = {
         }
         Insert: {
           author_id: string
+          author_name_override?: string | null
           content: string
           created_at?: string | null
           hidden?: boolean
@@ -194,6 +196,7 @@ export type Database = {
         }
         Update: {
           author_id?: string
+          author_name_override?: string | null
           content?: string
           created_at?: string | null
           hidden?: boolean

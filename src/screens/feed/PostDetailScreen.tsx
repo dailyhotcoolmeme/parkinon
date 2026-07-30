@@ -54,6 +54,8 @@ interface CommentRow {
   like_count: number;
   created_at: string;
   author: { name: string } | null;
+  /** 운영자 댓글 표시 이름 — 있으면 실제 계정명 대신 이걸 쓴다(공지글과 같은 규칙). */
+  author_name_override: string | null;
 }
 
 interface CommentDisplay {
@@ -89,11 +91,20 @@ function formatTimeAgo(isoString: string): string {
   return `${month}월 ${date}일 (${day}) ${hh}:${mm}`;
 }
 
+/**
+ * 표시할 작성자명.
+ * 운영자 댓글은 실제 계정명 대신 관리자가 지정한 이름(author_name_override)을 쓴다 —
+ * 공지글(posts.author_name_override)과 같은 규칙이다.
+ */
+function commentAuthorName(c: CommentRow): string {
+  return c.author_name_override || c.author?.name || i18n.t('feed.authorUnknown');
+}
+
 function buildCommentTree(rows: CommentRow[]): CommentDisplay[] {
   const topLevel = rows.filter((r) => r.parent_id === null);
   return topLevel.map((c) => ({
     id: c.id,
-    author: c.author?.name ?? i18n.t('feed.authorUnknown'),
+    author: commentAuthorName(c),
     authorId: c.author_id,
     timeAgo: formatTimeAgo(c.created_at),
     content: c.content,
@@ -102,7 +113,7 @@ function buildCommentTree(rows: CommentRow[]): CommentDisplay[] {
       .filter((r) => r.parent_id === c.id)
       .map((r) => ({
         id: r.id,
-        author: r.author?.name ?? i18n.t('feed.authorUnknown'),
+        author: commentAuthorName(r),
         authorId: r.author_id,
         timeAgo: formatTimeAgo(r.created_at),
         content: r.content,
