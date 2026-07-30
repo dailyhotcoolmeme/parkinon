@@ -2,11 +2,11 @@
   "hooks": {
     "PreToolUse": [
       {
-        "matcher": "Bash",
+        "matcher": "Read|Edit|Write|Bash|Grep|Glob",
         "hooks": [
           {
             "type": "command",
-            "command": "$CLAUDE_PROJECT_DIR/.claude/hooks/scope-guard.sh"
+            "command": "echo '⛔ [오케스트레이터 경고] 직접 도구 사용 감지! 오케스트레이터는 Read/Edit/Write/Bash/Grep/Glob 직접 사용 금지. Agent 도구로 서브에이전트에 위임하세요. 위반 시 작업 무효. AGENT_00_orchestrator.md 참고' >&2"
           }
         ]
       }
