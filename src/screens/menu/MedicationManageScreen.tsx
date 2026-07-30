@@ -71,7 +71,7 @@ import {
 import type { MenuStackParamList } from '../../navigation/MenuNavigator';
 import i18n from '../../i18n';
 import { isOverseasLocale } from '../../i18n/detectLocale';
-import { formatDosage, dosageUnitFromRaw } from '../../utils/medUtils';
+import { formatDosage, dosageUnitFromRaw, unitText, type DosageUnit } from '../../utils/medUtils';
 
 // ─── 타입 ────────────────────────────────────────────────────────────────────
 
@@ -159,7 +159,7 @@ const formatDoseCount = (n?: number | null, u?: 'day' | 'week') =>
     : i18n.t('medManage.doseCountUnknown');
 
 // 복용량 표시: dosage는 "1정"/"5mg" 처럼 숫자+단위가 합쳐진 raw 문자열로 저장되는데,
-// '정' 단위는 DB에 항상 한글로 박혀 있어(로케일 무관) 그대로 보여주면 해외에서도 "정"이 노출된다.
+// 복용량 단위는 키로 저장한다 — 표시는 unitText 가 언어에 맞춰 꺼낸다.
 // (등록 직후 하단 리스트·과거 기록 리스트 두 곳에서 이 raw 문자열을 그대로 표시하던 버그)
 const formatDosageForDisplay = formatDosage;
 
@@ -1450,8 +1450,8 @@ export function MedicationManageScreen({ modeOverride, hideBack, hideTopBar, onG
   // 직접 입력 폼 ("내 약 전체 보기" = 복용약 등록·관리 페이지의 상시 노출 폼).
   const [addName, setAddName] = useState('');
   const [addDosage, setAddDosage] = useState('');
-  // 복용량 단위 칩 선택값 (숫자칸이 비어도 유지). 기본 '정' — OCR 시트와 동일 패턴.
-  const [addDosageUnit, setAddDosageUnit] = useState<'정' | 'mg'>('정');
+  // 복용량 단위 칩 선택값 (숫자칸이 비어도 유지). 내부 키로 저장하고 표시는 unitText 로.
+  const [addDosageUnit, setAddDosageUnit] = useState<DosageUnit>('tablet');
   // 복용횟수 = 숫자만(저장 시 daily_count 정수). 단위(1일/1주)는 addCountUnit.
   const [addDailyCount, setAddDailyCount] = useState('');
   // 횟수 입력값 ref(재렌더로 controlled state 흔들려도 보존) + 제출 후 입력칸 리마운트용 nonce.
@@ -1465,8 +1465,8 @@ export function MedicationManageScreen({ modeOverride, hideBack, hideTopBar, onG
   const [editingId, setEditingId] = useState<string | null>(null);
   const [editName, setEditName] = useState('');
   const [editDosage, setEditDosage] = useState('');
-  // 복용량 단위 칩 선택값 (숫자칸이 비어도 유지). 기본 '정' — OCR 시트/직접등록과 동일 패턴.
-  const [editDosageUnit, setEditDosageUnit] = useState<'정' | 'mg'>('정');
+  // 복용량 단위 칩 선택값 (숫자칸이 비어도 유지). 내부 키로 저장하고 표시는 unitText 로.
+  const [editDosageUnit, setEditDosageUnit] = useState<DosageUnit>('tablet');
   const [editDailyCount, setEditDailyCount] = useState('');
   // 횟수 입력값을 ref로도 보관 — 재렌더로 controlled state가 흔들려도 저장 시점에 확실히 캡처.
   const editCountRef = useRef('');
@@ -1484,8 +1484,8 @@ export function MedicationManageScreen({ modeOverride, hideBack, hideTopBar, onG
     dailyCount?: number | null;
     countUnit?: 'day' | 'week';
     dosage?: string | null;
-    /** 1회 투약량 단위 칩 선택값 (숫자칸이 비어도 유지). 기본 '정' */
-    dosageUnit?: '정' | 'mg';
+    /** 1회 투약량 단위 칩 선택값 (숫자칸이 비어도 유지). 내부 키 */
+    dosageUnit?: DosageUnit;
     times: TimeSlot[];
     schedules?: MealSchedules;
     drugInfo?: DrugInfo | null;
@@ -1898,7 +1898,7 @@ export function MedicationManageScreen({ modeOverride, hideBack, hideTopBar, onG
         ...m,
         ediCode: m.ediCode ?? '',
         countUnit: 'day' as const,
-        dosageUnit: /mg/i.test(m.dosage ?? '') ? 'mg' as const : '정' as const, // 내부 저장값 — 표시할 땐 unitTablet 래핑
+        dosageUnit: /mg/i.test(m.dosage ?? '') ? 'mg' as const : 'tablet' as const,
         checked: true,
       })));
       setOcrResultVisible(true);
@@ -2015,7 +2015,7 @@ export function MedicationManageScreen({ modeOverride, hideBack, hideTopBar, onG
               name: med.name,
               dosage: med.dosage?.trim() ? med.dosage.trim() : null,
               // 단위는 언어 무관 키로 병기 — 표시 함수(formatDosage)가 이 키를 우선 사용.
-              dosage_unit: dosageUnitFromRaw(med.dosage),
+              dosage_unit: med.dosageUnit ?? dosageUnitFromRaw(med.dosage),
               // 처방전 등록 = "내 약"에만 추가. 슬롯 자동배정 안 함 → meal_times 비움.
               // daily_count(1일 횟수)만 보유 → 사용자가 슬롯에서 직접 배정(가이드 기준).
               meal_times: [] as TimeSlot[],
@@ -2487,7 +2487,7 @@ export function MedicationManageScreen({ modeOverride, hideBack, hideTopBar, onG
           patient_id: targetPatientId,
           name: trimmed,
           dosage: addDosage.trim() || null,
-          dosage_unit: dosageUnitFromRaw(addDosage),
+          dosage_unit: addDosageUnit,
           daily_count: dailyCount,
           count_unit: addCountUnit,
           // "내 약"에만 추가 — 슬롯 자동배정 안 함(시간 단일 소스는 dose_slots).
@@ -2522,7 +2522,7 @@ export function MedicationManageScreen({ modeOverride, hideBack, hideTopBar, onG
       });
       setAddName('');
       setAddDosage('');
-      setAddDosageUnit('정');
+      setAddDosageUnit('tablet');
       setAddDailyCount('');
       addCountRef.current = '';
       setAddCountNonce(n => n + 1); // 입력칸 리마운트 → defaultValue 초기화
@@ -2540,8 +2540,8 @@ export function MedicationManageScreen({ modeOverride, hideBack, hideTopBar, onG
     setEditingId(med.id);
     setEditName(med.name);
     setEditDosage(med.dosage ?? '');
-    // 단위 칩: dosage 문자열에 mg가 있으면 'mg', 아니면 기본 '정'
-    setEditDosageUnit(/mg/i.test(med.dosage ?? '') ? 'mg' : '정');
+    // 단위 칩: dosage 문자열에 mg 가 있으면 'mg', 아니면 'tablet'
+    setEditDosageUnit(/mg/i.test(med.dosage ?? '') ? 'mg' : 'tablet');
     const initialCount = med.dailyCount && med.dailyCount > 0 ? String(med.dailyCount) : '';
     setEditDailyCount(initialCount);
     editCountRef.current = initialCount;
@@ -2584,7 +2584,7 @@ export function MedicationManageScreen({ modeOverride, hideBack, hideTopBar, onG
         .update({
           name: trimmed,
           dosage: editDosage.trim() || null,
-          dosage_unit: dosageUnitFromRaw(editDosage),
+          dosage_unit: editDosageUnit,
           daily_count: dailyCount,
           count_unit: editCountUnit,
           drug_image_url: editDrugInfo?.itemImage ?? null,
@@ -2603,7 +2603,7 @@ export function MedicationManageScreen({ modeOverride, hideBack, hideTopBar, onG
     setEditingId(null);
     setEditName('');
     setEditDosage('');
-    setEditDosageUnit('정');
+    setEditDosageUnit('tablet');
     setEditDailyCount('');
     editCountRef.current = '';
     setEditCountUnit('day');
@@ -3347,9 +3347,10 @@ export function MedicationManageScreen({ modeOverride, hideBack, hideTopBar, onG
                   // OCR 시트와 동일 패턴: 숫자 입력 + 정/mg 칩, "숫자+단위" 합성해 dosage 문자열에 저장.
                   const numMatch = addDosage.match(/[0-9]+(?:\.[0-9]+)?/);
                   const numStr = numMatch ? numMatch[0] : '';
-                  const writeDosage = (n: string, u: '정' | 'mg') => {
+                  // dosage 에는 숫자만 넣는다 — 단위는 dosageUnit(키)이 따로 들고 있다.
+                  const writeDosage = (n: string, u: DosageUnit) => {
                     setAddDosageUnit(u);
-                    setAddDosage(n.trim() ? `${n.trim()}${u}` : '');
+                    setAddDosage(n.trim());
                   };
                   return (
                     <View style={styles.regDosageWrap}>
@@ -3365,11 +3366,11 @@ export function MedicationManageScreen({ modeOverride, hideBack, hideTopBar, onG
                       />
                       <TouchableOpacity
                         style={styles.regCountUnitBtn}
-                        onPress={() => writeDosage(numStr, addDosageUnit === '정' ? 'mg' : '정')}
+                        onPress={() => writeDosage(numStr, addDosageUnit === 'tablet' ? 'mg' : 'tablet')}
                         activeOpacity={0.7}
                         accessibilityLabel={t('medManage.a11yDosageUnitSwap')}
                       >
-                        <Text style={styles.regCountUnitText}>{addDosageUnit === '정' ? t('medManage.unitTablet') : addDosageUnit}</Text>
+                        <Text style={styles.regCountUnitText}>{unitText(addDosageUnit)}</Text>
                         <Ionicons name="swap-horizontal" size={13} color={Colors.dark} />
                       </TouchableOpacity>
                     </View>
@@ -3492,9 +3493,9 @@ export function MedicationManageScreen({ modeOverride, hideBack, hideTopBar, onG
                             // OCR 시트/직접등록과 동일 패턴: 숫자 입력 + 정/mg 칩 → dosage 문자열에 합성 저장.
                             const numMatch = editDosage.match(/[0-9]+(?:\.[0-9]+)?/);
                             const numStr = numMatch ? numMatch[0] : '';
-                            const writeDosage = (n: string, u: '정' | 'mg') => {
+                            const writeDosage = (n: string, u: DosageUnit) => {
                               setEditDosageUnit(u);
-                              setEditDosage(n.trim() ? `${n.trim()}${u}` : '');
+                              setEditDosage(n.trim());
                             };
                             return (
                               <View style={styles.regDosageWrap}>
@@ -3510,11 +3511,11 @@ export function MedicationManageScreen({ modeOverride, hideBack, hideTopBar, onG
                                 />
                                 <TouchableOpacity
                                   style={styles.regCountUnitBtn}
-                                  onPress={() => writeDosage(numStr, editDosageUnit === '정' ? 'mg' : '정')}
+                                  onPress={() => writeDosage(numStr, editDosageUnit === 'tablet' ? 'mg' : 'tablet')}
                                   activeOpacity={0.7}
                                   accessibilityLabel={t('medManage.a11yDosageUnitSwap')}
                                 >
-                                  <Text style={styles.regCountUnitText}>{editDosageUnit === '정' ? t('medManage.unitTablet') : editDosageUnit}</Text>
+                                  <Text style={styles.regCountUnitText}>{unitText(editDosageUnit)}</Text>
                                   <Ionicons name="swap-horizontal" size={13} color={Colors.dark} />
                                 </TouchableOpacity>
                               </View>
@@ -3888,13 +3889,13 @@ export function MedicationManageScreen({ modeOverride, hideBack, hideTopBar, onG
                     <View style={{ width: '100%' }}>
                       <Text style={ocrStyles.fieldLabel}>{t('medManage.dosageLabel')}</Text>
                       {(() => {
-                        const dUnit: '정' | 'mg' = med.dosageUnit ?? '정';
+                        const dUnit: DosageUnit = med.dosageUnit ?? 'tablet';
                         // dosage 문자열에서 숫자(소수 포함)만 추출해 숫자칸 초기값으로
                         const numMatch = (med.dosage ?? '').match(/[0-9]+(?:\.[0-9]+)?/);
                         const numStr = numMatch ? numMatch[0] : '';
-                        const writeDosage = (n: string, u: '정' | 'mg') =>
+                        const writeDosage = (n: string, u: DosageUnit) =>
                           setOcrEnrichedMeds(prev => prev.map((m, i) =>
-                            i === idx ? { ...m, dosageUnit: u, dosage: n.trim() ? `${n.trim()}${u}` : null } : m));
+                            i === idx ? { ...m, dosageUnit: u, dosage: n.trim() || null } : m));
                         return (
                           <View style={ocrStyles.dosageWrap}>
                             <TextInput
@@ -3913,11 +3914,11 @@ export function MedicationManageScreen({ modeOverride, hideBack, hideTopBar, onG
                             />
                             <TouchableOpacity
                               style={ocrStyles.countUnitBtn}
-                              onPress={() => writeDosage(numStr, dUnit === '정' ? 'mg' : '정')}
+                              onPress={() => writeDosage(numStr, dUnit === 'tablet' ? 'mg' : 'tablet')}
                               activeOpacity={0.7}
                               accessibilityLabel={t('medManage.a11yDosageUnitSwap')}
                             >
-                              <Text style={ocrStyles.countUnitText}>{dUnit === '정' ? t('medManage.unitTablet') : dUnit}</Text>
+                              <Text style={ocrStyles.countUnitText}>{unitText(dUnit)}</Text>
                               <Ionicons name="swap-horizontal" size={13} color={Colors.dark} />
                             </TouchableOpacity>
                           </View>

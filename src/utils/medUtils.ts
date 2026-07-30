@@ -255,13 +255,10 @@ export function formatDosage(dosage?: string | null, unit?: string | null): stri
   if (!trimmed) return '';
   const numMatch = trimmed.match(/[0-9]+(?:\.[0-9]+)?/);
   const num = numMatch ? numMatch[0] : '';
-  const u = (unit ?? '').trim() ||
-    (/정$/.test(trimmed) ? 'tablet' : /캡슐$/.test(trimmed) ? 'capsule' : /mg/i.test(trimmed) ? 'mg' : '');
-  if (!num) return trimmed;
-  if (u === 'mg') return `${num}mg`;
-  if (u === 'tablet') return `${num}${isOverseasLocale() ? ' ' + i18n.t('medManage.unitTablet') : '정'}`;
-  if (u === 'capsule') return `${num}${isOverseasLocale() ? ' ' + i18n.t('medManage.unitCapsule') : '캡슐'}`;
-  return trimmed;
+  // 단위는 키다. 옛 행은 dosage 문자열 끝에 단위가 붙어 있을 수 있어 그때만 추정한다.
+  const u = ((unit ?? '').trim() || dosageUnitFromRaw(trimmed) || '') as DosageUnit | '';
+  if (!num || !u) return trimmed;
+  return i18n.t('medManage.dosageFormat', { n: num, unit: unitText(u) });
 }
 
 /** raw dosage 문자열('1정'/'1캡슐'/'5mg')에서 언어 무관 단위 키 추출. 모르면 null. */
@@ -272,4 +269,13 @@ export function dosageUnitFromRaw(dosage?: string | null): 'tablet' | 'capsule' 
   if (/캡슐$/.test(trimmed)) return 'capsule';
   if (/mg$/i.test(trimmed)) return 'mg';
   return null;
+}
+
+/** 복용량 단위 — DB·상태에 저장하는 **키**다. 표시는 unitText 로 꺼낸다. */
+export type DosageUnit = 'tablet' | 'capsule' | 'mg';
+
+/** 복용량 단위 키 → 화면 표기. 'mg' 는 어느 언어에서나 mg. */
+export function unitText(unit: DosageUnit): string {
+  if (unit === 'mg') return 'mg';
+  return i18n.t(unit === 'capsule' ? 'medManage.unitCapsule' : 'medManage.unitTablet');
 }

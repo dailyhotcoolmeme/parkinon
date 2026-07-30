@@ -759,7 +759,8 @@
     "alarmPreviewMsg": "Preview how the 'like an alarm' screen looks now?\nThis is just a test screen — nothing will be recorded.",
     "alarmModePatientIosNote": "⚠️ 'Like an alarm' only works on Android devices. On iPhone it won't run — it rings the same as 'Basic'.",
     "effectSourceLabel": "US FDA & manufacturer drug information",
-    "unitCapsule": "capsule"
+    "unitCapsule": "capsule",
+    "dosageFormat": "{{n}} {{unit}}"
   },
   "settings": {
     "notifMedTakenLabel": "When the patient records medication",

@@ -759,7 +759,8 @@
     "alarmPreviewMsg": "Voir maintenant à quoi ressemble l'écran « comme un réveil » ?\nC'est un simple écran de test — rien ne sera enregistré.",
     "alarmModePatientIosNote": "⚠️ « Comme un réveil » ne fonctionne que sur Android. Sur iPhone, l'alarme sonne comme en mode « Simple ».",
     "effectSourceLabel": "FDA (États-Unis) et notices des fabricants",
-    "unitCapsule": "gélule"
+    "unitCapsule": "gélule",
+    "dosageFormat": "{{n}} {{unit}}"
   },
   "settings": {
     "notifMedTakenLabel": "Quand le patient note une prise",

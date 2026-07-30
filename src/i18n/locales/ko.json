@@ -759,7 +759,8 @@
     "alarmPreviewMsg": "'알람처럼' 알림이 뜨는 화면을 지금 미리 볼까요?\n실제 알림이 아닌 테스트 화면이니 안심하고 확인해 보세요.",
     "alarmModePatientIosNote": "⚠️ '알람처럼'은 안드로이드 기기에서만 구동돼요. 아이폰에서는 구동되지 않아 '기본'과 동일하게 울려요.",
     "effectSourceLabel": "미국 FDA·제조사 의약품 정보",
-    "unitCapsule": "캡슐"
+    "unitCapsule": "캡슐",
+    "dosageFormat": "{{n}}{{unit}}"
   },
   "settings": {
     "notifMedTakenLabel": "환자 약 복용 기록 시",

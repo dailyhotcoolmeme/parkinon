@@ -1,18 +1,18 @@
 {
   "generatedFrom": "scripts/i18n-ledger.mjs",
   "summary": {
-    "translate": 575,
+    "translate": 511,
     "logEn": 261,
     "identifier": 70,
-    "exclude": 420,
+    "exclude": 454,
     "done": 0,
     "unclassified": 0
   },
   "byZone": {
     "앱": {
-      "translate": 409,
+      "translate": 346,
       "identifier": 53,
-      "exclude": 229
+      "exclude": 263
     },
     "서버": {
       "translate": 32,
@@ -25,7 +25,7 @@
       "exclude": 108
     },
     "DB": {
-      "translate": 3,
+      "translate": 2,
       "identifier": 0,
       "exclude": 16
     }
@@ -789,262 +789,241 @@
     },
     {
       "zone": "앱",
-      "location": "src/constants/medEffectProfiles.ts:57",
-      "text": "복용 30분쯤부터 약효가 오르기 시작해 1시간 전후로 가장 강하고, 2시간쯤부터는 조금씩 약해질 수 있어요.",
-      "kind": "translate",
-      "reason": "기본값 — 번역 대상"
-    },
-    {
-      "zone": "앱",
-      "location": "src/constants/medEffectProfiles.ts:64",
-      "text": "서서히 녹는 약이라 1시간쯤부터 약효가 오르고, 속효성보다 더 오래 유지돼요.",
-      "kind": "translate",
-      "reason": "기본값 — 번역 대상"
-    },
-    {
-      "zone": "앱",
-      "location": "src/constants/medEffectProfiles.ts:71",
-      "text": "엔타카폰이 함께 들어 있어 약효가 30분쯤부터 오르고, 레보도파 단독보다 더 길게 이어져요.",
-      "kind": "translate",
-      "reason": "기본값 — 번역 대상"
-    },
-    {
-      "zone": "앱",
-      "location": "src/constants/medEffectProfiles.ts:78",
+      "location": "src/constants/medEffectProfiles.ts:66",
       "text": "이 약은 약효추적 알림 대상이 아니에요. 레보도파 약 기준으로 추적해요.",
-      "kind": "translate",
-      "reason": "기본값 — 번역 대상"
+      "kind": "exclude",
+      "reason": "약 이름 대조 키워드 — 화면 비노출"
     },
     {
       "zone": "앱",
-      "location": "src/constants/medEffectProfiles.ts:85",
+      "location": "src/constants/medEffectProfiles.ts:73",
       "text": "붙이는 약(패치)이라 복용 후 추적 알림이 맞지 않아요.",
-      "kind": "translate",
-      "reason": "기본값 — 번역 대상"
+      "kind": "exclude",
+      "reason": "약 이름 대조 키워드 — 화면 비노출"
     },
     {
       "zone": "앱",
-      "location": "src/constants/medEffectProfiles.ts:92",
+      "location": "src/constants/medEffectProfiles.ts:80",
       "text": "레보도파와 함께 드시는 약이에요. 레보도파 기준으로 추적해요.",
-      "kind": "translate",
-      "reason": "기본값 — 번역 대상"
+      "kind": "exclude",
+      "reason": "약 이름 대조 키워드 — 화면 비노출"
     },
     {
       "zone": "앱",
-      "location": "src/constants/medEffectProfiles.ts:99",
+      "location": "src/constants/medEffectProfiles.ts:87",
       "text": "이 약은 약효추적 알림 대상이 아니에요.",
-      "kind": "translate",
-      "reason": "기본값 — 번역 대상"
+      "kind": "exclude",
+      "reason": "약 이름 대조 키워드 — 화면 비노출"
     },
     {
       "zone": "앱",
-      "location": "src/constants/medEffectProfiles.ts:106",
+      "location": "src/constants/medEffectProfiles.ts:94",
       "text": "이 약은 약효추적 알림 대상이 아니에요.",
-      "kind": "translate",
-      "reason": "기본값 — 번역 대상"
+      "kind": "exclude",
+      "reason": "약 이름 대조 키워드 — 화면 비노출"
+    },
+    {
+      "zone": "앱",
+      "location": "src/constants/medEffectProfiles.ts:101",
+      "text": "이 약은 약효추적 알림 대상이 아니에요.",
+      "kind": "exclude",
+      "reason": "약 이름 대조 키워드 — 화면 비노출"
+    },
+    {
+      "zone": "앱",
+      "location": "src/constants/medEffectProfiles.ts:112",
+      "text": "스타레보",
+      "kind": "exclude",
+      "reason": "약 이름 대조 키워드 — 화면 비노출"
     },
     {
       "zone": "앱",
       "location": "src/constants/medEffectProfiles.ts:113",
-      "text": "이 약은 약효추적 알림 대상이 아니에요.",
-      "kind": "translate",
-      "reason": "기본값 — 번역 대상"
+      "text": "시네메트cr",
+      "kind": "exclude",
+      "reason": "약 이름 대조 키워드 — 화면 비노출"
+    },
+    {
+      "zone": "앱",
+      "location": "src/constants/medEffectProfiles.ts:113",
+      "text": "cr정",
+      "kind": "exclude",
+      "reason": "약 이름 대조 키워드 — 화면 비노출"
+    },
+    {
+      "zone": "앱",
+      "location": "src/constants/medEffectProfiles.ts:113",
+      "text": "마도파hbs",
+      "kind": "exclude",
+      "reason": "약 이름 대조 키워드 — 화면 비노출"
+    },
+    {
+      "zone": "앱",
+      "location": "src/constants/medEffectProfiles.ts:113",
+      "text": "서방형",
+      "kind": "exclude",
+      "reason": "약 이름 대조 키워드 — 화면 비노출"
+    },
+    {
+      "zone": "앱",
+      "location": "src/constants/medEffectProfiles.ts:116",
+      "text": "시네메트",
+      "kind": "exclude",
+      "reason": "약 이름 대조 키워드 — 화면 비노출"
+    },
+    {
+      "zone": "앱",
+      "location": "src/constants/medEffectProfiles.ts:116",
+      "text": "퍼킨",
+      "kind": "exclude",
+      "reason": "약 이름 대조 키워드 — 화면 비노출"
+    },
+    {
+      "zone": "앱",
+      "location": "src/constants/medEffectProfiles.ts:116",
+      "text": "마도파",
+      "kind": "exclude",
+      "reason": "약 이름 대조 키워드 — 화면 비노출"
+    },
+    {
+      "zone": "앱",
+      "location": "src/constants/medEffectProfiles.ts:116",
+      "text": "레보도파",
+      "kind": "exclude",
+      "reason": "약 이름 대조 키워드 — 화면 비노출"
+    },
+    {
+      "zone": "앱",
+      "location": "src/constants/medEffectProfiles.ts:121",
+      "text": "미라펙스",
+      "kind": "exclude",
+      "reason": "약 이름 대조 키워드 — 화면 비노출"
+    },
+    {
+      "zone": "앱",
+      "location": "src/constants/medEffectProfiles.ts:122",
+      "text": "프라미펙솔",
+      "kind": "exclude",
+      "reason": "약 이름 대조 키워드 — 화면 비노출"
     },
     {
       "zone": "앱",
       "location": "src/constants/medEffectProfiles.ts:124",
-      "text": "스타레보",
-      "kind": "translate",
-      "reason": "기본값 — 번역 대상"
+      "text": "리큅",
+      "kind": "exclude",
+      "reason": "약 이름 대조 키워드 — 화면 비노출"
     },
     {
       "zone": "앱",
       "location": "src/constants/medEffectProfiles.ts:125",
-      "text": "시네메트cr",
-      "kind": "translate",
-      "reason": "기본값 — 번역 대상"
+      "text": "로피니롤",
+      "kind": "exclude",
+      "reason": "약 이름 대조 키워드 — 화면 비노출"
     },
     {
       "zone": "앱",
-      "location": "src/constants/medEffectProfiles.ts:125",
-      "text": "cr정",
-      "kind": "translate",
-      "reason": "기본값 — 번역 대상"
+      "location": "src/constants/medEffectProfiles.ts:131",
+      "text": "뉴프로",
+      "kind": "exclude",
+      "reason": "약 이름 대조 키워드 — 화면 비노출"
     },
     {
       "zone": "앱",
-      "location": "src/constants/medEffectProfiles.ts:125",
-      "text": "마도파hbs",
-      "kind": "translate",
-      "reason": "기본값 — 번역 대상"
+      "location": "src/constants/medEffectProfiles.ts:131",
+      "text": "로티고틴",
+      "kind": "exclude",
+      "reason": "약 이름 대조 키워드 — 화면 비노출"
     },
     {
       "zone": "앱",
-      "location": "src/constants/medEffectProfiles.ts:125",
-      "text": "서방형",
-      "kind": "translate",
-      "reason": "기본값 — 번역 대상"
-    },
-    {
-      "zone": "앱",
-      "location": "src/constants/medEffectProfiles.ts:128",
-      "text": "시네메트",
-      "kind": "translate",
-      "reason": "기본값 — 번역 대상"
-    },
-    {
-      "zone": "앱",
-      "location": "src/constants/medEffectProfiles.ts:128",
-      "text": "퍼킨",
-      "kind": "translate",
-      "reason": "기본값 — 번역 대상"
-    },
-    {
-      "zone": "앱",
-      "location": "src/constants/medEffectProfiles.ts:128",
-      "text": "마도파",
-      "kind": "translate",
-      "reason": "기본값 — 번역 대상"
-    },
-    {
-      "zone": "앱",
-      "location": "src/constants/medEffectProfiles.ts:128",
-      "text": "레보도파",
-      "kind": "translate",
-      "reason": "기본값 — 번역 대상"
-    },
-    {
-      "zone": "앱",
-      "location": "src/constants/medEffectProfiles.ts:133",
-      "text": "미라펙스",
-      "kind": "translate",
-      "reason": "기본값 — 번역 대상"
+      "location": "src/constants/medEffectProfiles.ts:131",
+      "text": "패치",
+      "kind": "exclude",
+      "reason": "약 이름 대조 키워드 — 화면 비노출"
     },
     {
       "zone": "앱",
       "location": "src/constants/medEffectProfiles.ts:134",
-      "text": "프라미펙솔",
-      "kind": "translate",
-      "reason": "기본값 — 번역 대상"
-    },
-    {
-      "zone": "앱",
-      "location": "src/constants/medEffectProfiles.ts:136",
-      "text": "리큅",
-      "kind": "translate",
-      "reason": "기본값 — 번역 대상"
-    },
-    {
-      "zone": "앱",
-      "location": "src/constants/medEffectProfiles.ts:137",
-      "text": "로피니롤",
-      "kind": "translate",
-      "reason": "기본값 — 번역 대상"
-    },
-    {
-      "zone": "앱",
-      "location": "src/constants/medEffectProfiles.ts:143",
-      "text": "뉴프로",
-      "kind": "translate",
-      "reason": "기본값 — 번역 대상"
-    },
-    {
-      "zone": "앱",
-      "location": "src/constants/medEffectProfiles.ts:143",
-      "text": "로티고틴",
-      "kind": "translate",
-      "reason": "기본값 — 번역 대상"
-    },
-    {
-      "zone": "앱",
-      "location": "src/constants/medEffectProfiles.ts:143",
-      "text": "패치",
-      "kind": "translate",
-      "reason": "기본값 — 번역 대상"
-    },
-    {
-      "zone": "앱",
-      "location": "src/constants/medEffectProfiles.ts:146",
       "text": "콤탄",
-      "kind": "translate",
-      "reason": "기본값 — 번역 대상"
+      "kind": "exclude",
+      "reason": "약 이름 대조 키워드 — 화면 비노출"
     },
     {
       "zone": "앱",
-      "location": "src/constants/medEffectProfiles.ts:146",
+      "location": "src/constants/medEffectProfiles.ts:134",
       "text": "엔타카폰",
-      "kind": "translate",
-      "reason": "기본값 — 번역 대상"
+      "kind": "exclude",
+      "reason": "약 이름 대조 키워드 — 화면 비노출"
     },
     {
       "zone": "앱",
-      "location": "src/constants/medEffectProfiles.ts:146",
+      "location": "src/constants/medEffectProfiles.ts:134",
       "text": "온젠티스",
-      "kind": "translate",
-      "reason": "기본값 — 번역 대상"
+      "kind": "exclude",
+      "reason": "약 이름 대조 키워드 — 화면 비노출"
     },
     {
       "zone": "앱",
-      "location": "src/constants/medEffectProfiles.ts:146",
+      "location": "src/constants/medEffectProfiles.ts:134",
       "text": "오피카폰",
-      "kind": "translate",
-      "reason": "기본값 — 번역 대상"
+      "kind": "exclude",
+      "reason": "약 이름 대조 키워드 — 화면 비노출"
     },
     {
       "zone": "앱",
-      "location": "src/constants/medEffectProfiles.ts:150",
+      "location": "src/constants/medEffectProfiles.ts:138",
       "text": "셀레길린",
-      "kind": "translate",
-      "reason": "기본값 — 번역 대상"
+      "kind": "exclude",
+      "reason": "약 이름 대조 키워드 — 화면 비노출"
     },
     {
       "zone": "앱",
-      "location": "src/constants/medEffectProfiles.ts:150",
+      "location": "src/constants/medEffectProfiles.ts:138",
       "text": "아질렉트",
-      "kind": "translate",
-      "reason": "기본값 — 번역 대상"
+      "kind": "exclude",
+      "reason": "약 이름 대조 키워드 — 화면 비노출"
     },
     {
       "zone": "앱",
-      "location": "src/constants/medEffectProfiles.ts:150",
+      "location": "src/constants/medEffectProfiles.ts:138",
       "text": "라사길린",
-      "kind": "translate",
-      "reason": "기본값 — 번역 대상"
+      "kind": "exclude",
+      "reason": "약 이름 대조 키워드 — 화면 비노출"
     },
     {
       "zone": "앱",
-      "location": "src/constants/medEffectProfiles.ts:152",
+      "location": "src/constants/medEffectProfiles.ts:140",
       "text": "아만타딘",
-      "kind": "translate",
-      "reason": "기본값 — 번역 대상"
+      "kind": "exclude",
+      "reason": "약 이름 대조 키워드 — 화면 비노출"
     },
     {
       "zone": "앱",
-      "location": "src/constants/medEffectProfiles.ts:152",
+      "location": "src/constants/medEffectProfiles.ts:140",
       "text": "피케이멜츠",
-      "kind": "translate",
-      "reason": "기본값 — 번역 대상"
+      "kind": "exclude",
+      "reason": "약 이름 대조 키워드 — 화면 비노출"
     },
     {
       "zone": "앱",
-      "location": "src/constants/medEffectProfiles.ts:155",
+      "location": "src/constants/medEffectProfiles.ts:143",
       "text": "트리헥신",
-      "kind": "translate",
-      "reason": "기본값 — 번역 대상"
+      "kind": "exclude",
+      "reason": "약 이름 대조 키워드 — 화면 비노출"
     },
     {
       "zone": "앱",
-      "location": "src/constants/medEffectProfiles.ts:155",
+      "location": "src/constants/medEffectProfiles.ts:143",
       "text": "트리헥시페니딜",
-      "kind": "translate",
-      "reason": "기본값 — 번역 대상"
+      "kind": "exclude",
+      "reason": "약 이름 대조 키워드 — 화면 비노출"
     },
     {
       "zone": "앱",
-      "location": "src/constants/medEffectProfiles.ts:155",
+      "location": "src/constants/medEffectProfiles.ts:143",
       "text": "벤즈트로핀",
-      "kind": "translate",
-      "reason": "기본값 — 번역 대상"
+      "kind": "exclude",
+      "reason": "약 이름 대조 키워드 — 화면 비노출"
     },
     {
       "zone": "앱",
@@ -4695,48 +4674,6 @@
     },
     {
       "zone": "앱",
-      "location": "src/screens/menu/MedicationManageScreen.tsx:1454",
-      "text": "정",
-      "kind": "translate",
-      "reason": "기본값 — 번역 대상"
-    },
-    {
-      "zone": "앱",
-      "location": "src/screens/menu/MedicationManageScreen.tsx:1454",
-      "text": "정",
-      "kind": "translate",
-      "reason": "기본값 — 번역 대상"
-    },
-    {
-      "zone": "앱",
-      "location": "src/screens/menu/MedicationManageScreen.tsx:1469",
-      "text": "정",
-      "kind": "translate",
-      "reason": "기본값 — 번역 대상"
-    },
-    {
-      "zone": "앱",
-      "location": "src/screens/menu/MedicationManageScreen.tsx:1469",
-      "text": "정",
-      "kind": "translate",
-      "reason": "기본값 — 번역 대상"
-    },
-    {
-      "zone": "앱",
-      "location": "src/screens/menu/MedicationManageScreen.tsx:1487",
-      "text": "정",
-      "kind": "translate",
-      "reason": "기본값 — 번역 대상"
-    },
-    {
-      "zone": "앱",
-      "location": "src/screens/menu/MedicationManageScreen.tsx:1488",
-      "text": "정",
-      "kind": "translate",
-      "reason": "기본값 — 번역 대상"
-    },
-    {
-      "zone": "앱",
       "location": "src/screens/menu/MedicationManageScreen.tsx:1641",
       "text": "[MedicationManageScreen] dose_slots 조인 실패, legacy 표시로 폴백:",
       "kind": "log-en",
@@ -4769,13 +4706,6 @@
       "text": "[MedicationManageScreen] loadDoseSlots 실패:",
       "kind": "log-en",
       "reason": "console 전용 — 영어로 고정"
-    },
-    {
-      "zone": "앱",
-      "location": "src/screens/menu/MedicationManageScreen.tsx:1901",
-      "text": "정",
-      "kind": "translate",
-      "reason": "기본값 — 번역 대상"
     },
     {
       "zone": "앱",
@@ -4849,13 +4779,6 @@
     },
     {
       "zone": "앱",
-      "location": "src/screens/menu/MedicationManageScreen.tsx:2525",
-      "text": "정",
-      "kind": "translate",
-      "reason": "기본값 — 번역 대상"
-    },
-    {
-      "zone": "앱",
       "location": "src/screens/menu/MedicationManageScreen.tsx:2532",
       "text": "[MedicationManageScreen] 약 직접 등록 오류:",
       "kind": "log-en",
@@ -4863,24 +4786,10 @@
     },
     {
       "zone": "앱",
-      "location": "src/screens/menu/MedicationManageScreen.tsx:2544",
-      "text": "정",
-      "kind": "translate",
-      "reason": "기본값 — 번역 대상"
-    },
-    {
-      "zone": "앱",
       "location": "src/screens/menu/MedicationManageScreen.tsx:2596",
       "text": "[MedicationManageScreen] 약 수정 오류:",
       "kind": "log-en",
       "reason": "console 전용 — 영어로 고정"
-    },
-    {
-      "zone": "앱",
-      "location": "src/screens/menu/MedicationManageScreen.tsx:2606",
-      "text": "정",
-      "kind": "translate",
-      "reason": "기본값 — 번역 대상"
     },
     {
       "zone": "앱",
@@ -4926,106 +4835,8 @@
     },
     {
       "zone": "앱",
-      "location": "src/screens/menu/MedicationManageScreen.tsx:3350",
-      "text": "정",
-      "kind": "translate",
-      "reason": "기본값 — 번역 대상"
-    },
-    {
-      "zone": "앱",
-      "location": "src/screens/menu/MedicationManageScreen.tsx:3368",
-      "text": "정",
-      "kind": "translate",
-      "reason": "기본값 — 번역 대상"
-    },
-    {
-      "zone": "앱",
-      "location": "src/screens/menu/MedicationManageScreen.tsx:3368",
-      "text": "정",
-      "kind": "translate",
-      "reason": "기본값 — 번역 대상"
-    },
-    {
-      "zone": "앱",
-      "location": "src/screens/menu/MedicationManageScreen.tsx:3372",
-      "text": "정",
-      "kind": "translate",
-      "reason": "기본값 — 번역 대상"
-    },
-    {
-      "zone": "앱",
-      "location": "src/screens/menu/MedicationManageScreen.tsx:3495",
-      "text": "정",
-      "kind": "translate",
-      "reason": "기본값 — 번역 대상"
-    },
-    {
-      "zone": "앱",
-      "location": "src/screens/menu/MedicationManageScreen.tsx:3513",
-      "text": "정",
-      "kind": "translate",
-      "reason": "기본값 — 번역 대상"
-    },
-    {
-      "zone": "앱",
-      "location": "src/screens/menu/MedicationManageScreen.tsx:3513",
-      "text": "정",
-      "kind": "translate",
-      "reason": "기본값 — 번역 대상"
-    },
-    {
-      "zone": "앱",
-      "location": "src/screens/menu/MedicationManageScreen.tsx:3517",
-      "text": "정",
-      "kind": "translate",
-      "reason": "기본값 — 번역 대상"
-    },
-    {
-      "zone": "앱",
-      "location": "src/screens/menu/MedicationManageScreen.tsx:3589",
+      "location": "src/screens/menu/MedicationManageScreen.tsx:3590",
       "text": "정보 없음",
-      "kind": "translate",
-      "reason": "기본값 — 번역 대상"
-    },
-    {
-      "zone": "앱",
-      "location": "src/screens/menu/MedicationManageScreen.tsx:3891",
-      "text": "정",
-      "kind": "translate",
-      "reason": "기본값 — 번역 대상"
-    },
-    {
-      "zone": "앱",
-      "location": "src/screens/menu/MedicationManageScreen.tsx:3891",
-      "text": "정",
-      "kind": "translate",
-      "reason": "기본값 — 번역 대상"
-    },
-    {
-      "zone": "앱",
-      "location": "src/screens/menu/MedicationManageScreen.tsx:3895",
-      "text": "정",
-      "kind": "translate",
-      "reason": "기본값 — 번역 대상"
-    },
-    {
-      "zone": "앱",
-      "location": "src/screens/menu/MedicationManageScreen.tsx:3916",
-      "text": "정",
-      "kind": "translate",
-      "reason": "기본값 — 번역 대상"
-    },
-    {
-      "zone": "앱",
-      "location": "src/screens/menu/MedicationManageScreen.tsx:3916",
-      "text": "정",
-      "kind": "translate",
-      "reason": "기본값 — 번역 대상"
-    },
-    {
-      "zone": "앱",
-      "location": "src/screens/menu/MedicationManageScreen.tsx:3920",
-      "text": "정",
       "kind": "translate",
       "reason": "기본값 — 번역 대상"
     },
@@ -6151,28 +5962,14 @@
     },
     {
       "zone": "앱",
-      "location": "src/utils/medUtils.ts:262",
-      "text": "${num}${isOverseasLocale() ? ' ' + i18n.t('medManage.unitTablet') : '정'}",
-      "kind": "translate",
-      "reason": "기본값 — 번역 대상"
-    },
-    {
-      "zone": "앱",
-      "location": "src/utils/medUtils.ts:263",
-      "text": "${num}${isOverseasLocale() ? ' ' + i18n.t('medManage.unitCapsule') : '캡슐'}",
-      "kind": "translate",
-      "reason": "기본값 — 번역 대상"
-    },
-    {
-      "zone": "앱",
-      "location": "src/utils/medUtils.ts:267",
+      "location": "src/utils/medUtils.ts:264",
       "text": "1정",
       "kind": "translate",
       "reason": "기본값 — 번역 대상"
     },
     {
       "zone": "앱",
-      "location": "src/utils/medUtils.ts:267",
+      "location": "src/utils/medUtils.ts:264",
       "text": "1캡슐",
       "kind": "translate",
       "reason": "기본값 — 번역 대상"
@@ -9238,29 +9035,22 @@
     },
     {
       "zone": "DB",
-      "location": "medications.dosage",
-      "text": "18/29행 · 예: 1정",
-      "kind": "translate",
-      "reason": "용량 표시값 — dosage_unit 키로 통일"
-    },
-    {
-      "zone": "DB",
       "location": "medications.name",
-      "text": "27/29행 · 예: 프라펙솔",
+      "text": "27/29행 · 예: 명도파",
       "kind": "exclude",
       "reason": "사용자·OCR 이 넣은 약 이름"
     },
     {
       "zone": "DB",
       "location": "notification_logs.body",
-      "text": "1479/1673행 · 예: 최성철님이 약을 드셨어요.",
+      "text": "1480/1674행 · 예: 최성철님이 약을 드셨어요.",
       "kind": "exclude",
       "reason": "발송 시점 수신자 언어로 굳은 이력"
     },
     {
       "zone": "DB",
       "location": "notification_logs.title",
-      "text": "1451/1673행 · 예: 💊 약을 드셨어요",
+      "text": "1452/1674행 · 예: 💊 약을 드셨어요",
       "kind": "exclude",
       "reason": "발송 시점 수신자 언어로 굳은 이력"
     },

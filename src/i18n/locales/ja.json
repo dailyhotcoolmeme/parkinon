@@ -759,7 +759,8 @@
     "alarmPreviewMsg": "「目覚ましのように」の画面を今すぐ確認しますか？\nテスト画面なので、何も記録されません。",
     "alarmModePatientIosNote": "⚠️「目覚ましのように」は Android 端末のみで動作します。iPhone では「基本」と同じ鳴り方になります。",
     "effectSourceLabel": "米国FDAおよび製薬会社の医薬品情報",
-    "unitCapsule": "カプセル"
+    "unitCapsule": "カプセル",
+    "dosageFormat": "{{n}}{{unit}}"
   },
   "settings": {
     "notifMedTakenLabel": "患者さんがお薬を記録したとき",

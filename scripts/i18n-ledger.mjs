@@ -46,6 +46,9 @@ const EXCLUDE_SOURCE = [
   { where: '*', match: /mfds-proxy/, reason: '식약처 API — 국내 전용', approved: '2026-07-30' },
   { where: '*', match: /i18n\/(hangulGuard|textHook|qaProbe|qaWalk)\.ts$/, reason: '한글 검출 가드 자신', approved: '2026-07-30' },
   { where: '*', match: /scripts\/i18n-|scripts\/qa-/, reason: '검수 도구 자신', approved: '2026-07-30' },
+  // 약 이름 대조 키워드 — 사용자가 등록한 한글 약 이름에 이 글자가 있는지 보는 표다.
+  // 화면에 나가지 않는다. medication_pk_profile.product_name 과 같은 성격(오너 확정).
+  { where: '*', match: /constants\/medEffectProfiles\.ts$/, reason: '약 이름 대조 키워드 — 화면 비노출', approved: '2026-07-30' },
   { where: '*', match: /^locales\/(ko|en|fr|ja)\.json$/, reason: 'iOS 네이티브 권한 문구(언어별 파일)', approved: '2026-07-30' },
 ];
 
