@@ -1,10 +1,10 @@
 {
   "generatedFrom": "scripts/i18n-ledger.mjs",
   "summary": {
-    "translate": 152,
-    "logEn": 260,
-    "identifier": 44,
-    "exclude": 460,
+    "translate": 126,
+    "logEn": 257,
+    "identifier": 43,
+    "exclude": 487,
     "done": 2,
     "unclassified": 0
   },
@@ -15,9 +15,9 @@
       "exclude": 272
     },
     "서버": {
-      "translate": 26,
-      "identifier": 1,
-      "exclude": 64
+      "translate": 0,
+      "identifier": 0,
+      "exclude": 91
     },
     "웹": {
       "translate": 126,
@@ -4009,6 +4009,62 @@
     },
     {
       "zone": "서버",
+      "location": "supabase/functions/_shared/i18n.ts:92",
+      "text": "일",
+      "kind": "exclude",
+      "reason": "서버 번역 파일 자체(ko 는 원문)"
+    },
+    {
+      "zone": "서버",
+      "location": "supabase/functions/_shared/i18n.ts:93",
+      "text": "월",
+      "kind": "exclude",
+      "reason": "서버 번역 파일 자체(ko 는 원문)"
+    },
+    {
+      "zone": "서버",
+      "location": "supabase/functions/_shared/i18n.ts:94",
+      "text": "화",
+      "kind": "exclude",
+      "reason": "서버 번역 파일 자체(ko 는 원문)"
+    },
+    {
+      "zone": "서버",
+      "location": "supabase/functions/_shared/i18n.ts:95",
+      "text": "수",
+      "kind": "exclude",
+      "reason": "서버 번역 파일 자체(ko 는 원문)"
+    },
+    {
+      "zone": "서버",
+      "location": "supabase/functions/_shared/i18n.ts:96",
+      "text": "목",
+      "kind": "exclude",
+      "reason": "서버 번역 파일 자체(ko 는 원문)"
+    },
+    {
+      "zone": "서버",
+      "location": "supabase/functions/_shared/i18n.ts:97",
+      "text": "금",
+      "kind": "exclude",
+      "reason": "서버 번역 파일 자체(ko 는 원문)"
+    },
+    {
+      "zone": "서버",
+      "location": "supabase/functions/_shared/i18n.ts:98",
+      "text": "토",
+      "kind": "exclude",
+      "reason": "서버 번역 파일 자체(ko 는 원문)"
+    },
+    {
+      "zone": "서버",
+      "location": "supabase/functions/_shared/i18n.ts:99",
+      "text": "{{month}}월 {{day}}일({{weekday}}) {{time}}",
+      "kind": "exclude",
+      "reason": "서버 번역 파일 자체(ko 는 원문)"
+    },
+    {
+      "zone": "서버",
       "location": "supabase/functions/change-role/index.ts:134",
       "text": "[change-role] R2 정리 user=${user.id}:",
       "kind": "log-en",
@@ -4032,134 +4088,134 @@
       "zone": "서버",
       "location": "supabase/functions/claude-medical-record/index.ts:69",
       "text": "약품명",
-      "kind": "translate",
-      "reason": "기본값 — 번역 대상"
+      "kind": "exclude",
+      "reason": "OCR 프롬프트 — 처방전에 인쇄된 글자"
     },
     {
       "zone": "서버",
       "location": "supabase/functions/claude-medical-record/index.ts:82",
       "text": "약품명",
-      "kind": "translate",
-      "reason": "기본값 — 번역 대상"
+      "kind": "exclude",
+      "reason": "OCR 프롬프트 — 처방전에 인쇄된 글자"
     },
     {
       "zone": "서버",
       "location": "supabase/functions/claude-medical-record/index.ts:87",
       "text": "1정",
-      "kind": "translate",
-      "reason": "기본값 — 번역 대상"
+      "kind": "exclude",
+      "reason": "OCR 프롬프트 — 처방전에 인쇄된 글자"
     },
     {
       "zone": "서버",
       "location": "supabase/functions/claude-medical-record/index.ts:87",
       "text": "1포",
-      "kind": "translate",
-      "reason": "기본값 — 번역 대상"
+      "kind": "exclude",
+      "reason": "OCR 프롬프트 — 처방전에 인쇄된 글자"
     },
     {
       "zone": "서버",
       "location": "supabase/functions/claude-medical-record/index.ts:87",
       "text": "2캡슐",
-      "kind": "translate",
-      "reason": "기본값 — 번역 대상"
+      "kind": "exclude",
+      "reason": "OCR 프롬프트 — 처방전에 인쇄된 글자"
     },
     {
       "zone": "서버",
       "location": "supabase/functions/claude-medical-record/index.ts:88",
       "text": "1회 투약량",
-      "kind": "translate",
-      "reason": "기본값 — 번역 대상"
+      "kind": "exclude",
+      "reason": "OCR 프롬프트 — 처방전에 인쇄된 글자"
     },
     {
       "zone": "서버",
       "location": "supabase/functions/claude-medical-record/index.ts:93",
       "text": "1일 3회",
-      "kind": "translate",
-      "reason": "기본값 — 번역 대상"
+      "kind": "exclude",
+      "reason": "OCR 프롬프트 — 처방전에 인쇄된 글자"
     },
     {
       "zone": "서버",
       "location": "supabase/functions/claude-medical-record/index.ts:93",
       "text": "1일 투여횟수 3",
-      "kind": "translate",
-      "reason": "기본값 — 번역 대상"
+      "kind": "exclude",
+      "reason": "OCR 프롬프트 — 처방전에 인쇄된 글자"
     },
     {
       "zone": "서버",
       "location": "supabase/functions/claude-medical-record/index.ts:93",
       "text": "1일 3번",
-      "kind": "translate",
-      "reason": "기본값 — 번역 대상"
+      "kind": "exclude",
+      "reason": "OCR 프롬프트 — 처방전에 인쇄된 글자"
     },
     {
       "zone": "서버",
       "location": "supabase/functions/claude-medical-record/index.ts:93",
       "text": "하루 2회",
-      "kind": "translate",
-      "reason": "기본값 — 번역 대상"
+      "kind": "exclude",
+      "reason": "OCR 프롬프트 — 처방전에 인쇄된 글자"
     },
     {
       "zone": "서버",
       "location": "supabase/functions/claude-medical-record/index.ts:93",
       "text": "1일 3회",
-      "kind": "translate",
-      "reason": "기본값 — 번역 대상"
+      "kind": "exclude",
+      "reason": "OCR 프롬프트 — 처방전에 인쇄된 글자"
     },
     {
       "zone": "서버",
       "location": "supabase/functions/claude-medical-record/index.ts:94",
       "text": "1일투여량/투여횟수",
-      "kind": "translate",
-      "reason": "기본값 — 번역 대상"
+      "kind": "exclude",
+      "reason": "OCR 프롬프트 — 처방전에 인쇄된 글자"
     },
     {
       "zone": "서버",
       "location": "supabase/functions/claude-medical-record/index.ts:94",
       "text": "투약 횟수",
-      "kind": "translate",
-      "reason": "기본값 — 번역 대상"
+      "kind": "exclude",
+      "reason": "OCR 프롬프트 — 처방전에 인쇄된 글자"
     },
     {
       "zone": "서버",
       "location": "supabase/functions/claude-medical-record/index.ts:99",
       "text": "EDI코드",
-      "kind": "translate",
-      "reason": "기본값 — 번역 대상"
+      "kind": "exclude",
+      "reason": "OCR 프롬프트 — 처방전에 인쇄된 글자"
     },
     {
       "zone": "서버",
       "location": "supabase/functions/claude-medical-record/index.ts:99",
       "text": "코드",
-      "kind": "translate",
-      "reason": "기본값 — 번역 대상"
+      "kind": "exclude",
+      "reason": "OCR 프롬프트 — 처방전에 인쇄된 글자"
     },
     {
       "zone": "서버",
       "location": "supabase/functions/claude-medical-record/index.ts:104",
       "text": "1정",
-      "kind": "translate",
-      "reason": "기본값 — 번역 대상"
+      "kind": "exclude",
+      "reason": "OCR 프롬프트 — 처방전에 인쇄된 글자"
     },
     {
       "zone": "서버",
       "location": "supabase/functions/claude-medical-record/index.ts:213",
       "text": "Claude API 오류:",
-      "kind": "log-en",
-      "reason": "console 전용 — 영어로 고정"
+      "kind": "exclude",
+      "reason": "OCR 프롬프트 — 처방전에 인쇄된 글자"
     },
     {
       "zone": "서버",
       "location": "supabase/functions/claude-medical-record/index.ts:237",
       "text": "JSON 파싱 실패:",
-      "kind": "log-en",
-      "reason": "console 전용 — 영어로 고정"
+      "kind": "exclude",
+      "reason": "OCR 프롬프트 — 처방전에 인쇄된 글자"
     },
     {
       "zone": "서버",
       "location": "supabase/functions/claude-medical-record/index.ts:278",
       "text": "claude-medical-record 처리 오류:",
-      "kind": "log-en",
-      "reason": "console 전용 — 영어로 고정"
+      "kind": "exclude",
+      "reason": "OCR 프롬프트 — 처방전에 인쇄된 글자"
     },
     {
       "zone": "서버",
@@ -4482,83 +4538,6 @@
       "text": "[save-push-token] push_token 저장 성공 — user:",
       "kind": "log-en",
       "reason": "console 전용 — 영어로 고정"
-    },
-    {
-      "zone": "서버",
-      "location": "supabase/functions/send-appointment-reminders/index.ts:15",
-      "text": "일",
-      "kind": "translate",
-      "reason": "기본값 — 번역 대상"
-    },
-    {
-      "zone": "서버",
-      "location": "supabase/functions/send-appointment-reminders/index.ts:15",
-      "text": "월",
-      "kind": "translate",
-      "reason": "기본값 — 번역 대상"
-    },
-    {
-      "zone": "서버",
-      "location": "supabase/functions/send-appointment-reminders/index.ts:15",
-      "text": "화",
-      "kind": "translate",
-      "reason": "기본값 — 번역 대상"
-    },
-    {
-      "zone": "서버",
-      "location": "supabase/functions/send-appointment-reminders/index.ts:15",
-      "text": "수",
-      "kind": "translate",
-      "reason": "기본값 — 번역 대상"
-    },
-    {
-      "zone": "서버",
-      "location": "supabase/functions/send-appointment-reminders/index.ts:15",
-      "text": "목",
-      "kind": "translate",
-      "reason": "기본값 — 번역 대상"
-    },
-    {
-      "zone": "서버",
-      "location": "supabase/functions/send-appointment-reminders/index.ts:15",
-      "text": "금",
-      "kind": "translate",
-      "reason": "기본값 — 번역 대상"
-    },
-    {
-      "zone": "서버",
-      "location": "supabase/functions/send-appointment-reminders/index.ts:15",
-      "text": "토",
-      "kind": "translate",
-      "reason": "기본값 — 번역 대상"
-    },
-    {
-      "zone": "서버",
-      "location": "supabase/functions/send-appointment-reminders/index.ts:49",
-      "text": "오전",
-      "kind": "identifier",
-      "reason": "한글이 식별자로 쓰임 — 영어 키로 교체"
-    },
-    {
-      "zone": "서버",
-      "location": "supabase/functions/send-appointment-reminders/index.ts:49",
-      "text": "오후",
-      "kind": "translate",
-      "reason": "기본값 — 번역 대상"
-    },
-    {
-      "zone": "서버",
-      "location": "supabase/functions/send-appointment-reminders/index.ts:52",
-      "text": "${mo}월 ${day}일(${dow}) ${ampm} ${h12}:${String(minute).padStart(2, '0')}",
-      "kind": "translate",
-      "reason": "기본값 — 번역 대상"
-    },
-    {
-      "zone": "서버",
-      "location": "supabase/functions/send-medication-reminders/index.ts:669",
-      "text": "오후",
-      "kind": "translate",
-      "reason": "기본값 — 번역 대상"
     },
     {
       "zone": "서버",

@@ -44,6 +44,9 @@ const EXCLUDE_SOURCE = [
   { where: 'server', match: /_shared\/i18n\.ts$/, reason: '서버 번역 파일 자체(ko 는 원문)', approved: '2026-07-29' },
   { where: '*', match: /kakao-auth|kakaoAuth/, reason: '카카오 로그인 — 국내 전용 로그인 방식', approved: '2026-07-30' },
   { where: '*', match: /mfds-proxy/, reason: '식약처 API — 국내 전용', approved: '2026-07-30' },
+  // OCR 프롬프트의 따옴표 안 한국어는 지시문이 아니라 **처방전에 인쇄된 글자**다.
+  // 모델이 사진에서 찾아야 할 대상이라 그대로 둔다. 사용자 화면에 나가지 않는다(오너 확정).
+  { where: 'server', match: /claude-medical-record\/index\.ts$/, reason: 'OCR 프롬프트 — 처방전에 인쇄된 글자', approved: '2026-07-30' },
   { where: '*', match: /i18n\/(hangulGuard|textHook|qaProbe|qaWalk)\.ts$/, reason: '한글 검출 가드 자신', approved: '2026-07-30' },
   { where: '*', match: /scripts\/i18n-|scripts\/qa-/, reason: '검수 도구 자신', approved: '2026-07-30' },
   // 약 이름 대조 키워드 — 사용자가 등록한 한글 약 이름에 이 글자가 있는지 보는 표다.

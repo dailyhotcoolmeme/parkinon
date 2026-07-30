@@ -5,16 +5,13 @@
 //   → 환자에게 푸시 + notified_* = true (1회 발송 보장). 이미 지난 D-시점도 첫 실행에서 따라잡아 발송.
 // 발송 문구는 앱(AppointmentWrite/MedicalRecordList)과 동일하게 유지.
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2'
-import { resolveLang, t } from '../_shared/i18n.ts'
+import { resolveLang, t, formatClock, weekdayShort, type Lang } from '../_shared/i18n.ts'
 
 const supabase = createClient(
   Deno.env.get('SUPABASE_URL')!,
   Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!,
 )
 
-const DAYS_KR = ['일', '월', '화', '수', '목', '금', '토']
-const DAYS_EN = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat']
-const MONTHS_EN = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec']
 const DOW_INDEX: Record<string, number> = { Sun: 0, Mon: 1, Tue: 2, Wed: 3, Thu: 4, Fri: 5, Sat: 6 }
 
 /**
@@ -42,24 +39,18 @@ function localParts(iso: string, tz: string) {
   }
 }
 
-/** 진료 일시 → 환자 tz 기준 'M월 D일(요일) 오전/오후 H:MM'. 앱 apptWhenKor 과 동일 형식. */
-function kstWhen(iso: string, tz: string): string {
+/**
+ * 진료 일시 → 환자 tz 기준 표기. 언어별 포맷은 번역표(appt.when)가 들고 있다.
+ * 예전엔 ko/en 두 함수로 갈라져 있어 프랑스어·일본어 사용자가 영문 표기를 받았다.
+ */
+function apptWhen(lang: Lang, iso: string, tz: string): string {
   const { mo, day, hour, minute, dowIdx } = localParts(iso, tz)
-  const dow = DAYS_KR[dowIdx]
-  const ampm = hour < 12 ? '오전' : '오후'
-  let h12 = hour % 12
-  if (h12 === 0) h12 = 12
-  return `${mo}월 ${day}일(${dow}) ${ampm} ${h12}:${String(minute).padStart(2, '0')}`
-}
-
-/** kstWhen 영어판 — 앱 apptWhen isEnLocale 분기와 동일 형식: 'Mon, Jul 6 8:00 AM'. */
-function kstWhenEn(iso: string, tz: string): string {
-  const { mo, day, hour, minute, dowIdx } = localParts(iso, tz)
-  const dow = DAYS_EN[dowIdx]
-  const ampm = hour < 12 ? 'AM' : 'PM'
-  let h12 = hour % 12
-  if (h12 === 0) h12 = 12
-  return `${dow}, ${MONTHS_EN[mo - 1]} ${day} ${h12}:${String(minute).padStart(2, '0')} ${ampm}`
+  return t(lang, 'appt.when', {
+    month: mo,
+    day,
+    weekday: weekdayShort(lang, dowIdx),
+    time: formatClock(lang, `${String(hour).padStart(2, '0')}:${String(minute).padStart(2, '0')}`),
+  })
 }
 
 /** 수신자의 알림음 설정 → Android 채널 ID. (send-medication-reminders 와 동일 규칙) */
@@ -141,8 +132,7 @@ async function processBucket(rows: ApptRow[] | null, kind: 'week' | 'day') {
     const tz = (patient as any).timezone || 'Asia/Seoul'
     const title = t(lang, 'appointment.title')
     const hosp = appt.hospital_name?.trim() || t(lang, 'appointment.hospitalFallback')
-    // 날짜 표기는 언어별 포맷터가 따로 있다(kstWhen / kstWhenEn). 한국어 외에는 영문 포맷을 쓴다.
-    const when = lang === 'ko' ? kstWhen(appt.appointment_date, tz) : kstWhenEn(appt.appointment_date, tz)
+    const when = apptWhen(lang, appt.appointment_date, tz)
     const body = t(lang, kind === 'week' ? 'appointment.bodyWeek' : 'appointment.bodyTomorrow', { hospital: hosp, when })
     const channelId = await resolveAlarmChannel(appt.patient_id)
     const data = { type: 'appointment_reminder', appointmentId: appt.id, kind }

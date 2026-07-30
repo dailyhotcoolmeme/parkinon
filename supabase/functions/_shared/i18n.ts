@@ -89,6 +89,14 @@ const STRINGS: Record<Lang, Dict> = {
     'slot.bedtime': '취침',
     'clock.am': '오전',
     'clock.pm': '오후',
+    'weekday.sun': '일',
+    'weekday.mon': '월',
+    'weekday.tue': '화',
+    'weekday.wed': '수',
+    'weekday.thu': '목',
+    'weekday.fri': '금',
+    'weekday.sat': '토',
+    'appt.when': '{{month}}월 {{day}}일({{weekday}}) {{time}}',
   },
   en: {
     'med.time.title': '💊 Medication time',
@@ -135,6 +143,14 @@ const STRINGS: Record<Lang, Dict> = {
     'slot.bedtime': 'Bedtime',
     'clock.am': 'AM',
     'clock.pm': 'PM',
+    'weekday.sun': 'Sun',
+    'weekday.mon': 'Mon',
+    'weekday.tue': 'Tue',
+    'weekday.wed': 'Wed',
+    'weekday.thu': 'Thu',
+    'weekday.fri': 'Fri',
+    'weekday.sat': 'Sat',
+    'appt.when': '{{weekday}}, {{month}}/{{day}} {{time}}',
   },
   fr: {
     'med.time.title': '💊 C\'est l\'heure de votre médicament',
@@ -181,6 +197,14 @@ const STRINGS: Record<Lang, Dict> = {
     'slot.bedtime': 'Coucher',
     'clock.am': '',
     'clock.pm': '',
+    'weekday.sun': 'dim.',
+    'weekday.mon': 'lun.',
+    'weekday.tue': 'mar.',
+    'weekday.wed': 'mer.',
+    'weekday.thu': 'jeu.',
+    'weekday.fri': 'ven.',
+    'weekday.sat': 'sam.',
+    'appt.when': '{{weekday}} {{day}}/{{month}} {{time}}',
   },
   ja: {
     'med.time.title': '💊 お薬の時間です',
@@ -227,6 +251,14 @@ const STRINGS: Record<Lang, Dict> = {
     'slot.bedtime': '就寝前',
     'clock.am': '午前',
     'clock.pm': '午後',
+    'weekday.sun': '日',
+    'weekday.mon': '月',
+    'weekday.tue': '火',
+    'weekday.wed': '水',
+    'weekday.thu': '木',
+    'weekday.fri': '金',
+    'weekday.sat': '土',
+    'appt.when': '{{month}}月{{day}}日（{{weekday}}） {{time}}',
   },
 };
 
@@ -304,4 +336,10 @@ export function slotLabelWithTime(lang: Lang, legacyKey: string | null | undefin
   const label = slotLabel(lang, legacyKey, time);
   const clock = formatClock(lang, time);
   return [label, clock].filter(Boolean).join(' ');
+}
+
+/** 요일 짧은 이름. 0=일요일. */
+export function weekdayShort(lang: Lang, dowIndex: number): string {
+  const keys = ['sun', 'mon', 'tue', 'wed', 'thu', 'fri', 'sat'];
+  return t(lang, `weekday.${keys[dowIndex] ?? 'sun'}`);
 }

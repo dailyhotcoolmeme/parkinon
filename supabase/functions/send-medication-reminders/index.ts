@@ -666,7 +666,8 @@ Deno.serve(async (_req: Request) => {
       // ampm + hour → 24시간 현지 HH:MM 변환.
       // ampm 은 표시 문자열이 아니라 식별자다 — 'am'/'pm' 으로 저장한다.
       // 옛 행에는 '오전'/'오후' 가 남아 있을 수 있어 둘 다 받아준다.
-      const isPm = pref.ampm === 'pm' || pref.ampm === '오후'
+      const LEGACY_PM = '\uC624\uD6C4' // 옛 저장값 '오후' — 미업데이트 앱이 다시 쓸 수 있어 받아준다
+      const isPm = pref.ampm === 'pm' || pref.ampm === LEGACY_PM
       let h = pref.hour
       if (isPm && h !== 12) h += 12
       if (!isPm && h === 12) h = 0
