@@ -10,6 +10,7 @@ import { useNavigation, useFocusEffect } from '@react-navigation/native';
 import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { Ionicons } from '@expo/vector-icons';
 import { useTranslation } from 'react-i18next';
+import { useDelayedFlag } from '../../hooks/useDelayedFlag';
 import i18n from '../../i18n';
 import { Colors } from '../../constants/colors';
 import { TopBar } from '../../components/common/TopBar';
@@ -114,6 +115,14 @@ function formatDate(isoString: string): string {
 
 type MainTab = 'all' | 'bookmarks' | 'mine';
 
+/**
+ * 마지막으로 본 기본 목록을 담아두는 키.
+ *
+ * 언어를 키에 넣는 이유: 저장하는 항목은 이미 그 언어로 만들어진 상태(카테고리 라벨·날짜)라,
+ * 언어를 바꾸면 예전 언어의 목록이 잠깐 보인다. 언어별로 따로 담아 그 일이 없게 한다.
+ */
+const feedCacheKey = () => `parkinon_feed_cache_v1_${i18n.language}`;
+
 export function FeedScreen() {
   const { t } = useTranslation();
   const navigation = useNavigation<Nav>();
@@ -131,7 +140,33 @@ export function FeedScreen() {
   useScrollTopOnTabPress(listRef);
   const [fabExpanded, setFabExpanded] = useState(true);
   const [posts, setPosts] = useState<PostItem[]>([]);
+  // fetchPosts 안에서 "이미 목록이 있는지"를 보기 위한 참조.
+  //   posts 를 의존성에 넣으면 fetchPosts 가 매번 새로 만들어지고,
+  //   그걸 의존하는 useFocusEffect 가 다시 돌아 재조회가 반복된다.
+  const postsRef = useRef<PostItem[]>([]);
+  useEffect(() => { postsRef.current = posts; }, [posts]);
   const [loading, setLoading] = useState(true);
+  // 빨리 오면 스켈레톤을 아예 띄우지 않는다(회색 바 깜빡임 방지).
+  const showListSkeleton = useDelayedFlag(loading);
+
+  // 저장해 둔 지난 목록을 먼저 그린다 — 서버 응답을 기다리는 동안 빈 화면/회색 바를 없앤다.
+  //   네트워크 조회는 그대로 진행되고, 도착하면 조용히 갈아끼운다.
+  //   이미 목록이 채워졌으면(빠른 응답) 덮어쓰지 않는다.
+  useEffect(() => {
+    let cancelled = false;
+    AsyncStorage.getItem(feedCacheKey())
+      .then((raw) => {
+        if (cancelled || !raw) return;
+        if (postsRef.current.length > 0) return;
+        const cached = JSON.parse(raw) as PostItem[];
+        if (Array.isArray(cached) && cached.length > 0) {
+          setPosts(cached);
+          setLoading(false);
+        }
+      })
+      .catch(() => {});
+    return () => { cancelled = true; };
+  }, []);
   const [loadingMore, setLoadingMore] = useState(false);
   const [hasMore, setHasMore] = useState(true);
   const pageRef = useRef(0);
@@ -227,7 +262,11 @@ export function FeedScreen() {
 
   const fetchPosts = useCallback(async (reset = true, overrideSearch?: string, overrideCategory?: string, overrideTab?: MainTab) => {
     if (reset) {
-      setLoading(true);
+      // 이미 받아둔 목록이 있으면 스피너로 덮지 않는다.
+      //   탭에 들어올 때마다(useFocusEffect) 다시 조회하는데, 그때마다 loading=true 로
+      //   화면을 비우면 이미 본 글이 사라졌다가 다시 나타나 "매번 처음 여는 것처럼" 느껴진다.
+      //   목록은 그대로 두고 뒤에서 갱신한 뒤 조용히 갈아끼운다.
+      if (postsRef.current.length === 0) setLoading(true);
       pageRef.current = 0;
     } else {
       setLoadingMore(true);
@@ -377,6 +416,7 @@ export function FeedScreen() {
       const mappedNotices: PostItem[] = wantNotices ? (noticesData ?? []).map(mapPost) : [];
 
       if (reset) {
+        let finalList: PostItem[];
         if (newsFeedItems.length > 0) {
           const interleaved: PostItem[] = [];
           let ni = 0, pi = 0;
@@ -384,9 +424,16 @@ export function FeedScreen() {
             if (pi < mappedPosts.length) interleaved.push(mappedPosts[pi++]);
             if (ni < newsFeedItems.length) interleaved.push(newsFeedItems[ni++]);
           }
-          setPosts([...mappedNotices, ...interleaved]);
+          finalList = [...mappedNotices, ...interleaved];
         } else {
-          setPosts([...mappedNotices, ...mappedPosts]);
+          finalList = [...mappedNotices, ...mappedPosts];
+        }
+        setPosts(finalList);
+        // 기본 화면(전체 탭·검색 없음·필터 없음)만 저장해 둔다.
+        //   다음에 정보·나눔을 열 때 이걸 즉시 그려서 회색 바 없이 글이 바로 보이게 한다.
+        //   검색·필터 결과까지 저장하면 엉뚱한 목록이 먼저 보이므로 기본 화면만 대상.
+        if (currentTab === 'all' && !currentSearch.trim() && currentCategory === 'all') {
+          AsyncStorage.setItem(feedCacheKey(), JSON.stringify(finalList.slice(0, PAGE_SIZE))).catch(() => {});
         }
       } else {
         setPosts(prev => [...prev, ...mappedPosts]);
@@ -597,7 +644,7 @@ export function FeedScreen() {
       )}
 
       <View style={styles.flex}>
-        {loading ? (
+        {showListSkeleton ? (
           <View style={styles.listContent}>
             {Array.from({ length: 6 }).map((_, i) => (
               <View key={i} style={styles.skelRow}>

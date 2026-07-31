@@ -25,6 +25,7 @@ import { useRoute, useNavigation, useFocusEffect } from '@react-navigation/nativ
 import type { NativeStackScreenProps, NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { Ionicons } from '@expo/vector-icons';
 import { useTranslation } from 'react-i18next';
+import { useDelayedFlag } from '../../hooks/useDelayedFlag';
 import i18n from '../../i18n';
 import { Colors } from '../../constants/colors';
 import { TopBar } from '../../components/common/TopBar';
@@ -192,6 +193,10 @@ export function PostDetailScreen() {
   const [commentText, setCommentText] = useState('');
   const [comments, setComments] = useState<CommentDisplay[]>([]);
   const [commentsLoading, setCommentsLoading] = useState(true);
+  /** 댓글을 한 번이라도 받아왔는지 — 스켈레톤을 첫 로드에만 띄우기 위한 표시. */
+  const commentsLoadedRef = useRef(false);
+  // 빨리 오면 스켈레톤을 아예 띄우지 않는다(회색 바 깜빡임 방지).
+  const showCommentSkeleton = useDelayedFlag(commentsLoading);
   const [replyingTo, setReplyingTo] = useState<string | null>(null);
   const [submittingComment, setSubmittingComment] = useState(false);
   const [mediaUrls, setMediaUrls] = useState<string[]>([]);
@@ -404,7 +409,10 @@ export function PostDetailScreen() {
 
   // 댓글 불러오기
   const fetchComments = useCallback(async () => {
-    setCommentsLoading(true);
+    // 스켈레톤은 "아직 아무것도 못 받았을 때"만 띄운다.
+    //   댓글을 달고 나서(재조회)나 화면에 다시 들어올 때마다 스켈레톤이 뜨면
+    //   이미 읽던 댓글이 사라졌다 나타나 화면이 덜컥거린다.
+    if (!commentsLoadedRef.current) setCommentsLoading(true);
     try {
       const { data, error } = await supabase
         .from('comments')
@@ -414,6 +422,7 @@ export function PostDetailScreen() {
 
       if (error) throw error;
       setComments(buildCommentTree((data ?? []) as CommentRow[]));
+      commentsLoadedRef.current = true;
     } catch (e: any) {
       await dialog.alert({ title: t('postDetail.errorTitle'), message: t('postDetail.commentsLoadFailMsg') });
       console.error('[PostDetail] fetchComments 오류:', e);
@@ -707,7 +716,7 @@ export function PostDetailScreen() {
             <Text style={styles.commentTitle}>{t('postDetail.commentsHeader', { count: totalCommentCount })}</Text>
           </View>
 
-          {commentsLoading ? (
+          {showCommentSkeleton ? (
             <View style={styles.skelCommentWrap}>
               {[0, 1].map((i) => (
                 <View key={i} style={styles.skelCommentCard}>
