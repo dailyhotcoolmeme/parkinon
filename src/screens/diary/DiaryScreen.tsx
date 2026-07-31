@@ -19,7 +19,7 @@ import {
 } from 'react-native';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useNavigation, useRoute, useFocusEffect } from '@react-navigation/native';
-import { navigateTo } from '../../navigation/navigationRef';
+import { navigateTo, goToSubscription } from '../../navigation/navigationRef';
 import { Ionicons } from '@expo/vector-icons';
 import { Audio, Video as AVVideo, ResizeMode } from 'expo-av';
 import { VOICE_RECORDING_OPTIONS } from '../../constants/recordingOptions';
@@ -259,8 +259,10 @@ function DiaryCalendarModal({
     onSelect(`${viewYear}-${pad(viewMonth + 1)}-${pad(day)}`);
   };
 
+  // RN <Modal> 대신 절대배치 — 창을 새로 만들지 않아 겹침 프리즈가 없다(파일 전체 동일 원칙).
+  if (!visible) return null;
   return (
-    <Modal visible={visible} transparent animationType="fade" onRequestClose={onClose} statusBarTranslucent>
+    <View style={StyleSheet.absoluteFill}>
       <TouchableOpacity style={styles.calOverlay} activeOpacity={1} onPress={onClose}>
         <Animated.View
           style={[styles.calSheet, { transform: [{ translateY }] }]}
@@ -347,7 +349,7 @@ function DiaryCalendarModal({
           </TouchableOpacity>
         </Animated.View>
       </TouchableOpacity>
-    </Modal>
+    </View>
   );
 }
 
@@ -1273,18 +1275,8 @@ function FullscreenVideoModal({
   // inline=true → 이미 <Modal> 안이라 오버레이로 렌더(iOS 모달 중첩 프리즈 회피).
   if (inline) return <View style={styles.sheetOverlay}>{body}</View>;
 
-  return (
-    <Modal
-      visible
-      transparent={false}
-      animationType="fade"
-      statusBarTranslucent
-      navigationBarTranslucent={false}
-      onRequestClose={handleClose}
-    >
-      {body}
-    </Modal>
-  );
+  // RN <Modal> 대신 절대배치 — 작성기 안이든 밖이든 동일하게 동작한다.
+  return <View style={styles.fullscreenOverlay}>{body}</View>;
 }
 
 // ─── 작성/수정 에디터 (펼친 일기장) ───────────────────────────────────────────
@@ -1377,7 +1369,7 @@ function DiaryEditorModal({ visible, dateStr, patientId, existing, onClose, onSa
           confirmText: t('subscription.upgradeBtn'),
           cancelText: t('common.cancel'),
         })
-        .then((ok) => { if (ok) navigateTo('Main', { screen: 'MyInfo', params: { screen: 'SubscriptionManage' } }); });
+        .then((ok) => { if (ok) goToSubscription(); });
     } else {
       // 국내: 결제/구독 문구 없이 담백하게 안내
       const msgKey =
@@ -1912,8 +1904,15 @@ function DiaryEditorModal({ visible, dateStr, patientId, existing, onClose, onSa
     }
   };
 
+  // ⚠️ RN <Modal> 을 쓰지 않는다.
+  //   RN Modal 은 별도 네이티브 창이라 (1) 그 위에서 화면 이동이 안 보이고
+  //   (2) 다른 모달과 겹치면 iOS 에서 둘 다 안 닫히고 굳는다.
+  //   이 작성기는 화면 전체를 덮는 용도라 굳이 창을 새로 만들 필요가 없다 —
+  //   부모(일기 화면) 트리 안에서 전체를 덮는 절대배치로 렌더한다.
+  //   이 파일 안의 RecordSheet·시트들이 이미 같은 이유로 오버레이 방식을 쓰고 있다.
+  if (!visible) return null;
   return (
-    <Modal visible={visible} animationType="slide" onRequestClose={onClose} statusBarTranslucent>
+    <View style={styles.editorOverlay}>
       {/* Modal 안에서는 react-native-safe-area-context의 SafeAreaView가 iOS 상단 인셋을
           신뢰성 있게 반영하지 못해(노치/다이나믹 아일랜드 아래로 안 내려감) 헤더 버튼이
           상태바에 가려 탭이 안 되는 문제가 있었다. useSafeAreaInsets()의 top을 직접
@@ -2090,7 +2089,7 @@ function DiaryEditorModal({ visible, dateStr, patientId, existing, onClose, onSa
               /* 해외 무료: 실제 결제 유도 CTA — 탭하면 구독(결제) 페이지로 이동 */
               <TouchableOpacity
                 style={styles.toolbarUpsell}
-                onPress={() => navigateTo('Main', { screen: 'MyInfo', params: { screen: 'SubscriptionManage' } })}
+                onPress={goToSubscription}
                 activeOpacity={0.85}
               >
                 <Ionicons name="star" size={15} color={Journal.accent} />
@@ -2216,7 +2215,7 @@ function DiaryEditorModal({ visible, dateStr, patientId, existing, onClose, onSa
           </View>
         )}
       </View>
-    </Modal>
+    </View>
   );
 }
 
@@ -3010,6 +3009,15 @@ const styles = StyleSheet.create({
   topWriteText: { fontSize: 16, fontWeight: '700', color: Journal.accent },
 
   // ── 에디터 (펼친 일기장) §11-4 ──
+  // 작성기 오버레이 — RN <Modal> 대신 부모 트리 안에서 화면 전체를 덮는다.
+  //   창을 새로 만들지 않으므로 그 위에서 팝업·화면 이동이 정상 동작한다.
+  fullscreenOverlay: { ...StyleSheet.absoluteFillObject, zIndex: 200, elevation: 200, backgroundColor: '#000' },
+  editorOverlay: {
+    ...StyleSheet.absoluteFillObject,
+    zIndex: 100,
+    elevation: 100,
+    backgroundColor: Journal.pageDeep,
+  },
   editorSafe: { flex: 1, backgroundColor: Journal.pageDeep },
   editorContent: { padding: 20 },
   // Fix 9: flexGrow로 RuledPaper(flex:1)가 남은 높이를 모두 채우게 함
