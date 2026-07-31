@@ -1007,9 +1007,14 @@ const styles = StyleSheet.create({
     borderBottomColor: '#EEEEEE',
   },
   commentTop: { flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: 6 },
-  commentAuthor: { fontSize: 16, fontWeight: '700', color: '#111111' },
+  // 작성자와 내용이 거의 같은 크기·색·굵기라 눈으로 구분이 안 됐다.
+  //   읽어야 할 건 내용이므로, 작성자를 뒤로 물린다(회색·덜 굵게).
+  //   ⚠️ 글자 크기는 줄이지 않는다 — 60대 이상 타겟이라 작아지면 안 보인다.
+  //   구분은 '색과 굵기'로만 만든다.
+  commentAuthor: { fontSize: 16, fontWeight: '600', color: '#888888' },
   commentTime: { fontSize: 13, color: '#AAAAAA' },
-  commentContent: { fontSize: 17, color: '#222222', lineHeight: 27, marginBottom: 10 },
+  // 내용은 반대로 더 진하게 — 작성자(#888)와 확실히 갈리게 한다.
+  commentContent: { fontSize: 17, color: '#111111', lineHeight: 27, marginBottom: 10 },
   commentActions: { flexDirection: 'row', gap: 18 },
   actionBtn: { paddingVertical: 2 },
   actionRow: { flexDirection: 'row', alignItems: 'center', gap: 5 },

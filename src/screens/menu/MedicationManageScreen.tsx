@@ -1340,6 +1340,18 @@ export function MedicationManageScreen({ modeOverride, hideBack, hideTopBar, onG
   const [targetPatientPlatform, setTargetPatientPlatform] = useState<'android' | 'ios' | null>(null);
   // 대상 환자 해석 완료 여부 — 로딩 중(false)과 "미연동(true+null)" 구분. 깜빡임/오판 방지.
   const [targetLoadDone, setTargetLoadDone] = useState(false);
+  /**
+   * "알림 방식" 행을 숨길지 — 환자 기기가 iOS 일 때만 숨긴다.
+   *
+   * iOS 는 전체화면 알람('알람처럼')이 불가능해 고를 수 있는 게 '기본' 하나뿐이다.
+   * 선택지를 띄워봐야 고를 게 없어서, 사용자에게는 없는 기능처럼 보이는 편이 낫다.
+   *
+   * ⚠️ 저장값(remind_alarm_mode / track_alarm_mode)은 건드리지 않는다 — 화면에서만 감춘다.
+   *    값을 지우면 안드 환자 슬롯이나 서버 발송 분기가 함께 깨질 수 있다.
+   * 해석이 끝나기 전(targetLoadDone=false)에는 숨기지 않는다 — 안드 사용자에게서
+   * 행이 나타났다 사라지는 깜빡임을 막기 위해, 확정된 뒤에만 감춘다.
+   */
+  const hideAlarmModeRow = targetLoadDone && targetPatientPlatform === 'ios';
 
   // ── 온보딩 약효추적 유도(guideEffectTracking) — 복약시간 등록 후 slots 도착 시 1회 팝업 ──
   //   [약 등록하고 설정] → 약 등록(meds, onboarding 플래그) / [약 없이 기본] → 기본 시점으로 켜기 / [나중에]
@@ -3137,6 +3149,13 @@ export function MedicationManageScreen({ modeOverride, hideBack, hideTopBar, onG
                                   fontSize={17}
                                 />
                               </View>
+                              {/* 알림 방식 선택 — 환자 기기가 iOS 면 숨긴다.
+                                  iOS 는 전체화면 알람이 불가능해 실제로 고를 수 있는 게 '기본' 하나뿐이라,
+                                  선택지를 보여주면 고를 수 없는 걸 고르게 만드는 꼴이 된다.
+                                  ⚠️ 값 자체(remind_alarm_mode)는 그대로 둔다 — 저장값을 건드리면
+                                  안드 환자와 공유되는 슬롯이나 서버 발송 분기가 깨질 수 있다. */}
+                              {!hideAlarmModeRow && (
+                              <>
                               <View style={styles.slotSetDivider} />
                               <TouchableOpacity
                                 style={styles.slotModeRow}
@@ -3153,6 +3172,8 @@ export function MedicationManageScreen({ modeOverride, hideBack, hideTopBar, onG
                                 </View>
                                 <Ionicons name="chevron-forward" size={18} color={Colors.textSub} style={styles.slotModeChevron} />
                               </TouchableOpacity>
+                              </>
+                              )}
                             </>
                           )}
                         </View>
@@ -3199,6 +3220,9 @@ export function MedicationManageScreen({ modeOverride, hideBack, hideTopBar, onG
                                   fontSize={17}
                                 />
                               </View>
+                              {/* 알림 방식 선택 — iOS 환자면 숨김(위 복용 알림 쪽과 같은 이유) */}
+                              {!hideAlarmModeRow && (
+                              <>
                               <View style={styles.slotSetDivider} />
                               <TouchableOpacity
                                 style={styles.slotModeRow}
@@ -3215,6 +3239,8 @@ export function MedicationManageScreen({ modeOverride, hideBack, hideTopBar, onG
                                 </View>
                                 <Ionicons name="chevron-forward" size={18} color={Colors.textSub} style={styles.slotModeChevron} />
                               </TouchableOpacity>
+                              </>
+                              )}
                             </>
                           )}
                         </View>

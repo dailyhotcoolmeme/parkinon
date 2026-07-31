@@ -40,19 +40,32 @@ export function usePatientId(): { patientId: string | null; loading: boolean } {
 
     let cancelled = false;
     setLoading(true);
-    supabase
-      .from('patient_group_members')
-      .select('user_id')
-      .eq('group_id', groupId)
-      .eq('role', 'patient')
-      .single()
-      .then(({ data }) => {
+    // ⚠️ 예외를 잡지 않으면 요청이 거부될 때 loading 이 true 로 영원히 남아 화면이 멈춘다.
+    //   이 경로는 보호자만 지나간다(환자는 위에서 즉시 반환) — 보호자 전용 멈춤의 원인이었다.
+    //   supabase 쿼리는 완전한 Promise 가 아니라 thenable 이라 .catch 를 못 쓴다 → try/catch.
+    (async () => {
+      try {
+        const { data, error } = await supabase
+          .from('patient_group_members')
+          .select('user_id')
+          .eq('group_id', groupId)
+          .eq('role', 'patient')
+          .single();
         const resolved = data?.user_id ?? null;
-        patientIdCache.set(groupId, resolved);
+        // 조회가 성공했을 때만 캐시한다.
+        //   실패(네트워크 등)까지 캐시하면 그 뒤로는 재조회 자체를 안 해서,
+        //   한 번 끊긴 보호자는 앱을 껐다 켤 때까지 환자를 못 찾는다.
+        if (!error) patientIdCache.set(groupId, resolved);
         if (cancelled) return;
         setPatientId(resolved);
-        setLoading(false);
-      });
+      } catch (e) {
+        console.error('[usePatientId] 환자 조회 실패:', e);
+        if (cancelled) return;
+        setPatientId(null);
+      } finally {
+        if (!cancelled) setLoading(false);
+      }
+    })();
     return () => { cancelled = true; };
   }, [user]);
 
