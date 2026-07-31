@@ -236,21 +236,13 @@ function FullscreenHost({
     return () => sub.remove();
   }, [inline, visible, onRequestClose]);
 
-  if (inline) {
-    if (!visible) return null;
-    return <View style={styles.inlineOverlay}>{children}</View>;
-  }
-  return (
-    <Modal
-      visible={visible}
-      transparent
-      animationType="fade"
-      statusBarTranslucent
-      onRequestClose={onRequestClose}
-    >
-      {children}
-    </Modal>
-  );
+  // ⚠️ RN <Modal> 을 쓰지 않는다(inline 분기도 없앴다).
+  //   Modal 은 별도 네이티브 창이라 (1) 그 위에서 화면 이동이 안 보이고
+  //   (2) 다른 모달과 겹치면 iOS 에서 둘 다 안 닫히고 굳는다.
+  //   예전엔 "모달 안에서 열릴 때만" 오버레이로 우회했는데, 우회가 필요한 쪽이 오히려
+  //   기본값이어야 한다 — 항상 오버레이로 렌더한다.
+  if (!visible) return null;
+  return <View style={styles.inlineOverlay}>{children}</View>;
 }
 
 const styles = StyleSheet.create({

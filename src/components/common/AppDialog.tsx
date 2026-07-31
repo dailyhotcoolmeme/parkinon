@@ -112,14 +112,14 @@ export function AppDialog({
     }
   });
 
+  // ⚠️ RN <Modal> 을 쓰지 않는다.
+  //   전역 팝업이라 어떤 화면 위에서든 뜰 수 있어 겹칠 확률이 가장 높다. RN Modal 은 별도
+  //   네이티브 창이라 다른 모달과 겹치면 iOS 에서 둘 다 안 닫히고 굳는다(실측 다수).
+  //   → 화면 전체를 덮는 절대배치로 렌더한다. DialogHost 가 앱 최상단에 있어 전체를 덮는다.
+  //   (화면급 모달을 전부 오버레이로 바꾼 뒤라, 이 팝업이 가려질 일이 없다.)
+  if (!visible) return null;
   return (
-    <Modal
-      visible={visible}
-      transparent
-      animationType={animationType}
-      onRequestClose={handleDismiss}
-      statusBarTranslucent
-    >
+    <View style={styles.root} pointerEvents="box-none">
       <TouchableOpacity
         style={styles.backdrop}
         activeOpacity={1}
@@ -187,11 +187,13 @@ export function AppDialog({
           </View>
         </Animated.View>
       </View>
-    </Modal>
+    </View>
   );
 }
 
 const styles = StyleSheet.create({
+  // 앱 최상단을 덮는 팝업 루트 — Modal 대신 쓴다.
+  root: { ...StyleSheet.absoluteFillObject, zIndex: 1000, elevation: 1000 },
   backdrop: {
     ...StyleSheet.absoluteFillObject,
     backgroundColor: 'rgba(0,0,0,0.5)',
