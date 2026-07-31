@@ -44,3 +44,7 @@ yarn-error.*
 *.apk
 *.aab
 assets/_backup_icons_*/
+
+# 도구 실행 산출물 (커밋 대상 아님)
+.playwright-mcp/
+.qa/
