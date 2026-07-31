@@ -1,9 +1,9 @@
 import React, { useEffect, useRef, useState } from 'react';
+import { OverlaySheet } from './OverlaySheet';
 import {
   View,
   Text,
   TouchableOpacity,
-  Modal,
   ScrollView,
   StyleSheet,
   Animated,
@@ -271,12 +271,7 @@ export function AlarmSoundPickerRow({ soundId, sounds, onSelect, backgroundColor
       </TouchableOpacity>
 
       {/* ── 바텀시트 ── */}
-      <Modal
-        visible={open}
-        transparent
-        animationType="slide"
-        onRequestClose={close}
-      >
+      <OverlaySheet visible={open} onRequestClose={close} animationType="slide">
         <TouchableOpacity
           style={styles.backdrop}
           activeOpacity={1}
@@ -360,7 +355,7 @@ export function AlarmSoundPickerRow({ soundId, sounds, onSelect, backgroundColor
             </View>
           </Animated.View>
         </TouchableOpacity>
-      </Modal>
+      </OverlaySheet>
     </>
   );
 }

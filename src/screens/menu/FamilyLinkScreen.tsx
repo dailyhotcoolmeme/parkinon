@@ -1,4 +1,5 @@
 import React, { useState, useCallback, useRef, useEffect } from 'react';
+import { OverlaySheet } from '../../components/common/OverlaySheet';
 import {
   View,
   Text,
@@ -6,7 +7,6 @@ import {
   StyleSheet,
   TouchableOpacity,
   TextInput,
-  Modal,
   PanResponder,
   Animated,
   Share,
@@ -446,12 +446,7 @@ export function FamilyLinkScreen() {
       </ScrollView>
 
       {/* ── 받은 번호 입력 바텀시트 ── */}
-      <Modal
-        visible={sheetVisible}
-        transparent
-        animationType="none"
-        onRequestClose={closeSheet}
-      >
+      <OverlaySheet visible={sheetVisible} onRequestClose={closeSheet} animationType="none">
         <TouchableOpacity
           style={styles.sheetDim}
           activeOpacity={1}
@@ -510,7 +505,7 @@ export function FamilyLinkScreen() {
             <Text style={styles.sheetInfoText}>{t('familyLink.installNote')}</Text>
           </View>
         </Animated.View>
-      </Modal>
+      </OverlaySheet>
       <BrandProgressOverlay
         visible={loadingCode}
         title={t('familyLink.generatingCodeTitle')}

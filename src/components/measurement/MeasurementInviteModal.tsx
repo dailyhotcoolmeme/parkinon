@@ -15,8 +15,8 @@
 // 디자인: 60대+ 가독성. 본문 17sp 이상, 버튼 56dp 이상, 텍스트+아이콘 함께.
 
 import React from 'react';
+import { OverlaySheet } from '../common/OverlaySheet';
 import {
-  Modal,
   View,
   Text,
   StyleSheet,
@@ -34,13 +34,7 @@ interface Props {
 export function MeasurementInviteModal({ visible, onMeasureNow, onLater }: Props) {
   if (!visible) return null;
   return (
-    <Modal
-      visible={visible}
-      transparent
-      animationType="fade"
-      statusBarTranslucent
-      onRequestClose={onLater}
-    >
+    <OverlaySheet visible={visible} onRequestClose={onLater} animationType="fade">
       <View style={styles.overlay}>
         <View style={styles.card}>
           <Text style={styles.icon}>🖐️</Text>
@@ -71,7 +65,7 @@ export function MeasurementInviteModal({ visible, onMeasureNow, onLater }: Props
           </TouchableOpacity>
         </View>
       </View>
-    </Modal>
+    </OverlaySheet>
   );
 }
 

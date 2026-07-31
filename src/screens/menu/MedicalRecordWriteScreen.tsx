@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
+import { OverlaySheet } from '../../components/common/OverlaySheet';
 import {
   View,
   Text,
@@ -11,7 +12,6 @@ import {
   Keyboard,
   Platform,
   Image,
-  Modal,
   FlatList,
   Switch,
 } from 'react-native';
@@ -128,7 +128,7 @@ function DatePickerModal({
   const days = Array.from({ length: maxDayInMonth }, (_, i) => i + 1);
 
   return (
-    <Modal visible={visible} transparent animationType="slide">
+    <OverlaySheet visible={visible} animationType="slide">
       <View style={mpStyles.container}>
         <TouchableOpacity style={mpStyles.overlay} onPress={onClose} activeOpacity={1} />
         <View style={[mpStyles.sheet, { paddingBottom: sheetBottomPad }]}>
@@ -158,7 +158,7 @@ function DatePickerModal({
           </TouchableOpacity>
         </View>
       </View>
-    </Modal>
+    </OverlaySheet>
   );
 }
 
@@ -173,7 +173,7 @@ function TimePickerModal({
   const { t } = useTranslation();
   const sheetBottomPad = useBottomSheetPadding(40, 20);
   return (
-    <Modal visible={visible} transparent animationType="slide">
+    <OverlaySheet visible={visible} animationType="slide">
       <View style={mpStyles.container}>
         <TouchableOpacity style={mpStyles.overlay} onPress={onClose} activeOpacity={1} />
         <View style={[mpStyles.sheet, { paddingBottom: sheetBottomPad }]}>
@@ -195,7 +195,7 @@ function TimePickerModal({
           </TouchableOpacity>
         </View>
       </View>
-    </Modal>
+    </OverlaySheet>
   );
 }
 

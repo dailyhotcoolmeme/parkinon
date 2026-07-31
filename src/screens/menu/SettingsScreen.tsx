@@ -1,4 +1,5 @@
 import React, { useState, useRef, useEffect } from 'react';
+import { OverlaySheet } from '../../components/common/OverlaySheet';
 import {
   View,
   Text,
@@ -6,7 +7,6 @@ import {
   TouchableOpacity,
   ScrollView,
   StyleSheet,
-  Modal,
   Animated,
   Dimensions,
   Linking,
@@ -2107,12 +2107,7 @@ export function SettingsScreen() {
       </ScrollView>
 
       {/* ── Bottom Sheet Modal ── */}
-      <Modal
-        visible={pickerVisible}
-        transparent
-        animationType="none"
-        onRequestClose={closePicker}
-      >
+      <OverlaySheet visible={pickerVisible} onRequestClose={closePicker} animationType="none">
         <Animated.View style={[styles.backdrop, { opacity: fadeAnim }]}>
           <TouchableOpacity
             style={StyleSheet.absoluteFill}
@@ -2446,14 +2441,9 @@ export function SettingsScreen() {
             )}
           </Animated.View>
         </Animated.View>
-      </Modal>
+      </OverlaySheet>
       {/* ── 환자용 Bottom Sheet Modal ── */}
-      <Modal
-        visible={patientPickerVisible}
-        transparent
-        animationType="none"
-        onRequestClose={() => closePatientPicker()}
-      >
+      <OverlaySheet visible={patientPickerVisible} onRequestClose={() => closePatientPicker()} animationType="none">
         <Animated.View style={[styles.backdrop, { opacity: patientFadeAnim }]}>
           <TouchableOpacity
             style={StyleSheet.absoluteFill}
@@ -2631,18 +2621,13 @@ export function SettingsScreen() {
             )}
           </Animated.View>
         </Animated.View>
-      </Modal>
+      </OverlaySheet>
 
       {/* ── 알림 차단 안내 바텀시트 ── */}
-      <Modal
-        visible={showPermissionSheet}
-        transparent
-        animationType="slide"
-        onRequestClose={() => {
+      <OverlaySheet visible={showPermissionSheet} onRequestClose={() => {
           setShowPermissionSheet(false);
           setPendingOn(false);
-        }}
-      >
+        }} animationType="slide">
         <TouchableOpacity
           style={{ flex: 1, backgroundColor: 'rgba(0,0,0,0.55)' }}
           activeOpacity={1}
@@ -2712,7 +2697,7 @@ export function SettingsScreen() {
             <Text style={{ fontSize: 18, fontWeight: 'bold', color: '#666666' }}>{t('settings.laterBtn')}</Text>
           </TouchableOpacity>
         </View>
-      </Modal>
+      </OverlaySheet>
     </SafeAreaView>
   );
 }

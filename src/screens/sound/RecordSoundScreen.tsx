@@ -1,4 +1,5 @@
 import React, { useState, useRef, useEffect, useCallback } from 'react';
+import { OverlaySheet } from '../../components/common/OverlaySheet';
 import {
   View,
   Text,
@@ -8,7 +9,6 @@ import {
   KeyboardAvoidingView,
   ScrollView,
   Platform,
-  Modal,
   Linking,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
@@ -631,13 +631,7 @@ export function RecordSoundScreen() {
       )}
 
       {/* 이름 입력 팝업 — 저장 시 가운데 모달로 입력(키보드 위로 뜸) */}
-      <Modal
-        visible={showNameModal}
-        transparent
-        animationType="fade"
-        statusBarTranslucent
-        onRequestClose={() => setShowNameModal(false)}
-      >
+      <OverlaySheet visible={showNameModal} onRequestClose={() => setShowNameModal(false)} animationType="fade">
         <KeyboardAvoidingView
           style={styles.modalOverlay}
           behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
@@ -676,7 +670,7 @@ export function RecordSoundScreen() {
             </View>
           </View>
         </KeyboardAvoidingView>
-      </Modal>
+      </OverlaySheet>
       <BrandProgressOverlay
         visible={saving}
         title={i18n.t('loading.saving')}

@@ -1,10 +1,10 @@
 import React from 'react';
+import { OverlaySheet } from './OverlaySheet';
 import {
   View,
   Text,
   TouchableOpacity,
   StyleSheet,
-  Modal,
 } from 'react-native';
 import { useTranslation } from 'react-i18next';
 import { Colors } from '../../constants/colors';
@@ -30,12 +30,7 @@ export function CaregiverConfirmModal({
   const { t } = useTranslation();
   const name = patientName ?? t('medication.caregiverDefaultName');
   return (
-    <Modal
-      visible={visible}
-      transparent
-      animationType="fade"
-      onRequestClose={onCancel}
-    >
+    <OverlaySheet visible={visible} onRequestClose={onCancel} animationType="fade">
       <TouchableOpacity
         style={styles.backdrop}
         activeOpacity={1}
@@ -61,7 +56,7 @@ export function CaregiverConfirmModal({
           </TouchableOpacity>
         </View>
       </View>
-    </Modal>
+    </OverlaySheet>
   );
 }
 

@@ -14,6 +14,7 @@
 // 의학 판정 표현 금지 — "OFF/이상/악화" 금지(§6.6 블랙리스트). 사실 표현만.
 
 import React, { useCallback, useEffect, useState } from 'react';
+import { OverlaySheet } from '../../components/common/OverlaySheet';
 import {
   View,
   Text,
@@ -21,7 +22,6 @@ import {
   ActivityIndicator,
   ScrollView,
   TouchableOpacity,
-  Modal,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import {
@@ -473,13 +473,7 @@ function ReactionInviteModal({
 }) {
   if (!visible) return null;
   return (
-    <Modal
-      visible={visible}
-      transparent
-      animationType="fade"
-      statusBarTranslucent
-      onRequestClose={onLater}
-    >
+    <OverlaySheet visible={visible} onRequestClose={onLater} animationType="fade">
       <View style={inviteStyles.overlay}>
         <View style={inviteStyles.card}>
           <Text style={inviteStyles.icon}>⚡</Text>
@@ -510,7 +504,7 @@ function ReactionInviteModal({
           </TouchableOpacity>
         </View>
       </View>
-    </Modal>
+    </OverlaySheet>
   );
 }
 

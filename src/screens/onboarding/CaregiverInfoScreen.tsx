@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
+import { OverlaySheet } from '../../components/common/OverlaySheet';
 import {
   View,
   Text,
@@ -8,7 +9,6 @@ import {
   KeyboardAvoidingView,
   Platform,
   ScrollView,
-  Modal,
   FlatList,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
@@ -244,7 +244,7 @@ export function CaregiverInfoScreen() {
         </View>
 
         {/* 출생연도 피커 모달 */}
-        <Modal visible={showBirthPicker} transparent animationType="slide">
+        <OverlaySheet visible={showBirthPicker} animationType="slide">
           <View style={pickerStyles.container}>
             <TouchableOpacity style={pickerStyles.overlay} onPress={() => setShowBirthPicker(false)} activeOpacity={1} />
             <View style={[pickerStyles.sheet, { paddingBottom: sheetPadding }]}>
@@ -279,7 +279,7 @@ export function CaregiverInfoScreen() {
               />
             </View>
           </View>
-        </Modal>
+        </OverlaySheet>
       </KeyboardAvoidingView>
     </SafeAreaView>
   );

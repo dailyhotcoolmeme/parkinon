@@ -1,4 +1,5 @@
 import React, { useState, useCallback } from 'react';
+import { OverlaySheet } from '../../components/common/OverlaySheet';
 import {
   View,
   Text,
@@ -6,7 +7,6 @@ import {
   ScrollView,
   StyleSheet,
   ActivityIndicator,
-  Modal,
   Image,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
@@ -281,12 +281,7 @@ export function MedicalRecordDetailScreen() {
       ) : null}
 
       {/* 처방전 전체화면 모달 */}
-      <Modal
-        visible={imageModalVisible}
-        transparent
-        animationType="fade"
-        onRequestClose={() => setImageModalVisible(false)}
-      >
+      <OverlaySheet visible={imageModalVisible} onRequestClose={() => setImageModalVisible(false)} animationType="fade">
         <TouchableOpacity
           style={styles.imageModalOverlay}
           activeOpacity={1}
@@ -299,7 +294,7 @@ export function MedicalRecordDetailScreen() {
           />
           <Text style={styles.imageModalHint}>{t('medRecordDetail.tapToClose')}</Text>
         </TouchableOpacity>
-      </Modal>
+      </OverlaySheet>
     </SafeAreaView>
   );
 }

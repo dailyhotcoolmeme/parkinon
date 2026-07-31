@@ -1,4 +1,5 @@
 import React, { useState, useRef } from 'react';
+import { OverlaySheet } from '../../components/common/OverlaySheet';
 import type { AmPm } from '../../context/SettingsContext';
 import {
   View,
@@ -6,7 +7,6 @@ import {
   TouchableOpacity,
   StyleSheet,
   ScrollView,
-  Modal,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useTranslation } from 'react-i18next';
@@ -370,7 +370,7 @@ function ExNextNotifModal({
   const minutesText = formatDuration(info.minutesLeft);
 
   return (
-    <Modal visible={visible} transparent animationType="fade" statusBarTranslucent onRequestClose={onClose}>
+    <OverlaySheet visible={visible} onRequestClose={onClose} animationType="fade">
       <View style={exNnStyles.overlay}>
         <View style={exNnStyles.card}>
           <Text style={exNnStyles.saveIcon}>👏</Text>
@@ -398,7 +398,7 @@ function ExNextNotifModal({
           </TouchableOpacity>
         </View>
       </View>
-    </Modal>
+    </OverlaySheet>
   );
 }
 

@@ -1,10 +1,10 @@
 import React, { useState, useEffect } from 'react';
+import { OverlaySheet } from '../common/OverlaySheet';
 import {
   View,
   Text,
   TouchableOpacity,
   StyleSheet,
-  Modal,
   Animated,
   ScrollView,
 } from 'react-native';
@@ -98,7 +98,7 @@ export function ReportSheet({
   };
 
   return (
-    <Modal visible={visible} transparent animationType="fade" onRequestClose={onClose}>
+    <OverlaySheet visible={visible} onRequestClose={onClose} animationType="fade">
       <View style={styles.backdrop}>
         <TouchableOpacity style={styles.backdropTouch} activeOpacity={1} onPress={onClose} />
         <Animated.View
@@ -153,7 +153,7 @@ export function ReportSheet({
           </TouchableOpacity>
         </Animated.View>
       </View>
-    </Modal>
+    </OverlaySheet>
   );
 }
 

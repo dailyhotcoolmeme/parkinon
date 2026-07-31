@@ -1,4 +1,5 @@
 import React, { useState, useCallback, useEffect, useRef, useMemo } from 'react';
+import { OverlaySheet } from '../../components/common/OverlaySheet';
 import { monthDayWeekday } from '../../utils/dateLabels';
 import type { AmPm } from '../../context/SettingsContext';
 import {
@@ -8,7 +9,6 @@ import {
   TouchableOpacity,
   StyleSheet,
   Dimensions,
-  Modal,
   Linking,
   Image,
 } from 'react-native';
@@ -1564,19 +1564,14 @@ export function MedicationScreen() {
           afterDevLetterClose();
         }}
       />
-      <Modal
-        visible={showBodyStateSuggest}
-        transparent
-        animationType="fade"
-        onRequestClose={() => {
+      <OverlaySheet visible={showBodyStateSuggest} onRequestClose={() => {
           // [버그수정 B] 권유 팝업을 백버튼으로 닫는 것도 "나중에"와 동일 처리 — 다음알림 팝업 표시.
           //   ("기록하기"는 BodyState로 이어지므로 거기선 다음알림 스킵 — 별도 onPress에서 처리.)
           //   ⚠️ 표시 타이밍 분리: state 가 아직 null 이어도 promise ref 를 await 해 보장된 값으로 표시.
           setShowBodyStateSuggest(false);
           setSelectedMealTime(null);
           resolveAndShowNextNotif();
-        }}
-      >
+        }} animationType="fade">
         <View style={{
           flex: 1,
           justifyContent: 'center',
@@ -1689,7 +1684,7 @@ export function MedicationScreen() {
             </TouchableOpacity>
           </View>
         </View>
-      </Modal>
+      </OverlaySheet>
       <BodyStatePopupFlow
         visible={showBodyStatePopup}
         onClose={() => { setShowBodyStatePopup(false); setSelectedMealTime(null); }}
@@ -1732,7 +1727,8 @@ export function MedicationScreen() {
         message={preMedMessage}
         onClose={() => {
           setShowPreMedInfo(false);
-          // 모달 중첩(iOS) 방지: 안내 팝업이 완전히 닫힌 뒤 몸상태 권유 표시
+          // 팝업이 겹쳐 보이지 않도록 안내가 닫힌 뒤 몸상태 권유를 띄운다.
+          // (RN <Modal> 을 걷어내 겹침 프리즈 자체는 없어졌지만, 연달아 뜨는 건 여전히 어수선하다.)
           // (단, "복용 직후"가 꺼진 슬롯이면 표시하지 않는다)
           if (immediateSuggestRef.current) {
             setTimeout(() => setShowBodyStateSuggest(true), 300);
@@ -2170,7 +2166,7 @@ function NextNotifModal({ visible, info, onClose }: { visible: boolean; info: Ne
   if (!info) return null;
 
   return (
-    <Modal visible={visible} transparent animationType="fade" statusBarTranslucent onRequestClose={onClose}>
+    <OverlaySheet visible={visible} onRequestClose={onClose} animationType="fade">
       <View style={nnStyles.overlay}>
         <View style={nnStyles.card}>
           <Text style={nnStyles.icon}>🔔</Text>
@@ -2199,7 +2195,7 @@ function NextNotifModal({ visible, info, onClose }: { visible: boolean; info: Ne
           </TouchableOpacity>
         </View>
       </View>
-    </Modal>
+    </OverlaySheet>
   );
 }
 
@@ -2277,7 +2273,7 @@ function PreMedInfoModal({ visible, message, onClose }: { visible: boolean; mess
   const { t } = useTranslation();
   if (!visible) return null;
   return (
-    <Modal visible={visible} transparent animationType="fade" statusBarTranslucent onRequestClose={onClose}>
+    <OverlaySheet visible={visible} onRequestClose={onClose} animationType="fade">
       <View style={pmStyles.overlay}>
         <View style={pmStyles.card}>
           <Text style={pmStyles.icon}>🔕</Text>
@@ -2288,7 +2284,7 @@ function PreMedInfoModal({ visible, message, onClose }: { visible: boolean; mess
           </TouchableOpacity>
         </View>
       </View>
-    </Modal>
+    </OverlaySheet>
   );
 }
 

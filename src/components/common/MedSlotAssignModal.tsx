@@ -8,6 +8,7 @@
  *   - 마지막 약까지 끝내면 onDone() → 모든 세팅 마무리.
  */
 import React, { useCallback, useEffect, useState } from 'react';
+import { OverlaySheet } from './OverlaySheet';
 import {
   View,
   Text,
@@ -15,7 +16,6 @@ import {
   TouchableOpacity,
   ScrollView,
   ActivityIndicator,
-  Modal,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { useTranslation } from 'react-i18next';
@@ -123,7 +123,7 @@ export function MedSlotAssignModal({
   const isLast = idx + 1 >= meds.length;
 
   return (
-    <Modal visible transparent animationType="slide" onRequestClose={() => {}}>
+    <OverlaySheet visible onRequestClose={() => {}} animationType="slide">
       <View style={styles.backdrop}>
         <View style={[styles.sheet, { paddingBottom: bottomPad }]}>
           {loading || !med ? (
@@ -176,7 +176,7 @@ export function MedSlotAssignModal({
           )}
         </View>
       </View>
-    </Modal>
+    </OverlaySheet>
   );
 }
 

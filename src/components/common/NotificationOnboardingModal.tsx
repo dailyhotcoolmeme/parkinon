@@ -14,11 +14,11 @@
  * - SamsungOne 폰트 한글 ascender 클리핑 방지 (lineHeight + includeFontPadding + textAlignVertical)
  */
 import React, { useRef } from 'react';
+import { OverlaySheet } from './OverlaySheet';
 import {
   View,
   Text,
   StyleSheet,
-  Modal,
   Animated,
   TouchableOpacity,
   Switch,
@@ -282,20 +282,14 @@ function NotificationOnboardingModalContent({ isCaregiver, userId, visible, onCl
 // ─── Component ────────────────────────────────────────────────────────────────
 export function NotificationOnboardingModal(props: Props) {
   return (
-    <Modal
-      visible={props.visible}
-      transparent
-      animationType="none"
-      statusBarTranslucent={true}
-      onRequestClose={() => {
+    <OverlaySheet visible={props.visible} onRequestClose={() => {
         AsyncStorage.setItem(NOTIF_ONBOARDING_SHOWN_KEY, 'done').catch(() => {});
         props.onClose();
-      }}
-    >
+      }} animationType="none">
       <SafeAreaProvider initialMetrics={initialWindowMetrics}>
         <NotificationOnboardingModalContent {...props} />
       </SafeAreaProvider>
-    </Modal>
+    </OverlaySheet>
   );
 }
 

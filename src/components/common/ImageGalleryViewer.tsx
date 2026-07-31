@@ -1,4 +1,5 @@
 import React, { useState, useRef, useEffect } from 'react';
+import { OverlaySheet } from './OverlaySheet';
 import {
   View,
   Image,
@@ -35,15 +36,9 @@ interface Props {
   //   true  → 워커 공개 URL(getCommunityPhotoUrl) + 일반 Image (서명 왕복 없음, 빠름)
   //   false → R2Image(서명 URL) — 의료/일기 등 비공개 사진 (기본값)
   publicCommunity?: boolean;
-  // 이미 RN <Modal> 안에서 열릴 때 true. iOS 는 <Modal> 을 별도 UIViewController 로 띄워
-  // 모달 위에 모달을 겹치면 표시 애니메이션과 충돌해 화면이 멈춘 것처럼 보인다
-  // (안드는 별도 윈도우라 증상 없음, 오너 제보 2026-07-28).
-  // → true 면 <Modal> 대신 절대배치 오버레이로 렌더한다. 리스트 안에서 쓰는 기본(false)은
-  //   부모가 화면 전체가 아니라 오버레이가 화면을 못 덮으므로 기존 <Modal> 을 유지한다.
-  inline?: boolean;
 }
 
-export function ImageGalleryViewer({ urls, initialFullscreenIndex, onClose, publicCommunity, inline }: Props) {
+export function ImageGalleryViewer({ urls, initialFullscreenIndex, onClose, publicCommunity }: Props) {
   const { t } = useTranslation();
   const insets = useSafeAreaInsets();
   const directFullscreen = initialFullscreenIndex != null;
@@ -143,9 +138,8 @@ export function ImageGalleryViewer({ urls, initialFullscreenIndex, onClose, publ
         </View>
       )}
 
-      {/* 전체보기 — inline 이면 <Modal> 중첩 없이 오버레이로(iOS 프리즈 회피) */}
+      {/* 전체보기 — 항상 오버레이로 렌더(앱에서 RN <Modal> 을 전부 제거했다) */}
       <FullscreenHost
-        inline={!!inline}
         visible={modalVisible}
         onRequestClose={closeFullscreen}
       >
@@ -212,29 +206,26 @@ export function ImageGalleryViewer({ urls, initialFullscreenIndex, onClose, publ
 
 /**
  * 전체보기 컨테이너.
- * - inline=false(기본): 기존대로 RN <Modal>. 리스트/피드 안에서 열려도 화면 전체를 덮는다.
- * - inline=true: 호출부가 이미 <Modal> 안이라 중첩하면 iOS 에서 시트가 안 뜨고 터치가
- *   먹통이 된다 → 절대배치 오버레이로 렌더한다.
+ * 항상 절대배치 오버레이로 렌더한다. RN <Modal> 은 별도 네이티브 창이라 겹치면 iOS 에서
+ * 굳고 그 위에서 화면 이동도 막히기 때문에, 앱 전체에서 걷어냈다.
  */
 function FullscreenHost({
-  inline,
   visible,
   onRequestClose,
   children,
 }: {
-  inline: boolean;
   visible: boolean;
   onRequestClose: () => void;
   children: React.ReactNode;
 }) {
   useEffect(() => {
-    if (!inline || !visible) return;
+    if (!visible) return;
     const sub = BackHandler.addEventListener('hardwareBackPress', () => {
       onRequestClose();
       return true;
     });
     return () => sub.remove();
-  }, [inline, visible, onRequestClose]);
+  }, [visible, onRequestClose]);
 
   // ⚠️ RN <Modal> 을 쓰지 않는다(inline 분기도 없앴다).
   //   Modal 은 별도 네이티브 창이라 (1) 그 위에서 화면 이동이 안 보이고
@@ -283,7 +274,7 @@ const styles = StyleSheet.create({
   },
 
   // Modal
-  // inline 모드 전용 — <Modal> 중첩 대신 부모 트리 안에서 화면 전체를 덮는다.
+  // 전체화면 오버레이 — 부모 트리 안에서 화면 전체를 덮는다.
   inlineOverlay: {
     ...StyleSheet.absoluteFillObject,
     zIndex: 60,

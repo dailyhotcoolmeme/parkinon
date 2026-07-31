@@ -1,11 +1,11 @@
 import React, { useState, useEffect } from 'react';
+import { OverlaySheet } from './OverlaySheet';
 import { weekdayShort } from '../../utils/dateLabels';
 import {
   View,
   Text,
   TouchableOpacity,
   StyleSheet,
-  Modal,
 } from 'react-native';
 import { useTranslation } from 'react-i18next';
 import { Colors } from '../../constants/colors';
@@ -68,7 +68,7 @@ export function DatePickerModal({ visible, selectedDate, onSelect, onClose }: Da
   while (cells.length % 7 !== 0) cells.push(null);
 
   return (
-    <Modal visible={visible} transparent animationType="fade" onRequestClose={onClose}>
+    <OverlaySheet visible={visible} onRequestClose={onClose} animationType="fade">
       <TouchableOpacity style={styles.overlay} activeOpacity={1} onPress={onClose}>
         <TouchableOpacity style={styles.sheet} activeOpacity={1} onPress={() => {}}>
 
@@ -153,7 +153,7 @@ export function DatePickerModal({ visible, selectedDate, onSelect, onClose }: Da
 
         </TouchableOpacity>
       </TouchableOpacity>
-    </Modal>
+    </OverlaySheet>
   );
 }
 

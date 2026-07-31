@@ -16,6 +16,7 @@
  * 순수 TS · OTA 호환. sticky/fixed 없음. 아이콘 단독 버튼 없음(텍스트 동반).
  */
 import React, { useState, useRef, useCallback, useEffect } from 'react';
+import { OverlaySheet } from '../common/OverlaySheet';
 import type { AmPm } from '../../context/SettingsContext';
 import {
   View,
@@ -23,7 +24,6 @@ import {
   Switch,
   TouchableOpacity,
   StyleSheet,
-  Modal,
   Animated,
   LayoutAnimation,
   Platform,
@@ -1604,7 +1604,7 @@ function TimePickerSheet({
   }, [onClose, translateY]);
 
   return (
-    <Modal visible={visible} transparent animationType="none" onRequestClose={runClose}>
+    <OverlaySheet visible={visible} onRequestClose={runClose} animationType="none">
       <View style={styles.backdrop}>
         {/* 닫기 터치는 시트 뒤 절대배치 레이어로 분리 → 휠 위엔 터치 조상 0개 */}
         <TouchableOpacity style={StyleSheet.absoluteFill} activeOpacity={1} onPress={runClose} />
@@ -1672,7 +1672,7 @@ function TimePickerSheet({
           )}
         </Animated.View>
       </View>
-    </Modal>
+    </OverlaySheet>
   );
 }
 
@@ -1723,7 +1723,7 @@ function IntervalPickerSheet({
   const clampMinute = (m: number) => Math.max(0, Math.min(55, m));
 
   return (
-    <Modal visible={visible} transparent animationType="none" onRequestClose={runClose}>
+    <OverlaySheet visible={visible} onRequestClose={runClose} animationType="none">
       {/* 휠 위에 Touchable/PanResponder 조상 두면 스크롤 가로채 닫힘 → 배경 View + 뒤 닫기터치 */}
       <View style={styles.backdrop}>
         <TouchableOpacity style={StyleSheet.absoluteFill} activeOpacity={1} onPress={runClose} />
@@ -1780,7 +1780,7 @@ function IntervalPickerSheet({
           )}
         </Animated.View>
       </View>
-    </Modal>
+    </OverlaySheet>
   );
 }
 

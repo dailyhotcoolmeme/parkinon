@@ -18,12 +18,12 @@
  * SamsungOne 폰트 한글 ascender 클리핑 방지: lineHeight + includeFontPadding + textAlignVertical.
  */
 import React, { useRef } from 'react';
+import { OverlaySheet } from './OverlaySheet';
 import i18n from '../../i18n';
 import {
   View,
   Text,
   StyleSheet,
-  Modal,
   Animated,
   TouchableOpacity,
   ScrollView,
@@ -253,17 +253,11 @@ function DevLetterModalContent({ visible, onClose }: Props) {
 
 export function DevLetterModal(props: Props) {
   return (
-    <Modal
-      visible={props.visible}
-      transparent
-      animationType="none"
-      statusBarTranslucent={true}
-      onRequestClose={props.onClose}
-    >
+    <OverlaySheet visible={props.visible} onRequestClose={props.onClose} animationType="none">
       <SafeAreaProvider initialMetrics={initialWindowMetrics}>
         <DevLetterModalContent {...props} />
       </SafeAreaProvider>
-    </Modal>
+    </OverlaySheet>
   );
 }
 

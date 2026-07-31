@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useCallback, useRef } from 'react';
+import { OverlaySheet } from '../../components/common/OverlaySheet';
 import { monthDayWeekday } from '../../utils/dateLabels';
 import {
   View,
@@ -7,7 +8,6 @@ import {
   TouchableOpacity,
   StyleSheet,
   Dimensions,
-  Modal,
   ActivityIndicator,
 } from 'react-native';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -1975,7 +1975,7 @@ function TriggerSelectModal({ visible, medTime, options, selected, onSelect, onC
     : t('bodystate.dupeGeneric');
 
   return (
-    <Modal visible={visible} transparent animationType="slide" statusBarTranslucent onRequestClose={onDismiss}>
+    <OverlaySheet visible={visible} onRequestClose={onDismiss} animationType="slide">
       <View style={tsStyles.overlay}>
         <TouchableOpacity style={tsStyles.backdrop} activeOpacity={1} onPress={onDismiss} />
         <View style={[tsStyles.sheet, { paddingBottom: sheetBottomPad }]}>
@@ -2029,7 +2029,7 @@ function TriggerSelectModal({ visible, medTime, options, selected, onSelect, onC
           </TouchableOpacity>
         </View>
       </View>
-    </Modal>
+    </OverlaySheet>
   );
 }
 
@@ -2311,7 +2311,7 @@ function NextNotifModal({ visible, info, onClose }: { visible: boolean; info: Ne
   const minutesText = formatDurationKo(info.minutesLeft);
 
   return (
-    <Modal visible={visible} transparent animationType="fade" statusBarTranslucent onRequestClose={onClose}>
+    <OverlaySheet visible={visible} onRequestClose={onClose} animationType="fade">
       <View style={nnStyles.overlay}>
         <View style={nnStyles.card}>
           <Text style={nnStyles.icon}>🔔</Text>
@@ -2335,7 +2335,7 @@ function NextNotifModal({ visible, info, onClose }: { visible: boolean; info: Ne
           </TouchableOpacity>
         </View>
       </View>
-    </Modal>
+    </OverlaySheet>
   );
 }
 
@@ -2402,7 +2402,7 @@ function PreRecordInfoModal({ visible, message, onClose }: { visible: boolean; m
   const { t } = useTranslation();
   if (!visible) return null;
   return (
-    <Modal visible={visible} transparent animationType="fade" statusBarTranslucent onRequestClose={onClose}>
+    <OverlaySheet visible={visible} onRequestClose={onClose} animationType="fade">
       <View style={piStyles.overlay}>
         <View style={piStyles.card}>
           <Text style={piStyles.icon}>🔕</Text>
@@ -2413,7 +2413,7 @@ function PreRecordInfoModal({ visible, message, onClose }: { visible: boolean; m
           </TouchableOpacity>
         </View>
       </View>
-    </Modal>
+    </OverlaySheet>
   );
 }
 

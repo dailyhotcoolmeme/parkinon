@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react';
+import { OverlaySheet } from '../../components/common/OverlaySheet';
 import {
   View,
   Text,
@@ -6,7 +7,6 @@ import {
   ScrollView,
   TextInput,
   StyleSheet,
-  Modal,
   FlatList,
   KeyboardAvoidingView,
   Keyboard,
@@ -956,12 +956,7 @@ export function ProfileEditScreen() {
         )}
 
         {/* 공용 연도 선택 Modal */}
-        <Modal
-          visible={activePicker !== null}
-          transparent
-          animationType="fade"
-          onRequestClose={() => setActivePicker(null)}
-        >
+        <OverlaySheet visible={activePicker !== null} onRequestClose={() => setActivePicker(null)} animationType="fade">
           <TouchableOpacity
             style={styles.modalOverlay}
             activeOpacity={1}
@@ -1002,7 +997,7 @@ export function ProfileEditScreen() {
               />
             </View>
           </TouchableOpacity>
-        </Modal>
+        </OverlaySheet>
 
         {/* 저장 버튼 */}
         <TouchableOpacity style={styles.saveBtn} onPress={handleSave} activeOpacity={0.85} disabled={saving}>

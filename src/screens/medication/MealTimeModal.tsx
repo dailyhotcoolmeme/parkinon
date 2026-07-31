@@ -1,10 +1,10 @@
 import React, { useRef, useEffect, useState } from 'react';
+import { OverlaySheet } from '../../components/common/OverlaySheet';
 import {
   View,
   Text,
   TouchableOpacity,
   StyleSheet,
-  Modal,
   Animated,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
@@ -100,7 +100,7 @@ export function MealTimeModal({ visible, onSelect, onClose, mealSchedules, notif
   };
 
   return (
-    <Modal visible={visible} transparent animationType="none" onRequestClose={onClose}>
+    <OverlaySheet visible={visible} onRequestClose={onClose} animationType="none">
       <Animated.View style={[styles.backdrop, { opacity: fadeAnim }]}>
         <Animated.View style={[styles.sheet, { paddingBottom: Math.max(36, insets.bottom + 20), transform: [{ translateY: slideAnim }] }]}>
           <View style={styles.handleWrap}>
@@ -172,7 +172,7 @@ export function MealTimeModal({ visible, onSelect, onClose, mealSchedules, notif
           </View>
         </Animated.View>
       </Animated.View>
-    </Modal>
+    </OverlaySheet>
   );
 }
 

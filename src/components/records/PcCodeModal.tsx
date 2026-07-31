@@ -8,12 +8,12 @@
 // 스와이프 다운 닫기 + 안드 백버튼 + 배경탭 닫기 지원(공용 훅 useSwipeDownDismiss).
 
 import React, { useEffect, useState } from 'react';
+import { OverlaySheet } from '../common/OverlaySheet';
 import {
   View,
   Text,
   StyleSheet,
   TouchableOpacity,
-  Modal,
   Animated,
   ActivityIndicator,
   BackHandler,
@@ -132,13 +132,7 @@ export function PcCodeModal({
   const spacedCode = code ?? '';
 
   return (
-    <Modal
-      visible={visible}
-      transparent
-      animationType="fade"
-      onRequestClose={onClose}
-      statusBarTranslucent
-    >
+    <OverlaySheet visible={visible} onRequestClose={onClose} animationType="fade">
       <TouchableOpacity style={styles.backdrop} activeOpacity={1} onPress={onClose} />
       <View style={styles.centerContainer} pointerEvents="box-none">
         <Animated.View
@@ -254,7 +248,7 @@ export function PcCodeModal({
           </TouchableOpacity>
         </Animated.View>
       </View>
-    </Modal>
+    </OverlaySheet>
   );
 }
 

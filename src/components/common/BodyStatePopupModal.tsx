@@ -1,10 +1,10 @@
 import React, { useState } from 'react';
+import { OverlaySheet } from './OverlaySheet';
 import {
   View,
   Text,
   TouchableOpacity,
   StyleSheet,
-  Modal,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { Colors } from '../../constants/colors';
@@ -28,12 +28,7 @@ export function BodyStatePopupModal({ visible, onClose, onSave, prevBodyScore }:
   };
 
   return (
-    <Modal
-      visible={visible}
-      transparent
-      animationType="fade"
-      onRequestClose={onClose}
-    >
+    <OverlaySheet visible={visible} onRequestClose={onClose} animationType="fade">
       <View style={styles.backdrop}>
         <View style={styles.centerModal}>
           <Text style={styles.title}>약을 드셨군요 😊</Text>
@@ -53,7 +48,7 @@ export function BodyStatePopupModal({ visible, onClose, onSave, prevBodyScore }:
           </TouchableOpacity>
         </View>
       </View>
-    </Modal>
+    </OverlaySheet>
   );
 }
 

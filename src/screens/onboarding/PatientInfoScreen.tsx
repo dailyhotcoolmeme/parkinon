@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
+import { OverlaySheet } from '../../components/common/OverlaySheet';
 import {
   View,
   Text,
@@ -8,7 +9,6 @@ import {
   KeyboardAvoidingView,
   Platform,
   ScrollView,
-  Modal,
   FlatList,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
@@ -232,7 +232,7 @@ function YearPickerModal({ visible, years, selected, onSelect, onClose }: {
   };
 
   return (
-    <Modal visible={visible} transparent animationType="slide">
+    <OverlaySheet visible={visible} animationType="slide">
       <View style={pickerStyles.container}>
         <TouchableOpacity style={pickerStyles.overlay} onPress={onClose} activeOpacity={1} />
         <View style={[pickerStyles.sheet, { paddingBottom: sheetPadding }]}>
@@ -260,7 +260,7 @@ function YearPickerModal({ visible, years, selected, onSelect, onClose }: {
           />
         </View>
       </View>
-    </Modal>
+    </OverlaySheet>
   );
 }
 

@@ -1,10 +1,10 @@
 import React, { useRef, useEffect, useState } from 'react';
+import { OverlaySheet } from '../../components/common/OverlaySheet';
 import {
   View,
   Text,
   TouchableOpacity,
   StyleSheet,
-  Modal,
   Animated,
   ScrollView,
   Dimensions,
@@ -322,7 +322,7 @@ export function BodyStatePopupFlow({
   };
 
   return (
-    <Modal visible={visible} transparent animationType="none" onRequestClose={handleClose}>
+    <OverlaySheet visible={visible} onRequestClose={handleClose} animationType="none">
       <Animated.View style={[styles.backdrop, { opacity: fadeAnim }]}>
         <Animated.View style={[styles.sheet, { paddingBottom: Math.max(24, insets.bottom + 12), transform: [{ translateY: slideAnim }] }]}>
           {/* 진행 도트 + 우상단 닫기 */}
@@ -394,7 +394,7 @@ export function BodyStatePopupFlow({
           </View>
         </Animated.View>
       </Animated.View>
-    </Modal>
+    </OverlaySheet>
   );
 }
 

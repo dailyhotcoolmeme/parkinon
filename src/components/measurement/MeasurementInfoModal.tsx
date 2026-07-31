@@ -11,12 +11,12 @@
 // 스와이프 다운 닫기 + 안드 백버튼 + 배경탭 닫기 지원.
 
 import React, { useEffect } from 'react';
+import { OverlaySheet } from '../common/OverlaySheet';
 import {
   View,
   Text,
   StyleSheet,
   TouchableOpacity,
-  Modal,
   Animated,
   ScrollView,
   BackHandler,
@@ -106,13 +106,7 @@ export function MeasurementInfoModal({
   const content = CONTENT[type];
 
   return (
-    <Modal
-      visible={visible}
-      transparent
-      animationType="fade"
-      onRequestClose={onClose}
-      statusBarTranslucent
-    >
+    <OverlaySheet visible={visible} onRequestClose={onClose} animationType="fade">
       <TouchableOpacity
         style={styles.backdrop}
         activeOpacity={1}
@@ -218,7 +212,7 @@ export function MeasurementInfoModal({
           </TouchableOpacity>
         </Animated.View>
       </View>
-    </Modal>
+    </OverlaySheet>
   );
 }
 

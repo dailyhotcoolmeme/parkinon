@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useCallback, useRef, useMemo } from 'react';
+import { OverlaySheet } from '../../components/common/OverlaySheet';
 import {
   View,
   Text,
@@ -6,7 +7,6 @@ import {
   ScrollView,
   StyleSheet,
   ActivityIndicator,
-  Modal,
   Image,
   TextInput,
   KeyboardAvoidingView,
@@ -599,7 +599,7 @@ function DrugInfoModal({ drug, onClose }: { drug: Medication | null; onClose: ()
     .join(' ');
 
   return (
-    <Modal visible transparent animationType="slide" onRequestClose={onClose}>
+    <OverlaySheet visible onRequestClose={onClose} animationType="slide">
       {/* 배경(backdrop) 탭으로 닫기 */}
       <TouchableOpacity style={modalStyles.overlay} activeOpacity={1} onPress={onClose} />
       {/* 시트: 일반 View. backdrop 위에 형제로 렌더돼 시트 영역 탭은 시트가 받아 backdrop까지 안 감(responder 가로채기 없음 → ScrollView 스크롤 정상) */}
@@ -725,7 +725,7 @@ function DrugInfoModal({ drug, onClose }: { drug: Medication | null; onClose: ()
             </ScrollView>
         </View>
       </View>
-    </Modal>
+    </OverlaySheet>
   );
 }
 
@@ -858,7 +858,7 @@ function MedToSlotSheet({
 
   return (
     <>
-    <Modal visible={visible} transparent animationType="slide" onRequestClose={onClose}>
+    <OverlaySheet visible={visible} onRequestClose={onClose} animationType="slide">
       <TouchableOpacity style={mtsStyles.overlay} activeOpacity={1} onPress={onClose}>
         <Animated.View
           style={[mtsStyles.sheet, { paddingBottom: sheetBottomPad, transform: [{ translateY }] }]}
@@ -959,7 +959,7 @@ function MedToSlotSheet({
           </TouchableOpacity>
         </Animated.View>
       </TouchableOpacity>
-    </Modal>
+    </OverlaySheet>
     <BrandProgressOverlay
       visible={committing}
       title={i18n.t('loading.savingMed')}
@@ -3799,12 +3799,7 @@ export function MedicationManageScreen({ modeOverride, hideBack, hideTopBar, onG
       )}
 
       {/* OCR 결과 확인 바텀시트 */}
-      <Modal
-        visible={ocrResultVisible}
-        transparent
-        animationType="slide"
-        onRequestClose={() => setOcrResultVisible(false)}
-      >
+      <OverlaySheet visible={ocrResultVisible} onRequestClose={() => setOcrResultVisible(false)} animationType="slide">
         <KeyboardAvoidingView
           style={{ flex: 1, justifyContent: 'flex-end', backgroundColor: 'rgba(0,0,0,0.45)' }}
           behavior={Platform.OS === 'ios' ? 'padding' : undefined}
@@ -4040,7 +4035,7 @@ export function MedicationManageScreen({ modeOverride, hideBack, hideTopBar, onG
             </View>
           )}
         </KeyboardAvoidingView>
-      </Modal>
+      </OverlaySheet>
 
       {/* 온보딩 마무리 — 약별 복용 시간대 배정(약효추적 안내 팝업 다음 단계) */}
       <MedSlotAssignModal

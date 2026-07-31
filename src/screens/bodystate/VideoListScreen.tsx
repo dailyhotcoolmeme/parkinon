@@ -1,4 +1,5 @@
 import React, { useState, useCallback, useRef, useEffect } from 'react';
+import { OverlaySheet } from '../../components/common/OverlaySheet';
 import {
   View,
   Text,
@@ -483,16 +484,9 @@ function VideoPlayerModal({ url, onClose, insetTop, insetBottom }: VideoPlayerMo
   };
 
   return (
-    <Modal
-      visible={url !== null}
-      transparent={false}
-      animationType="fade"
-      statusBarTranslucent
-      navigationBarTranslucent={false}
-      onRequestClose={handleClose}
-    >
+    <OverlaySheet visible={url !== null} onRequestClose={handleClose} animationType="fade">
       <StatusBar backgroundColor="#000" barStyle="light-content" />
-      {/* RN <Modal> 은 안드에서 별도 윈도우라 내부 useSafeAreaInsets() 가 0/부정확.
+      {/* RN <OverlaySheet > 은 안드에서 별도 윈도우라 내부 useSafeAreaInsets() 가 0/부정확.
           → 부모(모달 밖)에서 받은 insetTop/insetBottom 을 직접 사용한다.
           또한 navigationBarTranslucent={false} 로 모달 윈도우가 내비바를 침범하지 않게 해
           영상·네이티브 컨트롤(스크러버)이 안드 3버튼 내비바에 가리지 않게 한다.
@@ -533,7 +527,7 @@ function VideoPlayerModal({ url, onClose, insetTop, insetBottom }: VideoPlayerMo
           )
         )}
       </View>
-    </Modal>
+    </OverlaySheet>
   );
 }
 

@@ -1,4 +1,5 @@
 import React, { useState, useRef, useEffect, useCallback } from 'react';
+import { OverlaySheet } from '../../components/common/OverlaySheet';
 import {
   View,
   Text,
@@ -1187,7 +1188,6 @@ function FullscreenVideoModal({
   onClose,
   insetTop,
   insetBottom,
-  inline = false,
 }: {
   url: string;
   onClose: () => void;
@@ -1195,10 +1195,6 @@ function FullscreenVideoModal({
   // 윈도우라 내부 useSafeAreaInsets() 의 bottom 이 0/부정확 → 부모에서 받아 쓴다.
   insetTop: number;
   insetBottom: number;
-  // 이미 <Modal> 안(=일기 작성기)에서 열릴 때 true. iOS 모달-위-모달 프리즈를 피하려고
-  // <Modal> 대신 절대배치 오버레이로 렌더한다. 리스트 안에서 열리는 경우(기본 false)는
-  // 부모가 화면 전체가 아니라 오버레이가 화면을 못 덮으므로 기존 <Modal> 을 유지한다.
-  inline?: boolean;
 }) {
   const { t } = useTranslation();
   // 모달 밖에서 받은 inset 신뢰. 안드에서 0 으로 떨어지면 내비바 높이 추정으로 보강.
@@ -1272,10 +1268,8 @@ function FullscreenVideoModal({
     </View>
   );
 
-  // inline=true → 이미 <Modal> 안이라 오버레이로 렌더(iOS 모달 중첩 프리즈 회피).
-  if (inline) return <View style={styles.sheetOverlay}>{body}</View>;
-
-  // RN <Modal> 대신 절대배치 — 작성기 안이든 밖이든 동일하게 동작한다.
+  // 항상 절대배치 오버레이. 예전엔 "모달 안에서 열릴 때만"(inline) 오버레이로 우회했는데,
+  // 앱에서 RN <Modal> 을 전부 걷어내 그 분기가 필요 없어졌다.
   return <View style={styles.fullscreenOverlay}>{body}</View>;
 }
 
@@ -2146,14 +2140,13 @@ function DiaryEditorModal({ visible, dateStr, patientId, existing, onClose, onSa
         </KeyboardAvoidingView>
 
         {/* 첨부 영상 미리보기 (풀스크린) — 로컬 신규 uri 우선, 없으면 기존 url
-            inline: 이 에디터가 이미 <Modal> 이라 중첩 금지(iOS 프리즈) */}
+*/}
         {showVideoPreview && (newVideoUri || existingVideoUrl) && (
           <FullscreenVideoModal
             url={(newVideoUri ?? existingVideoUrl) as string}
             onClose={() => setShowVideoPreview(false)}
             insetTop={parentInsetTop}
             insetBottom={parentInsetBottom}
-            inline
           />
         )}
 
@@ -2163,7 +2156,6 @@ function DiaryEditorModal({ visible, dateStr, patientId, existing, onClose, onSa
             urls={editorPhotoKeys}
             initialFullscreenIndex={photoViewerIndex}
             onClose={() => setPhotoViewerIndex(null)}
-            inline
           />
         )}
 
@@ -2355,7 +2347,7 @@ function AttachSheet({
     return () => sub.remove();
   }, [visible, onClose]);
 
-  // ⚠️ RecordSheet 와 동일 — <Modal> 중첩 금지(iOS 모달-위-모달 프리즈). 오버레이로 렌더.
+  // 오버레이로 렌더한다(앱 전체 동일 원칙 — RN <Modal> 은 쓰지 않는다).
   if (!visible) return null;
 
   return (
@@ -3324,7 +3316,7 @@ const styles = StyleSheet.create({
 
   // ── 음성 녹음 안내 바텀시트 (안내 → 녹음중 → 정지) ──
   // 바텀시트 오버레이 — RN <Modal> 중첩 대신 부모 트리 안에서 전체를 덮는다.
-  // (iOS 모달-위-모달 프리즈 회피. zIndex/elevation 으로 형제 요소 위에 올린다.)
+  // (zIndex/elevation 으로 형제 요소 위에 올린다.)
   sheetOverlay: {
     ...StyleSheet.absoluteFillObject,
     zIndex: 50,
