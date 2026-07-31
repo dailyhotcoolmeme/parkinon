@@ -17,6 +17,7 @@
 
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
 import { resolveLang, t } from '../_shared/i18n.ts';
+import { nextBadgeCountByToken } from '../_shared/badge.ts';
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
@@ -83,12 +84,14 @@ async function sendPush(
   channelId = 'default',
   platform: string | null = null,
 ): Promise<void> {
+  // 앱이 꺼져 있으면 앱이 배지를 못 맞추므로 푸시에 숫자를 실어 보낸다.
+  const __badge = await nextBadgeCountByToken(supabase, to);
   try {
     const sound = soundForPlatform(platform, channelId);
     const res = await fetch('https://exp.host/--/api/v2/push/send', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json', Accept: 'application/json', 'Accept-Encoding': 'gzip, deflate' },
-      body: JSON.stringify({ to, sound, title, body, data, priority: 'high', channelId }),
+      body: JSON.stringify({ to, sound, title, body, data, priority: 'high', channelId, ...(__badge !== undefined ? { badge: __badge } : {}) }),
     });
     const result = await res.json();
     console.log('[notify-diary-entry] sendPush', JSON.stringify({ to: to.slice(0, 30), title, channelId, sound, status: res.status, result }));

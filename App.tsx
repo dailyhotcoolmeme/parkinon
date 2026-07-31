@@ -32,6 +32,7 @@ import { SubscriptionProvider } from './src/context/SubscriptionContext';
 import { SettingsProvider } from './src/context/SettingsContext';
 import { DialogProvider } from './src/context/DialogContext';
 import { RootNavigator } from './src/navigation/RootNavigator';
+import { OverlayHostProvider } from './src/components/common/OverlayHost';
 import { ErrorBoundary, LAST_JS_ERROR_KEY } from './src/components/common/ErrorBoundary';
 import * as Notifications from 'expo-notifications';
 import { navigateTo, navigationRef } from './src/navigation/navigationRef';
@@ -1181,7 +1182,9 @@ function AppInner() {
   return (
     <SettingsProvider>
       <ErrorBoundary>
-        <RootNavigator />
+        <OverlayHostProvider>
+          <RootNavigator />
+        </OverlayHostProvider>
       </ErrorBoundary>
     </SettingsProvider>
   );

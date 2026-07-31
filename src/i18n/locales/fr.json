@@ -1556,7 +1556,9 @@
     "markAllRead": "Tout lu",
     "viewOlder": "Voir les notifications plus anciennes",
     "noNotifTitle": "Aucune notification",
-    "noNotifBody": "Les notifications des {{days}} derniers jours apparaîtront ici."
+    "noNotifBody": "Les notifications des {{days}} derniers jours apparaîtront ici.",
+    "markAllFailTitle": "Impossible de tout marquer comme lu",
+    "markAllFailMsg": "Veuillez réessayer dans un instant."
   },
   "blockedUsers": {
     "roleCaregiver": "Proche aidant",

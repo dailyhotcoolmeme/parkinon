@@ -25,6 +25,7 @@
 
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
 import { resolveLang, t } from '../_shared/i18n.ts';
+import { nextBadgeCountByToken } from '../_shared/badge.ts';
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
@@ -47,6 +48,8 @@ async function sendPush(
   body: string,
   data: Record<string, unknown>,
 ): Promise<void> {
+  // 앱이 꺼져 있으면 앱이 배지를 못 맞추므로 푸시에 숫자를 실어 보낸다.
+  const __badge = await nextBadgeCountByToken(supabase, to);
   try {
     const res = await fetch('https://exp.host/--/api/v2/push/send', {
       method: 'POST',
@@ -62,6 +65,7 @@ async function sendPush(
         body,
         data,
         priority: 'high',
+        ...(__badge !== undefined ? { badge: __badge } : {}),
         channelId: 'default',
       }),
     });

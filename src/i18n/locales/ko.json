@@ -1556,7 +1556,9 @@
     "markAllRead": "전체 읽음",
     "viewOlder": "이전 알림 보기",
     "noNotifTitle": "아직 받은 알림이 없어요",
-    "noNotifBody": "최근 {{days}}일간 받은 알림이 여기에 표시돼요."
+    "noNotifBody": "최근 {{days}}일간 받은 알림이 여기에 표시돼요.",
+    "markAllFailTitle": "읽음 처리에 실패했어요",
+    "markAllFailMsg": "잠시 후 다시 시도해주세요."
   },
   "blockedUsers": {
     "roleCaregiver": "보호자",

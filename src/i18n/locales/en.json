@@ -1556,7 +1556,9 @@
     "markAllRead": "Mark all read",
     "viewOlder": "View older notifications",
     "noNotifTitle": "No notifications yet",
-    "noNotifBody": "Notifications from the last {{days}} days will appear here."
+    "noNotifBody": "Notifications from the last {{days}} days will appear here.",
+    "markAllFailTitle": "Couldn't mark all as read",
+    "markAllFailMsg": "Please try again in a moment."
   },
   "blockedUsers": {
     "roleCaregiver": "Caregiver",

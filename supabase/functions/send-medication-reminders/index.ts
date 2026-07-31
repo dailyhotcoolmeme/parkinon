@@ -1,4 +1,5 @@
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2'
+import { nextBadgeCount } from '../_shared/badge.ts'
 import { resolveLang, t, periodKeyFor, type Lang, slotLabel } from '../_shared/i18n.ts'
 
 const supabase = createClient(
@@ -236,9 +237,13 @@ async function sendPush(
   data: Record<string, unknown>,
   channelId = 'default',
   platform: string | null = null,
+  // 홈 화면 앱 아이콘 배지용 수신자 id. 앱이 꺼져 있으면 앱이 배지를 못 맞추므로
+  // 푸시에 숫자를 실어 보내야 아이콘에 표시된다(없으면 배지를 건드리지 않는다).
+  userId: string | null = null,
 ) {
   // 수신자별 sound 분기: iOS 커스텀음은 sound 문자열, Android 는 channelId 가 좌우(sound='default').
   const sound = soundForPlatform(platform, channelId)
+  const badge = await nextBadgeCount(supabase, userId)
   const res = await fetch('https://exp.host/--/api/v2/push/send', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
@@ -250,6 +255,7 @@ async function sendPush(
       data,
       priority: 'high',
       channelId,
+      ...(badge !== undefined ? { badge } : {}),
     }),
   })
   const result = await res.json()
@@ -385,6 +391,7 @@ async function sendCaregiverMissed(
       data,
       channelId,
       (cu as any).push_platform ?? null,
+      cu.id,
     )
     await logNotification(cu.id, 'caregiver_missed_med', title, body, data)
   }
@@ -540,6 +547,7 @@ Deno.serve(async (_req: Request) => {
         data,
         channelId,
         platform,
+        patientId,
       )
       await logNotification(patientId, 'medication_reminder', title, body, data)
       sent++
@@ -586,6 +594,7 @@ Deno.serve(async (_req: Request) => {
         data,
         channelId,
         (patient as any).push_platform ?? null,
+        patientId,
       )
       await logNotification(patientId, 'missed_medication', title, body, data)
       sent++
@@ -632,6 +641,7 @@ Deno.serve(async (_req: Request) => {
           data,
           channelId,
           (patient as any).push_platform ?? null,
+          patientId,
         )
         await logNotification(patientId, 'missed_medication', title, body, data)
         sent++
@@ -684,6 +694,7 @@ Deno.serve(async (_req: Request) => {
         { type: 'exercise_reminder' },
         exerciseChannelId,
         (patient as any).push_platform ?? null,
+        patient.id,
       )
       await logNotification(patient.id, 'exercise_reminder', title, body, { type: 'exercise_reminder' })
       sent++

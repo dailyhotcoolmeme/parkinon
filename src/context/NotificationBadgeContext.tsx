@@ -1,5 +1,6 @@
 import React, { createContext, useContext, useState, useEffect, useCallback, useRef } from 'react';
 import { AppState, AppStateStatus } from 'react-native';
+import * as Notifications from 'expo-notifications';
 import { supabase } from '../lib/supabase';
 import { useAuth } from './AuthContext';
 
@@ -22,6 +23,15 @@ const NotificationBadgeContext = createContext<NotificationBadgeContextValue | n
 export function NotificationBadgeProvider({ children }: { children: React.ReactNode }) {
   const { user } = useAuth();
   const [unreadCount, setUnreadCount] = useState(0);
+
+  // 홈 화면 앱 아이콘의 숫자 배지.
+  //   톱바 종 아이콘 숫자는 DB 에서 직접 세어 표시하지만, 앱 아이콘 배지는 OS 에 따로
+  //   알려줘야 한다. 알려주는 코드가 아예 없어 아이콘에는 늘 아무것도 안 떴다(오너 제보).
+  //   setUnreadCount 가 여러 곳에 흩어져 있어 각 자리에 붙이면 빠뜨리게 되므로,
+  //   값이 바뀌는 순간을 한 곳에서 받아 반영한다.
+  useEffect(() => {
+    Notifications.setBadgeCountAsync(unreadCount).catch(() => {});
+  }, [unreadCount]);
   const appState = useRef<AppStateStatus>(AppState.currentState);
 
   const refreshBadge = useCallback(async () => {
@@ -213,7 +223,7 @@ export function NotificationBadgeProvider({ children }: { children: React.ReactN
       const { data: { session } } = await supabase.auth.getSession();
       const SUPA_URL = process.env.EXPO_PUBLIC_SUPABASE_URL!;
       const SUPA_KEY = process.env.EXPO_PUBLIC_SUPABASE_ANON_KEY!;
-      await fetch(
+      const res = await fetch(
         `${SUPA_URL}/rest/v1/notification_logs?user_id=eq.${user.id}&read_at=is.null`,
         {
           method: 'PATCH',
@@ -226,9 +236,16 @@ export function NotificationBadgeProvider({ children }: { children: React.ReactN
           body: JSON.stringify({ read_at: new Date().toISOString() }),
         },
       );
+      // ⚠️ 예전엔 응답을 확인하지 않고 실패도 조용히 삼켰다. 그래서 서버가 거부해도
+      //   "눌러도 아무 반응 없음"으로만 보이고 원인을 알 방법이 없었다(오너 제보).
+      if (!res.ok) {
+        const body = await res.text().catch(() => '');
+        throw new Error(`markAllRead ${res.status}: ${body.slice(0, 200)}`);
+      }
       setUnreadCount(0);
     } catch (e) {
-      // 조용히 실패
+      console.error('[알림] 모두 읽음 처리 실패:', e);
+      throw e; // 화면이 실패를 알 수 있게 올린다(예전엔 여기서 삼켜 무반응처럼 보였다).
     }
   }, [user?.id]);
 

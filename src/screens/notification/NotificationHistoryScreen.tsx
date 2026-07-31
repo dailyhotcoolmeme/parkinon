@@ -1,4 +1,5 @@
 import React, { useState, useCallback, useRef } from 'react';
+import { useDialog } from '../../context/DialogContext';
 import {
   View,
   Text,
@@ -128,6 +129,7 @@ export function NotificationHistoryScreen() {
   const { user } = useAuth();
 
   const { markAllRead, markRead, refreshBadge } = useNotificationBadge();
+  const dialog = useDialog();
   const navigation = useNavigation();
 
   const [sections, setSections] = useState<Section[]>([]);
@@ -173,15 +175,24 @@ export function NotificationHistoryScreen() {
   };
 
   const handleMarkAllRead = async () => {
-    await markAllRead();
-    const now = new Date().toISOString();
-    setSections((prev) =>
-      prev.map((section) => ({
-        ...section,
-        data: section.data.map((d) => ({ ...d, read_at: d.read_at ?? now })),
-      }))
-    );
-    refreshBadge();
+    try {
+      await markAllRead();
+      const now = new Date().toISOString();
+      setSections((prev) =>
+        prev.map((section) => ({
+          ...section,
+          data: section.data.map((d) => ({ ...d, read_at: d.read_at ?? now })),
+        }))
+      );
+      refreshBadge();
+    } catch (e) {
+      // 실패했으면 그렇다고 알려준다. 예전엔 실패가 조용히 삼켜져
+      // "눌러도 아무 반응 없음"으로만 보였다.
+      dialog.alert({
+        title: t('notifHistory.markAllFailTitle'),
+        message: t('notifHistory.markAllFailMsg'),
+      });
+    }
   };
 
   const handleItemPress = async (item: NotifLog) => {

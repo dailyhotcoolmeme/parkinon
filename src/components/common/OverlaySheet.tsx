@@ -12,8 +12,9 @@
 //
 // ⚠️ onRequestClose 는 안드로이드 하드웨어 뒤로가기다. Modal 이 대신 처리해주던 것이라
 //    여기서 직접 BackHandler 로 이어줘야 뒤로가기로 닫는 동작이 유지된다.
-import React, { useEffect, useRef } from 'react';
+import React, { useEffect, useRef, useId } from 'react';
 import { View, StyleSheet, BackHandler, Animated, Platform, ViewStyle } from 'react-native';
+import { useOverlayHost } from './OverlayHost';
 
 export interface OverlaySheetProps {
   visible: boolean;
@@ -54,8 +55,17 @@ export function OverlaySheet({
     return () => sub.remove();
   }, [visible, onRequestClose]);
 
-  if (!visible) return null;
-  return (
+  // ⚠️ 절대배치는 "가장 가까운 부모" 안에서만 퍼진다. 작은 카드 안에서 열리면 그 카드
+  //   크기로 잘린다(실측: 알림음 시트가 복용 시간대 카드 안에 갇힘).
+  //   그래서 실제 그리기는 앱 루트(OverlayHost)에 맡긴다 — 화면 전체를 덮게 된다.
+  const host = useOverlayHost();
+  const idStr = useId();
+  const idNum = useRef<number>(0);
+  if (idNum.current === 0) {
+    idNum.current = Array.from(idStr).reduce((a, c) => a + c.charCodeAt(0), 0) * 1000 + Math.floor(Math.random() * 999);
+  }
+
+  const content = (
     <Animated.View
       style={[styles.root, style, animationType === 'fade' ? { opacity } : null]}
       pointerEvents="box-none"
@@ -63,6 +73,19 @@ export function OverlaySheet({
       {children}
     </Animated.View>
   );
+
+  useEffect(() => {
+    if (!host) return;
+    if (visible) host.mount(idNum.current, content);
+    else host.unmount(idNum.current);
+    return () => host.unmount(idNum.current);
+  });
+
+  // 루트에서 그리므로 제자리에는 아무것도 남기지 않는다.
+  // (호스트가 없는 예외 상황에서만 제자리 렌더로 폴백한다.)
+  if (!visible) return null;
+  if (!host) return content;
+  return null;
 }
 
 const styles = StyleSheet.create({

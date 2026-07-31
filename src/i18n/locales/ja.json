@@ -1556,7 +1556,9 @@
     "markAllRead": "全て既読",
     "viewOlder": "以前のお知らせを見る",
     "noNotifTitle": "お知らせはまだありません",
-    "noNotifBody": "過去{{days}}日間のお知らせがここに表示されます。"
+    "noNotifBody": "過去{{days}}日間のお知らせがここに表示されます。",
+    "markAllFailTitle": "既読にできませんでした",
+    "markAllFailMsg": "しばらくしてからもう一度お試しください。"
   },
   "blockedUsers": {
     "roleCaregiver": "介護者",

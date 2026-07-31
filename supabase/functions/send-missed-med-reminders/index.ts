@@ -1,4 +1,5 @@
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2'
+import { nextBadgeCountByToken } from '../_shared/badge.ts'
 import { resolveLang, t, periodKeyFor, type Lang, slotLabelWithTime } from '../_shared/i18n.ts'
 
 /** 유효한 legacy 시간대 키. 표시용이 아니라 요청 검증용이다. */
@@ -91,6 +92,8 @@ function localDayRangeUtc(dateStr: string, tz: string): { start: string; end: st
 }
 
 async function sendPush(to: string, title: string, body: string, data: Record<string, unknown>) {
+  // 앱이 꺼져 있으면 앱이 배지를 못 맞추므로 푸시에 숫자를 실어 보낸다.
+  const __badge = await nextBadgeCountByToken(supabase, to)
   await fetch('https://exp.host/--/api/v2/push/send', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
@@ -101,6 +104,7 @@ async function sendPush(to: string, title: string, body: string, data: Record<st
       body,
       data,
       priority: 'high',
+      ...(__badge !== undefined ? { badge: __badge } : {}),
       channelId: 'default',
     }),
   })

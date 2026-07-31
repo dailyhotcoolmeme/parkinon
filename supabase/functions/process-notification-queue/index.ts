@@ -1,4 +1,5 @@
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2'
+import { nextBadgeCountByToken } from '../_shared/badge.ts'
 import { resolveLang, t, intervalLabel, periodKeyFor, type Lang, slotLabelWithTime } from '../_shared/i18n.ts'
 
 const supabase = createClient(
@@ -91,6 +92,8 @@ function soundForPlatform(platform: string | null | undefined, channelId: string
 }
 
 async function sendPush(to: string, title: string, body: string, data: Record<string, unknown>, channelId = 'default', platform: string | null = null): Promise<boolean> {
+  // 앱이 꺼져 있으면 앱이 배지를 못 맞추므로 푸시에 숫자를 실어 보낸다.
+  const __badge = await nextBadgeCountByToken(supabase, to)
   // iOS 커스텀음은 sound 문자열, Android 는 channelId 로 좌우(sound='default').
   const sound = soundForPlatform(platform, channelId)
   const res = await fetch('https://exp.host/--/api/v2/push/send', {
@@ -103,6 +106,7 @@ async function sendPush(to: string, title: string, body: string, data: Record<st
       body,
       data,
       priority: 'high',
+      ...(__badge !== undefined ? { badge: __badge } : {}),
       channelId,
       // 디지털 바이오마커 MVP-A Phase 4 — 약효추적 알림 액션 버튼 '바로 측정하기'.
       // 본 함수는 effect_tracking_queue 전용이라 모든 푸시에 categoryId='effect_tracking' 부여.
