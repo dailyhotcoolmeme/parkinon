@@ -357,6 +357,10 @@ export function MenuScreen() {
     // 메뉴가 다시 만들어진다(빠뜨리면 항목이 영영 안 뜬다).
   }, [user?.role, hasPatientMeasurement, patientName, t, showAdPrivacy]);
 
+  // ⚠️ navigate 가 아니라 push 를 쓴다.
+  //   navigate 는 그 화면이 이미 스택에 있으면 아무 일도 하지 않는다. 그래서 메뉴에서
+  //   같은 항목을 다시 누르면 "눌러도 반응 없음"이 된다(실측: 약관 → 내 정보 → 개인정보).
+  //   메뉴는 누를 때마다 그 화면이 열리는 게 맞으므로 항상 새로 쌓는다.
   const handleMenuPress = async (key: string) => {
     // 약관·개인정보처리방침은 게스트도 열람 가능. 그 외 서버 데이터가 필요한 항목은 게스트 차단.
     const guestAllowed = key === 'Terms' || key === 'Privacy' || key === 'Settings';
@@ -366,33 +370,33 @@ export function MenuScreen() {
       await showAdsPrivacyOptions();
       setShowAdPrivacy(isPrivacyOptionsRequired());
     } else if (key === 'Records') {
-      navigation.navigate('Records');
+      navigation.push('Records');
     } else if (key === 'Diary') {
       // 일기 화면은 RootNavigator 스택에 있음
       navigateTo('Diary');
     } else if (key === 'VideoList') {
-      navigation.navigate('VideoList');
+      navigation.push('VideoList');
     } else if (key === 'Settings') {
-      navigation.navigate('Settings');
+      navigation.push('Settings');
     } else if (key === 'PatientNotifSettings') {
-      navigation.navigate('Settings', { mode: 'patient' });
+      navigation.push('Settings', { mode: 'patient' });
     } else if (key === 'MyMeds') {
-      navigation.navigate('MedicationManage', { mode: 'meds' });
+      navigation.push('MedicationManage', { mode: 'meds' });
     } else if (key === 'DoseSlots') {
-      navigation.navigate('MedicationManage', { mode: 'slots' });
+      navigation.push('MedicationManage', { mode: 'slots' });
     } else if (key === 'FamilyLink') {
-      navigation.navigate('FamilyLink');
+      navigation.push('FamilyLink');
     } else if (key === 'Terms') {
-      navigation.navigate('Terms');
+      navigation.push('Terms');
     } else if (key === 'Privacy') {
-      navigation.navigate('Privacy');
+      navigation.push('Privacy');
     } else if (key === 'MedicalRecordList') {
-      navigation.navigate('MedicalRecordList');
+      navigation.push('MedicalRecordList');
     } else if (key === 'BlockedUsers') {
-      navigation.navigate('BlockedUsers');
+      navigation.push('BlockedUsers');
     } else if (key === 'AlarmSoundSettings') {
       // 알림음 설정 화면 — MenuNavigator(기록·관리 탭) 스택 내 이동 → 탭바 유지
-      navigation.navigate('AlarmSoundSettings');
+      navigation.push('AlarmSoundSettings');
     } else if (key === 'MeasurementRecords') {
       // 환자 본인 측정 기록 보기 — params 없이 본인 데이터.
       navigateTo('MeasurementRecords');

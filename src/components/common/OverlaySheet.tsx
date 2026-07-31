@@ -55,15 +55,10 @@ export function OverlaySheet({
     return () => sub.remove();
   }, [visible, onRequestClose]);
 
-  // ⚠️ 절대배치는 "가장 가까운 부모" 안에서만 퍼진다. 작은 카드 안에서 열리면 그 카드
-  //   크기로 잘린다(실측: 알림음 시트가 복용 시간대 카드 안에 갇힘).
-  //   그래서 실제 그리기는 앱 루트(OverlayHost)에 맡긴다 — 화면 전체를 덮게 된다.
+  // 실제 그리기는 앱 루트(OverlayHost)에 맡긴다 — 작은 카드 안에서 열려도 화면 전체를 덮는다.
   const host = useOverlayHost();
-  const idStr = useId();
-  const idNum = useRef<number>(0);
-  if (idNum.current === 0) {
-    idNum.current = Array.from(idStr).reduce((a, c) => a + c.charCodeAt(0), 0) * 1000 + Math.floor(Math.random() * 999);
-  }
+  const idRef = useRef<number>(0);
+  if (idRef.current === 0) idRef.current = ++seq;
 
   const content = (
     <Animated.View
@@ -74,19 +69,27 @@ export function OverlaySheet({
     </Animated.View>
   );
 
+  // ⚠️ 의존성 배열이 없으면 매 렌더마다 등록이 일어나고, 그 등록이 다시 렌더를 부르는
+  //   무한 루프가 된다(실측: 화면이 버벅이고 스크롤·뒤로가기가 안 먹음).
+  //   내용이 실제로 바뀔 때만 다시 등록한다.
   useEffect(() => {
     if (!host) return;
-    if (visible) host.mount(idNum.current, content);
-    else host.unmount(idNum.current);
-    return () => host.unmount(idNum.current);
-  });
+    if (visible) host.mount(idRef.current, content);
+    else host.unmount(idRef.current);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [host, visible, children, style, animationType, opacity]);
 
-  // 루트에서 그리므로 제자리에는 아무것도 남기지 않는다.
-  // (호스트가 없는 예외 상황에서만 제자리 렌더로 폴백한다.)
-  if (!visible) return null;
-  if (!host) return content;
+  // 화면에서 사라질 때 반드시 걷어낸다 — 남으면 보이지 않는 막이 터치를 막는다.
+  useEffect(() => {
+    const id = idRef.current;
+    return () => { host?.unmount(id); };
+  }, [host]);
+
+  if (!host) return visible ? content : null;
   return null;
 }
+
+let seq = 0;
 
 const styles = StyleSheet.create({
   root: {
