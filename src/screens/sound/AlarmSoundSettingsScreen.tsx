@@ -69,6 +69,21 @@ export function AlarmSoundSettingsScreen() {
   // 커스텀 알림음: 무료 0개(전면 프리미엄/체험 전용), 프리미엄 무제한.
   // 수익화(구독)는 해외판 전용이므로 국내엔 제한 미적용.
   const FREE_SOUND_LIMIT = 0;
+  /**
+   * 녹음 알림음이 잠긴 상태인가 — 해외판 무료 등급일 때만.
+   * 국내는 구독 개념 자체가 없고(구독 배너가 해외 전용) 녹음이 무료·무제한이라 잠그지 않는다.
+   */
+  const soundLocked = isOverseasLocale() && !isPremium;
+  /** 잠긴 버튼을 눌렀을 때의 구독 안내 — 잠금 지점마다 같은 안내를 쓴다. */
+  const showLockedNotice = async () => {
+    const go = await dialog.confirm({
+      title: t('alarmSound.limitTitle'),
+      message: t('alarmSound.limitMsg'),
+      confirmText: t('alarmSound.limitCta'),
+      cancelText: t('alarmSound.cancel'),
+    });
+    if (go) navigation.navigate('SubscriptionManage');
+  };
 
   const [loading, setLoading] = useState(true);
   const [sounds, setSounds] = useState<CustomSound[]>([]);
@@ -265,6 +280,20 @@ export function AlarmSoundSettingsScreen() {
   //   ⚠️ 네이티브 모듈은 새 빌드부터 활성 → 빌드 전(현재 OTA 런타임)에는 AlarmSoundNative
   //      .isAvailable=false 라 설치/재생이 불가하므로 크래시 없이 안내만 한다.
   const handleTestAlarm = async (item: CustomSound) => {
+    // "알림으로 테스트"는 실제로 알림음으로 울려보는 것이라 유료 기능 그 자체다.
+    //   무료 등급(해외)에서 열어두면 그대로 계속 쓸 수 있는 구멍이 된다.
+    //   반면 '미리듣기'는 자기 가족 목소리를 재생해보는 것뿐이라 막지 않는다.
+    //   기준은 녹음 생성 제한(atFreeLimit)과 동일 — 국내는 구독 자체가 없어 잠그지 않는다.
+    if (soundLocked) {
+      const go = await dialog.confirm({
+        title: t('alarmSound.limitTitle'),
+        message: t('alarmSound.limitMsg'),
+        confirmText: t('alarmSound.limitCta'),
+        cancelText: t('alarmSound.cancel'),
+      });
+      if (go) navigation.navigate('SubscriptionManage');
+      return;
+    }
     if (!item.public_url) {
       dialog.alert({ title: t('alarmSound.cannotTestTitle'), message: t('alarmSound.cannotTestMsg') });
       return;
@@ -516,8 +545,8 @@ export function AlarmSoundSettingsScreen() {
 
                       <TouchableOpacity
                         style={styles.testBtn}
-                        onPress={() => handleTestAlarm(item)}
-                        activeOpacity={0.85}
+                        onPress={() => (soundLocked ? showLockedNotice() : handleTestAlarm(item))}
+                        activeOpacity={soundLocked ? 1 : 0.85}
                         disabled={isTesting}
                       >
                         {isTesting ? (
@@ -531,6 +560,15 @@ export function AlarmSoundSettingsScreen() {
                               style={styles.btnIcon}
                             />
                             <Text style={styles.testBtnText}>{t('alarmSound.testAlarmBtn')}</Text>
+                          </View>
+                        )}
+                        {/* 잠금 덮개는 마지막 자식이어야 글자 위로 그려진다.
+                            배경은 그대로 두고 자물쇠만 얹는다(버튼 색을 바꾸지 않는다). */}
+                        {soundLocked && (
+                          <View style={[styles.lockOverlay, styles.lockOverlayTest]} pointerEvents="none">
+                            <View style={styles.lockBadge}>
+                              <Ionicons name="lock-closed" size={22} color={Colors.white} />
+                            </View>
                           </View>
                         )}
                       </TouchableOpacity>
@@ -547,9 +585,16 @@ export function AlarmSoundSettingsScreen() {
             <TouchableOpacity
               style={styles.addButton}
               onPress={handleAddNew}
-              activeOpacity={0.85}
+              activeOpacity={soundLocked ? 1 : 0.85}
             >
               <Text style={styles.addButtonText}>{t('alarmSound.addNewBtn')}</Text>
+              {soundLocked && (
+                <View style={[styles.lockOverlay, styles.lockOverlayAdd]} pointerEvents="none">
+                  <View style={styles.lockBadge}>
+                    <Ionicons name="lock-closed" size={22} color={Colors.white} />
+                  </View>
+                </View>
+              )}
             </TouchableOpacity>
             {atFreeLimit && (
               <Text style={styles.limitHint}>{t('alarmSound.limitHint')}</Text>
@@ -719,6 +764,22 @@ const styles = StyleSheet.create({
   },
 
   // 실제 알림 테스트 (심플 — 들어보기와 동일 높이·스타일)
+  // 잠긴 버튼 — 배경은 그대로 두고 중앙에 자물쇠만 얹는다.
+  lockOverlay: {
+    ...StyleSheet.absoluteFillObject,
+    alignItems: 'center',
+    justifyContent: 'center',
+    // 반투명 흰 막 — 아래 버튼 내용이 흐릿하게 비쳐 보이게 한다.
+    backgroundColor: 'rgba(255,255,255,0.72)',
+  },
+  // 덮개는 아래 버튼과 같은 모서리 값이어야 한다.
+  //   사각형으로 덮으면 둥근 모서리를 가려 네 귀퉁이 테두리가 끊겨 보인다.
+  lockOverlayTest: { borderRadius: 14 },   // testBtn 과 동일
+  lockOverlayAdd: { borderRadius: 16 },    // addButton 과 동일
+  lockBadge: {
+    width: 44, height: 44, borderRadius: 22,
+    backgroundColor: 'rgba(0,0,0,0.55)', alignItems: 'center', justifyContent: 'center',
+  },
   testBtn: {
     flex: 3, // Test notification 이 길어 더 넓게(2:3 ≈ 40:60)
     minHeight: 54,

@@ -119,6 +119,9 @@ export function RootNavigator() {
         if (r && r !== lastScreenRef.current) {
           lastScreenRef.current = r;
           setActivityScreen(r);
+          // 개발 빌드에서만 콘솔에도 남긴다 — 멈춤을 추적할 때 "어느 화면에서" 를
+          // 네트워크 로그([net])와 같은 줄기에서 보기 위함.
+          if (__DEV__) console.warn(`[nav] → ${r}`);
           logActivity('screen_view', { screen: r });
         }
       }}

@@ -1610,13 +1610,22 @@ export function MedicationManageScreen({ modeOverride, hideBack, hideTopBar, onG
       let patientHasDoseSlots = false;
       try {
         const medIds = baseMeds.map((m) => m.id);
-        const { data: slotJoin, error: slotErr } = await supabase
-          .from('medication_dose_slots')
-          .select('medication_id, dose_slots!inner(label, time, sort_order, is_active, patient_id)')
-          .eq('dose_slots.patient_id', pid)
-          .eq('dose_slots.is_active', true)
-          .in('medication_id', medIds.length > 0 ? medIds : ['__none__']);
-        if (slotErr) throw slotErr;
+        // 약이 하나도 없으면 조회할 대상 자체가 없다 — 요청을 보내지 않는다.
+        //   예전에는 빈 목록을 나타내려고 ['__none__'] 을 넣었는데, medication_id 가 uuid 라
+        //   "invalid input syntax for type uuid" 오류가 나면서 이 블록이 통째로 catch 로 빠졌다.
+        //   그러면 hasDoseSlots=false 인 legacy 표시로 떨어져, 복용 시간 관련 UI 가 제 동작을 못 했다.
+        const slotJoin = medIds.length === 0
+          ? []
+          : await (async () => {
+              const { data, error } = await supabase
+                .from('medication_dose_slots')
+                .select('medication_id, dose_slots!inner(label, time, sort_order, is_active, patient_id)')
+                .eq('dose_slots.patient_id', pid)
+                .eq('dose_slots.is_active', true)
+                .in('medication_id', medIds);
+              if (error) throw error;
+              return data ?? [];
+            })();
 
         const byMed = new Map<string, MedDoseSlot[]>();
         (slotJoin ?? []).forEach((row: any) => {

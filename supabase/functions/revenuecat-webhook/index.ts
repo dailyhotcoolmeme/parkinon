@@ -165,6 +165,9 @@ async function handleEvent(body: any): Promise<string> {
         .from('patient_groups')
         .update({ subscription_tier: 'free', subscription_expires_at: null, revenuecat_synced_at: nowIsoT })
         .eq('id', gid)
+      // 녹음 알림음은 유료 기능이라 함께 기본음으로 되돌린다.
+      //   되돌리지 않으면 서버 발송 코드가 등급과 무관하게 그 파일명을 계속 실어 보낸다.
+      await supabase.rpc('reset_group_custom_sounds', { p_group_id: gid })
     }
 
     // 넘겨받은 쪽: 현재 권한을 조회해 그대로 반영. 조회 실패 시 아무것도 하지 않는다
@@ -242,6 +245,12 @@ async function handleEvent(body: any): Promise<string> {
     //   구독 하나로 두 그룹이 프리미엄을 쓰는 상태가 됐다(실측 2026-07-27).
     //   TRANSFER 이벤트 유무와 무관하게 활성화 시점에 정리하므로 경로에 상관없이 막힌다.
     if (txnId) {
+      // 내려갈 그룹을 먼저 파악한다 — 강등 후에는 조건으로 다시 찾을 수 없다.
+      const { data: demoted } = await supabase
+        .from('patient_groups')
+        .select('id')
+        .eq('subscription_original_txn_id', txnId)
+        .neq('id', groupId)
       await supabase
         .from('patient_groups')
         .update({
@@ -251,6 +260,10 @@ async function handleEvent(body: any): Promise<string> {
         })
         .eq('subscription_original_txn_id', txnId)
         .neq('id', groupId)
+      // 옛 그룹의 녹음 알림음도 함께 되돌린다(유료 기능이므로).
+      for (const g of demoted ?? []) {
+        await supabase.rpc('reset_group_custom_sounds', { p_group_id: (g as { id: string }).id })
+      }
     }
     return 'activated'
   }

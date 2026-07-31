@@ -13,9 +13,11 @@ import { Ionicons } from '@expo/vector-icons';
 import { Audio } from 'expo-av';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Colors } from '../../constants/colors';
+import { isOverseasLocale } from '../../i18n/detectLocale';
+import { useSubscription } from '../../context/SubscriptionContext';
+import { useDialog } from '../../context/DialogContext';
 import { useSwipeDownDismiss } from '../../hooks/useSwipeDownDismiss';
 import { resolvePlaybackUrl } from '../../lib/r2Get';
-import { useDialog } from '../../context/DialogContext';
 import { navigateTo } from '../../navigation/navigationRef';
 import { useTranslation } from 'react-i18next';
 
@@ -58,6 +60,26 @@ interface Props {
 export function AlarmSoundPickerRow({ soundId, sounds, onSelect, backgroundColor, fontSize }: Props) {
   const { t } = useTranslation();
   const dialog = useDialog();
+  // 녹음 알림음은 유료 기능이라 등급을 본다.
+  const { tier } = useSubscription();
+  const isPremium = tier === 'premium';
+  /**
+   * 잠긴 항목을 눌렀을 때의 구독 안내.
+   * ⚠️ 바텀시트(Modal) 위에 또 Modal 을 띄우면 iOS 에서 둘 다 안 닫히고 굳는다(실측).
+   *    그래서 시트를 먼저 닫고, 닫힌 뒤에 안내를 띄운다.
+   */
+  const showLockedNotice = () => {
+    close();
+    setTimeout(async () => {
+      const go = await dialog.confirm({
+        title: t('alarmSound.limitTitle'),
+        message: t('alarmSound.limitMsg'),
+        confirmText: t('alarmSound.limitCta'),
+        cancelText: t('alarmSound.cancel'),
+      });
+      if (go) navigateTo('Main', { screen: 'MyInfo', params: { screen: 'SubscriptionManage' } });
+    }, 350);
+  };
   const insets = useSafeAreaInsets();
   const [open, setOpen] = useState(false);
   // 임시 선택값 — 시트에서 고르면 여기에만 담고, '완료' 눌러야 실제 적용(onSelect).
@@ -158,12 +180,18 @@ export function AlarmSoundPickerRow({ soundId, sounds, onSelect, backgroundColor
     const isPlaying = playingId === s.id;
     const isLoading = loadingId === s.id;
     const canPreview = !!s.previewUrl || !!s.previewAsset;
+    // 녹음(가족 목소리)은 해외판 전용 유료 기능 — 무료 등급이면 고를 수 없게 잠근다.
+    //   국내는 구독 자체가 없고 녹음이 무료·무제한이라 잠그지 않는다
+    //   (기준은 녹음 생성 제한 atFreeLimit 과 동일하게 맞춘다).
+    //   목록에서 감추지 않는 이유: 녹음이 사라진 걸로 오해하기 때문이다.
+    //   구독이 끝나도 파일은 보관되고, 재구독하면 그대로 다시 고를 수 있다.
+    const locked = s.group !== 'preset' && isOverseasLocale() && !isPremium;
     return (
       <TouchableOpacity
         key={s.id}
         style={[styles.option, selected && styles.optionSelected]}
-        activeOpacity={0.8}
-        onPress={() => handleSelect(s.id)}
+        activeOpacity={locked ? 1 : 0.8}
+        onPress={() => (locked ? showLockedNotice() : handleSelect(s.id))}
       >
         <View style={styles.optionLeft}>
           <Text style={styles.optionText}>{s.label}</Text>
@@ -191,6 +219,14 @@ export function AlarmSoundPickerRow({ soundId, sounds, onSelect, backgroundColor
           )}
         </View>
         {selected && <Ionicons name="checkmark-circle" size={28} color={Colors.primary} />}
+        {/* 잠금 덮개 — 마지막 자식이어야 내용 위에 그려진다(알림으로 테스트 버튼과 같은 구조). */}
+        {locked && (
+          <View style={styles.lockOverlay} pointerEvents="none">
+            <View style={styles.lockBadge}>
+              <Ionicons name="lock-closed" size={26} color={Colors.white} />
+            </View>
+          </View>
+        )}
       </TouchableOpacity>
     );
   };
@@ -437,6 +473,25 @@ const styles = StyleSheet.create({
     gap: 12,
     flexShrink: 1,
     flexWrap: 'wrap',
+  },
+  // 잠긴 항목(해외 무료 등급의 녹음) — 배경은 그대로 두고 중앙에 자물쇠만 얹는다.
+  lockOverlay: {
+    ...StyleSheet.absoluteFillObject,
+    alignItems: 'center',
+    justifyContent: 'center',
+    // 반투명 흰 막 — 아래 내용이 흐릿하게 비쳐 보이게 한다.
+    backgroundColor: 'rgba(255,255,255,0.72)',
+    // 아래 항목과 같은 모서리 값이어야 한다. 사각형으로 덮으면 둥근 모서리를 가려
+    // 네 귀퉁이의 테두리가 끊겨 보인다(option.borderRadius = 16).
+    borderRadius: 16,
+  },
+  lockBadge: {
+    width: 52,
+    height: 52,
+    borderRadius: 26,
+    backgroundColor: 'rgba(0,0,0,0.55)',
+    alignItems: 'center',
+    justifyContent: 'center',
   },
   optionText: {
     fontSize: 20,
