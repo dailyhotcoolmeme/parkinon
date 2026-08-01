@@ -703,6 +703,7 @@ const ovStyles = StyleSheet.create({
     paddingHorizontal: 8,
   },
   stepItem: {
+    width: 58,
     alignItems: 'center',
     gap: 6,
   },
@@ -726,7 +727,7 @@ const ovStyles = StyleSheet.create({
     fontSize: 13,
     color: '#999',
     fontWeight: '500',
-    maxWidth: 68,
+    width: 58,
     textAlign: 'center',
   },
   stepLabelActive: {
