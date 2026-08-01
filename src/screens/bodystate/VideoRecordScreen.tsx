@@ -607,7 +607,12 @@ function UploadOverlay({
                             <View style={ovStyles.stepPulse} />
                           ) : null}
                         </View>
-                        <Text style={[ovStyles.stepLabel, active && ovStyles.stepLabelActive]}>
+                        <Text
+                          style={[ovStyles.stepLabel, active && ovStyles.stepLabelActive]}
+                          numberOfLines={1}
+                          adjustsFontSizeToFit
+                          minimumFontScale={0.6}
+                        >
                           {s.label}
                         </Text>
                       </View>
@@ -721,7 +726,7 @@ const ovStyles = StyleSheet.create({
     fontSize: 13,
     color: '#999',
     fontWeight: '500',
-    maxWidth: 62,
+    maxWidth: 68,
     textAlign: 'center',
   },
   stepLabelActive: {
