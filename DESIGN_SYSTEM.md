@@ -214,6 +214,18 @@ borderRadius: 10
 숫자 fontSize: 20sp
 ```
 
+### 체크 아이콘 (2026-08-01 오너 확정, 앱 전체 적용)
+
+**곡선(둥근 획 끝) 스타일 금지 — 항상 각진 직선형(`-sharp`)만 쓴다.**
+
+Ionicons 기준:
+- `checkmark` ❌ → `checkmark-sharp` ✅
+- `checkmark-circle` ❌ → `checkmark-circle-sharp` ✅
+- `shield-checkmark` ❌ → `shield-checkmark-sharp` ✅
+- (`-outline` 변형은 이 규칙과 무관 — 그대로 둔다)
+
+새 체크 아이콘을 추가할 때도 이 규칙을 따른다.
+
 ---
 
 ## 7. 토글

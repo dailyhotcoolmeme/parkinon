@@ -241,7 +241,7 @@ export function BrandProgressOverlay({
           <View style={styles.symbolSlot}>
             {done ? (
               <Animated.View style={[styles.checkCircle, checkStyle]}>
-                <Ionicons name="checkmark" size={28} color="#FFFFFF" />
+                <Ionicons name="checkmark-sharp" size={28} color="#FFFFFF" />
               </Animated.View>
             ) : (
               // 배지(green)는 정적, 내부 심볼 이미지만 회전 (TopBar 브랜드 배지와 동일)

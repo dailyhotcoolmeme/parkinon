@@ -576,7 +576,7 @@ function UploadOverlay({
             /* 완료 상태 */
             <>
               <View style={ovStyles.checkCircle}>
-                <Ionicons name="checkmark-circle" size={80} color="#4CAF50" />
+                <Ionicons name="checkmark-circle-sharp" size={80} color="#4CAF50" />
               </View>
               <Text style={ovStyles.stageTitleLarge}>{t('videoRecord.saveDoneTitle')}</Text>
             </>

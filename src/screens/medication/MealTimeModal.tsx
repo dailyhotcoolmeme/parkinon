@@ -146,7 +146,7 @@ export function MealTimeModal({ visible, onSelect, onClose, mealSchedules, notif
                     )}
                   </View>
                   {isSelected ? (
-                    <Ionicons name="checkmark-circle" size={28} color={Colors.primary} />
+                    <Ionicons name="checkmark-circle-sharp" size={28} color={Colors.primary} />
                   ) : !selectable ? null : (
                     // 알림 OFF여도 일반 선택 가능 슬롯과 동일하게 표시('알림 없음' 배지 제거)
                     <Ionicons name="chevron-forward" size={22} color={Colors.textHint} />

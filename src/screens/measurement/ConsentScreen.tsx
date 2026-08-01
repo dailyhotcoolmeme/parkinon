@@ -114,7 +114,7 @@ export function ConsentScreen() {
         >
           <View style={[styles.checkbox, agreed && styles.checkboxActive]}>
             {agreed && (
-              <Ionicons name="checkmark" size={22} color={Colors.white} />
+              <Ionicons name="checkmark-sharp" size={22} color={Colors.white} />
             )}
           </View>
           <Text style={styles.checkLabel}>
@@ -132,7 +132,7 @@ export function ConsentScreen() {
           disabled={!agreed}
         >
           <Ionicons
-            name="checkmark-circle"
+            name="checkmark-circle-sharp"
             size={24}
             color={agreed ? Colors.white : '#F5F5F5'}
             style={styles.agreeBtnIcon}

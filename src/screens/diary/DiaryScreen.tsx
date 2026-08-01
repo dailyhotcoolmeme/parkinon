@@ -1928,7 +1928,7 @@ function DiaryEditorModal({ visible, dateStr, patientId, existing, onClose, onSa
                   <ActivityIndicator size="small" color={Journal.accent} />
                 ) : (
                   <>
-                    <Ionicons name="checkmark" size={20} color={Journal.accent} />
+                    <Ionicons name="checkmark-sharp" size={20} color={Journal.accent} />
                     <Text style={styles.headerActionText}>{t('diary.saveBtn')}</Text>
                   </>
                 )}

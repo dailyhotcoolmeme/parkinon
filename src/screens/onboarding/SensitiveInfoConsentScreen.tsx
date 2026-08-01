@@ -106,7 +106,7 @@ export function SensitiveInfoConsentScreen() {
       >
         {/* 헤더 */}
         <View style={styles.header}>
-          <Ionicons name="shield-checkmark" size={48} color={Colors.primary} />
+          <Ionicons name="shield-checkmark-sharp" size={48} color={Colors.primary} />
           <Text style={styles.title}>{t('sensitiveConsent.headerTitle')}</Text>
           <Text style={styles.subtitle}>
             {t('sensitiveConsent.headerSubtitle')}
@@ -201,7 +201,7 @@ export function SensitiveInfoConsentScreen() {
         >
           <View style={[styles.checkbox, agreedHealth && styles.checkboxActive]}>
             {agreedHealth && (
-              <Ionicons name="checkmark" size={20} color={Colors.white} />
+              <Ionicons name="checkmark-sharp" size={20} color={Colors.white} />
             )}
           </View>
           <Text style={styles.checkLabel}>
@@ -218,7 +218,7 @@ export function SensitiveInfoConsentScreen() {
         >
           <View style={[styles.checkbox, agreedTransfer && styles.checkboxActive]}>
             {agreedTransfer && (
-              <Ionicons name="checkmark" size={20} color={Colors.white} />
+              <Ionicons name="checkmark-sharp" size={20} color={Colors.white} />
             )}
           </View>
           <Text style={styles.checkLabel}>

@@ -254,7 +254,7 @@ function YearPickerModal({ visible, years, selected, onSelect, onClose }: {
                 <Text style={[pickerStyles.yearText, item === selected && pickerStyles.yearTextSelected]}>
                   {t('common.yearValue', { year: item })}
                 </Text>
-                {item === selected && <Ionicons name="checkmark" size={18} color="#4CAF50" />}
+                {item === selected && <Ionicons name="checkmark-sharp" size={18} color="#4CAF50" />}
               </TouchableOpacity>
             )}
           />

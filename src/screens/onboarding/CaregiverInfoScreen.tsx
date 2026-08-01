@@ -273,7 +273,7 @@ export function CaregiverInfoScreen() {
                     <Text style={[pickerStyles.yearText, item === birthYear && pickerStyles.yearTextSelected]}>
                       {t('common.yearValue', { year: item })}
                     </Text>
-                    {item === birthYear && <Ionicons name="checkmark" size={18} color="#4CAF50" />}
+                    {item === birthYear && <Ionicons name="checkmark-sharp" size={18} color="#4CAF50" />}
                   </TouchableOpacity>
                 )}
               />

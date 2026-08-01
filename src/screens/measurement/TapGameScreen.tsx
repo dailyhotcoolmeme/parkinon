@@ -430,7 +430,7 @@ function DoneConfirm({ onConfirm }: { onConfirm: () => void }) {
           onPress={onConfirm}
           activeOpacity={0.85}
         >
-          <Ionicons name="checkmark-circle" size={24} color={Colors.white} />
+          <Ionicons name="checkmark-circle-sharp" size={24} color={Colors.white} />
           <Text style={styles.primaryBtnText}>확인</Text>
         </TouchableOpacity>
       </View>
@@ -467,7 +467,7 @@ function ErrorScreen({
           onPress={onConfirm}
           activeOpacity={0.85}
         >
-          <Ionicons name="checkmark-circle" size={24} color={Colors.white} />
+          <Ionicons name="checkmark-circle-sharp" size={24} color={Colors.white} />
           <Text style={styles.primaryBtnText}>확인</Text>
         </TouchableOpacity>
       </View>

@@ -129,7 +129,7 @@ export function ReportSheet({
                     {r.label}
                   </Text>
                   <Ionicons
-                    name={active ? 'checkmark-circle' : 'ellipse-outline'}
+                    name={active ? 'checkmark-circle-sharp' : 'ellipse-outline'}
                     size={26}
                     color={active ? Colors.primary : '#CCCCCC'}
                   />

@@ -55,7 +55,7 @@ const NOTIF_CONFIG: Record<
   effect_tracking:      { icon: 'body',             bgColor: '#FFF3E0', iconColor: '#E65100', tappable: true,  navigateTo: 'BodyStateTab' },
   exercise_reminder:    { icon: 'walk',             bgColor: '#E3F2FD', iconColor: '#1565C0', tappable: true,  navigateTo: 'Exercise' },
   missed_medication:    { icon: 'alert-circle',     bgColor: '#FFEBEE', iconColor: '#B71C1C', tappable: true,  navigateTo: 'Medication' },
-  caregiver_medication: { icon: 'checkmark-circle', bgColor: '#E8F5E9', iconColor: '#2E7D32', tappable: false },
+  caregiver_medication: { icon: 'checkmark-circle-sharp', bgColor: '#E8F5E9', iconColor: '#2E7D32', tappable: false },
   caregiver_body_state: { icon: 'happy',            bgColor: '#FFF3E0', iconColor: '#E65100', tappable: false },
   caregiver_exercise:   { icon: 'fitness',          bgColor: '#E3F2FD', iconColor: '#1565C0', tappable: false },
   caregiver_missed_med: { icon: 'warning',          bgColor: '#FFEBEE', iconColor: '#B71C1C', tappable: false },

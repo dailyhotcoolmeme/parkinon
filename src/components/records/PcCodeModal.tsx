@@ -202,7 +202,7 @@ export function PcCodeModal({
                   activeOpacity={0.8}
                 >
                   <Ionicons
-                    name={copied ? 'checkmark-circle' : 'copy-outline'}
+                    name={copied ? 'checkmark-circle-sharp' : 'copy-outline'}
                     size={20}
                     color={Colors.primary}
                   />

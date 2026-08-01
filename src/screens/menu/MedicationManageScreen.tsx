@@ -630,7 +630,7 @@ function DrugInfoModal({ drug, onClose }: { drug: Medication | null; onClose: ()
               <Text style={modalStyles.drugName}>{drug.name}</Text>
               {!easyLoading && easyInfo && infoSource && (
                 <View style={[modalStyles.sourceRow, { marginTop: 6 }]}>
-                  <Ionicons name="shield-checkmark" size={14} color={Colors.primary} style={modalStyles.sourceIcon} />
+                  <Ionicons name="shield-checkmark-sharp" size={14} color={Colors.primary} style={modalStyles.sourceIcon} />
                   <Text style={modalStyles.sourceText}>
                     {infoSource === 'easy'
                       ? t('medManage.sourceEasy')

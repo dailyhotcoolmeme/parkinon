@@ -218,7 +218,7 @@ export function AlarmSoundPickerRow({ soundId, sounds, onSelect, backgroundColor
             </TouchableOpacity>
           )}
         </View>
-        {selected && <Ionicons name="checkmark-circle" size={28} color={Colors.primary} />}
+        {selected && <Ionicons name="checkmark-circle-sharp" size={28} color={Colors.primary} />}
         {/* 잠금 덮개 — 마지막 자식이어야 내용 위에 그려진다(알림으로 테스트 버튼과 같은 구조). */}
         {locked && (
           <View style={styles.lockOverlay} pointerEvents="none">
@@ -312,7 +312,7 @@ export function AlarmSoundPickerRow({ soundId, sounds, onSelect, backgroundColor
                   <Text style={styles.optionHint}>{t('alarmSoundPicker.defaultVoiceHint')}</Text>
                 </View>
                 {!pendingId && (
-                  <Ionicons name="checkmark-circle" size={28} color={Colors.primary} />
+                  <Ionicons name="checkmark-circle-sharp" size={28} color={Colors.primary} />
                 )}
               </TouchableOpacity>
 

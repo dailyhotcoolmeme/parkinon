@@ -609,7 +609,7 @@ function Section({
               ]}
             >
               {bestMode && (
-                <Ionicons name="checkmark" size={20} color={Colors.white} />
+                <Ionicons name="checkmark-sharp" size={20} color={Colors.white} />
               )}
             </View>
             <Text style={styles.checkboxLabel}>가장 좋은 기록 적용</Text>

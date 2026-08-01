@@ -1453,7 +1453,7 @@ export function MedicationScreen() {
             activeOpacity={0.85}
           >
             <View style={styles.mainButtonInner}>
-              <Ionicons name={allSlotsTaken ? 'checkmark-circle' : 'medkit'} size={40} color={Colors.white} />
+              <Ionicons name={allSlotsTaken ? 'checkmark-circle-sharp' : 'medkit'} size={40} color={Colors.white} />
               <Text style={styles.mainButtonText}>
                 {allSlotsTaken ? t('medication.mainButtonDone') : t('medication.mainButtonRecord')}
               </Text>
@@ -1498,7 +1498,7 @@ export function MedicationScreen() {
                 {/* 완료: 박스 전체 연녹색 배경(cardInnerDone) / 미완료: 흰색 배경 — 좌측 띠 없음 */}
                 <View style={[styles.cardContent, item.taken && styles.cardContentDone]}>
                   <Ionicons
-                    name={item.taken ? 'checkmark-circle' : 'time-outline'}
+                    name={item.taken ? 'checkmark-circle-sharp' : 'time-outline'}
                     size={28}
                     color={item.taken ? Colors.dark : Colors.accent}
                     style={styles.cardIcon}
