@@ -721,6 +721,8 @@ const ovStyles = StyleSheet.create({
     fontSize: 13,
     color: '#999',
     fontWeight: '500',
+    maxWidth: 62,
+    textAlign: 'center',
   },
   stepLabelActive: {
     color: '#4CAF50',
@@ -728,6 +730,7 @@ const ovStyles = StyleSheet.create({
   },
   stepLine: {
     flex: 1,
+    minWidth: 12,
     height: 3,
     backgroundColor: '#E0E0E0',
     marginBottom: 18,
