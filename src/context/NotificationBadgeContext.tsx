@@ -218,7 +218,10 @@ export function NotificationBadgeProvider({ children }: { children: React.ReactN
   );
 
   const markAllRead = useCallback(async () => {
-    if (!user?.id) return;
+    // ⚠️ user 미로딩 시 조용히 return하면 호출부(handleMarkAllRead)가 "성공"으로 오인해
+    //   로컬 상태만 전부 읽음 처리하고 서버는 그대로 안 읽음으로 남는다 — 화면(전체 읽음)과
+    //   OS 아이콘 배지(서버 기준)가 서로 어긋나는 버그의 원인이었다(오너 제보 2026-08-01).
+    if (!user?.id) throw new Error('markAllRead: user not loaded');
     try {
       const { data: { session } } = await supabase.auth.getSession();
       const SUPA_URL = process.env.EXPO_PUBLIC_SUPABASE_URL!;
