@@ -17,6 +17,7 @@ import { AppState } from 'react-native';
 import { supabase } from '../lib/supabase';
 import { useAuth } from './AuthContext';
 import { initRevenueCat } from '../lib/revenueCat';
+import { isOverseasLocale } from '../i18n/detectLocale';
 
 export type SubscriptionTier = 'free' | 'premium';
 
@@ -105,6 +106,19 @@ export function SubscriptionProvider({ children }: { children: React.ReactNode }
       const premium = resolveIsPremium(rawTier, exp);
       setTier(premium ? 'premium' : 'free');
       setExpiresAt(exp);
+      // ⚠️ 한국 사용자는 커스텀 알림음이 무료·무제한이라 미리 만들어둘 수 있다. 이후 기기
+      //   언어를 해외로 바꾸면(=구독 필요) 설정 화면은 잠기지만, 이미 저장된 custom_sound_id
+      //   는 그대로 남아 알림이 계속 그 소리로 울린다(오너 제보 2026-08-01). 구독 만료 강등과
+      //   같은 초기화(reset_group_custom_sounds)를 여기서도 걸어 기본음으로 되돌린다.
+      if (!premium && isOverseasLocale()) {
+        void (async () => {
+          try {
+            await supabase.rpc('reset_my_group_custom_sounds');
+          } catch {
+            // 실패해도 조용히 넘어간다 — 다음 포그라운드 복귀 때 다시 시도된다.
+          }
+        })();
+      }
       return premium;
     } catch (e) {
       // ⚠️ 조회 실패(네트워크 등)로 free 로 내리지 않는다. 일시적 오류 때문에 결제한

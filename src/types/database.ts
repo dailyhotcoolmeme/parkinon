@@ -2207,6 +2207,7 @@ export type Database = {
         Args: { p_code: string; p_force?: boolean }
         Returns: Json
       }
+      reset_my_group_custom_sounds: { Args: never; Returns: undefined }
       update_custom_sound: {
         Args: {
           p_duration_ms?: number
