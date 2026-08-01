@@ -602,7 +602,7 @@ function UploadOverlay({
                           active && ovStyles.stepDotActive,
                         ]}>
                           {done ? (
-                            <Ionicons name="checkmark" size={16} color="#fff" />
+                            <Ionicons name="checkmark-sharp" size={16} color="#fff" />
                           ) : active ? (
                             <View style={ovStyles.stepPulse} />
                           ) : null}
