@@ -23,6 +23,11 @@ const NotificationBadgeContext = createContext<NotificationBadgeContextValue | n
 export function NotificationBadgeProvider({ children }: { children: React.ReactNode }) {
   const { user } = useAuth();
   const [unreadCount, setUnreadCount] = useState(0);
+  // 진짜 값을 한 번이라도 확정했는지(로그인 사용자 확인 + DB 조회 완료, 또는 비로그인 확정).
+  //   ⚠️ 이게 없으면 마운트 시 초기값 0이 그대로 OS 배지에 찍혀버린다 — refreshBadge()의
+  //   DB 조회가 끝나기 전에 사용자가 앱을 배경으로 보내면, 실제 안읽음이 남아있어도
+  //   배지가 0으로 굳어버린다(오너 제보 2026-08-01: "앱 열고 닫으니 숫자가 사라진다").
+  const settledRef = useRef(false);
 
   // 홈 화면 앱 아이콘의 숫자 배지.
   //   톱바 종 아이콘 숫자는 DB 에서 직접 세어 표시하지만, 앱 아이콘 배지는 OS 에 따로
@@ -30,12 +35,14 @@ export function NotificationBadgeProvider({ children }: { children: React.ReactN
   //   setUnreadCount 가 여러 곳에 흩어져 있어 각 자리에 붙이면 빠뜨리게 되므로,
   //   값이 바뀌는 순간을 한 곳에서 받아 반영한다.
   useEffect(() => {
+    if (!settledRef.current) return; // 아직 실제 값을 모름 — OS 배지를 함부로 0으로 덮어쓰지 않는다
     Notifications.setBadgeCountAsync(unreadCount).catch(() => {});
   }, [unreadCount]);
   const appState = useRef<AppStateStatus>(AppState.currentState);
 
   const refreshBadge = useCallback(async () => {
     if (!user?.id) {
+      settledRef.current = true;
       setUnreadCount(0);
       return;
     }
@@ -46,10 +53,11 @@ export function NotificationBadgeProvider({ children }: { children: React.ReactN
         .eq('user_id', user.id)
         .is('read_at', null);
       if (!error && count !== null) {
+        settledRef.current = true;
         setUnreadCount(count);
       }
     } catch (e) {
-      // 조용히 실패
+      // 조용히 실패 — settledRef 를 세우지 않아 다음 refreshBadge 때 다시 시도한다.
     }
   }, [user?.id]);
 
