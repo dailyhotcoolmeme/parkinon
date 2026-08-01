@@ -194,6 +194,24 @@ Deno.serve(async (req: Request) => {
       })
     }
 
+    // ⚠️ 재시도 횟수 제한 — 원래 설계(1차 알림 → +10분 재알림 → +10분 후 보호자까지 알림,
+    //   그리고 끝)와 다르게, 이전엔 "오늘 복용했는가"만 보고 무조건 재발송해서 외부 호출이
+    //   있는 한 무한 반복됐다(오너 제보 2026-08-01, 5~10분 간격으로 계속 옴). 오늘 이 슬롯에
+    //   이미 보낸 '미복용' 알림 횟수를 세서, 2회(재알림 1 + 보호자escalation 1) 도달하면 멈춘다.
+    const { count: alreadySent } = await supabase
+      .from('notification_logs')
+      .select('id', { count: 'exact', head: true })
+      .eq('user_id', patient.id)
+      .eq('type', 'missed_medication')
+      .gte('created_at', dayStart)
+      .lte('created_at', dayEnd)
+      .contains('data', { doseSlotId: dose_slot_id })
+    if ((alreadySent ?? 0) >= 2) {
+      return new Response(JSON.stringify({ patientSent: 0, caregiverSent: 0, skipped: 'max retries reached' }), {
+        headers: { 'Content-Type': 'application/json' },
+      })
+    }
+
     const patientTitle = t(patientLang, 'med.missed.title')
     const patientBody = bodyFor(patientLang, 'missed', (slot as any).time, undefined, (slot as any).legacy_key ?? meal_time)
     await sendPush(
@@ -203,6 +221,15 @@ Deno.serve(async (req: Request) => {
       { type: 'missed_medication', mealTime: meal_time ?? null, doseSlotId: dose_slot_id },
     )
     patientSent++
+    // 서버가 직접 기록 — 클라이언트가 푸시를 못 받는 상황(앱 종료 등)에서도 재시도 횟수
+    // 카운트가 정확해야 위 상한선이 제대로 작동한다.
+    await supabase.from('notification_logs').insert({
+      user_id: patient.id,
+      type: 'missed_medication',
+      title: patientTitle,
+      body: patientBody,
+      data: { type: 'missed_medication', mealTime: meal_time ?? null, doseSlotId: dose_slot_id },
+    })
 
     if (patient.patient_group_id) {
       const { data: caregivers } = await supabase
