@@ -1396,7 +1396,7 @@
     "planTrialNote": "7-day free trial",
     "trialCta": "Start 7-day free trial",
     "upgradeBtn": "Upgrade to Premium",
-    "finePrint": "Your 7-day free trial converts to the selected plan and auto-renews unless canceled at least 24 hours before it ends. Manage or cancel anytime in your App Store or Google Play account.",
+    "finePrint": "After your 7-day free trial, {{price}} will be charged automatically, and the subscription auto-renews unless canceled at least 24 hours before it ends. Manage or cancel anytime in your App Store or Google Play account.",
     "manageSubscription": "Manage subscription",
     "manageHint": "Cancel or change your plan anytime in your App Store or Google Play subscription settings.",
     "comingSoonTitle": "Coming soon",

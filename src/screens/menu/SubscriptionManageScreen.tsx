@@ -22,6 +22,7 @@ import {
   getTrialInfo,
   type TrialInfo,
 } from '../../lib/revenueCat';
+import { legalDocUrl } from '../../i18n/detectLocale';
 
 // 혜택 순서(오너 지정, 구독 슬롯과 동일): 가족 연동 → 커스텀 알림음 → 미디어 무제한 → 광고 없음.
 const BENEFITS = [
@@ -328,7 +329,19 @@ export function SubscriptionManageScreen() {
               )}
             </TouchableOpacity>
 
-            <Text style={styles.finePrint}>{t('subscription.finePrint')}</Text>
+            <Text style={styles.finePrint}>{t('subscription.finePrint', { price: monthlyPriceText })}</Text>
+
+            {/* App Store 가이드라인 3.1.2(c) — 구독 결제 화면에 이용약관·개인정보처리방침
+                링크가 있어야 한다(2026-08-01 심사 거절 사유). */}
+            <View style={styles.legalLinksRow}>
+              <TouchableOpacity onPress={() => Linking.openURL(legalDocUrl('terms')).catch(() => {})} activeOpacity={0.7}>
+                <Text style={styles.legalLink}>{t('menu.termsLabel')}</Text>
+              </TouchableOpacity>
+              <Text style={styles.legalLinkSep}>·</Text>
+              <TouchableOpacity onPress={() => Linking.openURL(legalDocUrl('privacy')).catch(() => {})} activeOpacity={0.7}>
+                <Text style={styles.legalLink}>{t('menu.privacyLabel')}</Text>
+              </TouchableOpacity>
+            </View>
 
             <TouchableOpacity onPress={doRestore} disabled={busy} activeOpacity={0.7}>
               <Text style={styles.restoreLink}>{t('subscription.restoreBtn')}</Text>
@@ -529,6 +542,9 @@ const styles = StyleSheet.create({
   btnDisabled: { opacity: 0.6 },
   secondaryLink: { fontSize: 15, fontWeight: '700', color: Colors.primary, textAlign: 'center', paddingVertical: 6 },
   finePrint: { fontSize: 13, color: Colors.textSub, textAlign: 'center', lineHeight: 19 },
+  legalLinksRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8 },
+  legalLink: { fontSize: 13, color: Colors.textSub, textDecorationLine: 'underline', fontWeight: '600' },
+  legalLinkSep: { fontSize: 13, color: Colors.textHint },
   restoreLink: { fontSize: 14, color: Colors.textSub, textAlign: 'center', textDecorationLine: 'underline', paddingVertical: 8 },
   manageBtn: {
     flexDirection: 'row',

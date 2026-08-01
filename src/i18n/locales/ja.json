@@ -1396,7 +1396,7 @@
     "planTrialNote": "7日間の無料お試し",
     "trialCta": "7日間の無料お試しを始める",
     "upgradeBtn": "Premium にする",
-    "finePrint": "7日間の無料お試しは、終了の24時間前までに解約しない限り、選んだプランへ自動的に移行し、以後は自動更新されます。App Store または Google Play のアカウントからいつでも管理・解約できます。",
+    "finePrint": "7日間の無料お試し終了後、{{price}}が自動的に請求され、終了の24時間前までに解約しない限り自動更新されます。App Store または Google Play のアカウントからいつでも管理・解約できます。",
     "manageSubscription": "登録内容を管理",
     "manageHint": "App Store または Google Play の登録設定から、いつでも解約・変更できます。",
     "comingSoonTitle": "まもなく開始",

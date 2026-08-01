@@ -1396,7 +1396,7 @@
     "planTrialNote": "Essai gratuit de 7 jours",
     "trialCta": "Essai gratuit de 7 jours",
     "upgradeBtn": "Passer à Premium",
-    "finePrint": "Votre essai gratuit de 7 jours se transforme en abonnement à la formule choisie et se renouvelle automatiquement, sauf résiliation au moins 24 heures avant la fin. Vous pouvez gérer ou résilier à tout moment dans votre compte App Store ou Google Play.",
+    "finePrint": "Après votre essai gratuit de 7 jours, {{price}} sera facturé automatiquement, et l'abonnement se renouvelle automatiquement sauf résiliation au moins 24 heures avant la fin. Vous pouvez gérer ou résilier à tout moment dans votre compte App Store ou Google Play.",
     "manageSubscription": "Gérer l'abonnement",
     "manageHint": "Résiliez ou changez d'offre à tout moment dans les réglages d'abonnement de l'App Store ou de Google Play.",
     "comingSoonTitle": "Bientôt disponible",
