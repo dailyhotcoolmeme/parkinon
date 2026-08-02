@@ -70,6 +70,24 @@ export function NotificationBadgeProvider({ children }: { children: React.ReactN
     }
   }, [user?.id, refreshBadge]);
 
+  // ⚠️ 콜드 스타트 직후엔 Supabase 세션이 아직 안 붙어있어 위 최초 조회가 조용히
+  //   실패할 수 있다(오너 제보 2026-08-02: 서버 0건인데 배지는 그대로 남음). 재시도가
+  //   없으면 다음 배경→포그라운드 전환 전까지 영영 못 고친다. settled 될 때까지
+  //   짧은 간격으로 최대 5번 다시 시도한다.
+  useEffect(() => {
+    if (!user?.id) return;
+    let attempts = 0;
+    const timer = setInterval(() => {
+      attempts += 1;
+      if (settledRef.current || attempts > 5) {
+        clearInterval(timer);
+        return;
+      }
+      refreshBadge();
+    }, 2000);
+    return () => clearInterval(timer);
+  }, [user?.id, refreshBadge]);
+
   // AppState 리스너: background → active 전환 시 뱃지 갱신
   useEffect(() => {
     const subscription = AppState.addEventListener('change', (nextState: AppStateStatus) => {
