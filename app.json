@@ -3,7 +3,7 @@
     "name": "파킨온",
     "slug": "parkinon",
     "scheme": "parkinon",
-    "version": "1.0.3",
+    "version": "1.0.4",
     "orientation": "portrait",
     "icon": "./assets/icon.png",
     "userInterfaceStyle": "light",
@@ -16,7 +16,7 @@
     "ios": {
       "supportsTablet": false,
       "bundleIdentifier": "com.ourmine.parkinon",
-      "buildNumber": "9",
+      "buildNumber": "10",
       "usesAppleSignIn": true,
       "infoPlist": {
         "ITSAppUsesNonExemptEncryption": false,
@@ -176,6 +176,7 @@
       }
     },
     "locales": {
+      "ko": "./locales/ko.json",
       "en": "./locales/en.json",
       "fr": "./locales/fr.json",
       "ja": "./locales/ja.json"

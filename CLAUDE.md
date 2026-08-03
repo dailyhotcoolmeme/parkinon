@@ -368,6 +368,7 @@
 
 ## 설계 문서 위치
 
+- 스토어 스크린샷용 임시 게스트 계정 만드는 법(외부 계정 생성 없이): `docs/screenshot-guest-account-howto.md`
 - 전체 설계문서: 파킨온_설계문서.md
 - 기록 보기 React: parkinon_records_v6.jsx
 - 이용약관: terms.html

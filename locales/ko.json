@@ -1,0 +1,6 @@
+{
+  "CFBundleDisplayName": "파킨온",
+  "NSMicrophoneUsageDescription": "일기 음성 녹음과 가족 목소리 알림음 녹음을 위해 마이크를 사용합니다.",
+  "NSCameraUsageDescription": "처방전 촬영 및 영상 기록을 위해 카메라 접근이 필요해요.",
+  "NSPhotoLibraryUsageDescription": "사진 및 영상을 선택하기 위해 갤러리 접근이 필요해요."
+}

@@ -1,5 +1,5 @@
 {
-  "CFBundleDisplayName": "ParkinON",
+  "CFBundleDisplayName": "パーキンオン",
   "NSMicrophoneUsageDescription": "ParkinON は、日記の音声メモやご家族の声の通知音を録音するためにマイクを使用します。",
   "NSCameraUsageDescription": "ParkinON は、処方箋の読み取りと動画の撮影のためにカメラを使用します。",
   "NSPhotoLibraryUsageDescription": "ParkinON は、写真や動画を添付できるように写真へのアクセスを必要とします。"
