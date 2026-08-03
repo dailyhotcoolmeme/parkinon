@@ -35,7 +35,7 @@ import {
 } from 'react-native-safe-area-context';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useTranslation } from 'react-i18next';
-import { isOverseasLocale } from '../../i18n/detectLocale';
+import { isOverseasLocale, isKoreanLocale } from '../../i18n/detectLocale';
 import { Colors } from '../../constants/colors';
 import { useSwipeDownDismiss } from '../../hooks/useSwipeDownDismiss';
 import { supabase } from '../../lib/supabase';
@@ -67,11 +67,13 @@ async function fetchPopupVersion(fallback: number): Promise<number> {
 }
 
 // 개발자 일기 팝업을 이번에 띄울지 결정.
+//  - 한국어 로케일이면 노출 안 함(2026-08-03 오너 결정).
 //  - 한 번도 닫지 않았으면(저장값 없음) → 항상 노출(기존 동작 유지).
 //  - '다시 보지 않기' 한 적이 있어도, 그 버전 < 서버 popup_version 이면 다시 노출
 //    (= admin '강제 팝업 띄우기'). 이후 다시 '다시 보지 않기' 를 누르면 최신 버전이 저장돼 다시 숨겨진다.
 //  - 서버 조회 실패 시엔 강제하지 않는다(닫은 사람은 계속 숨김).
 export async function shouldShowDevLetter(): Promise<boolean> {
+  if (isKoreanLocale()) return false;
   let stored: string | null = null;
   try {
     stored = await AsyncStorage.getItem(DEV_LETTER_DISMISSED_KEY);
