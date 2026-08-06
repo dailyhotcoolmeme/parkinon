@@ -30,6 +30,7 @@
 **`/Users/ourmine/dev/parkinon-web`** — 이 저장소(`parkinon-app`) 안이 아니다.
 
 웹사이트 얘기가 나오면 **먼저 `parkinon-web/docs/website-plan.md` 를 읽어라.**
+(코드를 만질 거면 짝 문서 `parkinon-web/docs/site-implementation.md` 도 같이 읽는다.)
 목적·구조·콘텐츠 축·확정 사항·미결 목록이 전부 거기 있다. 추측하거나 새로 제안하기 전에
 읽고, 새 결정이 나오면 그 문서에 적는다.
 
