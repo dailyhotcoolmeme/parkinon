@@ -600,7 +600,7 @@ export function PostDetailScreen() {
   const totalCommentCount = visibleComments.reduce((acc, c) => acc + 1 + c.replies.length, 0);
 
   // 카테고리 라벨/색상 결정 (색상은 categoryId 기준 — 로케일에 안전)
-  const categoryLabel = post.isNews ? t('feed.newsBadge') : (post.category ?? t('feed.typeChat'));
+  const categoryLabel = post.isNews ? (post.newsTag ?? t('feed.newsBadge')) : (post.category ?? t('feed.typeChat'));
   const categoryColor = CATEGORY_COLORS_BY_ID[post.isNews ? 'info' : (post.categoryId ?? 'chat')] ?? CATEGORY_COLORS_BY_ID.chat;
 
   return (

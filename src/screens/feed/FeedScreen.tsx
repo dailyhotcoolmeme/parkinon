@@ -37,7 +37,7 @@ const PAGE_SIZE = 20;
 // mapPost 가 쓰는 필드: id, is_news, news_url, post_type, author_id, created_at,
 //   view_count, title, content, comment_count, like_count + author/post_media 조인.
 const POST_SELECT =
-  'id, is_news, news_url, post_type, author_id, created_at, view_count, title, content, comment_count, like_count, is_notice, author_name_override, author:public_user_profiles(name, role), post_media(r2_url, sort_order, media_type)';
+  'id, is_news, news_url, news_tag, post_type, author_id, created_at, view_count, title, content, comment_count, like_count, is_notice, author_name_override, author:public_user_profiles(name, role), post_media(r2_url, sort_order, media_type)';
 
 export interface PostItem {
   id: string;
@@ -58,6 +58,7 @@ export interface PostItem {
   isBookmarked?: boolean;
   isNotice?: boolean;
   newsUrl?: string;  // is_news 글의 웹사이트 원문 링크 (parkinon.com 소식 글)
+  newsTag?: string;  // 웹의 "파킨온 소식 #N" 번호 라벨 — 목록·상세 배지에 그대로 표시
 }
 
 const POST_TYPE_ICON: Record<string, IoniconName> = {
@@ -232,6 +233,7 @@ export function FeedScreen() {
     isBookmarked: bookmarkedIdsRef.current.has(p.id),  // ref 사용 (state X)
     isNotice: p.is_notice ?? false,
     newsUrl: p.news_url ?? undefined,
+    newsTag: p.news_tag ?? undefined,
   }), []); // ← 의존성 빈 배열 (안정적인 참조 유지)
 
   const fetchBookmarks = useCallback(async () => {
@@ -493,7 +495,7 @@ export function FeedScreen() {
           {item.isNews && (
             <View style={styles.newsBadge}>
               <Ionicons name="newspaper-outline" size={12} color="#E65100" />
-              <Text style={styles.newsBadgeText}>{t('feed.newsBadge')}</Text>
+              <Text style={styles.newsBadgeText}>{item.newsTag ?? t('feed.newsBadge')}</Text>
             </View>
           )}
           <View style={styles.rowMain}>
