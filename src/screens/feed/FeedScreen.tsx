@@ -786,7 +786,9 @@ const styles = StyleSheet.create({
   /* ── BBS 리스트 행 ── */
   row: {
     flexDirection: 'row',
-    alignItems: 'flex-start',
+    // 뉴스 배지 추가로 rowContent 높이가 늘면서 flex-start일 때 commentBox가 위로
+    // 붙어 보이는 문제가 생겼다(오너 지적 2026-08-10) — 항상 세로 중앙에 오도록.
+    alignItems: 'center',
     paddingHorizontal: 16,
     paddingVertical: 14,
     backgroundColor: Colors.white,
