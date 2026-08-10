@@ -25,10 +25,9 @@ const CATEGORY_COLORS_BY_ID: Record<string, { bg: string; text: string; icon: st
 // 웹 원문의 ##/### 제목·강조·인용을 60대 타겟 기준(고대비·큰 글씨)으로 옮긴다.
 const markdownStyles = {
   body: { fontSize: 18, color: '#222222', lineHeight: 30 },
-  // 오너 요청(2026-08-10): 소재별(첫번째 주제/두번째 주제) 제목이 눈에 띄게 구분되도록 녹색으로.
-  // 웹은 소재 제목만 지목해서 녹색을 주지만(:global(.story-head + h2)), 앱은 h2 단위 구분이
-  // 없어서 전체 h2(맨 마지막 "지금 할 수 있는 것"까지 포함)에 똑같이 적용된다 — 큰 차이는 아님.
-  heading2: { fontSize: 21, fontWeight: '700' as const, color: Colors.primary, marginTop: 20, marginBottom: 8 },
+  // 오너 요청(2026-08-10): 처음엔 녹색을 시도했으나 "제목이 녹색이니까 더 정신없다"는 피드백
+  // → 색은 원래대로 두고 두께만 최대(900)로 키워 구분을 강화.
+  heading2: { fontSize: 21, fontWeight: '900' as const, color: '#111111', marginTop: 20, marginBottom: 8 },
   heading3: { fontSize: 19, fontWeight: '700' as const, color: '#111111', marginTop: 16, marginBottom: 6 },
   strong: { fontWeight: '700' as const, color: '#111111' },
   paragraph: { marginTop: 0, marginBottom: 14 },
