@@ -45,7 +45,9 @@ import { supabase } from '../../lib/supabase';
 // (구버전은 '1' 을 저장했는데 popup_version 기본값이 1 이라 그대로 호환된다.)
 export const DEV_LETTER_DISMISSED_KEY = 'dev_letter_dismissed_v1';
 
-// 본문은 서버(dev_letter 테이블, parkinon.com/admin 에서 편집)에서 불러온다.
+// 본문은 서버(dev_letter 테이블, parkinon.com/app/admin 에서 편집)에서 불러온다.
+// (2026-08-10 웹사이트 정식 오픈으로 관리자 화면이 /app/admin 으로 이전됨. 주소창에
+// 옛 /admin 을 입력해도 자동으로 넘어가지만, 새 코드에는 새 주소를 적을 것.)
 // 아래 배열들은 서버 실패/빈 값일 때의 폴백(=마지막으로 알려진 원문)이다.
 // 서버 본문은 "빈 줄(문단 사이)" 기준으로 문단이 나뉜다.
 const splitParagraphs = (text: string): string[] =>

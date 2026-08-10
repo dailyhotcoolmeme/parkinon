@@ -20,6 +20,26 @@ const CATEGORY_COLORS_BY_ID: Record<string, { bg: string; text: string; icon: st
   exercise: { bg: '#FCE4EC', text: '#880E4F', icon: '#E91E63' },
   cheer:    { bg: '#EDE7F6', text: '#4527A0', icon: '#7B1FA2' },
 };
+
+// 파킨온 소식(is_news) 글 본문 렌더링 스타일 — postContent(18sp/#222222)와 크기·색을 맞추고,
+// 웹 원문의 ##/### 제목·강조·인용을 60대 타겟 기준(고대비·큰 글씨)으로 옮긴다.
+const markdownStyles = {
+  body: { fontSize: 18, color: '#222222', lineHeight: 30 },
+  heading2: { fontSize: 21, fontWeight: '700' as const, color: '#111111', marginTop: 20, marginBottom: 8 },
+  heading3: { fontSize: 19, fontWeight: '700' as const, color: '#111111', marginTop: 16, marginBottom: 6 },
+  strong: { fontWeight: '700' as const, color: '#111111' },
+  paragraph: { marginTop: 0, marginBottom: 14 },
+  blockquote: {
+    backgroundColor: '#E8F5E9',
+    borderLeftWidth: 4,
+    borderLeftColor: Colors.primary,
+    paddingHorizontal: 14,
+    paddingVertical: 10,
+    marginVertical: 10,
+  },
+  bullet_list_icon: { color: Colors.primary },
+  link: { color: Colors.primary, textDecorationLine: 'underline' as const },
+};
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useRoute, useNavigation, useFocusEffect } from '@react-navigation/native';
 import type { NativeStackScreenProps, NativeStackNavigationProp } from '@react-navigation/native-stack';
@@ -42,6 +62,8 @@ import { ensureNotBanned, isBanRlsError, showBannedDialog, isBannedUser } from '
 import { ReportSheet, ReportTargetType } from '../../components/feed/ReportSheet';
 import { useBlocks } from '../../hooks/useBlocks';
 import { useBottomSheetPadding } from '../../hooks/useBottomSheetPadding';
+import Markdown from 'react-native-markdown-display';
+import * as WebBrowser from 'expo-web-browser';
 
 type RouteProps = NativeStackScreenProps<FeedStackParamList, 'PostDetail'>['route'];
 type NavProp = NativeStackNavigationProp<FeedStackParamList>;
@@ -566,7 +588,7 @@ export function PostDetailScreen() {
   const totalCommentCount = visibleComments.reduce((acc, c) => acc + 1 + c.replies.length, 0);
 
   // 카테고리 라벨/색상 결정 (색상은 categoryId 기준 — 로케일에 안전)
-  const categoryLabel = post.isNews ? t('feed.typeInfo') : (post.category ?? t('feed.typeChat'));
+  const categoryLabel = post.isNews ? t('feed.newsBadge') : (post.category ?? t('feed.typeChat'));
   const categoryColor = CATEGORY_COLORS_BY_ID[post.isNews ? 'info' : (post.categoryId ?? 'chat')] ?? CATEGORY_COLORS_BY_ID.chat;
 
   return (
@@ -663,11 +685,28 @@ export function PostDetailScreen() {
             {/* 구분선 */}
             <View style={styles.metaDivider} />
 
-            {/* 본문 */}
-            <Text style={styles.postContent}>{postContent}</Text>
+            {/* 본문 — 파킨온 소식 글은 웹사이트 원문을 마크다운으로 그대로 옮겨온 전문이라 서식이 있다. */}
+            {post.isNews ? (
+              <Markdown style={markdownStyles}>{postContent}</Markdown>
+            ) : (
+              <Text style={styles.postContent}>{postContent}</Text>
+            )}
 
             {/* 첨부 사진 갤러리 (전체보기 + 인디케이터 포함) */}
             <ImageGalleryViewer urls={mediaUrls} publicCommunity />
+
+            {/* 파킨온 소식 글 하단 — 웹사이트로 연결(홍보 겸 원문 출처 표시) */}
+            {post.isNews && post.newsUrl && (
+              <TouchableOpacity
+                style={styles.newsPromoBanner}
+                onPress={() => WebBrowser.openBrowserAsync(post.newsUrl!)}
+                activeOpacity={0.8}
+              >
+                <Ionicons name="globe-outline" size={20} color={Colors.primary} />
+                <Text style={styles.newsPromoText}>{t('postDetail.newsPromoLink')}</Text>
+                <Ionicons name="open-outline" size={16} color={Colors.primary} />
+              </TouchableOpacity>
+            )}
           </View>
 
           {/* ── 통계 바 ── */}
@@ -952,6 +991,22 @@ const styles = StyleSheet.create({
     color: '#222222',
     lineHeight: 30,
     marginBottom: 4,
+  },
+  newsPromoBanner: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    backgroundColor: '#E8F5E9',
+    borderRadius: 10,
+    paddingHorizontal: 14,
+    paddingVertical: 14,
+    marginTop: 16,
+  },
+  newsPromoText: {
+    flex: 1,
+    fontSize: 16,
+    fontWeight: '700',
+    color: Colors.primary,
   },
 
   // ── 통계 바 카드 ──

@@ -34,10 +34,10 @@ type IoniconName = React.ComponentProps<typeof Ionicons>['name'];
 const PAGE_SIZE = 20;
 
 // 목록에서 실제 사용하는 컬럼만 명시 (select('*') 대비 페이로드 축소).
-// mapPost 가 쓰는 필드: id, is_news, post_type, author_id, created_at,
+// mapPost 가 쓰는 필드: id, is_news, news_url, post_type, author_id, created_at,
 //   view_count, title, content, comment_count, like_count + author/post_media 조인.
 const POST_SELECT =
-  'id, is_news, post_type, author_id, created_at, view_count, title, content, comment_count, like_count, is_notice, author_name_override, author:public_user_profiles(name, role), post_media(r2_url, sort_order, media_type)';
+  'id, is_news, news_url, post_type, author_id, created_at, view_count, title, content, comment_count, like_count, is_notice, author_name_override, author:public_user_profiles(name, role), post_media(r2_url, sort_order, media_type)';
 
 export interface PostItem {
   id: string;
@@ -57,6 +57,7 @@ export interface PostItem {
   likeCount: number;
   isBookmarked?: boolean;
   isNotice?: boolean;
+  newsUrl?: string;  // is_news 글의 웹사이트 원문 링크 (parkinon.com 소식 글)
 }
 
 const POST_TYPE_ICON: Record<string, IoniconName> = {
@@ -230,6 +231,7 @@ export function FeedScreen() {
     likeCount: p.like_count ?? 0,
     isBookmarked: bookmarkedIdsRef.current.has(p.id),  // ref 사용 (state X)
     isNotice: p.is_notice ?? false,
+    newsUrl: p.news_url ?? undefined,
   }), []); // ← 의존성 빈 배열 (안정적인 참조 유지)
 
   const fetchBookmarks = useCallback(async () => {
@@ -316,20 +318,10 @@ export function FeedScreen() {
         return;
       }
 
-      // 전체 탭 — 기존 로직 (뉴스 혼합 포함)
+      // 전체 탭
       let mappedPosts: PostItem[] = [];
-      let newsFeedItems: PostItem[] = [];
 
-      const mapNews = (n: any): PostItem => ({
-        id: 'news_' + n.id, isNews: true, category: i18n.t('feed.typeInfo'),
-        categoryIcon: 'newspaper-outline' as IoniconName,
-        author: n.source_name ?? i18n.t('feed.newsSourceDefault'),
-        date: formatDate(n.published_at ?? new Date().toISOString()),
-        views: 0, title: n.title ?? '', preview: n.description ?? '',
-        commentCount: 0, likeCount: 0,
-      });
-
-      // 정보 탭: info 게시글 + 뉴스 통합 (공지는 '전체' 탭 상단 고정에서만 노출 — 중복 방지)
+      // 정보 탭: info 게시글(파킨온 소식 포함 — is_news=true 인 실제 posts 행) (공지는 '전체' 탭 상단 고정에서만 노출 — 중복 방지)
       if (currentCategory === 'info') {
         let query = supabase
           .from('posts')
@@ -340,38 +332,11 @@ export function FeedScreen() {
           .range(from, to);
         if (currentSearch.trim()) query = query.ilike('title', `%${currentSearch.trim()}%`);
 
-        // 게시글 + 뉴스를 병렬 조회 (순차 await 제거)
-        const wantNews = !currentSearch.trim() && reset;
-        const newsPromise = wantNews
-          ? supabase
-              .from('news_feed')
-              .select('id, title, description, published_at, source_name, url')
-              .order('published_at', { ascending: false })
-              .limit(5)
-          : Promise.resolve({ data: null });
-        const [{ data: postsData, error: postsError }, { data: newsData }] = await Promise.all([
-          query,
-          newsPromise,
-        ]);
+        const { data: postsData, error: postsError } = await query;
         if (postsError) throw postsError;
         mappedPosts = (postsData ?? []).map(mapPost);
-        if (wantNews) newsFeedItems = (newsData ?? []).map(mapNews);
 
-        if (reset) {
-          if (newsFeedItems.length > 0) {
-            const interleaved: PostItem[] = [];
-            let ni = 0, pi = 0;
-            while (ni < newsFeedItems.length || pi < mappedPosts.length) {
-              if (pi < mappedPosts.length) interleaved.push(mappedPosts[pi++]);
-              if (ni < newsFeedItems.length) interleaved.push(newsFeedItems[ni++]);
-            }
-            setPosts(interleaved);
-          } else {
-            setPosts(mappedPosts);
-          }
-        } else {
-          setPosts(prev => [...prev, ...mappedPosts]);
-        }
+        if (reset) setPosts(mappedPosts); else setPosts(prev => [...prev, ...mappedPosts]);
         setHasMore((postsData ?? []).length === PAGE_SIZE);
         pageRef.current += 1;
         return;
@@ -386,17 +351,8 @@ export function FeedScreen() {
       if (currentCategory !== 'all') query = query.eq('post_type', currentCategory);
       if (currentSearch.trim()) query = query.ilike('title', `%${currentSearch.trim()}%`);
 
-      // 전체 탭: 게시글 + 뉴스 인터리빙 → 병렬 조회 (순차 await 제거)
-      const wantNews = currentCategory === 'all' && !currentSearch.trim() && reset;
-      const newsPromise = wantNews
-        ? supabase
-            .from('news_feed')
-            .select('id, title, description, published_at, source_name, url')
-            .order('published_at', { ascending: false })
-            .limit(5)
-        : Promise.resolve({ data: null });
       // 공지: '전체' 탭·무검색·첫 페이지에서만 조회해 맨 위에 고정 노출(중복 방지로 다른 조건에선 미노출).
-      const wantNotices = wantNews;
+      const wantNotices = currentCategory === 'all' && !currentSearch.trim() && reset;
       const noticesPromise = wantNotices
         ? supabase
             .from('posts')
@@ -405,29 +361,16 @@ export function FeedScreen() {
             .eq('hidden', false)
             .order('created_at', { ascending: false })
         : Promise.resolve({ data: null });
-      const [{ data: postsData, error: postsError }, { data: newsData }, { data: noticesData }] = await Promise.all([
+      const [{ data: postsData, error: postsError }, { data: noticesData }] = await Promise.all([
         query,
-        newsPromise,
         noticesPromise,
       ]);
       if (postsError) throw postsError;
       mappedPosts = (postsData ?? []).map(mapPost);
-      if (wantNews) newsFeedItems = (newsData ?? []).map(mapNews);
       const mappedNotices: PostItem[] = wantNotices ? (noticesData ?? []).map(mapPost) : [];
 
       if (reset) {
-        let finalList: PostItem[];
-        if (newsFeedItems.length > 0) {
-          const interleaved: PostItem[] = [];
-          let ni = 0, pi = 0;
-          while (ni < newsFeedItems.length || pi < mappedPosts.length) {
-            if (pi < mappedPosts.length) interleaved.push(mappedPosts[pi++]);
-            if (ni < newsFeedItems.length) interleaved.push(newsFeedItems[ni++]);
-          }
-          finalList = [...mappedNotices, ...interleaved];
-        } else {
-          finalList = [...mappedNotices, ...mappedPosts];
-        }
+        const finalList = [...mappedNotices, ...mappedPosts];
         setPosts(finalList);
         // 기본 화면(전체 탭·검색 없음·필터 없음)만 저장해 둔다.
         //   다음에 정보·나눔을 열 때 이걸 즉시 그려서 회색 바 없이 글이 바로 보이게 한다.
@@ -545,6 +488,12 @@ export function FeedScreen() {
             <View style={styles.noticeBadge}>
               <Ionicons name="pin" size={12} color={Colors.white} />
               <Text style={styles.noticeBadgeText}>{t('feed.noticeBadge')}</Text>
+            </View>
+          )}
+          {item.isNews && (
+            <View style={styles.newsBadge}>
+              <Ionicons name="newspaper-outline" size={12} color="#E65100" />
+              <Text style={styles.newsBadgeText}>{t('feed.newsBadge')}</Text>
             </View>
           )}
           <View style={styles.rowMain}>
@@ -860,6 +809,23 @@ const styles = StyleSheet.create({
     fontSize: 12,
     fontWeight: '700',
     color: Colors.white,
+  },
+  // 상세화면 카테고리 필(CATEGORY_COLORS_BY_ID.info)과 같은 배색 — 목록·상세에서 같은 색으로 인지되게.
+  newsBadge: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    alignSelf: 'flex-start',
+    backgroundColor: '#FFF8E1',
+    borderRadius: 6,
+    paddingHorizontal: 8,
+    paddingVertical: 3,
+    gap: 3,
+    marginBottom: 6,
+  },
+  newsBadgeText: {
+    fontSize: 12,
+    fontWeight: '700',
+    color: '#E65100',
   },
   bullet: {
     fontSize: 16,

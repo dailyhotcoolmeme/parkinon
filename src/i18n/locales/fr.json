@@ -474,9 +474,9 @@
     "typeEtc": "Autre",
     "authorUnknown": "Inconnu",
     "noticeBadge": "Annonce",
+    "newsBadge": "Actualités ParkinON",
     "authorRoleCaregiver": "Proche aidant",
     "authorRolePatient": "Patient",
-    "newsSourceDefault": "Actualités ParkinON",
     "bookmarkOff": "Retiré des favoris",
     "bookmarkOn": "Ajouté aux favoris ⭐",
     "viewsMeta": " · Vues ",
@@ -490,6 +490,7 @@
     "emptyDefault": "Aucun post pour l'instant.\nÉcrivez le premier !"
   },
   "postDetail": {
+    "newsPromoLink": "Voir plus d'actualités sur le site ParkinON",
     "title": "Post",
     "edit": "Modifier",
     "delete": "Supprimer",

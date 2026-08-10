@@ -474,9 +474,9 @@
     "typeEtc": "Other",
     "authorUnknown": "Unknown",
     "noticeBadge": "Notice",
+    "newsBadge": "ParkinON News",
     "authorRoleCaregiver": "Caregiver",
     "authorRolePatient": "Patient",
-    "newsSourceDefault": "ParkinON News",
     "bookmarkOff": "Removed from bookmarks",
     "bookmarkOn": "Added to bookmarks ⭐",
     "viewsMeta": " · Views ",
@@ -490,6 +490,7 @@
     "emptyDefault": "No posts yet.\nWrite the first post!"
   },
   "postDetail": {
+    "newsPromoLink": "See more news on the ParkinON website",
     "title": "Post",
     "edit": "Edit",
     "delete": "Delete",

@@ -1,6 +1,7 @@
 // PC에서 보기 — 6자리 코드 안내 모달
 //
-// 사용자가 PC(parkinon.com)에서 입력할 6자리 코드를 크게 보여준다.
+// 사용자가 PC(parkinon.com/app — 2026-08-10 웹사이트 정식 오픈으로 콘텐츠가 루트를
+// 맡으면서 앱은 /app 서브패스로 이전됨)에서 입력할 6자리 코드를 크게 보여준다.
 // create-web-token 호출은 부모(RecordsScreen)가 담당하고,
 // 이 모달은 받은 code/expiresAt 표시 + 카운트다운 + 재발급/복사/닫기만 책임진다.
 //
@@ -179,7 +180,7 @@ export function PcCodeModal({
             <>
               <Text style={styles.guideText}>
                 {t('pcCode.guidePre')}{'\n'}
-                <Text style={styles.guideStrong}>parkinon.com</Text> {t('pcCode.guideMid')}
+                <Text style={styles.guideStrong}>parkinon.com/app</Text> {t('pcCode.guideMid')}
                 {'\n'}{t('pcCode.guidePost')}
               </Text>
 

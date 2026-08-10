@@ -164,7 +164,7 @@
 - **알림**: Expo Notifications
 - **처방전 OCR**: Claude API Vision (Haiku 모델)
 - **의약품 정보**: 식품의약품안전처 공공 API + 낱알식별 API
-- **뉴스 크롤링**: GitHub Actions (매일 자동)
+- **파킨온 소식**: parkinon.com 웹사이트에 올라오는 소식 글을 배포 시 `posts`(is_news=true)로 동기화 — 자체 크롤러 없음(2026-08-10, `AGENT_10_crawling.md` 죽은 설계문서 삭제. 원래 크롤러는 설계문서만 있고 실제 만들어진 적이 없었음)
 - **로그인**: 카카오 OAuth (Android·iOS 공통). iOS 출시 대상이므로 Apple 로그인 추가 필요(App Store 심사 요건).
 
 ---
@@ -278,7 +278,7 @@
 - 운동 영상: parkinson.co.kr 기반, 기본/1단계/2단계/3단계/종합 탭
 
 ### 정보/나눔 탭
-- 통합 피드: 크롤링 기사(📰 뱃지) + 사용자 게시글
+- 통합 피드: 파킨온 소식(웹사이트 동기화, 📰 뱃지) + 사용자 게시글 — 소식도 실제 `posts` 행(is_news=true)
 - 리스트: 제목 + 작성자·날짜·조회수 + 썸네일(오른쪽) + 댓글수
 - 글 유형: 💬자유수다 / ❓질문있어요 / 📢정보공유 / 💪운동인증 / 🙏응원해요
 - 글쓰기 플로팅 버튼: 처음엔 ✏️ 글쓰기 텍스트+아이콘, 스크롤 내리면 아이콘만
@@ -325,7 +325,7 @@
 7. exercise_logs
 8. symptom_notes
 9. media_logs
-10. news_feed
+10. news_feed (미사용 — 죽은 테이블, 2026-08-10. 파킨온 소식은 posts.is_news 로 들어감)
 11. posts
 12. comments
 13. post_media

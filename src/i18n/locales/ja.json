@@ -474,9 +474,9 @@
     "typeEtc": "その他",
     "authorUnknown": "不明",
     "noticeBadge": "お知らせ",
+    "newsBadge": "ParkinONニュース",
     "authorRoleCaregiver": "介護者",
     "authorRolePatient": "患者",
-    "newsSourceDefault": "ParkinON ニュース",
     "bookmarkOff": "保存を解除しました",
     "bookmarkOn": "保存しました ⭐",
     "viewsMeta": " · 閲覧 ",
@@ -490,6 +490,7 @@
     "emptyDefault": "投稿はまだありません。\n最初の投稿を書いてみましょう！"
   },
   "postDetail": {
+    "newsPromoLink": "ParkinONウェブサイトでもっと見る",
     "title": "投稿",
     "edit": "編集",
     "delete": "削除",

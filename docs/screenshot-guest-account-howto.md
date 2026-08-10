@@ -8,6 +8,34 @@
 > toolshere의 `scripts/verify/auth.mjs`(자체 DB에 검증용 계정을 만들고 검사 후 삭제하는
 > 패턴)와 같은 성격 — 외부 서비스에 실존하는 계정을 만드는 것과는 다르다.
 
+## 🚨🚨🚨 사고 기록 (2026-08-03) — 절대 반복 금지
+
+**이 문서의 원래 버전은 `00000000-0000-0000-0000-000000000001`을 게스트 ID로 썼다.
+이게 admin 댓글/공지글 시스템이 이미 쓰고 있던 예약 시스템 계정(`OPERATOR_AUTHOR_ID`,
+parkinon-web `functions/api/admin/comments.ts`·`posts.ts`·`notices.ts`)과 충돌했다.**
+
+원복 단계에서 `delete from public.users where id = '00000000...0001'`을 실행했더니
+`comments.author_id`/`posts.author_id`의 `ON DELETE CASCADE` 때문에 **그 계정으로 쓴
+모든 admin 댓글·공지글이 통째로 cascade 삭제**됐다. Free 플랜이라 PITR도 없어서
+**복구 불가 — 실제로 다 날아갔다.** (오너가 정성껏 남긴 admin 답변 전부.)
+
+**그래서 게스트 ID를 바꿨다.** 이제부터 스크린샷용 게스트는 아래 ID를 쓴다:
+
+```
+99990000-0000-0000-0000-000000000001   ← 새 GUEST_USER_ID (스크린샷 전용)
+```
+
+`00000000-0000-0000-0000-000000000001`은 **admin 예약 계정 전용이니 절대 건드리지 말 것**
+— 시드도 하지 말고, 원복 단계에서 삭제 대상에 넣지도 말 것.
+
+**앞으로 이 문서를 쓰기 전에 반드시 할 것:**
+1. 시드/삭제에 쓸 ID가 다른 기능에서 이미 예약 계정으로 쓰이고 있지 않은지
+   코드베이스에서 먼저 grep해서 확인한다 (`grep -rn "<후보 UUID>"`).
+2. 원복 단계의 `delete from public.users where id = ...`를 실행하기 전에,
+   그 ID로 작성된 `posts`/`comments`가 있는지 먼저 조회해서 0건인지 확인한다.
+3. 이 문서에 적힌 ID를 그대로 신뢰하지 말고, 실행 시점에 위 두 가지를 다시 확인한다
+   (다른 기능이 이후에 같은 ID를 예약할 수도 있다).
+
 ## 전체 흐름
 
 1. Supabase에 게스트용 실데이터 시드
@@ -17,9 +45,18 @@
 
 ## 1. Supabase 시드 — 계정 만들기
 
-`useAuth.ts`의 `devSignIn()`(앱에 이미 있는 "게스트로 둘러보기" 개발용 mock 로그인)이 쓰는
-고정 ID `00000000-0000-0000-0000-000000000001`(`GUEST_USER_ID`, `guestGuard.ts`)를 그대로
-쓴다.
+`useAuth.ts`의 `devSignIn()`(앱에 이미 있는 "게스트로 둘러보기" 개발용 mock 로그인)은 평소
+`GUEST_USER_ID`(`guestGuard.ts`, `00000000-0000-0000-0000-000000000001`)를 쓰지만 —
+**이 값은 admin 예약 계정과 충돌하므로 스크린샷 세션에서는 절대 그대로 쓰지 않는다.**
+대신 `devSignIn()`의 mock 객체 `id` 필드를 아래 스크린샷 전용 ID로 **로컬에서 임시
+override**한다(`patient_group_id` override와 같은 방식 — 3번 섹션 참고. 커밋하지 않고
+스크린샷 끝나면 `git checkout --`로 원복):
+
+```
+99990000-0000-0000-0000-000000000001   ← 스크린샷 세션에서만 쓰는 임시 ID
+```
+
+Supabase에 시드할 DB 행도 전부 이 ID로 넣는다(`GUEST_USER_ID` 상수 자체가 아니라).
 
 **함정 1 — `public.users.id`는 `auth.users(id)`를 참조하는 FK가 있다(`NOT VALID`로 걸려있어
 기존 행 검증은 건너뛰지만 새 INSERT는 그대로 막는다).** 그래서 `auth.users`에도 최소 행이
@@ -27,7 +64,7 @@
 
 ```sql
 insert into auth.users (id, is_anonymous, aud, role)
-values ('00000000-0000-0000-0000-000000000001', true, 'authenticated', 'authenticated');
+values ('99990000-0000-0000-0000-000000000001', true, 'authenticated', 'authenticated');
 ```
 
 `is_anonymous = true`로 표시해 실제 사용자가 아님을 명확히 한다. (이게 없으면
@@ -40,7 +77,7 @@ insert into public.patient_groups (id, invite_code, subscription_tier, subscript
 values ('30000000-0000-0000-0000-000000000001', 'SCRNSH', 'premium', now() + interval '30 days');
 
 insert into public.users (id, name, role, onboarding_done, birth_year, gender, diagnosis_year, patient_group_id)
-values ('00000000-0000-0000-0000-000000000001', '이정숙', 'patient', true, 1958, 'female', 2020,
+values ('99990000-0000-0000-0000-000000000001', '이정숙', 'patient', true, 1958, 'female', 2020,
         '30000000-0000-0000-0000-000000000001');
 
 insert into public.medications (id, patient_id, name, dosage, is_active) values (...);
@@ -63,7 +100,7 @@ insert into public.on_off_logs (patient_id, body_state, mood, sleep_quality, con
 -- ① RLS 정책: 이 고정 ID 데이터만 익명도 읽게 하는 좁은 예외
 create policy "temp_screenshot_guest_medications_select"
 on public.medications for select to public
-using (patient_id = '00000000-0000-0000-0000-000000000001'::uuid);
+using (patient_id = '99990000-0000-0000-0000-000000000001'::uuid);
 -- (users, dose_slots, med_logs, exercise_logs, on_off_logs, patient_group_members,
 --  patient_groups 도 동일 패턴)
 
@@ -121,11 +158,12 @@ if (__DEV__) LogBox.ignoreAllLogs(true);  // 화면 하단 "Open debugger..." �
 // 탭 이름: Medication / BodyStateTab / Exercise / OverseasMedTab(해외) 또는 Feed(국내) / MyInfo
 ```
 
-이 5곳 외엔 건드릴 필요 없었다. `useAuth.ts`의 `devSignIn()` mock 객체에서
-`patient_group_id: null` → 시드해둔 그룹 id로 바꿔야 프리미엄(광고 제거)이 적용된다는 것도
-잊지 말 것(로컬 mock 객체 필드라서 DB만 고쳐선 반영 안 됨):
+이 5곳 외엔 건드릴 필요 없었다. `useAuth.ts`의 `devSignIn()` mock 객체에서 아래 2개 필드도
+로컬에서 임시로 바꿔야 한다(로컬 mock 객체 필드라서 DB만 고쳐선 반영 안 됨):
+
 ```tsx
-patient_group_id: '30000000-0000-0000-0000-000000000001',
+id: '99990000-0000-0000-0000-000000000001',   // GUEST_USER_ID 그대로 쓰지 말 것 — 1번 섹션 참고
+patient_group_id: '30000000-0000-0000-0000-000000000001',  // 시드해둔 그룹 id → 프리미엄(광고 제거) 적용
 ```
 
 ## 4. 시뮬레이터 실행·캡처
@@ -157,14 +195,14 @@ git diff --stat   # supabase/.temp/cli-latest 말고 남는 게 없어야 정상
 drop policy ...(9개)
 revoke select on ...(9개) from anon;
 revoke execute on function ...(2개) from anon;
-delete from public.med_logs where patient_id = '00000000...0001';
-delete from public.dose_slots where patient_id = '00000000...0001';
-delete from public.medications where patient_id = '00000000...0001';
-delete from public.exercise_logs where patient_id = '00000000...0001';
-delete from public.on_off_logs where patient_id = '00000000...0001';
-delete from public.users where id = '00000000...0001';
+delete from public.med_logs where patient_id = '99990000...0001';
+delete from public.dose_slots where patient_id = '99990000...0001';
+delete from public.medications where patient_id = '99990000...0001';
+delete from public.exercise_logs where patient_id = '99990000...0001';
+delete from public.on_off_logs where patient_id = '99990000...0001';
+delete from public.users where id = '99990000...0001';
 delete from public.patient_groups where id = '30000000...0001';
-delete from auth.users where id = '00000000...0001';   -- 반드시 마지막
+delete from auth.users where id = '99990000...0001';   -- 반드시 마지막
 ```
 
 ## 알아두면 좋은 것

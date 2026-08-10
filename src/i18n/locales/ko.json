@@ -474,9 +474,9 @@
     "typeEtc": "기타",
     "authorUnknown": "알 수 없음",
     "noticeBadge": "공지",
+    "newsBadge": "파킨온 소식",
     "authorRoleCaregiver": "보호자",
     "authorRolePatient": "환자",
-    "newsSourceDefault": "파킨온 뉴스",
     "bookmarkOff": "즐겨찾기를 해제했어요",
     "bookmarkOn": "즐겨찾기에 추가했어요 ⭐",
     "viewsMeta": " · 조회 ",
@@ -490,6 +490,7 @@
     "emptyDefault": "아직 게시글이 없어요.\n첫 글을 작성해보세요!"
   },
   "postDetail": {
+    "newsPromoLink": "파킨온 웹사이트에서 더 많은 소식 보기",
     "title": "글 보기",
     "edit": "수정",
     "delete": "삭제",
