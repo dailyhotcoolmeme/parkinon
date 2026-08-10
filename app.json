@@ -184,7 +184,7 @@
     "android": {
       "googleServicesFile": "./google-services.json",
       "package": "com.ourmine.parkinon",
-      "versionCode": 6,
+      "versionCode": 7,
       "adaptiveIcon": {
         "foregroundImage": "./assets/adaptive-icon.png",
         "backgroundColor": "#4CB051"
