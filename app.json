@@ -220,20 +220,6 @@
         {
           "icon": "./assets/adaptive-icon.png",
           "color": "#4CAF50",
-          "sounds": [
-            "./assets/alarm-presets/ios/preset_ballad.caf",
-            "./assets/alarm-presets/ios/preset_bouncy.caf",
-            "./assets/alarm-presets/ios/preset_calm.caf",
-            "./assets/alarm-presets/ios/preset_cheerful.caf",
-            "./assets/alarm-presets/ios/preset_dramatic.caf",
-            "./assets/alarm-presets/ios/preset_dreamy.caf",
-            "./assets/alarm-presets/ios/preset_knock.caf",
-            "./assets/alarm-presets/ios/preset_lullaby.caf",
-            "./assets/alarm-presets/ios/preset_shortloop.caf",
-            "./assets/alarm-presets/ios/preset_sitcom.caf",
-            "./assets/alarm-presets/ios/preset_trot.caf",
-            "./assets/alarm-presets/ios/preset_waterdrop.caf"
-          ],
           "androidMode": "default"
         }
       ],
