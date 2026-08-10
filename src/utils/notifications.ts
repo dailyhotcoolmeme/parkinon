@@ -15,7 +15,7 @@ import { supabase } from '../lib/supabase';
 import { getDeviceTimeZone } from './timezone';
 import type { MedNotif, ExerciseNotif } from '../context/SettingsContext';
 import i18n from '../i18n';
-import { resolveInitialLanguage } from '../i18n/detectLocale';
+import { resolveInitialLanguage, getDeviceCountry } from '../i18n/detectLocale';
 
 function isKoLocale(): boolean {
   return (i18n.language || '').toLowerCase().startsWith('ko');
@@ -180,11 +180,15 @@ export async function requestPermissionsAndSaveToken(
       //   영어로 받는다. resolveInitialLanguage() 는 i18next 의 lng 와 같은 값이라
       //   앱 화면과 알림의 언어가 어긋날 수 없고, 미지원 언어는 'en' 으로 떨어진다.
       //   국내 기기는 'ko'(DEFAULT와 동일) → 회귀 0.
+      // country: language와 같은 Intl 로케일 문자열에서 지역 subtag만 뽑은 것 — admin
+      //   사용자 현황에서 en=미국/캐나다/호주 등을 구분 못 하던 문제 대응(오너 지시
+      //   2026-08-10). 감지 안 되면 빈 문자열(추측 저장 금지).
       body: JSON.stringify({
         push_token: token,
         push_platform: Platform.OS,
         timezone: getDeviceTimeZone(),
         language: resolveInitialLanguage(),
+        country: getDeviceCountry() || null,
       }),
     });
 

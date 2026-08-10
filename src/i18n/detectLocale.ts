@@ -53,6 +53,35 @@ export function extractPrimaryLanguage(locale: unknown): string {
 }
 
 /**
+ * 기기 국가 코드(BCP-47 region subtag, 예: 'US', 'CA', 'JP')를 반환.
+ * getDeviceLanguage()와 같은 Intl 문자열에서 뽑는다 — 추가 API·권한 없음.
+ * 감지 실패 시 빈 문자열(언어처럼 폴백 코드가 없음 — 국가는 모르면 그냥 모르는 채로 둔다).
+ */
+export function getDeviceCountry(): string {
+  try {
+    const locale = Intl.DateTimeFormat().resolvedOptions().locale;
+    return extractRegion(locale);
+  } catch {
+    return '';
+  }
+}
+
+/**
+ * BCP-47 로케일 태그에서 지역(region) subtag만 대문자로 추출.
+ * 'en-US' → 'US', 'zh-Hant-TW' → 'TW'(4자 스크립트 subtag는 건너뜀), 'ko-KR' → 'KR'.
+ * 유효하지 않으면 빈 문자열.
+ */
+export function extractRegion(locale: unknown): string {
+  if (typeof locale !== 'string' || locale.length === 0) return '';
+  const parts = locale.split(/[-_]/);
+  for (let i = 1; i < parts.length; i++) {
+    const p = parts[i]?.trim() ?? '';
+    if (/^[a-zA-Z]{2}$/.test(p)) return p.toUpperCase();
+  }
+  return '';
+}
+
+/**
  * i18next lng에 넘길 초기 언어를 결정.
  * 기기 언어가 지원 목록에 있으면 그 언어, 없으면 폴백('en').
  * (i18next의 fallbackLng와 별개로, 애초에 지원 언어만 lng로 넣어
