@@ -27,7 +27,10 @@ const markdownStyles = {
   body: { fontSize: 18, color: '#222222', lineHeight: 30 },
   // 오너 요청(2026-08-10): 처음엔 녹색을 시도했으나 "제목이 녹색이니까 더 정신없다"는 피드백
   // → 색은 원래대로 두고 두께만 최대(900)로 키워 구분을 강화.
-  heading2: { fontSize: 21, fontWeight: '900' as const, color: '#111111', marginTop: 20, marginBottom: 8 },
+  // marginTop 0 — 원래 20이었는데 "소식 N" 라벨(paragraph, marginBottom 14) 바로 다음에
+  // 오면 14+20=34px로 너무 벌어져 보였다(오너 반복 지적, 2026-08-10). 문단 간 기본 간격(14)과
+  // 맞춰서 라벨이든 일반 문단이든 뒤에 오는 제목과의 간격이 일정해지게 함.
+  heading2: { fontSize: 21, fontWeight: '900' as const, color: '#111111', marginTop: 0, marginBottom: 8 },
   heading3: { fontSize: 19, fontWeight: '700' as const, color: '#111111', marginTop: 16, marginBottom: 6 },
   strong: { fontWeight: '700' as const, color: '#111111' },
   // "소식 N" 킥커 라벨 전용 — 본문에 실제 기울임체가 없어서 *기울임* 문법을 빌려 쓴다
