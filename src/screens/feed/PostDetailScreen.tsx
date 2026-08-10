@@ -30,6 +30,10 @@ const markdownStyles = {
   heading2: { fontSize: 21, fontWeight: '900' as const, color: '#111111', marginTop: 20, marginBottom: 8 },
   heading3: { fontSize: 19, fontWeight: '700' as const, color: '#111111', marginTop: 16, marginBottom: 6 },
   strong: { fontWeight: '700' as const, color: '#111111' },
+  // "소식 N" 킥커 라벨 전용 — 본문에 실제 기울임체가 없어서 *기울임* 문법을 빌려 쓴다
+  // (sync-news-posts.mjs 참고). fontStyle:'normal'로 기울임은 취소하고 웹 story-kicker와
+  // 같은 녹색·굵게·작게로.
+  em: { fontStyle: 'normal' as const, color: Colors.primary, fontWeight: '800' as const, fontSize: 13 },
   paragraph: { marginTop: 0, marginBottom: 14 },
   blockquote: {
     backgroundColor: '#E8F5E9',
@@ -41,6 +45,9 @@ const markdownStyles = {
   },
   bullet_list_icon: { color: Colors.primary },
   link: { color: Colors.primary, textDecorationLine: 'underline' as const },
+  // 소재 구분선(---) — 기본값은 위아래 여백이 거의 없어 다음 "소식 N" 라벨이 선에 붙어
+  // 보였다(오너 지적 2026-08-10). 웹의 story-head 구분선(위 48px·아래 32px)과 비슷하게.
+  hr: { backgroundColor: '#E0E0E0', height: 2, marginTop: 32, marginBottom: 20 },
 };
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useRoute, useNavigation, useFocusEffect } from '@react-navigation/native';
