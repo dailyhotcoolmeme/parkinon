@@ -64,6 +64,16 @@ export function RecordSoundScreen() {
   const recordStartRef = useRef<number>(0);
   const scrollRef = useRef<ScrollView | null>(null);
   const labelYRef = useRef<number>(0);
+  const nameInputRef = useRef<TextInput>(null);
+
+  // 이름 입력창 autoFocus 를 쓰면 OverlaySheet 가 아직 페이드인(150ms) 중일 때 포커스가
+  // 걸려서, 한글 입력 시 자음/모음이 조합되지 않고 한 글자씩 따로 커밋되는 문제가 있었다
+  // (오너 발견 2026-08-11). autoFocus 대신 시트가 다 뜬 뒤 수동으로 focus() 를 건다.
+  useEffect(() => {
+    if (!showNameModal) return;
+    const timer = setTimeout(() => nameInputRef.current?.focus(), 200);
+    return () => clearTimeout(timer);
+  }, [showNameModal]);
 
   // 언마운트 시 리소스 정리
   useEffect(() => {
@@ -642,13 +652,13 @@ export function RecordSoundScreen() {
             </Text>
             <Text style={styles.modalSub}>{t('recordSound.nameModalSub')}</Text>
             <TextInput
+              ref={nameInputRef}
               style={styles.modalInput}
               value={label}
               onChangeText={setLabel}
               placeholder={t('recordSound.namePlaceholder')}
               placeholderTextColor={Colors.textHint}
               maxLength={20}
-              autoFocus
               returnKeyType="done"
               onSubmitEditing={() => { setShowNameModal(false); handleSave(); }}
             />
