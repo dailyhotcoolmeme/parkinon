@@ -654,7 +654,7 @@ export function RecordSoundScreen() {
             <TextInput
               ref={nameInputRef}
               style={styles.modalInput}
-              value={label}
+              defaultValue={label}
               onChangeText={setLabel}
               placeholder={t('recordSound.namePlaceholder')}
               placeholderTextColor={Colors.textHint}
