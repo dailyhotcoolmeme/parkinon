@@ -36,14 +36,31 @@
 
 ## 남은 일
 
-### 1. 마이그레이션 없이 대시보드로 적용된 컬럼들 — 저장소로 스키마 재현 불가
-`supabase/migrations/` 에 정의가 없는데 코드가 의존하는 컬럼들:
-- `users.language`, `users.country` — 서버 알림 언어 선택이 여기 의존(에지 함수 ~7개)
-- `patient_groups.subscription_tier` / `subscription_expires_at` / `subscription_payer_user_id` / `revenuecat_synced_at`
-- `users.sensitive_info_consented` / `international_transfer_consented` (+ 각 version)
+### 1. 저장소만으로는 DB 스키마를 재현할 수 없다 (처음부터 그랬다)
+2026-08-12 실측 결과, "컬럼 몇 개가 빠진" 수준이 아니다.
 
-지금 라이브에는 문제가 없다(이미 적용돼 있다). 새 환경을 만들 때만 걸린다.
-뒤늦게라도 마이그레이션으로 적어 둘 것.
+- **테이블 53개 중 40개가 `CREATE TABLE` 정의 자체가 없다** — `users`·`medications`·`med_logs`
+  같은 핵심 테이블 포함. `supabase/migrations/` 의 58개 파일은 대부분 RLS·함수·개별 ALTER 같은
+  **증분 패치**다. 기본 스키마가 애초에 마이그레이션으로 들어온 적이 없다.
+- 저장소 루트의 `supabase_schema.sql`·`supabase_full_migration.sql` 은 프로젝트 초기
+  **13개 테이블짜리**라 지금(53개)과 한참 다르다. 정본으로 쓰면 안 된다.
+- 마이그레이션에 정의가 없는 컬럼(확인된 것): `users.language`·`country`·
+  `sensitive_info_consented`(+version)·`international_transfer_consented`(+version)·
+  `diary_notif_sound_id`·`med_time_sound_prefs`, `patient_groups.subscription_tier`·
+  `subscription_expires_at`·`subscription_payer_user_id`·`revenuecat_synced_at`·
+  `subscription_original_txn_id`·`admin_hidden`
+- 현재 프로덕션 규모: 테이블 53 · RLS 정책 129 · 함수 54 · 트리거 15 · 인덱스 151 · 크론 6
+
+**지금 라이브에는 아무 문제 없다**(이미 다 적용돼 있다). 걸리는 건 새 환경을 만들 때,
+그리고 "이 컬럼이 왜 있지"를 코드로 되짚을 때다.
+
+**해결 방법은 하나다 — 프로덕션에서 베이스라인을 떠서 커밋한다.**
+```
+supabase link --project-ref avqaflxufyadgzjiojkk
+supabase db dump --schema public > supabase/migrations/00000000000000_baseline.sql
+```
+DB 비밀번호(또는 액세스 토큰)가 있어야 한다. 카탈로그를 손으로 재구성하는 방식은
+RLS·트리거·권한에서 빠지는 게 생기므로 쓰지 않는다.
 
 ### 2. 녹음 알림음 6개월 자동 삭제 크론 — 연말에 착수
 해외판 약관 제11조 ⑥ / 개인정보처리방침 제3조에 "구독 종료일로부터 6개월 뒤 자동 삭제"라고
