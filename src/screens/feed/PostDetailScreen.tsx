@@ -608,9 +608,12 @@ export function PostDetailScreen() {
   // 그 첫 번째 등장 지점이 곧 소식1↔소식2 경계다(소식2 뒤에도 "지금 할 수 있는 것" 앞에
   // 구분선이 하나 더 있지만 그건 두 번째 등장이라 영향 없음). 소재가 하나뿐인 글(구분선 없음)은
   // 이미지를 본문 맨 뒤에 그대로 둔다.
+  // 이 경계에 있던 "---" 구분선은 이제 이미지 자체가 소식1/소식2를 갈라주므로 앱에서만 제거한다
+  // (사이트는 이미지가 이 자리에 없으니 구분선을 그대로 둔다 — sync-news-posts.mjs·mdx는 안 건드림).
   const newsHeroSplitIdx = post.isNews ? postContent.indexOf('\n---\n\n') : -1;
   const newsBodyBeforeHero = newsHeroSplitIdx >= 0 ? postContent.slice(0, newsHeroSplitIdx) : postContent;
-  const newsBodyAfterHero = newsHeroSplitIdx >= 0 ? postContent.slice(newsHeroSplitIdx) : '';
+  const newsBodyAfterHero =
+    newsHeroSplitIdx >= 0 ? postContent.slice(newsHeroSplitIdx).replace(/^\n---\n+/, '') : '';
 
   return (
     <SafeAreaView style={styles.safe} edges={['top']}>
