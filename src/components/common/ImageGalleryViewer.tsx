@@ -36,9 +36,14 @@ interface Props {
   //   true  → 워커 공개 URL(getCommunityPhotoUrl) + 일반 Image (서명 왕복 없음, 빠름)
   //   false → R2Image(서명 URL) — 의료/일기 등 비공개 사진 (기본값)
   publicCommunity?: boolean;
+  // 인라인 썸네일의 가로:세로 비율을 직접 지정 — 기본(0.85, contain)은 사용자가 올린
+  // 세로/정사각 위주 사진에 맞춘 값이라, 가로로 넓은 소식 글 히어로 이미지에 쓰면
+  // 위아래로 회색 여백이 남는다. 지정 시 그 비율에 맞춰 높이를 잡고 resizeMode도 "cover"로
+  // 바꿔 여백 없이 꽉 채운다(전체보기 모달에는 영향 없음 — 원본 그대로 보여줘야 하므로 contain 유지).
+  imageAspectRatio?: number;
 }
 
-export function ImageGalleryViewer({ urls, initialFullscreenIndex, onClose, publicCommunity }: Props) {
+export function ImageGalleryViewer({ urls, initialFullscreenIndex, onClose, publicCommunity, imageAspectRatio }: Props) {
   const { t } = useTranslation();
   const insets = useSafeAreaInsets();
   const directFullscreen = initialFullscreenIndex != null;
@@ -64,12 +69,17 @@ export function ImageGalleryViewer({ urls, initialFullscreenIndex, onClose, publ
   if (urls.length === 0) return null;
 
   // 사진 한 장 렌더: 공개 모드면 일반 Image(공개 URL), 아니면 R2Image(서명 URL).
-  const renderImage = (url: string, style: any) =>
+  const renderImage = (url: string, style: any, resizeMode: 'contain' | 'cover' = 'contain') =>
     publicCommunity ? (
-      <Image source={{ uri: getCommunityPhotoUrl(url) }} style={style} resizeMode="contain" />
+      <Image source={{ uri: getCommunityPhotoUrl(url) }} style={style} resizeMode={resizeMode} />
     ) : (
-      <R2Image uri={url} style={style} resizeMode="contain" />
+      <R2Image uri={url} style={style} resizeMode={resizeMode} />
     );
+
+  const inlineImageStyle = imageAspectRatio
+    ? [styles.mediaImage, { height: IMAGE_WIDTH / imageAspectRatio, backgroundColor: 'transparent' }]
+    : styles.mediaImage;
+  const inlineResizeMode = imageAspectRatio ? 'cover' : 'contain';
 
   const closeFullscreen = () => {
     setModalVisible(false);
@@ -119,7 +129,7 @@ export function ImageGalleryViewer({ urls, initialFullscreenIndex, onClose, publ
                 activeOpacity={0.9}
                 style={styles.mediaPage}
               >
-                {renderImage(url, styles.mediaImage)}
+                {renderImage(url, inlineImageStyle, inlineResizeMode)}
               </TouchableOpacity>
             ))}
           </ScrollView>

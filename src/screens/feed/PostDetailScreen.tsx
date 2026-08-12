@@ -603,6 +603,15 @@ export function PostDetailScreen() {
   const categoryLabel = post.isNews ? (post.newsTag ?? t('feed.newsBadge')) : (post.category ?? t('feed.typeChat'));
   const categoryColor = CATEGORY_COLORS_BY_ID[post.isNews ? 'info' : (post.categoryId ?? 'chat')] ?? CATEGORY_COLORS_BY_ID.chat;
 
+  // 파킨온 소식 글: 히어로 이미지를 "소식 1"과 "소식 2" 사이에 끼워 넣기 위한 본문 분할.
+  // sync-news-posts.mjs가 두 번째 이상 소재마다 "\n---\n\n"을 앞에 붙여 내보내므로,
+  // 그 첫 번째 등장 지점이 곧 소식1↔소식2 경계다(소식2 뒤에도 "지금 할 수 있는 것" 앞에
+  // 구분선이 하나 더 있지만 그건 두 번째 등장이라 영향 없음). 소재가 하나뿐인 글(구분선 없음)은
+  // 이미지를 본문 맨 뒤에 그대로 둔다.
+  const newsHeroSplitIdx = post.isNews ? postContent.indexOf('\n---\n\n') : -1;
+  const newsBodyBeforeHero = newsHeroSplitIdx >= 0 ? postContent.slice(0, newsHeroSplitIdx) : postContent;
+  const newsBodyAfterHero = newsHeroSplitIdx >= 0 ? postContent.slice(newsHeroSplitIdx) : '';
+
   return (
     <SafeAreaView style={styles.safe} edges={['top']}>
       <TopBar
@@ -697,26 +706,38 @@ export function PostDetailScreen() {
             {/* 구분선 */}
             <View style={styles.metaDivider} />
 
-            {/* 본문 — 파킨온 소식 글은 웹사이트 원문을 마크다운으로 그대로 옮겨온 전문이라 서식이 있다. */}
+            {/* 본문 — 파킨온 소식 글은 웹사이트 원문을 마크다운으로 그대로 옮겨온 전문이라 서식이 있다.
+                히어로 이미지는 "소식 1"과 "소식 2" 사이에 끼워 넣는다(구분선 없는 단일 소재 글은 뒤에). */}
             {post.isNews ? (
-              <Markdown style={markdownStyles}>{postContent}</Markdown>
+              <>
+                <Markdown style={markdownStyles}>{newsBodyBeforeHero}</Markdown>
+                {newsHeroSplitIdx >= 0 && (
+                  <ImageGalleryViewer urls={mediaUrls} publicCommunity imageAspectRatio={16 / 9} />
+                )}
+                {newsBodyAfterHero !== '' && (
+                  <Markdown style={markdownStyles}>{newsBodyAfterHero}</Markdown>
+                )}
+              </>
             ) : (
               <Text style={styles.postContent}>{postContent}</Text>
             )}
 
-            {/* 첨부 사진 갤러리 (전체보기 + 인디케이터 포함) */}
-            <ImageGalleryViewer urls={mediaUrls} publicCommunity />
+            {/* 첨부 사진 갤러리 (전체보기 + 인디케이터 포함) — 소식 글은 위에서 이미 넣었으므로 제외 */}
+            {!post.isNews && <ImageGalleryViewer urls={mediaUrls} publicCommunity />}
+            {post.isNews && newsHeroSplitIdx < 0 && (
+              <ImageGalleryViewer urls={mediaUrls} publicCommunity imageAspectRatio={16 / 9} />
+            )}
 
-            {/* 파킨온 소식 글 하단 — 웹사이트로 연결(홍보 겸 원문 출처 표시) */}
+            {/* 파킨온 소식 글 하단 — 웹사이트로 연결(홍보 겸 원문 출처 표시). 박스 없이 주황 텍스트 링크로. */}
             {post.isNews && post.newsUrl && (
               <TouchableOpacity
                 style={styles.newsPromoBanner}
                 onPress={() => WebBrowser.openBrowserAsync(post.newsUrl!)}
                 activeOpacity={0.8}
               >
-                <Ionicons name="globe-outline" size={20} color={Colors.primary} />
+                <Ionicons name="globe-outline" size={18} color={Colors.accent} />
                 <Text style={styles.newsPromoText}>{t('postDetail.newsPromoLink')}</Text>
-                <Ionicons name="open-outline" size={16} color={Colors.primary} />
+                <Ionicons name="open-outline" size={15} color={Colors.accent} style={styles.newsPromoIcon} />
               </TouchableOpacity>
             )}
           </View>
@@ -1007,18 +1028,18 @@ const styles = StyleSheet.create({
   newsPromoBanner: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 8,
-    backgroundColor: '#E8F5E9',
-    borderRadius: 10,
-    paddingHorizontal: 14,
-    paddingVertical: 14,
+    alignSelf: 'flex-start',
+    gap: 6,
     marginTop: 16,
+    paddingVertical: 6,
   },
   newsPromoText: {
-    flex: 1,
     fontSize: 16,
     fontWeight: '700',
-    color: Colors.primary,
+    color: Colors.accent,
+  },
+  newsPromoIcon: {
+    marginLeft: -2,
   },
 
   // ── 통계 바 카드 ──
