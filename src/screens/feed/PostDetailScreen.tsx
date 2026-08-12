@@ -715,7 +715,9 @@ export function PostDetailScreen() {
               <>
                 <Markdown style={markdownStyles}>{newsBodyBeforeHero}</Markdown>
                 {newsHeroSplitIdx >= 0 && (
-                  <ImageGalleryViewer urls={mediaUrls} publicCommunity imageAspectRatio={16 / 9} />
+                  <View style={styles.newsHeroImageWrap}>
+                    <ImageGalleryViewer urls={mediaUrls} publicCommunity imageAspectRatio={16 / 9} />
+                  </View>
                 )}
                 {newsBodyAfterHero !== '' && (
                   <Markdown style={markdownStyles}>{newsBodyAfterHero}</Markdown>
@@ -1027,6 +1029,10 @@ const styles = StyleSheet.create({
     color: '#222222',
     lineHeight: 30,
     marginBottom: 4,
+  },
+  // 소식 글 히어로 이미지 — 바로 아래 "소식 2" 라벨과 붙어 보여서 한 줄 정도 띄움
+  newsHeroImageWrap: {
+    marginBottom: 14,
   },
   newsPromoBanner: {
     flexDirection: 'row',
