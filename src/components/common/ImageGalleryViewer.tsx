@@ -3,7 +3,6 @@ import { OverlaySheet } from './OverlaySheet';
 import {
   View,
   Image,
-  Modal,
   TouchableOpacity,
   ScrollView,
   Text,
@@ -11,8 +10,6 @@ import {
   Dimensions,
   NativeSyntheticEvent,
   NativeScrollEvent,
-  Platform,
-  BackHandler,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
@@ -148,10 +145,16 @@ export function ImageGalleryViewer({ urls, initialFullscreenIndex, onClose, publ
         </View>
       )}
 
-      {/* 전체보기 — 항상 오버레이로 렌더(앱에서 RN <Modal> 을 전부 제거했다) */}
-      <FullscreenHost
+      {/* 전체보기 — OverlaySheet 로 앱 루트(OverlayHost)에서 그린다. 예전엔 이 컴포넌트
+          안에서 직접 절대배치 오버레이를 만들었는데, 절대배치는 가장 가까운 부모 크기까지만
+          퍼진다 — 이 컴포넌트가 ScrollView 본문 안(글 상세의 사진 한 장)처럼 화면보다 작은
+          부모 안에 있으면 "전체보기"가 그 작은 영역 크기로 잘려 사진이 안 보이고 검게만
+          보였다(2026-08-14, 오너가 파킨온 소식 글에서 발견). OverlaySheet 는 실제로는
+          앱 루트에 그려서 어디서 열든 화면 전체를 확실히 덮는다. */}
+      <OverlaySheet
         visible={modalVisible}
         onRequestClose={closeFullscreen}
+        animationType="fade"
       >
         <View style={styles.modalBg}>
           {/* 상단: X닫기 + 인디케이터 — 노치/다이나믹아일랜드 회피를 위해 insets.top 반영
@@ -209,41 +212,9 @@ export function ImageGalleryViewer({ urls, initialFullscreenIndex, onClose, publ
             </View>
           )}
         </View>
-      </FullscreenHost>
+      </OverlaySheet>
     </>
   );
-}
-
-/**
- * 전체보기 컨테이너.
- * 항상 절대배치 오버레이로 렌더한다. RN <Modal> 은 별도 네이티브 창이라 겹치면 iOS 에서
- * 굳고 그 위에서 화면 이동도 막히기 때문에, 앱 전체에서 걷어냈다.
- */
-function FullscreenHost({
-  visible,
-  onRequestClose,
-  children,
-}: {
-  visible: boolean;
-  onRequestClose: () => void;
-  children: React.ReactNode;
-}) {
-  useEffect(() => {
-    if (!visible) return;
-    const sub = BackHandler.addEventListener('hardwareBackPress', () => {
-      onRequestClose();
-      return true;
-    });
-    return () => sub.remove();
-  }, [visible, onRequestClose]);
-
-  // ⚠️ RN <Modal> 을 쓰지 않는다(inline 분기도 없앴다).
-  //   Modal 은 별도 네이티브 창이라 (1) 그 위에서 화면 이동이 안 보이고
-  //   (2) 다른 모달과 겹치면 iOS 에서 둘 다 안 닫히고 굳는다.
-  //   예전엔 "모달 안에서 열릴 때만" 오버레이로 우회했는데, 우회가 필요한 쪽이 오히려
-  //   기본값이어야 한다 — 항상 오버레이로 렌더한다.
-  if (!visible) return null;
-  return <View style={styles.inlineOverlay}>{children}</View>;
 }
 
 const styles = StyleSheet.create({
@@ -283,13 +254,6 @@ const styles = StyleSheet.create({
     backgroundColor: '#444444',
   },
 
-  // Modal
-  // 전체화면 오버레이 — 부모 트리 안에서 화면 전체를 덮는다.
-  inlineOverlay: {
-    ...StyleSheet.absoluteFillObject,
-    zIndex: 60,
-    elevation: 60,
-  },
   modalBg: {
     flex: 1,
     backgroundColor: '#000',
