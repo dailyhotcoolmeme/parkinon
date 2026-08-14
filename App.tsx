@@ -43,6 +43,7 @@ import { supabase } from './src/lib/supabase';
 import { requestPermissionsAndSaveToken } from './src/utils/notifications';
 import { notificationIntentManager } from './src/utils/NotificationIntentManager';
 import { logNotificationEvent } from './src/utils/notificationDebugLog';
+import { runWhenOtaSafe } from './src/lib/otaGuard';
 import { isProcessed, markProcessed } from './src/utils/processedNotifIds';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 
@@ -204,8 +205,14 @@ function AppInner() {
           if (AppState.currentState !== 'active') return;
           const update = await Updates.checkForUpdateAsync();
           if (update.isAvailable) {
+            // 다운로드는 화면과 무관하게 항상 진행(사용자 눈에 안 보임) — 미루는 건
+            // 재시작(reloadAsync)뿐이다. 글쓰기/일기 화면에 저장 안 한 입력이 있으면
+            // (useOtaGuard) 그 화면을 벗어나거나 저장할 때까지 재시작을 미룬다
+            // (2026-08-14, 오너 지적 — 타이핑 중 강제 새로고침으로 글이 날아가는 사고 방지).
             await Updates.fetchUpdateAsync();
-            await Updates.reloadAsync();
+            runWhenOtaSafe(() => {
+              Updates.reloadAsync();
+            });
           }
         } catch {
           // silent

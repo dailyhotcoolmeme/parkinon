@@ -34,6 +34,7 @@ import { ensureNotGuest } from '../../utils/guestGuard';
 import { ensureNotBanned, isBanRlsError, showBannedDialog } from '../../utils/banGuard';
 import { useBottomSheetPadding } from '../../hooks/useBottomSheetPadding';
 import { legalDocUrl } from '../../i18n/detectLocale';
+import { useOtaGuard } from '../../hooks/useOtaGuard';
 
 type PostType = Database['public']['Tables']['posts']['Row']['post_type'];
 
@@ -131,6 +132,11 @@ export function PostWriteScreen() {
 
   // 삭제 대상 기존 사진 r2_url 목록
   const [deletedExistingUrls, setDeletedExistingUrls] = useState<string[]>([]);
+
+  // 저장 안 한 글이 있는 동안 OTA 자동 재시작을 미룬다(2026-08-14) — 타이핑 중 강제
+  // 새로고침으로 글이 통째로 날아가는 걸 막는다. 화면을 벗어나거나(뒤로가기) 저장을
+  // 마치면 자동 해제.
+  useOtaGuard(title.trim().length > 0 || content.trim().length > 0);
 
   const handlePhotoAdd = async () => {
     if (photoEntries.length >= 5) {

@@ -50,6 +50,7 @@ import { isOverseasLocale } from '../../i18n/detectLocale';
 import { monthYearTitle, monthDayWeekday, weekdayShort } from '../../utils/dateLabels';
 import { formatClock } from '../../utils/notifLabels';
 import { useBottomSheetPadding } from '../../hooks/useBottomSheetPadding';
+import { useOtaGuard } from '../../hooks/useOtaGuard';
 import { translateRawExerciseType } from '../../constants/exerciseTypes';
 import {
   PHOTO_PREFIX,
@@ -1422,6 +1423,8 @@ function DiaryEditorModal({ visible, dateStr, patientId, existing, onClose, onSa
   };
 
   const [text, setText] = useState(existing?.text ?? '');
+  // 저장 안 한 일기가 있는 동안 OTA 자동 재시작을 미룬다(2026-08-14, PostWriteScreen과 동일 이유).
+  useOtaGuard(visible && text.trim().length > 0);
   // 사진: 기존 url + 신규로 추가한 로컬 uri 를 함께 관리
   const [photoUrls, setPhotoUrls] = useState<string[]>(existing?.photo_urls ?? []);
   const [newPhotoUris, setNewPhotoUris] = useState<string[]>([]);
