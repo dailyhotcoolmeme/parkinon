@@ -21,6 +21,24 @@ const CATEGORY_COLORS_BY_ID: Record<string, { bg: string; text: string; icon: st
   cheer:    { bg: '#EDE7F6', text: '#4527A0', icon: '#7B1FA2' },
 };
 
+/*
+ * ⚠️ 제목(heading)에는 반드시 flexDirection:'column' 을 같이 넣을 것.
+ *
+ * react-native-markdown-display 는 제목을 <Text> 가 아니라 **<View>** 로 그리고,
+ * 그 기본 스타일이 `flexDirection: 'row'` 다(lib/styles.js heading1~6). 가로 상자 안에 든
+ * 글자는 flex 가 없으면 "제 폭만큼"으로 잡히는데, 안드로이드/iOS 의 굵은 글씨 폭 측정이
+ * 실제 그려지는 폭보다 조금 작게 나오는 경우가 있어 **뒷글자가 잘려 나간다.**
+ *
+ * 실제로 2026-08-16 오너가 발견: 소식 글의 `### 🔍 이렇게 나왔습니다` 가 화면에
+ * **"🔍 이렇게"** 까지만 보였다. `##`(heading2)로 쓴 글 1편만 멀쩡했고 `###`(heading3)로
+ * 쓴 3편이 전부 같은 자리에서 잘렸다 — 잘리고 말고는 글자 길이·굵기에 따라 갈리는
+ * 운이라, heading2 가 지금 멀쩡한 것도 우연이다. 그래서 6단계 전부에 걸어 둔다.
+ * (본문 데이터·마크다운 파싱은 멀쩡했다 — 순전히 그리는 단계 문제였다.)
+ *
+ * column 으로 바꾸면 글자 상자가 폭을 꽉 채워 정상적으로 줄바꿈된다.
+ */
+const HEADING_BLOCK = { flexDirection: 'column' as const };
+
 // 파킨온 소식(is_news) 글 본문 렌더링 스타일 — postContent(18sp/#222222)와 크기·색을 맞추고,
 // 웹 원문의 ##/### 제목·강조·인용을 60대 타겟 기준(고대비·큰 글씨)으로 옮긴다.
 const markdownStyles = {
@@ -30,8 +48,12 @@ const markdownStyles = {
   // marginTop 0 — 원래 20이었는데 "소식 N" 라벨(paragraph, marginBottom 14) 바로 다음에
   // 오면 14+20=34px로 너무 벌어져 보였다(오너 반복 지적, 2026-08-10). 문단 간 기본 간격(14)과
   // 맞춰서 라벨이든 일반 문단이든 뒤에 오는 제목과의 간격이 일정해지게 함.
-  heading2: { fontSize: 21, fontWeight: '900' as const, color: '#111111', marginTop: 0, marginBottom: 8 },
-  heading3: { fontSize: 19, fontWeight: '700' as const, color: '#111111', marginTop: 16, marginBottom: 6 },
+  heading1: { ...HEADING_BLOCK, fontSize: 23, fontWeight: '900' as const, color: '#111111', marginTop: 0, marginBottom: 10 },
+  heading2: { ...HEADING_BLOCK, fontSize: 21, fontWeight: '900' as const, color: '#111111', marginTop: 0, marginBottom: 8 },
+  heading3: { ...HEADING_BLOCK, fontSize: 19, fontWeight: '700' as const, color: '#111111', marginTop: 16, marginBottom: 6 },
+  heading4: { ...HEADING_BLOCK, fontSize: 18, fontWeight: '700' as const, color: '#111111', marginTop: 14, marginBottom: 6 },
+  heading5: { ...HEADING_BLOCK, fontSize: 18, fontWeight: '700' as const, color: '#111111', marginTop: 14, marginBottom: 6 },
+  heading6: { ...HEADING_BLOCK, fontSize: 18, fontWeight: '700' as const, color: '#111111', marginTop: 14, marginBottom: 6 },
   strong: { fontWeight: '700' as const, color: '#111111' },
   // "소식 N" 킥커 라벨 전용 — 본문에 실제 기울임체가 없어서 *기울임* 문법을 빌려 쓴다
   // (sync-news-posts.mjs 참고). fontStyle:'normal'로 기울임은 취소하고 웹 story-kicker와
