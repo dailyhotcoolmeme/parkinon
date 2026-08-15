@@ -1624,7 +1624,8 @@
     "saveError": "Failed to save the medication record.",
     "cancelError": "Failed to cancel the medication record.",
     "pushBodyWithSlot": "{{name}} took the {{slot}} medication.",
-    "fetchStatusError": "Couldn't load today's doses."
+    "fetchStatusError": "Couldn't load today's doses.",
+    "pushBodyLate": "{{name}} logged the {{slot}} medication (taken at {{time}})."
   },
   "familyLinkHook": {
     "timeoutError": "The request timed out. Please try again shortly. (timeout {{ms}}ms)",
@@ -2206,5 +2207,12 @@
     "monthDotDay": "{{month}}/{{day}} ({{weekday}})",
     "secondsLeft": "{{s}}s",
     "minutesSecondsLeft": "{{m}}m {{s}}s"
+  },
+  "lateRecord": {
+    "title": "Record {{title}} now?",
+    "takenAtLabel": "Time taken",
+    "editTime": "Edit",
+    "trackingSkipped": "Because this is being recorded later, no effect-tracking reminders will be sent for it.",
+    "confirm": "Record"
   }
 }

@@ -1624,7 +1624,8 @@
     "saveError": "L'enregistrement de la prise a échoué.",
     "cancelError": "L'annulation de la prise a échoué.",
     "pushBodyWithSlot": "{{name}} a pris le traitement de {{slot}}.",
-    "fetchStatusError": "Impossible de charger les prises du jour."
+    "fetchStatusError": "Impossible de charger les prises du jour.",
+    "pushBodyLate": "{{name}} a enregistré le traitement de {{slot}} (pris à {{time}})."
   },
   "familyLinkHook": {
     "timeoutError": "La requête a expiré. Réessayez dans un instant. (timeout {{ms}}ms)",
@@ -2206,5 +2207,12 @@
     "monthDotDay": "{{day}}/{{month}} ({{weekday}})",
     "secondsLeft": "{{s}} s",
     "minutesSecondsLeft": "{{m}} min {{s}} s"
+  },
+  "lateRecord": {
+    "title": "Enregistrer {{title}} maintenant ?",
+    "takenAtLabel": "Heure de prise",
+    "editTime": "Modifier",
+    "trackingSkipped": "Comme cet enregistrement est fait plus tard, aucun rappel de suivi d'effet ne sera envoyé.",
+    "confirm": "Enregistrer"
   }
 }

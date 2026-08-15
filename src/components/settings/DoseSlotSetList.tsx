@@ -35,6 +35,13 @@ import {
 import { Ionicons } from '@expo/vector-icons';
 import { SlotTimeIcon } from '../common/SlotTimeIcon';
 import { Colors } from '../../constants/colors';
+import {
+  PickerCol,
+  pickStyles,
+  HOURS,
+  MINUTES,
+  type AmPm as PickerAmPm,
+} from '../common/TimeColumns';
 import { supabase } from '../../lib/supabase';
 import { navigateTo } from '../../navigation/navigationRef';
 import {
@@ -1488,74 +1495,10 @@ const SHEET_ENTER_MS = 240;      // 슬라이드-인 시간
 const SHEET_CLOSE_OFFSET = 700;  // 닫기 목표 위치(화면 밖) px — 훅 closeTo 기본값과 동일
 const SHEET_CLOSE_MS = 220;      // 슬라이드-아웃 시간 — 훅 스와이프 닫힘 200ms와 근사
 
-// ─── 시간/분 선택용 데이터 ─────────────────────────────────
-const HOURS = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12];
-const MINUTES = Array.from({ length: 12 }, (_, i) => i * 5); // 0,5,…,55 (5분 단위)
-
-// ─── 스크롤 컬럼 선택기 (진료 일정 시간선택과 동일 방식 — 탭 선택, 휠 아님) ──────────
-const PICK_ITEM_H = 50;
-const PICK_COL_H = 250; // colsRow 높이(=뷰포트). 이 안에 다 들어오는 짧은 목록은 스크롤 불필요.
-function PickerCol<T extends string | number>({
-  items, selected, onSelect,
-}: {
-  items: { value: T; label: string }[];
-  selected: T;
-  onSelect: (v: T) => void;
-}) {
-  const ref = useRef<FlatList<{ value: T; label: string }>>(null);
-  const selectedIndex = Math.max(0, items.findIndex((it) => it.value === selected));
-  // 항목이 뷰포트에 다 들어오면(예: 오전/오후 2개) 선택 항목을 맨 위로 스크롤하지 않는다.
-  //   안 그러면 오후(index 1) 선택 시 오전(index 0)이 위로 밀려 숨어 고를 수 없다.
-  const fitsAll = items.length * PICK_ITEM_H <= PICK_COL_H;
-  useEffect(() => {
-    if (fitsAll) return;
-    if (ref.current) ref.current.scrollToOffset({ offset: selectedIndex * PICK_ITEM_H, animated: false });
-  }, [selected, selectedIndex, fitsAll]);
-  return (
-    <View style={{ flex: 1 }}>
-      <FlatList
-        ref={ref}
-        data={items}
-        keyExtractor={(it) => String(it.value)}
-        initialScrollIndex={fitsAll ? 0 : selectedIndex}
-        getItemLayout={(_, index) => ({ length: PICK_ITEM_H, offset: PICK_ITEM_H * index, index })}
-        showsVerticalScrollIndicator={false}
-        onScrollToIndexFailed={() => {}}
-        onLayout={() => { if (!fitsAll && ref.current) ref.current.scrollToOffset({ offset: selectedIndex * PICK_ITEM_H, animated: false }); }}
-        renderItem={({ item }) => {
-          const isSel = item.value === selected;
-          return (
-            <TouchableOpacity
-              style={[pickStyles.item, isSel && pickStyles.itemActive]}
-              onPress={() => onSelect(item.value)}
-              activeOpacity={0.7}
-            >
-              <Text style={[pickStyles.itemText, isSel && pickStyles.itemTextActive]}>{item.label}</Text>
-            </TouchableOpacity>
-          );
-        }}
-      />
-    </View>
-  );
-}
-
-const pickStyles = StyleSheet.create({
-  colsRow: { flexDirection: 'row', height: 250 },
-  col: { flex: 1 },
-  colHeader: {
-    fontSize: 15, fontWeight: '600', color: Colors.textSub,
-    textAlign: 'center', paddingBottom: 6,
-    borderBottomWidth: 1, borderBottomColor: Colors.border, marginBottom: 4,
-  },
-  colDivider: { width: 1, backgroundColor: Colors.border, marginVertical: 8 },
-  item: {
-    height: PICK_ITEM_H, justifyContent: 'center', alignItems: 'center',
-    borderRadius: 8, marginHorizontal: 3, marginVertical: 1,
-  },
-  itemActive: { backgroundColor: Colors.light },
-  itemText: { color: Colors.text, fontSize: 20 },
-  itemTextActive: { color: Colors.primary, fontWeight: '700' },
-});
+/*
+ * 시간/분 선택기는 `components/common/TimeColumns` 로 옮겼다(2026-08-15).
+ * "늦게 기록" 시트가 같은 선택기를 써야 해서 공용으로 뺐다 — 복붙하면 한쪽만 고쳐진다.
+ */
 
 interface TimeSheetState {
   mode: 'edit' | 'add';

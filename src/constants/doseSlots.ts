@@ -282,3 +282,32 @@ export function normalizeHhmm(time: string | null | undefined): string {
   if (parts.length < 2) return time;
   return `${parts[0].padStart(2, '0')}:${parts[1].padStart(2, '0')}`;
 }
+
+/**
+ * 복용 예정 시각과 지금 사이의 **실제 간격(분)**. 자정을 넘어도 올바르게 잰다.
+ *
+ * ⚠️ 예전에는 `Math.abs(nowMin - slotMin)` 을 세 곳에 복붙해서 썼는데, 이러면 자정을
+ *    못 넘는다 — 취침약 23:30 을 00:10 에 기록하면 |10 - 1410| = 1400분으로 계산돼
+ *    실제 40분 차이인데도 "시간대가 다르다"고 막혔다(2026-08-15 오너 확인 후 수정).
+ *    하루는 원형이므로 반대 방향(1440 - d)과 비교해 짧은 쪽이 실제 간격이다.
+ *
+ * @returns 분 단위 간격. 시각을 못 읽으면 null(=판정 불가 → 호출부에서 통과시킬 것).
+ */
+export function slotDiffMinutes(time: string | null | undefined, now: Date = new Date()): number | null {
+  const slotMin = slotSortValue(time);
+  if (!Number.isFinite(slotMin)) return null;
+  const nowMin = now.getHours() * 60 + now.getMinutes();
+  const d = Math.abs(nowMin - slotMin);
+  return Math.min(d, 1440 - d);
+}
+
+/**
+ * 이 시간 안에 기록하면 "제때 기록"으로 본다(분).
+ *
+ * 이 창을 벗어난 기록은 막지 않고 **복용 시각을 직접 받는다**(늦게 기록 경로).
+ * 원래는 예외 없이 차단이었다(오너 결정 2026-07-24) — 늦게 기록하면 그 시각을 기준으로
+ * 잡히는 약효추적 알림이 통째로 어긋나기 때문이다. 2026-08-15 에 오너가 다시 열었고,
+ * **추적을 걸지 않는 조건**이라면 기록 자체는 남길 수 있게 바꿨다(깜빡한 복용을 아예
+ * 못 남기는 편이 더 나쁘다). 추적 억제는 useMedication 의 takenAtOverride 경로가 맡는다.
+ */
+export const ON_TIME_WINDOW_MIN = 30;

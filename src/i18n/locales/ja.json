@@ -1624,7 +1624,8 @@
     "saveError": "服薬の記録を保存できませんでした。",
     "cancelError": "服薬の記録を取り消せませんでした。",
     "pushBodyWithSlot": "{{name}}さんが{{slot}}のお薬を飲みました。",
-    "fetchStatusError": "今日の服薬状況を読み込めませんでした。"
+    "fetchStatusError": "今日の服薬状況を読み込めませんでした。",
+    "pushBodyLate": "{{name}}さんが{{slot}}のお薬（{{time}}）を記録しました。"
   },
   "familyLinkHook": {
     "timeoutError": "リクエストがタイムアウトしました。少し経ってからもう一度お試しください。(timeout {{ms}}ms)",
@@ -2206,5 +2207,12 @@
     "monthDotDay": "{{month}}.{{day}}（{{weekday}}）",
     "secondsLeft": "{{s}}秒",
     "minutesSecondsLeft": "{{m}}分{{s}}秒"
+  },
+  "lateRecord": {
+    "title": "{{title}}を今記録しますか？",
+    "takenAtLabel": "飲んだ時刻",
+    "editTime": "変更",
+    "trackingSkipped": "時間が経ってからの記録なので、今回は薬効チェックのお知らせは届きません。",
+    "confirm": "記録する"
   }
 }

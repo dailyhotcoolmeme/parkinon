@@ -14,7 +14,7 @@ import { useAuth } from '../context/AuthContext';
 import { sendCaregiverPush, scheduleEffectTrackingNotifications } from '../utils/notifications';
 import { getLocalToday, getLocalDayRange } from '../utils/medUtils';
 import i18n from '../i18n';
-import { slotDisplayName } from '../constants/doseSlots';
+import { slotDisplayName, formatSlotTime } from '../constants/doseSlots';
 import { useSettings } from '../context/SettingsContext';
 import {
   useDoseSlots,
@@ -68,7 +68,7 @@ export interface UseMedicationReturn {
    *   방금 기록한 복용의 식별자를 호출처가 알아야 함.
    * - success=false 면 medLogId / doseSlotId 는 null.
    */
-  takeMedication: (args: { mealTime: MealTime | null; doseSlotId: string | null }) => Promise<{
+  takeMedication: (args: { mealTime: MealTime | null; doseSlotId: string | null; takenAtOverride?: string | null }) => Promise<{
     success: boolean;
     medLogId: string | null;
     doseSlotId: string | null;
@@ -293,7 +293,14 @@ export function useMedication(): UseMedicationReturn {
 
   // 복용 기록 저장 (5단계 dual-write)
   const takeMedication = useCallback(async (
-    args: { mealTime: MealTime | null; doseSlotId: string | null }
+    /*
+     * takenAtOverride — "늦게 기록" 경로에서만 넘어온다('HH:MM', 오늘 날짜 기준).
+     *   ±30분 창을 벗어나 기록할 때 사용자가 직접 고른 **실제 복용 시각**이다.
+     *   이 값이 있으면 taken_at 이 그 시각으로 저장되고, **약효추적은 걸지 않는다** —
+     *   어긋난 시각을 기준으로 추적이 돌면 추적 자료 자체가 못 믿을 게 되기 때문이다
+     *   (오너 결정 2026-08-15). created_at 은 그대로 '지금'이라 늦은 기록임이 데이터에 남는다.
+     */
+    args: { mealTime: MealTime | null; doseSlotId: string | null; takenAtOverride?: string | null }
   ): Promise<{ success: boolean; medLogId: string | null; doseSlotId: string | null; immediateTrack: boolean | null; trackEnabled: boolean | null; trackIntervals: number[] | null }> => {
     const mealTime = args.mealTime;
     // doseSlotId 보충: doseSlotId 없고 mealTime 만 오면(미이관 가능) legacyKey→slot.id 시도.
@@ -382,7 +389,20 @@ export function useMedication(): UseMedicationReturn {
 
       // ⚠️ medication_id 는 항상 NULL(슬롯 단위 기록).
       // measurements.med_intake_id→med_logs(id) FK 결합 주의: insert 는 1회만, 재생성 금지.
-      const nowIso = new Date().toISOString();
+      /*
+       * 늦게 기록: taken_at 은 사용자가 고른 시각(오늘 날짜 + HH:MM)으로 저장한다.
+       * ⚠️ 자정 직후에 전날 취침약을 남기는 경우가 있다 — 고른 시각이 지금보다 미래면
+       *    (예: 00:10 에 23:30 을 고름) 오늘이 아니라 **어제**로 잡아야 한다.
+       */
+      const isLateRecord = !!args.takenAtOverride;
+      const nowIso = (() => {
+        if (!args.takenAtOverride) return new Date().toISOString();
+        const [hh, mm] = args.takenAtOverride.split(':').map((v) => parseInt(v, 10));
+        const d = new Date();
+        d.setHours(hh, mm, 0, 0);
+        if (d.getTime() > Date.now()) d.setDate(d.getDate() - 1);
+        return d.toISOString();
+      })();
       const insertData: any = {
         patient_id: patientId,
         logged_by: user.id,
@@ -397,13 +417,23 @@ export function useMedication(): UseMedicationReturn {
       // effect_tracking_queue 가 med_log_id 기준 dedup 이라 약효추적 알림 중복도 자동 방지.
       // RPC 가 NULL(기존 없음)이거나 실패하면 기존대로 새로 insert.
       let medLogId: string | undefined;
-      const { data: overwrittenId, error: rpcError } = await (supabase.rpc as any)('upsert_med_log_time', {
-        p_patient_id: patientId,
-        p_dose_slot_id: doseSlotId,
-        p_meal_time: effectiveMealTime,
-        p_taken_at: nowIso,
-        p_logged_by: user.id,
-      });
+      /*
+       * ⚠️ upsert_med_log_time 은 **now() 기준 "오늘"** 안에서만 기존 기록을 찾아 덮어쓴다
+       *    (DB 함수 실물 확인 2026-08-15). 그래서 늦게 기록한 시각이 어제로 잡히는 경우
+       *    (00:10 에 전날 23:30 취침약을 남기는 등)에는 이 함수를 부르면 안 된다 —
+       *    엉뚱하게 "오늘" 기록을 찾아 어제 시각으로 덮어쓸 수 있다.
+       *    그 경우는 덮어쓸 대상이 아니므로 그냥 새로 넣는다.
+       */
+      const takenAtIsToday = new Date(nowIso).toDateString() === new Date().toDateString();
+      const { data: overwrittenId, error: rpcError } = takenAtIsToday
+        ? await (supabase.rpc as any)('upsert_med_log_time', {
+            p_patient_id: patientId,
+            p_dose_slot_id: doseSlotId,
+            p_meal_time: effectiveMealTime,
+            p_taken_at: nowIso,
+            p_logged_by: user.id,
+          })
+        : { data: null, error: null };
       if (!rpcError && overwrittenId) {
         medLogId = overwrittenId as string;
       } else {
@@ -416,6 +446,11 @@ export function useMedication(): UseMedicationReturn {
         medLogId = insertedLog?.id;
       }
 
+      /*
+       * ⚠️ 늦게 기록한 건은 여기에 남기지 않는다. 이 값은 약효추적의 trigger_time_label 을
+       *    자동 추정하는 데 쓰이므로, 몇 시간 전 복용이 "마지막 복용"으로 남으면 그 뒤의
+       *    몸상태 기록이 엉뚱한 추적 시점으로 분류된다(2026-08-15).
+       */
       // 복용 시각 AsyncStorage 저장 (약효 추적 trigger_time_label 추론용)
       // expires_at 추가: 마지막 약효추적 인터벌 + 30분 후 만료
       // → 이전 복용 데이터가 stale 상태로 살아남아 잘못된 자동 추정 트리거 방지
@@ -434,6 +469,7 @@ export function useMedication(): UseMedicationReturn {
           expires_at: new Date(expiresAtMs).toISOString(),
         })
       ).catch(() => {});
+      if (isLateRecord) await AsyncStorage.removeItem('parkinon_last_medication').catch(() => {});
 
       // DB INSERT 성공 후 알림/큐/뱃지 처리 — 복용 직후 팝업을 즉시 띄우기 위해
       // 느린 엣지함수 invoke 들을 await 하지 않고 백그라운드로 보낸다(복용 기록은 이미 저장됨).
@@ -449,7 +485,15 @@ export function useMedication(): UseMedicationReturn {
           soundId: n.soundId,
         }));
 
-        if (user?.push_token) {
+        if (isLateRecord) {
+          /*
+           * 늦게 기록 → 약효추적을 걸지 않는다. 추적은 "복용 시각 + 30분/2시간" 으로 이어지는데,
+           * 몇 시간 지난 복용에 지금부터 타이머를 걸면 전부 어긋난다. 막는 대신 기록은 남기고
+           * 추적만 빼는 것이 이번 변경의 핵심이다(오너 결정 2026-08-15).
+           * 사용자에게는 LateRecordSheet 가 미리 알린다 — 여기서 조용히 빠지면 고장으로 보인다.
+           */
+          console.log('[useMedication] late record - skipping effect tracking (queue + local fallback)');
+        } else if (user?.push_token) {
           if (doseSlotId) {
             // ⚠️ 신규 payload 는 dose_slot_id + med_log_id 가 반드시 쌍이어야 한다.
             //    medLogId 가 undefined 면 서버가 400(med_log_id required) → 절대 보내지 않음.
@@ -529,7 +573,19 @@ export function useMedication(): UseMedicationReturn {
             const takenSlotLabel = resolvedSlot
               ? slotDisplayName(resolvedSlot.label, resolvedSlot.legacyKey, resolvedSlot.time)
               : null;
-            const body = takenSlotLabel
+            /*
+             * 늦게 기록한 건은 문구를 구분한다(오너 결정 2026-08-15, 안 b).
+             * 저녁 7시에 "점심약을 드셨어요" 가 그대로 가면 보호자는 "지금 점심약을?" 로 읽는다.
+             * 복용 시각을 넣어 "언제 드신 걸 지금 기록했다" 로 읽히게 한다.
+             */
+            const takenTimeLabel = isLateRecord
+              ? formatSlotTime(
+                  `${String(new Date(nowIso).getHours()).padStart(2, '0')}:${String(new Date(nowIso).getMinutes()).padStart(2, '0')}`
+                )
+              : null;
+            const body = isLateRecord && takenSlotLabel
+              ? i18n.t('medicationHook.pushBodyLate', { name: patientName, slot: takenSlotLabel, time: takenTimeLabel })
+              : takenSlotLabel
               ? i18n.t('medicationHook.pushBodyWithSlot', { name: patientName, slot: takenSlotLabel })
               : i18n.t('medicationHook.pushBody', { name: patientName });
             for (const cu of caregiverUsers ?? []) {

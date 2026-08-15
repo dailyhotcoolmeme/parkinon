@@ -25,6 +25,7 @@ import { Colors } from '../../constants/colors';
 import { AdSlot } from '../../components/common/AdSlot';
 import { TopBar } from '../../components/common/TopBar';
 import { MealTimeModal } from './MealTimeModal';
+import { LateRecordSheet, type LateRecordTarget } from './LateRecordSheet';
 import { BodyStatePopupFlow } from '../bodystate/BodyStatePopupFlow';
 import { CaregiverConfirmModal } from '../../components/common/CaregiverConfirmModal';
 import { NOTIF_ONBOARDING_SHOWN_KEY } from '../../components/common/NotificationOnboardingModal';
@@ -58,6 +59,8 @@ import {
   formatSlotTime,
   slotTitle,
   slotSortValue,
+  slotDiffMinutes,
+  ON_TIME_WINDOW_MIN,
   type LegacyMealKey,
 } from '../../constants/doseSlots';
 
@@ -717,15 +720,9 @@ export function MedicationScreen() {
     //   handleMealTimeSelect/confirmAndRecordSlot 을 거치지 않고 바로 저장되던 경로.
     const autoTakeSlot = doseSlots.find((s) => s.id === sid);
     if (autoTakeSlot?.time) {
-      const slotMin = slotSortValue(autoTakeSlot.time);
-      const nowMin = new Date().getHours() * 60 + new Date().getMinutes();
-      if (Number.isFinite(slotMin) && Math.abs(nowMin - slotMin) > 30) {
-        const title = slotTitle(autoTakeSlot.label, autoTakeSlot.legacyKey, autoTakeSlot.time);
-        dialog.alert({
-          emoji: '⏰',
-          title: t('medication.wrongTimeTitle'),
-          message: t('medication.wrongTimeMsg', { label: title, time: formatMealTime(autoTakeSlot.time) }),
-        });
+      const diff = slotDiffMinutes(autoTakeSlot.time);
+      if (diff !== null && diff > ON_TIME_WINDOW_MIN) {
+        openLateRecord(autoTakeSlot, { mealTime: null, doseSlotId: sid });
         return;
       }
     }
@@ -773,7 +770,34 @@ export function MedicationScreen() {
     })();
   }, [routeParams.previewNextNotifSlotId, patientId, user?.role]);
 
-  const proceedSave = async (sel: { mealTime: MealTime | null; doseSlotId: string | null }) => {
+  /*
+   * "늦게 기록" 시트 상태. ±30분 창을 벗어난 기록 요청이 오면 차단하지 않고 여기로 보낸다.
+   *   sel 을 함께 들고 있다가, 사용자가 복용 시각을 확정하면 그대로 proceedSave 로 넘긴다.
+   */
+  const [lateRecord, setLateRecord] = useState<
+    { target: LateRecordTarget; sel: { mealTime: MealTime | null; doseSlotId: string | null } } | null
+  >(null);
+
+  const openLateRecord = (
+    slot: { id: string | null; label: string | null; legacyKey?: string | null; time: string; trackEnabled?: boolean },
+    sel: { mealTime: MealTime | null; doseSlotId: string | null }
+  ) => {
+    setLateRecord({
+      target: {
+        title: slotTitle(slot.label, (slot as any).legacyKey ?? null, slot.time),
+        slotTime: slot.time,
+        trackEnabled: slot.trackEnabled === true,
+      },
+      sel,
+    });
+  };
+
+  /*
+   * sel.takenAtOverride — "늦게 기록" 시트에서 고른 복용 시각('HH:MM').
+   *   ±30분 창을 벗어난 기록에서만 채워진다. 이 값이 있으면 taken_at 이 그 시각으로
+   *   저장되고 약효추적은 걸리지 않는다(useMedication 참고, 오너 결정 2026-08-15).
+   */
+  const proceedSave = async (sel: { mealTime: MealTime | null; doseSlotId: string | null; takenAtOverride?: string | null }) => {
     // ⚠️ 더블탭 방어(화면 단 in-flight 락): 이전 저장이 끝나기 전 두 번째 진입은 조용히 무시.
     //    (takeMedication 까지 가지 않으므로 "저장 실패" 오알림도 안 뜨고, 후속 팝업 중복도 차단.)
     if (proceedSaveInFlightRef.current) {
@@ -793,7 +817,7 @@ export function MedicationScreen() {
     //    requireSetup 의 미등록 안내 confirm 이 스피너 위에 적층되는 걸 피하기 위함.
     //    내리는 시점은 finally(성공/실패/throw 무관) — 후속 팝업은 onHidden 에서.
     setSaving(true);
-    const result = await takeMedication({ mealTime, doseSlotId });
+    const result = await takeMedication({ mealTime, doseSlotId, takenAtOverride: sel.takenAtOverride ?? null });
     if (!result.success) {
       // ⚠️ 에러 안내도 스피너 위에 적층하지 말 것 — pendingNextRef 에 담아 onHidden 에서 단독 표시.
       pendingNextRef.current = {
@@ -1038,14 +1062,9 @@ export function MedicationScreen() {
     //    약효추적 알림 시점도 함께 어긋나 신뢰성이 무너짐 — 늦은 실제 복용을 인정하는 대신
     //    아예 잘못된 시간대로 저장되는 걸 막는다.)
     if (selSlot?.time) {
-      const slotMin = slotSortValue(selSlot.time);
-      const nowMin = new Date().getHours() * 60 + new Date().getMinutes();
-      if (Number.isFinite(slotMin) && Math.abs(nowMin - slotMin) > 30) {
-        dialog.alert({
-          emoji: '⏰',
-          title: t('medication.wrongTimeTitle'),
-          message: t('medication.wrongTimeMsg', { label, time: formatMealTime(selSlot.time) }),
-        });
+      const diff = slotDiffMinutes(selSlot.time);
+      if (diff !== null && diff > ON_TIME_WINDOW_MIN) {
+        openLateRecord(selSlot, sel);
         return;
       }
     }
@@ -1114,14 +1133,9 @@ export function MedicationScreen() {
       //   물어놓고 나중에 거부하는 어색한 2단계를 없앤다. handleMealTimeSelect 의
       //   동일 검사가 수동 시간대 선택 경로까지 포함해 최종 방어선으로 남는다.
       if (selSlot.time) {
-        const slotMin = slotSortValue(selSlot.time);
-        const nowMin = new Date().getHours() * 60 + new Date().getMinutes();
-        if (Number.isFinite(slotMin) && Math.abs(nowMin - slotMin) > 30) {
-          dialog.alert({
-            emoji: '⏰',
-            title: t('medication.wrongTimeTitle'),
-            message: t('medication.wrongTimeMsg', { label: title, time: formatMealTime(selSlot.time) }),
-          });
+        const diff = slotDiffMinutes(selSlot.time);
+        if (diff !== null && diff > ON_TIME_WINDOW_MIN) {
+          openLateRecord(selSlot, { mealTime: null, doseSlotId: selSlot.id });
           return;
         }
       }
@@ -1549,6 +1563,16 @@ export function MedicationScreen() {
         onClose={() => setShowMealTimeModal(false)}
         mealSchedules={userMealSchedules}
         notifPrefs={notifPrefs}
+      />
+      {/* 늦게 기록 — ±30분 창을 벗어난 기록. 복용 시각을 받고, 약효추적은 걸지 않는다. */}
+      <LateRecordSheet
+        target={lateRecord?.target ?? null}
+        onCancel={() => setLateRecord(null)}
+        onConfirm={(takenTime) => {
+          const sel = lateRecord?.sel;
+          setLateRecord(null);
+          if (sel) void proceedSave({ ...sel, takenAtOverride: takenTime });
+        }}
       />
       <CaregiverConfirmModal
         visible={showCaregiverConfirm}

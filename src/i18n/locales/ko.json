@@ -1624,7 +1624,8 @@
     "saveError": "복용 기록 저장에 실패했어요.",
     "cancelError": "복용 기록을 취소하지 못했어요.",
     "pushBodyWithSlot": "{{name}}님이 {{slot}} 약을 드셨어요.",
-    "fetchStatusError": "복용 현황을 불러오지 못했어요."
+    "fetchStatusError": "복용 현황을 불러오지 못했어요.",
+    "pushBodyLate": "{{name}}님이 {{slot}} 약({{time}}) 기록을 남겼어요."
   },
   "familyLinkHook": {
     "timeoutError": "요청 시간이 초과됐어요. 잠시 후 다시 시도해주세요. (timeout {{ms}}ms)",
@@ -2206,5 +2207,12 @@
     "monthDotDay": "{{month}}.{{day}}({{weekday}})",
     "secondsLeft": "{{s}}초",
     "minutesSecondsLeft": "{{m}}분 {{s}}초"
+  },
+  "lateRecord": {
+    "title": "{{title}}을(를) 지금 기록할까요?",
+    "takenAtLabel": "복용하신 시각",
+    "editTime": "수정",
+    "trackingSkipped": "시간이 지나 기록하는 것이라, 이번에는 약효추적 알림이 오지 않습니다.",
+    "confirm": "기록하기"
   }
 }
