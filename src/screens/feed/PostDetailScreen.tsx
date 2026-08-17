@@ -255,6 +255,9 @@ export function PostDetailScreen() {
   const showCommentSkeleton = useDelayedFlag(commentsLoading);
   const [replyingTo, setReplyingTo] = useState<string | null>(null);
   const [submittingComment, setSubmittingComment] = useState(false);
+  const [editingCommentId, setEditingCommentId] = useState<string | null>(null);
+  const [editCommentText, setEditCommentText] = useState('');
+  const [savingCommentEdit, setSavingCommentEdit] = useState(false);
   const [mediaUrls, setMediaUrls] = useState<string[]>([]);
   const [deleting, setDeleting] = useState(false);
 
@@ -610,6 +613,74 @@ export function PostDetailScreen() {
     }
   };
 
+  // 댓글/대댓글 수정 시작 — 본문 Text를 TextInput으로 바꿔치기 (인라인 수정)
+  const handleCommentEditStart = (commentId: string, content: string) => {
+    setEditingCommentId(commentId);
+    setEditCommentText(content);
+  };
+
+  const handleCommentEditCancel = () => {
+    setEditingCommentId(null);
+    setEditCommentText('');
+  };
+
+  const handleCommentEditSave = async (commentId: string) => {
+    const trimmed = editCommentText.trim();
+    if (!trimmed) return;
+    setSavingCommentEdit(true);
+    try {
+      const { error } = await supabase
+        .from('comments')
+        .update({ content: trimmed })
+        .eq('id', commentId);
+      if (error) throw error;
+      setEditingCommentId(null);
+      setEditCommentText('');
+      await fetchComments();
+    } catch (e: any) {
+      await dialog.alert({ title: t('postDetail.errorTitle'), message: e.message ?? t('postDetail.commentEditFailMsg') });
+      console.error('[PostDetail] handleCommentEditSave 오류:', e);
+    } finally {
+      setSavingCommentEdit(false);
+    }
+  };
+
+  // 댓글/대댓글 삭제 (본인 작성분) — 대댓글이 딸린 댓글을 지우면 DB의 on delete cascade로 답글도 함께 삭제된다
+  const handleCommentDelete = async (commentId: string, hasReplies: boolean) => {
+    const ok = await dialog.confirm({
+      title: t('postDetail.commentDeleteConfirmTitle'),
+      message: hasReplies
+        ? t('postDetail.commentDeleteConfirmMsgWithReplies')
+        : t('postDetail.commentDeleteConfirmMsg'),
+      confirmText: t('postDetail.deleteConfirmBtn'),
+      cancelText: t('postDetail.cancel'),
+      destructive: true,
+    });
+    if (!ok) return;
+    try {
+      const { error } = await supabase
+        .from('comments')
+        .delete()
+        .eq('id', commentId);
+      if (error) throw error;
+      await fetchComments();
+      // posts 테이블 comment_count 동기화 (등록 때와 동일한 방식)
+      const { count: totalComments } = await supabase
+        .from('comments')
+        .select('id', { count: 'exact', head: true })
+        .eq('post_id', post.id);
+      if (totalComments != null) {
+        await supabase
+          .from('posts')
+          .update({ comment_count: totalComments })
+          .eq('id', post.id);
+      }
+    } catch (e: any) {
+      await dialog.alert({ title: t('postDetail.errorTitle'), message: e.message ?? t('postDetail.commentDeleteFailMsg') });
+      console.error('[PostDetail] handleCommentDelete 오류:', e);
+    }
+  };
+
   // 차단한 사용자의 댓글·대댓글 제외 (클라이언트 필터, OTA 안전)
   const visibleComments: CommentDisplay[] = comments
     .filter((c) => !blockedIds.has(c.authorId))
@@ -836,7 +907,40 @@ export function PostDetailScreen() {
                     <Text style={styles.commentAuthor}>{comment.author}</Text>
                     <Text style={styles.commentTime}>{comment.timeAgo}</Text>
                   </View>
-                  <Text style={styles.commentContent}>{comment.content}</Text>
+                  {editingCommentId === comment.id ? (
+                    <View>
+                      <TextInput
+                        style={styles.commentEditInput}
+                        value={editCommentText}
+                        onChangeText={setEditCommentText}
+                        multiline
+                        maxLength={500}
+                        autoFocus
+                      />
+                      <View style={styles.commentEditActionRow}>
+                        <TouchableOpacity
+                          style={styles.commentEditCancelBtn}
+                          onPress={handleCommentEditCancel}
+                          activeOpacity={0.85}
+                        >
+                          <Text style={styles.commentEditCancelText}>{t('postDetail.cancel')}</Text>
+                        </TouchableOpacity>
+                        <TouchableOpacity
+                          style={[
+                            styles.commentEditSaveBtn,
+                            (!editCommentText.trim() || savingCommentEdit) && styles.commentSubmitDisabled,
+                          ]}
+                          onPress={() => handleCommentEditSave(comment.id)}
+                          disabled={!editCommentText.trim() || savingCommentEdit}
+                          activeOpacity={0.85}
+                        >
+                          <Text style={styles.commentEditSaveText}>{t('postDetail.commentEditSave')}</Text>
+                        </TouchableOpacity>
+                      </View>
+                    </View>
+                  ) : (
+                    <Text style={styles.commentContent}>{comment.content}</Text>
+                  )}
                   <View style={styles.commentActions}>
                     <TouchableOpacity
                       style={styles.actionBtn}
@@ -855,7 +959,28 @@ export function PostDetailScreen() {
                         {replyingTo === comment.id ? t('postDetail.replyCancel') : t('postDetail.replyAction')}
                       </Text>
                     </TouchableOpacity>
-                    {!commentIsOwner && (
+                    {commentIsOwner ? (
+                      <>
+                        <TouchableOpacity
+                          style={styles.actionBtn}
+                          onPress={() => handleCommentEditStart(comment.id, comment.content)}
+                        >
+                          <View style={styles.actionRow}>
+                            <Ionicons name="create-outline" size={16} color={Colors.textSub} />
+                            <Text style={styles.actionText}>{t('postDetail.edit')}</Text>
+                          </View>
+                        </TouchableOpacity>
+                        <TouchableOpacity
+                          style={styles.actionBtn}
+                          onPress={() => handleCommentDelete(comment.id, comment.replies.length > 0)}
+                        >
+                          <View style={styles.actionRow}>
+                            <Ionicons name="trash-outline" size={16} color={Colors.danger} />
+                            <Text style={[styles.actionText, { color: Colors.danger }]}>{t('postDetail.delete')}</Text>
+                          </View>
+                        </TouchableOpacity>
+                      </>
+                    ) : (
                       <TouchableOpacity
                         style={styles.actionBtn}
                         onPress={() => handleCommentMoreOther(comment.id, comment.authorId, comment.author)}
@@ -880,7 +1005,40 @@ export function PostDetailScreen() {
                         <Text style={styles.commentAuthor}>{reply.author}</Text>
                         <Text style={styles.commentTime}>{reply.timeAgo}</Text>
                       </View>
-                      <Text style={styles.commentContent}>{reply.content}</Text>
+                      {editingCommentId === reply.id ? (
+                        <View>
+                          <TextInput
+                            style={styles.commentEditInput}
+                            value={editCommentText}
+                            onChangeText={setEditCommentText}
+                            multiline
+                            maxLength={500}
+                            autoFocus
+                          />
+                          <View style={styles.commentEditActionRow}>
+                            <TouchableOpacity
+                              style={styles.commentEditCancelBtn}
+                              onPress={handleCommentEditCancel}
+                              activeOpacity={0.85}
+                            >
+                              <Text style={styles.commentEditCancelText}>{t('postDetail.cancel')}</Text>
+                            </TouchableOpacity>
+                            <TouchableOpacity
+                              style={[
+                                styles.commentEditSaveBtn,
+                                (!editCommentText.trim() || savingCommentEdit) && styles.commentSubmitDisabled,
+                              ]}
+                              onPress={() => handleCommentEditSave(reply.id)}
+                              disabled={!editCommentText.trim() || savingCommentEdit}
+                              activeOpacity={0.85}
+                            >
+                              <Text style={styles.commentEditSaveText}>{t('postDetail.commentEditSave')}</Text>
+                            </TouchableOpacity>
+                          </View>
+                        </View>
+                      ) : (
+                        <Text style={styles.commentContent}>{reply.content}</Text>
+                      )}
                       <View style={styles.commentActions}>
                         <TouchableOpacity
                           style={styles.actionBtn}
@@ -891,7 +1049,28 @@ export function PostDetailScreen() {
                             <Text style={styles.actionText}>{reply.likeCount}</Text>
                           </View>
                         </TouchableOpacity>
-                        {!replyIsOwner && (
+                        {replyIsOwner ? (
+                          <>
+                            <TouchableOpacity
+                              style={styles.actionBtn}
+                              onPress={() => handleCommentEditStart(reply.id, reply.content)}
+                            >
+                              <View style={styles.actionRow}>
+                                <Ionicons name="create-outline" size={16} color={Colors.textSub} />
+                                <Text style={styles.actionText}>{t('postDetail.edit')}</Text>
+                              </View>
+                            </TouchableOpacity>
+                            <TouchableOpacity
+                              style={styles.actionBtn}
+                              onPress={() => handleCommentDelete(reply.id, false)}
+                            >
+                              <View style={styles.actionRow}>
+                                <Ionicons name="trash-outline" size={16} color={Colors.danger} />
+                                <Text style={[styles.actionText, { color: Colors.danger }]}>{t('postDetail.delete')}</Text>
+                              </View>
+                            </TouchableOpacity>
+                          </>
+                        ) : (
                           <TouchableOpacity
                             style={styles.actionBtn}
                             onPress={() => handleCommentMoreOther(reply.id, reply.authorId, reply.author)}
@@ -1143,6 +1322,40 @@ const styles = StyleSheet.create({
   commentTime: { fontSize: 13, color: '#AAAAAA' },
   // 내용은 반대로 더 진하게 — 작성자(#888)와 확실히 갈리게 한다.
   commentContent: { fontSize: 17, color: '#111111', lineHeight: 27, marginBottom: 10 },
+  // 댓글 인라인 수정 — Text 자리에 그대로 끼워 넣는 TextInput + 저장/취소 버튼 행
+  commentEditInput: {
+    fontSize: 17,
+    color: '#111111',
+    lineHeight: 24,
+    backgroundColor: '#F5F5F5',
+    borderRadius: 10,
+    borderWidth: 1,
+    borderColor: Colors.border,
+    paddingHorizontal: 12,
+    paddingVertical: 10,
+    marginBottom: 8,
+    maxHeight: 120,
+  },
+  commentEditActionRow: { flexDirection: 'row', gap: 8, marginBottom: 10 },
+  commentEditCancelBtn: {
+    paddingHorizontal: 16,
+    paddingVertical: 8,
+    borderRadius: 8,
+    borderWidth: 1.5,
+    borderColor: Colors.border,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  commentEditCancelText: { fontSize: 15, fontWeight: '600', color: Colors.textSub },
+  commentEditSaveBtn: {
+    paddingHorizontal: 16,
+    paddingVertical: 8,
+    borderRadius: 8,
+    backgroundColor: Colors.primary,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  commentEditSaveText: { fontSize: 15, fontWeight: '700', color: Colors.white },
   commentActions: { flexDirection: 'row', gap: 18 },
   actionBtn: { paddingVertical: 2 },
   actionRow: { flexDirection: 'row', alignItems: 'center', gap: 5 },
