@@ -95,6 +95,38 @@ const markdownStyles = {
      여기서도 명시한다. 표는 줄이 길어지므로 행간만 본문(30)보다 조금 좁게 둔다. */
   table_cell_text: { fontSize: 18, color: '#222222', lineHeight: 26 },
 };
+
+/*
+ * 표의 **첫 번째 열만 가운데 정렬**한다(오너 지시 2026-08-25). 첫 열은 "종류"처럼 짧은
+ * 분류명이 들어가는 자리라, 왼쪽 정렬이면 넓은 셀 안에서 글자가 한쪽에 몰려 보인다.
+ *
+ * ⚠️ 마크다운 정렬 문법(`|:---:|`)으로는 안 된다 — react-native-markdown-display 7.0.2 의
+ *   td 렌더러가 정렬 정보를 아예 읽지 않는다(renderRules.js 확인). 그래서 렌더 규칙을
+ *   직접 덮어써서 같은 행 안에서 몇 번째 칸인지로 판단한다.
+ */
+const isFirstCellInRow = (node: any, parent: any[]) => {
+  const row = parent?.[0];
+  return Array.isArray(row?.children) && row.children[0]?.key === node.key;
+};
+
+const newsMarkdownRules = {
+  th: (node: any, children: React.ReactNode, parent: any[], styles: any) => (
+    <View
+      key={node.key}
+      style={[styles._VIEW_SAFE_th, isFirstCellInRow(node, parent) && { alignItems: 'center' }]}
+    >
+      {children}
+    </View>
+  ),
+  td: (node: any, children: React.ReactNode, parent: any[], styles: any) => (
+    <View
+      key={node.key}
+      style={[styles._VIEW_SAFE_td, isFirstCellInRow(node, parent) && { alignItems: 'center' }]}
+    >
+      {children}
+    </View>
+  ),
+};
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useRoute, useNavigation, useFocusEffect } from '@react-navigation/native';
 import type { NativeStackScreenProps, NativeStackNavigationProp } from '@react-navigation/native-stack';
@@ -827,14 +859,14 @@ export function PostDetailScreen() {
                 히어로 이미지는 "소식 1"과 "소식 2" 사이에 끼워 넣는다(구분선 없는 단일 소재 글은 뒤에). */}
             {post.isNews ? (
               <>
-                <Markdown style={markdownStyles}>{newsBodyBeforeHero}</Markdown>
+                <Markdown style={markdownStyles} rules={newsMarkdownRules}>{newsBodyBeforeHero}</Markdown>
                 {newsHeroSplitIdx >= 0 && (
                   <View style={styles.newsHeroImageWrap}>
                     <ImageGalleryViewer urls={mediaUrls} publicCommunity imageAspectRatio={16 / 9} />
                   </View>
                 )}
                 {newsBodyAfterHero !== '' && (
-                  <Markdown style={markdownStyles}>{newsBodyAfterHero}</Markdown>
+                  <Markdown style={markdownStyles} rules={newsMarkdownRules}>{newsBodyAfterHero}</Markdown>
                 )}
               </>
             ) : (
