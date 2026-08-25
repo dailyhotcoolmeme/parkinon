@@ -73,6 +73,27 @@ const markdownStyles = {
   // 소재 구분선(---) — 기본값은 위아래 여백이 거의 없어 다음 "소식 N" 라벨이 선에 붙어
   // 보였다(오너 지적 2026-08-10). 웹의 story-head 구분선(위 48px·아래 32px)과 비슷하게.
   hr: { backgroundColor: '#E0E0E0', height: 2, marginTop: 32, marginBottom: 20 },
+
+  /*
+   * 표 — 라이브러리 기본값에는 글자 크기가 없어서 본문(18sp)보다 작게 나오고 셀 여백도 거의
+   * 없다(오너 지적 2026-08-25: "표는 저게 디자인이 맞냐? 왜이리 별로지?" — 소식 #8 재활 3종 표).
+   * 웹 본문 표(.article-body table: 머리행 회색 배경·굵게, 셀 padding 12/14, 위 정렬)와
+   * 같은 얼굴로 맞추되, 크기는 60대 타깃 기준으로 본문과 같은 18sp 를 쓴다.
+   */
+  table: {
+    borderWidth: 1,
+    borderColor: '#E0E0E0',
+    borderRadius: 8,
+    overflow: 'hidden' as const,
+    marginVertical: 14,
+  },
+  thead: { backgroundColor: '#F5F5F5' },
+  th: { fontWeight: '700' as const, color: '#555555' },
+  tr: { borderBottomWidth: 1, borderColor: '#E0E0E0', flexDirection: 'row' as const },
+  td: { flex: 1, padding: 12 },
+  /* 셀 안 글자 — td 에 fontSize 를 줘도 안쪽 텍스트에 안 먹는 경우가 있어 body 와 같은 값을
+     여기서도 명시한다. 표는 줄이 길어지므로 행간만 본문(30)보다 조금 좁게 둔다. */
+  table_cell_text: { fontSize: 18, color: '#222222', lineHeight: 26 },
 };
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useRoute, useNavigation, useFocusEffect } from '@react-navigation/native';
