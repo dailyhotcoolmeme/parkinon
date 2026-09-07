@@ -29,6 +29,10 @@
 
 **`/Users/ourmine/dev/parkinon-web`** — 이 저장소(`parkinon-app`) 안이 아니다.
 
+🚨🚨 **소식 발행·네이버 카페 게시·번역 대기 처리 같은 "2일마다 도는 반복 업무"를 시키면
+먼저 `parkinon-web/docs/routine-ops.md` 를 읽어라.** 지금 뭐가 밀려 있는지부터 배포
+명령까지 순서대로 정리돼 있다(2026-09-07 작성, 클로드 코드→코덱스 인계용).
+
 웹사이트 얘기가 나오면 **먼저 `parkinon-web/docs/website-plan.md` 를 읽어라.**
 (코드를 만질 거면 짝 문서 `parkinon-web/docs/site-implementation.md` 도 같이 읽는다.)
 목적·구조·콘텐츠 축·확정 사항·미결 목록이 전부 거기 있다. 추측하거나 새로 제안하기 전에
